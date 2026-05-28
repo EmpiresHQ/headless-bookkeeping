@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      target: production
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+
+  test:
+    build:
+      context: .
+      target: test
+    command: ["npm", "run", "test"]
+    environment:
+      - NODE_ENV=test
