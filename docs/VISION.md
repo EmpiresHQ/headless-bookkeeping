@@ -1,5 +1,7 @@
 # AI-Native Headless Accounting OS — Handoff
 
+> **Status: original handoff, preserved as-is.** This is the starting-point brief. Where it conflicts with later decisions, the authoritative sources are [`CONTEXT.md`](../CONTEXT.md) (glossary) and [`docs/adr/`](./adr/) (decisions). Known divergences are flagged inline below; this document is intentionally not rewritten so the origin record stays intact.
+
 ## Vision
 
 Not an ERP.
@@ -183,6 +185,8 @@ Capabilities:
 
 NO approvals.
 
+> **Superseded by ADR-0016.** Email *can* carry action/approval, committed via a confirmation loop ("YES" / re-ask) gated by an email whitelist + DKIM/SPF (approver ⊆ whitelist). Ingest stays open to any sender; only conversation/commands are whitelisted.
+
 ### Google Drive Watcher
 
 Capabilities:
@@ -271,6 +275,8 @@ Routes directly to review resolver.
 
 ### Entity Model
 
+> **Superseded by ADR-0002 & ADR-0014.** A Supplier never stores a `vat_code` — the country plugin resolves it from the Organization's context. And `default_category` is not a deterministic default: classification is decided per line item by the LLM, with supplier history as *context* only. Suppliers store intrinsic facts (country, goods/services, aliases) anchored on a strong key (CVR/VAT), plus classification memory.
+
 Minimal.
 
 ```json
@@ -302,6 +308,8 @@ Suppliers act as AI/accounting memory.
 ```
 
 Reduces LLM calls.
+
+> **Superseded by ADR-0014.** Memory does *not* skip LLM calls — classification calls the LLM on every line item (per-supplier shortcuts are error-prone). Supplier memory is fed as *context/prior* to improve accuracy, not to avoid the call. The `default_category`/`default_vat_code` here are classification memory, not deterministic defaults; a Supplier never stores a `vat_code` (ADR-0002).
 
 ### Semantic Categories
 
@@ -517,6 +525,8 @@ SQLite ledger remains source of truth.
 - DevAgent
 
 Separate capabilities.
+
+> **Superseded by ADR-0018.** The architecture is **five** agents — add **SecretaryAgent**, the only proactive, user-facing agent (cron-driven, working-hours-gated, read-only) that chases the severity-ranked AuditFinding queue. AuditAgent writes findings (with severity); SecretaryAgent does the outreach. DevAgent is off by default.
 
 ### Tool Architecture
 
