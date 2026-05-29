@@ -43,6 +43,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 16 # backstop; the agent step itself is capped at 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Inline PR-review comments → check out the PR head so the agent edits
+          # the PR's code. Issues / plain comments → empty ref → default branch
+          # (main). The agent reads/edits files locally; commits go via the API.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -96,6 +103,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 16 # backstop; the agent step itself is capped at 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Inline PR-review comments → check out the PR head so the agent edits
+          # the PR's code. Issues / plain comments → empty ref → default branch
+          # (main). The agent reads/edits files locally; commits go via the API.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -151,6 +165,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 16 # backstop; the agent step itself is capped at 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Inline PR-review comments → check out the PR head so the agent edits
+          # the PR's code. Issues / plain comments → empty ref → default branch
+          # (main). The agent reads/edits files locally; commits go via the API.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
