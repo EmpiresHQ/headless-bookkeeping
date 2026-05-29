@@ -125,7 +125,7 @@ export class PostingService {
       .selectFrom('voucher')
       .selectAll()
       .where('posted_at', 'is not', null)
-      .orderBy('id desc')
+      .orderBy('id', 'desc')
       .limit(1)
       .executeTakeFirst();
     if (!prev) return GENESIS_HASH;
