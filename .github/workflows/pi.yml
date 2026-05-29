@@ -41,7 +41,7 @@ jobs:
       contains(github.event.comment.body, '@pi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
-    timeout-minutes: 16 # backstop; the agent step itself is capped at 15
+    timeout-minutes: 20 # backstop (checkout + npm ci + 15-min agent step + summary)
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -54,6 +54,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        # Give the agent a real environment so it can run tsc / eslint / tests
+        # to verify its edits. Non-fatal: a bad install shouldn't block the agent.
+        run: npm ci
+        continue-on-error: true
       - name: Run pi coding agent
         id: agent
         timeout-minutes: 15 # kill a hung/runaway agent so it can't burn Actions minutes
@@ -101,7 +107,7 @@ jobs:
       contains(github.event.comment.body, '@superpi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
-    timeout-minutes: 16 # backstop; the agent step itself is capped at 15
+    timeout-minutes: 20 # backstop (checkout + npm ci + 15-min agent step + summary)
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -114,6 +120,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        # Give the agent a real environment so it can run tsc / eslint / tests
+        # to verify its edits. Non-fatal: a bad install shouldn't block the agent.
+        run: npm ci
+        continue-on-error: true
       - name: Run pi coding agent
         id: agent
         timeout-minutes: 15 # kill a hung/runaway agent so it can't burn Actions minutes
@@ -163,7 +175,7 @@ jobs:
       contains(github.event.comment.body, '@cheapi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
-    timeout-minutes: 16 # backstop; the agent step itself is capped at 15
+    timeout-minutes: 20 # backstop (checkout + npm ci + 15-min agent step + summary)
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -176,6 +188,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        # Give the agent a real environment so it can run tsc / eslint / tests
+        # to verify its edits. Non-fatal: a bad install shouldn't block the agent.
+        run: npm ci
+        continue-on-error: true
       - name: Run pi coding agent
         id: agent
         timeout-minutes: 15 # kill a hung/runaway agent so it can't burn Actions minutes
