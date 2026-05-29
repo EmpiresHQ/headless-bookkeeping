@@ -55,6 +55,12 @@ describe('NullCountryPlugin', () => {
     });
   });
 
+  describe('getDefaultBaseCurrency', () => {
+    it('should return "EUR" as the neutral default', () => {
+      expect(plugin.getDefaultBaseCurrency()).toBe('EUR');
+    });
+  });
+
   describe('validateVATCode', () => {
     it('should return true for "NULL_STANDARD"', () => {
       expect(plugin.validateVATCode('NULL_STANDARD', {})).toBe(true);
@@ -94,6 +100,15 @@ describe('PluginLoader', () => {
     it('should return NullCountryPlugin for "null"', () => {
       const result = loader.resolve('null');
       expect(result.getName()).toBe('null');
+    });
+
+    it('should fail loud when no default plugin is available', () => {
+      const brokenLoader = new PluginLoader(
+        undefined as unknown as NullCountryPlugin,
+      );
+      expect(() => brokenLoader.resolve('DK')).toThrow(
+        /no default country plugin/i,
+      );
     });
   });
 });

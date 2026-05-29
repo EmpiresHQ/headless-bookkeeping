@@ -9,8 +9,8 @@ describe('OrganizationController', () => {
 
   const defaultOrg: Organization = {
     id: 1,
-    country: 'DK',
-    base_currency: 'DKK',
+    country: 'IE',
+    base_currency: null,
     vat_registered: false,
     created_at: 1700000000,
   };
@@ -43,8 +43,8 @@ describe('OrganizationController', () => {
       const result = await controller.getOrganization();
 
       expect(result).toEqual(defaultOrg);
-      expect(result.country).toBe('DK');
-      expect(result.base_currency).toBe('DKK');
+      expect(result.country).toBe('IE');
+      expect(result.base_currency).toBeNull();
       expect(result.vat_registered).toBe(false);
       expect(mockService.getOrganization).toHaveBeenCalledTimes(1);
     });
@@ -101,7 +101,7 @@ describe('OrganizationController', () => {
       });
 
       expect(result.country).toBe('NO');
-      expect(result.base_currency).toBe('DKK');
+      expect(result.base_currency).toBeNull();
       expect(result.vat_registered).toBe(false);
     });
   });
@@ -109,7 +109,9 @@ describe('OrganizationController', () => {
   describe('singleton constraint', () => {
     it('should reject update when singleton constraint is violated', async () => {
       mockService.updateOrganization.mockRejectedValue(
-        new ConflictException('Expected exactly 1 organization record, found 0'),
+        new ConflictException(
+          'Expected exactly 1 organization record, found 0',
+        ),
       );
 
       await expect(

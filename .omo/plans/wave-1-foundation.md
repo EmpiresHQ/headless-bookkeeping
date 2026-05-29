@@ -3,6 +3,14 @@
 ## Overview
 This wave establishes the database infrastructure, organizational context, plugin architecture, currency services, and deployment health checks. Nothing in this wave is domain-specific — it's pure scaffolding that all subsequent waves depend on.
 
+> **Implementation deviations (post-review, reconciled with ADRs).** During review the following decisions were taken and are now authoritative (see ADR-0002, ADR-0004):
+> - **Base currency is sourced from the country plugin, not the Organization.** `CountryPlugin.getDefaultBaseCurrency()` is the origin; `Organization.base_currency` is a **nullable override** (`NULL` = inherit). Resolution: `org.base_currency ?? pluginLoader.resolve(org.country).getDefaultBaseCurrency()`.
+> - **Default organization is Ireland**, no override: `country='IE'`, `base_currency=NULL` → resolves to `EUR`. (Replaces the original DK/DKK default.)
+> - **The default country plugin returns `EUR`**; `PluginLoader` fails loud if no default plugin is available.
+> - **Singleton enforced at the DB**: `organization.id` is `INTEGER PRIMARY KEY CHECK (id = 1)`, seeded with `id=1`.
+> - **Schema lives only in the migration.** `OrganizationService` does NOT create tables on init (the original implementation had reintroduced an ad-hoc `CREATE TABLE`; removed).
+> - **Health lives in a dedicated `HealthController`**; the demo `AppController`/`AppService` (`/`, `/users`) were deleted.
+
 ## Prerequisites
 - None (starts immediately)
 
@@ -104,7 +112,7 @@ This wave establishes the database infrastructure, organizational context, plugi
   - Single-row constraint: only one Organization record ever (singleton pattern)
   - `GET /api/organization` returns the singleton record
   - `PUT /api/organization` updates the singleton (only country, base_currency, vat_registered are mutable)
-  - Seed default Organization on first migration (country='DK', base_currency='DKK', vat_registered=false)
+  - Seed default Organization on first migration (country='IE', base_currency=NULL → resolves to EUR via the country plugin, vat_registered=false). `base_currency` is a nullable override.
   - Types: `src/organization/types.ts` defining Organization interface
   - Service: `src/organization/organization.service.ts` with `getOrganization()`, `updateOrganization()`
   - Controller: `src/organization/organization.controller.ts` with GET/PUT endpoints
@@ -134,9 +142,9 @@ This wave establishes the database infrastructure, organizational context, plugi
   - ADR-0003: Single-tenant mono-structure — "Organization is implicit, no org_id"
 
   **Acceptance Criteria**:
-  - [ ] `GET /api/organization` returns `{ country: "DK", base_currency: "DKK", vat_registered: false }` on fresh DB
-  - [ ] `PUT /api/organization` with `{ country: "DE", base_currency: "EUR" }` updates and returns updated record
-  - [ ] Attempting to create a second organization row is rejected (constraint or code check)
+  - [ ] `GET /api/organization` returns `{ id: 1, country: "IE", base_currency: null, vat_registered: false }` on fresh DB
+  - [ ] `PUT /api/organization` with `{ country: "DE", base_currency: "EUR" }` updates and returns updated record; `{ base_currency: null }` clears the override
+  - [ ] Attempting to create a second organization row is rejected at the DB (PK `CHECK (id = 1)`)
   - [ ] Tests pass: `organization.controller.spec.ts`
 
   **QA Scenarios**:
@@ -180,6 +188,7 @@ This wave establishes the database infrastructure, organizational context, plugi
     - `resolveCategoryMapping(category: string, supplierContext: any): { account: string, vatCode: string }`
     - `getPeriodFrequencyOptions(): string[]`
     - `getDefaultPeriodFrequency(): string`
+    - `getDefaultBaseCurrency(): string` — the jurisdiction's default base currency (ADR-0004)
     - `validateVATCode(vatCode: string, context: any): boolean`
   - Create `NullCountryPlugin` stub in `src/plugins/null-country.plugin.ts` implementing the interface with safe defaults
   - Create `PluginLoader` service in `src/plugins/plugin-loader.service.ts` that resolves plugin by country code from Organization config
@@ -210,7 +219,8 @@ This wave establishes the database infrastructure, organizational context, plugi
   **Acceptance Criteria**:
   - [ ] `NullCountryPlugin.getName()` returns `"null"`
   - [ ] `NullCountryPlugin.resolveCategoryMapping("software", {})` returns `{ account: "EXPENSE_SOFTWARE", vatCode: "NULL_STANDARD" }`
-  - [ ] `PluginLoader.resolve("DK")` returns a CountryPlugin instance
+  - [ ] `NullCountryPlugin.getDefaultBaseCurrency()` returns `"EUR"`
+  - [ ] `PluginLoader.resolve("DK")` returns a CountryPlugin instance; with no default plugin available it throws (fail-loud)
   - [ ] Tests pass: `plugin-loader.service.spec.ts`
 
   **QA Scenarios**:
@@ -249,8 +259,8 @@ This wave establishes the database infrastructure, organizational context, plugi
 
   **What to do**:
   - Create `src/currency/` module
-  - `CurrencyService` with methods: `getBaseCurrency(): string`, `convertToBase(amount: number, currency: string, rate: number): number`
-  - Base currency is read from Organization singleton config
+  - `CurrencyService` with methods: `getBaseCurrency(): Promise<string>`, `convertToBase(amount: number, currency: string, rate: number): number`
+  - Base currency is resolved as `org.base_currency ?? pluginLoader.resolve(org.country).getDefaultBaseCurrency()` (ADR-0004) — the plugin is the source, the Organization an optional override
   - FX rate stub: `FXRateService` with `getRate(fromCurrency: string, toCurrency: string): number` — returns hardcoded rates for testing (DKK→USD: 0.14, USD→DKK: 7.14, DKK→EUR: 0.134, EUR→DKK: 7.46)
   - In production, this would call an external API; for now, hardcoded rates with a TODO comment
   - Write tests for currency conversion and FX rate lookup
@@ -277,10 +287,10 @@ This wave establishes the database infrastructure, organizational context, plugi
   - ADR-0004: "Realized FX gain/loss is always computed in the kernel"
 
   **Acceptance Criteria**:
-  - [ ] `CurrencyService.getBaseCurrency()` returns Organization's base_currency (e.g., "DKK")
+  - [ ] `CurrencyService.getBaseCurrency()` resolves the IE seed (no override) to `"EUR"` via the plugin; an explicit `base_currency` override takes precedence
   - [ ] `CurrencyService.convertToBase(100, "USD", 7.14)` returns `714`
   - [ ] `FXRateService.getRate("USD", "DKK")` returns `7.14`
-  - [ ] Tests pass: `currency.service.spec.ts`
+  - [ ] Tests pass: `currency.service.spec.ts` + integration `currency.resolution.spec.ts`
 
   **QA Scenarios**:
 

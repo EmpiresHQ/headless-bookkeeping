@@ -30,7 +30,7 @@ class MigrationRunner implements OnModuleInit {
     if (error) {
       console.error('failed to migrate');
       console.error(error);
-      throw error;
+      throw error instanceof Error ? error : new Error('Migration failed');
     }
   }
 }

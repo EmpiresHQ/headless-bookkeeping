@@ -51,7 +51,10 @@ export interface CountryPlugin {
    * @param supplierContext - Supplier intrinsic facts + classification memory
    * @returns Resolved account + VAT code
    */
-  resolveCategoryMapping(category: string, supplierContext: unknown): CategoryMappingResult;
+  resolveCategoryMapping(
+    category: string,
+    supplierContext: unknown,
+  ): CategoryMappingResult;
 
   /**
    * Returns the available reporting period frequency options for this country.
@@ -64,6 +67,17 @@ export interface CountryPlugin {
    * e.g. "quarterly"
    */
   getDefaultPeriodFrequency(): string;
+
+  /**
+   * Returns the default base (reporting) currency for this country.
+   *
+   * The country plugin is the source of the base currency; the Organization
+   * may override it (see ADR-0004). When an Organization has no explicit
+   * base_currency override, this value is used.
+   *
+   * e.g. an Irish plugin returns "EUR", a Danish plugin "DKK".
+   */
+  getDefaultBaseCurrency(): string;
 
   /**
    * Validates whether a VAT code is applicable in a given context.

@@ -1,22 +1,27 @@
-import { Injectable, Inject } from '@nestjs/common';
-
-/**
- * Injection token for the Organization's base currency configuration.
- * In production, this would be resolved from the Organization entity in the database.
- */
-export const ORG_BASE_CURRENCY = 'ORG_BASE_CURRENCY';
+import { Injectable } from '@nestjs/common';
+import { OrganizationService } from '../organization/organization.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
 
 @Injectable()
 export class CurrencyService {
   constructor(
-    @Inject(ORG_BASE_CURRENCY) private readonly baseCurrency: string,
+    private readonly organizationService: OrganizationService,
+    private readonly pluginLoader: PluginLoader,
   ) {}
 
   /**
-   * Returns the Organization's base currency (e.g., "DKK").
+   * Resolves the Organization's effective base currency.
+   *
+   * Resolution order (ADR-0004):
+   *   1. The Organization's explicit base_currency override, if set.
+   *   2. Otherwise the country plugin's default base currency.
    */
-  getBaseCurrency(): string {
-    return this.baseCurrency;
+  async getBaseCurrency(): Promise<string> {
+    const org = await this.organizationService.getOrganization();
+    if (org.base_currency) {
+      return org.base_currency;
+    }
+    return this.pluginLoader.resolve(org.country).getDefaultBaseCurrency();
   }
 
   /**

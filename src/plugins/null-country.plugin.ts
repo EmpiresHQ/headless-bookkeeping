@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { CategoryMappingResult, CountryPlugin, VATCode } from './country-plugin.interface';
+import {
+  CategoryMappingResult,
+  CountryPlugin,
+  VATCode,
+} from './country-plugin.interface';
 
 /**
  * NullCountryPlugin - A stub implementation of CountryPlugin that returns safe defaults.
@@ -20,7 +24,10 @@ export class NullCountryPlugin implements CountryPlugin {
     return ['NULL_STANDARD'];
   }
 
-  resolveCategoryMapping(category: string, _supplierContext: unknown): CategoryMappingResult {
+  resolveCategoryMapping(
+    category: string,
+    _supplierContext: unknown,
+  ): CategoryMappingResult {
     // Safe default: map any category to a generic expense account with the null VAT code.
     // The "software" case is explicitly handled as specified.
     if (category === 'software') {
@@ -40,6 +47,12 @@ export class NullCountryPlugin implements CountryPlugin {
 
   getDefaultPeriodFrequency(): string {
     return 'yearly';
+  }
+
+  getDefaultBaseCurrency(): string {
+    // Neutral default for an unknown country. A real country plugin
+    // (e.g. a Danish plugin) overrides this with its national currency.
+    return 'EUR';
   }
 
   validateVATCode(vatCode: string, _context: unknown): boolean {
