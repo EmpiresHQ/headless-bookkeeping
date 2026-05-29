@@ -33,12 +33,15 @@ The Wave-2 review (and a grill-with-docs session) found that the ledger's core i
 Polish that is NOT load-bearing rides into the Wave-3 prologue (see `wave-3-pipeline.md`): Zod `ValidationPipe` + 400/409 error contract, efficiency (codes-`IN` account query, batch line insert, FK index), `is_system` comment fix, `mapRow` dedup.
 
 ## TODOs
-See the detailed plan. Execute tasks **H1 → H7 in order** (H1 first — test fidelity is the precondition for trusting every DB-invariant test below it).
 
-- [ ] H1. Restore test fidelity (real migrations + FK pragma)
-- [ ] H2. Per-line CHECK constraints + single `FX_GAIN_LOSS` seed
-- [ ] H3. Posted-voucher immutability triggers
-- [ ] H4. Validation: base_amount / fx_rate sign + account-currency match
-- [ ] H5. Demote repositories to read-only (posting = sole writer)
-- [ ] H6. Wire the hash chain
-- [ ] H7. Full gate + e2e + evidence
+> **FORMAT**: Task labels use bare numbers (`1.`, `2.`, …) so omo parses them as `todo:N` — NOT `H1.`/`Task 1.`. This is a standalone work; numbering is local to this plan. Each number below maps 1:1 to Task `H<N>` in the detailed superpowers plan (`docs/superpowers/plans/2026-05-29-wave-2-hardening.md`).
+
+Execute **1 → 7 in order** (1 first — test fidelity is the precondition for trusting every DB-invariant test below it).
+
+- [ ] 1. Restore test fidelity (real migrations + FK pragma) — detail: H1
+- [ ] 2. Per-line CHECK constraints + single `FX_GAIN_LOSS` seed — detail: H2
+- [ ] 3. Posted-voucher immutability triggers — detail: H3
+- [ ] 4. Validation: base_amount / fx_rate sign + account-currency match — detail: H4
+- [ ] 5. Demote repositories to read-only (posting = sole writer) — detail: H5
+- [ ] 6. Wire the hash chain — detail: H6
+- [ ] 7. Full gate + e2e + evidence — detail: H7
