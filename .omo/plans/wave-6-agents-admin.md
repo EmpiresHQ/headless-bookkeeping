@@ -3,6 +3,8 @@
 ## Overview
 This wave closes the system: period locking prevents posting into filed periods, VAT report snapshots freeze what was filed, the approval lifecycle handles human decisions on Policy-held vouchers, agent stubs provide the cron-driven scaffolding for future intelligence, and admin API endpoints give diagnostics and oversight. Runs after Waves 4 and 5 complete.
 
+> **Detailed implementation plan (superpowers, bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-6-agents-admin.md`](../../docs/superpowers/plans/2026-05-29-wave-6-agents-admin.md) — the step-by-step "how". This file remains the "what / why" spec.
+
 ## Prerequisites
 - **Wave 4 complete**: Documents, Triage, Corrections, ReportingPeriod CRUD
 - **Wave 5 complete**: Bank, Matching, Prepayments, Personal disposition, FX realized

@@ -3,6 +3,8 @@
 ## Overview
 This wave implements bank statement ingestion, deterministic N:M matching, prepayment balances, personal disposition, FX realized auto-posting, and end-to-end reconciliation integration. It runs in parallel with Wave 4 (Intake) after Wave 3 completes.
 
+> **Detailed implementation plan (superpowers, bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-5-reconciliation.md`](../../docs/superpowers/plans/2026-05-29-wave-5-reconciliation.md) — the step-by-step "how". This file remains the "what / why" spec.
+
 ## Prerequisites
 - **Wave 3 complete**: Business objects, Rules engine, Policy gate, Pipeline integration
 - `docker compose up` starts successfully
