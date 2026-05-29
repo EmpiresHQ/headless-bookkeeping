@@ -22,6 +22,10 @@ export class LedgerValidationService {
     let sawNonInteger = false;
     let sawEmptyCurrency = false;
     let sawFxMismatch = false;
+    let sawNonPositiveBase = false;
+    let sawNonIntegerBase = false;
+    let sawNonPositiveFx = false;
+    let sawCurrencyMismatch = false;
 
     for (const line of lines) {
       if (!validAccountIds.has(line.account_id)) {
@@ -43,6 +47,21 @@ export class LedgerValidationService {
       ) {
         sawFxMismatch = true;
       }
+      if (line.base_amount <= 0) {
+        sawNonPositiveBase = true;
+      }
+      if (!Number.isInteger(line.base_amount)) {
+        sawNonIntegerBase = true;
+      }
+      if (line.fx_rate <= 0) {
+        sawNonPositiveFx = true;
+      }
+      if (
+        line.account_currency !== null &&
+        line.currency !== line.account_currency
+      ) {
+        sawCurrencyMismatch = true;
+      }
       if (line.is_debit) {
         debitTotal += line.base_amount;
       } else {
@@ -56,6 +75,12 @@ export class LedgerValidationService {
     if (sawEmptyCurrency) errors.push('Currency must not be empty');
     if (sawFxMismatch)
       errors.push('base_amount does not match amount * fx_rate');
+    if (sawNonPositiveBase) errors.push('base_amount must be positive');
+    if (sawNonIntegerBase)
+      errors.push('base_amount must be an integer (cents)');
+    if (sawNonPositiveFx) errors.push('fx_rate must be positive');
+    if (sawCurrencyMismatch)
+      errors.push('Line currency does not match account currency');
     if (debitTotal !== creditTotal) errors.push('Voucher lines do not balance');
 
     return { isValid: errors.length === 0, errors };
