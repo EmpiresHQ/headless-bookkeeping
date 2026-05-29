@@ -1,13 +1,14 @@
-# pi coding bot — triggered by `@pi` comments on issues and PRs.
+# pi coding bot — triggered by `/pi` comments on issues and PRs.
 #
-# Runs entirely inside GitHub Actions via cv/pi-action (no self-hosted opencode
-# instance). On an authorized comment it runs the pi coding agent, edits code,
-# opens/updates a PR and posts a reply comment.
+# Runs entirely inside GitHub Actions via shaftoe/pi-coding-agent-action (a
+# bundled JavaScript action — no install step, so no npm-lifecycle surprises).
+# On an authorized `/pi` comment it runs the pi coding agent, edits code,
+# opens/updates a PR and replies in a comment.
 #
-# Model: moonshotai/kimi-k2.6 via OpenRouter (OpenAI-compatible).
+# Model: moonshotai/kimi-k2.6 via OpenRouter (OpenAI-compatible gateway).
 # Required repo/org secret: OPENROUTER_API_KEY
 #
-# Action is pinned to a commit SHA (v1.9.2) per supply-chain hygiene — bump the
+# Action is pinned to a commit SHA (v2.18.0) per supply-chain hygiene — bump the
 # SHA + trailing comment together when upgrading.
 
 name: pi
@@ -26,28 +27,26 @@ permissions:
 jobs:
   pi:
     runs-on: ubuntu-latest
-    # Cheap pre-filter so we don't spin a runner on every comment. The action
-    # also enforces its own authz (allowed_associations) once it starts.
-    if: contains(github.event.comment.body, '@pi')
+    # Trigger + authorization. shaftoe's action has no built-in authz, so we
+    # gate here: comment must start the `/pi` trigger AND the author must be a
+    # repo owner, org member, or collaborator (matches the original intent).
+    if: >-
+      contains(github.event.comment.body, '/pi') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: Run pi coding agent
-        uses: cv/pi-action@a885e612077f52a77b2fde3db5fe99d5d96a6f38 # v1.9.2
+        uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          trigger_phrase: '@pi'
-          # OWNER/MEMBER is the action default; COLLABORATOR added per handoff.
-          allowed_associations: 'OWNER,MEMBER,COLLABORATOR'
-
-          # --- LLM: kimi-k2.6 via OpenRouter (custom OpenAI-compatible provider) ---
-          provider: openrouter
+          trigger: '/pi'
+          # --- LLM: kimi-k2.6 via OpenRouter (OpenAI-compatible) ---
+          provider: openai
           model: moonshotai/kimi-k2.6
-          provider_base_url: https://openrouter.ai/api/v1
-          provider_api: openai-completions
-          # Env var NAME — the action resolves it from the env below at runtime.
-          provider_api_key: OPENROUTER_API_KEY
-          model_name: Kimi K2.6 (OpenRouter)
-          # Conservative model limits — tune up if kimi-k2.6 advertises more.
-          model_context_window: '256000'
-          model_max_tokens: '32768'
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          base_url: https://openrouter.ai/api/v1
+          token: ${{ secrets.OPENROUTER_API_KEY }}
+          thinking_level: medium
