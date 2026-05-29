@@ -3,7 +3,7 @@
 ## Overview
 This wave implements the full business object → draft → Rules → Policy → posted Voucher flow. We build Expense and SalesInvoice business objects, the three-tier Rules engine (structural/hard/semantic), the Policy gate with Override logging, and wire everything together end-to-end. This is the core intelligence layer of the kernel.
 
-> **Detailed implementation plan (superpowers, bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-3-pipeline.md`](../../docs/superpowers/plans/2026-05-29-wave-3-pipeline.md) — the step-by-step "how". This file remains the "what / why" spec.
+> **Detailed implementation plan (bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-3-pipeline.md`](../../docs/superpowers/plans/2026-05-29-wave-3-pipeline.md) — the step-by-step "how". This file remains the "what / why" spec.
 
 ## Prerequisites
 - **Wave 2 complete**: Account chart, Voucher schema, Validation, Posting, Immutability

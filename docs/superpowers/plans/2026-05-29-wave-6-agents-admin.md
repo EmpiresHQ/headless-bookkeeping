@@ -1,6 +1,6 @@
 # Wave 6 — Period Lock, VAT Snapshot, Approvals, Agents & Admin Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For omo executors:** This is the step-by-step "how" for the omo wave spec [`.omo/plans/wave-6-agents-admin.md`](../../../.omo/plans/wave-6-agents-admin.md), which carries each task's **Recommended Agent Profile** (`quick`/`oracle`/`deep`) and QA scenarios. Execute task-by-task: dispatch one agent per task per its profile, follow the red→green→commit TDD loop below, and pass the wave gate (`npm run build && npm run lint && npm run test && npm run test:e2e`, all green) before each commit. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the kernel by making filing-driven period locks enforce a non-overridable "no posting into a locked period" rule, freezing immutable VAT report snapshots, running the full Approval lifecycle (pending → approved/rejected/superseded), and shipping five in-process agent stubs plus a read-only API-key-guarded Admin API.
 

@@ -1,6 +1,6 @@
 # Wave 4 — Document Intake, Triage & Corrections Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For omo executors:** This is the step-by-step "how" for the omo wave spec [`.omo/plans/wave-4-intake.md`](../../../.omo/plans/wave-4-intake.md), which carries each task's **Recommended Agent Profile** (`quick`/`oracle`/`deep`) and QA scenarios. Execute task-by-task: dispatch one agent per task per its profile, follow the red→green→commit TDD loop below, and pass the wave gate (`npm run build && npm run lint && npm run test && npm run test:e2e`, all green) before each commit. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bring raw artifacts into the kernel as deduplicated `Document`s, triage them into `Expense`/`SalesInvoice` drafts, correct drafts and reverse posted vouchers, manage `ReportingPeriod`s, and wire the full upload → dedup → triage → draft → post intake flow.
 

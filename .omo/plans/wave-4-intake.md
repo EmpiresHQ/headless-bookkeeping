@@ -3,7 +3,7 @@
 ## Overview
 This wave handles document intake (hash-based deduplication, filesystem storage), OCR triage stub, correction flows (supersession and reversal), ReportingPeriod CRUD, and end-to-end intake integration. Documents enter the system here and flow through to the posting pipeline built in Wave 3.
 
-> **Detailed implementation plan (superpowers, bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-4-intake.md`](../../docs/superpowers/plans/2026-05-29-wave-4-intake.md) — the step-by-step "how". This file remains the "what / why" spec.
+> **Detailed implementation plan (bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-4-intake.md`](../../docs/superpowers/plans/2026-05-29-wave-4-intake.md) — the step-by-step "how". This file remains the "what / why" spec.
 
 ## Prerequisites
 - **Wave 3 complete**: Business objects, Rules engine, Policy gate, Pipeline integration

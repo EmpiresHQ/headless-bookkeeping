@@ -1,6 +1,6 @@
 # Wave 2 — Ledger Primitives Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For omo executors:** This is the step-by-step "how" for the omo wave spec [`.omo/plans/wave-2-ledger.md`](../../../.omo/plans/wave-2-ledger.md), which carries each task's **Recommended Agent Profile** (`quick`/`oracle`/`deep`) and QA scenarios. Execute task-by-task: dispatch one agent per task per its profile, follow the red→green→commit TDD loop below, and pass the wave gate (`npm run build && npm run lint && npm run test && npm run test:e2e`, all green) before each commit. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the hidden double-entry accounting kernel — the canonical chart of Accounts, the immutable Voucher/VoucherLine schema (with a reserved `previous_hash` column), structural double-entry validation, an atomic posting service, and API-layer immutability enforcement.
 

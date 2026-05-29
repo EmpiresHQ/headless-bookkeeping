@@ -3,7 +3,7 @@
 ## Overview
 This wave builds the core double-entry ledger: the canonical chart of accounts, the Voucher and VoucherLine schema, the double-entry validation service, the atomic posting service, and immutability enforcement. This is the accounting kernel — everything after this depends on it.
 
-> **Detailed implementation plan (superpowers, bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-2-ledger.md`](../../docs/superpowers/plans/2026-05-29-wave-2-ledger.md) — the step-by-step "how". This file remains the "what / why" spec.
+> **Detailed implementation plan (bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-2-ledger.md`](../../docs/superpowers/plans/2026-05-29-wave-2-ledger.md) — the step-by-step "how". This file remains the "what / why" spec.
 
 ## Prerequisites
 - **Wave 1 complete**: Migration runner, Organization singleton, CountryPlugin interface, Currency service, Health endpoint

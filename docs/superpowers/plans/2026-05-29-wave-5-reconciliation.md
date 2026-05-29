@@ -1,6 +1,6 @@
 # Wave 5 — Bank Reconciliation, Prepayments & Realized FX Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For omo executors:** This is the step-by-step "how" for the omo wave spec [`.omo/plans/wave-5-reconciliation.md`](../../../.omo/plans/wave-5-reconciliation.md), which carries each task's **Recommended Agent Profile** (`quick`/`oracle`/`deep`) and QA scenarios. Execute task-by-task: dispatch one agent per task per its profile, follow the red→green→commit TDD loop below, and pass the wave gate (`npm run build && npm run lint && npm run test && npm run test:e2e`, all green) before each commit. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ingest bank statements, deterministically match their transactions N:M against AR/AP vouchers, and book the leftovers as prepayments, personal disposition, or kernel-computed realized FX — all the way to a posted, balanced ledger.
 
