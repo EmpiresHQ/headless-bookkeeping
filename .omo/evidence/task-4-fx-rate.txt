@@ -1,0 +1,22 @@
+FX Rate Stub Service - Task 4
+===============================
+Timestamp: 2026-05-29T12:46:43Z
+
+Test Results (8/8 passed):
+✓ getRate("USD", "DKK") returns 7.14
+✓ getRate("DKK", "USD") returns 0.14
+✓ getRate("EUR", "DKK") returns 7.46
+✓ getRate("DKK", "EUR") returns 0.134
+✓ getRate("INVALID", "DKK") throws Error
+
+Hardcoded Rates:
+- DKK→USD: 0.14
+- USD→DKK: 7.14
+- DKK→EUR: 0.134
+- EUR→DKK: 7.46
+
+TODO Comment: "In production, this would call an external API (ECB, OpenExchangeRates)"
+
+Verification: PASS
+- All hardcoded rates returned correctly
+- Error thrown for unknown currency pairs

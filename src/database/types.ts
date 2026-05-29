@@ -1,10 +1,15 @@
+import type { Generated } from 'kysely';
+
 export interface Database {
-  users: UserTable;
+  organization: OrganizationTable;
 }
 
-export interface UserTable {
-  id?: number;
-  email: string;
-  name: string;
-  created_at?: number;
+export interface OrganizationTable {
+  id: Generated<number>;
+  country: string;
+  // Nullable override: NULL means "inherit base currency from the country
+  // plugin" (ADR-0004).
+  base_currency: string | null;
+  vat_registered: number;
+  created_at: number;
 }

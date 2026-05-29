@@ -19,7 +19,7 @@ FROM node:22-alpine AS production
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN apk add --no-cache python3 make g++ && \
+RUN apk add --no-cache python3 make g++ curl && \
     npm ci --production && \
     npm cache clean --force && \
     apk del python3 make g++

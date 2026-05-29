@@ -19,7 +19,7 @@ A chart-of-accounts node that **VoucherLines** debit or credit. Internal/technic
 _Avoid_: Ledger, GL code (in user-facing text)
 
 **Base currency**:
-The single reporting currency of the **Organization** (fixed per deployment). All balances, P&L, and VAT are expressed in it.
+The single reporting currency in which all balances, P&L, and VAT are expressed. Its value is **sourced from the country plugin** (`getDefaultBaseCurrency()`) with an optional **Organization-level override** (`organization.base_currency`, nullable; `NULL` = inherit from the plugin). Resolution: `org.base_currency ?? plugin(org.country).getDefaultBaseCurrency()`. The default deployment is Ireland → `EUR`. See ADR-0004.
 _Avoid_: Home currency, functional currency (when ambiguous)
 
 **Realized FX gain/loss**:

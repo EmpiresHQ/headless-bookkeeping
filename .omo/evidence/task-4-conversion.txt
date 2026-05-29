@@ -1,0 +1,17 @@
+Currency Conversion - Task 4
+=============================
+Timestamp: 2026-05-29T12:46:43Z
+
+Test Results:
+✓ convertToBase(100, "USD", 7.14) returns 714
+✓ convertToBase(50, "EUR", 7.46) returns 373
+✓ getBaseCurrency() returns "DKK" (default)
+
+Implementation:
+- CurrencyService.convertToBase(amount, currency, rate) = amount * rate
+- Stateless conversion (rate passed as parameter)
+- Base currency injected via ORG_BASE_CURRENCY token
+
+Verification: PASS
+- Currency conversion works correctly
+- Base currency returned correctly
