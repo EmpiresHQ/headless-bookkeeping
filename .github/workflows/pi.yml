@@ -40,7 +40,7 @@ jobs:
     if: >-
       contains(github.event.comment.body, '@pi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-    runs-on: [self-hosted, pi] # repo's ephemeral self-hosted runner; 0 GitHub-hosted minutes
+    runs-on: ubuntu-latest # public repo → Actions minutes are free; self-hosted is unsafe on fork PRs
     timeout-minutes: 20 # backstop (checkout + npm ci + 15-min agent step + summary)
     steps:
       - name: Checkout repository
@@ -120,7 +120,7 @@ jobs:
     if: >-
       contains(github.event.comment.body, '@superpi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-    runs-on: [self-hosted, pi] # repo's ephemeral self-hosted runner; 0 GitHub-hosted minutes
+    runs-on: ubuntu-latest # public repo → Actions minutes are free; self-hosted is unsafe on fork PRs
     timeout-minutes: 20 # backstop (checkout + npm ci + 15-min agent step + summary)
     steps:
       - name: Checkout repository
@@ -202,7 +202,7 @@ jobs:
     if: >-
       contains(github.event.comment.body, '@cheapi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-    runs-on: [self-hosted, pi] # repo's ephemeral self-hosted runner; 0 GitHub-hosted minutes
+    runs-on: ubuntu-latest # public repo → Actions minutes are free; self-hosted is unsafe on fork PRs
     timeout-minutes: 20 # backstop (checkout + npm ci + 15-min agent step + summary)
     steps:
       - name: Checkout repository
