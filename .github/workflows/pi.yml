@@ -7,7 +7,7 @@
 # appears — so ordinary comments cost nothing.
 #   @pi      → DeepSeek V4 Flash         (cheap, fast, no reasoning)
 #   @superpi → Kimi K2.6                 (premium, reasoning on)
-#   @cheapi  → DeepSeek V4 Flash (free)  (free OpenRouter tier, rate-limited)
+#   @cheapi  → Qwen3 235B A22B          (cheapest still-capable; cheaper than @pi)
 #
 # No trigger is a substring of another (@superpi / @cheapi do not contain @pi),
 # so a single comment routes to exactly one agent.
@@ -137,7 +137,9 @@ jobs:
           path: ${{ steps.agent.outputs.session_html_path }}
           if-no-files-found: ignore
 
-  # Free agent — deepseek-flash on OpenRouter's free tier (rate-limited).
+  # Budget agent — cheapest still-capable model. (Was deepseek-flash:free, but
+  # the free tier is rate-limited upstream / returns 429.) Qwen3 235B is a
+  # flagship-class MoE at ~$0.07/$0.10 per Mtok — cheaper than @pi on both axes.
   cheapi:
     if: >-
       contains(github.event.comment.body, '@cheapi') &&
@@ -155,14 +157,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger: '@cheapi'
           provider: openrouter
-          model: deepseek/deepseek-v4-flash:free
+          model: qwen/qwen3-235b-a22b-2507
           token: ${{ secrets.OPENROUTER_API_KEY }}
           thinking_level: 'off'
           export_session_html: true
       - name: Write run summary
         if: always()
         env:
-          PI_LABEL: '@cheapi · deepseek-v4-flash:free'
+          PI_LABEL: '@cheapi · qwen3-235b-a22b-2507'
           PI_SUCCESS: ${{ steps.agent.outputs.success }}
           PI_COST: ${{ steps.agent.outputs.cost }}
           PI_IN: ${{ steps.agent.outputs.input_tokens }}
