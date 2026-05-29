@@ -17,7 +17,9 @@ describe('DatabaseModule', () => {
       .addColumn('id', 'integer', (col) => col.primaryKey().check(sql`id = 1`))
       .addColumn('country', 'text', (col) => col.notNull())
       .addColumn('base_currency', 'text')
-      .addColumn('vat_registered', 'integer', (col) => col.notNull().defaultTo(0))
+      .addColumn('vat_registered', 'integer', (col) =>
+        col.notNull().defaultTo(0),
+      )
       .addColumn('created_at', 'integer', (col) => col.notNull())
       .execute();
 

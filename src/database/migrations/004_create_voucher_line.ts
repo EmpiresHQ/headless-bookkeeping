@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely';
+import { Kysely } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
   await db.schema
@@ -18,9 +18,6 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('vat_code', 'text')
     .addColumn('is_debit', 'integer', (col) => col.notNull())
     .execute();
-
-  // Enable FK enforcement for this connection (G6).
-  await sql`PRAGMA foreign_keys = ON`.execute(db);
 }
 
 export async function down(db: Kysely<any>): Promise<void> {

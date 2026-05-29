@@ -39,7 +39,11 @@ class MigrationRunner implements OnModuleInit {
   imports: [
     KyselyModule.forRoot({
       dialect: new SqliteDialect({
-        database: new Database('./data/app.sqlite'),
+        database: (() => {
+          const db = new Database('./data/app.sqlite');
+          db.pragma('foreign_keys = ON');
+          return db;
+        })(),
       }),
     }),
   ],
