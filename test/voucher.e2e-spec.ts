@@ -125,4 +125,50 @@ describe('Voucher (e2e)', () => {
     expect(body.voucher_number).toBe('V-2026-E2E-3');
     expect(body.lines).toHaveLength(2);
   });
+
+  it('PUT /api/vouchers/:id is rejected with 405', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, voucher_number: 'V-2026-E2E-PUT' })
+      .expect(201);
+    const createdBody = created.body as { id: number };
+    await request(app.getHttpServer())
+      .put(`/api/vouchers/${createdBody.id}`)
+      .send({ reason: 'tampering' })
+      .expect(405);
+  });
+
+  it('DELETE /api/vouchers/:id is rejected with 405', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, voucher_number: 'V-2026-E2E-DEL' })
+      .expect(201);
+    const createdBody = created.body as { id: number };
+    await request(app.getHttpServer())
+      .delete(`/api/vouchers/${createdBody.id}`)
+      .expect(405);
+  });
+
+  it('PATCH /api/vouchers/:id is rejected with 405', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, voucher_number: 'V-2026-E2E-PATCH' })
+      .expect(201);
+    const createdBody = created.body as { id: number };
+    await request(app.getHttpServer())
+      .patch(`/api/vouchers/${createdBody.id}`)
+      .send({ reason: 'tampering' })
+      .expect(405);
+  });
+
+  it('GET /api/vouchers/:id remains 200 for a posted voucher', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, voucher_number: 'V-2026-E2E-GET' })
+      .expect(201);
+    const createdBody = created.body as { id: number };
+    await request(app.getHttpServer())
+      .get(`/api/vouchers/${createdBody.id}`)
+      .expect(200);
+  });
 });

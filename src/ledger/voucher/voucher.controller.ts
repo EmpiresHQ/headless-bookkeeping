@@ -2,10 +2,14 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Patch,
+  Delete,
   Param,
   Body,
   NotFoundException,
   BadRequestException,
+  MethodNotAllowedException,
 } from '@nestjs/common';
 import { PostingService } from '../posting/posting.service';
 import { ValidationError } from '../posting/types';
@@ -46,5 +50,23 @@ export class VoucherController {
       }
       throw err;
     }
+  }
+
+  // Posted vouchers are immutable (ADR-0001, ADR-0006): every mutating verb is
+  // rejected at the API boundary with 405. Corrections happen via reversal
+  // counter-vouchers (Task 18), never by editing the original.
+  @Put(':id')
+  updateVoucher(@Param('id') _id: string): never {
+    throw new MethodNotAllowedException('Posted vouchers are immutable');
+  }
+
+  @Patch(':id')
+  patchVoucher(@Param('id') _id: string): never {
+    throw new MethodNotAllowedException('Posted vouchers are immutable');
+  }
+
+  @Delete(':id')
+  deleteVoucher(@Param('id') _id: string): never {
+    throw new MethodNotAllowedException('Posted vouchers are immutable');
   }
 }
