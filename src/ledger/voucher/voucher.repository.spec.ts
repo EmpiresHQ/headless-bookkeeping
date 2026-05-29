@@ -39,26 +39,13 @@ describe('VoucherRepository (integration)', () => {
     await db.destroy();
   });
 
-  it('createVoucher inserts a row and returns it with an id', async () => {
-    const v = await repo.createVoucher({
-      voucher_number: 'V-2026-001',
-      tax_point_date: '2026-03-15',
-      posted_at: 1740000000,
-    });
-    expect(v.id).toBeGreaterThan(0);
-    expect(v.voucher_number).toBe('V-2026-001');
-    expect(v.tax_point_date).toBe('2026-03-15');
-    expect(v.posted_at).toBe(1740000000);
-    expect(v.previous_hash).toBeNull();
-  });
-
   it('getVoucherById returns the persisted voucher', async () => {
-    const created = await repo.createVoucher({
-      voucher_number: 'V-2026-002',
-      tax_point_date: '2026-03-16',
-      posted_at: null,
-    });
-    const fetched = await repo.getVoucherById(created.id);
+    await db
+      .insertInto('voucher')
+      .values({ voucher_number: 'V-2026-002', tax_point_date: '2026-03-16', posted_at: null })
+      .execute();
+    const all = await repo.getVouchers();
+    const fetched = await repo.getVoucherById(all[0].id);
     expect(fetched?.voucher_number).toBe('V-2026-002');
   });
 
@@ -68,26 +55,27 @@ describe('VoucherRepository (integration)', () => {
 
   it('getVouchers is empty on a fresh DB and reflects inserts', async () => {
     expect(await repo.getVouchers()).toEqual([]);
-    await repo.createVoucher({
-      voucher_number: 'V-2026-003',
-      tax_point_date: '2026-03-17',
-      posted_at: null,
-    });
+    await db
+      .insertInto('voucher')
+      .values({ voucher_number: 'V-2026-003', tax_point_date: '2026-03-17', posted_at: null })
+      .execute();
     expect(await repo.getVouchers()).toHaveLength(1);
   });
 
   it('enforces voucher_number UNIQUE at the DB level (G6)', async () => {
-    await repo.createVoucher({
-      voucher_number: 'V-2026-DUP',
-      tax_point_date: '2026-03-18',
-      posted_at: null,
-    });
-    await expect(
-      repo.createVoucher({
-        voucher_number: 'V-2026-DUP',
-        tax_point_date: '2026-03-19',
-        posted_at: null,
-      }),
-    ).rejects.toThrow();
+    await db
+      .insertInto('voucher')
+      .values({ voucher_number: 'V-2026-DUP', tax_point_date: '2026-03-18', posted_at: null })
+      .execute();
+    let threw = false;
+    try {
+      await db
+        .insertInto('voucher')
+        .values({ voucher_number: 'V-2026-DUP', tax_point_date: '2026-03-19', posted_at: null })
+        .execute();
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(true);
   });
 });

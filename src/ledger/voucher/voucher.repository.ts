@@ -2,29 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
-import { NewVoucher, Voucher } from './types';
+import { Voucher } from './types';
 
 @Injectable()
 export class VoucherRepository {
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
-
-  async createVoucher(input: NewVoucher): Promise<Voucher> {
-    const inserted = await this.db
-      .insertInto('voucher')
-      .values({
-        voucher_number: input.voucher_number,
-        tax_point_date: input.tax_point_date,
-        posted_at: input.posted_at,
-        previous_hash: null,
-        reverses_id: null,
-        corrects_object_type: null,
-        corrects_object_id: null,
-        reason: null,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    return this.mapRow(inserted);
-  }
 
   async getVoucherById(id: number): Promise<Voucher | null> {
     const row = await this.db

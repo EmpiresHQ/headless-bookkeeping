@@ -42,19 +42,3 @@ export interface PostedVoucher extends Voucher {
   lines: VoucherLine[];
 }
 
-export interface NewVoucher {
-  voucher_number: string;
-  tax_point_date: string;
-  posted_at: number | null;
-}
-
-export interface NewVoucherLine {
-  voucher_id: number;
-  account_id: number;
-  amount: number;
-  currency: string;
-  base_amount: number;
-  fx_rate: number;
-  vat_code: string | null;
-  is_debit: boolean;
-}

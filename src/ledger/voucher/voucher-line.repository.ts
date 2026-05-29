@@ -2,29 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
-import { NewVoucherLine, VoucherLine } from './types';
+import { VoucherLine } from './types';
 
 @Injectable()
 export class VoucherLineRepository {
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
-
-  async createVoucherLine(input: NewVoucherLine): Promise<VoucherLine> {
-    const inserted = await this.db
-      .insertInto('voucher_line')
-      .values({
-        voucher_id: input.voucher_id,
-        account_id: input.account_id,
-        amount: input.amount,
-        currency: input.currency,
-        base_amount: input.base_amount,
-        fx_rate: input.fx_rate,
-        vat_code: input.vat_code,
-        is_debit: input.is_debit ? 1 : 0,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    return this.mapRow(inserted);
-  }
 
   async getLinesByVoucherId(voucherId: number): Promise<VoucherLine[]> {
     const rows = await this.db
