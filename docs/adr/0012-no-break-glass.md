@@ -10,3 +10,7 @@ Every legitimate need that might seem to want a bypass is already covered by a c
 - **Agent down, enter manually** → the normal manual path through the same pipeline (a human bypasses AI/OCR, never Rules).
 
 If a structural rule is genuinely buggy, the fix is the code/plugin — never punching the bug's output permanently into the ledger.
+
+## Wave-3 review note — "logged" is load-bearing
+
+The escape valve is only legitimate if it is *actually logged*. The Wave-3 pipeline applied a semantic override but did not persist the `override` row (see ADR-0005, Wave-3 review amendment), which would have produced an excused-but-unaudited posting — exactly the silent bypass this ADR forbids. The remediation makes override persistence atomic with the post: an overridden voucher and its audit row commit together or not at all.

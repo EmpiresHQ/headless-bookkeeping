@@ -3,7 +3,7 @@
 The LLM never posts to the ledger. Every posting flows through four layers:
 
 1. **AI suggests** (probabilistic) — OCR/triage produces a draft (category, supplier guess, amounts, candidate VAT code, confidence).
-2. **Rules validate** (deterministic) — three sorts: **structural invariants** (kernel: voucher balances to zero, account exists, amounts numeric) — pure double-entry arithmetic; **hard process rules** (kernel: the period containing the voucher's tax-point date must not be locked) — legal/process, not arithmetic, but equally non-overridable; and **semantic rules** (country plugin: VAT code applicability, deductibility) — overridable via a logged Override.
+2. **Rules validate** (deterministic) — three sorts: **structural invariants** (kernel: debits equal credits in base currency, account exists, amounts positive integers, fx_rate positive, line currency matches account currency) — pure double-entry arithmetic; **hard process rules** (kernel: the period containing the voucher's tax-point date must not be locked) — legal/process, not arithmetic, but equally non-overridable; and **semantic rules** (country plugin: VAT code applicability, deductibility) — overridable via a logged Override.
 3. **Policy decides** (configurable risk gate) — auto-post vs require human approval, based on amount, known/unknown supplier, confidence, operation type.
 4. **Voucher posts** (deterministic, atomic, immutable).
 
@@ -13,3 +13,13 @@ Two boundaries are deliberate:
 - **Semantic (country) rules are overridable; structural invariants are not.** A human may override a semantic rule (historical migration, a too-strict or buggy plugin rule) only via an explicit, logged Override carrying a reason. Structural invariants can never be overridden.
 
 Confidence is an input to Policy, never to Rules — a 0.99-confidence AI suggestion still passes through Rules unchanged.
+
+## Wave-3 review amendment — override persistence, semantic reachability, and line category
+
+The Wave-3 pipeline implemented the four layers but left three seams that this amendment closes (remediated as Wave-4 prologue tasks, carried from the Wave-3 review):
+
+- **An Override MUST be persisted atomically with the post.** The Wave-3 `PostingPipelineService` accepted an override and used it to flip an in-memory semantic result to `passed`, but **never wrote an `override` row** — `PolicyService.logOverride` was dead code in the integrated path. That silently breaks the ADR-0012 invariant that the *only* escape valve is a **logged** semantic Override. The override insert now happens inside the same transaction as the voucher write and the status claim: no posted voucher excused by an override may exist without its audit row, and the two commit or roll back together.
+
+- **The semantic tier is intentionally inert under `NullCountryPlugin`, and the override path is proven with a strict test plugin.** `NullCountryPlugin` is deliberately permissive — every VAT code it emits is valid and every category falls back to `EXPENSE_OTHER` — so semantic validation cannot fail through the real pipeline while it is the only plugin. That is by design (a real country plugin carries the failing codes), but it means the override path is not exercisable through `NullCountryPlugin` alone. The wave gate therefore requires a **full-pipeline test using a strict test plugin** that forces a semantic failure, asserts the override flips it to `passed`, and asserts the `override` row is persisted. Unit-only coverage of the override does not satisfy this.
+
+- **A line's Category is carried from the source business object, never reverse-engineered from the account code.** The Wave-3 pipeline derived `ResolvedLine.category` with `accountCode.startsWith('EXPENSE_') ? category : ''`. A ledger line is not a category; only the source object (expense/sales-invoice) has one. The category now travels into `SemanticValidationContext` as a single value taken from the business object, and the account-code prefix hack is removed.
