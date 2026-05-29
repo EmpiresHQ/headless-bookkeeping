@@ -8,7 +8,9 @@
 
 **Tech Stack:** NestJS 11, Kysely 0.29 over better-sqlite3, Jest 30, `node:crypto` (SHA-256). Tests use the real-DI + real-`Migrator` in-memory-SQLite harness already established in `src/currency/currency.resolution.spec.ts` and `src/ledger/posting/posting.service.spec.ts`.
 
-**Repo baseline (as of `04400b7`):** TypeScript **strict mode is ON** (`tsconfig.json`: `strict`, `module: nodenext`) and the codebase has **zero `any` / `as` casts** — all migrations are now `Kysely<Database>` (not `Kysely<any>`), `account.service` uses a `validateAccountType` guard, e2e tests use `Reflect.get`/matchers instead of casts. Every new file in this plan must stay strict-clean: no `any`, no `as`, typed insert objects. `npm run lint` (typescript-eslint strict) enforces this and is part of the gate. Note: that commit retyped `database.module.spec.ts` but did **not** restore real migrations — H1 still applies.
+**Repo baseline (as of `04400b7`):** TypeScript **strict mode is ON** (`tsconfig.json`: `strict`, `module: nodenext`) and the codebase has **zero `any` / `as` casts** — all migrations are now `Kysely<Database>` (not `Kysely<any>`), `account.service` uses a `validateAccountType` guard, e2e tests use `Reflect.get`/matchers instead of casts. Every new file in this plan must stay strict-clean: no `any`, no `as`, typed insert objects. `npm run lint` (typescript-eslint strict) enforces this and is part of the gate.
+
+**Also reconciled with `5430680`:** a later "guardrails" commit restored real migrations in `database.module.spec.ts` (G4) and added FK/UNIQUE/`account.type`-CHECK DB-invariant tests in `src/ledger/db-constraints.spec.ts`, but **regressed FX** (added a separate `FX_GAIN` + renamed `FX_LOSS`→'FX Loss', contradicting ADR-0004's single net account). This plan therefore: shrinks H1 to leftovers, **extends** `db-constraints.spec.ts` (H2/H3) instead of creating a new spec, and **collapses FX back to a single `FX_GAIN_LOSS`** (H2).
 
 **Branch:** Work on `wave-2-ledger` (not yet merged — this finishes Wave 2). Run the full gate `npm run build && npm run lint && npm run test && npm run test:e2e` at the end (Task H6).
 
@@ -19,7 +21,7 @@
 ## File Structure
 
 **Migrations (edit in place — Wave 2 is unreleased, so no ALTER migrations):**
-- `src/database/migrations/002_create_account.ts` — fix the FX seed row (`FX_LOSS` → `FX_GAIN_LOSS`).
+- `src/database/migrations/002_create_account.ts` — collapse FX to a single net account: delete the `FX_GAIN` row (added by `5430680`) and fold `FX_LOSS` into `FX_GAIN_LOSS`.
 - `src/database/migrations/003_create_voucher.ts` — add posted-voucher immutability triggers.
 - `src/database/migrations/004_create_voucher_line.ts` — add per-line `CHECK` constraints + posted-voucher-line immutability triggers.
 
@@ -33,9 +35,9 @@
 - `src/ledger/voucher/types.ts` — delete the now-unused `NewVoucher` / `NewVoucherLine` interfaces.
 
 **Tests:**
-- `src/database/database.module.spec.ts` — restore real migrations (stop hand-building the table).
-- `src/ledger/account/account.service.spec.ts` — add `foreign_keys = ON`; update FX code expectation.
-- `src/database/migrations/voucher-line-constraints.spec.ts` *(new)* — DB-rejection tests for the CHECK constraints + immutability triggers.
+- `src/database/database.module.spec.ts` — already runs real migrations (done in `5430680`); optionally add the CHECK-vs-shipping-migration assertion.
+- `src/ledger/account/account.service.spec.ts` — add `foreign_keys = ON`; update FX code expectation (`FX_GAIN_LOSS`, assert no `FX_GAIN`).
+- `src/ledger/db-constraints.spec.ts` *(extend — exists from `5430680`)* — append DB-rejection tests for the per-line CHECK constraints + immutability triggers (already has FK/UNIQUE/type tests).
 - `src/ledger/posting/voucher-hash.spec.ts` *(new)* — hash determinism + sensitivity.
 - `src/ledger/validation/ledger-validation.service.spec.ts` — new cases for base_amount / fx_rate / currency-match.
 - `src/ledger/posting/posting.service.spec.ts` — hash-chain assertions; negative-`fx_rate` attack.
@@ -44,95 +46,15 @@
 
 ---
 
-## Task H1: Restore test fidelity (do this first)
+## Task H1: Test fidelity leftovers (do this first)
 
-Trustworthy DB-invariant tests are the precondition for everything below. The DatabaseModule spec currently hand-builds the `organization` table instead of running migrations, and the AccountService spec runs without FK enforcement.
+**Reconciled with commit `5430680`:** that commit already rewrote `database.module.spec.ts` to run the real `Migrator` (the G4 fix), so the core fidelity gap is closed. **Do NOT rewrite that file from scratch — it is already migrator-based.** What remains: (a) `account.service.spec.ts` still runs without FK enforcement; (b) optionally strengthen the DatabaseModule spec to assert the singleton CHECK lives in the *shipping* migration.
 
 **Files:**
-- Modify: `src/database/database.module.spec.ts`
 - Modify: `src/ledger/account/account.service.spec.ts:14-17`
+- (optional) Modify: `src/database/database.module.spec.ts`
 
-- [ ] **Step 1: Rewrite `database.module.spec.ts` to run the real migrations**
-
-Replace the entire file with:
-
-```typescript
-import { Kysely, SqliteDialect, sql } from 'kysely';
-import { Migrator } from 'kysely/migration';
-import SqliteDb from 'better-sqlite3';
-import { Database } from './types';
-import { migrations } from './migrations';
-
-describe('DatabaseModule migrations', () => {
-  let db: Kysely<Database>;
-
-  beforeEach(async () => {
-    const rawDb = new SqliteDb(':memory:');
-    rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
-
-    const migrator = new Migrator({
-      db,
-      provider: { getMigrations: () => Promise.resolve(migrations) },
-    });
-    const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
-  });
-
-  afterEach(async () => {
-    await db.destroy();
-  });
-
-  it('creates all kernel tables', async () => {
-    const tables = await db
-      .selectFrom('sqlite_master')
-      .select('name')
-      .where('type', '=', 'table')
-      .execute();
-    const names = tables.map((t) => t.name);
-    expect(names).toEqual(
-      expect.arrayContaining(['organization', 'account', 'voucher', 'voucher_line']),
-    );
-  });
-
-  it('seeds exactly one Irish organization (id=1, no override)', async () => {
-    const orgs = await db.selectFrom('organization').selectAll().execute();
-    expect(orgs).toHaveLength(1);
-    expect(orgs[0].id).toBe(1);
-    expect(orgs[0].country).toBe('IE');
-    expect(orgs[0].base_currency).toBeNull();
-  });
-
-  it('rejects a second organization row (DB-level singleton, CHECK id=1)', async () => {
-    await expect(
-      db
-        .insertInto('organization')
-        .values({
-          id: 2,
-          country: 'DE',
-          base_currency: 'USD',
-          vat_registered: 0,
-          created_at: 1700000000,
-        })
-        .execute(),
-    ).rejects.toThrow();
-  });
-
-  it('proves the singleton CHECK against the SHIPPING migration, not a hand-built copy', async () => {
-    const ddl = await sql<{ sql: string }>`
-      SELECT sql FROM sqlite_master WHERE type='table' AND name='organization'
-    `.execute(db);
-    expect(ddl.rows[0].sql).toContain('id = 1');
-  });
-});
-```
-
-- [ ] **Step 2: Run it — expect PASS**
-
-Run: `npx jest src/database/database.module.spec.ts --runInBand --no-cache`
-Expected: PASS (4 tests). The migration seeds the org, so the "second row" insert hits the real `CHECK (id = 1)`.
-
-- [ ] **Step 3: Add `foreign_keys = ON` to `account.service.spec.ts`**
+- [ ] **Step 1: Add `foreign_keys = ON` to `account.service.spec.ts`**
 
 Replace lines 14-17 (the `beforeEach` db construction):
 
@@ -145,16 +67,34 @@ Replace lines 14-17 (the `beforeEach` db construction):
     });
 ```
 
-- [ ] **Step 4: Run it — expect PASS**
+- [ ] **Step 2: Run it — expect PASS**
 
 Run: `npx jest src/ledger/account/account.service.spec.ts --runInBand --no-cache`
-Expected: PASS (all existing tests still green; FK enforcement now matches production).
+Expected: PASS (existing tests green; FK enforcement now matches production).
+
+- [ ] **Step 3 (optional): strengthen the DatabaseModule spec**
+
+`database.module.spec.ts` already runs migrations. Append one assertion that the singleton CHECK is the shipping migration's, not a hand-built copy (add `sql` to the `kysely` import — `5430680` removed it):
+
+```typescript
+  it('proves the singleton CHECK lives in the shipping migration', async () => {
+    const ddl = await sql<{ sql: string }>`
+      SELECT sql FROM sqlite_master WHERE type='table' AND name='organization'
+    `.execute(db);
+    expect(ddl.rows[0].sql).toContain('id = 1');
+  });
+```
+
+- [ ] **Step 4: Run it — expect PASS**
+
+Run: `npx jest src/database/database.module.spec.ts --runInBand --no-cache`
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/database/database.module.spec.ts src/ledger/account/account.service.spec.ts
-git commit -m "test(wave-2): restore real-migration fidelity + FK pragma in ledger specs"
+git add src/ledger/account/account.service.spec.ts src/database/database.module.spec.ts
+git commit -m "test(wave-2): FK pragma in account spec + assert singleton CHECK in shipping migration"
 ```
 
 ---
@@ -165,45 +105,30 @@ Promote the per-line sign/integer rules to DB constraints (CONTEXT.md structural
 
 **Files:**
 - Modify: `src/database/migrations/004_create_voucher_line.ts`
-- Modify: `src/database/migrations/002_create_account.ts:130`
+- Modify: `src/database/migrations/002_create_account.ts` (delete `FX_GAIN`; fold `FX_LOSS` into `FX_GAIN_LOSS`)
 - Modify: `src/ledger/account/account.service.spec.ts:65`
-- Test: `src/database/migrations/voucher-line-constraints.spec.ts` (new)
+- Modify: `src/ledger/db-constraints.spec.ts` (append per-line CHECK tests — file already exists from `5430680`; do NOT create a new spec)
 
-- [ ] **Step 1: Write the failing constraint test**
+- [ ] **Step 1: Append the failing per-line CHECK tests to the EXISTING `db-constraints.spec.ts`**
 
-Create `src/database/migrations/voucher-line-constraints.spec.ts`:
+`5430680` created `src/ledger/db-constraints.spec.ts` with a migrator `beforeEach` and FK/UNIQUE/type tests. Append these helpers + tests **inside** its `describe('Wave 2 DB constraints (G6)', …)` block, before the closing `});` (it already has `db`, the pragma, and the migrator — reuse them):
 
 ```typescript
-import { Kysely, SqliteDialect } from 'kysely';
-import { Migrator } from 'kysely/migration';
-import SqliteDb from 'better-sqlite3';
-import { Database } from '../types';
-import { migrations } from './index';
+  // ---- Per-line value constraints (Task H2) ----
 
-describe('voucher_line DB constraints', () => {
-  let db: Kysely<Database>;
-
-  beforeEach(async () => {
-    const rawDb = new SqliteDb(':memory:');
-    rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
-    const migrator = new Migrator({
-      db,
-      provider: { getMigrations: () => Promise.resolve(migrations) },
-    });
-    const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
-  });
-
-  afterEach(async () => {
-    await db.destroy();
-  });
-
-  // Seeds a parent voucher + returns CASH account id, so line inserts satisfy FKs.
-  async function seed(): Promise<{ voucherId: number; accountId: number }> {
+  async function seedVoucherAndAccount(): Promise<{ voucherId: number; accountId: number }> {
     const v = await db
       .insertInto('voucher')
-      .values({ voucher_number: 'V-CONSTRAINT', tax_point_date: '2026-03-15', posted_at: 1740000000 })
+      .values({
+        voucher_number: 'V-CONSTRAINT',
+        tax_point_date: '2026-03-15',
+        posted_at: 1740000000,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
     const a = await db
@@ -244,38 +169,37 @@ describe('voucher_line DB constraints', () => {
   }
 
   it('rejects amount <= 0', async () => {
-    const ids = await seed();
+    const ids = await seedVoucherAndAccount();
     await expect(db.insertInto('voucher_line').values(line({ amount: 0 }, ids)).execute()).rejects.toThrow();
     await expect(db.insertInto('voucher_line').values(line({ amount: -1 }, ids)).execute()).rejects.toThrow();
   });
 
   it('rejects base_amount <= 0', async () => {
-    const ids = await seed();
+    const ids = await seedVoucherAndAccount();
     await expect(db.insertInto('voucher_line').values(line({ base_amount: 0 }, ids)).execute()).rejects.toThrow();
   });
 
   it('rejects fx_rate <= 0 (blocks the negative-rate attack)', async () => {
-    const ids = await seed();
+    const ids = await seedVoucherAndAccount();
     await expect(db.insertInto('voucher_line').values(line({ fx_rate: 0 }, ids)).execute()).rejects.toThrow();
-    await expect(db.insertInto('voucher_line').values(line({ fx_rate: -1, base_amount: 10000 }, ids)).execute()).rejects.toThrow();
+    await expect(db.insertInto('voucher_line').values(line({ fx_rate: -1 }, ids)).execute()).rejects.toThrow();
   });
 
   it('rejects is_debit outside {0,1}', async () => {
-    const ids = await seed();
+    const ids = await seedVoucherAndAccount();
     await expect(db.insertInto('voucher_line').values(line({ is_debit: 2 }, ids)).execute()).rejects.toThrow();
   });
 
   it('accepts a well-formed line', async () => {
-    const ids = await seed();
+    const ids = await seedVoucherAndAccount();
     await expect(db.insertInto('voucher_line').values(line({}, ids)).execute()).resolves.toBeDefined();
   });
-});
 ```
 
 - [ ] **Step 2: Run it — expect FAIL**
 
-Run: `npx jest src/database/migrations/voucher-line-constraints.spec.ts --runInBand --no-cache`
-Expected: FAIL — the "rejects …" tests fail because no CHECK constraints exist yet (the bad rows insert successfully).
+Run: `npx jest src/ledger/db-constraints.spec.ts --runInBand --no-cache`
+Expected: FAIL — the new "rejects …" tests fail because no per-line CHECK constraints exist yet. The pre-existing FK/UNIQUE/type tests stay green.
 
 - [ ] **Step 3: Add the CHECK constraints to migration 004**
 
@@ -316,18 +240,24 @@ export async function down(db: Kysely<Database>): Promise<void> {
 
 - [ ] **Step 4: Run it — expect PASS**
 
-Run: `npx jest src/database/migrations/voucher-line-constraints.spec.ts --runInBand --no-cache`
-Expected: PASS (5 tests).
+Run: `npx jest src/ledger/db-constraints.spec.ts --runInBand --no-cache`
+Expected: PASS (the 5 new per-line tests + the pre-existing FK/UNIQUE/type tests).
 
-- [ ] **Step 5: Fix the FX seed row + its test expectation**
+- [ ] **Step 5: Collapse FX to a single net account + fix the test expectation**
 
-In `src/database/migrations/002_create_account.ts`, replace line 130:
+In `src/database/migrations/002_create_account.ts`:
+- **Delete** the row `5430680` added: `{ code: 'FX_GAIN', name: 'FX Gain', type: 'revenue', currency: null },`
+- **Change** the `FX_LOSS` row to the single net account:
 
 ```typescript
   { code: 'FX_GAIN_LOSS', name: 'Foreign Exchange Gain/Loss', type: 'expense', currency: null },
 ```
 
-In `src/ledger/account/account.service.spec.ts`, change the FX assertion (line 65) from `'FX_LOSS'` to `'FX_GAIN_LOSS'`.
+In `src/ledger/account/account.service.spec.ts`: change the FX code in the arrayContaining assertion (line 65) from `'FX_LOSS'` to `'FX_GAIN_LOSS'`, and add a line locking the single-account decision (ADR-0004):
+
+```typescript
+    expect((await service.getAccounts()).map((a) => a.code)).not.toContain('FX_GAIN');
+```
 
 - [ ] **Step 6: Run the account spec — expect PASS**
 
@@ -337,8 +267,8 @@ Expected: PASS (the chart now seeds `FX_GAIN_LOSS`).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/database/migrations/004_create_voucher_line.ts src/database/migrations/002_create_account.ts src/database/migrations/voucher-line-constraints.spec.ts src/ledger/account/account.service.spec.ts
-git commit -m "feat(wave-2): per-line CHECK constraints + single net FX_GAIN_LOSS (ADR-0019, ADR-0004)"
+git add src/database/migrations/004_create_voucher_line.ts src/database/migrations/002_create_account.ts src/ledger/db-constraints.spec.ts src/ledger/account/account.service.spec.ts
+git commit -m "feat(wave-2): per-line CHECK constraints + collapse FX to net FX_GAIN_LOSS (ADR-0019, ADR-0004)"
 ```
 
 ---
@@ -350,29 +280,29 @@ Immutability must hold below the HTTP 405 (ADR-0019). Triggers fire **only when 
 **Files:**
 - Modify: `src/database/migrations/003_create_voucher.ts`
 - Modify: `src/database/migrations/004_create_voucher_line.ts`
-- Test: `src/database/migrations/voucher-line-constraints.spec.ts` (append)
+- Test: `src/ledger/db-constraints.spec.ts` (append)
 
-- [ ] **Step 1: Write the failing immutability tests (append to the constraints spec)**
+- [ ] **Step 1: Write the failing immutability tests (append to `db-constraints.spec.ts`)**
 
-Append these `it` blocks inside the `describe` in `src/database/migrations/voucher-line-constraints.spec.ts`:
+Append these `it` blocks inside the same `describe('Wave 2 DB constraints (G6)', …)` block in `src/ledger/db-constraints.spec.ts`, reusing the `seedVoucherAndAccount` / `line` helpers added in H2:
 
 ```typescript
   it('blocks UPDATE of a posted voucher', async () => {
-    const { voucherId } = await seed(); // seeded voucher has posted_at set
+    const { voucherId } = await seedVoucherAndAccount(); // posted_at is set
     await expect(
       db.updateTable('voucher').set({ reason: 'tamper' }).where('id', '=', voucherId).execute(),
     ).rejects.toThrow();
   });
 
   it('blocks DELETE of a posted voucher', async () => {
-    const { voucherId } = await seed();
+    const { voucherId } = await seedVoucherAndAccount();
     await expect(
       db.deleteFrom('voucher').where('id', '=', voucherId).execute(),
     ).rejects.toThrow();
   });
 
   it('blocks UPDATE/DELETE of a posted voucher line', async () => {
-    const ids = await seed();
+    const ids = await seedVoucherAndAccount();
     const ln = await db.insertInto('voucher_line').values(line({}, ids)).returningAll().executeTakeFirstOrThrow();
     await expect(
       db.updateTable('voucher_line').set({ amount: 1 }).where('id', '=', ln.id).execute(),
@@ -385,10 +315,19 @@ Append these `it` blocks inside the `describe` in `src/database/migrations/vouch
   it('ALLOWS updating an UNPOSTED voucher (Wave-3 Policy-hold draft path)', async () => {
     const draft = await db
       .insertInto('voucher')
-      .values({ voucher_number: 'V-DRAFT', tax_point_date: '2026-03-15', posted_at: null })
+      .values({
+        voucher_number: 'V-DRAFT',
+        tax_point_date: '2026-03-15',
+        posted_at: null,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
-    // setting posted_at: OLD.posted_at is NULL, so the trigger must not fire
+    // OLD.posted_at is NULL, so the trigger must not fire
     await expect(
       db.updateTable('voucher').set({ posted_at: 1740000000 }).where('id', '=', draft.id).execute(),
     ).resolves.toBeDefined();
@@ -397,7 +336,7 @@ Append these `it` blocks inside the `describe` in `src/database/migrations/vouch
 
 - [ ] **Step 2: Run it — expect FAIL**
 
-Run: `npx jest src/database/migrations/voucher-line-constraints.spec.ts --runInBand --no-cache`
+Run: `npx jest src/ledger/db-constraints.spec.ts --runInBand --no-cache`
 Expected: FAIL — the three "blocks …" tests fail (no triggers yet; updates/deletes succeed).
 
 - [ ] **Step 3: Add the voucher triggers to migration 003**
@@ -478,13 +417,13 @@ In `src/database/migrations/004_create_voucher_line.ts`, add these two `sql` tri
 
 - [ ] **Step 5: Run it — expect PASS**
 
-Run: `npx jest src/database/migrations/voucher-line-constraints.spec.ts --runInBand --no-cache`
+Run: `npx jest src/ledger/db-constraints.spec.ts --runInBand --no-cache`
 Expected: PASS (all constraint + immutability + "allow unposted" tests green).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/database/migrations/003_create_voucher.ts src/database/migrations/004_create_voucher_line.ts src/database/migrations/voucher-line-constraints.spec.ts
+git add src/database/migrations/003_create_voucher.ts src/database/migrations/004_create_voucher_line.ts src/ledger/db-constraints.spec.ts
 git commit -m "feat(wave-2): DB-level posted-voucher immutability triggers (ADR-0019)"
 ```
 
@@ -1112,8 +1051,10 @@ git commit -m "chore(wave-2): hardening gate green + evidence (ADR-0013/0019, AD
 - Single write path → H5 (repos read-only, create methods deleted). ✓
 - FX trust + account-currency match → H4. ✓
 - FX single account → H2. ✓
-- Test fidelity (real migrations + FK pragma) → H1. ✓
+- Test fidelity → H1 (real-migration rewrite already done in `5430680`; H1 = FK pragma + optional CHECK-vs-migration assert). ✓
 - Error contract / Zod, efficiency, cosmetics → explicitly Wave-3 prologue (out of scope here). ✓
+
+**Reconciliation with `5430680`:** G4 (real migrations) absorbed into H1; G6 FK/UNIQUE/type tests live in `src/ledger/db-constraints.spec.ts` which H2/H3 **extend** (not replace); the commit's FX two-account split is **reverted** by H2 back to a single net `FX_GAIN_LOSS` per ADR-0004.
 
 **Placeholder scan:** every code step shows full code; every run step shows the command + expected result. No TODO/TBD.
 

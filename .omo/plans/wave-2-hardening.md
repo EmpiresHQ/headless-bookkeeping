@@ -17,14 +17,20 @@ The Wave-2 review (and a grill-with-docs session) found that the ledger's core i
 - **ADR-0004** (amended): ledger validation boundary (trust supplied rate; account-currency match) + single net `FX_GAIN_LOSS`.
 - **CONTEXT.md** (amended): "debits equal credits in base currency" (not "sum to zero"); unsigned-magnitude + `is_debit` model.
 
+## Baseline reconciliation (commit `5430680`)
+A parallel "guardrails compliance" commit landed after this plan was written. It **partially overlaps** — fold it in, don't redo it:
+- **G4 / test fidelity — DONE**: `database.module.spec.ts` now runs the real `Migrator` (no more hand-built table). Task 1 shrinks to the leftovers (FK pragma in `account.service.spec`, optional CHECK-vs-shipping-migration assert).
+- **G6 DB-invariant tests — PARTIALLY DONE**: `src/ledger/db-constraints.spec.ts` proves `account.code` UNIQUE, `account.type` CHECK, `voucher_number` UNIQUE, and `voucher_line` FK. Task 2/3 must **extend this existing file** (per-line value CHECKs + immutability triggers), NOT create a new spec.
+- **FX — REGRESSION vs ADR-0004**: that commit added a separate `FX_GAIN` row and renamed `FX_LOSS` → 'FX Loss' (two-account split, following the stale carry-forward seam #2). ADR-0004 supersedes seam #2 with a **single net `FX_GAIN_LOSS`**. Task 2 must **delete the `FX_GAIN` row** and fold `FX_LOSS` into `FX_GAIN_LOSS`.
+
 ## Definition of Done
 - Posted-voucher immutability enforced by **DB triggers** (gated on `posted_at` so Wave-3 draft→post still works), proven by a rejection test.
 - `voucher_line` **CHECK** constraints: `amount > 0`, `base_amount > 0`, `fx_rate > 0`, `is_debit IN (0,1)` — proven by rejection tests.
 - Hash chain wired: `previous_hash` links to the prior posted voucher; first voucher uses the genesis sentinel (never `null`).
 - Validation also checks `base_amount` sign/integerness, `fx_rate > 0`, and account-currency match.
 - `PostingService` is the sole writer; `VoucherRepository`/`VoucherLineRepository` are read-only (`create*` deleted).
-- Chart seeds a single net `FX_GAIN_LOSS` (no `FX_LOSS` row).
-- Test fidelity restored: `database.module.spec` runs the real migrations; `account.service.spec` enforces `foreign_keys = ON`.
+- Chart seeds a single net `FX_GAIN_LOSS` — **no `FX_GAIN` and no `FX_LOSS` split rows** (delete `FX_GAIN` added by `5430680`; fold `FX_LOSS` into `FX_GAIN_LOSS`). ADR-0004.
+- Test fidelity: `database.module.spec` runs real migrations (✓ done in `5430680`); `account.service.spec` enforces `foreign_keys = ON` (remaining).
 - **Wave gate — ALL green**: `npm run build && npm run lint && npm run test && npm run test:e2e`.
 - Greps clean: no `createTable` outside migrations; no `previous_hash: null` in `src`.
 - **Strict-clean** (baseline `04400b7`): all new code without `any` / `as` casts; migrations are `Kysely<Database>`. `npm run lint` (typescript-eslint strict) is the authority.
@@ -38,8 +44,8 @@ Polish that is NOT load-bearing rides into the Wave-3 prologue (see `wave-3-pipe
 
 Execute **1 → 7 in order** (1 first — test fidelity is the precondition for trusting every DB-invariant test below it).
 
-- [ ] 1. Restore test fidelity (real migrations + FK pragma) — detail: H1
-- [ ] 2. Per-line CHECK constraints + single `FX_GAIN_LOSS` seed — detail: H2
+- [ ] 1. Test fidelity leftovers — `account.service.spec` FK pragma + assert CHECK-vs-shipping-migration (real-migration rewrite already done in `5430680`) — detail: H1
+- [ ] 2. Per-line CHECK constraints (extend `src/ledger/db-constraints.spec.ts`) + collapse FX to single `FX_GAIN_LOSS` (delete `FX_GAIN`) — detail: H2
 - [ ] 3. Posted-voucher immutability triggers — detail: H3
 - [ ] 4. Validation: base_amount / fx_rate sign + account-currency match — detail: H4
 - [ ] 5. Demote repositories to read-only (posting = sole writer) — detail: H5
