@@ -22,6 +22,32 @@
       "status": "completed",
       "ended_at": "2026-05-29T15:29:38.124Z",
       "elapsed_ms": 53656
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Double-entry validation service",
+      "session_id": "ses_18b7812ffffeE3bKNSzQXxv490",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-29T16:21:37.854Z",
+      "started_at": "2026-05-29T16:21:15.680Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T16:21:37.854Z",
+      "elapsed_ms": 22174
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Posting service (atomic voucher creation)",
+      "session_id": "ses_18b73aa9bffelDVzeWUxkVBRpj",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-29T16:27:55.980Z",
+      "started_at": "2026-05-29T16:27:21.260Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T16:27:55.980Z",
+      "elapsed_ms": 34720
     }
   },
   "schema_version": 2,
@@ -31,7 +57,7 @@
       "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-ledger.md",
       "plan_name": "wave-2-ledger",
       "started_at": "2026-05-29T15:21:28.653Z",
-      "updated_at": "2026-05-29T15:29:38.124Z",
+      "updated_at": "2026-05-29T16:27:55.980Z",
       "session_ids": [
         "ses_18be3e195ffeEZcnXS4O7noyoS"
       ],
@@ -51,10 +77,36 @@
           "status": "completed",
           "ended_at": "2026-05-29T15:29:38.124Z",
           "elapsed_ms": 53656
+        },
+        "todo:8": {
+          "task_key": "todo:8",
+          "task_label": "8",
+          "task_title": "Double-entry validation service",
+          "session_id": "ses_18b7812ffffeE3bKNSzQXxv490",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-29T16:21:37.854Z",
+          "started_at": "2026-05-29T16:21:15.680Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T16:21:37.854Z",
+          "elapsed_ms": 22174
+        },
+        "todo:9": {
+          "task_key": "todo:9",
+          "task_label": "9",
+          "task_title": "Posting service (atomic voucher creation)",
+          "session_id": "ses_18b73aa9bffelDVzeWUxkVBRpj",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-29T16:27:55.980Z",
+          "started_at": "2026-05-29T16:27:21.260Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T16:27:55.980Z",
+          "elapsed_ms": 34720
         }
       }
     }
   },
   "active_work_id": "wave-2-ledger-legacy",
-  "updated_at": "2026-05-29T15:29:38.124Z"
+  "updated_at": "2026-05-29T16:27:55.980Z"
 }

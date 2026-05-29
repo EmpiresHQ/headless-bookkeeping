@@ -106,7 +106,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
   - Files: `src/ledger/account/`, database migration
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 7. Voucher + VoucherLine schema + repository
+- [x] 7. Voucher + VoucherLine schema + repository
 
   **What to do**:
   - Create migration for `voucher` table: id (INTEGER PK), voucher_number (TEXT NOT NULL UNIQUE), tax_point_date (TEXT NOT NULL), posted_at (INTEGER, nullable — set on posting), previous_hash (TEXT, nullable — reserved for hash chain), reverses_id (INTEGER FK to voucher, nullable), corrects_object_type (TEXT, nullable), corrects_object_id (INTEGER, nullable), reason (TEXT, nullable)
@@ -179,7 +179,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
   - Files: `src/ledger/voucher/`, database migration
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 8. Double-entry validation service
+- [x] 8. Double-entry validation service
 
   **What to do**:
   - Create `LedgerValidationService` in `src/ledger/validation/`
@@ -253,7 +253,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
   - Files: `src/ledger/validation/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 9. Posting service (atomic voucher creation)
+- [x] 9. Posting service (atomic voucher creation)
 
   **What to do**:
   - Create `PostingService` in `src/ledger/posting/`
