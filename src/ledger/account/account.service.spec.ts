@@ -64,9 +64,10 @@ describe('AccountService (integration)', () => {
         'EQUITY',
         'REVENUE',
         'EXPENSE_SOFTWARE',
-        'FX_LOSS',
+        'FX_GAIN_LOSS',
       ]),
     );
+    expect(codes).not.toContain('FX_GAIN');
   });
 
   it('getAccountByCode returns the requested account (non-default lookup)', async () => {

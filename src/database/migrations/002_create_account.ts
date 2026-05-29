@@ -54,7 +54,6 @@ const SEED: Array<{
   },
   // Revenue
   { code: 'REVENUE', name: 'Revenue', type: 'revenue', currency: null },
-  { code: 'FX_GAIN', name: 'FX Gain', type: 'revenue', currency: null },
   // Expenses
   {
     code: 'EXPENSE_SOFTWARE',
@@ -129,7 +128,7 @@ const SEED: Array<{
     type: 'expense',
     currency: null,
   },
-  { code: 'FX_LOSS', name: 'FX Loss', type: 'expense', currency: null },
+  { code: 'FX_GAIN_LOSS', name: 'Foreign Exchange Gain/Loss', type: 'expense', currency: null },
   {
     code: 'BAD_DEBT_EXPENSE',
     name: 'Bad Debt Expense',

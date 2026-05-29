@@ -142,4 +142,84 @@ describe('Wave 2 DB constraints (G6)', () => {
 
     await expect(promise).rejects.toThrow();
   });
+
+  // ---- Per-line value constraints (Task H2) ----
+
+  async function seedVoucherAndAccount(): Promise<{ voucherId: number; accountId: number }> {
+    const v = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: 'V-CONSTRAINT',
+        tax_point_date: '2026-03-15',
+        posted_at: 1740000000,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    const a = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'CASH')
+      .executeTakeFirstOrThrow();
+    return { voucherId: v.id, accountId: a.id };
+  }
+
+  interface LineInsert {
+    voucher_id: number;
+    account_id: number;
+    amount: number;
+    currency: string;
+    base_amount: number;
+    fx_rate: number;
+    vat_code: string | null;
+    is_debit: number;
+  }
+
+  function line(
+    over: Partial<LineInsert>,
+    ids: { voucherId: number; accountId: number },
+  ): LineInsert {
+    return {
+      voucher_id: ids.voucherId,
+      account_id: ids.accountId,
+      amount: 10000,
+      currency: 'EUR',
+      base_amount: 10000,
+      fx_rate: 1,
+      vat_code: null,
+      is_debit: 1,
+      ...over,
+    };
+  }
+
+  it('rejects amount <= 0', async () => {
+    const ids = await seedVoucherAndAccount();
+    await expect(db.insertInto('voucher_line').values(line({ amount: 0 }, ids)).execute()).rejects.toThrow();
+    await expect(db.insertInto('voucher_line').values(line({ amount: -1 }, ids)).execute()).rejects.toThrow();
+  });
+
+  it('rejects base_amount <= 0', async () => {
+    const ids = await seedVoucherAndAccount();
+    await expect(db.insertInto('voucher_line').values(line({ base_amount: 0 }, ids)).execute()).rejects.toThrow();
+  });
+
+  it('rejects fx_rate <= 0 (blocks the negative-rate attack)', async () => {
+    const ids = await seedVoucherAndAccount();
+    await expect(db.insertInto('voucher_line').values(line({ fx_rate: 0 }, ids)).execute()).rejects.toThrow();
+    await expect(db.insertInto('voucher_line').values(line({ fx_rate: -1 }, ids)).execute()).rejects.toThrow();
+  });
+
+  it('rejects is_debit outside {0,1}', async () => {
+    const ids = await seedVoucherAndAccount();
+    await expect(db.insertInto('voucher_line').values(line({ is_debit: 2 }, ids)).execute()).rejects.toThrow();
+  });
+
+  it('accepts a well-formed line', async () => {
+    const ids = await seedVoucherAndAccount();
+    await expect(db.insertInto('voucher_line').values(line({}, ids)).execute()).resolves.toBeDefined();
+  });
 });
