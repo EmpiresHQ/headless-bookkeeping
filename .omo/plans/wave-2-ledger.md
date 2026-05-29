@@ -405,12 +405,12 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
 ---
 
 ## Wave Acceptance Criteria
-- [ ] All 5 tasks complete
-- [ ] `docker compose up` starts and health responds 200
-- [ ] `npm run build` passes with zero errors
-- [ ] `npm test` passes with new tests
-- [ ] Evidence files exist in `.omo/evidence/` for all tasks
-- [ ] Git commit records Wave 2 changes
+- [x] All 5 tasks complete
+- [x] `docker compose up` starts and health responds 200
+- [x] `npm run build` passes with zero errors
+- [x] `npm test` passes with new tests
+- [x] Evidence files exist in `.omo/evidence/` for all tasks
+- [x] Git commit records Wave 2 changes
 
 ## Commit
 - Message: `feat(ledger): account chart + voucher + posting + immutability` — all Wave 2 files + tests
