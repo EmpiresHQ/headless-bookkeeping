@@ -1,13 +1,40 @@
+import { Test } from '@nestjs/testing';
 import { CurrencyService } from './currency.service';
 import { FXRateService } from './fx-rate.service';
+import { OrganizationService } from '../organization/organization.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
 
 describe('CurrencyService.convertToBase', () => {
+  let service: CurrencyService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        CurrencyService,
+        {
+          provide: OrganizationService,
+          useValue: {
+            getOrganization: jest.fn(),
+          },
+        },
+        {
+          provide: PluginLoader,
+          useValue: {
+            resolve: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get(CurrencyService);
+  });
+
   it('converts 100 USD to 714 at rate 7.14', () => {
-    expect(CurrencyService.convertToBase(100, 7.14)).toBe(714);
+    expect(service.convertToBase(100, 'USD', 7.14)).toBe(714);
   });
 
   it('converts 50 EUR to 373 at rate 7.46', () => {
-    expect(CurrencyService.convertToBase(50, 7.46)).toBe(373);
+    expect(service.convertToBase(50, 'EUR', 7.46)).toBe(373);
   });
 });
 
