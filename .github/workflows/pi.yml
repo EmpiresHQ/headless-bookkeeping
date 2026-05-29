@@ -29,7 +29,23 @@ jobs:
     # Cheap pre-filter so we don't spin a runner on every comment. The action
     # also enforces its own authz (allowed_associations) once it starts.
     if: contains(github.event.comment.body, '@pi')
+    env:
+      # pi-action's package.json declares a dev-only `prepare` hook
+      # (`prek install`) that fails in CI ("fatal: not a git repository") and
+      # aborts its `npm ci`. The action needs no build/prepare at runtime — it
+      # runs via tsx — so skip npm lifecycle scripts during install. Its deps
+      # ship prebuilt and have no install scripts, so this is safe. Upstream
+      # bug as of v1.9.2; drop this once the action guards its prepare hook.
+      NPM_CONFIG_IGNORE_SCRIPTS: 'true'
     steps:
+      # pi-action declares engines.node >=25; the runner default is Node 22
+      # (EBADENGINE warning). Pin Node 25 so `npm ci` and the agent run on a
+      # supported version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+
       - name: Run pi coding agent
         uses: cv/pi-action@a885e612077f52a77b2fde3db5fe99d5d96a6f38 # v1.9.2
         with:
