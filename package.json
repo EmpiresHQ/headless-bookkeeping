@@ -13,7 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
+    "test": "find src -name '*.spec.ts' -print0 | xargs -0 -I{} npx jest {} --runInBand --no-cache --silent",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
@@ -45,6 +45,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
     "jest": "^30.0.0",
+    "jest-runner": "^30.4.2",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
@@ -56,6 +57,9 @@
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
+    "maxWorkers": 1,
+    "workerIdleMemoryLimit": "100MB",
+    "resetModules": true,
     "moduleFileExtensions": [
       "js",
       "json",

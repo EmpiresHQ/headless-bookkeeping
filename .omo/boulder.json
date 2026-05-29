@@ -1,7 +1,60 @@
 {
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-1-foundation.md",
-  "started_at": "2026-05-29T12:34:01.779Z",
-  "session_ids": ["ses_18c46d88effev0UwFsEvRdWxc0"],
-  "plan_name": "wave-1-foundation",
-  "current_wave": 1
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-ledger.md",
+  "started_at": "2026-05-29T15:21:28.653Z",
+  "session_ids": [
+    "ses_18be3e195ffeEZcnXS4O7noyoS"
+  ],
+  "plan_name": "wave-2-ledger",
+  "current_wave": 2,
+  "session_origins": {
+    "ses_18be3e195ffeEZcnXS4O7noyoS": "direct"
+  },
+  "task_sessions": {
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Account chart schema + canonical seed data",
+      "session_id": "ses_18bab2a72ffeog30c59FoNFo4m",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-29T15:29:38.124Z",
+      "started_at": "2026-05-29T15:28:44.468Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T15:29:38.124Z",
+      "elapsed_ms": 53656
+    }
+  },
+  "schema_version": 2,
+  "works": {
+    "wave-2-ledger-legacy": {
+      "work_id": "wave-2-ledger-legacy",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-ledger.md",
+      "plan_name": "wave-2-ledger",
+      "started_at": "2026-05-29T15:21:28.653Z",
+      "updated_at": "2026-05-29T15:29:38.124Z",
+      "session_ids": [
+        "ses_18be3e195ffeEZcnXS4O7noyoS"
+      ],
+      "session_origins": {
+        "ses_18be3e195ffeEZcnXS4O7noyoS": "direct"
+      },
+      "task_sessions": {
+        "todo:6": {
+          "task_key": "todo:6",
+          "task_label": "6",
+          "task_title": "Account chart schema + canonical seed data",
+          "session_id": "ses_18bab2a72ffeog30c59FoNFo4m",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-29T15:29:38.124Z",
+          "started_at": "2026-05-29T15:28:44.468Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T15:29:38.124Z",
+          "elapsed_ms": 53656
+        }
+      }
+    }
+  },
+  "active_work_id": "wave-2-ledger-legacy",
+  "updated_at": "2026-05-29T15:29:38.124Z"
 }

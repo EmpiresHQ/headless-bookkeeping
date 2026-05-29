@@ -31,7 +31,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
 
 > **FORMAT**: Task labels MUST use bare numbers: `6.`, `7.`, `8.` — NOT `T6.`, `Task 6.`, etc.
 
-- [ ] 6. Account chart schema + canonical seed data
+- [x] 6. Account chart schema + canonical seed data
 
   **What to do**:
   - Create migration for `account` table: id (INTEGER PK), code (TEXT NOT NULL UNIQUE), name (TEXT NOT NULL), type (TEXT NOT NULL — enum: asset, liability, equity, revenue, expense), currency (TEXT, nullable — for foreign-currency accounts), parent_id (INTEGER FK to account, nullable), is_system (BOOLEAN DEFAULT false)
