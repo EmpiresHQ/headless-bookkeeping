@@ -1,12 +1,17 @@
 # Keep open PRs up to date with main.
 #
-# On every push to main, merge main into each open PR branch (same as the
-# "Update branch" button — a merge commit, no force-push, no history rewrite).
-# This stops PR branches from drifting behind main (which, among other things,
-# is what made a stale workflow snapshot run on an old PR).
+# On every push to main:
+#   1. `sync` job — merge main into each open same-repo PR branch (the "Update
+#      branch" button: merge commit, no force-push). PRs that merge cleanly or
+#      are already current are done here. PRs that CONFLICT are collected.
+#   2. `resolve` job — for each conflicting PR, the kimi agent (the @superpi
+#      model) resolves the merge conflicts and pushes the result.
 #
-# Cross-repo (fork) PRs are skipped: GITHUB_TOKEN can't push to a fork. PRs that
-# are already current or have merge conflicts are skipped with a log line.
+# Fork PRs are skipped (GITHUB_TOKEN can't push to a fork).
+#
+# NOTE: automated conflict resolution is best-effort. The agent never pushes if
+# any conflict markers remain, and every resolution is announced on the PR for a
+# human to review before merging.
 
 name: sync-prs
 
@@ -25,8 +30,11 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    outputs:
+      conflicted: ${{ steps.update.outputs.conflicted }}
     steps:
-      - name: Merge main into open PR branches
+      - name: Merge main into open PR branches; collect conflicts
+        id: update
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -40,20 +48,112 @@ jobs:
               --jq '.[] | select(.isCrossRepository == false) | .number'
           )
 
+          conflicted='[]'
           if [ "${#prs[@]}" -eq 0 ]; then
             echo "No open same-repo PRs targeting main."
+            echo "conflicted=$conflicted" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "Syncing ${#prs[@]} PR(s) with main..."
           for pr in "${prs[@]}"; do
             echo "::group::PR #$pr"
-            # update-branch is a no-op (422) when already current, and fails on
-            # merge conflicts — neither should fail the whole run.
             if gh pr update-branch "$pr" --repo "$REPO"; then
               echo "PR #$pr: synced with main"
             else
-              echo "PR #$pr: not updated (already current, or has conflicts) — skipping"
+              # update-branch fails for both "already current" and "conflict".
+              # mergeable disambiguates; it may be UNKNOWN briefly after a push,
+              # so poll a few times.
+              state=""
+              for _ in 1 2 3 4 5; do
+                state=$(gh pr view "$pr" --repo "$REPO" --json mergeable --jq '.mergeable')
+                [ "$state" != "UNKNOWN" ] && break
+                sleep 5
+              done
+              if [ "$state" = "CONFLICTING" ]; then
+                branch=$(gh pr view "$pr" --repo "$REPO" --json headRefName --jq '.headRefName')
+                conflicted=$(jq -cn --argjson a "$conflicted" --argjson n "$pr" --arg b "$branch" \
+                  '$a + [{number: $n, branch: $b}]')
+                echo "PR #$pr: CONFLICTING (branch $branch) → queued for agent resolution"
+              else
+                echo "PR #$pr: already current (mergeable=$state)"
+              fi
             fi
             echo "::endgroup::"
           done
+
+          echo "Conflicting PRs: $conflicted"
+          echo "conflicted=$conflicted" >> "$GITHUB_OUTPUT"
+
+  resolve:
+    needs: sync
+    if: ${{ needs.sync.outputs.conflicted != '' && needs.sync.outputs.conflicted != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # serialize: one agent / one push at a time
+      matrix:
+        pr: ${{ fromJSON(needs.sync.outputs.conflicted) }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.pr.branch }}
+          fetch-depth: 0 # full history so the merge has a common base
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install pi + project deps
+        run: |
+          npm i -g @earendil-works/pi-coding-agent
+          npm ci || echo "npm ci failed; agent resolves without deps"
+
+      - name: Resolve conflicts with kimi
+        id: resolve
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          BRANCH: ${{ matrix.pr.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          if git merge --no-edit origin/main; then
+            echo "Merged main cleanly — no conflicts after all."
+          else
+            echo "Conflicts present; invoking kimi to resolve."
+            pi -p "You are resolving a git merge conflict on branch '$BRANCH' after merging 'main' into it. The working tree contains conflict markers (<<<<<<<, =======, >>>>>>>). Resolve EVERY conflicted file so the result keeps the intent of both the PR's changes and main, and stays coherent and compilable. Edit files only — do NOT run git, do NOT commit, do NOT open pull requests." \
+              --model openrouter/moonshotai/kimi-k2.6 --thinking medium
+
+            # Safety net: never commit a half-resolved tree.
+            if git grep -nE '^(<<<<<<<|>>>>>>>|\|\|\|\|\|\|\|)' -- . ; then
+              echo "::error::Conflict markers remain after the agent — aborting, no push."
+              git merge --abort || true
+              exit 1
+            fi
+
+            git add -A
+            git commit --no-edit
+          fi
+
+          git push origin "HEAD:refs/heads/$BRANCH"
+
+      - name: Announce outcome on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "${{ steps.resolve.outcome }}" = "success" ]; then
+            gh pr comment ${{ matrix.pr.number }} --repo "$REPO" --body \
+              "🤖 Merged \`main\` and auto-resolved the conflicts with kimi (the @superpi model). **Please review the resolution before merging.**"
+          else
+            gh pr comment ${{ matrix.pr.number }} --repo "$REPO" --body \
+              "⚠️ Tried to auto-resolve the merge conflict with \`main\` but couldn't do it safely (markers left or the merge failed). Please resolve manually."
+          fi
