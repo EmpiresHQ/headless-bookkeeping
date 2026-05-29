@@ -12,6 +12,7 @@ import { LedgerValidationService } from '../validation/ledger-validation.service
 import { PostingService } from './posting.service';
 import { ValidationError } from './types';
 import { DraftVoucher } from '../voucher/types';
+import { GENESIS_HASH, computeVoucherHash } from './voucher-hash';
 
 describe('PostingService (integration)', () => {
   let db: Kysely<Database>;
@@ -175,5 +176,30 @@ describe('PostingService (integration)', () => {
     expect(result.lines).toHaveLength(2);
     const usdLine = result.lines.find((l) => l.currency === 'USD');
     expect(usdLine?.base_amount).toBe(9200);
+  });
+
+  it('sets previous_hash to GENESIS_HASH for the first voucher', async () => {
+    const result = await posting.postVoucher(balanced('V-2026-200'));
+    expect(result.previous_hash).toBe(GENESIS_HASH);
+  });
+
+  it('links each voucher to the hash of the prior one', async () => {
+    const first = await posting.postVoucher(balanced('V-2026-201'));
+    const firstLines = await lineRepo.getLinesByVoucherId(first.id);
+    const second = await posting.postVoucher(balanced('V-2026-202'));
+    expect(second.previous_hash).toBe(computeVoucherHash(first, firstLines));
+  });
+
+  it('rejects a negative-fx_rate voucher that would otherwise "balance" (writes nothing)', async () => {
+    const attack: DraftVoucher = {
+      voucher_number: 'V-2026-203',
+      tax_point_date: '2026-03-15',
+      lines: [
+        { account_code: 'EXPENSE_SOFTWARE', amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: -1, is_debit: true },
+        { account_code: 'CASH', amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: -1, is_debit: false },
+      ],
+    };
+    await expect(posting.postVoucher(attack)).rejects.toThrow(ValidationError);
+    expect(await voucherRepo.getVouchers()).toHaveLength(0);
   });
 });
