@@ -116,15 +116,16 @@ export class PostingPipelineService {
 
     // ── 4. Build semantic validation context ───────────────────
     const org = await this.organizationService.getOrganization();
+    const { country, vat_registered, base_currency } = org;
     const supplierFacts: SupplierFacts = {
-      country: org.country,
+      country,
       goodsVsServices: 'unknown',
       classificationMemory: [],
     };
     const orgContext: OrgContext = {
-      country: org.country,
-      vatRegistered: org.vat_registered,
-      baseCurrency: org.base_currency,
+      country,
+      vatRegistered: vat_registered,
+      baseCurrency: base_currency,
     };
     const semanticContext: SemanticValidationContext = {
       countryCode: org.country,
