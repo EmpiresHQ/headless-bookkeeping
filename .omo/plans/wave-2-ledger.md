@@ -16,6 +16,12 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
 - PUT/DELETE on posted vouchers returns 405
 - Agent-executed QA scenarios pass with evidence captured
 - Git commit records the wave
+- **Wave gate — ALL green, exactly as CI runs them** (see `.omo/plans/engineering-guardrails.md`): `npm run build && npm run lint && npm run test && npm run test:e2e`
+- **Real-DI integration test** for every cross-module behavior — no all-mock coverage (G2)
+- **Schema only in migrations** — grep clean: no `createTable`/`CREATE TABLE` outside `src/database/migrations/` (G4)
+- **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
+- **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
+- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never EUR
 
 ---
 
@@ -28,7 +34,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
   **What to do**:
   - Create migration for `account` table: id (INTEGER PK), code (TEXT NOT NULL UNIQUE), name (TEXT NOT NULL), type (TEXT NOT NULL — enum: asset, liability, equity, revenue, expense), currency (TEXT, nullable — for foreign-currency accounts), parent_id (INTEGER FK to account, nullable), is_system (BOOLEAN DEFAULT false)
   - Seed canonical chart of accounts in migration or seed script:
-    - Assets: CASH, BANK_DKK, BANK_USD, AR, SUPPLIER_PREPAYMENTS, RECEIVABLE_FROM_OWNER
+    - Assets: CASH, BANK_EUR, BANK_USD, AR, SUPPLIER_PREPAYMENTS, RECEIVABLE_FROM_OWNER
     - Liabilities: AP, CUSTOMER_PREPAYMENTS, VAT_PAYABLE
     - Equity: EQUITY, OWNERS_DRAWINGS
     - Revenue: REVENUE
@@ -75,7 +81,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
     Preconditions: Fresh DB, migrations run
     Steps:
       1. `sqlite3 data/app.sqlite "SELECT code FROM account ORDER BY code;"`
-    Expected Result: Output includes CASH, BANK_DKK, BANK_USD, AR, AP, EQUITY, REVENUE, EXPENSE_SOFTWARE, VAT_PAYABLE, etc.
+    Expected Result: Output includes CASH, BANK_EUR, BANK_USD, AR, AP, EQUITY, REVENUE, EXPENSE_SOFTWARE, VAT_PAYABLE, etc.
     Failure Indicators: Missing accounts, wrong codes, no seed data
     Evidence: .omo/evidence/task-6-seeded-accounts.txt
 
@@ -147,7 +153,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
     Tool: Bash (curl)
     Preconditions: App running, accounts seeded
     Steps:
-      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"voucher_number":"V-2024-001","tax_point_date":"2024-01-15","lines":[{"account_code":"EXPENSE_SOFTWARE","amount":10000,"currency":"DKK","base_amount":10000,"fx_rate":1,"is_debit":true},{"account_code":"CASH","amount":10000,"currency":"DKK","base_amount":10000,"fx_rate":1,"is_debit":false}]}' http://localhost:3000/api/vouchers`
+      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"voucher_number":"V-2024-001","tax_point_date":"2024-01-15","lines":[{"account_code":"EXPENSE_SOFTWARE","amount":10000,"currency":"EUR","base_amount":10000,"fx_rate":1,"is_debit":true},{"account_code":"CASH","amount":10000,"currency":"EUR","base_amount":10000,"fx_rate":1,"is_debit":false}]}' http://localhost:3000/api/vouchers`
     Expected Result: 201 Created with voucher JSON including lines
     Failure Indicators: 400/500, missing lines, wrong amounts
     Evidence: .omo/evidence/task-7-create-voucher.json
@@ -221,7 +227,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
     Tool: Bash (node REPL)
     Preconditions: Build passes
     Steps:
-      1. `node -e "const { LedgerValidationService } = require('./dist/ledger/validation/ledger-validation.service'); const v = new LedgerValidationService(); console.log(v.validateVoucherLines([{account_id:1,amount:10000,currency:'DKK',base_amount:10000,fx_rate:1,is_debit:true},{account_id:2,amount:10000,currency:'DKK',base_amount:10000,fx_rate:1,is_debit:false}]));"`
+      1. `node -e "const { LedgerValidationService } = require('./dist/ledger/validation/ledger-validation.service'); const v = new LedgerValidationService(); console.log(v.validateVoucherLines([{account_id:1,amount:10000,currency:'EUR',base_amount:10000,fx_rate:1,is_debit:true},{account_id:2,amount:10000,currency:'EUR',base_amount:10000,fx_rate:1,is_debit:false}]));"`
     Expected Result: { isValid: true, errors: [] }
     Failure Indicators: isValid: false, unexpected errors
     Evidence: .omo/evidence/task-8-balanced.txt
@@ -298,7 +304,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
     Tool: Bash (curl)
     Preconditions: App running, accounts seeded
     Steps:
-      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"voucher_number":"V-2024-002","tax_point_date":"2024-01-15","lines":[{"account_code":"EXPENSE_SOFTWARE","amount":10000,"currency":"DKK","base_amount":10000,"fx_rate":1,"is_debit":true},{"account_code":"CASH","amount":10000,"currency":"DKK","base_amount":10000,"fx_rate":1,"is_debit":false}]}' http://localhost:3000/api/vouchers`
+      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"voucher_number":"V-2024-002","tax_point_date":"2024-01-15","lines":[{"account_code":"EXPENSE_SOFTWARE","amount":10000,"currency":"EUR","base_amount":10000,"fx_rate":1,"is_debit":true},{"account_code":"CASH","amount":10000,"currency":"EUR","base_amount":10000,"fx_rate":1,"is_debit":false}]}' http://localhost:3000/api/vouchers`
     Expected Result: 201 with voucher JSON, posted_at is non-null
     Failure Indicators: 400/500, posted_at null, lines missing
     Evidence: .omo/evidence/task-9-post-valid.json

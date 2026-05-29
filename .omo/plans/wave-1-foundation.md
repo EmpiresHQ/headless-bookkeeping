@@ -155,7 +155,7 @@ This wave establishes the database infrastructure, organizational context, plugi
     Preconditions: App running with fresh DB
     Steps:
       1. `curl -s http://localhost:3000/api/organization`
-    Expected Result: JSON with country="DK", base_currency="DKK", vat_registered=false
+    Expected Result: JSON with country="IE", base_currency=null, vat_registered=false (resolves to EUR via the country plugin)
     Failure Indicators: 404, empty response, wrong fields
     Evidence: .omo/evidence/task-2-get-organization.json
 
@@ -308,7 +308,7 @@ This wave establishes the database infrastructure, organizational context, plugi
     Tool: Bash (node REPL)
     Preconditions: Build passes
     Steps:
-      1. `node -e "const { CurrencyService } = require('./dist/currency/currency.service'); const s = new CurrencyService({base_currency:'DKK'}); console.log(s.convertToBase(100,'USD',7.14));"`
+      1. `node -e "const { CurrencyService } = require('./dist/currency/currency.service'); const s = new CurrencyService(null, null); console.log(s.convertToBase(100,'USD',7.14));"` (convertToBase is dependency-free arithmetic; base-currency resolution is covered by the integration test)
     Expected Result: Outputs 714
     Failure Indicators: wrong calculation, null/undefined
     Evidence: .omo/evidence/task-4-conversion.txt

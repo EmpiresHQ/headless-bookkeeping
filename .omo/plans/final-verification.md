@@ -3,6 +3,8 @@
 ## Overview
 After ALL implementation tasks (Waves 1-6) are complete, 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before marking work complete.
 
+> **Note:** This is the project-end gate. A per-wave miniature of it (plan-compliance + code-quality + scope-fidelity) runs at the end of EACH wave per `.omo/plans/engineering-guardrails.md` (G8) — F1–F4 below should never be the first time these checks run. All four reviewers must apply the guardrails (CI-parity lint gate, real-DI integration tests, schema-only-in-migrations grep, DB-level invariants, "Must NOT do" enforcement).
+
 ## Prerequisites
 - **Waves 1-6 complete**: All 31 tasks done, evidence captured
 - `docker compose up` starts and health responds 200

@@ -17,6 +17,12 @@ This wave implements the full business object → draft → Rules → Policy →
 - End-to-end pipeline works: create business object → generate draft → Rules → Policy → post
 - Agent-executed QA scenarios pass with evidence captured
 - Git commit records the wave
+- **Wave gate — ALL green, exactly as CI runs them** (see `.omo/plans/engineering-guardrails.md`): `npm run build && npm run lint && npm run test && npm run test:e2e`
+- **Real-DI integration test** for every cross-module behavior — no all-mock coverage (G2)
+- **Schema only in migrations** — grep clean: no `createTable`/`CREATE TABLE` outside `src/database/migrations/` (G4)
+- **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
+- **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
+- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never EUR
 
 ---
 
@@ -71,7 +77,7 @@ This wave implements the full business object → draft → Rules → Policy →
     Tool: Bash (curl)
     Preconditions: App running, accounts seeded, CountryPlugin loaded
     Steps:
-      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"category":"software","gross_amount":10000,"vat_amount":2500,"currency":"DKK","tax_point_date":"2024-01-15"}' http://localhost:3000/api/expenses`
+      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"category":"software","gross_amount":10000,"vat_amount":2500,"currency":"EUR","tax_point_date":"2024-01-15"}' http://localhost:3000/api/expenses`
       2. Extract id from response
       3. `curl -s -X POST http://localhost:3000/api/expenses/{id}/generate-draft`
     Expected Result: Step 1 → 201 with status=draft; Step 3 → 200 with voucher JSON, lines include Dr EXPENSE_SOFTWARE and Cr CASH, posted_at=null
@@ -135,7 +141,7 @@ This wave implements the full business object → draft → Rules → Policy →
     Tool: Bash (curl)
     Preconditions: App running, accounts seeded
     Steps:
-      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"invoice_number":"INV-2024-001","gross_amount":12500,"vat_amount":2500,"currency":"DKK","tax_point_date":"2024-01-15","due_date":"2024-02-15"}' http://localhost:3000/api/sales-invoices`
+      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"invoice_number":"INV-2024-001","gross_amount":12500,"vat_amount":2500,"currency":"EUR","tax_point_date":"2024-01-15","due_date":"2024-02-15"}' http://localhost:3000/api/sales-invoices`
       2. `curl -s -X POST http://localhost:3000/api/sales-invoices/1/generate-draft`
     Expected Result: Step 2 → voucher with 3 lines: Dr AR 12500, Cr REVENUE 10000, Cr VAT_PAYABLE 2500
     Failure Indicators: Wrong line count, wrong accounts, amounts don't balance
@@ -202,7 +208,7 @@ This wave implements the full business object → draft → Rules → Policy →
     Tool: Bash (node REPL)
     Preconditions: Build passes
     Steps:
-      1. `node -e "const { RulesService } = require('./dist/rules/rules.service'); const s = new RulesService(); const r = s.validate({lines:[{account_id:1,amount:100,currency:'DKK',base_amount:100,fx_rate:1,is_debit:true}]}, 'structural'); console.log(r);"`
+      1. `node -e "const { RulesService } = require('./dist/rules/rules.service'); const s = new RulesService(); const r = s.validate({lines:[{account_id:1,amount:100,currency:'EUR',base_amount:100,fx_rate:1,is_debit:true}]}, 'structural'); console.log(r);"`
     Expected Result: passed: false, overrideable: false
     Failure Indicators: overrideable: true, passed: true
     Evidence: .omo/evidence/task-13-structural.txt
@@ -234,7 +240,7 @@ This wave implements the full business object → draft → Rules → Policy →
   - `PolicyService.decide(voucher: DraftVoucher, ruleResults: RuleResult[]): PolicyDecision`
   - Decision: `{ action: 'auto-post' | 'hold-for-approval', reason: string }`
   - Configuration (stored in `policy_config` table or hardcoded for v1):
-    - `auto_post_amount_ceiling`: 100000 (cents = 1000 DKK) — above this, hold for approval
+    - `auto_post_amount_ceiling`: 100000 (cents = 1000 EUR) — above this, hold for approval
     - `auto_post_min_confidence`: 0.8 (stub — AI confidence not implemented yet, always 1.0)
     - `unknown_supplier_requires_approval`: true
     - `always_approve_operations`: ['correction', 'reversal', 'vat_lock'] (stub list)

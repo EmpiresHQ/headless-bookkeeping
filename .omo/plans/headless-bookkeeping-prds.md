@@ -2,6 +2,10 @@
 
 > **Overview**: This is the orchestration-level plan. Each wave has its own detailed PRD linked below. Start here for the big picture; dive into wave PRDs for task-level execution details.
 
+> **⚠️ READ BEFORE EVERY WAVE: [`engineering-guardrails.md`](./engineering-guardrails.md).** These are hard gates derived from the Wave 1 post-mortem (CI-parity lint gate, real-DI integration tests, schema-only-in-migrations, DB-level invariants, "Must NOT do" enforcement, per-wave verification). Each wave's Definition of Done now includes the wave gate.
+
+> **Status / authoritative decisions (post Wave 1 review):** Wave 1 was reviewed and reconciled. Base currency is sourced from the **country plugin** with an Organization **override** (ADR-0004); the default deployment is **Ireland → EUR** (not DK/DKK). All wave examples and the canonical chart use EUR. The Organization is a DB-level singleton (`id = 1`).
+
 ---
 
 ## TL;DR

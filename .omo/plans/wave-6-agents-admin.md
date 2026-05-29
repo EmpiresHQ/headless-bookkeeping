@@ -17,6 +17,12 @@ This wave closes the system: period locking prevents posting into filed periods,
 - Admin API endpoints provide read-only diagnostics with simple API key auth
 - Agent-executed QA scenarios pass with evidence captured
 - Git commit records the wave
+- **Wave gate — ALL green, exactly as CI runs them** (see `.omo/plans/engineering-guardrails.md`): `npm run build && npm run lint && npm run test && npm run test:e2e`
+- **Real-DI integration test** for every cross-module behavior — no all-mock coverage (G2)
+- **Schema only in migrations** — grep clean: no `createTable`/`CREATE TABLE` outside `src/database/migrations/` (G4)
+- **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
+- **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
+- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never DKK
 
 ---
 

@@ -17,6 +17,12 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
 - End-to-end reconciliation flow works
 - Agent-executed QA scenarios pass with evidence captured
 - Git commit records the wave
+- **Wave gate — ALL green, exactly as CI runs them** (see `.omo/plans/engineering-guardrails.md`): `npm run build && npm run lint && npm run test && npm run test:e2e`
+- **Real-DI integration test** for every cross-module behavior — no all-mock coverage (G2)
+- **Schema only in migrations** — grep clean: no `createTable`/`CREATE TABLE` outside `src/database/migrations/` (G4)
+- **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
+- **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
+- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never EUR
 
 ---
 
@@ -67,7 +73,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
     Tool: Bash (curl)
     Preconditions: App running, bank account exists
     Steps:
-      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"account_code":"BANK_DKK","start_date":"2024-01-01","end_date":"2024-01-31","transactions":[{"transaction_date":"2024-01-15","description":"Payment from Customer A","amount":12500,"currency":"DKK","reference":"INV-001"},{"transaction_date":"2024-01-16","description":"Bolt ride","amount":-1525,"currency":"DKK","reference":""}]}' http://localhost:3000/api/bank-statements`
+      1. `curl -s -X POST -H "Content-Type: application/json" -d '{"account_code":"BANK_EUR","start_date":"2024-01-01","end_date":"2024-01-31","transactions":[{"transaction_date":"2024-01-15","description":"Payment from Customer A","amount":12500,"currency":"EUR","reference":"INV-001"},{"transaction_date":"2024-01-16","description":"Bolt ride","amount":-1525,"currency":"EUR","reference":""}]}' http://localhost:3000/api/bank-statements`
     Expected Result: 201 with statement id, 2 transactions created
     Failure Indicators: 400/500, wrong transaction count, missing amounts
     Evidence: .omo/evidence/task-21-upload-statement.json
@@ -364,7 +370,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
     6. Handle FX difference on settlement
     7. Verify all vouchers are posted and balances are correct
   - `test/reconciliation.e2e-spec.ts`
-  - Also verify that `GET /api/accounts/BANK_DKK` shows correct balance after all transactions
+  - Also verify that `GET /api/accounts/BANK_EUR` shows correct balance after all transactions
   - This task is wiring test, not new logic
 
   **Must NOT do**:
