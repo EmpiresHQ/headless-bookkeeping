@@ -9,3 +9,12 @@ This composes naturally with decisions already made — vouchers are immutable a
 - **Optional external anchor** (deferred): publishing/timestamping the period root externally lets a third party (auditor) verify the filed return without seeing the whole ledger.
 
 v1 builds the hash chain and the per-period Merkle root; the external anchor is deferred. Double-entry remains the unchanged semantic core.
+
+## Hash-chain serialization (Wave 2, the forever-contract)
+
+The chain is computed in the posting service, inside the same transaction that inserts the voucher and its lines — SQLite's single writer makes the chain head unambiguous, so there is no ordering race.
+
+- **Per-voucher hash**: `previous_hash(N) = SHA-256( prevHash ‖ canonical(N) )`, where `canonical(N)` is a deterministic serialization of the voucher's immutable fields **plus all its lines**: `voucher_number`, `tax_point_date`, `posted_at`, and for each line (in line-id order) `account_id`, `amount`, `currency`, `base_amount`, `fx_rate`, `is_debit`.
+- **Genesis**: the first voucher uses a fixed sentinel `prevHash` (64 zero hex chars), never `NULL`. `NULL` is reserved to mean "not yet computed" / a bug — it must never appear on a posted voucher. (This corrects the Wave-2 implementation that wrote `previous_hash: null` on every post and shipped no hashing logic.)
+- The serialization format is a **forever-contract**: re-hashing a populated ledger after a format change is painful, so the field list and ordering above are fixed. Changing it requires a new ADR and a migration story.
+- The immutability triggers (ADR-0019) must permit the INSERT that sets `previous_hash` but block any later UPDATE of it.

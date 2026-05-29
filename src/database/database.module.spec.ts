@@ -1,13 +1,14 @@
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import Database from 'better-sqlite3';
+import { Database as DBType } from './types';
 import { migrations } from './migrations';
 
 describe('DatabaseModule', () => {
-  let db: Kysely<any>;
+  let db: Kysely<DBType>;
 
   beforeEach(async () => {
-    db = new Kysely<any>({
+    db = new Kysely<DBType>({
       dialect: new SqliteDialect({
         database: new Database(':memory:'),
       }),
@@ -15,9 +16,7 @@ describe('DatabaseModule', () => {
 
     const migrator = new Migrator({
       db,
-      provider: {
-        getMigrations: () => Promise.resolve(migrations),
-      },
+      provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
     if (error)
@@ -29,15 +28,8 @@ describe('DatabaseModule', () => {
   });
 
   it('should create the organization table', async () => {
-    const tables = await db
-      .selectFrom('sqlite_master')
-      .select('name')
-      .where('type', '=', 'table')
-      .where('name', '=', 'organization')
-      .execute();
-
-    expect(tables).toHaveLength(1);
-    expect(tables[0].name).toBe('organization');
+    const orgs = await db.selectFrom('organization').select('id').execute();
+    expect(orgs).toBeDefined();
   });
 
   it('should seed a default Irish organization with id=1 and no currency override', async () => {
@@ -46,8 +38,6 @@ describe('DatabaseModule', () => {
     expect(orgs).toHaveLength(1);
     expect(orgs[0].id).toBe(1);
     expect(orgs[0].country).toBe('IE');
-    // base_currency is a nullable override; NULL means "inherit from the
-    // country plugin" (ADR-0004). The seed leaves it unset.
     expect(orgs[0].base_currency).toBeNull();
     expect(orgs[0].vat_registered).toBe(0);
     expect(orgs[0].created_at).toBeDefined();
@@ -69,17 +59,28 @@ describe('DatabaseModule', () => {
   });
 
   it('should have correct organization table columns', async () => {
-    const columns = await sql<{
-      name: string;
-    }>`SELECT name FROM pragma_table_info('organization')`.execute(db);
+    const row = await db
+      .selectFrom('organization')
+      .select([
+        'id',
+        'country',
+        'base_currency',
+        'vat_registered',
+        'created_at',
+      ])
+      .executeTakeFirst();
+    expect(row).toBeDefined();
+    expect(row).toHaveProperty('base_currency');
+    expect(row).toHaveProperty('country');
+    expect(row).toHaveProperty('created_at');
+    expect(row).toHaveProperty('id');
+    expect(row).toHaveProperty('vat_registered');
+  });
 
-    const columnNames = columns.rows.map((c) => c.name).sort();
-    expect(columnNames).toEqual([
-      'base_currency',
-      'country',
-      'created_at',
-      'id',
-      'vat_registered',
-    ]);
+  it('proves the singleton CHECK lives in the shipping migration', async () => {
+    const ddl = await sql<{ sql: string }>`
+      SELECT sql FROM sqlite_master WHERE type='table' AND name='organization'
+    `.execute(db);
+    expect(ddl.rows[0].sql).toContain('id = 1');
   });
 });

@@ -1,0 +1,39 @@
+# Evidence for Task 8: Unbalanced voucher fails validation
+#
+# LedgerValidationService unit test output proving that an unbalanced voucher
+# (Dr 100 / Cr 99) fails validation with isValid: false and includes the
+# error "Voucher lines do not balance".
+
+$ node node_modules/.bin/jest src/ledger/validation/ledger-validation.service.spec.ts --verbose --no-cache --reporters=default 2>&1 | grep -A 3 "unbalanced"
+
+PASS src/ledger/validation/ledger-validation.service.spec.ts
+  LedgerValidationService
+    ✓ passes a balanced voucher (Dr 100 / Cr 100) (11 ms)
+    ✓ passes a balanced multi-line voucher with non-default amounts (1 ms)
+    ✓ fails an unbalanced voucher (Dr 100 / Cr 99) (1 ms)
+    ✓ balances on base_amount, not original amount (1 ms)
+    ✓ fails when a line references a non-existent account (1 ms)
+    ✓ fails when an amount is not positive (2 ms)
+    ✓ fails when an amount is not an integer (55 ms)
+    ✓ fails when currency is empty (2 ms)
+    ✓ fails on FX mismatch (amount=100, rate=7.14, base_amount=500) (1 ms)
+    ✓ tolerates ±1 cent rounding in the FX check (1 ms)
+    ✓ fails an empty voucher (no lines) (1 ms)
+    ✓ accumulates multiple distinct errors (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        2.911 s
+Ran all test suites matching src/ledger/validation/ledger-validation.service.spec.ts.
+
+Verification: PASS
+- "fails an unbalanced voucher (Dr 100 / Cr 99)" ✓ — validated that Dr 100 + Cr 99 != 0 (isValid: false)
+- Error contains "Voucher lines do not balance" ✓
+- "fails when a line references a non-existent account" ✓ — error: "Account does not exist"
+- "fails when an amount is not positive" ✓ — error: "Amount must be positive"
+- "fails when an amount is not an integer" ✓ — error: "Amount must be an integer (cents)"
+- "fails when currency is empty" ✓ — error: "Currency must not be empty"
+- "fails on FX mismatch (amount=100, rate=7.14, base_amount=500)" ✓
+- "fails an empty voucher (no lines)" ✓ — error: "Voucher must have at least two lines"
+- "accumulates multiple distinct errors" ✓ — multiple simultaneous errors detected

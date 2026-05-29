@@ -1,0 +1,34 @@
+# Evidence for Task 10: PUT /api/vouchers/:id is rejected with 405
+#
+# Test output from VoucherController (immutability) unit test proving that
+# PUT, PATCH, and DELETE on a posted voucher all throw MethodNotAllowedException (405).
+# Confirmed by E2E tests.
+
+$ node node_modules/.bin/jest src/ledger/voucher/voucher.controller.spec.ts --verbose --no-cache --reporters=default 2>&1
+
+PASS src/ledger/voucher/voucher.controller.spec.ts (6.945 s)
+  VoucherController (immutability)
+    ✓ PUT /api/vouchers/:id throws MethodNotAllowedException (405) (19 ms)
+    ✓ PATCH /api/vouchers/:id throws MethodNotAllowedException (405) (2 ms)
+    ✓ DELETE /api/vouchers/:id throws MethodNotAllowedException (405) (2 ms)
+    ✓ GET /api/vouchers/:id still returns the voucher with lines (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        8.61 s
+Ran all test suites matching src/ledger/voucher/voucher.controller.spec.ts.
+
+$ node node_modules/.bin/jest --config ./test/jest-e2e.json test/voucher.e2e-spec.ts --verbose --no-cache --reporters=default 2>&1 | grep -E "(PUT|DELETE|PATCH).*405"
+
+    ✓ PUT /api/vouchers/:id is rejected with 405 (15 ms)
+    ✓ DELETE /api/vouchers/:id is rejected with 405 (14 ms)
+    ✓ PATCH /api/vouchers/:id is rejected with 405 (14 ms)
+
+Verification: PASS
+- PUT /api/vouchers/:id throws MethodNotAllowedException with message "Posted vouchers are immutable" ✓
+- PATCH /api/vouchers/:id throws MethodNotAllowedException ✓
+- DELETE /api/vouchers/:id throws MethodNotAllowedException ✓
+- E2E confirms PUT returns 405 after posting a valid voucher ✓
+- E2E confirms DELETE returns 405 ✓
+- E2E confirms PATCH returns 405 ✓

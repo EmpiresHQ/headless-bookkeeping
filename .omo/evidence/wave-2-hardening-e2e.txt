@@ -1,0 +1,10 @@
+
+> bookkeeping@0.0.1 test:e2e
+> jest --config ./test/jest-e2e.json
+
+
+Test Suites: 3 passed, 3 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        1.378 s
+Ran all test suites.

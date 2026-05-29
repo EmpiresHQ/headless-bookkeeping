@@ -4,6 +4,8 @@ import { OrganizationModule } from './organization/organization.module';
 import { CurrencyModule } from './currency/currency.module';
 import { PluginsModule } from './plugins/plugins.module';
 import { HealthModule } from './health/health.module';
+import { AccountModule } from './ledger/account/account.module';
+import { VoucherModule } from './ledger/voucher/voucher.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { HealthModule } from './health/health.module';
     CurrencyModule,
     PluginsModule,
     HealthModule,
+    AccountModule,
+    VoucherModule,
   ],
 })
 export class AppModule {}

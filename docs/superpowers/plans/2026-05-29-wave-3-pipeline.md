@@ -10,19 +10,35 @@
 
 ---
 
+## ⚠️ Reconciliation banner — read before executing (Wave-3 plan review)
+
+This detailed plan was authored before the Wave-2 grill + Wave-3 plan review. Several task bodies below encode a **superseded model**. The authoritative corrections live in `.omo/plans/wave-3-pipeline.md` (section **"Architecture corrections"**, AC-1…AC-11) and **ADR-0020**. Where this file conflicts, those win. The load-bearing changes:
+
+1. **A Voucher is minted only at posting (ADR-0020).** `generate-draft` returns a **transient, in-memory** draft — never persisted. Policy-hold persists **no** voucher (`voucher_id` stays NULL). Any step below that inserts an unposted voucher or sets `voucher_id` on a held item is wrong.
+2. **Accrual + VAT (ADR-0008).** Expense draft = `Dr Expense (net) + Dr VAT_RECEIVABLE / Cr AP (gross)` — never `Cr Cash`, never drop the VAT line.
+3. **Rules structural tier delegates to `LedgerValidationService`** (AC-3); codes resolved to `{account_id, account_currency}` by one resolver (AC-4) — `DraftVoucherLine` carries **`account_code`**, not `account_id`.
+4. **`PolicyDecision` has no `'reject'`** — Rules rejects structural/hard before Policy (AC-5).
+5. **Override is bound to the post call** and references the **business object**, not a voucher (AC-6).
+6. **`sales_invoice` send-state is a separate `sent_at` field**, not a `status` enum value (AC-11).
+7. Migrations 005–008; draft lines satisfy the hardened CHECKs (`fx_rate>0`, `base_amount>0`, account-currency-match, AC-7); real-DI tests (AC-8); idempotent `/post` (AC-9).
+
+**Tasks 11, 14, 15 below must have their detailed TDD steps regenerated to this model before execution** (the Rules/Policy table-DDL and mechanics steps are largely still valid). The "Wave 2 dependencies" facts immediately below have been corrected.
+
+---
+
 ## Wave 2 dependencies (assumed implemented)
 
 This wave builds on Wave 2. The following are assumed to exist and are referenced verbatim:
 
 - **Migrations** `002_create_account.ts`, `003_create_voucher.ts`, `004_create_voucher_line.ts`, all registered in `src/database/migrations/index.ts`. Wave 3 migrations therefore start at `005`.
 - **Kysely `Database` interface** (`src/database/types.ts`) already has `account`, `voucher`, `voucher_line` tables. Wave 3 adds `expense`, `sales_invoice`, `policy_config`, `override`.
-- **`AccountService`** (`src/ledger/account/account.service.ts`): `getAccountByCode(code: string): Promise<{ id: number; code: string; type: string } | undefined>`.
-- **`LedgerValidationService`** (`src/ledger/validation/ledger-validation.service.ts`): `validateVoucherLines(lines: DraftVoucherLine[]): { isValid: boolean; errors: string[] }` — pure structural arithmetic (balance, account-id present, positive integer amounts, currency non-empty, base_amount ≈ amount×fx_rate).
+- **`AccountService`** (`src/ledger/account/account.service.ts`): `getAccounts(): Promise<Account[]>` and `getAccountByCode(code): Promise<Account | null>` — `Account` is `{ id; code; name; type; currency: string | null; parent_id; is_system }`. **Real return is `Account | null` (not `undefined`) and carries `currency`** (needed for account-currency-match).
+- **`LedgerValidationService`** (`src/ledger/validation/ledger-validation.service.ts`): **real signature** `validateVoucherLines(lines: ValidatableLine[], validAccountIds: Set<number>): { isValid; errors }`. `ValidatableLine = { account_id; amount; currency; base_amount; fx_rate; is_debit; account_currency: string | null }`. After Wave-2 hardening it also rejects non-positive `base_amount`/`fx_rate` and `currency≠account_currency`. **The structural Rules tier calls THIS (AC-3)**, with codes pre-resolved to `{account_id, account_currency}` by the single resolver (AC-4).
 - **`PostingService`** (`src/ledger/posting/posting.service.ts`): `postVoucher(draft: DraftVoucher): Promise<PostedVoucher>` — validates, then inserts voucher (`posted_at = now`) + lines inside one SQLite transaction.
 - **Ledger types** (`src/ledger/voucher/types.ts`):
   ```ts
   export interface DraftVoucherLine {
-    account_id: number;
+    account_code: string;  // resolved to {account_id, account_currency} by the single resolver (AC-4) — NOT account_id
     amount: number;        // cents, original currency
     currency: string;
     base_amount: number;   // cents, base currency
@@ -59,7 +75,7 @@ If any Wave 2 symbol differs from the above, adapt the call sites in this plan t
 - `src/database/migrations/005_create_expense.ts` — `expense` table + status CHECK constraint.
 - `src/database/migrations/006_create_sales_invoice.ts` — `sales_invoice` table + UNIQUE `invoice_number` + status CHECK.
 - `src/database/migrations/007_create_policy_config.ts` — `policy_config` singleton (`id = 1` CHECK) + seed defaults.
-- `src/database/migrations/008_create_override.ts` — `override` table + FK to voucher.
+- `src/database/migrations/008_create_override.ts` — `override` table + FK to the **business object** (expense/sales_invoice), **not** to voucher (a held item has no voucher — ADR-0020/AC-6).
 - `src/database/migrations/index.ts` — **MODIFY**: register 005–008.
 - `src/database/types.ts` — **MODIFY**: add `ExpenseTable`, `SalesInvoiceTable`, `PolicyConfigTable`, `OverrideTable` to `Database`.
 
@@ -127,8 +143,9 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
 - [ ] **Write the migration (schema only — G4, G6).** Create `src/database/migrations/005_create_expense.ts`:
   ```ts
   import { Kysely, sql } from 'kysely';
+  import { Database } from '../types';
 
-  export async function up(db: Kysely<any>): Promise<void> {
+  export async function up(db: Kysely<Database>): Promise<void> {
     await db.schema
       .createTable('expense')
       .ifNotExists()
@@ -155,7 +172,7 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
       .execute();
   }
 
-  export async function down(db: Kysely<any>): Promise<void> {
+  export async function down(db: Kysely<Database>): Promise<void> {
     await db.schema.dropTable('expense').ifExists().execute();
   }
   ```
@@ -202,7 +219,6 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
   import { NullCountryPlugin } from '../plugins/null-country.plugin';
   import { PluginLoader } from '../plugins/plugin-loader.service';
   import { CurrencyService } from '../currency/currency.service';
-  import { AccountService } from '../ledger/account/account.service';
   import { ExpensesService } from './expenses.service';
 
   describe('ExpensesService (integration)', () => {
@@ -227,7 +243,6 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
           NullCountryPlugin,
           PluginLoader,
           CurrencyService,
-          AccountService,
           ExpensesService,
         ],
       }).compile();
@@ -252,7 +267,7 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
       expect(e.voucher_id).toBeNull();
     });
 
-    it('generates a balanced draft voucher: Dr plugin-resolved expense account, Cr CASH, not posted', async () => {
+    it('generates a balanced ACCRUAL draft (Dr expense net + Dr VAT_RECEIVABLE / Cr AP), transient, not persisted', async () => {
       const e = await expenses.create({
         category: 'transport',
         gross_amount: 33000,
@@ -260,29 +275,28 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
         currency: 'EUR',
         tax_point_date: '2024-03-10',
       });
+      const before = await db.selectFrom('voucher').selectAll().execute();
+
       const draft = await expenses.generateDraft(e.id);
 
-      // Plugin resolves category -> account (NullCountryPlugin: EXPENSE_TRANSPORT).
-      const debit = draft.lines.find((l) => l.is_debit);
-      const credit = draft.lines.find((l) => !l.is_debit);
-      const expenseAccount = await db
-        .selectFrom('account').selectAll()
-        .where('code', '=', 'EXPENSE_TRANSPORT').executeTakeFirstOrThrow();
-      const cashAccount = await db
-        .selectFrom('account').selectAll()
-        .where('code', '=', 'CASH').executeTakeFirstOrThrow();
-
-      expect(draft.lines).toHaveLength(2);
-      expect(debit!.account_id).toBe(expenseAccount.id);
-      expect(debit!.amount).toBe(33000);
-      expect(debit!.vat_code).toBe('NULL_STANDARD'); // from plugin, never hardcoded
-      expect(credit!.account_id).toBe(cashAccount.id);
-      expect(credit!.amount).toBe(33000);
-      // base currency resolved via CurrencyService -> EUR for the Irish org.
-      expect(debit!.currency).toBe('EUR');
-      expect(debit!.base_amount).toBe(33000);
-      // Draft only: nothing posted.
+      // Accrual (ADR-0008): net 27000 + VAT 6000 / AP 33000. Lines addressed by
+      // CODE — resolution to ids+currency happens later in the resolver (AC-4).
+      const byCode = (c: string) => draft.lines.find((l) => l.account_code === c);
+      expect(draft.lines).toHaveLength(3);
+      // plugin resolves transport -> EXPENSE_TRANSPORT + input-VAT code (never hardcoded)
+      expect(byCode('EXPENSE_TRANSPORT')).toMatchObject({
+        amount: 27000, base_amount: 27000, fx_rate: 1, is_debit: true, vat_code: 'NULL_STANDARD',
+      });
+      expect(byCode('VAT_RECEIVABLE')).toMatchObject({ amount: 6000, base_amount: 6000, is_debit: true });
+      expect(byCode('AP')).toMatchObject({ amount: 33000, base_amount: 33000, is_debit: false });
+      // balances: debits 27000+6000 == credit 33000
+      const dr = draft.lines.filter((l) => l.is_debit).reduce((s, l) => s + l.base_amount, 0);
+      const cr = draft.lines.filter((l) => !l.is_debit).reduce((s, l) => s + l.base_amount, 0);
+      expect(dr).toBe(cr);
+      // transient (ADR-0020): not posted AND no voucher row written
       expect(draft.posted_at ?? null).toBeNull();
+      const after = await db.selectFrom('voucher').selectAll().execute();
+      expect(after.length).toBe(before.length);
     });
 
     it('rejects generate-draft for a missing expense', async () => {
@@ -337,18 +351,20 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
   import { OrganizationService } from '../organization/organization.service';
   import { PluginLoader } from '../plugins/plugin-loader.service';
   import { CurrencyService } from '../currency/currency.service';
-  import { AccountService } from '../ledger/account/account.service';
   import { DraftVoucherLine } from '../ledger/voucher/types';
   import { CreateExpenseDto, Expense, ExpenseDraftVoucher, ExpenseStatus } from './types';
 
+  const EXPENSE_STATUSES: readonly ExpenseStatus[] = ['draft', 'pending', 'posted', 'reversed'];
+
   @Injectable()
   export class ExpensesService {
+    // No AccountService: the draft addresses accounts by CODE; resolution to
+    // ids+currency happens in the single resolver at Rules/posting time (AC-4).
     constructor(
       @InjectKysely() private readonly db: Kysely<Database>,
       private readonly organization: OrganizationService,
       private readonly pluginLoader: PluginLoader,
       private readonly currency: CurrencyService,
-      private readonly accounts: AccountService,
     ) {}
 
     async create(dto: CreateExpenseDto): Promise<Expense> {
@@ -387,38 +403,54 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
     }
 
     /**
-     * Generates a balanced DRAFT voucher from the expense. NEVER posts.
-     * Dr <plugin-resolved expense account>, Cr CASH (v1 assumes cash payment).
+     * Builds a balanced, TRANSIENT accrual draft voucher (ADR-0020: NEVER persisted,
+     * NEVER posts). Accrual (ADR-0008): Dr <plugin expense account> (net)
+     * + Dr VAT_RECEIVABLE (input VAT) / Cr AP (gross). The later payment is a
+     * separate settlement voucher (not Wave 3) — never Cr Cash here.
+     * Lines are addressed by account_code; the single resolver (AC-4) maps them
+     * to {account_id, account_currency} at Rules/posting time.
      */
     async generateDraft(id: number): Promise<ExpenseDraftVoucher> {
       const expense = await this.getById(id);
       const org = await this.organization.getOrganization();
       const base = await this.currency.getBaseCurrency();
 
+      // v1 is base-currency only; foreign-currency FX sourcing is Wave-3+ (ADR-0004, AC-7).
+      if (expense.currency !== base) {
+        throw new Error(
+          `Foreign-currency expense (${expense.currency} vs base ${base}) not supported until FX wiring`,
+        );
+      }
+
       const mapping = this.pluginLoader
         .resolve(org.country)
         .resolveCategoryMapping(expense.category, { supplier_id: expense.supplier_id });
 
-      const expenseAccount = await this.accounts.getAccountByCode(mapping.account);
-      if (!expenseAccount)
-        throw new NotFoundException(`Account ${mapping.account} not found`);
-      const cashAccount = await this.accounts.getAccountByCode('CASH');
-      if (!cashAccount) throw new NotFoundException('Account CASH not found');
-
+      const net = expense.gross_amount - expense.vat_amount;
+      // EUR: line currency == base currency, so base_amount == amount, fx_rate == 1.
       const lines: DraftVoucherLine[] = [
         {
-          account_id: expenseAccount.id,
-          amount: expense.gross_amount,
-          currency: base,
-          base_amount: expense.gross_amount, // v1: line currency == base currency
+          account_code: mapping.account,
+          amount: net,
+          currency: expense.currency,
+          base_amount: net,
           fx_rate: 1,
           vat_code: mapping.vatCode,
           is_debit: true,
         },
         {
-          account_id: cashAccount.id,
+          account_code: 'VAT_RECEIVABLE',
+          amount: expense.vat_amount,
+          currency: expense.currency,
+          base_amount: expense.vat_amount,
+          fx_rate: 1,
+          vat_code: mapping.vatCode,
+          is_debit: true,
+        },
+        {
+          account_code: 'AP',
           amount: expense.gross_amount,
-          currency: base,
+          currency: expense.currency,
           base_amount: expense.gross_amount,
           fx_rate: 1,
           vat_code: null,
@@ -443,13 +475,20 @@ Honors **Must NOT do**: never auto-posts (only draft); `supplier_id` and `docume
       return this.getById(id);
     }
 
+    // No `as` cast (strict baseline 04400b7): validate the DB string into the union.
+    private toStatus(s: string): ExpenseStatus {
+      const found = EXPENSE_STATUSES.find((x) => x === s);
+      if (!found) throw new Error(`Invalid expense status: ${s}`);
+      return found;
+    }
+
     private mapRow(row: {
       id: number; document_id: number | null; supplier_id: number | null;
       category: string; gross_amount: number; vat_amount: number; currency: string;
       tax_point_date: string; status: string; voucher_id: number | null;
       created_at: number; updated_at: number;
     }): Expense {
-      return { ...row, status: row.status as ExpenseStatus };
+      return { ...row, status: this.toStatus(row.status) };
     }
   }
   ```

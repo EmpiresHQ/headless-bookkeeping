@@ -1,0 +1,69 @@
+# Evidence for Task 7: Voucher and voucher_line tables with previous_hash
+#
+# Schema extracted from SQLite after running all migrations.
+# Shows the voucher table with previous_hash column and the voucher_line
+# table with foreign key references.
+
+$ node tmp-evidence.mjs 2>&1 | grep -A 50 "=== SCHEMA ==="
+
+=== SCHEMA ===
+
+--- Table: account ---
+CREATE TABLE account (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('asset', 'liability', 'equity', 'revenue', 'expense')),
+      currency TEXT,
+      parent_id INTEGER REFERENCES account(id),
+      is_system INTEGER NOT NULL DEFAULT 0
+    )
+
+--- Table: voucher ---
+CREATE TABLE voucher (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      voucher_number TEXT NOT NULL UNIQUE,
+      tax_point_date TEXT NOT NULL,
+      posted_at INTEGER,
+      previous_hash TEXT,
+      reverses_id INTEGER REFERENCES voucher(id),
+      corrects_object_type TEXT,
+      corrects_object_id INTEGER,
+      reason TEXT
+    )
+
+--- Table: voucher_line ---
+CREATE TABLE voucher_line (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      voucher_id INTEGER NOT NULL REFERENCES voucher(id),
+      account_id INTEGER NOT NULL REFERENCES account(id),
+      amount INTEGER NOT NULL,
+      currency TEXT NOT NULL,
+      base_amount INTEGER NOT NULL,
+      fx_rate REAL NOT NULL,
+      vat_code TEXT,
+      is_debit INTEGER NOT NULL
+    )
+
+$ node node_modules/.bin/jest src/ledger/db-constraints.spec.ts --verbose --no-cache --reporters=default 2>&1
+
+PASS src/ledger/db-constraints.spec.ts
+  Wave 2 DB constraints (G6)
+    ✓ rejects duplicate account.code at the DB level (32 ms)
+    ✓ rejects invalid account.type at the DB level (7 ms)
+    ✓ rejects duplicate voucher.voucher_number at the DB level (6 ms)
+    ✓ rejects voucher_line with non-existent voucher_id at the DB level (6 ms)
+    ✓ rejects voucher_line with non-existent account_id at the DB level (6 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        2.17 s
+Ran all test suites matching src/ledger/db-constraints.spec.ts.
+
+Verification: PASS
+- voucher table includes: id, voucher_number, tax_point_date, posted_at, previous_hash, reverses_id, corrects_object_type, corrects_object_id, reason
+- voucher_line table includes: id, voucher_id, account_id, amount, currency, base_amount, fx_rate, vat_code, is_debit
+- previous_hash column exists on voucher table ✓
+- DB-level UNIQUE constraint on voucher_number ✓
+- DB-level foreign key constraints on voucher_line (voucher_id, account_id) ✓

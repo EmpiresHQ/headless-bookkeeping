@@ -401,7 +401,7 @@ This wave establishes the database infrastructure, organizational context, plugi
 - [x] `npm run build` passes with zero errors
 - [x] `npm test` passes with new tests
 - [x] Evidence files exist in `.omo/evidence/` for all tasks
-- [ ] Git commit records Wave 1 changes
+- [x] Git commit records Wave 1 changes
 
 ## Commit
 - Message: `feat(db): migration runner + organization` — all Wave 1 files + tests

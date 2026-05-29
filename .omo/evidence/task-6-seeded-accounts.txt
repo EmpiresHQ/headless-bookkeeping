@@ -1,0 +1,69 @@
+# Evidence for Task 6: Seeded canonical accounts exist in the chart of accounts
+#
+# Command 1: SQLite query against in-memory database with all migrations applied
+# showing all seeded accounts in the account table.
+#
+# Command 2: AccountService integration test output proving seeded accounts
+# exist and meet acceptance criteria.
+#
+# Note: better-sqlite3 cannot be imported directly in Bun runtime, so the
+# schema was created using an equivalent in-memory SQLite database via Node.js
+# containing the identical CREATE TABLE + seed statements from the migrations.
+
+$ node tmp-evidence.mjs 2>&1 | grep -A 100 "SEEDED ACCOUNTS"
+
+=== SEEDED ACCOUNTS ===
+┌─────────┬────┬─────────────────────────┬──────────────────────────────┬─────────────┬──────────┬───────────┬───────────┐
+│ (index) │ id │ code                    │ name                         │ type        │ currency │ parent_id │ is_system │
+├─────────┼────┼─────────────────────────┼──────────────────────────────┼─────────────┼──────────┼───────────┼───────────┤
+│ 0       │ 1  │ 'CASH'                  │ 'Cash'                       │ 'asset'     │ null     │ null      │ 1         │
+│ 1       │ 2  │ 'BANK_EUR'              │ 'Bank (EUR)'                 │ 'asset'     │ null     │ null      │ 1         │
+│ 2       │ 3  │ 'BANK_USD'              │ 'Bank (USD)'                 │ 'asset'     │ 'USD'    │ null      │ 1         │
+│ 3       │ 4  │ 'AR'                    │ 'Accounts Receivable'        │ 'asset'     │ null     │ null      │ 1         │
+│ 4       │ 5  │ 'VAT_RECEIVABLE'        │ 'VAT Receivable (input VAT)' │ 'asset'     │ null     │ null      │ 1         │
+│ 5       │ 6  │ 'SUPPLIER_PREPAYMENTS'  │ 'Supplier Prepayments'       │ 'asset'     │ null     │ null      │ 1         │
+│ 6       │ 7  │ 'RECEIVABLE_FROM_OWNER' │ 'Receivable from Owner'      │ 'asset'     │ null     │ null      │ 1         │
+│ 7       │ 8  │ 'AP'                    │ 'Accounts Payable'           │ 'liability' │ null     │ null      │ 1         │
+│ 8       │ 9  │ 'CUSTOMER_PREPAYMENTS'  │ 'Customer Prepayments'       │ 'liability' │ null     │ null      │ 1         │
+│ 9       │ 10 │ 'VAT_PAYABLE'           │ 'VAT Payable (output VAT)'   │ 'liability' │ null     │ null      │ 1         │
+│ 10      │ 11 │ 'EQUITY'                │ 'Equity'                     │ 'equity'    │ null     │ null      │ 1         │
+│ 11      │ 12 │ 'OWNERS_DRAWINGS'       │ "Owner's Drawings"           │ 'equity'    │ null     │ null      │ 1         │
+│ 12      │ 13 │ 'REVENUE'               │ 'Revenue'                    │ 'revenue'   │ null     │ null      │ 1         │
+│ 13      │ 14 │ 'FX_GAIN'               │ 'FX Gain'                    │ 'revenue'   │ null     │ null      │ 1         │
+│ 14      │ 15 │ 'EXPENSE_SOFTWARE'      │ 'Software Expense'           │ 'expense'   │ null     │ null      │ 1         │
+│ 15      │ 16 │ 'EXPENSE_TRANSPORT'     │ 'Transport Expense'          │ 'expense'   │ null     │ null      │ 1         │
+│ 16      │ 17 │ 'EXPENSE_TRAVEL'        │ 'Travel Expense'             │ 'expense'   │ null     │ null      │ 1         │
+│ 17      │ 18 │ 'EXPENSE_MARKETING'     │ 'Marketing Expense'          │ 'expense'   │ null     │ null      │ 1         │
+│ 18      │ 19 │ 'EXPENSE_SALARY'        │ 'Salary Expense'             │ 'expense'   │ null     │ null      │ 1         │
+│ 19      │ 20 │ 'EXPENSE_CONTRACTOR'    │ 'Contractor Expense'         │ 'expense'   │ null     │ null      │ 1         │
+│ 20      │ 21 │ 'EXPENSE_RENT'          │ 'Rent Expense'               │ 'expense'   │ null     │ null      │ 1         │
+│ 21      │ 22 │ 'EXPENSE_TAX'           │ 'Tax Expense'                │ 'expense'   │ null     │ null      │ 1         │
+│ 22      │ 23 │ 'EXPENSE_BANK_FEE'      │ 'Bank Fee Expense'           │ 'expense'   │ null     │ null      │ 1         │
+│ 23      │ 24 │ 'EXPENSE_MEALS'         │ 'Meals Expense'              │ 'expense'   │ null     │ null      │ 1         │
+│ 24      │ 25 │ 'EXPENSE_INSURANCE'     │ 'Insurance Expense'          │ 'expense'   │ null     │ null      │ 1         │
+│ 25      │ 26 │ 'EXPENSE_EDUCATION'     │ 'Education Expense'          │ 'expense'   │ null     │ null      │ 1         │
+│ 26      │ 27 │ 'EXPENSE_OTHER'         │ 'Other Expense'              │ 'expense'   │ null     │ null      │ 1         │
+│ 27      │ 28 │ 'FX_LOSS'               │ 'FX Loss'                    │ 'expense'   │ null     │ null      │ 1         │
+│ 28      │ 29 │ 'BAD_DEBT_EXPENSE'      │ 'Bad Debt Expense'           │ 'expense'   │ null     │ null      │ 1         │
+└─────────┴────┴─────────────────────────┴──────────────────────────────┴─────────────┴──────────┴───────────┴───────────┘
+
+Total accounts: 29
+
+$ node node_modules/.bin/jest src/ledger/account/account.service.spec.ts --verbose --no-cache --reporters=default 2>&1
+
+PASS src/ledger/account/account.service.spec.ts (7.094 s)
+  AccountService (integration)
+    ✓ seeds at least 20 canonical accounts (234 ms)
+    ✓ seeds the EUR home bank account (BANK_EUR), not BANK_DKK (13 ms)
+    ✓ seeds canonical accounts across all five types (15 ms)
+    ✓ getAccountByCode returns the requested account (non-default lookup) (12 ms)
+    ✓ getAccountByCode returns null for an unknown code (11 ms)
+    ✓ marks seeded accounts as system accounts (55 ms)
+    ✓ tracks BANK_USD as a foreign-currency account (9 ms)
+    ✓ leaves base-currency accounts with a null currency (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        7.672 s
+Ran all test suites matching src/ledger/account/account.service.spec.ts.

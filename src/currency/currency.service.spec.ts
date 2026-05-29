@@ -1,16 +1,33 @@
+import { Test } from '@nestjs/testing';
 import { CurrencyService } from './currency.service';
 import { FXRateService } from './fx-rate.service';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 
-// getBaseCurrency() resolution (org override -> plugin default) is covered by
-// the integration test in currency.resolution.spec.ts. Here we test the pure
-// arithmetic of convertToBase, which has no dependencies.
 describe('CurrencyService.convertToBase', () => {
-  const service = new CurrencyService(
-    {} as OrganizationService,
-    {} as PluginLoader,
-  );
+  let service: CurrencyService;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        CurrencyService,
+        {
+          provide: OrganizationService,
+          useValue: {
+            getOrganization: jest.fn(),
+          },
+        },
+        {
+          provide: PluginLoader,
+          useValue: {
+            resolve: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get(CurrencyService);
+  });
 
   it('converts 100 USD to 714 at rate 7.14', () => {
     expect(service.convertToBase(100, 'USD', 7.14)).toBe(714);

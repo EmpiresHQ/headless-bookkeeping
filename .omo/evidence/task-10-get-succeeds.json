@@ -1,0 +1,19 @@
+# Evidence for Task 10: GET /api/vouchers/:id returns 200
+#
+# Test output proving that GET /api/vouchers/:id still works for posted
+# vouchers, returning the voucher_number and lines. The immutability
+# restrictions only apply to mutating methods (PUT/PATCH/DELETE).
+
+$ node node_modules/.bin/jest src/ledger/voucher/voucher.controller.spec.ts --verbose --no-cache --reporters=default 2>&1 | grep -E "(GET|✓).*voucher"
+
+    ✓ GET /api/vouchers/:id still returns the voucher with lines (2 ms)
+
+$ node node_modules/.bin/jest --config ./test/jest-e2e.json test/voucher.e2e-spec.ts --verbose --no-cache --reporters=default 2>&1 | grep -E "(GET|✓).*voucher"
+
+    ✓ GET /api/vouchers/:id returns the posted voucher with lines (17 ms)
+    ✓ GET /api/vouchers/:id remains 200 for a posted voucher (14 ms)
+
+Verification: PASS
+- Controller unit test: getVoucher('1') returns voucher with voucher_number 'V-2026-001' ✓
+- E2E test: GET /api/vouchers/:id returns 200 with voucher_number 'V-2026-E2E-3' and lines array ✓
+- E2E test: GET /api/vouchers/:id remains 200 for a posted voucher (even after all mutation methods are blocked) ✓
