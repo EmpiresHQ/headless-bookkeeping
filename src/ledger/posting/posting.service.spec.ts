@@ -195,8 +195,22 @@ describe('PostingService (integration)', () => {
       voucher_number: 'V-2026-203',
       tax_point_date: '2026-03-15',
       lines: [
-        { account_code: 'EXPENSE_SOFTWARE', amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: -1, is_debit: true },
-        { account_code: 'CASH', amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: -1, is_debit: false },
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: -1,
+          is_debit: true,
+        },
+        {
+          account_code: 'CASH',
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: -1,
+          is_debit: false,
+        },
       ],
     };
     await expect(posting.postVoucher(attack)).rejects.toThrow(ValidationError);

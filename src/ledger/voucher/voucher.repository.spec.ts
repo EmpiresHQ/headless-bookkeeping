@@ -42,7 +42,11 @@ describe('VoucherRepository (integration)', () => {
   it('getVoucherById returns the persisted voucher', async () => {
     await db
       .insertInto('voucher')
-      .values({ voucher_number: 'V-2026-002', tax_point_date: '2026-03-16', posted_at: null })
+      .values({
+        voucher_number: 'V-2026-002',
+        tax_point_date: '2026-03-16',
+        posted_at: null,
+      })
       .execute();
     const all = await repo.getVouchers();
     const fetched = await repo.getVoucherById(all[0].id);
@@ -57,7 +61,11 @@ describe('VoucherRepository (integration)', () => {
     expect(await repo.getVouchers()).toEqual([]);
     await db
       .insertInto('voucher')
-      .values({ voucher_number: 'V-2026-003', tax_point_date: '2026-03-17', posted_at: null })
+      .values({
+        voucher_number: 'V-2026-003',
+        tax_point_date: '2026-03-17',
+        posted_at: null,
+      })
       .execute();
     expect(await repo.getVouchers()).toHaveLength(1);
   });
@@ -65,13 +73,21 @@ describe('VoucherRepository (integration)', () => {
   it('enforces voucher_number UNIQUE at the DB level (G6)', async () => {
     await db
       .insertInto('voucher')
-      .values({ voucher_number: 'V-2026-DUP', tax_point_date: '2026-03-18', posted_at: null })
+      .values({
+        voucher_number: 'V-2026-DUP',
+        tax_point_date: '2026-03-18',
+        posted_at: null,
+      })
       .execute();
     let threw = false;
     try {
       await db
         .insertInto('voucher')
-        .values({ voucher_number: 'V-2026-DUP', tax_point_date: '2026-03-19', posted_at: null })
+        .values({
+          voucher_number: 'V-2026-DUP',
+          tax_point_date: '2026-03-19',
+          posted_at: null,
+        })
         .execute();
     } catch {
       threw = true;

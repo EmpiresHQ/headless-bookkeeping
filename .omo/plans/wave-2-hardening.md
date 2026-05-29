@@ -44,10 +44,10 @@ Polish that is NOT load-bearing rides into the Wave-3 prologue (see `wave-3-pipe
 
 Execute **1 → 7 in order** (1 first — test fidelity is the precondition for trusting every DB-invariant test below it).
 
-- [ ] 1. Test fidelity leftovers — `account.service.spec` FK pragma + assert CHECK-vs-shipping-migration (real-migration rewrite already done in `5430680`) — detail: H1
-- [ ] 2. Per-line CHECK constraints (extend `src/ledger/db-constraints.spec.ts`) + collapse FX to single `FX_GAIN_LOSS` (delete `FX_GAIN`) — detail: H2
-- [ ] 3. Posted-voucher immutability triggers — detail: H3
-- [ ] 4. Validation: base_amount / fx_rate sign + account-currency match — detail: H4
-- [ ] 5. Demote repositories to read-only (posting = sole writer) — detail: H5
-- [ ] 6. Wire the hash chain — detail: H6
+- [x] 1. Test fidelity leftovers — `account.service.spec` FK pragma + assert CHECK-vs-shipping-migration (real-migration rewrite already done in `5430680`) — detail: H1
+- [x] 2. Per-line CHECK constraints (extend `src/ledger/db-constraints.spec.ts`) + collapse FX to single `FX_GAIN_LOSS` (delete `FX_GAIN`) — detail: H2
+- [x] 3. Posted-voucher immutability triggers — detail: H3
+- [x] 4. Validation: base_amount / fx_rate sign + account-currency match — detail: H4
+- [x] 5. Demote repositories to read-only (posting = sole writer) — detail: H5
+- [x] 6. Wire the hash chain — detail: H6
 - [ ] 7. Full gate + e2e + evidence — detail: H7

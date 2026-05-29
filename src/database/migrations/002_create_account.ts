@@ -128,7 +128,12 @@ const SEED: Array<{
     type: 'expense',
     currency: null,
   },
-  { code: 'FX_GAIN_LOSS', name: 'Foreign Exchange Gain/Loss', type: 'expense', currency: null },
+  {
+    code: 'FX_GAIN_LOSS',
+    name: 'Foreign Exchange Gain/Loss',
+    type: 'expense',
+    currency: null,
+  },
   {
     code: 'BAD_DEBT_EXPENSE',
     name: 'Bad Debt Expense',

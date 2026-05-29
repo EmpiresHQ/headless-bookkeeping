@@ -46,7 +46,11 @@ describe('VoucherLineRepository (integration)', () => {
   async function seedVoucher(number: string): Promise<number> {
     const v = await db
       .insertInto('voucher')
-      .values({ voucher_number: number, tax_point_date: '2026-03-15', posted_at: null })
+      .values({
+        voucher_number: number,
+        tax_point_date: '2026-03-15',
+        posted_at: null,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
     return v.id;
@@ -56,10 +60,31 @@ describe('VoucherLineRepository (integration)', () => {
     const voucherId = await seedVoucher('V-LINE-002');
     const expense = await accounts.getAccountByCode('EXPENSE_SOFTWARE');
     const cash = await accounts.getAccountByCode('CASH');
-    await db.insertInto('voucher_line').values([
-      { voucher_id: voucherId, account_id: expense!.id, amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, vat_code: null, is_debit: 1 },
-      { voucher_id: voucherId, account_id: cash!.id, amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, vat_code: null, is_debit: 0 },
-    ]).execute();
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: voucherId,
+          account_id: expense!.id,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 1,
+        },
+        {
+          voucher_id: voucherId,
+          account_id: cash!.id,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 0,
+        },
+      ])
+      .execute();
     const lines = await lineRepo.getLinesByVoucherId(voucherId);
     expect(lines).toHaveLength(2);
     expect(lines[0].is_debit).toBe(true);
@@ -68,10 +93,19 @@ describe('VoucherLineRepository (integration)', () => {
   it('rejects a line whose voucher_id has no parent voucher (FK, G6)', async () => {
     const cash = await accounts.getAccountByCode('CASH');
     await expect(
-      db.insertInto('voucher_line').values({
-        voucher_id: 999999, account_id: cash!.id, amount: 10000, currency: 'EUR',
-        base_amount: 10000, fx_rate: 1, vat_code: null, is_debit: 1,
-      }).execute(),
+      db
+        .insertInto('voucher_line')
+        .values({
+          voucher_id: 999999,
+          account_id: cash!.id,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 1,
+        })
+        .execute(),
     ).rejects.toThrow();
   });
 });

@@ -3,6 +3,7 @@ import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
+import { GENESIS_HASH } from './posting/voucher-hash';
 
 describe('Wave 2 DB constraints (G6)', () => {
   let db: Kysely<Database>;
@@ -66,7 +67,7 @@ describe('Wave 2 DB constraints (G6)', () => {
         voucher_number: 'V-001',
         tax_point_date: '2026-03-15',
         posted_at: null,
-        previous_hash: null,
+        previous_hash: GENESIS_HASH,
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
@@ -80,7 +81,7 @@ describe('Wave 2 DB constraints (G6)', () => {
         voucher_number: 'V-001',
         tax_point_date: '2026-03-16',
         posted_at: null,
-        previous_hash: null,
+        previous_hash: GENESIS_HASH,
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
@@ -117,7 +118,7 @@ describe('Wave 2 DB constraints (G6)', () => {
         voucher_number: 'V-002',
         tax_point_date: '2026-03-15',
         posted_at: null,
-        previous_hash: null,
+        previous_hash: GENESIS_HASH,
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
@@ -145,14 +146,17 @@ describe('Wave 2 DB constraints (G6)', () => {
 
   // ---- Per-line value constraints (Task H2) ----
 
-  async function seedVoucherAndAccount(): Promise<{ voucherId: number; accountId: number }> {
+  async function seedVoucherAndAccount(): Promise<{
+    voucherId: number;
+    accountId: number;
+  }> {
     const v = await db
       .insertInto('voucher')
       .values({
         voucher_number: 'V-CONSTRAINT',
         tax_point_date: '2026-03-15',
         posted_at: 1740000000,
-        previous_hash: null,
+        previous_hash: GENESIS_HASH,
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
@@ -198,29 +202,61 @@ describe('Wave 2 DB constraints (G6)', () => {
 
   it('rejects amount <= 0', async () => {
     const ids = await seedVoucherAndAccount();
-    await expect(db.insertInto('voucher_line').values(line({ amount: 0 }, ids)).execute()).rejects.toThrow();
-    await expect(db.insertInto('voucher_line').values(line({ amount: -1 }, ids)).execute()).rejects.toThrow();
+    await expect(
+      db
+        .insertInto('voucher_line')
+        .values(line({ amount: 0 }, ids))
+        .execute(),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .insertInto('voucher_line')
+        .values(line({ amount: -1 }, ids))
+        .execute(),
+    ).rejects.toThrow();
   });
 
   it('rejects base_amount <= 0', async () => {
     const ids = await seedVoucherAndAccount();
-    await expect(db.insertInto('voucher_line').values(line({ base_amount: 0 }, ids)).execute()).rejects.toThrow();
+    await expect(
+      db
+        .insertInto('voucher_line')
+        .values(line({ base_amount: 0 }, ids))
+        .execute(),
+    ).rejects.toThrow();
   });
 
   it('rejects fx_rate <= 0 (blocks the negative-rate attack)', async () => {
     const ids = await seedVoucherAndAccount();
-    await expect(db.insertInto('voucher_line').values(line({ fx_rate: 0 }, ids)).execute()).rejects.toThrow();
-    await expect(db.insertInto('voucher_line').values(line({ fx_rate: -1 }, ids)).execute()).rejects.toThrow();
+    await expect(
+      db
+        .insertInto('voucher_line')
+        .values(line({ fx_rate: 0 }, ids))
+        .execute(),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .insertInto('voucher_line')
+        .values(line({ fx_rate: -1 }, ids))
+        .execute(),
+    ).rejects.toThrow();
   });
 
   it('rejects is_debit outside {0,1}', async () => {
     const ids = await seedVoucherAndAccount();
-    await expect(db.insertInto('voucher_line').values(line({ is_debit: 2 }, ids)).execute()).rejects.toThrow();
+    await expect(
+      db
+        .insertInto('voucher_line')
+        .values(line({ is_debit: 2 }, ids))
+        .execute(),
+    ).rejects.toThrow();
   });
 
   it('accepts a well-formed line', async () => {
     const ids = await seedVoucherAndAccount();
-    await expect(db.insertInto('voucher_line').values(line({}, ids)).execute()).resolves.toBeDefined();
+    await expect(
+      db.insertInto('voucher_line').values(line({}, ids)).execute(),
+    ).resolves.toBeDefined();
   });
 
   // ---- Posted-voucher immutability (Task H3) ----
@@ -228,7 +264,11 @@ describe('Wave 2 DB constraints (G6)', () => {
   it('blocks UPDATE of a posted voucher', async () => {
     const { voucherId } = await seedVoucherAndAccount(); // posted_at is set
     await expect(
-      db.updateTable('voucher').set({ reason: 'tamper' }).where('id', '=', voucherId).execute(),
+      db
+        .updateTable('voucher')
+        .set({ reason: 'tamper' })
+        .where('id', '=', voucherId)
+        .execute(),
     ).rejects.toThrow();
   });
 
@@ -241,9 +281,17 @@ describe('Wave 2 DB constraints (G6)', () => {
 
   it('blocks UPDATE/DELETE of a posted voucher line', async () => {
     const ids = await seedVoucherAndAccount();
-    const ln = await db.insertInto('voucher_line').values(line({}, ids)).returningAll().executeTakeFirstOrThrow();
+    const ln = await db
+      .insertInto('voucher_line')
+      .values(line({}, ids))
+      .returningAll()
+      .executeTakeFirstOrThrow();
     await expect(
-      db.updateTable('voucher_line').set({ amount: 1 }).where('id', '=', ln.id).execute(),
+      db
+        .updateTable('voucher_line')
+        .set({ amount: 1 })
+        .where('id', '=', ln.id)
+        .execute(),
     ).rejects.toThrow();
     await expect(
       db.deleteFrom('voucher_line').where('id', '=', ln.id).execute(),
@@ -257,7 +305,7 @@ describe('Wave 2 DB constraints (G6)', () => {
         voucher_number: 'V-DRAFT',
         tax_point_date: '2026-03-15',
         posted_at: null,
-        previous_hash: null,
+        previous_hash: GENESIS_HASH,
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
@@ -267,7 +315,11 @@ describe('Wave 2 DB constraints (G6)', () => {
       .executeTakeFirstOrThrow();
     // OLD.posted_at is NULL, so the trigger must not fire
     await expect(
-      db.updateTable('voucher').set({ posted_at: 1740000000 }).where('id', '=', draft.id).execute(),
+      db
+        .updateTable('voucher')
+        .set({ posted_at: 1740000000 })
+        .where('id', '=', draft.id)
+        .execute(),
     ).resolves.toBeDefined();
   });
 });

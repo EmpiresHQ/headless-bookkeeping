@@ -5,6 +5,7 @@ import { PostingService } from '../posting/posting.service';
 import { VoucherRepository } from './voucher.repository';
 import { VoucherLineRepository } from './voucher-line.repository';
 import { Voucher } from './types';
+import { GENESIS_HASH } from '../posting/voucher-hash';
 
 describe('VoucherController (immutability)', () => {
   let controller: VoucherController;
@@ -14,7 +15,7 @@ describe('VoucherController (immutability)', () => {
     voucher_number: 'V-2026-001',
     tax_point_date: '2026-01-15',
     posted_at: 1740000000,
-    previous_hash: null,
+    previous_hash: GENESIS_HASH,
     reverses_id: null,
     corrects_object_type: null,
     corrects_object_id: null,

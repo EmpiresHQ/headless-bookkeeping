@@ -244,8 +244,24 @@ describe('LedgerValidationService', () => {
   it('rejects a non-positive base_amount even when amount is positive', () => {
     const result = service.validateVoucherLines(
       [
-        { account_id: 1, amount: 10000, currency: 'EUR', base_amount: -10000, fx_rate: 1, is_debit: true, account_currency: null },
-        { account_id: 2, amount: 10000, currency: 'EUR', base_amount: -10000, fx_rate: 1, is_debit: false, account_currency: null },
+        {
+          account_id: 1,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: -10000,
+          fx_rate: 1,
+          is_debit: true,
+          account_currency: null,
+        },
+        {
+          account_id: 2,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: -10000,
+          fx_rate: 1,
+          is_debit: false,
+          account_currency: null,
+        },
       ],
       new Set([1, 2]),
     );
@@ -256,8 +272,24 @@ describe('LedgerValidationService', () => {
   it('rejects a non-integer base_amount', () => {
     const result = service.validateVoucherLines(
       [
-        { account_id: 1, amount: 10000, currency: 'EUR', base_amount: 9200.5, fx_rate: 0.92, is_debit: true, account_currency: null },
-        { account_id: 2, amount: 9200, currency: 'EUR', base_amount: 9200, fx_rate: 1, is_debit: false, account_currency: null },
+        {
+          account_id: 1,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 9200.5,
+          fx_rate: 0.92,
+          is_debit: true,
+          account_currency: null,
+        },
+        {
+          account_id: 2,
+          amount: 9200,
+          currency: 'EUR',
+          base_amount: 9200,
+          fx_rate: 1,
+          is_debit: false,
+          account_currency: null,
+        },
       ],
       new Set([1, 2]),
     );
@@ -268,8 +300,24 @@ describe('LedgerValidationService', () => {
   it('rejects a non-positive fx_rate (negative-rate attack)', () => {
     const result = service.validateVoucherLines(
       [
-        { account_id: 1, amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: -1, is_debit: true, account_currency: null },
-        { account_id: 2, amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, is_debit: false, account_currency: null },
+        {
+          account_id: 1,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: -1,
+          is_debit: true,
+          account_currency: null,
+        },
+        {
+          account_id: 2,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          is_debit: false,
+          account_currency: null,
+        },
       ],
       new Set([1, 2]),
     );
@@ -280,20 +328,54 @@ describe('LedgerValidationService', () => {
   it('rejects a line whose currency does not match its account currency', () => {
     const result = service.validateVoucherLines(
       [
-        { account_id: 1, amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, is_debit: true, account_currency: 'USD' },
-        { account_id: 2, amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, is_debit: false, account_currency: null },
+        {
+          account_id: 1,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          is_debit: true,
+          account_currency: 'USD',
+        },
+        {
+          account_id: 2,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          is_debit: false,
+          account_currency: null,
+        },
       ],
       new Set([1, 2]),
     );
     expect(result.isValid).toBe(false);
-    expect(result.errors).toContain('Line currency does not match account currency');
+    expect(result.errors).toContain(
+      'Line currency does not match account currency',
+    );
   });
 
   it('accepts a line whose currency matches a foreign-currency account', () => {
     const result = service.validateVoucherLines(
       [
-        { account_id: 1, amount: 10000, currency: 'USD', base_amount: 9200, fx_rate: 0.92, is_debit: true, account_currency: 'USD' },
-        { account_id: 2, amount: 9200, currency: 'EUR', base_amount: 9200, fx_rate: 1, is_debit: false, account_currency: null },
+        {
+          account_id: 1,
+          amount: 10000,
+          currency: 'USD',
+          base_amount: 9200,
+          fx_rate: 0.92,
+          is_debit: true,
+          account_currency: 'USD',
+        },
+        {
+          account_id: 2,
+          amount: 9200,
+          currency: 'EUR',
+          base_amount: 9200,
+          fx_rate: 1,
+          is_debit: false,
+          account_currency: null,
+        },
       ],
       new Set([1, 2]),
     );

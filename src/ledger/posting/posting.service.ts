@@ -98,9 +98,7 @@ export class PostingService {
    * The hash of the latest posted voucher, or GENESIS_HASH if the ledger is
    * empty. ADR-0013: the new voucher's previous_hash links to this.
    */
-  private async chainHead(
-    trx: Kysely<Database>,
-  ): Promise<string> {
+  private async chainHead(trx: Kysely<Database>): Promise<string> {
     const prev = await trx
       .selectFrom('voucher')
       .selectAll()
@@ -117,13 +115,16 @@ export class PostingService {
       .orderBy('id')
       .execute();
 
-    return computeVoucherHash(prev, prevLines.map((l) => ({
-      account_id: l.account_id,
-      amount: l.amount,
-      currency: l.currency,
-      base_amount: l.base_amount,
-      fx_rate: l.fx_rate,
-      is_debit: l.is_debit === 1,
-    })));
+    return computeVoucherHash(
+      prev,
+      prevLines.map((l) => ({
+        account_id: l.account_id,
+        amount: l.amount,
+        currency: l.currency,
+        base_amount: l.base_amount,
+        fx_rate: l.fx_rate,
+        is_debit: l.is_debit === 1,
+      })),
+    );
   }
 }

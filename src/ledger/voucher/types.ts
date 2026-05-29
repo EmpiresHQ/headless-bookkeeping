@@ -41,4 +41,3 @@ export interface DraftVoucher {
 export interface PostedVoucher extends Voucher {
   lines: VoucherLine[];
 }
-

@@ -1,112 +1,190 @@
 {
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-ledger.md",
-  "started_at": "2026-05-29T15:21:28.653Z",
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-hardening.md",
+  "started_at": "2026-05-29T18:35:11.360Z",
   "session_ids": [
-    "ses_18be3e195ffeEZcnXS4O7noyoS"
+    "ses_18afb2ba6ffelX5Qr3Xnnw8tfD"
   ],
-  "plan_name": "wave-2-ledger",
+  "plan_name": "wave-2-hardening",
   "current_wave": 2,
   "session_origins": {
-    "ses_18be3e195ffeEZcnXS4O7noyoS": "direct"
+    "ses_18afb2ba6ffelX5Qr3Xnnw8tfD": "direct"
   },
   "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Test fidelity leftovers — `account.service.spec` FK pragma + assert CHECK-vs-shipping-migration (real-migration rewrite already done in `5430680`) — detail: H1",
+      "session_id": "ses_18af9feddffeID7jM2yGkv7yje",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-29T18:37:26.142Z",
+      "started_at": "2026-05-29T18:36:57.881Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T18:37:26.142Z",
+      "elapsed_ms": 28261
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Per-line CHECK constraints (extend `src/ledger/db-constraints.spec.ts`) + collapse FX to single `FX_GAIN_LOSS` (delete `FX_GAIN`) — detail: H2",
+      "session_id": "ses_18af87e43ffenkdDgEQfFvMPeY",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-29T18:39:26.972Z",
+      "started_at": "2026-05-29T18:38:56.174Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T18:39:26.972Z",
+      "elapsed_ms": 30798
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Posted-voucher immutability triggers — detail: H3",
+      "session_id": "ses_18af6c7cfffeQ17ConMqR0FBWA",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-29T18:40:46.455Z",
+      "started_at": "2026-05-29T18:40:29.890Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T18:40:46.455Z",
+      "elapsed_ms": 16565
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Validation: base_amount / fx_rate sign + account-currency match — detail: H4",
+      "session_id": "ses_18af4f583ffeQa4KQ4fsK515eM",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-29T18:42:51.070Z",
+      "started_at": "2026-05-29T18:42:35.700Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T18:42:51.070Z",
+      "elapsed_ms": 15370
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Demote repositories to read-only (posting = sole writer) — detail: H5",
+      "session_id": "ses_18af31042ffeYP8cxpWV8FBZo3",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-29T18:46:53.763Z",
+      "started_at": "2026-05-29T18:46:37.006Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T18:46:53.763Z",
+      "elapsed_ms": 16757
+    },
     "todo:6": {
       "task_key": "todo:6",
       "task_label": "6",
-      "task_title": "Account chart schema + canonical seed data",
-      "session_id": "ses_18bab2a72ffeog30c59FoNFo4m",
+      "task_title": "Wire the hash chain — detail: H6",
+      "session_id": "ses_18aef0b55ffeo37A8cU1SiK7qX",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-05-29T15:29:38.124Z",
-      "started_at": "2026-05-29T15:28:44.468Z",
+      "updated_at": "2026-05-29T18:50:04.619Z",
+      "started_at": "2026-05-29T18:49:48.912Z",
       "status": "completed",
-      "ended_at": "2026-05-29T15:29:38.124Z",
-      "elapsed_ms": 53656
-    },
-    "todo:8": {
-      "task_key": "todo:8",
-      "task_label": "8",
-      "task_title": "Double-entry validation service",
-      "session_id": "ses_18b7812ffffeE3bKNSzQXxv490",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-29T16:21:37.854Z",
-      "started_at": "2026-05-29T16:21:15.680Z",
-      "status": "completed",
-      "ended_at": "2026-05-29T16:21:37.854Z",
-      "elapsed_ms": 22174
-    },
-    "todo:9": {
-      "task_key": "todo:9",
-      "task_label": "9",
-      "task_title": "Posting service (atomic voucher creation)",
-      "session_id": "ses_18b73aa9bffelDVzeWUxkVBRpj",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-29T16:27:55.980Z",
-      "started_at": "2026-05-29T16:27:21.260Z",
-      "status": "completed",
-      "ended_at": "2026-05-29T16:27:55.980Z",
-      "elapsed_ms": 34720
+      "ended_at": "2026-05-29T18:50:04.619Z",
+      "elapsed_ms": 15707
     }
   },
   "schema_version": 2,
   "works": {
-    "wave-2-ledger-legacy": {
-      "work_id": "wave-2-ledger-legacy",
-      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-ledger.md",
-      "plan_name": "wave-2-ledger",
-      "started_at": "2026-05-29T15:21:28.653Z",
-      "updated_at": "2026-05-29T16:27:55.980Z",
+    "wave-2-hardening": {
+      "work_id": "wave-2-hardening",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-hardening.md",
+      "plan_name": "wave-2-hardening",
+      "started_at": "2026-05-29T18:35:11.360Z",
+      "updated_at": "2026-05-29T18:50:04.619Z",
       "session_ids": [
-        "ses_18be3e195ffeEZcnXS4O7noyoS"
+        "ses_18afb2ba6ffelX5Qr3Xnnw8tfD"
       ],
       "session_origins": {
-        "ses_18be3e195ffeEZcnXS4O7noyoS": "direct"
+        "ses_18afb2ba6ffelX5Qr3Xnnw8tfD": "direct"
       },
       "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "Test fidelity leftovers — `account.service.spec` FK pragma + assert CHECK-vs-shipping-migration (real-migration rewrite already done in `5430680`) — detail: H1",
+          "session_id": "ses_18af9feddffeID7jM2yGkv7yje",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-29T18:37:26.142Z",
+          "started_at": "2026-05-29T18:36:57.881Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T18:37:26.142Z",
+          "elapsed_ms": 28261
+        },
+        "todo:2": {
+          "task_key": "todo:2",
+          "task_label": "2",
+          "task_title": "Per-line CHECK constraints (extend `src/ledger/db-constraints.spec.ts`) + collapse FX to single `FX_GAIN_LOSS` (delete `FX_GAIN`) — detail: H2",
+          "session_id": "ses_18af87e43ffenkdDgEQfFvMPeY",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-29T18:39:26.972Z",
+          "started_at": "2026-05-29T18:38:56.174Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T18:39:26.972Z",
+          "elapsed_ms": 30798
+        },
+        "todo:3": {
+          "task_key": "todo:3",
+          "task_label": "3",
+          "task_title": "Posted-voucher immutability triggers — detail: H3",
+          "session_id": "ses_18af6c7cfffeQ17ConMqR0FBWA",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-29T18:40:46.455Z",
+          "started_at": "2026-05-29T18:40:29.890Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T18:40:46.455Z",
+          "elapsed_ms": 16565
+        },
+        "todo:4": {
+          "task_key": "todo:4",
+          "task_label": "4",
+          "task_title": "Validation: base_amount / fx_rate sign + account-currency match — detail: H4",
+          "session_id": "ses_18af4f583ffeQa4KQ4fsK515eM",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-29T18:42:51.070Z",
+          "started_at": "2026-05-29T18:42:35.700Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T18:42:51.070Z",
+          "elapsed_ms": 15370
+        },
+        "todo:5": {
+          "task_key": "todo:5",
+          "task_label": "5",
+          "task_title": "Demote repositories to read-only (posting = sole writer) — detail: H5",
+          "session_id": "ses_18af31042ffeYP8cxpWV8FBZo3",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-05-29T18:46:53.763Z",
+          "started_at": "2026-05-29T18:46:37.006Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T18:46:53.763Z",
+          "elapsed_ms": 16757
+        },
         "todo:6": {
           "task_key": "todo:6",
           "task_label": "6",
-          "task_title": "Account chart schema + canonical seed data",
-          "session_id": "ses_18bab2a72ffeog30c59FoNFo4m",
+          "task_title": "Wire the hash chain — detail: H6",
+          "session_id": "ses_18aef0b55ffeo37A8cU1SiK7qX",
           "agent": "Sisyphus-Junior",
           "category": "quick",
-          "updated_at": "2026-05-29T15:29:38.124Z",
-          "started_at": "2026-05-29T15:28:44.468Z",
+          "updated_at": "2026-05-29T18:50:04.619Z",
+          "started_at": "2026-05-29T18:49:48.912Z",
           "status": "completed",
-          "ended_at": "2026-05-29T15:29:38.124Z",
-          "elapsed_ms": 53656
-        },
-        "todo:8": {
-          "task_key": "todo:8",
-          "task_label": "8",
-          "task_title": "Double-entry validation service",
-          "session_id": "ses_18b7812ffffeE3bKNSzQXxv490",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "updated_at": "2026-05-29T16:21:37.854Z",
-          "started_at": "2026-05-29T16:21:15.680Z",
-          "status": "completed",
-          "ended_at": "2026-05-29T16:21:37.854Z",
-          "elapsed_ms": 22174
-        },
-        "todo:9": {
-          "task_key": "todo:9",
-          "task_label": "9",
-          "task_title": "Posting service (atomic voucher creation)",
-          "session_id": "ses_18b73aa9bffelDVzeWUxkVBRpj",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "updated_at": "2026-05-29T16:27:55.980Z",
-          "started_at": "2026-05-29T16:27:21.260Z",
-          "status": "completed",
-          "ended_at": "2026-05-29T16:27:55.980Z",
-          "elapsed_ms": 34720
+          "ended_at": "2026-05-29T18:50:04.619Z",
+          "elapsed_ms": 15707
         }
       }
     }
   },
-  "active_work_id": "wave-2-ledger-legacy",
-  "updated_at": "2026-05-29T16:27:55.980Z"
+  "active_work_id": "wave-2-hardening",
+  "updated_at": "2026-05-29T18:50:04.619Z"
 }
