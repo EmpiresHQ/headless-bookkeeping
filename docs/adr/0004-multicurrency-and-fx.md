@@ -19,3 +19,17 @@ The base currency is sourced from the **country plugin**, with an optional **Org
 The default/bootstrap Organization is seeded as **Ireland with no override** (`country='IE'`, `base_currency=NULL`), resolving to `EUR` via the default plugin. (This supersedes the earlier DK/DKK scaffolding default.)
 
 Confidence note: principle-level (IAS 21, Directive 2013/34/EU, Directive 2006/112/EC Art. 91). Exact Danish thresholds/treatment to be verified against Årsregnskabsloven and SKAT guidance and encoded in the DK plugin's rules + tests, not hardcoded in the kernel.
+
+## Ledger validation boundary (Wave 2)
+
+The Wave-2 ledger **trusts** the `amount` / `currency` / `base_amount` / `fx_rate` it receives on a draft line — it never sources or recomputes the rate, because the prescribed reference rate lives in the country plugin (above). The ledger's job is **internal consistency**, not rate-correctness:
+
+- `fx_rate > 0` (DB CHECK).
+- `base_amount ≈ round(amount × fx_rate)` within ±1 cent (sanity, not rate authority).
+- **Account-currency match**: when an `Account` pins a `currency` (e.g. `BANK_USD`), a line posted to it must carry that same currency. Base-currency control accounts (`currency IS NULL`) accept any currency. This is a structural Rule — a EUR line cannot land in a USD-only account.
+
+Rate sourcing, the prescribed VAT-base rate, and realized-FX computation are pipeline/plugin concerns (Wave 3+), not the ledger primitive.
+
+## FX gain/loss account granularity
+
+The canonical chart carries a **single net** `FX_GAIN_LOSS` account (`type: expense`; a net gain simply makes the balance negative), not separate `FX_GAIN` / `FX_LOSS` accounts. The account is hidden from the SMB user (ADR-0001), so gain-vs-loss split is pure P&L presentation granularity — over-built for a micro-SMB. The door stays open: a later split is the Wave-5 conditional "add `FX_GAIN` if absent" migration, to be done only if a jurisdiction's presentation requires it. This supersedes carry-forward seam #2's "add `FX_GAIN` in Wave 2".

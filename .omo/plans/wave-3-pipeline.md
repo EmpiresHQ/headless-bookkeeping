@@ -6,7 +6,7 @@ This wave implements the full business object → draft → Rules → Policy →
 > **Detailed implementation plan (bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-3-pipeline.md`](../../docs/superpowers/plans/2026-05-29-wave-3-pipeline.md) — the step-by-step "how". This file remains the "what / why" spec.
 
 ## Prerequisites
-- **Wave 2 complete**: Account chart, Voucher schema, Validation, Posting, Immutability
+- **Wave 2 complete + hardened**: Account chart, Voucher schema, Validation, Posting, Immutability — including the Wave-2 hardening pass (`.omo/plans/wave-2-hardening.md`: DB-level immutability triggers, per-line CHECKs, hash chain, single write path). Do NOT start Wave 3 until that gate is green.
 - `docker compose up` starts successfully
 - `npm run build` and `npm test` pass
 
@@ -25,6 +25,17 @@ This wave implements the full business object → draft → Rules → Policy →
 - **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
 - **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
 - Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never EUR
+
+---
+
+## Prologue — carried from the Wave-2 review (do first)
+
+These are the non-load-bearing findings from the Wave-2 review, deferred here because they touch the HTTP/validation surface Wave 3 extends anyway. Knock them out before Task 11 so the pipeline builds on a clean controller layer.
+
+- [ ] P1. **Error contract + Zod validation.** Add a global Zod-based `ValidationPipe` (e.g. `nestjs-zod` or a thin custom pipe) with a `DraftVoucher` Zod schema. Malformed/missing body → **400** (not the current `TypeError` → 500). Catch the `voucher_number` UNIQUE violation in the posting path → **409 Conflict**. (Use Zod, NOT class-validator.) Add e2e cases for both.
+- [ ] P2. **Efficiency.** `PostingService` loads the whole chart per post → query only the draft's codes (`WHERE code IN (...)`). Insert lines in one batch instead of N sequential `INSERT...RETURNING`. Add an index on `voucher_line.voucher_id` (and `account_id`) — SQLite does not auto-index FKs; the append-only table will otherwise full-scan.
+- [ ] P3. **Cosmetics.** Fix the `is_system` comment in `src/database/types.ts` (it wrongly says "1 = debit, 0 = credit"). Collapse the duplicated `mapRow` / `is_debit` 0-1 coercion into a shared helper now that the repos are read-only.
+- [ ] P4. **Doc reconcile.** Annotate `.omo/notepads/wave-2-ledger/carry-forward.md` seam #2 as superseded by ADR-0004 (single net `FX_GAIN_LOSS`).
 
 ---
 

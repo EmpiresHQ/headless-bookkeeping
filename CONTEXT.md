@@ -152,7 +152,7 @@ _Avoid_: Cache, hints
 ### Posting pipeline
 
 **Rules**:
-The deterministic validation barrier between a draft and a posted **Voucher**. Three sorts: **structural invariants** (kernel — voucher balances to zero, account exists, amounts numeric) — pure arithmetic; **hard process rules** (kernel — the period containing the voucher's tax-point date must not be locked) — legal/process; both inviolable for everyone including humans. And **semantic rules** (country plugin — VAT code applicability, deductibility) which a human may override via a logged **Override**.
+The deterministic validation barrier between a draft and a posted **Voucher**. Three sorts: **structural invariants** (kernel — debits equal credits in base currency, account exists, every line's `amount`/`base_amount`/`fx_rate` is a positive integer (cents) / positive rate) — pure arithmetic; **hard process rules** (kernel — the period containing the voucher's tax-point date must not be locked) — legal/process; both inviolable for everyone including humans. And **semantic rules** (country plugin — VAT code applicability, deductibility) which a human may override via a logged **Override**.
 _Avoid_: Validation, checks (when ambiguous)
 
 **Policy**:
@@ -173,7 +173,7 @@ _Avoid_: Confirmation dialog
 
 ## Relationships
 
-- A **Voucher** has two or more **VoucherLines**, which sum to zero (balanced double-entry)
+- A **Voucher** has two or more **VoucherLines** whose debits equal their credits in **base currency** (balanced double-entry). Each line carries a positive magnitude (`amount`/`base_amount`) plus an `is_debit` direction — the model is unsigned-magnitude + direction, not signed amounts that literally sum to zero.
 - One source document / economic event = exactly one **Voucher**, regardless of how many lines or distinct **VAT codes** it carries. A Voucher is never split by VAT code.
 - A **VoucherLine** debits or credits exactly one **Account** and carries one **VAT code** (the code lives on the line, not the Voucher). VAT amounts are split into one line per `account × VAT code` so reports can aggregate by code across all lines.
 - One deployment has exactly one **Organization**, in one country, with one active country plugin
