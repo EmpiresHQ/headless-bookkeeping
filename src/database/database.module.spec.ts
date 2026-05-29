@@ -1,4 +1,4 @@
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import Database from 'better-sqlite3';
 import { Database as DBType } from './types';
@@ -75,5 +75,12 @@ describe('DatabaseModule', () => {
     expect(row).toHaveProperty('created_at');
     expect(row).toHaveProperty('id');
     expect(row).toHaveProperty('vat_registered');
+  });
+
+  it('proves the singleton CHECK lives in the shipping migration', async () => {
+    const ddl = await sql<{ sql: string }>`
+      SELECT sql FROM sqlite_master WHERE type='table' AND name='organization'
+    `.execute(db);
+    expect(ddl.rows[0].sql).toContain('id = 1');
   });
 });

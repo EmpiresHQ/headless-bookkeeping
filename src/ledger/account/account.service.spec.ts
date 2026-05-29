@@ -12,8 +12,10 @@ describe('AccountService (integration)', () => {
   let service: AccountService;
 
   beforeEach(async () => {
+    const rawDb = new SqliteDb(':memory:');
+    rawDb.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
-      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+      dialect: new SqliteDialect({ database: rawDb }),
     });
 
     const migrator = new Migrator({
