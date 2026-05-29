@@ -50,4 +50,4 @@ Execute **1 → 7 in order** (1 first — test fidelity is the precondition for 
 - [x] 4. Validation: base_amount / fx_rate sign + account-currency match — detail: H4
 - [x] 5. Demote repositories to read-only (posting = sole writer) — detail: H5
 - [x] 6. Wire the hash chain — detail: H6
-- [ ] 7. Full gate + e2e + evidence — detail: H7
+- [x] 7. Full gate + e2e + evidence — detail: H7

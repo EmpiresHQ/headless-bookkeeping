@@ -87,6 +87,19 @@
       "status": "completed",
       "ended_at": "2026-05-29T18:50:04.619Z",
       "elapsed_ms": 15707
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Full gate + e2e + evidence — detail: H7",
+      "session_id": "ses_18aed13b1ffe21LUbWtsXreeAs",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-29T18:56:13.309Z",
+      "started_at": "2026-05-29T18:55:21.497Z",
+      "status": "completed",
+      "ended_at": "2026-05-29T18:56:13.309Z",
+      "elapsed_ms": 51812
     }
   },
   "schema_version": 2,
@@ -96,7 +109,7 @@
       "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-2-hardening.md",
       "plan_name": "wave-2-hardening",
       "started_at": "2026-05-29T18:35:11.360Z",
-      "updated_at": "2026-05-29T18:50:04.619Z",
+      "updated_at": "2026-05-29T18:56:29.794Z",
       "session_ids": [
         "ses_18afb2ba6ffelX5Qr3Xnnw8tfD"
       ],
@@ -181,10 +194,29 @@
           "status": "completed",
           "ended_at": "2026-05-29T18:50:04.619Z",
           "elapsed_ms": 15707
+        },
+        "todo:7": {
+          "task_key": "todo:7",
+          "task_label": "7",
+          "task_title": "Full gate + e2e + evidence — detail: H7",
+          "session_id": "ses_18aed13b1ffe21LUbWtsXreeAs",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-29T18:56:13.309Z",
+          "started_at": "2026-05-29T18:55:21.497Z",
+          "status": "completed",
+          "ended_at": "2026-05-29T18:56:13.309Z",
+          "elapsed_ms": 51812
         }
-      }
+      },
+      "ended_at": "2026-05-29T18:56:29.794Z",
+      "elapsed_ms": 1278434,
+      "status": "completed"
     }
   },
   "active_work_id": "wave-2-hardening",
-  "updated_at": "2026-05-29T18:50:04.619Z"
+  "updated_at": "2026-05-29T18:56:29.794Z",
+  "status": "completed",
+  "ended_at": "2026-05-29T18:56:29.794Z",
+  "elapsed_ms": 1278434
 }
