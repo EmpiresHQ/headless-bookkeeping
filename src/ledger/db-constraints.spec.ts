@@ -322,4 +322,140 @@ describe('Wave 2 DB constraints (G6)', () => {
         .execute(),
     ).resolves.toBeDefined();
   });
+
+  // ---- Wave 3 table constraints ----
+
+  it('rejects invalid expense.status at the DB level', async () => {
+    const promise = db
+      .insertInto('expense')
+      .values({
+        category: 'software',
+        gross_amount: 10000,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        status: 'invalid_status',
+        voucher_id: null,
+        created_at: 1740000000,
+        updated_at: 1740000000,
+      })
+      .execute();
+    await expect(promise).rejects.toThrow();
+  });
+
+  it('accepts valid expense.status values', async () => {
+    for (const status of ['draft', 'pending', 'posted', 'reversed']) {
+      await expect(
+        db
+          .insertInto('expense')
+          .values({
+            category: 'software',
+            gross_amount: 10000,
+            vat_amount: 2300,
+            currency: 'EUR',
+            tax_point_date: '2026-03-15',
+            status,
+            voucher_id: null,
+            created_at: 1740000000,
+            updated_at: 1740000000,
+          })
+          .execute(),
+      ).resolves.toBeDefined();
+    }
+  });
+
+  it('rejects duplicate sales_invoice.invoice_number at the DB level', async () => {
+    await db
+      .insertInto('sales_invoice')
+      .values({
+        invoice_number: 'INV-DUP-001',
+        gross_amount: 10000,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        status: 'draft',
+        sent_at: null,
+        voucher_id: null,
+        created_at: 1740000000,
+        updated_at: 1740000000,
+      })
+      .execute();
+
+    const promise = db
+      .insertInto('sales_invoice')
+      .values({
+        invoice_number: 'INV-DUP-001',
+        gross_amount: 20000,
+        vat_amount: 4600,
+        currency: 'EUR',
+        tax_point_date: '2026-03-16',
+        status: 'draft',
+        sent_at: null,
+        voucher_id: null,
+        created_at: 1740000000,
+        updated_at: 1740000000,
+      })
+      .execute();
+
+    await expect(promise).rejects.toThrow();
+  });
+
+  it('rejects invalid sales_invoice.status at the DB level', async () => {
+    const promise = db
+      .insertInto('sales_invoice')
+      .values({
+        invoice_number: 'INV-STATUS-001',
+        gross_amount: 10000,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        status: 'invalid_status',
+        sent_at: null,
+        voucher_id: null,
+        created_at: 1740000000,
+        updated_at: 1740000000,
+      })
+      .execute();
+    await expect(promise).rejects.toThrow();
+  });
+
+  it('accepts valid sales_invoice.status values', async () => {
+    let counter = 0;
+    for (const status of ['draft', 'pending', 'posted', 'reversed']) {
+      await expect(
+        db
+          .insertInto('sales_invoice')
+          .values({
+            invoice_number: `INV-STATUS-OK-${counter++}`,
+            gross_amount: 10000,
+            vat_amount: 2300,
+            currency: 'EUR',
+            tax_point_date: '2026-03-15',
+            status,
+            sent_at: null,
+            voucher_id: null,
+            created_at: 1740000000,
+            updated_at: 1740000000,
+          })
+          .execute(),
+      ).resolves.toBeDefined();
+    }
+  });
+
+  it('accepts a well-formed override record', async () => {
+    await expect(
+      db
+        .insertInto('override')
+        .values({
+          business_object_type: 'expense',
+          business_object_id: 1,
+          rule_type: 'semantic',
+          rule_name: 'vat_code_validity',
+          reason: 'Supplier confirmed special treatment',
+          created_by: 'test-user',
+          created_at: 1740000000,
+        })
+        .execute(),
+    ).resolves.toBeDefined();
+  });
 });

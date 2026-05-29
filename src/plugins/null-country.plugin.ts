@@ -2,8 +2,12 @@ import { Injectable } from '@nestjs/common';
 import {
   CategoryMappingResult,
   CountryPlugin,
+  OrgContext,
+  SupplierFacts,
   VATCode,
 } from './country-plugin.interface';
+
+export const NULL_VAT_CODE = 'NULL_STANDARD';
 
 /**
  * NullCountryPlugin - A stub implementation of CountryPlugin that returns safe defaults.
@@ -13,6 +17,8 @@ import {
  *
  * Per ADR-0002: Country specifics live in plugins; the kernel stays thin.
  * This null plugin ensures the kernel can function even without a real country plugin loaded.
+ *
+ * Default deployment is Ireland → EUR (ADR-0004), so IE VAT codes are used.
  */
 @Injectable()
 export class NullCountryPlugin implements CountryPlugin {
@@ -21,24 +27,37 @@ export class NullCountryPlugin implements CountryPlugin {
   }
 
   getVATCodes(): VATCode[] {
-    return ['NULL_STANDARD'];
+    return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'];
   }
 
   resolveCategoryMapping(
     category: string,
-    _supplierContext: unknown,
+    _supplierFacts: SupplierFacts,
+    _orgContext: OrgContext,
   ): CategoryMappingResult {
-    // Safe default: map any category to a generic expense account with the null VAT code.
-    // The "software" case is explicitly handled as specified.
-    if (category === 'software') {
-      return { account: 'EXPENSE_SOFTWARE', vatCode: 'NULL_STANDARD' };
+    // Revenue branch
+    if (category === 'revenue') {
+      return { accountCode: 'REVENUE', vatCode: 'IE_OUTPUT_23' };
     }
 
-    // Generic fallback: uppercase the category as the account key.
-    return {
-      account: `EXPENSE_${category.toUpperCase()}`,
-      vatCode: 'NULL_STANDARD',
+    // Expense categories mapped to seeded chart accounts + IE input VAT.
+    const expenseMap: Record<string, string> = {
+      software: 'EXPENSE_SOFTWARE',
+      transport: 'EXPENSE_TRANSPORT',
+      travel: 'EXPENSE_TRAVEL',
+      marketing: 'EXPENSE_MARKETING',
+      salary: 'EXPENSE_SALARY',
+      contractor: 'EXPENSE_CONTRACTOR',
+      rent: 'EXPENSE_RENT',
+      tax: 'EXPENSE_TAX',
+      'bank fee': 'EXPENSE_BANK_FEE',
+      meals: 'EXPENSE_MEALS',
+      insurance: 'EXPENSE_INSURANCE',
+      education: 'EXPENSE_EDUCATION',
     };
+
+    const accountCode = expenseMap[category] ?? 'EXPENSE_OTHER';
+    return { accountCode, vatCode: 'IE_INPUT_23' };
   }
 
   getPeriodFrequencyOptions(): string[] {
@@ -55,7 +74,10 @@ export class NullCountryPlugin implements CountryPlugin {
     return 'EUR';
   }
 
-  validateVATCode(vatCode: string, _context: unknown): boolean {
-    return vatCode === 'NULL_STANDARD';
+  validateVATCode(
+    vatCode: string,
+    _context: { supplier: SupplierFacts; org: OrgContext },
+  ): boolean {
+    return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
   }
 }

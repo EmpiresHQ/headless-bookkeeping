@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
+import { toBool } from '../../database/helpers';
 import { VoucherLine } from './types';
 
 @Injectable()
@@ -48,7 +49,7 @@ export class VoucherLineRepository {
       base_amount,
       fx_rate,
       vat_code,
-      is_debit: is_debit === 1,
+      is_debit: toBool(is_debit)
     };
   }
 }

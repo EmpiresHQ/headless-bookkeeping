@@ -14,6 +14,7 @@ import { PostingService } from './../src/ledger/posting/posting.service';
 import { VoucherRepository } from './../src/ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from './../src/ledger/voucher/voucher-line.repository';
 import { VoucherController } from './../src/ledger/voucher/voucher.controller';
+import { ZodValidationPipe } from './../src/common/pipes/zod-validation.pipe';
 
 describe('Voucher (e2e)', () => {
   let app: INestApplication<App>;
@@ -46,6 +47,7 @@ describe('Voucher (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(new ZodValidationPipe());
     await app.init();
   });
 
@@ -110,6 +112,42 @@ describe('Voucher (e2e)', () => {
     expect(JSON.stringify(Reflect.get(list.body, 'vouchers'))).not.toContain(
       'V-2026-E2E-2',
     );
+  });
+
+  it('POST /api/vouchers rejects a malformed body with 400', async () => {
+    const malformed = {
+      voucher_number: '',
+      tax_point_date: 'not-a-date',
+      lines: [
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: -100,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          is_debit: true,
+        },
+      ],
+    };
+    const res = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send(malformed)
+      .expect(400);
+    expect(res.body).toHaveProperty('voucher_number');
+    expect(res.body).toHaveProperty('tax_point_date');
+    expect(res.body).toHaveProperty('lines');
+  });
+
+  it('POST /api/vouchers rejects a duplicate voucher_number with 409', async () => {
+    await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, voucher_number: 'V-2026-E2E-DUP' })
+      .expect(201);
+    const res = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, voucher_number: 'V-2026-E2E-DUP' })
+      .expect(409);
+    expect(res.body).toHaveProperty('message');
   });
 
   it('GET /api/vouchers/:id returns the posted voucher with lines', async () => {

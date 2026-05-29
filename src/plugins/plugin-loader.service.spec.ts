@@ -1,6 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Kysely, SqliteDialect } from 'kysely';
+import Database from 'better-sqlite3';
+import { Database as DBType } from '../database/types';
+import { migrations } from '../database/migrations';
+import { Migrator } from 'kysely/migration';
 import { NullCountryPlugin } from './null-country.plugin';
 import { PluginLoader } from './plugin-loader.service';
+import { OrgContext, SupplierFacts } from './country-plugin.interface';
+
+const defaultSupplier: SupplierFacts = {
+  country: 'IE',
+  goodsVsServices: 'services',
+  classificationMemory: [],
+};
+
+const defaultOrg: OrgContext = {
+  country: 'IE',
+  vatRegistered: true,
+  baseCurrency: null,
+};
 
 describe('NullCountryPlugin', () => {
   let plugin: NullCountryPlugin;
@@ -20,25 +38,73 @@ describe('NullCountryPlugin', () => {
   });
 
   describe('getVATCodes', () => {
-    it('should return ["NULL_STANDARD"]', () => {
-      expect(plugin.getVATCodes()).toEqual(['NULL_STANDARD']);
+    it('should return IE VAT codes plus NULL_STANDARD', () => {
+      expect(plugin.getVATCodes()).toEqual([
+        'NULL_STANDARD',
+        'IE_INPUT_23',
+        'IE_OUTPUT_23',
+      ]);
     });
   });
 
   describe('resolveCategoryMapping', () => {
     it('should return expected defaults for "software"', () => {
-      const result = plugin.resolveCategoryMapping('software', {});
+      const result = plugin.resolveCategoryMapping(
+        'software',
+        defaultSupplier,
+        defaultOrg,
+      );
       expect(result).toEqual({
-        account: 'EXPENSE_SOFTWARE',
-        vatCode: 'NULL_STANDARD',
+        accountCode: 'EXPENSE_SOFTWARE',
+        vatCode: 'IE_INPUT_23',
       });
     });
 
     it('should return generic fallback for unknown categories', () => {
-      const result = plugin.resolveCategoryMapping('transport', {});
+      const result = plugin.resolveCategoryMapping(
+        'widgets',
+        defaultSupplier,
+        defaultOrg,
+      );
       expect(result).toEqual({
-        account: 'EXPENSE_TRANSPORT',
-        vatCode: 'NULL_STANDARD',
+        accountCode: 'EXPENSE_OTHER',
+        vatCode: 'IE_INPUT_23',
+      });
+    });
+
+    it('should map "revenue" to REVENUE + IE_OUTPUT_23', () => {
+      const result = plugin.resolveCategoryMapping(
+        'revenue',
+        defaultSupplier,
+        defaultOrg,
+      );
+      expect(result).toEqual({
+        accountCode: 'REVENUE',
+        vatCode: 'IE_OUTPUT_23',
+      });
+    });
+
+    it('should map "transport" to EXPENSE_TRANSPORT + IE_INPUT_23', () => {
+      const result = plugin.resolveCategoryMapping(
+        'transport',
+        defaultSupplier,
+        defaultOrg,
+      );
+      expect(result).toEqual({
+        accountCode: 'EXPENSE_TRANSPORT',
+        vatCode: 'IE_INPUT_23',
+      });
+    });
+
+    it('should map "rent" to EXPENSE_RENT + IE_INPUT_23', () => {
+      const result = plugin.resolveCategoryMapping(
+        'rent',
+        defaultSupplier,
+        defaultOrg,
+      );
+      expect(result).toEqual({
+        accountCode: 'EXPENSE_RENT',
+        vatCode: 'IE_INPUT_23',
       });
     });
   });
@@ -63,11 +129,39 @@ describe('NullCountryPlugin', () => {
 
   describe('validateVATCode', () => {
     it('should return true for "NULL_STANDARD"', () => {
-      expect(plugin.validateVATCode('NULL_STANDARD', {})).toBe(true);
+      expect(
+        plugin.validateVATCode('NULL_STANDARD', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(true);
+    });
+
+    it('should return true for "IE_INPUT_23"', () => {
+      expect(
+        plugin.validateVATCode('IE_INPUT_23', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(true);
+    });
+
+    it('should return true for "IE_OUTPUT_23"', () => {
+      expect(
+        plugin.validateVATCode('IE_OUTPUT_23', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(true);
     });
 
     it('should return false for any other VAT code', () => {
-      expect(plugin.validateVATCode('DK_INPUT_25', {})).toBe(false);
+      expect(
+        plugin.validateVATCode('DK_INPUT_25', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(false);
     });
   });
 });
@@ -101,5 +195,107 @@ describe('PluginLoader', () => {
       const result = loader.resolve('null');
       expect(result.getName()).toBe('null');
     });
+  });
+});
+
+describe('NullCountryPlugin real-DI against seeded chart', () => {
+  let plugin: NullCountryPlugin;
+  let db: Kysely<DBType>;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [NullCountryPlugin],
+    }).compile();
+
+    plugin = module.get<NullCountryPlugin>(NullCountryPlugin);
+
+    db = new Kysely<DBType>({
+      dialect: new SqliteDialect({
+        database: new Database(':memory:'),
+      }),
+    });
+
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('should resolve expense categories to accounts that exist in the seeded chart', async () => {
+    const categories = [
+      'software',
+      'transport',
+      'travel',
+      'marketing',
+      'salary',
+      'contractor',
+      'rent',
+      'tax',
+      'bank fee',
+      'meals',
+      'insurance',
+      'education',
+    ];
+
+    for (const category of categories) {
+      const mapping = plugin.resolveCategoryMapping(
+        category,
+        defaultSupplier,
+        defaultOrg,
+      );
+
+      const account = await db
+        .selectFrom('account')
+        .select('code')
+        .where('code', '=', mapping.accountCode)
+        .executeTakeFirst();
+
+      expect(account).toBeDefined();
+      expect(account!.code).toBe(mapping.accountCode);
+      expect(mapping.vatCode).toBe('IE_INPUT_23');
+    }
+  });
+
+  it('should resolve "revenue" to REVENUE which exists in the seeded chart', async () => {
+    const mapping = plugin.resolveCategoryMapping(
+      'revenue',
+      defaultSupplier,
+      defaultOrg,
+    );
+
+    const account = await db
+      .selectFrom('account')
+      .select('code')
+      .where('code', '=', mapping.accountCode)
+      .executeTakeFirst();
+
+    expect(account).toBeDefined();
+    expect(account!.code).toBe('REVENUE');
+    expect(mapping.vatCode).toBe('IE_OUTPUT_23');
+  });
+
+  it('should resolve unknown categories to EXPENSE_OTHER which exists in the seeded chart', async () => {
+    const mapping = plugin.resolveCategoryMapping(
+      'unknown-category',
+      defaultSupplier,
+      defaultOrg,
+    );
+
+    const account = await db
+      .selectFrom('account')
+      .select('code')
+      .where('code', '=', mapping.accountCode)
+      .executeTakeFirst();
+
+    expect(account).toBeDefined();
+    expect(account!.code).toBe('EXPENSE_OTHER');
+    expect(mapping.vatCode).toBe('IE_INPUT_23');
   });
 });

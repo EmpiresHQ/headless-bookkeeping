@@ -6,11 +6,36 @@
 export type VATCode = string;
 
 /**
+ * SupplierFacts - Intrinsic, context-free facts about a Supplier.
+ * Used by the country plugin to resolve VAT treatment and account mapping.
+ */
+export interface SupplierFacts {
+  /** ISO country code of the supplier (e.g. "IE", "DK", "GB"). */
+  country: string;
+  /** Whether the supplier provides goods or services. */
+  goodsVsServices: 'goods' | 'services' | 'unknown';
+  /** Historical categories this supplier's purchases have been mapped to. */
+  classificationMemory: string[];
+}
+
+/**
+ * OrgContext - The Organization's context for category mapping.
+ */
+export interface OrgContext {
+  /** ISO country code of the Organization (e.g. "IE"). */
+  country: string;
+  /** Whether the Organization is VAT-registered. */
+  vatRegistered: boolean;
+  /** Base currency override, or null to inherit from the country plugin. */
+  baseCurrency: string | null;
+}
+
+/**
  * CategoryMappingResult - The resolved account + VAT code for a given category.
  * Produced by a country plugin's resolveCategoryMapping().
  */
 export interface CategoryMappingResult {
-  account: string;
+  accountCode: string;
   vatCode: VATCode;
 }
 
@@ -44,16 +69,18 @@ export interface CountryPlugin {
    *
    * The mapping may depend on:
    * - The category string (e.g. "software", "transport")
-   * - Supplier context (country, goods-vs-services, classification memory)
+   * - Supplier facts (country, goods-vs-services, classification memory)
    * - Organization context (registration status, base currency)
    *
    * @param category - User-facing category label
-   * @param supplierContext - Supplier intrinsic facts + classification memory
-   * @returns Resolved account + VAT code
+   * @param supplierFacts - Supplier intrinsic facts + classification memory
+   * @param orgContext - Organization context (country, VAT registration, base currency)
+   * @returns Resolved account code + VAT code
    */
   resolveCategoryMapping(
     category: string,
-    supplierContext: unknown,
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
   ): CategoryMappingResult;
 
   /**
@@ -86,5 +113,8 @@ export interface CountryPlugin {
    * @param context - Additional context (supplier, organization, line details)
    * @returns true if the VAT code is valid for this context
    */
-  validateVATCode(vatCode: string, context: unknown): boolean;
+  validateVATCode(
+    vatCode: string,
+    context: { supplier: SupplierFacts; org: OrgContext },
+  ): boolean;
 }

@@ -9,6 +9,7 @@ import {
   Body,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   MethodNotAllowedException,
 } from '@nestjs/common';
 import { PostingService } from '../posting/posting.service';
@@ -16,6 +17,7 @@ import { ValidationError } from '../posting/types';
 import { VoucherRepository } from './voucher.repository';
 import { VoucherLineRepository } from './voucher-line.repository';
 import type { DraftVoucher, PostedVoucher, Voucher } from './types';
+import { DraftVoucherDto } from './voucher.schema';
 
 @Controller('api/vouchers')
 export class VoucherController {
@@ -41,15 +43,28 @@ export class VoucherController {
   }
 
   @Post()
-  async postVoucher(@Body() draft: DraftVoucher): Promise<PostedVoucher> {
+  async postVoucher(@Body() draft: DraftVoucherDto): Promise<PostedVoucher> {
     try {
-      return await this.postingService.postVoucher(draft);
+      return await this.postingService.postVoucher(draft as DraftVoucher);
     } catch (err) {
       if (err instanceof ValidationError) {
         throw new BadRequestException(err.errors);
       }
+      if (this.isUniqueViolation(err)) {
+        throw new ConflictException(
+          `Voucher number ${(draft as DraftVoucher).voucher_number} already exists`,
+        );
+      }
       throw err;
     }
+  }
+
+  private isUniqueViolation(err: unknown): boolean {
+    return (
+      err instanceof Error &&
+      err.message.includes('UNIQUE constraint failed') &&
+      err.message.includes('voucher_number')
+    );
   }
 
   // Posted vouchers are immutable (ADR-0001, ADR-0006): every mutating verb is
