@@ -92,23 +92,23 @@ export class PostingPipelineService {
     // ── 1. Generate transient draft voucher ────────────────────
     const draft = await params.draftGenerator();
 
-    // ── 2. Resolve account codes ───────────────────────────────
+    // ── 2. Resolve account codes and build ResolvedLine[] ───────────────────────────────
     const codes = [...new Set(draft.lines.map((l) => l.account_code))];
     const accounts = await this.accountService.getAccountsByCodes(codes);
     const byCode = new Map(accounts.map((a) => [a.code, a]));
     const validAccountIds = new Set(accounts.map((a) => a.id));
 
-    // ── 3. Build ResolvedLine[] ────────────────────────────────
     const resolvedLines: ResolvedLine[] = draft.lines.map((l) => {
       const account = byCode.get(l.account_code);
+      const { id: account_id, currency: account_currency } = account || {};
       return {
-        account_id: account?.id ?? -1,
+        account_id: account_id ?? -1,
         amount: l.amount,
         currency: l.currency,
         base_amount: l.base_amount,
         fx_rate: l.fx_rate,
         is_debit: l.is_debit,
-        account_currency: account?.currency ?? null,
+        account_currency: account_currency ?? null,
         vat_code: l.vat_code ?? 'NULL_STANDARD',
         category: params.categoryMapper(l.account_code),
       };
