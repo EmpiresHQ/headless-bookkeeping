@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
+import { toBool } from '../../database/helpers';
 import { AccountService } from '../account/account.service';
 import { LedgerValidationService } from '../validation/ledger-validation.service';
 import { ValidatableLine } from '../validation/types';
@@ -18,7 +19,8 @@ export class PostingService {
   ) {}
 
   async postVoucher(draft: DraftVoucher): Promise<PostedVoucher> {
-    const accounts = await this.accountService.getAccounts();
+    const codes = [...new Set(draft.lines.map((l) => l.account_code))];
+    const accounts = await this.accountService.getAccountsByCodes(codes);
     const byCode = new Map(accounts.map((a) => [a.code, a]));
     const validIds = new Set(accounts.map((a) => a.id));
 
@@ -60,35 +62,34 @@ export class PostingService {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      const lines: VoucherLine[] = [];
-      for (let i = 0; i < draft.lines.length; i++) {
-        const draftLine = draft.lines[i];
-        const inserted = await trx
-          .insertInto('voucher_line')
-          .values({
+      const insertedLines = await trx
+        .insertInto('voucher_line')
+        .values(
+          draft.lines.map((l, i) => ({
             voucher_id: voucher.id,
             account_id: resolved[i].account_id,
-            amount: draftLine.amount,
-            currency: draftLine.currency,
-            base_amount: draftLine.base_amount,
-            fx_rate: draftLine.fx_rate,
-            vat_code: draftLine.vat_code ?? null,
-            is_debit: draftLine.is_debit ? 1 : 0,
-          })
-          .returningAll()
-          .executeTakeFirstOrThrow();
-        lines.push({
-          id: inserted.id,
-          voucher_id: inserted.voucher_id,
-          account_id: inserted.account_id,
-          amount: inserted.amount,
-          currency: inserted.currency,
-          base_amount: inserted.base_amount,
-          fx_rate: inserted.fx_rate,
-          vat_code: inserted.vat_code,
-          is_debit: inserted.is_debit === 1,
-        });
-      }
+            amount: l.amount,
+            currency: l.currency,
+            base_amount: l.base_amount,
+            fx_rate: l.fx_rate,
+            vat_code: l.vat_code ?? null,
+            is_debit: l.is_debit ? 1 : 0,
+          })),
+        )
+        .returningAll()
+        .execute();
+
+      const lines: VoucherLine[] = insertedLines.map((r) => ({
+        id: r.id,
+        voucher_id: r.voucher_id,
+        account_id: r.account_id,
+        amount: r.amount,
+        currency: r.currency,
+        base_amount: r.base_amount,
+        fx_rate: r.fx_rate,
+        vat_code: r.vat_code,
+        is_debit: toBool(r.is_debit),
+      }));
 
       return { ...voucher, lines };
     });
@@ -123,7 +124,7 @@ export class PostingService {
         currency: l.currency,
         base_amount: l.base_amount,
         fx_rate: l.fx_rate,
-        is_debit: l.is_debit === 1,
+        is_debit: toBool(l.is_debit),
       })),
     );
   }

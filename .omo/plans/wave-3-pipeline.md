@@ -33,11 +33,11 @@ This wave implements the full business object → draft → Rules → Policy →
 
 These are the non-load-bearing findings from the Wave-2 review, deferred here because they touch the HTTP/validation surface Wave 3 extends anyway. Knock them out before Task 11 so the pipeline builds on a clean controller layer.
 
-- [ ] P1. **Error contract + Zod validation.** Add a global Zod-based `ValidationPipe` (e.g. `nestjs-zod` or a thin custom pipe) with a `DraftVoucher` Zod schema. Malformed/missing body → **400** (not the current `TypeError` → 500). Catch the `voucher_number` UNIQUE violation in the posting path → **409 Conflict**. (Use Zod, NOT class-validator.) Add e2e cases for both.
-- [ ] P2. **Efficiency.** `PostingService` loads the whole chart per post → query only the draft's codes (`WHERE code IN (...)`). Insert lines in one batch instead of N sequential `INSERT...RETURNING`. Add an index on `voucher_line.voucher_id` (and `account_id`) — SQLite does not auto-index FKs; the append-only table will otherwise full-scan.
-- [ ] P3. **Cosmetics.** Fix the `is_system` comment in `src/database/types.ts` (it wrongly says "1 = debit, 0 = credit"). Collapse the duplicated `mapRow` / `is_debit` 0-1 coercion into a shared helper now that the repos are read-only.
-- [ ] P4. **Doc reconcile.** Annotate `.omo/notepads/wave-2-ledger/carry-forward.md` seam #2 as superseded by ADR-0004 (single net `FX_GAIN_LOSS`); annotate seam #5 as superseded by ADR-0020 (no unposted-voucher insert).
-- [ ] P5. **CountryPlugin category mapping (seam #5).** Add `resolveCategoryMapping(category, supplierFacts, orgContext)` to the `CountryPlugin` interface and implement it in `NullCountryPlugin` with branches for **expense** categories (→ expense account + input-VAT code) **and `revenue`** (→ REVENUE + output-VAT code). Tasks 11/12 depend on this — it is not optional wiring. Real-DI test against the seeded chart.
+- [x] P1. **Error contract + Zod validation.** Add a global Zod-based `ValidationPipe` (e.g. `nestjs-zod` or a thin custom pipe) with a `DraftVoucher` Zod schema. Malformed/missing body → **400** (not the current `TypeError` → 500). Catch the `voucher_number` UNIQUE violation in the posting path → **409 Conflict**. (Use Zod, NOT class-validator.) Add e2e cases for both.
+- [x] P2. **Efficiency.** `PostingService` loads the whole chart per post → query only the draft's codes (`WHERE code IN (...)`). Insert lines in one batch instead of N sequential `INSERT...RETURNING`. Add an index on `voucher_line.voucher_id` (and `account_id`) — SQLite does not auto-index FKs; the append-only table will otherwise full-scan.
+- [x] P3. **Cosmetics.** Fix the `is_system` comment in `src/database/types.ts` (it wrongly says "1 = debit, 0 = credit"). Collapse the duplicated `mapRow` / `is_debit` 0-1 coercion into a shared helper now that the repos are read-only.
+- [x] P4. **Doc reconcile.** Annotate `.omo/notepads/wave-2-ledger/carry-forward.md` seam #2 as superseded by ADR-0004 (single net `FX_GAIN_LOSS`); annotate seam #5 as superseded by ADR-0020 (no unposted-voucher insert).
+- [x] P5. **CountryPlugin category mapping (seam #5).** Add `resolveCategoryMapping(category, supplierFacts, orgContext)` to the `CountryPlugin` interface and implement it in `NullCountryPlugin` with branches for **expense** categories (→ expense account + input-VAT code) **and `revenue`** (→ REVENUE + output-VAT code). Tasks 11/12 depend on this — it is not optional wiring. Real-DI test against the seeded chart.
 
 ---
 
@@ -61,7 +61,7 @@ The plan as drafted contradicted several decisions. These corrections override t
 
 ## TODOs
 
-- [ ] 11. Expense business object + draft voucher generation
+- [x] 11. Expense business object + draft voucher generation
 
   **What to do**:
   - Create `src/expenses/` module with controller, service, types
@@ -133,7 +133,7 @@ The plan as drafted contradicted several decisions. These corrections override t
   - Files: `src/expenses/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 12. SalesInvoice business object + draft voucher generation
+- [x] 12. SalesInvoice business object + draft voucher generation
 
   **What to do**:
   - Create `src/sales-invoices/` module with controller, service, types
@@ -198,7 +198,7 @@ The plan as drafted contradicted several decisions. These corrections override t
   - Files: `src/sales-invoices/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 13. Rules engine (structural, hard, semantic)
+- [x] 13. Rules engine (structural, hard, semantic)
 
   **What to do**:
   - Create `src/rules/` module with service, types, guards
@@ -275,7 +275,7 @@ The plan as drafted contradicted several decisions. These corrections override t
   - Files: `src/rules/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 14. Policy gate + Override logging
+- [x] 14. Policy gate + Override logging
 
   **What to do**:
   - Create `src/policy/` module
@@ -357,7 +357,7 @@ The plan as drafted contradicted several decisions. These corrections override t
   - Files: `src/policy/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 15. Pipeline integration (end-to-end flow)
+- [x] 15. Pipeline integration (end-to-end flow)
 
   **What to do**:
   - Create an integration test or endpoint that exercises the full pipeline:

@@ -22,9 +22,11 @@ The detailed superpowers plans were authored per-wave in parallel; these seams n
 
 1. **Migration numbering.** Wave 2 = `002`–`004`, Wave 3 = `005`–`008`, Wave 4 = `010`–`011`, Wave 5 = placeholders `00X/00Y/00Z` (assign **012**–`014` at execution), Wave 6 = `020`–`022`. Gaps are harmless (Kysely orders by key); just avoid collisions and resolve Wave 5's placeholders.
 2. **`FX_GAIN` account.** Add `FX_GAIN` to the Wave 2 canonical chart (the spec listed only `FX_LOSS`). Then Wave 5's conditional "add FX_GAIN if absent" migration becomes unnecessary.
+   > **Superseded by ADR-0004:** The canonical chart uses a single net `FX_GAIN_LOSS` account (not separate gain/loss accounts). The separate `FX_GAIN`/`FX_LOSS` concern is moot.
 3. **`voucher_line.account_id` FK.** The Wave 2 plan adds this FK + `PRAGMA foreign_keys = ON` and proves rejection (per CONTEXT "a VoucherLine debits/credits exactly one Account"). Confirm we want FK enforcement in the migration vs only on the connection.
 4. **Validation signature.** Wave 2 plan: `validateVoucherLines(lines, validAccountIds: Set<number>)` (caller resolves account ids). Wave 3 assumed `validate(draft)`. Reconcile when Wave 3 runs — keep `account_code` on `DraftVoucherLine` either way.
 5. **Plugin wiring for Wave 3.** Needs a `'revenue'` branch in `NullCountryPlugin.resolveCategoryMapping` and an unposted-voucher insert (`posted_at: null`) for the Policy-hold path. Wiring only, no new schema.
+   > **Superseded by ADR-0020:** The kernel no longer inserts unposted vouchers — the Policy-hold path works differently. The unposted-voucher concern is moot.
 6. **Depth variance.** Waves 5–6 plans are more condensed than 2–4; deepen them (more bite-sized steps / full code) right before those waves execute.
 
 ## Patterns to copy

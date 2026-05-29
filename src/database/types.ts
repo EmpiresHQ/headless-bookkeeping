@@ -5,6 +5,10 @@ export interface Database {
   account: AccountTable;
   voucher: VoucherTable;
   voucher_line: VoucherLineTable;
+  expense: ExpenseTable;
+  sales_invoice: SalesInvoiceTable;
+  override: OverrideTable;
+  policy_config: PolicyConfigTable;
 }
 
 export interface OrganizationTable {
@@ -28,7 +32,7 @@ export interface AccountTable {
   // Self-referential FK for chart hierarchy; traversal is deferred (Wave 2
   // reserves the column only).
   parent_id: number | null;
-  // SQLite boolean (0/1): 1 = debit, 0 = credit.
+  // SQLite boolean (0/1): 1 = system-managed, 0 = user-managed.
   is_system: number;
 }
 
@@ -61,4 +65,54 @@ export interface VoucherLineTable {
   vat_code: string | null;
   // SQLite boolean (0/1): 1 = debit, 0 = credit.
   is_debit: number;
+}
+
+export interface SalesInvoiceTable {
+  id: Generated<number>;
+  customer_id: number | null;
+  invoice_number: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  due_date: string | null;
+  status: string;
+  sent_at: number | null;
+  voucher_id: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ExpenseTable {
+  id: Generated<number>;
+  document_id: number | null;
+  supplier_id: number | null;
+  category: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  // enum: 'draft' | 'pending' | 'posted' | 'reversed'
+  status: string;
+  voucher_id: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface OverrideTable {
+  id: Generated<number>;
+  business_object_type: string;
+  business_object_id: number;
+  rule_type: string;
+  rule_name: string;
+  reason: string;
+  created_by: string;
+  created_at: number;
+}
+
+export interface PolicyConfigTable {
+  id: Generated<number>;
+  key: string;
+  value: string;
+  updated_at: number;
 }

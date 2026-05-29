@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
+import { toBool } from '../../database/helpers';
 import { Account, AccountType } from './types';
 
 @Injectable()
@@ -13,6 +14,16 @@ export class AccountService {
       .selectFrom('account')
       .selectAll()
       .orderBy('code')
+      .execute();
+    return rows.map((r) => this.mapRow(r));
+  }
+
+  async getAccountsByCodes(codes: string[]): Promise<Account[]> {
+    if (codes.length === 0) return [];
+    const rows = await this.db
+      .selectFrom('account')
+      .selectAll()
+      .where('code', 'in', codes)
       .execute();
     return rows.map((r) => this.mapRow(r));
   }
@@ -51,7 +62,7 @@ export class AccountService {
       type: this.validateAccountType(row.type),
       currency: row.currency,
       parent_id: row.parent_id,
-      is_system: row.is_system === 1,
+      is_system: toBool(row.is_system),
     };
   }
 }

@@ -6,6 +6,7 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
+import { toBool } from '../database/helpers';
 import { Organization, UpdateOrganizationDto } from './types';
 
 const SINGLETON_ID = 1;
@@ -72,7 +73,7 @@ export class OrganizationService {
       id: row.id,
       country: row.country,
       base_currency: row.base_currency,
-      vat_registered: row.vat_registered === 1,
+      vat_registered: toBool(row.vat_registered),
       created_at: row.created_at,
     };
   }
