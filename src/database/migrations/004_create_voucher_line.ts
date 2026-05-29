@@ -23,6 +23,26 @@ export async function up(db: Kysely<Database>): Promise<void> {
       col.notNull().check(sql`is_debit IN (0, 1)`),
     )
     .execute();
+
+  // A line of a POSTED voucher is immutable (ADR-0019). The parent's posted_at
+  // is looked up via the line's voucher_id.
+  await sql`
+    CREATE TRIGGER voucher_line_block_update_when_posted
+    BEFORE UPDATE ON voucher_line
+    WHEN (SELECT posted_at FROM voucher WHERE id = OLD.voucher_id) IS NOT NULL
+    BEGIN
+      SELECT RAISE(ABORT, 'posted voucher line is immutable (ADR-0019)');
+    END;
+  `.execute(db);
+
+  await sql`
+    CREATE TRIGGER voucher_line_block_delete_when_posted
+    BEFORE DELETE ON voucher_line
+    WHEN (SELECT posted_at FROM voucher WHERE id = OLD.voucher_id) IS NOT NULL
+    BEGIN
+      SELECT RAISE(ABORT, 'posted voucher line is immutable (ADR-0019)');
+    END;
+  `.execute(db);
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {

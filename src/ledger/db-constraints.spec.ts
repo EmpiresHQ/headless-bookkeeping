@@ -222,4 +222,52 @@ describe('Wave 2 DB constraints (G6)', () => {
     const ids = await seedVoucherAndAccount();
     await expect(db.insertInto('voucher_line').values(line({}, ids)).execute()).resolves.toBeDefined();
   });
+
+  // ---- Posted-voucher immutability (Task H3) ----
+
+  it('blocks UPDATE of a posted voucher', async () => {
+    const { voucherId } = await seedVoucherAndAccount(); // posted_at is set
+    await expect(
+      db.updateTable('voucher').set({ reason: 'tamper' }).where('id', '=', voucherId).execute(),
+    ).rejects.toThrow();
+  });
+
+  it('blocks DELETE of a posted voucher', async () => {
+    const { voucherId } = await seedVoucherAndAccount();
+    await expect(
+      db.deleteFrom('voucher').where('id', '=', voucherId).execute(),
+    ).rejects.toThrow();
+  });
+
+  it('blocks UPDATE/DELETE of a posted voucher line', async () => {
+    const ids = await seedVoucherAndAccount();
+    const ln = await db.insertInto('voucher_line').values(line({}, ids)).returningAll().executeTakeFirstOrThrow();
+    await expect(
+      db.updateTable('voucher_line').set({ amount: 1 }).where('id', '=', ln.id).execute(),
+    ).rejects.toThrow();
+    await expect(
+      db.deleteFrom('voucher_line').where('id', '=', ln.id).execute(),
+    ).rejects.toThrow();
+  });
+
+  it('ALLOWS updating an UNPOSTED voucher (Wave-3 Policy-hold draft path)', async () => {
+    const draft = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: 'V-DRAFT',
+        tax_point_date: '2026-03-15',
+        posted_at: null,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    // OLD.posted_at is NULL, so the trigger must not fire
+    await expect(
+      db.updateTable('voucher').set({ posted_at: 1740000000 }).where('id', '=', draft.id).execute(),
+    ).resolves.toBeDefined();
+  });
 });
