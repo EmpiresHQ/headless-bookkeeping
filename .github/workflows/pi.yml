@@ -1,8 +1,9 @@
 # pi coding bots — triggered by comments on issues and PRs.
 #
-# Two agents share one workflow via a matrix:
-#   @pi      → DeepSeek V4 Flash  (cheap, fast, no reasoning)
-#   @superpi → Kimi K2.6          (premium, reasoning on)
+# Three agents share one workflow via a matrix:
+#   @pi      → DeepSeek V4 Flash         (cheap, fast, no reasoning)
+#   @superpi → Kimi K2.6                 (premium, reasoning on)
+#   @cheapi  → DeepSeek V4 Flash (free)  (free OpenRouter tier, rate-limited)
 #
 # Runs entirely inside GitHub Actions via shaftoe/pi-coding-agent-action (a
 # bundled JavaScript action — no install step, so no npm-lifecycle surprises).
@@ -43,6 +44,11 @@ jobs:
           - trigger: '@superpi'
             model: moonshotai/kimi-k2.6
             thinking: 'medium'
+          # Free agent — same deepseek-flash on OpenRouter's free tier
+          # (heavily rate-limited; fine for low-volume / non-urgent use).
+          - trigger: '@cheapi'
+            model: deepseek/deepseek-v4-flash:free
+            thinking: 'off'
     # Trigger + authorization. shaftoe's action has no built-in authz, so we
     # gate here: comment must contain this agent's trigger AND the author must
     # be a repo owner, org member, or collaborator. `@superpi` does not contain
