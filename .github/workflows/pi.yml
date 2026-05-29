@@ -41,13 +41,22 @@ jobs:
       contains(github.event.comment.body, '@pi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
+    timeout-minutes: 16 # backstop; the agent step itself is capped at 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Inline PR-review comments → check out the PR head so the agent edits
+          # the PR's code. Issues / plain comments → empty ref → default branch
+          # (main). The agent reads/edits files locally; commits go via the API.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
       - name: Run pi coding agent
         id: agent
+        timeout-minutes: 15 # kill a hung/runaway agent so it can't burn Actions minutes
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -92,13 +101,22 @@ jobs:
       contains(github.event.comment.body, '@superpi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
+    timeout-minutes: 16 # backstop; the agent step itself is capped at 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Inline PR-review comments → check out the PR head so the agent edits
+          # the PR's code. Issues / plain comments → empty ref → default branch
+          # (main). The agent reads/edits files locally; commits go via the API.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
       - name: Run pi coding agent
         id: agent
+        timeout-minutes: 15 # kill a hung/runaway agent so it can't burn Actions minutes
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -145,13 +163,22 @@ jobs:
       contains(github.event.comment.body, '@cheapi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
+    timeout-minutes: 16 # backstop; the agent step itself is capped at 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Inline PR-review comments → check out the PR head so the agent edits
+          # the PR's code. Issues / plain comments → empty ref → default branch
+          # (main). The agent reads/edits files locally; commits go via the API.
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
       - name: Run pi coding agent
         id: agent
+        timeout-minutes: 15 # kill a hung/runaway agent so it can't burn Actions minutes
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
