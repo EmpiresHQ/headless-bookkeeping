@@ -99,16 +99,16 @@ export class PostingPipelineService {
     const validAccountIds = new Set(accounts.map((a) => a.id));
 
     const resolvedLines: ResolvedLine[] = draft.lines.map((l) => {
-      const account = byCode.get(l.account_code);
-      const { id: account_id, currency: account_currency } = account || {};
+      const account = byCode.get(l.account_code) || { id: -1, currency: null };
+      const { id: account_id, currency: account_currency } = account;
       return {
-        account_id: account_id ?? -1,
+        account_id,
         amount: l.amount,
         currency: l.currency,
         base_amount: l.base_amount,
         fx_rate: l.fx_rate,
         is_debit: l.is_debit,
-        account_currency: account_currency ?? null,
+        account_currency: account_currency,
         vat_code: l.vat_code ?? 'NULL_STANDARD',
         category: params.categoryMapper(l.account_code),
       };
