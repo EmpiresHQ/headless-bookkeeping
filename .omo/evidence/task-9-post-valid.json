@@ -1,0 +1,33 @@
+# Evidence for Task 9: Valid voucher posts with posted_at
+#
+# PostingService (integration) test output proving that a valid, balanced
+# voucher posts successfully with posted_at set and both lines persisted.
+#
+# Also confirmed by the E2E test which verifies POST /api/vouchers returns
+# 201 with posted_at as a number and lines as an array.
+
+$ node node_modules/.bin/jest src/ledger/posting/posting.service.spec.ts --verbose --no-cache --reporters=default 2>&1
+
+PASS src/ledger/posting/posting.service.spec.ts (7.999 s)
+  PostingService (integration)
+    ✓ posts a valid voucher with posted_at set and both lines persisted (43 ms)
+    ✓ resolves account_code to the correct account_id (10 ms)
+    ✓ throws ValidationError and writes NOTHING for an unbalanced voucher (32 ms)
+    ✓ throws ValidationError for an unknown account_code and writes nothing (8 ms)
+    ✓ posts an FX voucher balancing on base_amount (non-default values, G3) (8 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        10.927 s
+Ran all test suites matching src/ledger/posting/posting.service.spec.ts.
+
+$ node node_modules/.bin/jest --config ./test/jest-e2e.json test/voucher.e2e-spec.ts --verbose --no-cache --reporters=default 2>&1 | grep -A 1 "posted_at"
+
+    ✓ POST /api/vouchers posts a valid voucher (201) with posted_at (134 ms)
+
+Verification: PASS
+- "posts a valid voucher with posted_at set and both lines persisted" ✓ — result has id > 0, posted_at not null, 2 lines persisted
+- "resolves account_code to the correct account_id" ✓ — debit line has valid account_id
+- "posts an FX voucher balancing on base_amount (non-default values, G3)" ✓ — USD line has base_amount=9200
+- E2E: POST /api/vouchers returns 201 with posted_at (number) and lines (array) ✓

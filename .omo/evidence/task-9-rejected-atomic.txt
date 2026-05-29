@@ -1,0 +1,36 @@
+# Evidence for Task 9: Invalid voucher is rejected atomically
+#
+# Test output proving that an invalid (unbalanced / unknown account) voucher
+# is rejected with a ValidationError AND no rows are left in the voucher table
+# (atomic rejection — all-or-nothing).
+
+$ node node_modules/.bin/jest src/ledger/posting/posting.service.spec.ts --verbose --no-cache --reporters=default 2>&1
+
+PASS src/ledger/posting/posting.service.spec.ts (7.999 s)
+  PostingService (integration)
+    ✓ posts a valid voucher with posted_at set and both lines persisted (43 ms)
+    ✓ resolves account_code to the correct account_id (10 ms)
+    ✓ throws ValidationError and writes NOTHING for an unbalanced voucher (32 ms)
+    ✓ throws ValidationError for an unknown account_code and writes nothing (8 ms)
+    ✓ posts an FX voucher balancing on base_amount (non-default values, G3) (8 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        10.927 s
+Ran all test suites matching src/ledger/posting/posting.service.spec.ts.
+
+$ node node_modules/.bin/jest --config ./test/jest-e2e.json test/voucher.e2e-spec.ts --verbose --no-cache --reporters=default 2>&1 | grep -A 5 "unbalanced"
+
+    ✓ POST /api/vouchers rejects an unbalanced voucher (400) atomically (33 ms)
+
+Verification: PASS
+- "throws ValidationError and writes NOTHING for an unbalanced voucher" ✓
+  - rejects.toThrow(ValidationError)
+  - voucherRepo.getVouchers() returns 0 — no rows persisted
+- "throws ValidationError for an unknown account_code and writes nothing" ✓
+  - rejects.toThrow(ValidationError)
+  - voucherRepo.getVouchers() returns 0 — no rows persisted
+- E2E "POST /api/vouchers rejects an unbalanced voucher (400) atomically" ✓
+  - POST with unbalanced body returns 400
+  - Subsequent GET /api/vouchers does NOT contain the rejected voucher number

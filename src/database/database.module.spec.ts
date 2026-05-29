@@ -1,6 +1,8 @@
-import { Kysely, SqliteDialect, sql } from 'kysely';
+import { Kysely, SqliteDialect } from 'kysely';
+import { Migrator } from 'kysely/migration';
 import Database from 'better-sqlite3';
 import { Database as DBType } from './types';
+import { migrations } from './migrations';
 
 describe('DatabaseModule', () => {
   let db: Kysely<DBType>;
@@ -12,28 +14,13 @@ describe('DatabaseModule', () => {
       }),
     });
 
-    // Create organization table directly (no migrations to avoid singleton interference)
-    await db.schema
-      .createTable('organization')
-      .addColumn('id', 'integer', (col) => col.primaryKey().check(sql`id = 1`))
-      .addColumn('country', 'text', (col) => col.notNull())
-      .addColumn('base_currency', 'text')
-      .addColumn('vat_registered', 'integer', (col) =>
-        col.notNull().defaultTo(0),
-      )
-      .addColumn('created_at', 'integer', (col) => col.notNull())
-      .execute();
-
-    await db
-      .insertInto('organization')
-      .values({
-        id: 1,
-        country: 'IE',
-        base_currency: null,
-        vat_registered: 0,
-        created_at: Math.floor(Date.now() / 1000),
-      })
-      .execute();
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
   });
 
   afterEach(async () => {

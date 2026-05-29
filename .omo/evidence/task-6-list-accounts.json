@@ -1,0 +1,34 @@
+# Evidence for Task 6: GET /api/accounts returns accounts (acceptance test proof)
+#
+# Test output from AccountService (integration) proving accounts exist with
+# the expected seeded data. The test seeds at least 20 canonical accounts
+# across all five types (asset, liability, equity, revenue, expense).
+
+$ node node_modules/.bin/jest src/ledger/account/account.service.spec.ts --verbose --no-cache --reporters=default 2>&1
+
+PASS src/ledger/account/account.service.spec.ts (7.094 s)
+  AccountService (integration)
+    ✓ seeds at least 20 canonical accounts (234 ms)
+    ✓ seeds the EUR home bank account (BANK_EUR), not BANK_DKK (13 ms)
+    ✓ seeds canonical accounts across all five types (15 ms)
+    ✓ getAccountByCode returns the requested account (non-default lookup) (12 ms)
+    ✓ getAccountByCode returns null for an unknown code (11 ms)
+    ✓ marks seeded accounts as system accounts (55 ms)
+    ✓ tracks BANK_USD as a foreign-currency account (9 ms)
+    ✓ leaves base-currency accounts with a null currency (10 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        7.672 s
+Ran all test suites matching src/ledger/account/account.service.spec.ts.
+
+Verification: PASS
+- 8/8 tests pass
+- seeds at least 20 canonical accounts ✓
+- BANK_EUR seeded, BANK_DKK not seeded ✓
+- Accounts exist across all five types ✓
+- getAccountByCode returns correct account ✓
+- System accounts marked with is_system=1 ✓
+- Foreign-currency account (BANK_USD) tracked with USD currency ✓
+- Base-currency accounts have null currency ✓
