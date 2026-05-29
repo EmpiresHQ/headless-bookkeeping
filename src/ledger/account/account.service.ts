@@ -46,7 +46,15 @@ export class AccountService {
     throw new Error(`Invalid account type: ${type}`);
   }
 
-  private mapRow(row: {
+  private mapRow({
+    id,
+    code,
+    name,
+    type,
+    currency,
+    parent_id,
+    is_system,
+  }: {
     id: number;
     code: string;
     name: string;
@@ -56,13 +64,14 @@ export class AccountService {
     is_system: number;
   }): Account {
     return {
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      type: this.validateAccountType(row.type),
-      currency: row.currency,
-      parent_id: row.parent_id,
+      id,
+      code,
+      name,
+      type: this.validateAccountType(type),
+      currency,
+      parent_id,
       is_system: toBool(row.is_system),
+
     };
   }
 }

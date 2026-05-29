@@ -26,7 +26,17 @@ export class VoucherRepository {
     return rows.map((r) => this.mapRow(r));
   }
 
-  private mapRow(row: {
+  private mapRow({
+    id,
+    voucher_number,
+    tax_point_date,
+    posted_at,
+    previous_hash,
+    reverses_id,
+    corrects_object_type,
+    corrects_object_id,
+    reason,
+  }: {
     id: number;
     voucher_number: string;
     tax_point_date: string;
@@ -38,15 +48,15 @@ export class VoucherRepository {
     reason: string | null;
   }): Voucher {
     return {
-      id: row.id,
-      voucher_number: row.voucher_number,
-      tax_point_date: row.tax_point_date,
-      posted_at: row.posted_at,
-      previous_hash: row.previous_hash,
-      reverses_id: row.reverses_id,
-      corrects_object_type: row.corrects_object_type,
-      corrects_object_id: row.corrects_object_id,
-      reason: row.reason,
+      id,
+      voucher_number,
+      tax_point_date,
+      posted_at,
+      previous_hash,
+      reverses_id,
+      corrects_object_type,
+      corrects_object_id,
+      reason,
     };
   }
 }

@@ -19,7 +19,17 @@ export class VoucherLineRepository {
     return rows.map((r) => this.mapRow(r));
   }
 
-  private mapRow(row: {
+  private mapRow({
+    id,
+    voucher_id,
+    account_id,
+    amount,
+    currency,
+    base_amount,
+    fx_rate,
+    vat_code,
+    is_debit,
+  }: {
     id: number;
     voucher_id: number;
     account_id: number;
@@ -31,15 +41,15 @@ export class VoucherLineRepository {
     is_debit: number;
   }): VoucherLine {
     return {
-      id: row.id,
-      voucher_id: row.voucher_id,
-      account_id: row.account_id,
-      amount: row.amount,
-      currency: row.currency,
-      base_amount: row.base_amount,
-      fx_rate: row.fx_rate,
-      vat_code: row.vat_code,
-      is_debit: toBool(row.is_debit),
+      id,
+      voucher_id,
+      account_id,
+      amount,
+      currency,
+      base_amount,
+      fx_rate,
+      vat_code,
+      is_debit: toBool(row.is_debit)
     };
   }
 }
