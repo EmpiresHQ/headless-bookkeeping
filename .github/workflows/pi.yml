@@ -1,11 +1,16 @@
-# pi coding bot — triggered by `/pi` comments on issues and PRs.
+# pi coding bots — triggered by comments on issues and PRs.
+#
+# Three agents share one workflow via a matrix:
+#   @pi      → DeepSeek V4 Flash         (cheap, fast, no reasoning)
+#   @superpi → Kimi K2.6                 (premium, reasoning on)
+#   @cheapi  → DeepSeek V4 Flash (free)  (free OpenRouter tier, rate-limited)
 #
 # Runs entirely inside GitHub Actions via shaftoe/pi-coding-agent-action (a
 # bundled JavaScript action — no install step, so no npm-lifecycle surprises).
-# On an authorized `/pi` comment it runs the pi coding agent, edits code,
+# On an authorized trigger comment it runs the pi coding agent, edits code,
 # opens/updates a PR and replies in a comment.
 #
-# Model: moonshotai/kimi-k2.6 via OpenRouter (OpenAI-compatible gateway).
+# Both models go through pi's built-in `openrouter` provider.
 # Required repo/org secret: OPENROUTER_API_KEY
 #
 # Action is pinned to a commit SHA (v2.18.0) per supply-chain hygiene — bump the
@@ -27,11 +32,29 @@ permissions:
 jobs:
   pi:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Cheap default agent.
+          - trigger: '@pi'
+            model: deepseek/deepseek-v4-flash
+            thinking: 'off'
+          # Premium agent — kimi with reasoning, opt-in via @superpi.
+          - trigger: '@superpi'
+            model: moonshotai/kimi-k2.6
+            thinking: 'medium'
+          # Free agent — same deepseek-flash on OpenRouter's free tier
+          # (heavily rate-limited; fine for low-volume / non-urgent use).
+          - trigger: '@cheapi'
+            model: deepseek/deepseek-v4-flash:free
+            thinking: 'off'
     # Trigger + authorization. shaftoe's action has no built-in authz, so we
-    # gate here: comment must start the `/pi` trigger AND the author must be a
-    # repo owner, org member, or collaborator (matches the original intent).
+    # gate here: comment must contain this agent's trigger AND the author must
+    # be a repo owner, org member, or collaborator. `@superpi` does not contain
+    # `@pi` as a substring, so the two agents never both fire on one comment.
     if: >-
-      contains(github.event.comment.body, '/pi') &&
+      contains(github.event.comment.body, matrix.trigger) &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     steps:
       - name: Set up Node.js
@@ -43,10 +66,11 @@ jobs:
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          trigger: '/pi'
-          # --- LLM: kimi-k2.6 via OpenRouter (OpenAI-compatible) ---
-          provider: openai
-          model: moonshotai/kimi-k2.6
-          base_url: https://openrouter.ai/api/v1
+          trigger: ${{ matrix.trigger }}
+          # pi resolves provider/model as `openrouter/<model>`. No base_url
+          # override needed — the built-in provider knows OpenRouter's endpoint.
+          # `thinking` is quoted in the matrix so YAML keeps 'off' a string.
+          provider: openrouter
+          model: ${{ matrix.model }}
           token: ${{ secrets.OPENROUTER_API_KEY }}
-          thinking_level: medium
+          thinking_level: ${{ matrix.thinking }}
