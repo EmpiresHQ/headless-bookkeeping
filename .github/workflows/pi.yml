@@ -12,6 +12,10 @@
 # No trigger is a substring of another (@superpi / @cheapi do not contain @pi),
 # so a single comment routes to exactly one agent.
 #
+# Each run exports the agent session as a self-contained HTML transcript,
+# uploads it as a downloadable artifact, and writes a metrics + response
+# summary to the run's Summary tab (the action does not post these itself).
+#
 # Runs via shaftoe/pi-coding-agent-action (bundled JS action — no install step).
 # All models use pi's built-in `openrouter` provider.
 # Required repo/org secret: OPENROUTER_API_KEY
@@ -43,6 +47,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run pi coding agent
+        id: agent
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -51,6 +56,35 @@ jobs:
           model: deepseek/deepseek-v4-flash
           token: ${{ secrets.OPENROUTER_API_KEY }}
           thinking_level: 'off'
+          export_session_html: true
+      - name: Write run summary
+        if: always()
+        env:
+          PI_LABEL: '@pi · deepseek-v4-flash'
+          PI_SUCCESS: ${{ steps.agent.outputs.success }}
+          PI_COST: ${{ steps.agent.outputs.cost }}
+          PI_IN: ${{ steps.agent.outputs.input_tokens }}
+          PI_OUT: ${{ steps.agent.outputs.output_tokens }}
+          PI_DUR: ${{ steps.agent.outputs.duration_seconds }}
+          PI_RESPONSE: ${{ steps.agent.outputs.response }}
+        run: |
+          {
+            echo "### ${PI_LABEL}"
+            echo "success=\`${PI_SUCCESS:-?}\` · cost=\`\$${PI_COST:-?}\` · tokens in/out=\`${PI_IN:-?}/${PI_OUT:-?}\` · \`${PI_DUR:-?}s\`"
+            echo
+            echo '<details><summary>agent response</summary>'
+            echo
+            printf '%s\n' "${PI_RESPONSE:-(no response output)}"
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload session transcript
+        if: always() && steps.agent.outputs.session_html_path != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: pi-session-${{ github.run_id }}-${{ github.job }}
+          path: ${{ steps.agent.outputs.session_html_path }}
+          if-no-files-found: ignore
 
   # Premium agent — kimi with reasoning, opt-in via @superpi.
   superpi:
@@ -64,6 +98,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run pi coding agent
+        id: agent
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -72,6 +107,35 @@ jobs:
           model: moonshotai/kimi-k2.6
           token: ${{ secrets.OPENROUTER_API_KEY }}
           thinking_level: medium
+          export_session_html: true
+      - name: Write run summary
+        if: always()
+        env:
+          PI_LABEL: '@superpi · kimi-k2.6'
+          PI_SUCCESS: ${{ steps.agent.outputs.success }}
+          PI_COST: ${{ steps.agent.outputs.cost }}
+          PI_IN: ${{ steps.agent.outputs.input_tokens }}
+          PI_OUT: ${{ steps.agent.outputs.output_tokens }}
+          PI_DUR: ${{ steps.agent.outputs.duration_seconds }}
+          PI_RESPONSE: ${{ steps.agent.outputs.response }}
+        run: |
+          {
+            echo "### ${PI_LABEL}"
+            echo "success=\`${PI_SUCCESS:-?}\` · cost=\`\$${PI_COST:-?}\` · tokens in/out=\`${PI_IN:-?}/${PI_OUT:-?}\` · \`${PI_DUR:-?}s\`"
+            echo
+            echo '<details><summary>agent response</summary>'
+            echo
+            printf '%s\n' "${PI_RESPONSE:-(no response output)}"
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload session transcript
+        if: always() && steps.agent.outputs.session_html_path != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: pi-session-${{ github.run_id }}-${{ github.job }}
+          path: ${{ steps.agent.outputs.session_html_path }}
+          if-no-files-found: ignore
 
   # Free agent — deepseek-flash on OpenRouter's free tier (rate-limited).
   cheapi:
@@ -85,6 +149,7 @@ jobs:
         with:
           node-version: '24'
       - name: Run pi coding agent
+        id: agent
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -93,3 +158,32 @@ jobs:
           model: deepseek/deepseek-v4-flash:free
           token: ${{ secrets.OPENROUTER_API_KEY }}
           thinking_level: 'off'
+          export_session_html: true
+      - name: Write run summary
+        if: always()
+        env:
+          PI_LABEL: '@cheapi · deepseek-v4-flash:free'
+          PI_SUCCESS: ${{ steps.agent.outputs.success }}
+          PI_COST: ${{ steps.agent.outputs.cost }}
+          PI_IN: ${{ steps.agent.outputs.input_tokens }}
+          PI_OUT: ${{ steps.agent.outputs.output_tokens }}
+          PI_DUR: ${{ steps.agent.outputs.duration_seconds }}
+          PI_RESPONSE: ${{ steps.agent.outputs.response }}
+        run: |
+          {
+            echo "### ${PI_LABEL}"
+            echo "success=\`${PI_SUCCESS:-?}\` · cost=\`\$${PI_COST:-?}\` · tokens in/out=\`${PI_IN:-?}/${PI_OUT:-?}\` · \`${PI_DUR:-?}s\`"
+            echo
+            echo '<details><summary>agent response</summary>'
+            echo
+            printf '%s\n' "${PI_RESPONSE:-(no response output)}"
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload session transcript
+        if: always() && steps.agent.outputs.session_html_path != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: pi-session-${{ github.run_id }}-${{ github.job }}
+          path: ${{ steps.agent.outputs.session_html_path }}
+          if-no-files-found: ignore
