@@ -332,7 +332,7 @@ This wave builds the core double-entry ledger: the canonical chart of accounts, 
   - Files: `src/ledger/posting/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 10. Immutability enforcement at API layer
+- [x] 10. Immutability enforcement at API layer
 
   **What to do**:
   - Enforce that posted vouchers cannot be modified or deleted:
