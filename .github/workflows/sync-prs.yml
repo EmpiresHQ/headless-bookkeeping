@@ -1,0 +1,59 @@
+# Keep open PRs up to date with main.
+#
+# On every push to main, merge main into each open PR branch (same as the
+# "Update branch" button — a merge commit, no force-push, no history rewrite).
+# This stops PR branches from drifting behind main (which, among other things,
+# is what made a stale workflow snapshot run on an old PR).
+#
+# Cross-repo (fork) PRs are skipped: GITHUB_TOKEN can't push to a fork. PRs that
+# are already current or have merge conflicts are skipped with a log line.
+
+name: sync-prs
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-prs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge main into open PR branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Open PRs targeting main, excluding forks (can't push to those).
+          mapfile -t prs < <(
+            gh pr list --repo "$REPO" --base main --state open \
+              --json number,isCrossRepository \
+              --jq '.[] | select(.isCrossRepository == false) | .number'
+          )
+
+          if [ "${#prs[@]}" -eq 0 ]; then
+            echo "No open same-repo PRs targeting main."
+            exit 0
+          fi
+
+          echo "Syncing ${#prs[@]} PR(s) with main..."
+          for pr in "${prs[@]}"; do
+            echo "::group::PR #$pr"
+            # update-branch is a no-op (422) when already current, and fails on
+            # merge conflicts — neither should fail the whole run.
+            if gh pr update-branch "$pr" --repo "$REPO"; then
+              echo "PR #$pr: synced with main"
+            else
+              echo "PR #$pr: not updated (already current, or has conflicts) — skipping"
+            fi
+            echo "::endgroup::"
+          done
