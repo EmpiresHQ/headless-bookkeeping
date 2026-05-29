@@ -34,7 +34,11 @@ export class CurrencyService {
    *
    * Example: convertToBase(100, "USD", 7.14) => 714
    */
-  convertToBase(amount: number, _currency: string, rate: number): number {
+  static convertToBase(amount: number, rate: number): number {
     return amount * rate;
+  }
+
+  convertToBase(amount: number, _currency: string, rate: number): number {
+    return CurrencyService.convertToBase(amount, rate);
   }
 }

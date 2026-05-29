@@ -1,23 +1,13 @@
 import { CurrencyService } from './currency.service';
 import { FXRateService } from './fx-rate.service';
-import { OrganizationService } from '../organization/organization.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
 
-// getBaseCurrency() resolution (org override -> plugin default) is covered by
-// the integration test in currency.resolution.spec.ts. Here we test the pure
-// arithmetic of convertToBase, which has no dependencies.
 describe('CurrencyService.convertToBase', () => {
-  const service = new CurrencyService(
-    {} as OrganizationService,
-    {} as PluginLoader,
-  );
-
   it('converts 100 USD to 714 at rate 7.14', () => {
-    expect(service.convertToBase(100, 'USD', 7.14)).toBe(714);
+    expect(CurrencyService.convertToBase(100, 7.14)).toBe(714);
   });
 
   it('converts 50 EUR to 373 at rate 7.46', () => {
-    expect(service.convertToBase(50, 'EUR', 7.46)).toBe(373);
+    expect(CurrencyService.convertToBase(50, 7.46)).toBe(373);
   });
 });
 

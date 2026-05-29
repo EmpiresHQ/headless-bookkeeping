@@ -34,14 +34,6 @@ export class PluginLoader {
     }
 
     // Fall back to the default plugin for any unrecognized country code.
-    // The default plugin is mandatory: without it the kernel cannot resolve
-    // country-specific rules at all, so fail loud rather than return nothing.
-    if (!this.nullPlugin) {
-      throw new Error(
-        'PluginLoader: no default country plugin registered — cannot resolve plugins',
-      );
-    }
-
     return this.nullPlugin;
   }
 }

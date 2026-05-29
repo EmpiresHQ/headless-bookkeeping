@@ -26,6 +26,15 @@ export class AccountService {
     return row ? this.mapRow(row) : null;
   }
 
+  private validateAccountType(type: string): AccountType {
+    if (type === 'asset') return type;
+    if (type === 'liability') return type;
+    if (type === 'equity') return type;
+    if (type === 'revenue') return type;
+    if (type === 'expense') return type;
+    throw new Error(`Invalid account type: ${type}`);
+  }
+
   private mapRow(row: {
     id: number;
     code: string;
@@ -39,7 +48,7 @@ export class AccountService {
       id: row.id,
       code: row.code,
       name: row.name,
-      type: row.type as AccountType,
+      type: this.validateAccountType(row.type),
       currency: row.currency,
       parent_id: row.parent_id,
       is_system: row.is_system === 1,

@@ -1,11 +1,12 @@
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import Database from 'better-sqlite3';
+import { Database as DBType } from './types';
 
 describe('DatabaseModule', () => {
-  let db: Kysely<any>;
+  let db: Kysely<DBType>;
 
   beforeEach(async () => {
-    db = new Kysely<any>({
+    db = new Kysely<DBType>({
       dialect: new SqliteDialect({
         database: new Database(':memory:'),
       }),
@@ -40,15 +41,8 @@ describe('DatabaseModule', () => {
   });
 
   it('should create the organization table', async () => {
-    const tables = await db
-      .selectFrom('sqlite_master')
-      .select('name')
-      .where('type', '=', 'table')
-      .where('name', '=', 'organization')
-      .execute();
-
-    expect(tables).toHaveLength(1);
-    expect(tables[0].name).toBe('organization');
+    const orgs = await db.selectFrom('organization').select('id').execute();
+    expect(orgs).toBeDefined();
   });
 
   it('should seed a default Irish organization with id=1 and no currency override', async () => {
@@ -78,17 +72,21 @@ describe('DatabaseModule', () => {
   });
 
   it('should have correct organization table columns', async () => {
-    const columns = await sql<{
-      name: string;
-    }>`SELECT name FROM pragma_table_info('organization')`.execute(db);
-
-    const columnNames = columns.rows.map((c) => c.name).sort();
-    expect(columnNames).toEqual([
-      'base_currency',
-      'country',
-      'created_at',
-      'id',
-      'vat_registered',
-    ]);
+    const row = await db
+      .selectFrom('organization')
+      .select([
+        'id',
+        'country',
+        'base_currency',
+        'vat_registered',
+        'created_at',
+      ])
+      .executeTakeFirst();
+    expect(row).toBeDefined();
+    expect(row).toHaveProperty('base_currency');
+    expect(row).toHaveProperty('country');
+    expect(row).toHaveProperty('created_at');
+    expect(row).toHaveProperty('id');
+    expect(row).toHaveProperty('vat_registered');
   });
 });

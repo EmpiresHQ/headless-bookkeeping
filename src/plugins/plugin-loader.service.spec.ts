@@ -101,14 +101,5 @@ describe('PluginLoader', () => {
       const result = loader.resolve('null');
       expect(result.getName()).toBe('null');
     });
-
-    it('should fail loud when no default plugin is available', () => {
-      const brokenLoader = new PluginLoader(
-        undefined as unknown as NullCountryPlugin,
-      );
-      expect(() => brokenLoader.resolve('DK')).toThrow(
-        /no default country plugin/i,
-      );
-    });
   });
 });

@@ -1,4 +1,5 @@
 import { Kysely, sql } from 'kysely';
+import { Database } from '../types';
 
 const SEED: Array<{
   code: string;
@@ -136,7 +137,7 @@ const SEED: Array<{
   },
 ];
 
-export async function up(db: Kysely<any>): Promise<void> {
+export async function up(db: Kysely<Database>): Promise<void> {
   await db.schema
     .createTable('account')
     .ifNotExists()
@@ -170,6 +171,6 @@ export async function up(db: Kysely<any>): Promise<void> {
   }
 }
 
-export async function down(db: Kysely<any>): Promise<void> {
+export async function down(db: Kysely<Database>): Promise<void> {
   await db.schema.dropTable('account').ifExists().execute();
 }

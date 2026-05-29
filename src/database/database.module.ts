@@ -4,10 +4,11 @@ import { Kysely } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { SqliteDialect } from 'kysely';
 import Database from 'better-sqlite3';
+import { Database as DBType } from './types';
 import { migrations } from './migrations';
 
 class MigrationRunner implements OnModuleInit {
-  constructor(@InjectKysely() private readonly db: Kysely<any>) {}
+  constructor(@InjectKysely() private readonly db: Kysely<DBType>) {}
 
   async onModuleInit() {
     const migrator = new Migrator({
