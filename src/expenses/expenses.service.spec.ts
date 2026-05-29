@@ -8,6 +8,7 @@ import { migrations } from '../database/migrations';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { CurrencyService } from '../currency/currency.service';
 import { ExpensesService } from './expenses.service';
 import { NotFoundException } from '@nestjs/common';
 
@@ -36,6 +37,7 @@ describe('ExpensesService (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         PluginLoader,
+        CurrencyService,
         ExpensesService,
       ],
     }).compile();
@@ -199,6 +201,33 @@ describe('ExpensesService (integration)', () => {
       await expect(service.generateDraftVoucher(999)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('skips VAT_RECEIVABLE line when vat_amount is zero', async () => {
+      const expense = await service.createExpense({
+        ...sampleDto(),
+        vat_amount: 0,
+        gross_amount: 10000,
+      });
+      const draft = await service.generateDraftVoucher(expense.id);
+
+      // Only 2 lines: Dr Expense + Cr AP (no VAT_RECEIVABLE)
+      expect(draft.lines).toHaveLength(2);
+
+      const vatLine = draft.lines.find(
+        (l) => l.account_code === 'VAT_RECEIVABLE',
+      );
+      expect(vatLine).toBeUndefined();
+
+      // Verify balance with zero VAT
+      const debitTotal = draft.lines
+        .filter((l) => l.is_debit)
+        .reduce((sum, l) => sum + l.base_amount, 0);
+      const creditTotal = draft.lines
+        .filter((l) => !l.is_debit)
+        .reduce((sum, l) => sum + l.base_amount, 0);
+      expect(debitTotal).toBe(creditTotal);
+      expect(debitTotal).toBe(10000);
     });
   });
 });

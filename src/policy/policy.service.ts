@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { RuleResult } from '../rules/types';
-import { canOverride, mustReject } from '../rules/rules.guards';
+import { isUnresolvedSemanticFailure, mustReject } from '../rules/rules.guards';
 import { PolicyDecision, PolicyConfig, OverrideRecord } from './types';
 
 /**
@@ -55,7 +55,9 @@ export class PolicyService {
     //    By the time Policy sees ruleResults, any override has already been
     //    applied in RulesService. A remaining semantic failure means no
     //    override was supplied.
-    const semanticFailure = ruleResults.find((r) => canOverride(r));
+    const semanticFailure = ruleResults.find((r) =>
+      isUnresolvedSemanticFailure(r),
+    );
     if (semanticFailure) {
       return {
         action: 'hold-for-approval',
@@ -74,15 +76,7 @@ export class PolicyService {
       };
     }
 
-    // 4. AI confidence stub — always 1.0 in v1, so always passes.
-    //    In later waves this will be a real input from the AI pipeline.
-    const confidence = 1.0;
-    if (confidence < DEFAULT_CONFIG.auto_post_min_confidence) {
-      return {
-        action: 'hold-for-approval',
-        reason: `AI confidence ${confidence} below threshold ${DEFAULT_CONFIG.auto_post_min_confidence}`,
-      };
-    }
+    // 4. AI confidence deferred — will be wired when AI pipeline is implemented.
 
     // 5. Default: auto-post.
     return {
@@ -124,14 +118,22 @@ export class PolicyService {
   }
 
   /**
-   * List all override records for audit (read-only).
+   * List all override records for audit (read-only), with optional pagination.
+   *
+   * @param limit - Max records to return (default 100)
+   * @param offset - Number of records to skip (default 0)
    */
-  async getOverrides(): Promise<OverrideRecord[]> {
+  async getOverrides(
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<OverrideRecord[]> {
     return this.db
       .selectFrom('override')
       .selectAll()
       .orderBy('created_at', 'desc')
       .orderBy('id', 'desc')
+      .limit(limit)
+      .offset(offset)
       .execute();
   }
 }

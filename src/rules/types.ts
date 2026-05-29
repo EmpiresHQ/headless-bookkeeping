@@ -20,7 +20,7 @@ export interface RuleResult {
   /** Whether the tier passed (or was overridden). */
   passed: boolean;
   /** The rule tier that was evaluated. */
-  ruleType: string;
+  ruleType: 'structural' | 'hard_process' | 'semantic';
   /** Human-readable message (success, error list, or override reason). */
   message: string;
   /** Whether a failure on this tier may be overridden. */

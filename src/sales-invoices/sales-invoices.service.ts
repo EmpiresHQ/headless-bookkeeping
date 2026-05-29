@@ -54,20 +54,22 @@ export class SalesInvoicesService {
     return rows.map((r) => this.mapRow(r));
   }
 
-  async getInvoiceById(id: number): Promise<SalesInvoice | null> {
+  async getInvoiceById(id: number): Promise<SalesInvoice> {
     const row = await this.db
       .selectFrom('sales_invoice')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst();
-    return row ? this.mapRow(row) : null;
+
+    if (!row) {
+      throw new NotFoundException(`SalesInvoice ${id} not found`);
+    }
+
+    return this.mapRow(row);
   }
 
   async generateDraftVoucher(id: number): Promise<DraftVoucher> {
     const invoice = await this.getInvoiceById(id);
-    if (!invoice) {
-      throw new NotFoundException(`SalesInvoice ${id} not found`);
-    }
 
     const org = await this.organizationService.getOrganization();
     const plugin = this.pluginLoader.resolve(org.country);
@@ -133,10 +135,7 @@ export class SalesInvoicesService {
   }
 
   async sendInvoice(id: number): Promise<SalesInvoice> {
-    const invoice = await this.getInvoiceById(id);
-    if (!invoice) {
-      throw new NotFoundException(`SalesInvoice ${id} not found`);
-    }
+    await this.getInvoiceById(id); // throws NotFoundException if missing
 
     const now = Math.floor(Date.now() / 1000);
     const row = await this.db

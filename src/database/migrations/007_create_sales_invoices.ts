@@ -1,4 +1,4 @@
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { Database } from '../types';
 
 export async function up(db: Kysely<Database>): Promise<void> {
@@ -13,7 +13,12 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn('currency', 'text', (col) => col.notNull())
     .addColumn('tax_point_date', 'text', (col) => col.notNull())
     .addColumn('due_date', 'text')
-    .addColumn('status', 'text', (col) => col.notNull())
+    .addColumn('status', 'text', (col) =>
+      col
+        .notNull()
+        .defaultTo('draft')
+        .check(sql`status IN ('draft', 'pending', 'posted', 'reversed')`),
+    )
     .addColumn('sent_at', 'integer')
     .addColumn('voucher_id', 'integer', (col) => col.references('voucher.id'))
     .addColumn('created_at', 'integer', (col) => col.notNull())

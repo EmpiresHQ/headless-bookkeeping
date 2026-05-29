@@ -4,6 +4,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CurrencyService } from '../currency/currency.service';
 import { SupplierFacts, OrgContext } from '../plugins/country-plugin.interface';
 import { DraftVoucher, DraftVoucherLine } from '../ledger/voucher/types';
 import { Expense, CreateExpenseDto, ExpenseStatus } from './types';
@@ -14,6 +15,7 @@ export class ExpensesService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly organizationService: OrganizationService,
     private readonly pluginLoader: PluginLoader,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   async createExpense(dto: CreateExpenseDto): Promise<Expense> {
@@ -86,10 +88,11 @@ export class ExpensesService {
       orgContext,
     );
 
+    const baseCurrency = await this.currencyService.getBaseCurrency();
     const netAmount = expense.gross_amount - expense.vat_amount;
-    const isEur = expense.currency === 'EUR';
-    const fxRate = isEur ? 1 : 1; // Non-EUR deferred; use 1 as placeholder
-    const baseAmount = (amount: number) => (isEur ? amount : amount);
+    const isBaseCurrency = expense.currency === baseCurrency;
+    const fxRate = isBaseCurrency ? 1 : 1; // Non-base-currency deferred; use 1 as placeholder
+    const baseAmount = (amount: number) => (isBaseCurrency ? amount : amount);
 
     const lines: DraftVoucherLine[] = [
       {
@@ -101,15 +104,19 @@ export class ExpensesService {
         vat_code: mapping.vatCode,
         is_debit: true,
       },
-      {
-        account_code: 'VAT_RECEIVABLE',
-        amount: expense.vat_amount,
-        currency: expense.currency,
-        base_amount: baseAmount(expense.vat_amount),
-        fx_rate: fxRate,
-        vat_code: mapping.vatCode,
-        is_debit: true,
-      },
+      ...(expense.vat_amount > 0
+        ? [
+            {
+              account_code: 'VAT_RECEIVABLE',
+              amount: expense.vat_amount,
+              currency: expense.currency,
+              base_amount: baseAmount(expense.vat_amount),
+              fx_rate: fxRate,
+              vat_code: mapping.vatCode,
+              is_debit: true,
+            },
+          ]
+        : []),
       {
         account_code: 'AP',
         amount: expense.gross_amount,
@@ -145,6 +152,18 @@ export class ExpensesService {
       .execute();
   }
 
+  private validateStatus(status: string): ExpenseStatus {
+    if (
+      status === 'draft' ||
+      status === 'pending' ||
+      status === 'posted' ||
+      status === 'reversed'
+    ) {
+      return status;
+    }
+    throw new Error(`Invalid expense status: ${status}`);
+  }
+
   private mapRow(row: {
     id: number;
     document_id: number | null;
@@ -168,7 +187,7 @@ export class ExpensesService {
       vat_amount: row.vat_amount,
       currency: row.currency,
       tax_point_date: row.tax_point_date,
-      status: row.status as ExpenseStatus,
+      status: this.validateStatus(row.status),
       voucher_id: row.voucher_id,
       created_at: row.created_at,
       updated_at: row.updated_at,

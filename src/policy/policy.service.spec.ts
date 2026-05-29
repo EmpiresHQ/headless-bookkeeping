@@ -39,7 +39,10 @@ const draftVoucher = (
   ...over,
 });
 
-const passedResult = (ruleType: string, overrideable: boolean): RuleResult => ({
+const passedResult = (
+  ruleType: 'structural' | 'hard_process' | 'semantic',
+  overrideable: boolean,
+): RuleResult => ({
   passed: true,
   ruleType,
   message: 'passed',
@@ -47,7 +50,7 @@ const passedResult = (ruleType: string, overrideable: boolean): RuleResult => ({
 });
 
 const failedResult = (
-  ruleType: string,
+  ruleType: 'structural' | 'hard_process' | 'semantic',
   overrideable: boolean,
   message = 'failed',
 ): RuleResult => ({
@@ -55,32 +58,6 @@ const failedResult = (
   ruleType,
   message,
   overrideable,
-});
-
-describe('PolicyService (unit)', () => {
-  let service: PolicyService;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        {
-          provide: PolicyService,
-          useValue: {
-            decide: jest.fn(),
-            getConfig: jest.fn(),
-            logOverride: jest.fn(),
-            getOverrides: jest.fn(),
-          },
-        },
-      ],
-    }).compile();
-
-    service = module.get<PolicyService>(PolicyService);
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
 });
 
 describe('PolicyService (real-DI)', () => {

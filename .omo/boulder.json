@@ -18,9 +18,16 @@
       "status": "completed",
       "ended_at": "2026-05-29T18:56:29.794Z",
       "elapsed_ms": 1278434
+    },
+    "wave-3-pipeline": {
+      "work_id": "wave-3-pipeline",
+      "plan_name": "wave-3-pipeline",
+      "status": "completed",
+      "ended_at": "2026-05-29T20:20:00.000Z",
+      "elapsed_ms": 3360000
     }
   },
-  "active_work_id": "wave-3-pipeline",
-  "updated_at": "2026-05-29T19:24:16.688Z",
-  "status": "active"
+  "active_work_id": null,
+  "updated_at": "2026-05-29T20:20:00.000Z",
+  "status": "completed"
 }

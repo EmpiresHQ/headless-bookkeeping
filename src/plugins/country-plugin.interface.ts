@@ -113,5 +113,8 @@ export interface CountryPlugin {
    * @param context - Additional context (supplier, organization, line details)
    * @returns true if the VAT code is valid for this context
    */
-  validateVATCode(vatCode: string, context: unknown): boolean;
+  validateVATCode(
+    vatCode: string,
+    context: { supplier: SupplierFacts; org: OrgContext },
+  ): boolean;
 }

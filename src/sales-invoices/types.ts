@@ -1,4 +1,6 @@
-export type SalesInvoiceStatus = 'draft' | 'pending' | 'posted' | 'reversed';
+import { BusinessObjectStatus } from '../common/types/business-object-status';
+
+export type SalesInvoiceStatus = BusinessObjectStatus;
 
 export interface SalesInvoice {
   id: number;

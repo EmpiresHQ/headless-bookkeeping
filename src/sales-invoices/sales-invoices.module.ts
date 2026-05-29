@@ -7,6 +7,7 @@ import { AccountModule } from '../ledger/account/account.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { RulesModule } from '../rules/rules.module';
 import { PolicyModule } from '../policy/policy.module';
+import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
 import { SalesInvoicesController } from './sales-invoices.controller';
 import { SalesInvoicesService } from './sales-invoices.service';
 
@@ -20,6 +21,7 @@ import { SalesInvoicesService } from './sales-invoices.service';
     PostingModule,
     RulesModule,
     PolicyModule,
+    PostingPipelineModule,
   ],
   controllers: [SalesInvoicesController],
   providers: [SalesInvoicesService],

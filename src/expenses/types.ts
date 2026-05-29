@@ -1,4 +1,6 @@
-export type ExpenseStatus = 'draft' | 'pending' | 'posted' | 'reversed';
+import { BusinessObjectStatus } from '../common/types/business-object-status';
+
+export type ExpenseStatus = BusinessObjectStatus;
 
 export interface Expense {
   id: number;

@@ -8,11 +8,13 @@ import { migrations } from '../database/migrations';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { CurrencyService } from '../currency/currency.service';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
 import { RulesService } from '../rules/rules.service';
 import { PolicyService } from '../policy/policy.service';
+import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 import { NotFoundException } from '@nestjs/common';
@@ -43,11 +45,13 @@ describe('ExpensesController (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         PluginLoader,
+        CurrencyService,
         AccountService,
         LedgerValidationService,
         PostingService,
         RulesService,
         PolicyService,
+        PostingPipelineService,
         ExpensesService,
       ],
     }).compile();

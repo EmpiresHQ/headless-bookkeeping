@@ -82,9 +82,10 @@ describe('SalesInvoicesService (integration)', () => {
     expect(found?.invoice_number).toBe('INV-2026-001');
   });
 
-  it('returns null for unknown invoice id', async () => {
-    const found = await service.getInvoiceById(999);
-    expect(found).toBeNull();
+  it('throws NotFoundException for unknown invoice id', async () => {
+    await expect(service.getInvoiceById(999)).rejects.toThrow(
+      'SalesInvoice 999 not found',
+    );
   });
 
   it('rejects duplicate invoice_number', async () => {

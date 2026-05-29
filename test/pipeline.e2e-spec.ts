@@ -13,6 +13,7 @@ import { LedgerValidationService } from './../src/ledger/validation/ledger-valid
 import { PostingService } from './../src/ledger/posting/posting.service';
 import { RulesService } from './../src/rules/rules.service';
 import { PolicyService } from './../src/policy/policy.service';
+import { PostingPipelineService } from './../src/ledger/pipeline/posting-pipeline.service';
 import { ExpensesService } from './../src/expenses/expenses.service';
 import { ExpensesController } from './../src/expenses/expenses.controller';
 import { SalesInvoicesService } from './../src/sales-invoices/sales-invoices.service';
@@ -50,6 +51,7 @@ describe('Pipeline (e2e)', () => {
         PostingService,
         RulesService,
         PolicyService,
+        PostingPipelineService,
         ExpensesService,
         SalesInvoicesService,
         OrganizationService,
@@ -155,6 +157,35 @@ describe('Pipeline (e2e)', () => {
       ).toBeNull();
 
       // Verify no voucher rows in DB
+      const vouchers = await db.selectFrom('voucher').selectAll().execute();
+      expect(vouchers).toHaveLength(0);
+    });
+  });
+
+  describe('Expense pipeline: rule rejection (structural failure → 400)', () => {
+    it('rejects an expense that produces a negative net amount', async () => {
+      // gross < vat → net negative → structural validation fails (amount > 0)
+      const expense = await createExpense({
+        gross_amount: 100,
+        vat_amount: 200,
+      });
+      expect(Reflect.get(expense, 'status')).toBe('draft');
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/expenses/${Reflect.get(expense, 'id') as number}/post`)
+        .expect(400);
+
+      expect(Reflect.get(res.body, 'message')).toContain('Structural');
+
+      // Expense stays draft, no voucher minted
+      const updated = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('id', '=', Reflect.get(expense, 'id') as number)
+        .executeTakeFirst();
+      expect(updated?.status).toBe('draft');
+      expect(updated?.voucher_id).toBeNull();
+
       const vouchers = await db.selectFrom('voucher').selectAll().execute();
       expect(vouchers).toHaveLength(0);
     });

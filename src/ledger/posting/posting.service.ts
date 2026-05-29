@@ -18,6 +18,10 @@ export class PostingService {
     private readonly validation: LedgerValidationService,
   ) {}
 
+  /**
+   * Post a draft voucher as a standalone operation (own transaction).
+   * Resolves account codes, validates, then delegates to postVoucherTx.
+   */
   async postVoucher(draft: DraftVoucher): Promise<PostedVoucher> {
     const codes = [...new Set(draft.lines.map((l) => l.account_code))];
     const accounts = await this.accountService.getAccountsByCodes(codes);
@@ -42,57 +46,74 @@ export class PostingService {
       throw new ValidationError(result.errors);
     }
 
+    return this.db.transaction().execute(async (trx) => {
+      return this.postVoucherTx(trx, draft, resolved);
+    });
+  }
+
+  /**
+   * Post a draft voucher inside an existing transaction (trx).
+   *
+   * Used by PostingPipelineService so the voucher insert and the business-object
+   * status update happen atomically in a single transaction.
+   *
+   * Caller is responsible for account resolution and structural validation
+   * before calling this method — it does NOT re-resolve or re-validate.
+   */
+  async postVoucherTx(
+    trx: Kysely<Database>,
+    draft: DraftVoucher,
+    resolved: ValidatableLine[],
+  ): Promise<PostedVoucher> {
     const postedAt = Math.floor(Date.now() / 1000);
 
-    return this.db.transaction().execute(async (trx) => {
-      const previousHash = await this.chainHead(trx);
+    const previousHash = await this.chainHead(trx);
 
-      const voucher = await trx
-        .insertInto('voucher')
-        .values({
-          voucher_number: draft.voucher_number,
-          tax_point_date: draft.tax_point_date,
-          posted_at: postedAt,
-          previous_hash: previousHash,
-          reverses_id: null,
-          corrects_object_type: null,
-          corrects_object_id: null,
-          reason: null,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    const voucher = await trx
+      .insertInto('voucher')
+      .values({
+        voucher_number: draft.voucher_number,
+        tax_point_date: draft.tax_point_date,
+        posted_at: postedAt,
+        previous_hash: previousHash,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-      const insertedLines = await trx
-        .insertInto('voucher_line')
-        .values(
-          draft.lines.map((l, i) => ({
-            voucher_id: voucher.id,
-            account_id: resolved[i].account_id,
-            amount: l.amount,
-            currency: l.currency,
-            base_amount: l.base_amount,
-            fx_rate: l.fx_rate,
-            vat_code: l.vat_code ?? null,
-            is_debit: l.is_debit ? 1 : 0,
-          })),
-        )
-        .returningAll()
-        .execute();
+    const insertedLines = await trx
+      .insertInto('voucher_line')
+      .values(
+        draft.lines.map((l, i) => ({
+          voucher_id: voucher.id,
+          account_id: resolved[i].account_id,
+          amount: l.amount,
+          currency: l.currency,
+          base_amount: l.base_amount,
+          fx_rate: l.fx_rate,
+          vat_code: l.vat_code ?? null,
+          is_debit: l.is_debit ? 1 : 0,
+        })),
+      )
+      .returningAll()
+      .execute();
 
-      const lines: VoucherLine[] = insertedLines.map((r) => ({
-        id: r.id,
-        voucher_id: r.voucher_id,
-        account_id: r.account_id,
-        amount: r.amount,
-        currency: r.currency,
-        base_amount: r.base_amount,
-        fx_rate: r.fx_rate,
-        vat_code: r.vat_code,
-        is_debit: toBool(r.is_debit),
-      }));
+    const lines: VoucherLine[] = insertedLines.map((r) => ({
+      id: r.id,
+      voucher_id: r.voucher_id,
+      account_id: r.account_id,
+      amount: r.amount,
+      currency: r.currency,
+      base_amount: r.base_amount,
+      fx_rate: r.fx_rate,
+      vat_code: r.vat_code,
+      is_debit: toBool(r.is_debit),
+    }));
 
-      return { ...voucher, lines };
-    });
+    return { ...voucher, lines };
   }
 
   /**

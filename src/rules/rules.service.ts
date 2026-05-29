@@ -56,7 +56,7 @@ export class RulesService {
       default:
         return {
           passed: false,
-          ruleType: 'unknown',
+          ruleType: 'structural',
           message: `Unknown rule type: ${type as string}`,
           overrideable: false,
         };

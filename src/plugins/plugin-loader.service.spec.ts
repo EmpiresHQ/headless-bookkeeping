@@ -129,19 +129,39 @@ describe('NullCountryPlugin', () => {
 
   describe('validateVATCode', () => {
     it('should return true for "NULL_STANDARD"', () => {
-      expect(plugin.validateVATCode('NULL_STANDARD', {})).toBe(true);
+      expect(
+        plugin.validateVATCode('NULL_STANDARD', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(true);
     });
 
     it('should return true for "IE_INPUT_23"', () => {
-      expect(plugin.validateVATCode('IE_INPUT_23', {})).toBe(true);
+      expect(
+        plugin.validateVATCode('IE_INPUT_23', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(true);
     });
 
     it('should return true for "IE_OUTPUT_23"', () => {
-      expect(plugin.validateVATCode('IE_OUTPUT_23', {})).toBe(true);
+      expect(
+        plugin.validateVATCode('IE_OUTPUT_23', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(true);
     });
 
     it('should return false for any other VAT code', () => {
-      expect(plugin.validateVATCode('DK_INPUT_25', {})).toBe(false);
+      expect(
+        plugin.validateVATCode('DK_INPUT_25', {
+          supplier: defaultSupplier,
+          org: defaultOrg,
+        }),
+      ).toBe(false);
     });
   });
 });

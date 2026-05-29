@@ -1,15 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { SalesInvoicesController } from './sales-invoices.controller';
 import { SalesInvoicesService } from './sales-invoices.service';
-import { AccountService } from '../ledger/account/account.service';
-import { RulesService } from '../rules/rules.service';
-import { PolicyService } from '../policy/policy.service';
-import { PostingService } from '../ledger/posting/posting.service';
-import { OrganizationService } from '../organization/organization.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
+import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { SalesInvoice } from './types';
-import { DraftVoucher } from '../ledger/voucher/types';
+import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 
 describe('SalesInvoicesController', () => {
   let controller: SalesInvoicesController;
@@ -64,32 +59,37 @@ describe('SalesInvoicesController', () => {
     ],
   };
 
+  const mockPostedVoucher: PostedVoucher = {
+    id: 1,
+    voucher_number: 'INV-2026-001',
+    tax_point_date: '2026-03-15',
+    posted_at: 1740000000,
+    previous_hash: 'genesis',
+    reverses_id: null,
+    corrects_object_type: null,
+    corrects_object_id: null,
+    reason: null,
+    lines: [],
+  };
+
   const mockService = {
     createInvoice: jest.fn(),
     getInvoices: jest.fn(),
+    getInvoiceById: jest.fn(),
     generateDraftVoucher: jest.fn(),
     sendInvoice: jest.fn(),
-    updateInvoiceStatus: jest.fn(),
   };
 
-  const mockAccountService = { getAccountsByCodes: jest.fn() };
-  const mockRulesService = { validate: jest.fn() };
-  const mockPolicyService = { decide: jest.fn() };
-  const mockPostingService = { postVoucher: jest.fn() };
-  const mockOrgService = { getOrganization: jest.fn() };
-  const mockPluginLoader = { resolve: jest.fn() };
+  const mockPipeline = {
+    runPipeline: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SalesInvoicesController],
       providers: [
         { provide: SalesInvoicesService, useValue: mockService },
-        { provide: AccountService, useValue: mockAccountService },
-        { provide: RulesService, useValue: mockRulesService },
-        { provide: PolicyService, useValue: mockPolicyService },
-        { provide: PostingService, useValue: mockPostingService },
-        { provide: OrganizationService, useValue: mockOrgService },
-        { provide: PluginLoader, useValue: mockPluginLoader },
+        { provide: PostingPipelineService, useValue: mockPipeline },
       ],
     }).compile();
 
@@ -151,5 +151,38 @@ describe('SalesInvoicesController', () => {
     expect(result.sent_at).toBe(1740000100);
     expect(result.status).toBe('draft');
     expect(mockService.sendInvoice).toHaveBeenCalledWith(1);
+  });
+
+  describe('POST /api/sales-invoices/:id/post', () => {
+    it('delegates to PostingPipelineService.runPipeline with correct params', async () => {
+      mockPipeline.runPipeline.mockResolvedValue({
+        businessObject: { ...mockInvoice, status: 'posted', voucher_id: 1 },
+        voucher: mockPostedVoucher,
+        policy: { action: 'auto-post', reason: 'All rules passed' },
+      });
+
+      const result = await controller.postInvoice('1');
+
+      expect(mockPipeline.runPipeline).toHaveBeenCalledWith({
+        businessObjectId: 1,
+        businessObjectType: 'sales_invoice',
+        draftGenerator: expect.any(Function) as () => Promise<DraftVoucher>,
+        categoryMapper: expect.any(Function) as (accountCode: string) => string,
+        refetch: expect.any(Function) as () => Promise<unknown>,
+        override: undefined,
+      });
+      expect(result.invoice.status).toBe('posted');
+      expect(result.voucher).toBe(mockPostedVoucher);
+    });
+
+    it('forwards NotFoundException from the pipeline (not-found)', async () => {
+      mockPipeline.runPipeline.mockRejectedValue(
+        new NotFoundException('SalesInvoice 999 not found'),
+      );
+
+      await expect(controller.postInvoice('999')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 });

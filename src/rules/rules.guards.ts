@@ -1,10 +1,11 @@
 import { RuleResult } from './types';
 
 /**
- * Returns true if the rule result represents a failure that may be overridden.
- * Only semantic rules are overrideable per ADR-0005.
+ * Returns true if the rule result represents an unresolved semantic failure.
+ * Only semantic rules are overrideable per ADR-0005 — a passed semantic result
+ * with an override is NOT a failure.
  */
-export function canOverride(result: RuleResult): boolean {
+export function isUnresolvedSemanticFailure(result: RuleResult): boolean {
   return result.overrideable && !result.passed;
 }
 

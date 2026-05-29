@@ -16,6 +16,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn('status', 'text', (col) =>
       col
         .notNull()
+        .defaultTo('draft')
         .check(sql`status IN ('draft', 'pending', 'posted', 'reversed')`),
     )
     .addColumn('voucher_id', 'integer')

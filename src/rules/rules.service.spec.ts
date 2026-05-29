@@ -10,7 +10,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { OrgContext, SupplierFacts } from '../plugins/country-plugin.interface';
 import { ResolvedLine, Override, SemanticValidationContext } from './types';
-import { canOverride, mustReject } from './rules.guards';
+import { isUnresolvedSemanticFailure, mustReject } from './rules.guards';
 
 const defaultSupplier: SupplierFacts = {
   country: 'IE',
@@ -98,7 +98,7 @@ describe('RulesService (unit)', () => {
       expect(result.overrideable).toBe(false);
       expect(result.message).toContain('do not balance');
       expect(mustReject(result)).toBe(true);
-      expect(canOverride(result)).toBe(false);
+      expect(isUnresolvedSemanticFailure(result)).toBe(false);
     });
 
     it('fails a non-existent account → passed:false, overrideable:false', () => {
@@ -189,7 +189,7 @@ describe('RulesService (unit)', () => {
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(true);
       expect(result.message).toContain('Invalid VAT code');
-      expect(canOverride(result)).toBe(true);
+      expect(isUnresolvedSemanticFailure(result)).toBe(true);
       expect(mustReject(result)).toBe(false);
     });
 

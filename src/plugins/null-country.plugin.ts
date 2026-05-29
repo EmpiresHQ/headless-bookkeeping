@@ -7,6 +7,8 @@ import {
   VATCode,
 } from './country-plugin.interface';
 
+export const NULL_VAT_CODE = 'NULL_STANDARD';
+
 /**
  * NullCountryPlugin - A stub implementation of CountryPlugin that returns safe defaults.
  *
@@ -72,7 +74,10 @@ export class NullCountryPlugin implements CountryPlugin {
     return 'EUR';
   }
 
-  validateVATCode(vatCode: string, _context: unknown): boolean {
+  validateVATCode(
+    vatCode: string,
+    _context: { supplier: SupplierFacts; org: OrgContext },
+  ): boolean {
     return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
   }
 }
