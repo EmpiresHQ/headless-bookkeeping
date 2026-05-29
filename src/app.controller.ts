@@ -14,4 +14,9 @@ export class AppController {
   async getUsers() {
     return this.appService.getUsers();
   }
+
+  @Get('health')
+  async getHealth() {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
 }

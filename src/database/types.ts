@@ -1,10 +1,13 @@
+import type { Generated } from 'kysely';
+
 export interface Database {
-  users: UserTable;
+  organization: OrganizationTable;
 }
 
-export interface UserTable {
-  id?: number;
-  email: string;
-  name: string;
-  created_at?: number;
+export interface OrganizationTable {
+  id: Generated<number>;
+  country: string;
+  base_currency: string;
+  vat_registered: number;
+  created_at: number;
 }

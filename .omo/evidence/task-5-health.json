@@ -1,0 +1,11 @@
+{
+  "scenario": "Health endpoint responds",
+  "timestamp": "2026-05-29T12:46:43.619Z",
+  "request": "GET /health",
+  "response": {
+    "status": "ok",
+    "timestamp": "2026-05-29T12:46:43.619Z"
+  },
+  "status": 200,
+  "verification": "PASS - Health endpoint returns status='ok' and valid ISO timestamp"
+}

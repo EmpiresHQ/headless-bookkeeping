@@ -1,0 +1,14 @@
+{
+  "scenario": "Get singleton organization",
+  "timestamp": "2026-05-29T12:46:43.619Z",
+  "request": "GET /api/organization",
+  "response": {
+    "id": 1,
+    "country": "DK",
+    "base_currency": "DKK",
+    "vat_registered": false,
+    "created_at": 1780058678
+  },
+  "status": 200,
+  "verification": "PASS - Returns default organization with DK/DKK/vat_registered=false"
+}
