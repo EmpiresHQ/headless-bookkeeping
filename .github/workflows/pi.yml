@@ -66,6 +66,20 @@ jobs:
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # The comment is the task; the appended contract makes the agent
+          # actually deliver. (The action still enriches with issue/PR title +
+          # description from the event context.)
+          prompt: |
+            ${{ github.event.comment.body }}
+
+            ---
+            You are running in GitHub Actions on an ephemeral runner: any file
+            edits are discarded unless you open or update a pull request. When
+            the task involves code changes you MUST finish by calling
+            create_pull_request (for an issue) or update_pull_request (for an
+            existing PR) — never stop after only editing files or describing the
+            change. Run lint / typecheck / tests to verify when feasible before
+            finalizing.
           trigger: '@pi'
           provider: openrouter
           model: deepseek/deepseek-v4-flash
@@ -132,6 +146,20 @@ jobs:
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # The comment is the task; the appended contract makes the agent
+          # actually deliver. (The action still enriches with issue/PR title +
+          # description from the event context.)
+          prompt: |
+            ${{ github.event.comment.body }}
+
+            ---
+            You are running in GitHub Actions on an ephemeral runner: any file
+            edits are discarded unless you open or update a pull request. When
+            the task involves code changes you MUST finish by calling
+            create_pull_request (for an issue) or update_pull_request (for an
+            existing PR) — never stop after only editing files or describing the
+            change. Run lint / typecheck / tests to verify when feasible before
+            finalizing.
           trigger: '@superpi'
           provider: openrouter
           model: moonshotai/kimi-k2.6
@@ -200,6 +228,20 @@ jobs:
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # The comment is the task; the appended contract makes the agent
+          # actually deliver. (The action still enriches with issue/PR title +
+          # description from the event context.)
+          prompt: |
+            ${{ github.event.comment.body }}
+
+            ---
+            You are running in GitHub Actions on an ephemeral runner: any file
+            edits are discarded unless you open or update a pull request. When
+            the task involves code changes you MUST finish by calling
+            create_pull_request (for an issue) or update_pull_request (for an
+            existing PR) — never stop after only editing files or describing the
+            change. Run lint / typecheck / tests to verify when feasible before
+            finalizing.
           trigger: '@cheapi'
           provider: openrouter
           model: qwen/qwen3-235b-a22b-2507
