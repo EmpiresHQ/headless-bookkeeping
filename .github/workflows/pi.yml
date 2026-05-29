@@ -5,7 +5,8 @@
 # On an authorized `@pi` comment it runs the pi coding agent, edits code,
 # opens/updates a PR and replies in a comment.
 #
-# Model: moonshotai/kimi-k2.6 via pi's built-in `openrouter` provider.
+# Model: deepseek/deepseek-v4-flash (DeepSeek V4 Flash) via pi's built-in
+# `openrouter` provider — cheap tier (~$0.10/$0.20 per Mtok).
 # Required repo/org secret: OPENROUTER_API_KEY
 #
 # Action is pinned to a commit SHA (v2.18.0) per supply-chain hygiene — bump the
@@ -44,11 +45,11 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger: '@pi'
-          # --- LLM: kimi-k2.6 via pi's built-in `openrouter` provider ---
-          # pi resolves provider/model as `openrouter/moonshotai/kimi-k2.6`
-          # (its default openrouter model). No base_url override needed — the
-          # built-in provider knows OpenRouter's endpoint.
+          # --- LLM: DeepSeek V4 Flash via pi's built-in `openrouter` provider ---
+          # pi resolves provider/model as `openrouter/deepseek/deepseek-v4-flash`.
+          # No base_url override needed — the built-in provider knows OpenRouter's
+          # endpoint. `off` is quoted so YAML doesn't coerce it to boolean false.
           provider: openrouter
-          model: moonshotai/kimi-k2.6
+          model: deepseek/deepseek-v4-flash
           token: ${{ secrets.OPENROUTER_API_KEY }}
-          thinking_level: medium
+          thinking_level: 'off'
