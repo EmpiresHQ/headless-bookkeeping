@@ -70,8 +70,7 @@ export class AccountService {
       type: this.validateAccountType(type),
       currency,
       parent_id,
-      is_system: toBool(row.is_system),
-
+      is_system: toBool(is_system),
     };
   }
 }

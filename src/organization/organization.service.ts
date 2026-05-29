@@ -79,7 +79,7 @@ export class OrganizationService {
       id,
       country,
       base_currency,
-      vat_registered: toBool(row.vat_registered),
+      vat_registered: toBool(vat_registered),
       created_at,
     };
   }
