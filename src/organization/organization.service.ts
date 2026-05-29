@@ -61,7 +61,13 @@ export class OrganizationService {
     return this.getOrganization();
   }
 
-  private mapRow(row: {
+  private mapRow({
+    id,
+    country,
+    base_currency,
+    vat_registered,
+    created_at,
+  }: {
     id: number;
     country: string;
     base_currency: string | null;
@@ -69,11 +75,11 @@ export class OrganizationService {
     created_at: number;
   }): Organization {
     return {
-      id: row.id,
-      country: row.country,
-      base_currency: row.base_currency,
-      vat_registered: row.vat_registered === 1,
-      created_at: row.created_at,
+      id,
+      country,
+      base_currency,
+      vat_registered: vat_registered === 1,
+      created_at,
     };
   }
 }
