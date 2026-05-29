@@ -1,20 +1,21 @@
 # pi coding bots — triggered by comments on issues and PRs.
 #
-# Three agents share one workflow via a matrix:
+# Three agents, one job each. A matrix can't be used: GitHub does not allow the
+# `matrix` context in a job-level `if:`, and moving the trigger check to a step
+# would boot a runner for every agent on every comment. With one job per agent
+# gated by a literal trigger, a job is skipped (no runner) unless its phrase
+# appears — so ordinary comments cost nothing.
 #   @pi      → DeepSeek V4 Flash         (cheap, fast, no reasoning)
 #   @superpi → Kimi K2.6                 (premium, reasoning on)
 #   @cheapi  → DeepSeek V4 Flash (free)  (free OpenRouter tier, rate-limited)
 #
-# Runs entirely inside GitHub Actions via shaftoe/pi-coding-agent-action (a
-# bundled JavaScript action — no install step, so no npm-lifecycle surprises).
-# On an authorized trigger comment it runs the pi coding agent, edits code,
-# opens/updates a PR and replies in a comment.
+# No trigger is a substring of another (@superpi / @cheapi do not contain @pi),
+# so a single comment routes to exactly one agent.
 #
-# Both models go through pi's built-in `openrouter` provider.
+# Runs via shaftoe/pi-coding-agent-action (bundled JS action — no install step).
+# All models use pi's built-in `openrouter` provider.
 # Required repo/org secret: OPENROUTER_API_KEY
-#
-# Action is pinned to a commit SHA (v2.18.0) per supply-chain hygiene — bump the
-# SHA + trailing comment together when upgrading.
+# Action pinned to a commit SHA (v2.18.0) — bump SHA + comment together.
 
 name: pi
 
@@ -30,47 +31,65 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Cheap default agent.
   pi:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Cheap default agent.
-          - trigger: '@pi'
-            model: deepseek/deepseek-v4-flash
-            thinking: 'off'
-          # Premium agent — kimi with reasoning, opt-in via @superpi.
-          - trigger: '@superpi'
-            model: moonshotai/kimi-k2.6
-            thinking: 'medium'
-          # Free agent — same deepseek-flash on OpenRouter's free tier
-          # (heavily rate-limited; fine for low-volume / non-urgent use).
-          - trigger: '@cheapi'
-            model: deepseek/deepseek-v4-flash:free
-            thinking: 'off'
-    # Trigger + authorization. shaftoe's action has no built-in authz, so we
-    # gate here: comment must contain this agent's trigger AND the author must
-    # be a repo owner, org member, or collaborator. `@superpi` does not contain
-    # `@pi` as a substring, so the two agents never both fire on one comment.
     if: >-
-      contains(github.event.comment.body, matrix.trigger) &&
+      contains(github.event.comment.body, '@pi') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
     steps:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
-
       - name: Run pi coding agent
         uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          trigger: ${{ matrix.trigger }}
-          # pi resolves provider/model as `openrouter/<model>`. No base_url
-          # override needed — the built-in provider knows OpenRouter's endpoint.
-          # `thinking` is quoted in the matrix so YAML keeps 'off' a string.
+          trigger: '@pi'
           provider: openrouter
-          model: ${{ matrix.model }}
+          model: deepseek/deepseek-v4-flash
           token: ${{ secrets.OPENROUTER_API_KEY }}
-          thinking_level: ${{ matrix.thinking }}
+          thinking_level: 'off'
+
+  # Premium agent — kimi with reasoning, opt-in via @superpi.
+  superpi:
+    if: >-
+      contains(github.event.comment.body, '@superpi') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Run pi coding agent
+        uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          trigger: '@superpi'
+          provider: openrouter
+          model: moonshotai/kimi-k2.6
+          token: ${{ secrets.OPENROUTER_API_KEY }}
+          thinking_level: medium
+
+  # Free agent — deepseek-flash on OpenRouter's free tier (rate-limited).
+  cheapi:
+    if: >-
+      contains(github.event.comment.body, '@cheapi') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Run pi coding agent
+        uses: shaftoe/pi-coding-agent-action@e4df95b41f4e9eeea853d0ae947577485ffb20fd # v2.18.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          trigger: '@cheapi'
+          provider: openrouter
+          model: deepseek/deepseek-v4-flash:free
+          token: ${{ secrets.OPENROUTER_API_KEY }}
+          thinking_level: 'off'
