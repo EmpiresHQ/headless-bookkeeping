@@ -152,6 +152,56 @@ export class ExpensesService {
       .execute();
   }
 
+  async updateDraft(
+    id: number,
+    patch: {
+      gross_amount?: number;
+      vat_amount?: number;
+      category?: string;
+    },
+  ): Promise<Expense> {
+    const expense = await this.getExpenseById(id);
+    if (expense.status !== 'draft' && expense.status !== 'pending') {
+      throw new Error(
+        `Cannot update draft: expense ${id} is ${expense.status}`,
+      );
+    }
+
+    return this.patchAmounts(id, patch);
+  }
+
+  async patchAmounts(
+    id: number,
+    patch: {
+      gross_amount?: number;
+      vat_amount?: number;
+      category?: string;
+    },
+  ): Promise<Expense> {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .updateTable('expense')
+      .set({
+        ...(patch.gross_amount !== undefined && {
+          gross_amount: patch.gross_amount,
+        }),
+        ...(patch.vat_amount !== undefined && {
+          vat_amount: patch.vat_amount,
+        }),
+        ...(patch.category !== undefined && { category: patch.category }),
+        updated_at: now,
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.mapRow(row);
+  }
+
+  async markReversed(id: number, newVoucherId: number): Promise<void> {
+    await this.updateExpenseStatus(id, 'reversed', newVoucherId);
+  }
+
   private validateStatus(status: string): ExpenseStatus {
     if (
       status === 'draft' ||

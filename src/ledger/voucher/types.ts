@@ -36,6 +36,10 @@ export interface DraftVoucher {
   voucher_number: string;
   tax_point_date: string;
   lines: DraftVoucherLine[];
+  reverses_id?: number;
+  corrects_object_type?: string;
+  corrects_object_id?: number;
+  reason?: string;
 }
 
 export interface PostedVoucher extends Voucher {

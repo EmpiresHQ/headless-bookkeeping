@@ -49,7 +49,7 @@ export class VoucherLineRepository {
       base_amount,
       fx_rate,
       vat_code,
-      is_debit: toBool(is_debit)
+      is_debit: toBool(is_debit),
     };
   }
 }

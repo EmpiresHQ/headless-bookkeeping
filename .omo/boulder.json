@@ -1,13 +1,13 @@
 {
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-3-pipeline.md",
-  "started_at": "2026-05-29T19:24:16.688Z",
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
+  "started_at": "2026-05-29T23:47:10.850Z",
   "session_ids": [
-    "ses_18ace3a8cffev4f1S4QFKr2LbQ"
+    "ses_189dd88bdffe62f9e25yMGW0DY"
   ],
-  "plan_name": "wave-3-pipeline",
-  "current_wave": 3,
+  "plan_name": "wave-4-intake",
+  "current_wave": 4,
   "session_origins": {
-    "ses_18ace3a8cffev4f1S4QFKr2LbQ": "direct"
+    "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
   },
   "task_sessions": {},
   "schema_version": 2,
@@ -27,7 +27,7 @@
       "elapsed_ms": 3360000
     }
   },
-  "active_work_id": null,
-  "updated_at": "2026-05-29T20:20:00.000Z",
-  "status": "completed"
+  "active_work_id": "wave-4-intake",
+  "updated_at": "2026-05-29T23:47:10.850Z",
+  "status": "active"
 }

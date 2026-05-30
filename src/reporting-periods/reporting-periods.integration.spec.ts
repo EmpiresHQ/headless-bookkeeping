@@ -1,0 +1,93 @@
+import { Kysely, SqliteDialect } from 'kysely';
+import { Migrator } from 'kysely/migration';
+import SqliteDb from 'better-sqlite3';
+import { Database } from '../database/types';
+import { migrations } from '../database/migrations';
+import { ReportingPeriodsService } from './reporting-periods.service';
+
+/**
+ * Integration test for ReportingPeriodsService against a real in-memory
+ * SQLite database seeded by the real migration (011_create_reporting_period).
+ *
+ * Proves:
+ *  (a) seeded 2024-Q1 exists
+ *  (b) getCurrent returns the latest open period by start_date
+ *  (c) locked periods are ignored by getCurrent
+ */
+describe('ReportingPeriodsService (integration)', () => {
+  let db: Kysely<Database>;
+  let service: ReportingPeriodsService;
+
+  beforeEach(async () => {
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error, results } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
+
+    // Verify the reporting_period migration ran
+    const ranMigration = results?.find(
+      (r) => r.migrationName === '011_create_reporting_period',
+    );
+    if (!ranMigration || ranMigration.status !== 'Success') {
+      throw new Error(
+        `Migration 011_create_reporting_period did not succeed: ${JSON.stringify(results)}`,
+      );
+    }
+
+    // Construct the service directly with the DB instance — the G2 harness
+    // pattern from currency.resolution.spec.ts uses Test.createTestingModule
+    // with manual token override, but here we inject the Kysely instance
+    // directly via the constructor to avoid DI resolution issues with the
+    // nestjs-kysely token in a minimal module.
+    service = new ReportingPeriodsService(db);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('(a) seeded 2024-Q1 exists with open status', async () => {
+    const all = await service.list();
+    expect(all).toHaveLength(1);
+    expect(all[0].name).toBe('2024-Q1');
+    expect(all[0].start_date).toBe('2024-01-01');
+    expect(all[0].end_date).toBe('2024-03-31');
+    expect(all[0].status).toBe('open');
+    expect(all[0].filed_at).toBeNull();
+    expect(all[0].vat_report_snapshot_id).toBeNull();
+  });
+
+  it('(b) getCurrent returns the latest open period by start_date', async () => {
+    // Seed a second open period with a later start_date
+    await service.create({
+      name: '2024-Q2',
+      start_date: '2024-04-01',
+      end_date: '2024-06-30',
+    });
+
+    const current = await service.getCurrent();
+    expect(current.name).toBe('2024-Q2');
+    expect(current.status).toBe('open');
+  });
+
+  it('(c) locked periods are ignored by getCurrent', async () => {
+    // Lock the seeded 2024-Q1 period by updating its status directly
+    await db
+      .updateTable('reporting_period')
+      .set({ status: 'locked' })
+      .where('name', '=', '2024-Q1')
+      .execute();
+
+    // No open periods remain → getCurrent should throw
+    await expect(service.getCurrent()).rejects.toThrow(
+      'No open reporting period found',
+    );
+  });
+});

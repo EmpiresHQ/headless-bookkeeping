@@ -9,6 +9,8 @@ import { VoucherModule } from './ledger/voucher/voucher.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { SalesInvoicesModule } from './sales-invoices/sales-invoices.module';
 import { PolicyModule } from './policy/policy.module';
+import { CorrectionsModule } from './corrections/corrections.module';
+import { TriageModule } from './triage/triage.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { PolicyModule } from './policy/policy.module';
     ExpensesModule,
     SalesInvoicesModule,
     PolicyModule,
+    CorrectionsModule,
+    TriageModule,
   ],
 })
 export class AppModule {}

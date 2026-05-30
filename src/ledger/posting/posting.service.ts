@@ -76,10 +76,10 @@ export class PostingService {
         tax_point_date: draft.tax_point_date,
         posted_at: postedAt,
         previous_hash: previousHash,
-        reverses_id: null,
-        corrects_object_type: null,
-        corrects_object_id: null,
-        reason: null,
+        reverses_id: draft.reverses_id ?? null,
+        corrects_object_type: draft.corrects_object_type ?? null,
+        corrects_object_id: draft.corrects_object_id ?? null,
+        reason: draft.reason ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();

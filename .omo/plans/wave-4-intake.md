@@ -52,7 +52,7 @@ These are remediations from the Wave-3 pipeline code review. They harden the pos
 
 ## TODOs
 
-- [ ] 16. Document schema + filesystem storage + dedup
+- [x] 16. Document schema + filesystem storage + dedup
 
   **What to do**:
   - Create `src/documents/` module
@@ -127,7 +127,7 @@ These are remediations from the Wave-3 pipeline code review. They harden the pos
   - Files: `src/documents/`, `data/documents/` (ensure .gitignore)
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 17. OCR triage stub + intake routing
+- [x] 17. OCR triage stub + intake routing
 
   **What to do**:
   - Create `src/triage/` module
@@ -201,7 +201,7 @@ These are remediations from the Wave-3 pipeline code review. They harden the pos
   - Files: `src/triage/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 18. Correction flow (supersession, reversal)
+- [x] 18. Correction flow (supersession, reversal)
 
   **What to do**:
   - Implement correction logic per ADR-0010 and ADR-0006:
@@ -275,7 +275,7 @@ These are remediations from the Wave-3 pipeline code review. They harden the pos
   - Files: `src/corrections/` or extensions to `src/expenses/`, `src/sales-invoices/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 19. ReportingPeriod schema + CRUD
+- [x] 19. ReportingPeriod schema + CRUD
 
   **What to do**:
   - Create `src/reporting-periods/` module
@@ -347,7 +347,7 @@ These are remediations from the Wave-3 pipeline code review. They harden the pos
   - Files: `src/reporting-periods/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 20. Intake integration (document → draft → pipeline)
+- [x] 20. Intake integration (document → draft → pipeline)
 
   **What to do**:
   - Integration test or endpoint that exercises the full intake → posting flow:

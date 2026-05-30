@@ -165,6 +165,55 @@ export class SalesInvoicesService {
       .execute();
   }
 
+  async updateDraft(
+    id: number,
+    patch: {
+      gross_amount?: number;
+      vat_amount?: number;
+      category?: string;
+    },
+  ): Promise<SalesInvoice> {
+    const invoice = await this.getInvoiceById(id);
+    if (invoice.status !== 'draft' && invoice.status !== 'pending') {
+      throw new Error(
+        `Cannot update draft: sales invoice ${id} is ${invoice.status}`,
+      );
+    }
+
+    return this.patchAmounts(id, patch);
+  }
+
+  async patchAmounts(
+    id: number,
+    patch: {
+      gross_amount?: number;
+      vat_amount?: number;
+      category?: string;
+    },
+  ): Promise<SalesInvoice> {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .updateTable('sales_invoice')
+      .set({
+        ...(patch.gross_amount !== undefined && {
+          gross_amount: patch.gross_amount,
+        }),
+        ...(patch.vat_amount !== undefined && {
+          vat_amount: patch.vat_amount,
+        }),
+        updated_at: now,
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.mapRow(row);
+  }
+
+  async markReversed(id: number, newVoucherId: number): Promise<void> {
+    await this.updateInvoiceStatus(id, 'reversed', newVoucherId);
+  }
+
   private mapRow(row: {
     id: number;
     customer_id: number | null;
