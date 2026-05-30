@@ -25,9 +25,16 @@
       "status": "completed",
       "ended_at": "2026-05-29T20:20:00.000Z",
       "elapsed_ms": 3360000
+    },
+    "wave-4-intake": {
+      "work_id": "wave-4-intake",
+      "plan_name": "wave-4-intake",
+      "status": "completed",
+      "ended_at": "2026-05-30T00:47:00.000Z",
+      "elapsed_ms": 3600000
     }
   },
-  "active_work_id": "wave-4-intake",
-  "updated_at": "2026-05-29T23:47:10.850Z",
-  "status": "active"
+  "active_work_id": null,
+  "updated_at": "2026-05-30T00:47:00.000Z",
+  "status": "completed"
 }
