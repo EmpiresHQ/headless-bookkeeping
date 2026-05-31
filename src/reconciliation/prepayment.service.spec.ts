@@ -10,6 +10,11 @@ import { LedgerValidationService } from '../ledger/validation/ledger-validation.
 import { PostingService } from '../ledger/posting/posting.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { OrganizationService } from '../organization/organization.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CurrencyService } from '../currency/currency.service';
+import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { PrepaymentService } from './prepayment.service';
 
 /**
@@ -44,6 +49,10 @@ describe('PrepaymentService (integration)', () => {
         PostingService,
         BankTransactionRepository,
         BankStatementService,
+        OrganizationService,
+        NullCountryPlugin,
+        PluginLoader,
+        CurrencyService,
         PrepaymentService,
       ],
     }).compile();
@@ -683,5 +692,175 @@ describe('PrepaymentService (integration)', () => {
       expect(prepay!.drawnDown).toBe(15000);
       expect(prepay!.remaining).toBe(25000);
     });
+  });
+});
+
+/**
+ * Cross-currency prepayment creation: the bank leg must resolve the REAL bank
+ * account (e.g. BANK_USD) and carry the transaction's own currency, while the
+ * foreign amount is converted to base currency (EUR) for the prepayment leg
+ * via the country plugin's reference rate (D4).
+ *
+ * Uses a fake PluginLoader so USD→EUR = 0.9. (NullCountryPlugin throws on a
+ * real cross-currency pair, so a fake is required.)
+ */
+describe('PrepaymentService — cross-currency bank account', () => {
+  let db: Kysely<Database>;
+  let prepaymentService: PrepaymentService;
+  let bankStatementService: BankStatementService;
+
+  /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0. */
+  const fakePlugin: Pick<
+    CountryPlugin,
+    'getReferenceRate' | 'getDefaultBaseCurrency'
+  > = {
+    getReferenceRate(from: string, to: string): number {
+      if (from === to) return 1.0;
+      if (from === 'USD' && to === 'EUR') return 0.9;
+      throw new Error(`Unexpected pair ${from} → ${to}`);
+    },
+    getDefaultBaseCurrency: () => 'EUR',
+  };
+
+  const fakeLoader = {
+    resolve: () => fakePlugin as unknown as CountryPlugin,
+  };
+
+  beforeEach(async () => {
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        AccountService,
+        LedgerValidationService,
+        PostingService,
+        BankTransactionRepository,
+        BankStatementService,
+        OrganizationService,
+        NullCountryPlugin,
+        PluginLoader,
+        CurrencyService,
+        PrepaymentService,
+      ],
+    })
+      .overrideProvider(PluginLoader)
+      .useValue(fakeLoader)
+      .compile();
+
+    prepaymentService = module.get(PrepaymentService);
+    bankStatementService = module.get(BankStatementService);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('resolves BANK_USD and converts an incoming USD payment to base EUR (customer)', async () => {
+    const stmt = await bankStatementService.createStatement({
+      account_code: 'BANK_USD',
+      start_date: '2025-01-01',
+      end_date: '2025-01-31',
+      transactions: [
+        {
+          transaction_date: '2025-01-15',
+          description: 'Customer payment received - USD',
+          amount: 10000,
+          currency: 'USD',
+          status: 'open',
+        },
+      ],
+    });
+    const txn = stmt.transactions[0];
+
+    const voucher = await prepaymentService.createCustomerPrepayment(txn.id);
+
+    const debitLine = voucher.lines.find((l) => l.is_debit)!;
+    const creditLine = voucher.lines.find((l) => !l.is_debit)!;
+
+    // Bank leg (debit): real BANK_USD account, USD currency, converted base.
+    const debitAccount = await db
+      .selectFrom('account')
+      .select('code')
+      .where('id', '=', debitLine.account_id)
+      .executeTakeFirstOrThrow();
+    expect(debitAccount.code).toBe('BANK_USD');
+    expect(debitLine.currency).toBe('USD');
+    expect(debitLine.amount).toBe(10000);
+    expect(debitLine.base_amount).toBe(9000); // round(10000 * 0.9)
+    expect(debitLine.fx_rate).toBe(0.9);
+    expect(debitLine.is_debit).toBe(true);
+
+    // Prepayment leg (credit): base currency EUR, base amount, rate 1.0.
+    const creditAccount = await db
+      .selectFrom('account')
+      .select('code')
+      .where('id', '=', creditLine.account_id)
+      .executeTakeFirstOrThrow();
+    expect(creditAccount.code).toBe('CUSTOMER_PREPAYMENTS');
+    expect(creditLine.currency).toBe('EUR');
+    expect(creditLine.amount).toBe(9000);
+    expect(creditLine.base_amount).toBe(9000);
+    expect(creditLine.fx_rate).toBe(1.0);
+    expect(creditLine.is_debit).toBe(false);
+  });
+
+  it('resolves BANK_USD and converts an outgoing USD payment to base EUR (supplier)', async () => {
+    const stmt = await bankStatementService.createStatement({
+      account_code: 'BANK_USD',
+      start_date: '2025-01-01',
+      end_date: '2025-01-31',
+      transactions: [
+        {
+          transaction_date: '2025-01-15',
+          description: 'Supplier payment sent - USD',
+          amount: -10000,
+          currency: 'USD',
+          status: 'open',
+        },
+      ],
+    });
+    const txn = stmt.transactions[0];
+
+    const voucher = await prepaymentService.createSupplierPrepayment(txn.id);
+
+    const debitLine = voucher.lines.find((l) => l.is_debit)!;
+    const creditLine = voucher.lines.find((l) => !l.is_debit)!;
+
+    // Prepayment leg (debit): base currency EUR, base amount, rate 1.0.
+    const debitAccount = await db
+      .selectFrom('account')
+      .select('code')
+      .where('id', '=', debitLine.account_id)
+      .executeTakeFirstOrThrow();
+    expect(debitAccount.code).toBe('SUPPLIER_PREPAYMENTS');
+    expect(debitLine.currency).toBe('EUR');
+    expect(debitLine.amount).toBe(9000);
+    expect(debitLine.base_amount).toBe(9000);
+    expect(debitLine.fx_rate).toBe(1.0);
+    expect(debitLine.is_debit).toBe(true);
+
+    // Bank leg (credit): real BANK_USD account, USD currency, converted base.
+    const creditAccount = await db
+      .selectFrom('account')
+      .select('code')
+      .where('id', '=', creditLine.account_id)
+      .executeTakeFirstOrThrow();
+    expect(creditAccount.code).toBe('BANK_USD');
+    expect(creditLine.currency).toBe('USD');
+    expect(creditLine.amount).toBe(10000);
+    expect(creditLine.base_amount).toBe(9000); // round(10000 * 0.9)
+    expect(creditLine.fx_rate).toBe(0.9);
+    expect(creditLine.is_debit).toBe(false);
   });
 });

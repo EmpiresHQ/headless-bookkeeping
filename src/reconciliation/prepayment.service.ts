@@ -8,10 +8,12 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { PostingService } from '../ledger/posting/posting.service';
-import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CurrencyService } from '../currency/currency.service';
+import { OrganizationService } from '../organization/organization.service';
+import { DraftVoucher, DraftVoucherLine, PostedVoucher } from '../ledger/voucher/types';
 
 /** Accounts used for prepayment vouchers. */
-const BANK_EUR = 'BANK_EUR';
 const CUSTOMER_PREPAYMENTS = 'CUSTOMER_PREPAYMENTS';
 const SUPPLIER_PREPAYMENTS = 'SUPPLIER_PREPAYMENTS';
 const AR = 'AR';
@@ -34,7 +36,78 @@ export class PrepaymentService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly transactionRepo: BankTransactionRepository,
     private readonly postingService: PostingService,
+    private readonly pluginLoader: PluginLoader,
+    private readonly currencyService: CurrencyService,
+    private readonly orgService: OrganizationService,
   ) {}
+
+  /**
+   * Build the bank leg + prepayment leg for a prepayment voucher.
+   *
+   * The bank leg resolves the transaction's REAL bank account (via the
+   * statement → account join) and carries the transaction's own currency,
+   * converted to base currency via the country plugin's reference rate (D4,
+   * 1.0 for same-currency). The prepayment leg is denominated in base
+   * currency.
+   *
+   * Returns the two lines in [bank, prepayment] order; callers set is_debit
+   * via the direction flags.
+   */
+  private async buildBankAndPrepaymentLegs(
+    transactionId: number,
+    txn: { amount: number; currency: string; transaction_date: string },
+    opts: {
+      prepaymentAccountCode: string;
+      bankIsDebit: boolean;
+    },
+  ): Promise<[DraftVoucherLine, DraftVoucherLine]> {
+    const absAmount = Math.abs(txn.amount);
+
+    // Resolve the REAL bank account code for this transaction by joining
+    // statement → account.
+    const bankAccount = await this.db
+      .selectFrom('bank_transaction')
+      .innerJoin(
+        'bank_statement',
+        'bank_statement.id',
+        'bank_transaction.statement_id',
+      )
+      .innerJoin('account', 'account.id', 'bank_statement.account_id')
+      .select('account.code as account_code')
+      .where('bank_transaction.id', '=', transactionId)
+      .executeTakeFirstOrThrow();
+    const resolvedBankCode = bankAccount.account_code;
+
+    const org = await this.orgService.getOrganization();
+    const plugin = this.pluginLoader.resolve(org.country);
+    const baseCurrency = await this.currencyService.getBaseCurrency();
+    const fxRate = plugin.getReferenceRate(
+      txn.currency,
+      baseCurrency,
+      txn.transaction_date,
+    );
+    const baseAmount = Math.round(absAmount * fxRate);
+
+    const bankLeg: DraftVoucherLine = {
+      account_code: resolvedBankCode,
+      amount: absAmount,
+      currency: txn.currency,
+      base_amount: baseAmount,
+      fx_rate: fxRate,
+      is_debit: opts.bankIsDebit,
+    };
+
+    const prepaymentLeg: DraftVoucherLine = {
+      account_code: opts.prepaymentAccountCode,
+      amount: baseAmount,
+      currency: baseCurrency,
+      base_amount: baseAmount,
+      fx_rate: 1.0,
+      is_debit: !opts.bankIsDebit,
+    };
+
+    return [bankLeg, prepaymentLeg];
+  }
 
   // ── Creation ──────────────────────────────────────────────────────
 
@@ -89,29 +162,15 @@ export class PrepaymentService {
       );
     }
 
-    const absAmount = Math.abs(txn.amount);
-    const currency = txn.currency;
+    // Money received → Dr bank / Cr CUSTOMER_PREPAYMENTS (liability).
+    const lines = await this.buildBankAndPrepaymentLegs(transactionId, txn, {
+      prepaymentAccountCode: CUSTOMER_PREPAYMENTS,
+      bankIsDebit: true,
+    });
 
     const draft: DraftVoucher = {
       tax_point_date: txn.transaction_date,
-      lines: [
-        {
-          account_code: BANK_EUR,
-          amount: absAmount,
-          currency,
-          base_amount: absAmount,
-          fx_rate: 1.0,
-          is_debit: true,
-        },
-        {
-          account_code: CUSTOMER_PREPAYMENTS,
-          amount: absAmount,
-          currency,
-          base_amount: absAmount,
-          fx_rate: 1.0,
-          is_debit: false,
-        },
-      ],
+      lines,
     };
 
     const voucher = await this.postingService.postVoucher(draft);
@@ -149,29 +208,15 @@ export class PrepaymentService {
       );
     }
 
-    const absAmount = Math.abs(txn.amount);
-    const currency = txn.currency;
+    // Money sent → Dr SUPPLIER_PREPAYMENTS (asset) / Cr bank.
+    const lines = await this.buildBankAndPrepaymentLegs(transactionId, txn, {
+      prepaymentAccountCode: SUPPLIER_PREPAYMENTS,
+      bankIsDebit: false,
+    });
 
     const draft: DraftVoucher = {
       tax_point_date: txn.transaction_date,
-      lines: [
-        {
-          account_code: SUPPLIER_PREPAYMENTS,
-          amount: absAmount,
-          currency,
-          base_amount: absAmount,
-          fx_rate: 1.0,
-          is_debit: true,
-        },
-        {
-          account_code: BANK_EUR,
-          amount: absAmount,
-          currency,
-          base_amount: absAmount,
-          fx_rate: 1.0,
-          is_debit: false,
-        },
-      ],
+      lines,
     };
 
     const voucher = await this.postingService.postVoucher(draft);
