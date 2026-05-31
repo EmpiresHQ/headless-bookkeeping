@@ -1,3 +1,6 @@
+import type { CorrectionRequest } from '../types';
+import type { DraftVoucher } from '../../ledger/voucher/types';
+
 export type CorrectionParams = {
   objectType: 'expense' | 'sales_invoice';
   objectId: number;
