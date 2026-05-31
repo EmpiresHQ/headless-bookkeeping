@@ -6,8 +6,14 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 > **This `.omo` file is the canonical, authoritative spec — execute from it.** Channels (email/Telegram), the intent router, advisory chat, and SecretaryAgent outreach are **Wave 8**, not here.
 
 ## Prerequisites
-- **Waves 4-6 complete**: documents/triage, reconciliation, periods/approvals/agents/admin, API token.
-- **Runtime prerequisite (verify FIRST):** Mastra needs **Node ≥22 and ESM** (`@mastra/core` is ESM-first). Confirm the app's Node version + module setup; resolve any CJS/ESM interop before building on it (a Task-40 blocker if unmet).
+- **Waves 4-6 complete** — Wave 7 hard-depends on aggregates that those waves build:
+  - **Wave-5 Task 33** `entity` (supplier identity) — Pass 2's supplier-proposal tool.
+  - **Wave-5 Task 32** `document_vat_marking` (the OCR field renamed from `vat_code`) — Pass 2 emits it, never a VAT code.
+  - **Wave-5 Task 38** purchase-side triage outcomes (`new_expense|correction|duplicate|unknown`, no `sales_invoice`) — the live triage path the AI feeds.
+  - **Wave-6 Task 29** `approval` (+ `workflow_run_id`) — the durable-suspend correlation + HITL.
+  - **Wave-6 Task 36** `conversation`/`artifact` (incl. `ocr_markdown` kind) — Pass-1 markdown audit home.
+- ⚠️ **RE-REVIEW GATE (Codex W7 review):** Wave 5 is already in implementation — its tasks **cannot be re-tightened from here**. So **re-review this Wave-7 plan AFTER Wave 5 ships**, verifying the prerequisites actually landed as specified (purchase-side outcomes, `document_vat_marking`, `entity`). Do not dispatch Wave-7 agents until that re-review passes. (Wave-6 prerequisites we *can* still tighten — and have: `approval.workflow_run_id`, `artifact.kind += ocr_markdown`.)
+- **Runtime prerequisite (verify FIRST):** Mastra needs **Node ≥22 and ESM** (`@mastra/core` is ESM-first). Node is fine (22.x), but `package.json` has **no `"type": "module"`** and tsconfig is `nodenext` — Task 40 must explicitly resolve the ESM/CJS module strategy before building on Mastra.
 - `npm run build` and `npm test` pass.
 
 ## Definition of Done
@@ -29,10 +35,12 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 - [ ] 40. Mastra runtime + tool layer (embed + invariant)
 
   **What to do**:
-  - Add `@mastra/core` (pin the version — API churn) and a `MastraService` NestJS provider wrapping the `Mastra` instance (agents/workflows/storage). dev-server NOT used — embedded library only.
+  - **ESM strategy (researched — Codex W7 P2):** keep Nest **CommonJS** (do NOT add `"type":"module"`); keep tsconfig **`module: nodenext`** (Node 22.22 — and nodenext *preserves* dynamic `import()` in emitted CJS, whereas `module:commonjs` downlevels it to `require()` and throws `ERR_REQUIRE_ESM`). **Do NOT use SWC** (it emits ESM under nodenext — breaks; Nest's SWC recipe needs `commonjs`); use `tsc`/`nest build`. Full ESM migration is deferred to Nest v12 — not now.
+  - Add `@mastra/core` (pin the version — API churn; `engines: node>=22.13`, dual ESM+CJS build) and a `MastraService` NestJS provider. **Load Mastra via an async factory provider using dynamic `import()`** (`useFactory: async () => await import('@mastra/core')`) — the safe default that survives `ERR_REQUIRE_ASYNC_MODULE` if a transitive dep uses top-level await. (Smoke-test a plain `require('@mastra/core')` first; if it works synchronously, a normal import is fine.) dev-server NOT used — embedded library only.
   - **Storage:** point Mastra's storage at SQLite (LibSQL) — its snapshot/memory tables live **alongside** our domain tables, NOT replacing `Approval`/`Conversation` (ledger/Approval = SoR, VISION §505).
   - **Model profiles:** wire the CONFIG LLM profiles (`ocr`, `processing`, …) to Mastra's model router (provider/model/temperature per task).
-  - **Tool layer (the invariant):** define tools as thin wrappers over kernel services. **Read-tools** (`searchSuppliers`, `listCategories`, `getClassificationMemory`, `previewCategoryMapping`) free; the only **write-tool** `proposeDraft` funnels through Rules→Policy→post. **No `post()` tool.** Minimal toolset per agent (ADR-0018). Tool schemas in **Zod**.
+  - **Tool layer (the invariant):** define tools as thin wrappers over kernel services. **Read-tools** (`searchSuppliers`, `listCategories`, `getClassificationMemory`, `previewCategoryMapping`) free; the only **write-tool** `proposeDraft`. **No `post()` tool.** Minimal toolset per agent (ADR-0018). Tool schemas in **Zod**.
+  - **`proposeDraft` contract (Codex W7 P1):** the pipeline does NOT accept a raw AI proposal — it operates on an existing business object (`expense`/`sales_invoice`) and updates that table. So `proposeDraft(TriageResult)` = **create the `Expense` business object** (via the existing `ExpensesService.createExpense`, purchase-side per Wave-5 Task 38) from the validated `TriageResult`, then run the **existing** `generateDraftVoucher → posting pipeline (Rules→Policy→post)`. No new pipeline entry-point, no ad-hoc posting — it reuses the Wave-3/4 path. The agent never sees the voucher/post; it only proposes the business object.
 
   **Must NOT do**:
   - Do NOT give any agent a tool that writes the ledger directly / bypasses the pipeline (ADR-0012/0019). No `post` tool.
@@ -70,7 +78,8 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 - [ ] 42. Pass 2 — Mastra agent + tools → structured TriageResult
 
   **What to do**:
-  - A Mastra **agent** over the Pass-1 markdown with read-tools (`searchSuppliers`/`listCategories`/`getClassificationMemory`), emitting **`structuredOutput`** = Zod `TriageResult`: `gross_amount`, `vat_amount`, **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`.
+  - **Replace the Wave-4 TS-interface `TriageResult` with a Zod schema (Codex W7 P0)** — the validated AI-output contract. The current `src/triage/types.ts` interface still has a `vat_code` field; **remove it**. Fields: `gross_amount`, `vat_amount`, **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`. **No `vat_code`, no account** — the plugin resolves account+VAT (ADR-0002); the marking is evidence, never authority.
+  - A Mastra **agent** over the Pass-1 markdown with read-tools (`searchSuppliers`/`listCategories`/`getClassificationMemory`) emits **`structuredOutput`** = that Zod `TriageResult`.
   - **Bounded retry** on invalid structured output; if still invalid → hand to the suspend gate (Task 43), never post garbage.
   - `classification memory` fed as an advisory prior (CONTEXT.md — never a gate).
 
@@ -92,7 +101,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **What to do**:
   - A Mastra **Workflow**: `pass1 (OCR→markdown) → pass2 (agent) → approval gate`. The gate `suspend()`s on low confidence / uncertain supplier or category; the snapshot **persists to storage (survives restart/deploy)**.
-  - **Correlate the suspend with a domain `Approval`** (Wave-6) — the Approval is the SoR + the thing a channel shows the user; the Mastra run is keyed by `approval_id`.
+  - **Correlate the suspend with a domain `Approval`** (Wave-6) — the Approval is the SoR + the thing a channel shows the user. **Correlation storage (Codex W7 P1):** persist the Mastra `runId` on the approval row — column **`approval.workflow_run_id`** (added forward-compat in Wave-6 Task 29). On suspend: create the Approval with `workflow_run_id = run.id`. On resolution: look up `workflow_run_id` by `approval.id` → `run.resume(...)`. (Survives restart: both the Mastra snapshot and the Approval row are on disk.)
   - **Resume on external event:** when the Approval resolves (Wave-8 channel, or the HTTP API in Wave 7), call `run.resume({...resumeData})` with the human decision; the workflow continues → `proposeDraft` → pipeline.
   - Real-DI test: uncertain result → workflow suspends + Approval row pending; **kill/recreate the process**, then resume by `runId` → posts. (Proves durability across restart.)
 
@@ -112,8 +121,8 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 - [ ] 44. Confidence → Policy + AI-provenance audit
 
   **What to do**:
-  - **Un-stub** the Policy `auto_post_min_confidence` gate to consume the real Pass-2 confidence: below threshold → Approval (suspend); at/above → eligible for auto-post (still subject to other Policy/Rules). Confidence is a **Policy** input, never Rules (CONTEXT.md).
-  - **Persist AI provenance**: the raw `TriageResult` proposal + **model id/version** + a reference to the `ocr_markdown` Artifact, tied to the business object — so "why did the AI propose this" is reconstructable. Operational record, **outside** the hash chain.
+  - **Confidence input contract (Codex W7 P1):** `PolicyService.decide()` today takes only `(DraftVoucher, RuleResult[])` — there is no confidence channel. Add a **`PolicyContext { confidence?, supplierKnown?, … }`** parameter threaded from the pipeline, and **un-stub** the `auto_post_min_confidence` gate to read `context.confidence`: below threshold → Approval (suspend); at/above → auto-post-eligible (still subject to other Policy/Rules). Confidence is a **Policy** input, never Rules / never a voucher field (CONTEXT.md, ADR-0024).
+  - **AI provenance table (Codex W7 P1):** new `ai_proposal` table — `id`, `business_object_type`, `business_object_id`, `model_id`, `model_version`, `raw_triage_result` (JSON), `ocr_artifact_id` (FK → artifact), `confidence`, `created_at`. Written when an AI-originated draft is created; lets "why did the AI propose this" be reconstructed. **Operational record, outside the hash chain** — the voucher schema gets NO provenance field.
   - Real-DI tests for both branches (below/above threshold) + provenance row exists for a posted AI-originated voucher.
 
   **Must NOT do**:
