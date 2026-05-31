@@ -5,6 +5,7 @@ import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
 import request from 'supertest';
+import type { Response } from 'supertest';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
@@ -56,8 +57,10 @@ describe('AdminController (integration)', () => {
     await request(app.getHttpServer())
       .get('/admin/accounts')
       .expect(401)
-      .expect((res) => {
-        expect(res.body.message).toBe('Invalid or missing admin key');
+      .expect((res: Response) => {
+        expect((res.body as { message: string }).message).toBe(
+          'Invalid or missing admin key',
+        );
       });
   });
 
@@ -66,8 +69,10 @@ describe('AdminController (integration)', () => {
       .get('/admin/accounts')
       .set('x-admin-key', 'wrong')
       .expect(401)
-      .expect((res) => {
-        expect(res.body.message).toBe('Invalid or missing admin key');
+      .expect((res: Response) => {
+        expect((res.body as { message: string }).message).toBe(
+          'Invalid or missing admin key',
+        );
       });
   });
 
@@ -154,9 +159,7 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    const target = res.body.find(
-      (a: { code: string }) => a.code === 'CASH',
-    );
+    const target = res.body.find((a: { code: string }) => a.code === 'CASH');
     expect(target).toBeDefined();
     expect(target.balance).toBe(10000);
   });

@@ -31,7 +31,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
 ## TODOs
 
-- [ ] 27. ReportingPeriod lock + filing guard
+- [x] 27. ReportingPeriod lock + filing guard
 
   **What to do**:
   - Implement period locking per ADR-0009 and ADR-0015:
@@ -113,7 +113,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: `src/reporting-periods/reporting-periods.controller.ts`, `src/ledger/posting/posting.service.ts` (add lock check)
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 28. VAT report snapshot
+- [x] 28. VAT report snapshot
 
   **What to do**:
   - `VATReportService.generate(periodId: number): VatReport`:
@@ -191,7 +191,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: `src/vat-report/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 29. Approval lifecycle
+- [x] 29. Approval lifecycle
 
   **What to do**:
   - Create `src/approvals/` module
@@ -268,7 +268,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: `src/approvals/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 30. AuditFinding + Agent stubs
+- [x] 30. AuditFinding + Agent stubs
 
   **What to do**:
   - **AuditFinding** (ADR-0018):
@@ -361,7 +361,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: `src/agents/`, `src/audit-findings/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 31. Admin API endpoints
+- [x] 31. Admin API endpoints
 
   **What to do**:
   - Create `src/admin/` module with read-only or simple state-transition endpoints:
@@ -439,7 +439,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: `src/admin/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 36. Conversation aggregate + router resolution
+- [x] 36. Conversation aggregate + router resolution
 
   > **Origin:** Cross-border/intake grilling — planning-gap finding. Communication is multi-turn (client → agent → client → agent): the first email carries the **Document**; replies do not re-attach it. Without a persisted, auditable **Conversation**, a bare reply is orphaned and the original Document can't be reused. ADR-0016 treats per-channel context as transient router input; ADR-0018 puts "conversational-state" in Mastra (ephemeral). Neither persists an auditable thread with artifacts. This builds the **Conversation** aggregate. See CONTEXT.md (**Conversation**, **Message**, **Artifact**), ADR-0016 (amended), ADR-0018 (amended), and DOMAIN-MODEL.md (intake flow + Conversation lifecycle).
 
@@ -487,7 +487,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: migrations + `src/conversations/` (service-level aggregate; no router/channel wiring — deferred)
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 37. Dividend distribution (declaration + settlement disposition)
+- [x] 37. Dividend distribution (declaration + settlement disposition)
 
   > **Origin:** Cross-border/withdrawal grilling. The v1 primary persona is a one-person **company** whose **main owner-withdrawal path is dividends** (payroll deferred to a domain plugin, ADR-0022). Dividends were unmodelled. A dividend is an **equity distribution, not an expense** (ADR-0023): declare → Dividend-payable → settle against a bank line. Withholding tax and the distributable-profits cap are **country-plugin** rules. Wave-5 already reserved the `dividend` value in the bank-transaction disposition enum (Task 21); this wires the whole flow.
 

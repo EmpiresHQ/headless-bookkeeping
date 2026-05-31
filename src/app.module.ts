@@ -18,7 +18,9 @@ import { BankModule } from './bank/bank.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { AuditFindingsModule } from './audit-findings/audit-findings.module';
 import { AgentsModule } from './agents/agents.module';
-import { VatReportModule } from './vat-report/vat-report.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { DividendsModule } from './dividends/dividends.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -41,7 +43,9 @@ import { VatReportModule } from './vat-report/vat-report.module';
     ReconciliationModule,
     AuditFindingsModule,
     AgentsModule,
-    VatReportModule,
+    ConversationsModule,
+    DividendsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

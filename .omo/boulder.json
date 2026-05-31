@@ -8,7 +8,7 @@
       "plan_name": "wave-6-agents-admin",
       "status": "active",
       "started_at": "2026-05-31T20:46:48.010Z",
-      "updated_at": "2026-05-31T20:46:48.010Z",
+      "updated_at": "2026-05-31T21:17:17.822Z",
       "session_ids": [
         "opencode:ses_18035f62fffepbex2WYoi1iIAq"
       ],
@@ -17,13 +17,28 @@
       },
       "agent": "atlas",
       "worktree_path": null,
-      "elapsed_ms": 0
+      "elapsed_ms": 0,
+      "task_sessions": {
+        "todo:27": {
+          "task_key": "todo:27",
+          "task_label": "27",
+          "task_title": "ReportingPeriod lock + filing guard",
+          "session_id": "opencode:ses_1803044e8ffejMQAO4XQpDpnrA",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-31T21:17:17.822Z",
+          "started_at": "2026-05-31T21:05:59.880Z",
+          "status": "completed",
+          "ended_at": "2026-05-31T21:17:17.822Z",
+          "elapsed_ms": 677942
+        }
+      }
     }
   },
   "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
   "started_at": "2026-05-31T20:46:48.010Z",
   "status": "active",
-  "updated_at": "2026-05-31T20:46:48.010Z",
+  "updated_at": "2026-05-31T21:17:17.822Z",
   "session_ids": [
     "opencode:ses_18035f62fffepbex2WYoi1iIAq"
   ],
@@ -31,7 +46,21 @@
     "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
   },
   "plan_name": "wave-6-agents-admin",
-  "task_sessions": {},
+  "task_sessions": {
+    "todo:27": {
+      "task_key": "todo:27",
+      "task_label": "27",
+      "task_title": "ReportingPeriod lock + filing guard",
+      "session_id": "opencode:ses_1803044e8ffejMQAO4XQpDpnrA",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-31T21:17:17.822Z",
+      "started_at": "2026-05-31T21:05:59.880Z",
+      "status": "completed",
+      "ended_at": "2026-05-31T21:17:17.822Z",
+      "elapsed_ms": 677942
+    }
+  },
   "agent": "atlas",
   "worktree_path": null,
   "elapsed_ms": 0

@@ -20,6 +20,7 @@ export interface Database {
   reconciliation_match: ReconciliationMatchTable;
   approval: ApprovalTable;
   audit_finding: AuditFindingTable;
+  vat_report: VatReportTable;
   conversation: ConversationTable;
   message: MessageTable;
   artifact: ArtifactTable;
