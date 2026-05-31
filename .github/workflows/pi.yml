@@ -73,13 +73,31 @@ jobs:
             ${{ github.event.comment.body }}
 
             ---
-            You are running in GitHub Actions on an ephemeral runner: any file
-            edits are discarded unless you open or update a pull request. When
-            the task involves code changes you MUST finish by calling
+            You are running in GitHub Actions on an ephemeral runner with a HARD
+            15-minute limit: any file edits are discarded unless you open or
+            update a pull request. Speed matters — work in ONE decisive pass:
+
+            - Read ONLY the files directly relevant to the task. Do not explore
+              the codebase broadly or "just to be sure".
+            - NEVER repeat a tool call. If you have already read a file or run a
+              search, trust that result — do not read or search it again.
+            - Decide your approach in the first few steps, then implement it. Do
+              not re-plan, second-guess, or restart once you have begun.
+            - If you notice you are about to repeat an action you already did,
+              STOP and move straight to finalizing the pull request instead.
+
+            TESTS — STRICT RULE: run the test / lint / typecheck command at most
+            ONCE for the whole task, and only after you have finished editing.
+            Do NOT re-run a suite to "double-check", to watch it pass again, or
+            after a tiny edit. If a run fails, read the error, make ONE focused
+            fix, re-run ONCE more — then stop regardless and finalize the PR. You
+            get a MAXIMUM of two test runs total. Never run the same command a
+            third time.
+
+            When the task involves code changes you MUST finish by calling
             create_pull_request (for an issue) or update_pull_request (for an
             existing PR) — never stop after only editing files or describing the
-            change. Run lint / typecheck / tests to verify when feasible before
-            finalizing.
+            change.
           trigger: '@pi'
           provider: openrouter
           model: deepseek/deepseek-v4-flash
@@ -153,13 +171,31 @@ jobs:
             ${{ github.event.comment.body }}
 
             ---
-            You are running in GitHub Actions on an ephemeral runner: any file
-            edits are discarded unless you open or update a pull request. When
-            the task involves code changes you MUST finish by calling
+            You are running in GitHub Actions on an ephemeral runner with a HARD
+            15-minute limit: any file edits are discarded unless you open or
+            update a pull request. Speed matters — work in ONE decisive pass:
+
+            - Read ONLY the files directly relevant to the task. Do not explore
+              the codebase broadly or "just to be sure".
+            - NEVER repeat a tool call. If you have already read a file or run a
+              search, trust that result — do not read or search it again.
+            - Decide your approach in the first few steps, then implement it. Do
+              not re-plan, second-guess, or restart once you have begun.
+            - If you notice you are about to repeat an action you already did,
+              STOP and move straight to finalizing the pull request instead.
+
+            TESTS — STRICT RULE: run the test / lint / typecheck command at most
+            ONCE for the whole task, and only after you have finished editing.
+            Do NOT re-run a suite to "double-check", to watch it pass again, or
+            after a tiny edit. If a run fails, read the error, make ONE focused
+            fix, re-run ONCE more — then stop regardless and finalize the PR. You
+            get a MAXIMUM of two test runs total. Never run the same command a
+            third time.
+
+            When the task involves code changes you MUST finish by calling
             create_pull_request (for an issue) or update_pull_request (for an
             existing PR) — never stop after only editing files or describing the
-            change. Run lint / typecheck / tests to verify when feasible before
-            finalizing.
+            change.
           trigger: '@superpi'
           provider: openrouter
           model: moonshotai/kimi-k2.6
@@ -235,13 +271,31 @@ jobs:
             ${{ github.event.comment.body }}
 
             ---
-            You are running in GitHub Actions on an ephemeral runner: any file
-            edits are discarded unless you open or update a pull request. When
-            the task involves code changes you MUST finish by calling
+            You are running in GitHub Actions on an ephemeral runner with a HARD
+            15-minute limit: any file edits are discarded unless you open or
+            update a pull request. Speed matters — work in ONE decisive pass:
+
+            - Read ONLY the files directly relevant to the task. Do not explore
+              the codebase broadly or "just to be sure".
+            - NEVER repeat a tool call. If you have already read a file or run a
+              search, trust that result — do not read or search it again.
+            - Decide your approach in the first few steps, then implement it. Do
+              not re-plan, second-guess, or restart once you have begun.
+            - If you notice you are about to repeat an action you already did,
+              STOP and move straight to finalizing the pull request instead.
+
+            TESTS — STRICT RULE: run the test / lint / typecheck command at most
+            ONCE for the whole task, and only after you have finished editing.
+            Do NOT re-run a suite to "double-check", to watch it pass again, or
+            after a tiny edit. If a run fails, read the error, make ONE focused
+            fix, re-run ONCE more — then stop regardless and finalize the PR. You
+            get a MAXIMUM of two test runs total. Never run the same command a
+            third time.
+
+            When the task involves code changes you MUST finish by calling
             create_pull_request (for an issue) or update_pull_request (for an
             existing PR) — never stop after only editing files or describing the
-            change. Run lint / typecheck / tests to verify when feasible before
-            finalizing.
+            change.
           trigger: '@cheapi'
           provider: openrouter
           model: qwen/qwen3-235b-a22b-2507
