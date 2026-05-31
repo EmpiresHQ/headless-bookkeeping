@@ -27,30 +27,28 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
 
 ---
 
-## Prologue — carried from the Wave-3 review (do first)
+## TODOs
 
-These are remediations from the Wave-3 pipeline code review. They harden the posting path that Wave-4 intake feeds documents into, so knock them out **before Task 20 (intake integration)** — the end-to-end intake flow should run over the corrected pipeline, not the Wave-3 one. Each carries an ADR decision (see references).
+> **Wave-3 learnings correction:** `.omo/notepads/wave-3-pipeline/learnings.md` (Task 14) claims "Override is logged atomically with posting via `logOverride()`." That is **not** what shipped — `logOverride` was never called from the pipeline. W3-1 makes the claim true.
 
-- [ ] W3-1. **Persist the Override atomically + prove the override path end-to-end (Findings A, B, E).** In `PostingPipelineService.atomicPost`, call `PolicyService.logOverride(...)` **inside the same transaction** as the voucher write and status update — an overridden post and its `override` row commit or roll back together (ADR-0005 / ADR-0012 amendments). While here: stop reverse-engineering `ResolvedLine.category` from the account-code prefix — carry the business object's real category into `SemanticValidationContext` as a single value, and drop the `accountCode.startsWith('EXPENSE_')` hack.
+- [ ] 1. **Persist the Override atomically + prove the override path end-to-end (Findings A, B, E).** [W3-1] In `PostingPipelineService.atomicPost`, call `PolicyService.logOverride(...)` **inside the same transaction** as the voucher write and status update — an overridden post and its `override` row commit or roll back together (ADR-0005 / ADR-0012 amendments). While here: stop reverse-engineering `ResolvedLine.category` from the account-code prefix — carry the business object's real category into `SemanticValidationContext` as a single value, and drop the `accountCode.startsWith('EXPENSE_')` hack.
   - **Must NOT do**: do NOT expose a free-standing override endpoint (AC-6 still holds); do NOT make `NullCountryPlugin` reject things — it stays permissive by design.
   - **Acceptance**: a **full-pipeline e2e test using a strict test plugin** forces a semantic failure, supplies an override, and asserts (a) the object posts, (b) exactly one `override` row exists bound to the business object, and (c) without the override the same post holds for approval. The override row and the voucher are written in one transaction (kill the DB mid-test → neither exists).
   - **References**: ADR-0005 (Wave-3 review amendment), ADR-0012 (Wave-3 review note), ADR-0015.
 
-- [ ] W3-2. **Real FX in draft generation (Finding C).** Add `getReferenceRate(fromCurrency, toCurrency, taxPointDate): number` to the `CountryPlugin` interface. In both draft generators replace the dead `const fxRate = isBaseCurrency ? 1 : 1` ternary: source the rate from the plugin, set `base_amount = round(amount × rate)` via `CurrencyService.convertToBase`, and let the structural tier enforce the account-currency match. `NullCountryPlugin` returns `1.0` same-currency and a documented stub cross-currency.
+- [ ] 2. **Real FX in draft generation (Finding C).** [W3-2] Add `getReferenceRate(fromCurrency, toCurrency, taxPointDate): number` to the `CountryPlugin` interface. In both draft generators replace the dead `const fxRate = isBaseCurrency ? 1 : 1` ternary: source the rate from the plugin, set `base_amount = round(amount × rate)` via `CurrencyService.convertToBase`, and let the structural tier enforce the account-currency match. `NullCountryPlugin` returns `1.0` same-currency and a documented stub cross-currency.
   - **Must NOT do**: do NOT post realized FX gain/loss (no settlement voucher exists in Wave 3/4 — deferred per ADR-0004); do NOT source the rate in the kernel; do NOT accept a free caller-supplied rate (the VAT-base rate is prescribed, ADR-0004).
   - **Acceptance**: a non-base-currency expense/invoice posts with `fx_rate ≠ 1` and `base_amount = round(amount × rate)`, balanced in base currency; a foreign line targeting a single-currency account that mismatches is rejected by Rules (real-DI test, G2).
   - **References**: ADR-0004 (Wave-3 review amendment).
 
-- [ ] W3-3. **Gapless sequential voucher number + atomic idempotency claim (Findings D, F).** Mint a single per-Organization gapless sequential `voucher_number` (e.g. `V-YYYY-NNNNNN`) inside `PostingService` at post time — kill the `DRAFT-EXP-${id}-${Date.now()}` scheme and the dual numbering. Replace the check-then-act idempotency guard with one conditional `UPDATE … SET status='posting' WHERE id=? AND status='draft'` (0 rows → 409) inside the posting transaction.
+- [ ] 3. **Gapless sequential voucher number + atomic idempotency claim (Findings D, F).** [W3-3] Mint a single per-Organization gapless sequential `voucher_number` (e.g. `V-YYYY-NNNNNN`) inside `PostingService` at post time — kill the `DRAFT-EXP-${id}-${Date.now()}` scheme and the dual numbering. Replace the check-then-act idempotency guard with one conditional `UPDATE … SET status='posting' WHERE id=? AND status='draft'` (0 rows → 409) inside the posting transaction.
   - **Must NOT do**: do NOT derive the number from the business object; do NOT carry a `DRAFT-` prefix or a timestamp into a posted voucher; do NOT leave a gap when a post rolls back (allocate within the transaction).
   - **Acceptance**: posting N vouchers yields a gapless sequence incrementing by exactly 1 (proven by a test); a concurrent/retried `/post` produces no second voucher and returns 409; the sequence advances in lockstep with the ADR-0013 hash chain.
   - **References**: ADR-0021 (new), ADR-0013, ADR-0020.
 
-> **Wave-3 learnings correction:** `.omo/notepads/wave-3-pipeline/learnings.md` (Task 14) claims "Override is logged atomically with posting via `logOverride()`." That is **not** what shipped — `logOverride` was never called from the pipeline. W3-1 makes the claim true.
-
 ---
 
-## TODOs
+## Completed Tasks
 
 - [x] 16. Document schema + filesystem storage + dedup
 
