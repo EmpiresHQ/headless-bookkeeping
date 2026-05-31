@@ -93,6 +93,27 @@ Inbound message arrives (channel adapter)
 - **Retrieval for modification:** a **correction** of a posted object (reversal + repost, ADR-0010/ADR-0006) fetches the associated Conversation(s) — open *or* closed — via the M:N association, to recover the original dialogue and **Artifact**s as context. A correction arriving on a *different* thread/channel starts a **new** Conversation associated to the same object (which can then pull the prior closed one for context).
 - The closed Conversation is never mutated to rewrite history; reopen/append and new-linked-Conversation are both append-only, audit-preserving.
 
+## AI ingestion (Mastra, Wave 7)
+
+The "AI proposes" layer — real OCR + agentic classification — embedded in-process on **Mastra** (ledger stays SoR). Replaces the Wave-4 stub. See ADR-0024.
+
+```
+[Pass 1: OCR → markdown]            vision model; transcribe, don't structure;
+        │                          markdown stored as Conversation Artifact (audit + replay anchor)
+[Pass 2: Mastra agent + tools]     read-tools (searchSuppliers/listCategories/memory) →
+        │                          Zod-validated TriageResult (amounts, document tax-point date,
+        │                          supplier proposal, category, document_vat_marking, confidence)
+[Approval gate]                    low confidence / uncertain supplier|category →
+        │                          Workflow suspend() (durable snapshot, survives restart)
+        │                          + domain Approval (SoR); resume on Approval resolution (Wave-8 channel)
+        ▼
+   proposeDraft → Rules → Policy → post   (the only ledger path)
+```
+
+- **Boundary invariant:** only schema-validated structured output crosses into the kernel (no free text); bounded-retry-then-suspend. Confidence → **Policy** (not Rules). Classification proposes **category + supplier**, never account/VAT (plugin sole resolver, ADR-0002). Tools wrap services: read-free / write-via-pipeline / **no `post()` tool** / minimal per agent (ADR-0018/0012/0019).
+- **Non-determinism outside the chain:** the AI proposal + model id/version + markdown are persisted for audit; the hash-chained ledger only sees the deterministic posted voucher.
+- **Runtime:** Mastra (Zod, durable suspend/resume, workflow). `pi-agent-core` evaluated, rejected (no first-class structured output / durable suspend) — ADR-0024.
+
 ## State machines
 
 Several aggregates are **FSM-governed** — status is only ever changed via a defined transition, never an arbitrary write (the service rejects illegal transitions). Consistent posture across the system:
