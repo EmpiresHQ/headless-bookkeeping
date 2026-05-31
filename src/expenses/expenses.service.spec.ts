@@ -120,7 +120,7 @@ describe('ExpensesService (integration)', () => {
       const expense = await service.createExpense(sampleDto());
       const draft = await service.generateDraftVoucher(expense.id);
 
-      expect(draft.voucher_number).toMatch(/^DRAFT-EXP-/);
+      expect(draft.voucher_number).toBe('PENDING');
       expect(draft.tax_point_date).toBe('2026-03-15');
       expect(draft.lines).toHaveLength(3);
 

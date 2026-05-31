@@ -127,6 +127,34 @@ describe('NullCountryPlugin', () => {
     });
   });
 
+  describe('getReferenceRate', () => {
+    it('should return 1.0 when the two currencies are the same (EUR→EUR)', () => {
+      expect(plugin.getReferenceRate('EUR', 'EUR', '2026-03-15')).toBe(1.0);
+    });
+
+    it('should return 1.0 when the two currencies are the same (DKK→DKK)', () => {
+      expect(plugin.getReferenceRate('DKK', 'DKK', '2026-03-15')).toBe(1.0);
+    });
+
+    it('should throw for cross-currency (EUR→DKK)', () => {
+      expect(() => plugin.getReferenceRate('EUR', 'DKK', '2026-03-15')).toThrow(
+        'Cross-currency FX not supported in null plugin: EUR → DKK',
+      );
+    });
+
+    it('should throw for cross-currency (USD→EUR)', () => {
+      expect(() => plugin.getReferenceRate('USD', 'EUR', '2026-03-15')).toThrow(
+        'Cross-currency FX not supported in null plugin: USD → EUR',
+      );
+    });
+
+    it('should return 1.0 for same-currency regardless of date', () => {
+      // The date parameter is accepted but ignored by the null plugin
+      expect(plugin.getReferenceRate('EUR', 'EUR', '2020-01-01')).toBe(1.0);
+      expect(plugin.getReferenceRate('EUR', 'EUR', '2030-12-31')).toBe(1.0);
+    });
+  });
+
   describe('validateVATCode', () => {
     it('should return true for "NULL_STANDARD"', () => {
       expect(

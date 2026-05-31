@@ -50,8 +50,7 @@ export class ExpensesController {
       businessObjectType: 'expense',
       draftGenerator: () =>
         this.expensesService.generateDraftVoucher(expenseId),
-      categoryMapper: (accountCode) =>
-        accountCode.startsWith('EXPENSE_') ? expense.category : '',
+      category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expenseId),
       override,
     });

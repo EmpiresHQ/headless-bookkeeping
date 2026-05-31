@@ -30,6 +30,17 @@ The Wave-2 ledger **trusts** the `amount` / `currency` / `base_amount` / `fx_rat
 
 Rate sourcing, the prescribed VAT-base rate, and realized-FX computation are pipeline/plugin concerns (Wave 3+), not the ledger primitive.
 
+## Wave-3 review amendment — the plugin owns the rate via `getReferenceRate`
+
+The Wave-3 draft generators shipped with a placeholder that defeated this design: `const fxRate = isBaseCurrency ? 1 : 1` (a dead ternary) and `base_amount = amount` for every currency. A non-base-currency document therefore posted at an implicit 1:1 — and because most chart accounts carry `currency = NULL`, the account-currency-match guard did not catch it, so the ledger could silently accept an unconverted foreign amount as base. That is a silent integrity hole, not an acceptable deferral.
+
+The remediation (Wave-4 prologue, carried from the Wave-3 review) makes the rate real and sources it from the plugin, exactly where this ADR already says it lives:
+
+- The `CountryPlugin` interface gains **`getReferenceRate(fromCurrency, toCurrency, taxPointDate): number`** — the prescribed VAT-base reference rate (Art. 91) at the tax point. The kernel still never invents a rate.
+- Draft generation calls `getReferenceRate` and `CurrencyService.convertToBase` to set each line's `fx_rate` and `base_amount = round(amount × rate)`, then the structural tier enforces the **account-currency match** (a USD line cannot land in a EUR-only account).
+- `NullCountryPlugin` returns `1.0` for same-currency conversions and a documented fixed stub (or a small seeded reference table) for cross-currency, so the path is exercisable end-to-end; real ECB/customs rates land in real country plugins.
+- **Realized FX gain/loss stays out of scope** until a settlement/payment voucher exists (there is none in Wave 3) — recognition at the tax point uses a single uniform rate across the draft's lines, so the voucher still balances in base currency within the ±1-cent tolerance. The realized gain/loss only arises when a foreign position later moves, per the kernel rule above.
+
 ## FX gain/loss account granularity
 
 The canonical chart carries a **single net** `FX_GAIN_LOSS` account (`type: expense`; a net gain simply makes the balance negative), not separate `FX_GAIN` / `FX_LOSS` accounts. The account is hidden from the SMB user (ADR-0001), so gain-vs-loss split is pure P&L presentation granularity — over-built for a micro-SMB. The door stays open: a later split is the Wave-5 conditional "add `FX_GAIN` if absent" migration, to be done only if a jurisdiction's presentation requires it. This supersedes carry-forward seam #2's "add `FX_GAIN` in Wave 2".

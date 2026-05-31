@@ -11,7 +11,9 @@ import { ZodSchema, ZodError } from 'zod';
  * Type guard: returns true when `obj` has a `schema` property that is a
  * ZodSchema, allowing safe access without `as`-style type assertions.
  */
-function hasSchema(obj: Type<unknown>): obj is Type<unknown> & { schema: ZodSchema } {
+function hasSchema(
+  obj: Type<unknown>,
+): obj is Type<unknown> & { schema: ZodSchema } {
   return 'schema' in obj;
 }
 

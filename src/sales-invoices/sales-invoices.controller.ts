@@ -72,7 +72,7 @@ export class SalesInvoicesController {
       businessObjectType: 'sales_invoice',
       draftGenerator: () =>
         this.salesInvoicesService.generateDraftVoucher(invoiceId),
-      categoryMapper: (_accountCode) => 'revenue',
+      category: 'revenue',
       refetch: () => this.salesInvoicesService.getInvoiceById(invoiceId),
       override,
     });

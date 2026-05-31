@@ -93,19 +93,23 @@ export class SalesInvoicesService {
       orgContext,
     );
 
-    const isBaseCurrency = invoice.currency === baseCurrency;
-    const fxRate = isBaseCurrency ? 1 : 1;
+    const fxRate = plugin.getReferenceRate(
+      invoice.currency,
+      baseCurrency,
+      invoice.tax_point_date,
+    );
+    const baseAmount = (amount: number) => Math.round(amount * fxRate);
     const netAmount = invoice.gross_amount - invoice.vat_amount;
 
     const draft: DraftVoucher = {
-      voucher_number: invoice.invoice_number,
+      voucher_number: 'PENDING',
       tax_point_date: invoice.tax_point_date,
       lines: [
         {
           account_code: 'AR',
           amount: invoice.gross_amount,
           currency: invoice.currency,
-          base_amount: invoice.gross_amount,
+          base_amount: baseAmount(invoice.gross_amount),
           fx_rate: fxRate,
           vat_code: null,
           is_debit: true,
@@ -114,7 +118,7 @@ export class SalesInvoicesService {
           account_code: mapping.accountCode,
           amount: netAmount,
           currency: invoice.currency,
-          base_amount: netAmount,
+          base_amount: baseAmount(netAmount),
           fx_rate: fxRate,
           vat_code: mapping.vatCode,
           is_debit: false,
@@ -123,7 +127,7 @@ export class SalesInvoicesService {
           account_code: 'VAT_PAYABLE',
           amount: invoice.vat_amount,
           currency: invoice.currency,
-          base_amount: invoice.vat_amount,
+          base_amount: baseAmount(invoice.vat_amount),
           fx_rate: fxRate,
           vat_code: mapping.vatCode,
           is_debit: false,
@@ -163,6 +167,55 @@ export class SalesInvoicesService {
       })
       .where('id', '=', id)
       .execute();
+  }
+
+  async updateDraft(
+    id: number,
+    patch: {
+      gross_amount?: number;
+      vat_amount?: number;
+      category?: string;
+    },
+  ): Promise<SalesInvoice> {
+    const invoice = await this.getInvoiceById(id);
+    if (invoice.status !== 'draft' && invoice.status !== 'pending') {
+      throw new Error(
+        `Cannot update draft: sales invoice ${id} is ${invoice.status}`,
+      );
+    }
+
+    return this.patchAmounts(id, patch);
+  }
+
+  async patchAmounts(
+    id: number,
+    patch: {
+      gross_amount?: number;
+      vat_amount?: number;
+      category?: string;
+    },
+  ): Promise<SalesInvoice> {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .updateTable('sales_invoice')
+      .set({
+        ...(patch.gross_amount !== undefined && {
+          gross_amount: patch.gross_amount,
+        }),
+        ...(patch.vat_amount !== undefined && {
+          vat_amount: patch.vat_amount,
+        }),
+        updated_at: now,
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.mapRow(row);
+  }
+
+  async markReversed(id: number, newVoucherId: number): Promise<void> {
+    await this.updateInvoiceStatus(id, 'reversed', newVoucherId);
   }
 
   private mapRow(row: {

@@ -99,7 +99,7 @@ describe('SalesInvoicesService (integration)', () => {
     const invoice = await service.createInvoice(createDto());
     const draft = await service.generateDraftVoucher(invoice.id);
 
-    expect(draft.voucher_number).toBe('INV-2026-001');
+    expect(draft.voucher_number).toBe('PENDING');
     expect(draft.tax_point_date).toBe('2026-03-15');
     expect(draft.lines).toHaveLength(3);
 

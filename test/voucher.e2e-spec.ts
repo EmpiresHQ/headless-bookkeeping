@@ -138,20 +138,28 @@ describe('Voucher (e2e)', () => {
     expect(res.body).toHaveProperty('lines');
   });
 
-  it('POST /api/vouchers rejects a duplicate voucher_number with 409', async () => {
-    await request(app.getHttpServer())
+  it('POST /api/vouchers mints a fresh gapless number each time (no duplicate)', async () => {
+    const first = await request(app.getHttpServer())
       .post('/api/vouchers')
       .send({ ...balanced, voucher_number: 'V-2026-E2E-DUP' })
       .expect(201);
-    const res = await request(app.getHttpServer())
+    // Second post with same body mints a new V-YYYY-NNNNNN number
+    const second = await request(app.getHttpServer())
       .post('/api/vouchers')
       .send({ ...balanced, voucher_number: 'V-2026-E2E-DUP' })
-      .expect(409);
-    expect(res.body).toHaveProperty('message');
+      .expect(201);
+    // Both posted, but with different gapless numbers
+    expect(Reflect.get(first.body, 'voucher_number')).not.toBe(
+      Reflect.get(second.body, 'voucher_number'),
+    );
+    expect(Reflect.get(first.body, 'voucher_number')).toMatch(/^V-2026-\d{6}$/);
+    expect(Reflect.get(second.body, 'voucher_number')).toMatch(
+      /^V-2026-\d{6}$/,
+    );
   });
 
   it('GET /api/vouchers/:id returns the posted voucher with lines', async () => {
-    await request(app.getHttpServer())
+    const postRes = await request(app.getHttpServer())
       .post('/api/vouchers')
       .send({ ...balanced, voucher_number: 'V-2026-E2E-3' })
       .expect(201);
@@ -159,7 +167,11 @@ describe('Voucher (e2e)', () => {
       .get('/api/vouchers/1')
       .expect(200);
     expect(res.body).toHaveProperty('voucher_number');
-    expect(Reflect.get(res.body, 'voucher_number')).toBe('V-2026-E2E-3');
+    // Gapless sequential format: V-YYYY-NNNNNN
+    expect(Reflect.get(res.body, 'voucher_number')).toMatch(/^V-2026-\d{6}$/);
+    expect(Reflect.get(res.body, 'voucher_number')).toBe(
+      Reflect.get(postRes.body, 'voucher_number'),
+    );
     expect(res.body).toHaveProperty('lines');
     expect(Array.isArray(Reflect.get(res.body, 'lines'))).toBe(true);
   });

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { Database } from '../../database/types';
 import { toBool } from '../../database/helpers';
 import { AccountService } from '../account/account.service';
@@ -67,19 +67,39 @@ export class PostingService {
   ): Promise<PostedVoucher> {
     const postedAt = Math.floor(Date.now() / 1000);
 
+    // ── Gapless sequential voucher number (ADR-0021) ──────────────
+    // Mint V-YYYY-NNNNNN inside the posting transaction so the
+    // sequence and the hash chain advance atomically.
+    const year = draft.tax_point_date.slice(0, 4);
+
+    await trx
+      .insertInto('voucher_sequence')
+      .values({ year, last_number: 0 })
+      .onConflict((oc) => oc.column('year').doNothing())
+      .execute();
+
+    const seqResult = await trx
+      .updateTable('voucher_sequence')
+      .set({ last_number: sql`last_number + 1` })
+      .where('year', '=', year)
+      .returning('last_number')
+      .executeTakeFirstOrThrow();
+
+    const voucherNumber = `V-${year}-${String(seqResult.last_number).padStart(6, '0')}`;
+
     const previousHash = await this.chainHead(trx);
 
     const voucher = await trx
       .insertInto('voucher')
       .values({
-        voucher_number: draft.voucher_number,
+        voucher_number: voucherNumber,
         tax_point_date: draft.tax_point_date,
         posted_at: postedAt,
         previous_hash: previousHash,
-        reverses_id: null,
-        corrects_object_type: null,
-        corrects_object_id: null,
-        reason: null,
+        reverses_id: draft.reverses_id ?? null,
+        corrects_object_type: draft.corrects_object_type ?? null,
+        corrects_object_id: draft.corrects_object_id ?? null,
+        reason: draft.reason ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();

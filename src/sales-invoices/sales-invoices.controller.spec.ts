@@ -26,7 +26,7 @@ describe('SalesInvoicesController', () => {
   };
 
   const mockDraft: DraftVoucher = {
-    voucher_number: 'INV-2026-001',
+    voucher_number: 'PENDING',
     tax_point_date: '2026-03-15',
     lines: [
       {
@@ -139,7 +139,7 @@ describe('SalesInvoicesController', () => {
   it('POST /api/sales-invoices/:id/generate-draft returns a transient draft voucher', async () => {
     mockService.generateDraftVoucher.mockResolvedValue(mockDraft);
     const result = await controller.generateDraft('1');
-    expect(result.draft.voucher_number).toBe('INV-2026-001');
+    expect(result.draft.voucher_number).toBe('PENDING');
     expect(result.draft.lines).toHaveLength(3);
     expect(mockService.generateDraftVoucher).toHaveBeenCalledWith(1);
   });
@@ -167,7 +167,7 @@ describe('SalesInvoicesController', () => {
         businessObjectId: 1,
         businessObjectType: 'sales_invoice',
         draftGenerator: expect.any(Function) as () => Promise<DraftVoucher>,
-        categoryMapper: expect.any(Function) as (accountCode: string) => string,
+        category: 'revenue',
         refetch: expect.any(Function) as () => Promise<unknown>,
         override: undefined,
       });

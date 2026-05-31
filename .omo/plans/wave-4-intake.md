@@ -29,7 +29,28 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
 
 ## TODOs
 
-- [ ] 16. Document schema + filesystem storage + dedup
+> **Wave-3 learnings correction:** `.omo/notepads/wave-3-pipeline/learnings.md` (Task 14) claims "Override is logged atomically with posting via `logOverride()`." That is **not** what shipped — `logOverride` was never called from the pipeline. W3-1 makes the claim true.
+
+- [ ] 1. **Persist the Override atomically + prove the override path end-to-end (Findings A, B, E).** [W3-1] In `PostingPipelineService.atomicPost`, call `PolicyService.logOverride(...)` **inside the same transaction** as the voucher write and status update — an overridden post and its `override` row commit or roll back together (ADR-0005 / ADR-0012 amendments). While here: stop reverse-engineering `ResolvedLine.category` from the account-code prefix — carry the business object's real category into `SemanticValidationContext` as a single value, and drop the `accountCode.startsWith('EXPENSE_')` hack.
+  - **Must NOT do**: do NOT expose a free-standing override endpoint (AC-6 still holds); do NOT make `NullCountryPlugin` reject things — it stays permissive by design.
+  - **Acceptance**: a **full-pipeline e2e test using a strict test plugin** forces a semantic failure, supplies an override, and asserts (a) the object posts, (b) exactly one `override` row exists bound to the business object, and (c) without the override the same post holds for approval. The override row and the voucher are written in one transaction (kill the DB mid-test → neither exists).
+  - **References**: ADR-0005 (Wave-3 review amendment), ADR-0012 (Wave-3 review note), ADR-0015.
+
+- [ ] 2. **Real FX in draft generation (Finding C).** [W3-2] Add `getReferenceRate(fromCurrency, toCurrency, taxPointDate): number` to the `CountryPlugin` interface. In both draft generators replace the dead `const fxRate = isBaseCurrency ? 1 : 1` ternary: source the rate from the plugin, set `base_amount = round(amount × rate)` via `CurrencyService.convertToBase`, and let the structural tier enforce the account-currency match. `NullCountryPlugin` returns `1.0` same-currency and a documented stub cross-currency.
+  - **Must NOT do**: do NOT post realized FX gain/loss (no settlement voucher exists in Wave 3/4 — deferred per ADR-0004); do NOT source the rate in the kernel; do NOT accept a free caller-supplied rate (the VAT-base rate is prescribed, ADR-0004).
+  - **Acceptance**: a non-base-currency expense/invoice posts with `fx_rate ≠ 1` and `base_amount = round(amount × rate)`, balanced in base currency; a foreign line targeting a single-currency account that mismatches is rejected by Rules (real-DI test, G2).
+  - **References**: ADR-0004 (Wave-3 review amendment).
+
+- [ ] 3. **Gapless sequential voucher number + atomic idempotency claim (Findings D, F).** [W3-3] Mint a single per-Organization gapless sequential `voucher_number` (e.g. `V-YYYY-NNNNNN`) inside `PostingService` at post time — kill the `DRAFT-EXP-${id}-${Date.now()}` scheme and the dual numbering. Replace the check-then-act idempotency guard with one conditional `UPDATE … SET status='posting' WHERE id=? AND status='draft'` (0 rows → 409) inside the posting transaction.
+  - **Must NOT do**: do NOT derive the number from the business object; do NOT carry a `DRAFT-` prefix or a timestamp into a posted voucher; do NOT leave a gap when a post rolls back (allocate within the transaction).
+  - **Acceptance**: posting N vouchers yields a gapless sequence incrementing by exactly 1 (proven by a test); a concurrent/retried `/post` produces no second voucher and returns 409; the sequence advances in lockstep with the ADR-0013 hash chain.
+  - **References**: ADR-0021 (new), ADR-0013, ADR-0020.
+
+---
+
+## Completed Tasks
+
+- [x] 16. Document schema + filesystem storage + dedup
 
   **What to do**:
   - Create `src/documents/` module
@@ -104,13 +125,13 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
   - Files: `src/documents/`, `data/documents/` (ensure .gitignore)
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 17. OCR triage stub + intake routing
+- [x] 17. OCR triage stub + intake routing
 
   **What to do**:
   - Create `src/triage/` module
-  - `OCRService` stub: `extractData(documentId: number): TriageResult` — returns hardcoded mock data based on document id parity:
-    - Odd id → `{ document_type: 'receipt', entity_guess: 'Bolt', gross_amount: 1525, vat_amount: 275, suggested_category: 'transport', suggested_vat_code: 'DK_INPUT_25', confidence: 0.94 }`
-    - Even id → `{ document_type: 'invoice', entity_guess: 'OpenAI', gross_amount: 10000, vat_amount: 2500, suggested_category: 'software', suggested_vat_code: 'DK_INPUT_25', confidence: 0.98 }`
+  - `OCRService` stub: `extractData(documentId: number): TriageResult` — returns hardcoded mock data based on document id parity. **Use IE/EUR defaults (ADR-0004), and VAT codes that `NullCountryPlugin` actually accepts (`IE_INPUT_23`), or the draft will fail semantic validation:**
+    - Odd id → `{ document_type: 'receipt', entity_guess: 'Bolt', currency: 'EUR', gross_amount: 1525, vat_amount: 285, suggested_category: 'transport', suggested_vat_code: 'IE_INPUT_23', confidence: 0.94 }`
+    - Even id → `{ document_type: 'invoice', entity_guess: 'Acme Ltd', currency: 'EUR', gross_amount: 12300, vat_amount: 2300, suggested_category: 'revenue', suggested_vat_code: 'IE_OUTPUT_23', confidence: 0.98 }` (a sales invoice carries **output** VAT; the draft generator resolves `'revenue'` → `IE_OUTPUT_23` regardless, ADR-0002)
   - `TriageService.route(documentId: number): TriageOutcome`:
     - Calls OCR stub
     - Determines outcome: `new_expense`, `new_sales_invoice`, `correction`, `duplicate` (already handled in Task 16)
@@ -142,8 +163,8 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
   - ADR-0010: "Three outcomes: same document, correction/supersession, new document"
 
   **Acceptance Criteria**:
-  - [ ] `POST /api/documents/1/triage` creates an Expense with category="transport", amount=1525
-  - [ ] `POST /api/documents/2/triage` creates a SalesInvoice with category="software", amount=10000
+  - [ ] `POST /api/documents/1/triage` creates an Expense with category="transport", gross_amount=1525 (EUR)
+  - [ ] `POST /api/documents/2/triage` creates a SalesInvoice with gross_amount=12300 (EUR), output VAT
   - [ ] `GET /api/triage/pending` lists untriaged documents
   - [ ] Tests pass: `triage.service.spec.ts`
 
@@ -178,13 +199,13 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
   - Files: `src/triage/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 18. Correction flow (supersession, reversal)
+- [x] 18. Correction flow (supersession, reversal)
 
   **What to do**:
   - Implement correction logic per ADR-0010 and ADR-0006:
     1. **Cosmetic only** (address/typo; amounts unchanged) → replace Document attachment, Voucher untouched
     2. **Financial change, original still draft** → edit the draft Expense/Invoice, regenerate draft Voucher
-    3. **Financial change, original posted, period open** → create reversal Voucher (mirrored lines, negative amounts), then create corrected Voucher with new lines. Both link to original via `reverses_id` and `corrects_object`
+    3. **Financial change, original posted, period open** → create reversal Voucher (**mirrored lines: same accounts and amounts, debit/credit flipped — NOT negative amounts**; the Wave-3 hardened ledger enforces `amount > 0` / `base_amount > 0` CHECKs per ADR-0019, so a reversal negates by swapping `is_debit`, never by a negative value), then create corrected Voucher with new lines. Both link to original via `reverses_id` and `corrects_object`
     4. **Financial change, original posted, period locked** → reversal + correction in current open period with `reverses`/`corrects_object` references (period lock not enforced until Wave 6, but structure ready)
     5. **Supplier-issued credit note** → booked as its own Voucher with VAT effect, referencing original
   - `POST /api/expenses/:id/correct` — initiates correction flow
@@ -252,7 +273,7 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
   - Files: `src/corrections/` or extensions to `src/expenses/`, `src/sales-invoices/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 19. ReportingPeriod schema + CRUD
+- [x] 19. ReportingPeriod schema + CRUD
 
   **What to do**:
   - Create `src/reporting-periods/` module
@@ -324,7 +345,7 @@ This wave handles document intake (hash-based deduplication, filesystem storage)
   - Files: `src/reporting-periods/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 20. Intake integration (document → draft → pipeline)
+- [x] 20. Intake integration (document → draft → pipeline)
 
   **What to do**:
   - Integration test or endpoint that exercises the full intake → posting flow:

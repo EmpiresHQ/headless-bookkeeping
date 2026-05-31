@@ -117,15 +117,17 @@ export class RulesService {
       if (!vatValid) {
         errors.push(`Invalid VAT code: ${line.vat_code}`);
       }
+    }
 
-      const mapping = plugin.resolveCategoryMapping(
-        line.category,
-        context.supplierFacts,
-        context.orgContext,
-      );
-      if (!mapping || !mapping.accountCode) {
-        errors.push(`No category mapping for: ${line.category}`);
-      }
+    // Category mapping: use the business object's real category from the
+    // semantic context rather than reverse-engineering it from account codes.
+    const mapping = plugin.resolveCategoryMapping(
+      context.category,
+      context.supplierFacts,
+      context.orgContext,
+    );
+    if (!mapping || !mapping.accountCode) {
+      errors.push(`No category mapping for: ${context.category}`);
     }
 
     if (errors.length === 0) {
@@ -138,7 +140,7 @@ export class RulesService {
     }
 
     // Semantic rules may be overridden with a logged reason (ADR-0005, ADR-0012).
-    if (override && override.ruleType === 'semantic') {
+    if (override && override.ruleType === 'semantic' && override.reason) {
       return {
         passed: true,
         ruleType: 'semantic',

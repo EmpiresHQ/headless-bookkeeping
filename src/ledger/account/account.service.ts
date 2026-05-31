@@ -37,6 +37,16 @@ export class AccountService {
     return row ? this.mapRow(row) : null;
   }
 
+  async getAccountsByIds(ids: number[]): Promise<Account[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .selectFrom('account')
+      .selectAll()
+      .where('id', 'in', ids)
+      .execute();
+    return rows.map((r) => this.mapRow(r));
+  }
+
   private validateAccountType(type: string): AccountType {
     if (type === 'asset') return type;
     if (type === 'liability') return type;

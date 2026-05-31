@@ -2,7 +2,6 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
@@ -40,8 +39,8 @@ export interface PostingPipelineParams {
   businessObjectType: 'expense' | 'sales_invoice';
   /** Generates the transient DraftVoucher for this business object. */
   draftGenerator: () => Promise<DraftVoucher>;
-  /** Maps an account_code to a user-facing Category string for ResolvedLine.category. */
-  categoryMapper: (accountCode: string) => string;
+  /** The business object's user-facing Category (e.g. "software", "revenue"). */
+  category: string;
   /** Re-fetches the business object after a status update (for the response). */
   refetch: () => Promise<unknown>;
   /** Optional semantic rule override (ruleType + reason). */
@@ -78,17 +77,6 @@ export class PostingPipelineService {
   async runPipeline(
     params: PostingPipelineParams,
   ): Promise<PostingPipelineResult> {
-    // ── Idempotency guard ──────────────────────────────────────
-    const currentStatus = await this.getStatus(
-      params.businessObjectType,
-      params.businessObjectId,
-    );
-    if (currentStatus !== 'draft') {
-      throw new ConflictException(
-        `${this.label(params.businessObjectType)} ${params.businessObjectId} is already ${currentStatus}`,
-      );
-    }
-
     // ── 1. Generate transient draft voucher ────────────────────
     const draft = await params.draftGenerator();
 
@@ -110,7 +98,7 @@ export class PostingPipelineService {
         is_debit: l.is_debit,
         account_currency: account_currency,
         vat_code: l.vat_code ?? 'NULL_STANDARD',
-        category: params.categoryMapper(l.account_code),
+        category: params.category,
       };
     });
 
@@ -131,6 +119,7 @@ export class PostingPipelineService {
       countryCode: org.country,
       supplierFacts,
       orgContext,
+      category: params.category,
     };
 
     // ── 5. Run Rules validation ────────────────────────────────
@@ -174,7 +163,7 @@ export class PostingPipelineService {
         validAccountIds,
         'semantic',
         semanticContext,
-        params.override
+        params.override?.ruleType
           ? {
               ruleType: params.override.ruleType,
               reason: params.override.reason,
@@ -193,13 +182,10 @@ export class PostingPipelineService {
       return this.atomicPost(params, draft, resolvedLines, policyDecision);
     }
 
-    // ── 7b. Hold for approval ─────────────────────────────────
-    await this.updateStatus(
-      null, // no trx — standalone update
+    // ── 7b. Hold for approval (atomic conditional claim) ───────
+    await this.claimForApproval(
       params.businessObjectType,
       params.businessObjectId,
-      'pending',
-      null,
     );
     const businessObject = await params.refetch();
     return { businessObject, voucher: null, policy: policyDecision };
@@ -209,7 +195,9 @@ export class PostingPipelineService {
 
   /**
    * Post the voucher and update the business object status atomically
-   * within a single database transaction.
+   * within a single database transaction. The idempotency guard is a
+   * conditional UPDATE inside the transaction — no check-then-act read
+   * outside (closes the TOCTOU window, ADR-0021).
    */
   private async atomicPost(
     params: PostingPipelineParams,
@@ -219,18 +207,54 @@ export class PostingPipelineService {
   ): Promise<PostingPipelineResult> {
     try {
       const result = await this.db.transaction().execute(async (trx) => {
+        // ── Atomic idempotency claim (ADR-0021) ──────────────────
+        // Conditional UPDATE: only transition from 'draft' succeeds.
+        // Zero rows affected → already claimed/posted → ConflictException.
+        const now = Math.floor(Date.now() / 1000);
+        const claimed = await trx
+          .updateTable(params.businessObjectType)
+          .set({ status: 'posted', updated_at: now })
+          .where('id', '=', params.businessObjectId)
+          .where('status', '=', 'draft')
+          .returning('id')
+          .executeTakeFirst();
+
+        if (!claimed) {
+          const current = await trx
+            .selectFrom(params.businessObjectType)
+            .select('status')
+            .where('id', '=', params.businessObjectId)
+            .executeTakeFirst();
+          throw new ConflictException(
+            `${this.label(params.businessObjectType)} ${params.businessObjectId} is already ${current?.status ?? 'unknown'}`,
+          );
+        }
+
         const voucher = await this.postingService.postVoucherTx(
           trx,
           draft,
           resolvedLines,
         );
-        await this.updateStatus(
-          trx,
-          params.businessObjectType,
-          params.businessObjectId,
-          'posted',
-          voucher.id,
-        );
+
+        // Update voucher_id on the already-claimed object
+        await trx
+          .updateTable(params.businessObjectType)
+          .set({ voucher_id: voucher.id, updated_at: now })
+          .where('id', '=', params.businessObjectId)
+          .execute();
+
+        // Log the override atomically with the posting (ADR-0005 / ADR-0012).
+        if (params.override?.ruleType) {
+          await this.policyService.logOverrideTx(trx, {
+            business_object_type: params.businessObjectType,
+            business_object_id: params.businessObjectId,
+            rule_type: params.override.ruleType,
+            rule_name: params.override.ruleType,
+            reason: params.override.reason,
+            created_by: 'system',
+          });
+        }
+
         return { voucher };
       });
 
@@ -248,71 +272,41 @@ export class PostingPipelineService {
           errors: err.errors,
         });
       }
-      // Unique constraint on voucher_number
-      if (this.isUniqueViolation(err, 'voucher_number')) {
-        throw new ConflictException(
-          `Voucher number ${draft.voucher_number} already exists`,
-        );
-      }
       throw err;
     }
   }
 
   /**
-   * Read the current status of a business object for the idempotency guard.
-   * Throws NotFoundException if the record does not exist.
+   * Atomic conditional claim for the hold-for-approval path.
+   * Transitions status from 'draft' to 'pending' only if the object
+   * is still in 'draft'. Throws ConflictException if already claimed.
    */
-  private async getStatus(
+  private async claimForApproval(
     type: 'expense' | 'sales_invoice',
     id: number,
-  ): Promise<string> {
-    const row = await this.db
-      .selectFrom(type)
-      .select('status')
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const claimed = await this.db
+      .updateTable(type)
+      .set({ status: 'pending', updated_at: now })
       .where('id', '=', id)
+      .where('status', '=', 'draft')
+      .returning('id')
       .executeTakeFirst();
 
-    if (!row) {
-      throw new NotFoundException(`${this.label(type)} ${id} not found`);
+    if (!claimed) {
+      const current = await this.db
+        .selectFrom(type)
+        .select('status')
+        .where('id', '=', id)
+        .executeTakeFirst();
+      throw new ConflictException(
+        `${this.label(type)} ${id} is already ${current?.status ?? 'unknown'}`,
+      );
     }
-    return row.status;
-  }
-
-  /**
-   * Update the business object status (and optionally voucher_id).
-   * When `trx` is provided the update runs inside an existing transaction;
-   * otherwise it executes standalone.
-   */
-  private async updateStatus(
-    trx: Kysely<Database> | null,
-    type: 'expense' | 'sales_invoice',
-    id: number,
-    status: string,
-    voucherId: number | null,
-  ): Promise<void> {
-    const executor = trx ?? this.db;
-    const now = Math.floor(Date.now() / 1000);
-
-    await executor
-      .updateTable(type)
-      .set({
-        status,
-        voucher_id: voucherId,
-        updated_at: now,
-      })
-      .where('id', '=', id)
-      .execute();
   }
 
   private label(type: 'expense' | 'sales_invoice'): string {
     return type === 'expense' ? 'Expense' : 'SalesInvoice';
-  }
-
-  private isUniqueViolation(err: unknown, column: string): boolean {
-    return (
-      err instanceof Error &&
-      err.message.includes('UNIQUE constraint failed') &&
-      err.message.includes(column)
-    );
   }
 }

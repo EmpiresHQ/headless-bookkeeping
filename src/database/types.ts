@@ -5,10 +5,14 @@ export interface Database {
   account: AccountTable;
   voucher: VoucherTable;
   voucher_line: VoucherLineTable;
+  voucher_sequence: VoucherSequenceTable;
   expense: ExpenseTable;
   sales_invoice: SalesInvoiceTable;
   override: OverrideTable;
   policy_config: PolicyConfigTable;
+  reporting_period: ReportingPeriodTable;
+  document: DocumentTable;
+  document_source: DocumentSourceTable;
 }
 
 export interface OrganizationTable {
@@ -115,4 +119,39 @@ export interface PolicyConfigTable {
   key: string;
   value: string;
   updated_at: number;
+}
+
+export interface ReportingPeriodTable {
+  id: Generated<number>;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  filed_at: number | null;
+  vat_report_snapshot_id: number | null;
+  created_at: number;
+}
+
+export interface DocumentTable {
+  id: Generated<number>;
+  hash: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  storage_path: string | null;
+  status: string;
+  created_at: number;
+}
+
+export interface DocumentSourceTable {
+  id: Generated<number>;
+  document_id: number;
+  channel: string;
+  source_identifier: string | null;
+  received_at: number;
+}
+
+export interface VoucherSequenceTable {
+  year: string;
+  last_number: number;
 }

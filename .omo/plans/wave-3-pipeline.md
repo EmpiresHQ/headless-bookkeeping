@@ -25,7 +25,7 @@ This wave implements the full business object → draft → Rules → Policy →
 - **Schema only in migrations** — grep clean: no `createTable`/`CREATE TABLE` outside `src/database/migrations/` (G4)
 - **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
 - **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
-- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never EUR
+- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never DKK
 
 ---
 

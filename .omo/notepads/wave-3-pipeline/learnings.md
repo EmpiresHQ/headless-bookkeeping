@@ -121,3 +121,14 @@
 - Build: `nest build` exit 0, clean
 - Unit tests: all 21 test suites pass (168+ tests)
 - E2E tests: pipeline 8/8 pass; 1 pre-existing failure in voucher.e2e-spec.ts (duplicate voucher_number → 500 instead of 409, pre-dates this task)
+
+## Wave-3 review corrections (2026-05-30)
+
+A post-wave code review found that several claims above do not match what shipped. Recorded here so the notepad is not misleading; remediations are tracked as the Wave-4 prologue (`.omo/plans/wave-4-intake.md`, tasks W3-1…W3-3).
+
+- **Task 14 claim "Override is logged atomically with posting via `logOverride()`" is FALSE.** `PostingPipelineService.atomicPost` never calls `logOverride`; the override only flips an in-memory semantic result and no `override` row is ever written. This breaks the ADR-0012 "only escape valve is a *logged* Override" invariant. → W3-1.
+- **The semantic tier cannot fail through the real pipeline.** `NullCountryPlugin` accepts every VAT code it emits and falls back to `EXPENSE_OTHER` for any category, so the override path is unreachable end-to-end with the only plugin that exists. Intentional (real plugins carry failing codes), but the override path was therefore only unit-tested, never integration-tested. → W3-1 adds a strict-test-plugin e2e.
+- **`fx_rate = isBaseCurrency ? 1 : 1` is a dead ternary (both branches return 1).** Foreign-currency documents post at an implicit 1:1 with no conversion; because most chart accounts have `currency = NULL` the account-currency guard does not catch it. Silent integrity hole. → W3-2 (real `getReferenceRate`).
+- **Expense posted `voucher_number = DRAFT-EXP-${id}-${Date.now()}`** — non-deterministic, `DRAFT-` prefix on an immutable voucher, and divergent from the invoice scheme; defeats UNIQUE-based idempotency and is not gapless/sequential (statutorily required). → W3-3 + new ADR-0021.
+- **Idempotency is check-then-act (TOCTOU)**; with the gapless sequence the UNIQUE backstop disappears, so the status claim must become an atomic conditional UPDATE. → W3-3.
+- **`ResolvedLine.category` is reverse-engineered from the account-code prefix** rather than carried from the source business object. → W3-1.
