@@ -33,9 +33,16 @@ export class FXRealizedService {
    *   actual_settled_base = |source_amount| × fx_rate   (foreign leg)
    *                       = |amount|                    (same currency)
    *
+   * Direction (D1): derived from the bank-transaction sign.
+   *   isIncoming = txn.amount >= 0   (AR / receipt)  vs  outgoing (AP / payment)
+   * The realized-FX sign meaning is direction-dependent:
+   *   incoming (AR): realized < 0 → gain  (received more base than booked)
+   *   outgoing (AP): realized > 0 → gain  (paid less base than booked)
+   *   ⇒ isGain = isIncoming ? realized < 0 : realized > 0
+   *
    * Posting:
-   *   gain (realized < 0) → Dr BANK / Cr FX_GAIN_LOSS
-   *   loss (realized > 0) → Dr FX_GAIN_LOSS / Cr BANK
+   *   gain → Dr BANK / Cr FX_GAIN_LOSS
+   *   loss → Dr FX_GAIN_LOSS / Cr BANK
    *
    * @param voucherId         The voucher being settled.
    * @param bankTransactionId The bank transaction that settled it.
@@ -118,7 +125,11 @@ export class FXRealizedService {
 
     // ── Build & post system-generated FX voucher ─────────────────────
     const absRealized = Math.abs(realized);
-    const isGain = realized < 0;
+    // Direction (D1): incoming (AR) settlements have a non-negative bank
+    // amount; outgoing (AP) settlements are negative. The sign of `realized`
+    // means opposite things in each direction.
+    const isIncoming = txn.amount >= 0;
+    const isGain = isIncoming ? realized < 0 : realized > 0;
 
     const lines: DraftVoucher['lines'] = [];
 

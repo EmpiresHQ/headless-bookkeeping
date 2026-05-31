@@ -183,6 +183,80 @@ describe('FXRealizedService (integration)', () => {
   }
 
   /**
+   * Seed a foreign-currency (USD) purchase-invoice / AP voucher.
+   *
+   * Mirrors {@link seedForeignCurrencySalesInvoiceVoucher} but for the
+   * payable (outgoing) direction: Dr EXPENSE / Cr AP.
+   *
+   * @param fxRate  Booking rate: how many base-currency units per 1 USD.
+   */
+  async function seedForeignCurrencyPurchaseInvoiceVoucher(
+    grossForeignCents: number,
+    fxRate: number,
+    taxPointDate: string,
+  ): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    voucherCounter++;
+
+    const baseAmount = Math.round(grossForeignCents * fxRate);
+
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-2025-${String(voucherCounter).padStart(6, '0')}`,
+        tax_point_date: taxPointDate,
+        posted_at: now,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const apAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'AP')
+      .executeTakeFirstOrThrow();
+
+    const expenseAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'EXPENSE_SOFTWARE')
+      .executeTakeFirstOrThrow();
+
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: voucher.id,
+          account_id: expenseAccount.id,
+          amount: grossForeignCents,
+          currency: 'USD',
+          base_amount: baseAmount,
+          fx_rate: fxRate,
+          vat_code: null,
+          is_debit: 1,
+        },
+        {
+          voucher_id: voucher.id,
+          account_id: apAccount.id,
+          amount: grossForeignCents,
+          currency: 'USD',
+          base_amount: baseAmount,
+          fx_rate: fxRate,
+          vat_code: null,
+          is_debit: 0,
+        },
+      ])
+      .execute();
+
+    return voucher.id;
+  }
+
+  /**
    * Seed a bank statement with a single foreign-leg transaction.
    *
    * @param sourceAmount Cents in the source currency (e.g. USD).
@@ -332,6 +406,68 @@ describe('FXRealizedService (integration)', () => {
 
       expect(bankLine).toBeDefined();
       expect(bankLine!.amount).toBe(1_400);
+    });
+  });
+
+  describe('computeAndPost — AP (outgoing) settlement', () => {
+    it('posts a LOSS when paying MORE base than booked on an outgoing AP settlement', async () => {
+      // Scenario: USD purchase invoice booked at 7.0, bank pays at 7.14.
+      // 10 000 USD × 7.0 = 70 000 base (booked AP)
+      // 10 000 USD × 7.14 = 71 400 base (actually paid)
+      // We paid 1 400 MORE base than booked → this is a LOSS.
+      const voucherId = await seedForeignCurrencyPurchaseInvoiceVoucher(
+        10_000,
+        7.0,
+        '2025-01-10',
+      );
+
+      // Outgoing payment: negative source_amount → negative bank amount.
+      const stmt = await seedBankStatementWithForeignLeg({
+        sourceCurrency: 'USD',
+        sourceAmount: -10_000,
+        fxRate: 7.14,
+        description: 'Foreign supplier payment',
+        reference: 'BILL-FX-001',
+      });
+
+      const bankTxnId = stmt.transactions[0].id;
+
+      const result = await fxRealizedService.computeAndPost(
+        voucherId,
+        bankTxnId,
+        70_000, // matchedAmount = booked base
+      );
+
+      expect(result.status).toBe('posted');
+      expect(result.voucher).toBeDefined();
+
+      const lines = result.voucher!.lines;
+      expect(lines.length).toBe(2);
+
+      // LOSS: Dr FX_GAIN_LOSS / Cr BANK_EUR
+      const fxLine = lines.find((l) => l.is_debit);
+      const bankLine = lines.find((l) => !l.is_debit);
+
+      const fxAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'FX_GAIN_LOSS')
+        .executeTakeFirstOrThrow();
+      const bankAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'BANK_EUR')
+        .executeTakeFirstOrThrow();
+
+      // FX_GAIN_LOSS must be DEBITED (the loss).
+      expect(fxLine).toBeDefined();
+      expect(fxLine!.account_id).toBe(fxAccount.id);
+      expect(fxLine!.base_amount).toBe(1_400);
+
+      // BANK must be CREDITED.
+      expect(bankLine).toBeDefined();
+      expect(bankLine!.account_id).toBe(bankAccount.id);
+      expect(bankLine!.base_amount).toBe(1_400);
     });
   });
 
