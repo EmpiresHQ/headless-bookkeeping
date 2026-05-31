@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -197,6 +198,14 @@ describe('PersonalDispositionService (integration)', () => {
       await expect(
         personalDispositionService.markAsPersonal(txn.id),
       ).rejects.toThrow('not open');
+    });
+
+    it('rejects an incoming (non-outflow) transaction', async () => {
+      const txn = await seedBankTransaction(50000);
+
+      await expect(
+        personalDispositionService.markAsPersonal(txn.id),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

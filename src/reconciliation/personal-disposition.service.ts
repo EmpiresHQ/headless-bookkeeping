@@ -55,6 +55,16 @@ export class PersonalDispositionService {
       );
     }
 
+    // 2b. Validate transaction is an outflow (money leaving the business).
+    // Per ADR-0017, personal dispositions are outflows only. An incoming
+    // (positive-amount) transaction is not a personal disposition.
+    if (txn.amount >= 0) {
+      throw new BadRequestException(
+        `Transaction ${transactionId} is not an outflow (amount: ${txn.amount}); ` +
+          `personal dispositions only apply to money leaving the business`,
+      );
+    }
+
     // 3. Get org_type from organization
     const org = await this.orgService.getOrganization();
     const orgType = org.org_type;
