@@ -17,7 +17,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 - Approval lifecycle supports pending → approved/rejected/superseded
 - 5 agent stubs exist; **AuditAgent sweep is a no-op** — demo findings come only via a seed/fixture, never the cron (Task 30)
 - Admin API endpoints provide read-only diagnostics behind the **table-backed `ApiTokenGuard`** (Task 39), not a hardcoded key
-- **Task 39 (API token) lands BEFORE the final QA pass.** Once it does, every `/api` + `/admin` QA curl / e2e uses `Authorization: Bearer <token>` (use the seeded dev token); only `/health` and the open document-ingest webhook stay unauthenticated. (The per-task QA snippets below omit the header for brevity — add it.)
+- **Task 39 (API token) lands BEFORE the final QA pass.** Once it does, every `/api` + `/admin` QA curl / e2e uses `Authorization: Bearer <token>` (use the seeded dev token); in v1 only `/health` stays unauthenticated (`POST /api/documents` is gated too; channel-webhook exemptions are future). (The per-task QA snippets below omit the header for brevity — add it.)
 - Agent-executed QA scenarios pass with evidence captured
 - Git commit records the wave
 - **Wave gate — ALL green, exactly as CI runs them** (see `.omo/plans/engineering-guardrails.md`): `npm run build && npm run lint && npm run test && npm run test:e2e`
@@ -35,11 +35,12 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **What to do**:
   - Implement period locking per ADR-0009 and ADR-0015:
-    - `POST /api/reporting-periods/:id/lock` — changes status from `open` to `locked`, sets `filed_at`
-    - Lock is idempotent (re-locking returns 200, not error)
+    - `POST /api/reporting-periods/:id/lock` — **filing is one atomic operation, ordered snapshot→lock (ADR-0009: "filing produces the VAT report, *then* the period becomes locked")**: generate the immutable VAT report (Task 28) and only then set `status='locked'` + `filed_at`, in one transaction (both or neither). You **cannot** lock a period without its filed snapshot — there is no standalone lock-without-report. (Tasks 27/28 are decomposed for building, but the runtime filing call wires them in this order.)
+    - Lock is idempotent (re-locking returns 200, not error; does not regenerate the snapshot)
     - **Hard process rule (reject — for DIRECT posts):** `PostingService` rejects any voucher whose `tax_point_date` falls in a locked period
       - Returns `400` with error "Cannot post into locked period {period_name}". Never silently re-dates.
     - **Redirect path (corrections + late documents → current open period, ADR-0009):** the reject is only for a *direct* post. The **correction** flow (un-stub Wave-4 Task 18's locked branch) and the **late-arriving-document** flow detect a locked target *up front* and re-route into the **current open period** — re-dated to it, carrying `reverses`/`corrects_object` where applicable — instead of hitting the wall. A late new Q1 expense whose document arrives after Q1 is filed lands in the current open period (the "next VAT return" rule). This redirect is what makes the warn-and-allow filing guard sound (else legitimate late items strand forever). Provide a helper, e.g. `ReportingPeriodsService.currentOpenPeriod()` + a `resolvePostingPeriod(taxPointDate)` that returns the open period to re-date into when the natural target is locked.
+      - **Tax-point source (Codex review):** the `taxPointDate` driving membership/redirect is the **document/invoice date** (the tax point, ADR-0009 — a country-plugin rule), NOT the arrival timestamp. ⚠️ Known gap: `TriageService` currently derives it from `doc.created_at` (arrival) — wrong. So OCR/triage must extract and carry a real `tax_point_date` (document date); fold this into the triage remediation (Task 38). Without the real tax point, "late document in a filed period" can't be detected correctly.
     - **Filing guard**: Before locking, warn if unresolved items exist in the period:
       - Query for pending approvals (Policy hold) with tax_point_date in period
       - Query for unposted drafts with tax_point_date in period
@@ -48,7 +49,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Write tests for lock, posting rejection, and filing guard
 
   **Must NOT do**:
-  - Do NOT implement VAT report computation on lock — that's Task 28
+  - Do NOT *re-implement* VAT report computation inside Task 27 — the logic lives in Task 28's `VATReportService.generate`; the lock operation **calls** it (snapshot→lock, atomic), not duplicates it.
   - Do NOT implement amended return logic — deferred
   - Do NOT auto-reject lock if warnings exist — only warn, user decides
   - Do NOT **silently re-date a direct post** to dodge the lock — a direct post into a locked period is a hard 400. Re-dating happens only inside the explicit correction / late-document flows (ADR-0009).
@@ -121,7 +122,7 @@ This wave closes the system: period locking prevents posting into filed periods,
     - Compute net VAT payable/receivable
     - Create immutable snapshot in `vat_report` table: id, period_id, generated_at, vat_summary (JSON — frozen computed boxes), total_payable (INTEGER), total_receivable (INTEGER), `merkle_root` (TEXT NOT NULL), `version` (INTEGER NOT NULL DEFAULT 1), `supersedes_id` (INTEGER, nullable, FK to vat_report — forward-compat for an **amended return** "Q1 v2" that supersedes a prior filing, CONTEXT.md). The amend *flow* is v2 — these columns are **reserved now** so the immutable table needn't be migrated later; v1 always writes version 1 / NULL supersedes.
     - **Included vouchers as a join table** `vat_report_voucher` (vat_report_id FK, voucher_id FK) — NOT a `voucher_ids` JSON blob (queryable, FK-constrained; `GET /vat-reports/:id/vouchers` reads it).
-    - **Compute the real Merkle root** over the included vouchers' hashes. Contract (Codex review): the schema stores only `voucher.previous_hash`, not each voucher's own hash — so **recompute** `computeVoucherHash(voucher, lines)` (the existing W3-3 function) for each included voucher in a deterministic order (e.g. by voucher_number), then fold into a Merkle root. No new `voucher.hash` column needed. This is the cryptographic "proof of exactly what was filed" (ADR-0013/0009); do NOT defer it. Store in `merkle_root`.
+    - **Compute the real Merkle root** over the included vouchers' hashes. Contract (Codex review): the schema stores only `voucher.previous_hash`, not each voucher's own hash — so **recompute** `computeVoucherHash(voucher, lines)` (the existing W3-3 function) for each included voucher in a deterministic order (vouchers by `voucher_number`, **and the lines within each voucher by `voucher_line.id`** — pin both orders so the root is reproducible; `computeVoucherHash` hashes lines in caller order), then fold into a Merkle root. No new `voucher.hash` column needed. This is the cryptographic "proof of exactly what was filed" (ADR-0013/0009); do NOT defer it. Store in `merkle_root`.
   - `POST /api/reporting-periods/:id/vat-report` triggers generation
   - **Link + one snapshot per period (Codex review):** on generate, set `reporting_period.vat_report_snapshot_id` to the new report id; a period files **once** — re-generating a period that already has a snapshot is rejected (a corrected filing is an amended return = `version`+`supersedes_id`, v2). Prevents ambiguous filed snapshots.
   - `GET /api/vat-reports/:id` returns the snapshot
@@ -197,7 +198,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - `POST /api/approvals` — creates an Approval when Policy holds a voucher (called by pipeline)
   - **Wire the pipeline hold path (Codex review):** today `PostingPipelineService` Policy-hold only sets the object to `pending` (`claimForApproval`) and creates **no** approval row. Change it to also create the `Approval` (pending) in the same step — this is the "called by pipeline" contract. The integration test below proves it.
   - `POST /api/approvals/:id/approve` — changes status to `approved`, triggers idempotent posting
-  - `POST /api/approvals/:id/reject` — changes status to `rejected`, returns draft to editable state with reason
+  - `POST /api/approvals/:id/reject` — sets approval `status='rejected'` + `rejected_reason`, and returns the underlying draft to `status='draft'`. **The reason lives ONLY on `approval.rejected_reason` (Codex review)** — do NOT add a reason column to `expense`/`sales_invoice`; the draft just reverts to `draft`, and the reason is surfaced by joining/returning its latest approval.
   - `POST /api/approvals/:id/supersede` — changes status to `superseded` (called when newer version arrives)
   - `GET /api/approvals` — lists approvals with filters (status, type)
   - `GET /api/approvals/pending` — lists pending approvals (for admin/agent use)
@@ -286,6 +287,7 @@ This wave closes the system: period locking prevents posting into filed periods,
       - `SecretaryAgent`: stub with method `notify()` that logs "would notify user" (no real channels)
       - `DevAgent`: empty stub, disabled by default
     - Each agent is a NestJS service, not a separate process
+    - **Add the scheduler dependency (Codex review):** `@Cron()` needs `@nestjs/schedule` — it is **not** in `package.json`. Install it and add `ScheduleModule.forRoot()` to `AppModule` (else `@Cron` is a no-op import and the build/wiring fails).
     - `AuditAgent` sweep is wired to a NestJS `@Cron()` decorator (e.g. hourly), but the stub sweep is a **no-op** (no fabricated findings); when real, it **upserts** by the UNIQUE key and drives the finding **FSM** (re-score / resolve / reopen). The cron never writes demo data.
     - `SecretaryAgent` reads `open` AuditFindings and logs them (no real Telegram/Slack), respecting `last_nagged_at` vs `severity` for anti-spam cadence (ADR-0018).
   - Write tests for AuditFinding CRUD and agent stubs
@@ -481,7 +483,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **Commit**: YES
   - Message: `feat(conversations): Conversation aggregate + deterministic router resolution`
-  - Files: migrations + `src/conversations/`, router wiring
+  - Files: migrations + `src/conversations/` (service-level aggregate; no router/channel wiring — deferred)
   - Pre-commit: `npm run build && npm test`
 
 - [ ] 37. Dividend distribution (declaration + settlement disposition)
@@ -490,6 +492,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **What to do**:
   - Migration: extend the canonical chart with `RETAINED_EARNINGS` (equity) and `DIVIDEND_PAYABLE` (liability) accounts (schema/seed in migrations — G4).
+  - **`dividend` business-object table (Codex review):** the pipeline updates the business object's `status`/`voucher_id` by `businessObjectType` (table name) — so a `dividend` row must exist for it to post *through* the pipeline. Migration: `dividend` (id, amount INTEGER, withholding_amount INTEGER, declared_date TEXT, status TEXT CHECK `draft|pending|posted|reversed`, voucher_id INTEGER nullable, created_at, updated_at). The declaration creates a `dividend` row → pipeline → posted, exactly like an expense.
   - **Generalize the pipeline first (Codex review):** `PostingPipelineParams.businessObjectType` is currently `expense | sales_invoice` only. To post dividends *through* the pipeline (not bypass it / not special-case), widen that union to include `dividend` (and align it with the `approval.object_type` set from Task 29). Without this, dividends would either skip Rules→Policy or get a dirty special-case — both forbidden (ADR-0012/0019).
   - **Declaration** (owner/admin action, approval-required): `POST /api/dividends` — books `Dr RETAINED_EARNINGS / Cr DIVIDEND_PAYABLE` via the pipeline (Rules → Policy → post). Reject (or hold) if the country plugin's distributable-profits check fails.
   - Add `CountryPlugin` methods: `dividendWithholdingRate(orgContext): number` and `assertDistributable(amount, retainedEarnings): boolean`. Null/IE plugin: withholding `0`, soft profits-check (warn, don't block). A real plugin enforces IE DWT / DK udbytteskat + the legal cap.
@@ -536,14 +539,14 @@ This wave closes the system: period locking prevents posting into filed periods,
   **What to do**:
   - Migration: `api_token` table — id (INTEGER PK), `token_hash` (TEXT NOT NULL UNIQUE — store a **hash** of the token, never plaintext; verify by hashing the presented token + constant-time compare), `label` (TEXT), created_at (INTEGER), revoked_at (INTEGER, nullable). On init, **generate one token**, store its hash, and surface the plaintext **once** (boot log / a seed value for dev so tests have a known token). Plaintext is never persisted.
   - `ApiTokenGuard` (`CanActivate`): read `Authorization: Bearer <token>`, hash it, match a non-revoked `api_token` row (constant-time); `401` on miss/missing/revoked.
-  - Apply the guard **globally to `/api` and `/admin`**; leave `/health` (and the open document-ingest webhook, ADR-0016 "ingest open to any sender") **unauthenticated**.
+  - Apply the guard **globally to `/api` and `/admin`**. In v1 (HTTP-only, **no channel adapters yet**) the **only** unauthenticated route is `GET /health` — everything else, **including `POST /api/documents`**, requires the token (it's the owner's HTTP API). The ADR-0016 "ingest open to any sender" exemption applies to **future channel webhooks** (email/Telegram), which don't exist in v1 — name and exempt them when those adapters are built, not now.
   - Replace Task 31's `X-Admin-Key: dev` with this guard.
   - Tests: valid token → 200; missing/wrong/revoked → 401; health stays open; token stored hashed (no plaintext column).
 
   **Must NOT do**:
   - Do NOT store the token in plaintext — hash + constant-time compare.
   - Do NOT implement RBAC / roles / per-route permissions — single owner token for v1 (RBAC deferred to v2, uncertain — V2-ROADMAP).
-  - Do NOT gate `/health` or open document ingest behind the token (ADR-0016).
+  - Do NOT gate `/health`. (In v1 `POST /api/documents` **is** gated; the open-ingest exemption is only for future channel webhooks, ADR-0016 — none exist yet.)
   - Do NOT hardcode the token in source — generated/seeded into the table.
 
   **Recommended Agent Profile**:
