@@ -36,6 +36,7 @@ export class TriageService {
         vat_amount: ocrResult.vat_amount,
         currency,
         tax_point_date: taxPointDate,
+        document_vat_marking: ocrResult.document_vat_marking,
       });
 
       await this.documents.setStatus(documentId, 'triaged');
@@ -54,6 +55,7 @@ export class TriageService {
         vat_amount: ocrResult.vat_amount,
         currency,
         tax_point_date: taxPointDate,
+        document_vat_marking: ocrResult.document_vat_marking,
       });
 
       await this.documents.setStatus(documentId, 'triaged');

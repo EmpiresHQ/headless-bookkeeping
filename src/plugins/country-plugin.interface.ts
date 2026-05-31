@@ -40,6 +40,28 @@ export interface CategoryMappingResult {
 }
 
 /**
+ * CrossBorderTreatment - The resolved VAT treatment for a cross-border transaction.
+ *
+ * Per ADR-0002, each country plugin encodes its own jurisdiction's view of cross-border
+ * VAT treatment from the supplier's VAT territory.
+ */
+export type CrossBorderTreatment =
+  | 'domestic'
+  | 'reverse_charge'
+  | 'import'
+  | 'foreign_cost'
+  | 'unresolvable';
+
+/**
+ * CrossBorderResolution - The result of resolveCrossBorderTreatment.
+ * Provides the treatment classification and the applicable VAT code (if any).
+ */
+export interface CrossBorderResolution {
+  treatment: CrossBorderTreatment;
+  vatCode: VATCode | null;
+}
+
+/**
  * CountryPlugin - The sole resolver of country-specific accounting rules.
  *
  * Per ADR-0002: "The country plugin is the sole resolver of a VAT code."
@@ -51,6 +73,13 @@ export interface CategoryMappingResult {
  * - Map user-facing Categories to kernel Accounts + VAT codes
  * - Define period frequency options and defaults
  * - Validate VAT code applicability
+ * - Resolve cross-border VAT treatment from the supplier's VAT territory
+ *   (domestic / reverse-charge / import / non-reclaimable foreign cost),
+ *   keyed on supplierFacts.country — NOT on any foreign VAT code. The
+ *   territory-membership map lives in the plugin (ADR-0002). A foreign
+ *   document_vat_marking is never silently reclaimed; unresolvable → Approval.
+ *   (Concrete method deferred — see Wave-5 Task 34; supplierFacts.country is
+ *   already the input channel.)
  */
 export interface CountryPlugin {
   /**
@@ -143,4 +172,45 @@ export interface CountryPlugin {
     vatCode: string,
     context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean;
+
+  /**
+   * Resolves the account code for a personal (non-business) disposition
+   * based on the organization's legal form.
+   *
+   * Per ADR-0017:
+   * - sole_proprietor → OWNERS_DRAWINGS (equity contra)
+   * - company → SHAREHOLDER_LOAN (receivable-from-owner, asset)
+   *
+   * The kernel must NEVER hardcode the disposition account; it asks the
+   * plugin so that country-specific variations can be introduced later.
+   *
+   * @param orgType - The organization's legal form ('company' | 'sole_proprietor')
+   * @returns The account code for the personal disposition
+   */
+  resolvePersonalDispositionAccount(orgType: string): string;
+
+  /**
+   * Resolves the cross-border VAT treatment for a transaction with a supplier
+   * from a different VAT territory.
+   *
+   * The country plugin maps the supplier's country to a VAT territory and
+   * decides the treatment from:
+   * - Our VAT territory + the supplier's VAT territory
+   * - Whether the supplier provides goods or services
+   * - Whether VAT was charged on the document
+   *
+   * A foreign document_vat_marking is never silently reclaimed as input VAT.
+   * When the treatment cannot be resolved, it returns 'unresolvable' and
+   * the transaction is held for Approval (conservative default: book gross).
+   *
+   * @param supplierFacts - Intrinsic facts about the supplier
+   * @param orgContext - The Organization's context
+   * @param context - Additional context (whether VAT was charged on the document)
+   * @returns The resolved cross-border treatment + applicable VAT code
+   */
+  resolveCrossBorderTreatment(
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+    context: { vatCharged: boolean },
+  ): CrossBorderResolution;
 }

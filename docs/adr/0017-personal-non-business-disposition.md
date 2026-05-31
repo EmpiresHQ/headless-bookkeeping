@@ -10,3 +10,5 @@ This is deliberately *not* a business expense:
 - User-facing it is just the label **"personal"** — consistent with ADR-0001 (the user sees a semantic label; the ledger books the right account).
 
 The plugin must surface country-specific tax traps as advisory: e.g. in Denmark a shareholder loan (*kapitalejerlån*) is legally restricted and taxed as salary/dividend on creation, so "personal on the corp card" in an ApS is "repay immediately / book as salary", not a benign receivable.
+
+The org-type input is `organization.org_type` (`company` | `sole_proprietor`, **default `company`** — the v1 primary persona, ADR-0023). The kernel must **never hardcode** the disposition account; it asks the plugin `resolvePersonalDispositionAccount(org_type)` (same boundary as VAT codes, ADR-0002) — so a company's accidental personal spend books to shareholder-loan, a sole proprietor's to drawings. v1 simplicity is a *default org_type*, not a hardcoded account. (Field added Wave-5 Task 24; original Organization schema lacked it.)
