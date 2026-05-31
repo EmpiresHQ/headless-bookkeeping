@@ -6,8 +6,13 @@ export class OcrService {
   /**
    * Stub OCR: deterministic odd/even by document id.
    *
-   * Odd id  -> receipt / Bolt / 1525 gross / 275 vat / transport / DK_INPUT_25 / 0.94 confidence
-   * Even id -> invoice / OpenAI / 10000 gross / 2500 vat / software / DK_INPUT_25 / 0.98 confidence
+   * IE/EUR defaults (ADR-0004) with VAT codes NullCountryPlugin accepts
+   * (ADR-0002), so triaged drafts pass semantic validation without override.
+   *
+   * Odd id  -> receipt / Bolt / 1525 gross / 285 vat / transport / IE_INPUT_23 / 0.94 confidence
+   * Even id -> invoice / Acme Ltd / 12300 gross / 2300 vat / revenue / IE_OUTPUT_23 / 0.98 confidence
+   *            (a sales invoice carries output VAT; the draft generator resolves
+   *             'revenue' -> IE_OUTPUT_23 regardless, ADR-0002)
    */
   extract(documentId: number): TriageResult {
     if (documentId % 2 === 1) {
@@ -15,20 +20,20 @@ export class OcrService {
         document_type: 'receipt',
         entity_guess: 'Bolt',
         gross_amount: 1525,
-        vat_amount: 275,
+        vat_amount: 285,
         category: 'transport',
-        vat_code: 'DK_INPUT_25',
+        vat_code: 'IE_INPUT_23',
         confidence: 0.94,
       };
     }
 
     return {
       document_type: 'invoice',
-      entity_guess: 'OpenAI',
-      gross_amount: 10000,
-      vat_amount: 2500,
-      category: 'software',
-      vat_code: 'DK_INPUT_25',
+      entity_guess: 'Acme Ltd',
+      gross_amount: 12300,
+      vat_amount: 2300,
+      category: 'revenue',
+      vat_code: 'IE_OUTPUT_23',
       confidence: 0.98,
     };
   }

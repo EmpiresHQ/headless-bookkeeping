@@ -65,11 +65,6 @@ describe('Intake E2E (document → draft → pipeline)', () => {
 
   const buf = (label: string) => Buffer.from(label);
 
-  const semanticOverride = {
-    ruleType: 'semantic',
-    reason: 'e2e test override',
-  };
-
   // ── scenario 1: full intake flow (odd id → Expense) ───────────
 
   it('scenario 1: full intake flow (odd id → Expense)', async () => {
@@ -109,11 +104,11 @@ describe('Intake E2E (document → draft → pipeline)', () => {
     expect(expense.currency).toBe('EUR');
     expect(expense.category).toBe('transport');
 
-    // 4. Post through pipeline (semantic override needed — the OCR
-    //    stub emits DK_INPUT_25 which NullCountryPlugin rejects).
+    // 4. Post through pipeline. The OCR stub emits IE_INPUT_23 (resolved
+    //    from category 'transport'), which NullCountryPlugin accepts, so the
+    //    draft auto-posts with no override.
     const posted = await request(app.getHttpServer())
       .post(`/api/expenses/${expenseId}/post`)
-      .send(semanticOverride)
       .expect(201)
       .then(
         (r) =>
@@ -223,10 +218,10 @@ describe('Intake E2E (document → draft → pipeline)', () => {
     const invoiceId = triage.invoice_id;
     expect(invoiceId).toBeGreaterThan(0);
 
-    // 4. Post with semantic override
+    // 4. Post through pipeline.'revenue' resolves to IE_OUTPUT_23, which
+    //    NullCountryPlugin accepts, so the draft auto-posts with no override.
     const posted = await request(app.getHttpServer())
       .post(`/api/sales-invoices/${invoiceId}/post`)
-      .send(semanticOverride)
       .expect(201)
       .then(
         (r) =>

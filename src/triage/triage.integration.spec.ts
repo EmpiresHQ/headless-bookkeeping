@@ -92,7 +92,7 @@ describe('TriageService (integration)', () => {
     const expense = await expenses.getExpenseById(outcome.expense_id);
     expect(expense.category).toBe('transport');
     expect(expense.gross_amount).toBe(1525);
-    expect(expense.vat_amount).toBe(275);
+    expect(expense.vat_amount).toBe(285);
     expect(expense.currency).toBe('EUR');
     expect(expense.status).toBe('draft');
     expect(expense.document_id).toBe(doc.id);
@@ -101,7 +101,7 @@ describe('TriageService (integration)', () => {
     expect(updatedDoc.status).toBe('triaged');
   });
 
-  it('routes even document id to SalesInvoice (10000, EUR, draft)', async () => {
+  it('routes even document id to SalesInvoice (12300, EUR, draft)', async () => {
     // Upload two documents so the second gets id 2 (even)
     await documents.upload({
       filename: 'dummy.pdf',
@@ -125,8 +125,8 @@ describe('TriageService (integration)', () => {
     expect(outcome.invoice_id).toBeDefined();
 
     const invoice = await salesInvoices.getInvoiceById(outcome.invoice_id);
-    expect(invoice.gross_amount).toBe(10000);
-    expect(invoice.vat_amount).toBe(2500);
+    expect(invoice.gross_amount).toBe(12300);
+    expect(invoice.vat_amount).toBe(2300);
     expect(invoice.currency).toBe('EUR');
     expect(invoice.status).toBe('draft');
     expect(invoice.invoice_number).toBe(`INV-${doc.id}`);
