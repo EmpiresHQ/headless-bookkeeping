@@ -149,6 +149,28 @@ describe('BankStatementService (integration)', () => {
     ).rejects.toThrow();
   });
 
+  it('rejects a non-existent account code', async () => {
+    await expect(
+      service.createStatement({
+        account_code: 'BANK_GHOST',
+        start_date: '2025-06-01',
+        end_date: '2025-06-30',
+        transactions: [],
+      }),
+    ).rejects.toThrow("Account 'BANK_GHOST' not found");
+  });
+
+  it('rejects an existing account that is not a bank account (wrong type)', async () => {
+    await expect(
+      service.createStatement({
+        account_code: 'EXPENSE_SOFTWARE',
+        start_date: '2025-06-01',
+        end_date: '2025-06-30',
+        transactions: [],
+      }),
+    ).rejects.toThrow("Account 'EXPENSE_SOFTWARE' is not a bank account");
+  });
+
   it('G3 discriminating — negative amount round-trips as -1525, currency="USD" round-trips', async () => {
     const result = await service.createStatement({
       account_code: 'BANK_USD',

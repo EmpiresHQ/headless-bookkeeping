@@ -20,26 +20,27 @@ export class BankStatementService {
 
   /**
    * Create a bank statement with its transaction lines.
-   * Validates that the account_code starts with 'BANK_' — rejects others.
+   * Validates that the account exists and is a real bank account
+   * (asset type + BANK_* code prefix) — rejects anything else.
    */
   async createStatement(input: CreateStatementInput): Promise<{
     statement: BankStatementRecord;
     transactions: BankTransactionRecord[];
   }> {
-    // Validate account code prefix.
-    if (!input.account_code.startsWith('BANK_')) {
-      throw new BadRequestException(
-        `account_code must start with 'BANK_', got '${input.account_code}'`,
-      );
-    }
-
-    // Resolve account_code → account_id.
+    // Resolve account_code → account record first.
     const account = await this.accountService.getAccountByCode(
       input.account_code,
     );
     if (!account) {
       throw new BadRequestException(
         `Account '${input.account_code}' not found`,
+      );
+    }
+
+    // Hard validation: must be an asset account whose code starts with BANK_.
+    if (account.type !== 'asset' || !account.code.startsWith('BANK_')) {
+      throw new BadRequestException(
+        `Account '${input.account_code}' is not a bank account`,
       );
     }
 
