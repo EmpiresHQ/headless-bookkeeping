@@ -62,7 +62,7 @@ Per-task profile (vision): `provider, model, temperature, timeout, structured_ou
 |---|---|
 | Telegram | bot token, webhook; approver chat IDs (ADR-0014); supports action-point buttons → approval channel (ADR-0016) |
 | Slack | app/bot token; approver user IDs (ADR-0014); supports action-point buttons → approval channel (ADR-0016) |
-| Email | Ingest open to any sender (suppliers); conversation/commands whitelist-only (`email_whitelist`); action/approval = approver ⊆ whitelist via confirmation loop (explicit "YES" / re-ask) + DKIM/SPF; SMTP outbound = system-sent invoices/replies/reports (ADR-0016) |
+| Email | Ingest **sender-gated** by `email_whitelist` (deterministic; `ingest_policy: known-only [default] | quarantine | open`, ADR-0016 Wave-8 amendment); conversation/commands whitelist-only; action/approval = approver ⊆ whitelist via confirmation loop (explicit "YES" / re-ask) + DKIM/SPF; SMTP outbound = system-sent invoices/replies/reports (ADR-0016) |
 | Google Drive | watcher folder/credentials (passive intake) |
 | HTTP/webhooks | n8n / automation endpoints |
 

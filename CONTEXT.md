@@ -214,7 +214,7 @@ _Avoid_: Functional plugin, microservice, satellite service, module
 - A **VoucherLine** debits or credits exactly one **Account** and carries one **VAT code** (the code lives on the line, not the Voucher). VAT amounts are split into one line per `account × VAT code` so reports can aggregate by code across all lines.
 - One deployment has exactly one **Organization**, in one country, with one active country plugin
 - All channels carry the full intent set (advisory, action, report, reconciliation, approval). They differ only in how an **Action point** commits: Telegram/Slack by button tap; email by a confirmation loop + DKIM/SPF
-- **Email whitelist** gates conversation/commands/approval (approver ⊆ whitelist); **ingest is open to any sender** (suppliers email from arbitrary addresses) — a non-whitelisted sender's document is ingested but never conversed with
+- **Email whitelist** gates conversation/commands/approval (approver ⊆ whitelist) **and ingest** (Wave-8 amendment, ADR-0016): a deterministic sender allowlist (configured at setup) — unknown senders rejected by default (`ingest_policy: known-only`; `quarantine`/`open` are options). The kernel never auto-books an unknown-supplier doc regardless (Wave-7 → `needs_triage`)
 - A **Category** maps (via a country plugin) to one **Account** + **VAT code**, but the mapping may depend on the **Supplier**'s intrinsic facts and the **Organization**'s context
 - A **VAT code** belongs to exactly one country plugin
 - The country plugin is the **sole resolver** of a **VAT code** from `(Supplier intrinsic facts + Organization country/registration)`. No abstract cross-country VAT layer exists.

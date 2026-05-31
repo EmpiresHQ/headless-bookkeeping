@@ -5,11 +5,17 @@
 ## Overview
 Wave 8 is the **interaction layer**: the channels (email/Telegram/Slack/Drive) and the intent **router** that let a human talk to the system, plus the conversational flows that ride on the Wave-7 Mastra runtime. The deterministic kernel (Waves 1-6) and the AI ingestion brain (Wave 7) already exist; Wave 8 connects humans to them. The ledger remains SoR; the router is not a security boundary (ADR-0016).
 
+## Decisions so far (grilled — not yet TDD tasks)
+
+- **Channel-adapter boundary:** adapters are the ONLY channel-specific code (inbound raw → unified envelope `{channel, sender, conv-key, message, attachments, metadata, auth}`; outbound abstract action-point → channel delivery). The core (router/flows/Conversation/pipeline) is **channel-agnostic**. Access gating (whitelist / DKIM-SPF) lives **once in the core** over the adapter's `auth` signals — not duplicated per adapter.
+- **Router per inbound envelope:** (1) resolve Conversation (deterministic, by conv-key); (2) ingest attachments per the ingest policy; (3) if gated-in (whitelist + auth) and there's a message → classify intent (probabilistic) → dispatch flow. The router is **not a security boundary** — a misroute only yields a *draft* gated by Rules→Policy (ADR-0016/0012). Ingest and a dispatched intent are not mutually exclusive.
+- **Ingest is sender-gated (reverses ADR-0016 "open"):** a deterministic sender allowlist configured at **initial setup** (editable via admin/config); **unknown → reject** by default (`ingest_policy: known-only | quarantine | open`). Anti-spam/hygiene only — the kernel never auto-books an unknown-supplier doc anyway (Wave-7 → `needs_triage`). Amended in ADR-0016 / CONTEXT.md / CONFIG / VISION.
+
 ## Scope (deferred here from earlier waves)
 
 ### Channels (ADR-0016, CONFIG §5)
 - **Telegram**: bot + webhook; inline **action-point buttons** carrying `callback_data` (conversation/approval id — un-skippable commit signal).
-- **Email**: ingest open to any sender; conversation/commands whitelist-only; action/approval via **confirmation-loop** ("YES"/re-ask) + **DKIM/SPF**; outbound **SMTP** (invoices/replies/reports). Embeds the **Conversation id in the body** (`[conv:…]`) since threading headers can be stripped.
+- **Email**: ingest **sender-gated** by a deterministic allowlist (configured at setup; `ingest_policy: known-only [default] | quarantine | open` — unknown rejected by default, ADR-0016 Wave-8 amendment); conversation/commands whitelist-only; action/approval via **confirmation-loop** ("YES"/re-ask) + **DKIM/SPF**; outbound **SMTP** (invoices/replies/reports). Embeds the **Conversation id in the body** (`[conv:…]`) since threading headers can be stripped.
 - **Slack** (buttons, like Telegram); **Google Drive** watcher (passive intake); HTTP/webhooks.
 
 ### Intent router (ADR-0016)

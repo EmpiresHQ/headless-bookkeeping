@@ -185,7 +185,7 @@ Capabilities:
 
 NO approvals.
 
-> **Superseded by ADR-0016.** Email *can* carry action/approval, committed via a confirmation loop ("YES" / re-ask) gated by an email whitelist + DKIM/SPF (approver ⊆ whitelist). Ingest stays open to any sender; only conversation/commands are whitelisted.
+> **Superseded by ADR-0016 (+ Wave-8 amendment).** Email *can* carry action/approval, committed via a confirmation loop ("YES" / re-ask) gated by an email whitelist + DKIM/SPF (approver ⊆ whitelist). Ingest is **sender-gated** by a deterministic allowlist set at setup (unknown rejected by default; `ingest_policy: known-only | quarantine | open`) — not open to any sender.
 
 ### Google Drive Watcher
 
