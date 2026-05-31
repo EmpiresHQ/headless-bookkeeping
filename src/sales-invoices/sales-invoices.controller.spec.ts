@@ -167,7 +167,7 @@ describe('SalesInvoicesController', () => {
         businessObjectId: 1,
         businessObjectType: 'sales_invoice',
         draftGenerator: expect.any(Function) as () => Promise<DraftVoucher>,
-        categoryMapper: expect.any(Function) as (accountCode: string) => string,
+        category: 'revenue',
         refetch: expect.any(Function) as () => Promise<unknown>,
         override: undefined,
       });

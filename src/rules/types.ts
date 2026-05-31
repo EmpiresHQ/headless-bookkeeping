@@ -49,4 +49,6 @@ export interface SemanticValidationContext {
   supplierFacts: SupplierFacts;
   /** Organization context (VAT registration, base currency, etc.). */
   orgContext: OrgContext;
+  /** The business object's real Category (e.g. "software", "revenue"). */
+  category: string;
 }

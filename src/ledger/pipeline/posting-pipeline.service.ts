@@ -40,8 +40,8 @@ export interface PostingPipelineParams {
   businessObjectType: 'expense' | 'sales_invoice';
   /** Generates the transient DraftVoucher for this business object. */
   draftGenerator: () => Promise<DraftVoucher>;
-  /** Maps an account_code to a user-facing Category string for ResolvedLine.category. */
-  categoryMapper: (accountCode: string) => string;
+  /** The business object's user-facing Category (e.g. "software", "revenue"). */
+  category: string;
   /** Re-fetches the business object after a status update (for the response). */
   refetch: () => Promise<unknown>;
   /** Optional semantic rule override (ruleType + reason). */
@@ -110,7 +110,7 @@ export class PostingPipelineService {
         is_debit: l.is_debit,
         account_currency: account_currency,
         vat_code: l.vat_code ?? 'NULL_STANDARD',
-        category: params.categoryMapper(l.account_code),
+        category: params.category,
       };
     });
 
@@ -131,6 +131,7 @@ export class PostingPipelineService {
       countryCode: org.country,
       supplierFacts,
       orgContext,
+      category: params.category,
     };
 
     // ── 5. Run Rules validation ────────────────────────────────
@@ -174,7 +175,7 @@ export class PostingPipelineService {
         validAccountIds,
         'semantic',
         semanticContext,
-        params.override
+        params.override?.ruleType
           ? {
               ruleType: params.override.ruleType,
               reason: params.override.reason,
@@ -231,6 +232,20 @@ export class PostingPipelineService {
           'posted',
           voucher.id,
         );
+
+        // Log the override atomically with the posting (ADR-0005 / ADR-0012).
+        // An overridden post and its override row commit or roll back together.
+        if (params.override?.ruleType) {
+          await this.policyService.logOverrideTx(trx, {
+            business_object_type: params.businessObjectType,
+            business_object_id: params.businessObjectId,
+            rule_type: params.override.ruleType,
+            rule_name: params.override.ruleType,
+            reason: params.override.reason,
+            created_by: 'system',
+          });
+        }
+
         return { voucher };
       });
 

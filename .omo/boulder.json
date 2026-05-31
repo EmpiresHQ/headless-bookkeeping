@@ -1,40 +1,35 @@
 {
+  "schema_version": 2,
+  "active_work_id": "wave-4-intake-ca20f7a0",
+  "works": {
+    "wave-4-intake-ca20f7a0": {
+      "work_id": "wave-4-intake-ca20f7a0",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
+      "plan_name": "wave-4-intake",
+      "status": "active",
+      "started_at": "2026-05-31T08:41:21.827Z",
+      "updated_at": "2026-05-31T08:41:21.827Z",
+      "session_ids": [
+        "ses_189dd88bdffe62f9e25yMGW0DY"
+      ],
+      "session_origins": {
+        "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {}
+    }
+  },
   "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
-  "started_at": "2026-05-29T23:47:10.850Z",
+  "started_at": "2026-05-31T08:41:21.827Z",
+  "status": "active",
+  "updated_at": "2026-05-31T08:41:21.827Z",
   "session_ids": [
     "ses_189dd88bdffe62f9e25yMGW0DY"
   ],
-  "plan_name": "wave-4-intake",
-  "current_wave": 4,
   "session_origins": {
     "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
   },
+  "plan_name": "wave-4-intake",
   "task_sessions": {},
-  "schema_version": 2,
-  "works": {
-    "wave-2-hardening": {
-      "work_id": "wave-2-hardening",
-      "plan_name": "wave-2-hardening",
-      "status": "completed",
-      "ended_at": "2026-05-29T18:56:29.794Z",
-      "elapsed_ms": 1278434
-    },
-    "wave-3-pipeline": {
-      "work_id": "wave-3-pipeline",
-      "plan_name": "wave-3-pipeline",
-      "status": "completed",
-      "ended_at": "2026-05-29T20:20:00.000Z",
-      "elapsed_ms": 3360000
-    },
-    "wave-4-intake": {
-      "work_id": "wave-4-intake",
-      "plan_name": "wave-4-intake",
-      "status": "completed",
-      "ended_at": "2026-05-30T00:47:00.000Z",
-      "elapsed_ms": 3600000
-    }
-  },
-  "active_work_id": "wave-4-intake",
-  "updated_at": "2026-05-31T08:07:12.989Z",
-  "status": "active"
+  "agent": "atlas"
 }

@@ -87,3 +87,40 @@
 - `npm run build` → clean (0 errors).
 - `npm run lint` → clean (0 errors, 0 warnings).
 - `npx jest --config ./test/jest-e2e.json --testPathPatterns='intake' --no-cache` → 3/3 passed.
+
+## W3-1: Atomic override persistence + category cleanup (2026-05-31)
+
+### What was built
+- **`src/rules/types.ts`** — Added `category: string` to `SemanticValidationContext` so the business object's real category flows through from the controller without reverse-engineering from account codes.
+- **`src/policy/policy.service.ts`** — Added `logOverrideTx(trx, record)` method that inserts an override row using a Kysely transaction handle (not the standalone `this.db`). Extracted shared `insertOverride` private helper to avoid duplication with existing `logOverride`.
+- **`src/ledger/pipeline/posting-pipeline.service.ts`** — Three changes:
+  1. Replaced `categoryMapper: (accountCode: string) => string` with `category: string` in `PostingPipelineParams`. The pipeline now sets `ResolvedLine.category = params.category` uniformly on all lines. Controllers pass `expense.category` or `'revenue'` directly.
+  2. Added `category: params.category` to `SemanticValidationContext` so semantic validation gets the real category.
+  3. In `atomicPost()`, called `this.policyService.logOverrideTx(trx, ...)` inside the same transaction as the voucher write and status update — the override row and the post commit or roll back together (ADR-0005 / ADR-0012).
+- **`src/expenses/expenses.controller.ts`** — Replaced `categoryMapper: (accountCode) => accountCode.startsWith('EXPENSE_') ? expense.category : ''` with `category: expense.category`.
+- **`src/sales-invoices/sales-invoices.controller.ts`** — Replaced `categoryMapper: (_accountCode) => 'revenue'` with `category: 'revenue'`.
+- **`src/rules/rules.service.ts`** — In `validateSemantic`, moved the `resolveCategoryMapping` call from per-line iteration to a single call using `context.category`. VAT code validation remains per-line.
+- **`test/override-pipeline.e2e-spec.ts`** — Created e2e test with a `StrictTestPlugin` extending `NullCountryPlugin` that rejects `'STRICT_REJECTED'` VAT code. Four scenarios:
+  1. Post without override → holds for approval (status 'pending')
+  2. Post with override → posts (status 'posted'), voucher exists, exactly one override row in DB with correct fields
+  3. Normal category (no override needed) → auto-posts, no override row
+  4. Double post → idempotency guard returns 409, still exactly one override row
+- **`src/sales-invoices/sales-invoices.controller.spec.ts`** — Updated test expectation from `categoryMapper: expect.any(Function)` to `category: 'revenue'`.
+- **`src/rules/rules.service.spec.ts`** — Added `category: 'software'` to `defaultSemanticContext`.
+
+### Key decisions
+- **Override guard**: Changed from `if (params.override)` to `if (params.override?.ruleType)` because the controller passes `override ?? {}` (empty object), which was truthy and caused NOT NULL constraint violations on the override table insert.
+- **Rule name**: Set `rule_name` to the same value as `rule_type` (`'semantic'`) for now — semantic validation is monolithic; finer rule identification can be added when rules become granular.
+- **Category in context, not per-line**: The category mapping check now runs once against `semanticContext.category` instead of per-line. This is correct because a single business object has one category; all its voucher lines share it.
+- **StrictTestPlugin in e2e**: Registered via `overrideProvider(NullCountryPlugin).useClass(StrictTestPlugin)` — the PluginLoader's DI-injected `nullPlugin` becomes the strict test plugin, and since the org's country='IE' falls back to the null plugin, the strict rules apply.
+- **NullCountryPlugin stays permissive**: The strict behavior lives only in the test plugin; the production plugin is untouched.
+
+### Bugs found and fixed
+- **Empty override body trap**: When the controller receives no body, `override` is `undefined` and becomes `{}` via `override ?? {}`. This was truthy but had undefined fields, causing `SQLITE_CONSTRAINT_NOTNULL` on the override insert. Fixed by checking `params.override?.ruleType` instead of `params.override`.
+
+### Verification
+- `npm run build` → clean (0 errors).
+- `npm run lint` → clean (0 errors, 0 warnings).
+- `npx jest --config ./test/jest-e2e.json --testPathPatterns='override-pipeline' --no-cache` → 4/4 passed.
+- Full unit test suite: 210/211 passed (1 pre-existing flaky `expect(...).rejects.toThrow()` in `database.module.spec.ts`).
+- Full e2e suite: 27/28 passed (1 pre-existing voucher duplicate 500 vs 409 in `voucher.e2e-spec.ts`).

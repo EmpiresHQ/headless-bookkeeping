@@ -28,6 +28,7 @@ const defaultSemanticContext: SemanticValidationContext = {
   countryCode: 'null',
   supplierFacts: defaultSupplier,
   orgContext: defaultOrg,
+  category: 'software',
 };
 
 const resolvedLine = (over: Partial<ResolvedLine>): ResolvedLine => ({

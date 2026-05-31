@@ -96,12 +96,36 @@ export class PolicyService {
   /**
    * Log an override atomically with the posting transaction (AC-6).
    * This is called by the posting path, NOT via a free-standing endpoint.
+   *
+   * When called from inside a transaction, prefer `logOverrideTx` so the
+   * override row and the voucher commit or roll back together (ADR-0005 / ADR-0012).
    */
   async logOverride(
     record: Omit<OverrideRecord, 'id' | 'created_at'>,
   ): Promise<OverrideRecord> {
+    return this.insertOverride(this.db, record);
+  }
+
+  /**
+   * Transaction-aware variant of logOverride — uses the supplied Kysely
+   * instance (which may be a transaction handle) for the INSERT.
+   *
+   * Called by PostingPipelineService.atomicPost inside the same transaction
+   * as the voucher write and status update.
+   */
+  async logOverrideTx(
+    trx: Kysely<Database>,
+    record: Omit<OverrideRecord, 'id' | 'created_at'>,
+  ): Promise<OverrideRecord> {
+    return this.insertOverride(trx, record);
+  }
+
+  private async insertOverride(
+    db: Kysely<Database>,
+    record: Omit<OverrideRecord, 'id' | 'created_at'>,
+  ): Promise<OverrideRecord> {
     const now = Math.floor(Date.now() / 1000);
-    const result = await this.db
+    const result = await db
       .insertInto('override')
       .values({
         business_object_type: record.business_object_type,
