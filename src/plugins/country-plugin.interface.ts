@@ -51,6 +51,13 @@ export interface CategoryMappingResult {
  * - Map user-facing Categories to kernel Accounts + VAT codes
  * - Define period frequency options and defaults
  * - Validate VAT code applicability
+ * - Resolve cross-border VAT treatment from the supplier's VAT territory
+ *   (domestic / reverse-charge / import / non-reclaimable foreign cost),
+ *   keyed on supplierFacts.country — NOT on any foreign VAT code. The
+ *   territory-membership map lives in the plugin (ADR-0002). A foreign
+ *   document_vat_marking is never silently reclaimed; unresolvable → Approval.
+ *   (Concrete method deferred — see Wave-5 Task 34; supplierFacts.country is
+ *   already the input channel.)
  */
 export interface CountryPlugin {
   /**
