@@ -37,12 +37,13 @@ export class DocumentsService {
       .executeTakeFirst();
 
     if (existing) {
+      const { channel, sourceIdentifier } = input;
       await this.db
         .insertInto('document_source')
         .values({
           document_id: existing.id,
-          channel: input.channel,
-          source_identifier: input.sourceIdentifier ?? null,
+          channel,
+          source_identifier: sourceIdentifier ?? null,
           received_at: now,
         })
         .execute();
@@ -53,12 +54,13 @@ export class DocumentsService {
       };
     }
 
+    const { filename, mimeType } = input;
     const docRow = await this.db
       .insertInto('document')
       .values({
         hash,
-        filename: input.filename,
-        mime_type: input.mimeType,
+        filename,
+        mime_type: mimeType,
         size_bytes: sizeBytes,
         storage_path: null,
         status: 'pending',
@@ -79,12 +81,13 @@ export class DocumentsService {
       .where('id', '=', docRow.id)
       .execute();
 
+    const { channel, sourceIdentifier } = input;
     await this.db
       .insertInto('document_source')
       .values({
         document_id: docRow.id,
-        channel: input.channel,
-        source_identifier: input.sourceIdentifier ?? null,
+        channel,
+        source_identifier: sourceIdentifier ?? null,
         received_at: now,
       })
       .execute();
