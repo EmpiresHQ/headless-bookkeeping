@@ -5,7 +5,11 @@ import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository
 import { AccountService } from '../ledger/account/account.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
-import { DraftVoucher, DraftVoucherLine } from '../ledger/voucher/types';
+import {
+  DraftVoucher,
+  DraftVoucherLine,
+  VoucherLine,
+} from '../ledger/voucher/types';
 import { CorrectionRequest, CorrectionResult } from './types';
 import { CorrectionParams } from './types/correction-params.type';
 
@@ -142,15 +146,7 @@ export class CorrectionsService {
   private async buildReversalDraft(
     originalVoucherNumber: string,
     taxPointDate: string,
-    originalLines: {
-      account_id: number;
-      amount: number;
-      currency: string;
-      base_amount: number;
-      fx_rate: number;
-      vat_code: string | null;
-      is_debit: boolean;
-    }[],
+    originalLines: VoucherLine[],
     originalVoucherId: number,
     reason: string,
   ): Promise<DraftVoucher> {
