@@ -1,10 +1,11 @@
 import type { CorrectionRequest } from '../types';
 import type { DraftVoucher } from '../../ledger/voucher/types';
+import type { BusinessObjectStatus } from '../../common/types/business-object-status';
 
 export type CorrectionParams = {
   objectType: 'expense' | 'sales_invoice';
   objectId: number;
-  status: string;
+  status: BusinessObjectStatus;
   voucherId: number | null;
   request: CorrectionRequest;
   updateDraft: (patch: {
