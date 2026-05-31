@@ -9,8 +9,10 @@ import { VoucherModule } from './ledger/voucher/voucher.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { SalesInvoicesModule } from './sales-invoices/sales-invoices.module';
 import { PolicyModule } from './policy/policy.module';
+import { DocumentsModule } from './documents/documents.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { TriageModule } from './triage/triage.module';
+import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.module';
 
 @Module({
   imports: [
@@ -24,8 +26,10 @@ import { TriageModule } from './triage/triage.module';
     ExpensesModule,
     SalesInvoicesModule,
     PolicyModule,
+    DocumentsModule,
     CorrectionsModule,
     TriageModule,
+    ReportingPeriodsModule,
   ],
 })
 export class AppModule {}
