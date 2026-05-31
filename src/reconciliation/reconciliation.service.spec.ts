@@ -11,6 +11,10 @@ import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingService } from '../ledger/posting/posting.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
+import { OrganizationService } from '../organization/organization.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CurrencyService } from '../currency/currency.service';
 import { ReconciliationService } from './reconciliation.service';
 import { FXRealizedService } from './fx-realized.service';
 
@@ -46,6 +50,10 @@ describe('ReconciliationService (integration)', () => {
         EntitiesService,
         LedgerValidationService,
         PostingService,
+        OrganizationService,
+        NullCountryPlugin,
+        PluginLoader,
+        CurrencyService,
         FXRealizedService,
         ReconciliationService,
       ],

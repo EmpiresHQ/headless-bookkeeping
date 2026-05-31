@@ -3,6 +3,9 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
+import { CurrencyService } from '../currency/currency.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { OrganizationService } from '../organization/organization.service';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 
 /**
@@ -22,6 +25,9 @@ export class FXRealizedService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly postingService: PostingService,
+    private readonly currencyService: CurrencyService,
+    private readonly pluginLoader: PluginLoader,
+    private readonly orgService: OrganizationService,
   ) {}
 
   /**
@@ -102,19 +108,47 @@ export class FXRealizedService {
       };
     }
 
-    // ── Compute actual settled base amount ────────────────────────────
-    let actualBase: number;
+    // ── Compute actual settled cash in the TXN currency ──────────────
+    let actualInTxnCcy: number;
     if (txn.source_amount !== null && txn.fx_rate !== null) {
-      actualBase = Math.round(Math.abs(txn.source_amount * txn.fx_rate));
+      actualInTxnCcy = Math.round(Math.abs(txn.source_amount * txn.fx_rate));
     } else {
       // One leg missing — fall back to the bank-line amount (already in
-      // the account / base currency).
-      actualBase = Math.abs(txn.amount);
+      // the account / txn currency).
+      actualInTxnCcy = Math.abs(txn.amount);
     }
+
+    // ── Convert the full-line actual cash to BASE currency (Bug B) ────
+    // When the bank account is denominated in the base currency (the common
+    // case) the cash IS the base amount — and we must NOT call the plugin,
+    // since NullCountryPlugin throws on real cross-currency pairs.
+    const baseCurrency = await this.currencyService.getBaseCurrency();
+    let actualBaseFull: number;
+    if (txn.currency === baseCurrency) {
+      actualBaseFull = actualInTxnCcy;
+    } else {
+      const org = await this.orgService.getOrganization();
+      const plugin = this.pluginLoader.resolve(org.country);
+      const refRate = plugin.getReferenceRate(
+        txn.currency,
+        baseCurrency,
+        txn.transaction_date,
+      );
+      actualBaseFull = Math.round(actualInTxnCcy * refRate);
+    }
+
+    // ── Scale to the matched proportion of the voucher (Bug A) ───────
+    // matchedAmount is only PART of the voucher's full booked AR/AP base on a
+    // partial match. Scale the full-line actual base by that proportion so the
+    // realized FX reflects only the settled slice (not the entire bank line).
+    const fullBookedBase = await this.getVoucherBookedBase(voucherId);
+    const proportion =
+      fullBookedBase > 0 ? Math.min(1, matchedAmount / fullBookedBase) : 1;
+    const actualBaseForMatch = Math.round(actualBaseFull * proportion);
 
     // ── Realized FX ──────────────────────────────────────────────────
     const bookedBase = matchedAmount;
-    const realized = bookedBase - actualBase;
+    const realized = bookedBase - actualBaseForMatch;
 
     if (realized === 0) {
       return {
@@ -131,14 +165,19 @@ export class FXRealizedService {
     const isIncoming = txn.amount >= 0;
     const isGain = isIncoming ? realized < 0 : realized > 0;
 
+    // Realized FX is booked entirely in BASE currency (D3): FX_GAIN_LOSS vs the
+    // BASE bank account (seed convention 'BANK_' + baseCurrency). When the txn
+    // is already in base currency this equals txn.account_code anyway.
+    const baseBankCode = 'BANK_' + baseCurrency;
+
     const lines: DraftVoucher['lines'] = [];
 
     if (isGain) {
       // Gain: Dr BANK / Cr FX_GAIN_LOSS
       lines.push({
-        account_code: txn.account_code,
+        account_code: baseBankCode,
         amount: absRealized,
-        currency: txn.currency,
+        currency: baseCurrency,
         base_amount: absRealized,
         fx_rate: 1.0,
         is_debit: true,
@@ -146,7 +185,7 @@ export class FXRealizedService {
       lines.push({
         account_code: 'FX_GAIN_LOSS',
         amount: absRealized,
-        currency: txn.currency,
+        currency: baseCurrency,
         base_amount: absRealized,
         fx_rate: 1.0,
         is_debit: false,
@@ -156,15 +195,15 @@ export class FXRealizedService {
       lines.push({
         account_code: 'FX_GAIN_LOSS',
         amount: absRealized,
-        currency: txn.currency,
+        currency: baseCurrency,
         base_amount: absRealized,
         fx_rate: 1.0,
         is_debit: true,
       });
       lines.push({
-        account_code: txn.account_code,
+        account_code: baseBankCode,
         amount: absRealized,
-        currency: txn.currency,
+        currency: baseCurrency,
         base_amount: absRealized,
         fx_rate: 1.0,
         is_debit: false,
@@ -179,5 +218,36 @@ export class FXRealizedService {
 
     const posted = await this.postingService.postVoucher(draft);
     return { status: 'posted', voucher: posted };
+  }
+
+  /**
+   * The voucher's total booked AR/AP base amount, netted by sign and abs'd.
+   *
+   * Mirrors ReconciliationService.getRemainingVoucherBalance' netting query:
+   * sum over voucher_line joined to account where account.code IN ('AR','AP'),
+   * net = Σ(is_debit ? +base_amount : −base_amount), then abs(net). This is the
+   * denominator for scaling a partial match to its proportion of the voucher.
+   */
+  private async getVoucherBookedBase(voucherId: number): Promise<number> {
+    const lineTotal = await this.db
+      .selectFrom('voucher_line')
+      .innerJoin('account', 'account.id', 'voucher_line.account_id')
+      .select((eb) =>
+        eb.fn
+          .sum<number>(
+            eb
+              .case()
+              .when('voucher_line.is_debit', '=', 1)
+              .then(eb.ref('voucher_line.base_amount'))
+              .else(eb.neg(eb.ref('voucher_line.base_amount')))
+              .end(),
+          )
+          .as('net'),
+      )
+      .where('voucher_line.voucher_id', '=', voucherId)
+      .where('account.code', 'in', ['AR', 'AP'])
+      .executeTakeFirst();
+
+    return Math.abs(lineTotal?.net ?? 0);
   }
 }

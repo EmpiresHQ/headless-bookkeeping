@@ -11,6 +11,11 @@ import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingService } from '../ledger/posting/posting.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
+import { OrganizationService } from '../organization/organization.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CurrencyService } from '../currency/currency.service';
+import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { FXRealizedService } from './fx-realized.service';
 
@@ -57,6 +62,10 @@ describe('FXRealizedService (integration)', () => {
         EntitiesService,
         LedgerValidationService,
         PostingService,
+        OrganizationService,
+        NullCountryPlugin,
+        PluginLoader,
+        CurrencyService,
         FXRealizedService,
         ReconciliationService,
       ],
@@ -357,6 +366,65 @@ describe('FXRealizedService (integration)', () => {
         .where('code', '=', 'FX_GAIN_LOSS')
         .executeTakeFirstOrThrow();
       expect(fxLine!.account_id).toBe(fxAccount.id);
+    });
+  });
+
+  describe('computeAndPost — partial match (proportional)', () => {
+    it('scales actualBase to the matched proportion of the voucher booked base', async () => {
+      // AR voucher booked at full base 70 000 (10 000 USD × 7.0).
+      // Bank settles the FULL foreign leg at 7.14 → actualInTxnCcy 71 400.
+      // But only 30 000 of the 70 000 booked base is matched here.
+      // proportion = 30 000 / 70 000 = 3/7
+      // actualBaseForMatch = round(71 400 × 3/7) = 30 600
+      // realized = 30 000 − 30 600 = −600 → small GAIN of 600 (NOT 41 400).
+      const customer = await seedCustomer();
+      const voucherId = await seedForeignCurrencySalesInvoiceVoucher(
+        customer.id,
+        10_000, // 10 000 USD → 70 000 base booked
+        7.0,
+        'INV-FX-PARTIAL-001',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatementWithForeignLeg({
+        sourceCurrency: 'USD',
+        sourceAmount: 10_000,
+        fxRate: 7.14,
+        reference: 'INV-FX-PARTIAL-001',
+      });
+
+      const bankTxnId = stmt.transactions[0].id;
+
+      const result = await fxRealizedService.computeAndPost(
+        voucherId,
+        bankTxnId,
+        30_000, // partial matchedAmount
+      );
+
+      expect(result.status).toBe('posted');
+      const lines = result.voucher!.lines;
+      expect(lines.length).toBe(2);
+
+      // Incoming (AR) settlement, realized < 0 → gain: Dr BANK / Cr FX_GAIN_LOSS.
+      const bankLine = lines.find((l) => l.is_debit)!;
+      const fxLine = lines.find((l) => !l.is_debit)!;
+
+      // The bug produced 41 400 (30 000 − 71 400); the fix yields 600.
+      expect(fxLine.base_amount).toBe(600);
+      expect(bankLine.base_amount).toBe(600);
+
+      const fxAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'FX_GAIN_LOSS')
+        .executeTakeFirstOrThrow();
+      const bankAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'BANK_EUR')
+        .executeTakeFirstOrThrow();
+      expect(fxLine.account_id).toBe(fxAccount.id);
+      expect(bankLine.account_id).toBe(bankAccount.id);
     });
   });
 
@@ -747,5 +815,214 @@ describe('FXRealizedService (integration)', () => {
       expect(result.fxResults.length).toBe(1);
       expect(result.fxResults[0].status).toBe('no_fx');
     });
+  });
+});
+
+/**
+ * Foreign bank-account base conversion (Bug B / D3).
+ *
+ * When the bank account is NOT denominated in the base currency, the actual
+ * settled cash (in the txn currency) must be converted to base via the country
+ * plugin's reference rate, and the FX voucher must book to the BASE bank
+ * account ('BANK_' + baseCurrency) in base currency. NullCountryPlugin throws
+ * on real cross-currency pairs, so a fake PluginLoader is required.
+ */
+describe('FXRealizedService — foreign bank account base conversion', () => {
+  let db: Kysely<Database>;
+  let fxRealizedService: FXRealizedService;
+  let voucherCounter = 0;
+
+  /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0; base currency EUR. */
+  const fakePlugin: Pick<
+    CountryPlugin,
+    'getReferenceRate' | 'getDefaultBaseCurrency'
+  > = {
+    getReferenceRate(from: string, to: string): number {
+      if (from === to) return 1.0;
+      if (from === 'USD' && to === 'EUR') return 0.9;
+      throw new Error(`Unexpected pair ${from} → ${to}`);
+    },
+    getDefaultBaseCurrency: () => 'EUR',
+  };
+
+  const fakeLoader = {
+    resolve: () => fakePlugin as unknown as CountryPlugin,
+  };
+
+  beforeEach(async () => {
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
+
+    await db
+      .insertInto('voucher_sequence')
+      .values({ year: '2025', last_number: 100 })
+      .execute();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        AccountService,
+        BankTransactionRepository,
+        BankStatementService,
+        EntitiesService,
+        LedgerValidationService,
+        PostingService,
+        OrganizationService,
+        NullCountryPlugin,
+        PluginLoader,
+        CurrencyService,
+        FXRealizedService,
+        ReconciliationService,
+      ],
+    })
+      .overrideProvider(PluginLoader)
+      .useValue(fakeLoader)
+      .compile();
+
+    fxRealizedService = module.get(FXRealizedService);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('converts the actual cash to base and books the FX to the base bank account', async () => {
+    // AR voucher booked at full base 9 100 EUR.
+    // Bank txn on BANK_USD (currency USD != base EUR): source 1 000 GBP, fx_rate
+    // 10 → actualInTxnCcy 10 000 USD. Plugin USD→EUR 0.9 → actualBaseFull 9 000.
+    // Full match (matchedAmount 9 100 == booked base) → proportion 1.
+    // realized = 9 100 − 9 000 = +100. Incoming (AR), realized > 0 → LOSS of 100
+    // (received less base than booked), posted in EUR to BANK_EUR (the base bank
+    // account), NOT BANK_USD. The conversion is what matters: without it,
+    // actualBaseFull would be 10 000 (cash in USD) → realized −900 (bogus gain).
+    const now = Math.floor(Date.now() / 1000);
+    voucherCounter++;
+
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-2025-${String(voucherCounter).padStart(6, '0')}`,
+        tax_point_date: '2025-01-10',
+        posted_at: now,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const arAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'AR')
+      .executeTakeFirstOrThrow();
+    const revenueAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'REVENUE')
+      .executeTakeFirstOrThrow();
+
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: voucher.id,
+          account_id: arAccount.id,
+          amount: 1_000,
+          currency: 'GBP',
+          base_amount: 9_100,
+          fx_rate: 9.1,
+          vat_code: null,
+          is_debit: 1,
+        },
+        {
+          voucher_id: voucher.id,
+          account_id: revenueAccount.id,
+          amount: 1_000,
+          currency: 'GBP',
+          base_amount: 9_100,
+          fx_rate: 9.1,
+          vat_code: null,
+          is_debit: 0,
+        },
+      ])
+      .execute();
+
+    // Insert the bank statement + foreign-leg txn directly on BANK_USD.
+    const usdAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'BANK_USD')
+      .executeTakeFirstOrThrow();
+
+    const statement = await db
+      .insertInto('bank_statement')
+      .values({
+        account_id: usdAccount.id,
+        start_date: '2025-01-01',
+        end_date: '2025-01-31',
+        uploaded_at: now,
+        file_path: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const txn = await db
+      .insertInto('bank_transaction')
+      .values({
+        statement_id: statement.id,
+        transaction_date: '2025-01-12',
+        description: 'Foreign payment received (USD account)',
+        amount: 10_000, // 10 000 USD incoming
+        currency: 'USD',
+        source_currency: 'GBP',
+        source_amount: 1_000,
+        fx_rate: 10,
+        reference: 'INV-FX-FCY-001',
+        counterparty_iban: null,
+        counterparty_descriptor: null,
+        status: 'open',
+        created_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const result = await fxRealizedService.computeAndPost(
+      voucher.id,
+      txn.id,
+      9_100, // matchedAmount = full booked base
+    );
+
+    expect(result.status).toBe('posted');
+    const lines = result.voucher!.lines;
+    expect(lines.length).toBe(2);
+
+    // Loss: Dr FX_GAIN_LOSS / Cr BANK.
+    const fxLine = lines.find((l) => l.is_debit)!;
+    const bankLine = lines.find((l) => !l.is_debit)!;
+
+    expect(bankLine.base_amount).toBe(100);
+    expect(fxLine.base_amount).toBe(100);
+    expect(bankLine.currency).toBe('EUR');
+    expect(fxLine.currency).toBe('EUR');
+
+    // The bank leg must book to BANK_EUR (base bank account), NOT BANK_USD.
+    const eurBank = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'BANK_EUR')
+      .executeTakeFirstOrThrow();
+    expect(bankLine.account_id).toBe(eurBank.id);
   });
 });
