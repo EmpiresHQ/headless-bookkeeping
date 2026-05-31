@@ -74,6 +74,19 @@ export class NullCountryPlugin implements CountryPlugin {
     return 'EUR';
   }
 
+  getReferenceRate(
+    fromCurrency: string,
+    toCurrency: string,
+    _date: string,
+  ): number {
+    if (fromCurrency === toCurrency) {
+      return 1.0;
+    }
+    throw new Error(
+      `Cross-currency FX not supported in null plugin: ${fromCurrency} → ${toCurrency}`,
+    );
+  }
+
   validateVATCode(
     vatCode: string,
     _context: { supplier: SupplierFacts; org: OrgContext },

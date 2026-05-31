@@ -90,9 +90,12 @@ export class ExpensesService {
 
     const baseCurrency = await this.currencyService.getBaseCurrency();
     const netAmount = expense.gross_amount - expense.vat_amount;
-    const isBaseCurrency = expense.currency === baseCurrency;
-    const fxRate = isBaseCurrency ? 1 : 1; // Non-base-currency deferred; use 1 as placeholder
-    const baseAmount = (amount: number) => (isBaseCurrency ? amount : amount);
+    const fxRate = plugin.getReferenceRate(
+      expense.currency,
+      baseCurrency,
+      expense.tax_point_date,
+    );
+    const baseAmount = (amount: number) => Math.round(amount * fxRate);
 
     const lines: DraftVoucherLine[] = [
       {

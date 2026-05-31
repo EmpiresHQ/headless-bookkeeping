@@ -107,6 +107,32 @@ export interface CountryPlugin {
   getDefaultBaseCurrency(): string;
 
   /**
+   * Returns the reference exchange rate for converting between two currencies
+   * as of a given date.
+   *
+   * Rate semantics: how many `toCurrency` units does 1 `fromCurrency` unit buy.
+   * E.g., USD→EUR rate of 0.85 means 1 USD = 0.85 EUR.
+   *
+   * The rate must be a positive number.
+   * When the two currencies are the same, the rate is exactly 1.0.
+   *
+   * In v1 (before real FX integration), the null plugin only supports
+   * same-currency conversions (EUR→EUR = 1.0). Cross-currency throws.
+   *
+   * @param fromCurrency - The source currency code (e.g. "USD")
+   * @param toCurrency - The target currency code (e.g. "EUR")
+   * @param date - The date for which to fetch the rate (YYYY-MM-DD).
+   *   Determines which historical rate to use.
+   * @returns The exchange rate as a positive number
+   * @throws Error if the rate is not available for the given pair or date
+   */
+  getReferenceRate(
+    fromCurrency: string,
+    toCurrency: string,
+    date: string,
+  ): number;
+
+  /**
    * Validates whether a VAT code is applicable in a given context.
    *
    * @param vatCode - The VAT code to validate

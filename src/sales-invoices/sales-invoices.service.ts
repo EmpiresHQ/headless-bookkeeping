@@ -93,8 +93,12 @@ export class SalesInvoicesService {
       orgContext,
     );
 
-    const isBaseCurrency = invoice.currency === baseCurrency;
-    const fxRate = isBaseCurrency ? 1 : 1;
+    const fxRate = plugin.getReferenceRate(
+      invoice.currency,
+      baseCurrency,
+      invoice.tax_point_date,
+    );
+    const baseAmount = (amount: number) => Math.round(amount * fxRate);
     const netAmount = invoice.gross_amount - invoice.vat_amount;
 
     const draft: DraftVoucher = {
@@ -105,7 +109,7 @@ export class SalesInvoicesService {
           account_code: 'AR',
           amount: invoice.gross_amount,
           currency: invoice.currency,
-          base_amount: invoice.gross_amount,
+          base_amount: baseAmount(invoice.gross_amount),
           fx_rate: fxRate,
           vat_code: null,
           is_debit: true,
@@ -114,7 +118,7 @@ export class SalesInvoicesService {
           account_code: mapping.accountCode,
           amount: netAmount,
           currency: invoice.currency,
-          base_amount: netAmount,
+          base_amount: baseAmount(netAmount),
           fx_rate: fxRate,
           vat_code: mapping.vatCode,
           is_debit: false,
@@ -123,7 +127,7 @@ export class SalesInvoicesService {
           account_code: 'VAT_PAYABLE',
           amount: invoice.vat_amount,
           currency: invoice.currency,
-          base_amount: invoice.vat_amount,
+          base_amount: baseAmount(invoice.vat_amount),
           fx_rate: fxRate,
           vat_code: mapping.vatCode,
           is_debit: false,

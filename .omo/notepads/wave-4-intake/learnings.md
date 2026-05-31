@@ -124,3 +124,29 @@
 - `npx jest --config ./test/jest-e2e.json --testPathPatterns='override-pipeline' --no-cache` → 4/4 passed.
 - Full unit test suite: 210/211 passed (1 pre-existing flaky `expect(...).rejects.toThrow()` in `database.module.spec.ts`).
 - Full e2e suite: 27/28 passed (1 pre-existing voucher duplicate 500 vs 409 in `voucher.e2e-spec.ts`).
+
+## W3-2: Real FX rate integration in draft voucher generation (2026-05-31)
+
+### What was built
+- **`src/plugins/country-plugin.interface.ts`** — Added `getReferenceRate(fromCurrency: string, toCurrency: string, date: string): number` method with full JSDoc. Rate semantics: how many `toCurrency` units does 1 `fromCurrency` unit buy. Must return a positive number. When `fromCurrency === toCurrency`, rate is exactly 1.0.
+- **`src/plugins/null-country.plugin.ts`** — Implemented `getReferenceRate`: returns 1.0 when `fromCurrency === toCurrency`, otherwise throws `Error('Cross-currency FX not supported in null plugin: X → Y')`. This matches the v1 constraint of EUR-only deployment.
+- **`src/expenses/expenses.service.ts`** — In `generateDraftVoucher`, replaced dead `fxRate = isBaseCurrency ? 1 : 1` and `baseAmount = (amount) => isBaseCurrency ? amount : amount` with real FX: `const fxRate = plugin.getReferenceRate(expense.currency, baseCurrency, expense.tax_point_date)` and `const baseAmount = (amount: number) => Math.round(amount * fxRate)`.
+- **`src/sales-invoices/sales-invoices.service.ts`** — Same pattern in `generateDraftVoucher`. Previously the method didn't even compute `base_amount` from `fxRate` — it set `base_amount = invoice.gross_amount` etc. directly. Now uses `baseAmount()` for all three lines (AR, Revenue, VAT_PAYABLE). Removed unused `isBaseCurrency` variable.
+- **`src/plugins/plugin-loader.service.spec.ts`** — Added `describe('getReferenceRate')` block with 5 tests:
+  1. Same currency (EUR→EUR) → 1.0
+  2. Same currency (DKK→DKK) → 1.0
+  3. Cross-currency (EUR→DKK) → throws
+  4. Cross-currency (USD→EUR) → throws
+  5. Date parameter is accepted but ignored (returns 1.0 for any date with same currency)
+
+### Key decisions
+- **Rate lives on CountryPlugin, not CurrencyService**: The country plugin is the sole resolver of country-specific rules. An FX rate is country-specific (what source to use, what holiday calendar, what cutoff time). The separate `FXRateService` (with hardcoded rates) is a separate concern for future settlement FX; the draft generation uses the plugin's authoritative rate.
+- **`base_amount = Math.round(amount * fxRate)`**: Integer cents per the project convention. The `Math.round` ensures no floating-point surprises at the cent boundary.
+- **NullCountryPlugin throws for cross-currency**: In v1 the project is EUR-only, so no cross-currency rates are needed. A real country plugin (e.g., a Danish plugin) would implement actual rate fetching.
+- **No test changes needed**: All existing tests use EUR, and `EUR→EUR rate = 1.0`, so `Math.round(amount * 1.0) = amount` — identical behavior to the old stub. The `sales-invoices.service.spec.ts` assertion `expect(line.base_amount).toBe(line.amount)` continues to hold.
+
+### Verification
+- `npm run build` → clean (0 errors).
+- `npm run lint` → clean (0 errors, 0 warnings).
+- Unit tests: all 29 suites passed (plugin-loader: 25 tests — 5 new `getReferenceRate`).
+- `npm run test:e2e` → 6 suites, 28/28 passed.
