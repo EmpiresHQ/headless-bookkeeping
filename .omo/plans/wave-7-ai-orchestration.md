@@ -1,7 +1,7 @@
 # Wave 7: AI ingestion — Mastra orchestration, real OCR, agentic classification
 
 ## Overview
-Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md), built on **Mastra** embedded in-process. A 2-pass intake (Pass 1 OCR→markdown, Pass 2 Mastra agent + tools → schema-validated `TriageResult`) runs as a Mastra **Workflow** with a **durable human-in-the-loop** suspend/resume checkpoint. The deterministic kernel is untouched: AI proposes, Rules validate, Policy decides, the plugin resolves accounting, and only a deterministic voucher reaches the hash-chained ledger. See **ADR-0024** (architecture) and ADR-0018/0016/0002/0009.
+Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md), built on **Mastra** embedded in-process. A 2-pass intake (Pass 1 OCR→markdown, Pass 2 **read-only** Mastra agent + tools → schema-validated `TriageResult`) runs as a Mastra **Workflow** that **routes draft-or-triage**: a confident `new_expense` becomes a draft (deterministic step) through the pipeline; an uncertain result creates no draft and raises an `AuditFinding(needs_triage)`. The deterministic kernel is untouched: AI proposes, Rules validate, Policy decides, the plugin resolves accounting, and only a deterministic voucher reaches the hash-chained ledger. Human-in-the-loop is durable on our own Approval/AuditFinding (no Mastra `suspend()` in v1). See **ADR-0024** (architecture) and ADR-0018/0016/0002/0009.
 
 > **This `.omo` file is the canonical, authoritative spec — execute from it.** Channels (email/Telegram), the intent router, advisory chat, and SecretaryAgent outreach are **Wave 8**, not here.
 
@@ -10,7 +10,8 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   - **Wave-5 Task 33** `entity` (supplier identity) — Pass 2's supplier-proposal tool.
   - **Wave-5 Task 32** `document_vat_marking` (the OCR field renamed from `vat_code`) — Pass 2 emits it, never a VAT code.
   - **Wave-5 Task 38** purchase-side triage outcomes (`new_expense|correction|duplicate|unknown`, no `sales_invoice`) — the live triage path the AI feeds.
-  - **Wave-6 Task 29** `approval` (+ `workflow_run_id`) — the durable-suspend correlation + HITL.
+  - **Wave-6 Task 29** `approval` — the HITL for a held draft (resolve → approve→post). (`workflow_run_id` is forward-compat only; v1 does not suspend a Mastra run.)
+  - **Wave-6 Task 30** `audit_finding` (+ `needs_triage` finding_type) — the no-draft uncertain path.
   - **Wave-6 Task 36** `conversation`/`artifact` (incl. `ocr_markdown` kind) — Pass-1 markdown audit home.
 - ⚠️ **RE-REVIEW GATE (Codex W7 review):** Wave 5 is already in implementation — its tasks **cannot be re-tightened from here**. So **re-review this Wave-7 plan AFTER Wave 5 ships**, verifying the prerequisites actually landed as specified (purchase-side outcomes, `document_vat_marking`, `entity`). Do not dispatch Wave-7 agents until that re-review passes. (Wave-6 prerequisites we *can* still tighten — and have: `approval.workflow_run_id`, `artifact.kind += ocr_markdown`.)
 - **Runtime prerequisite (verify FIRST):** Mastra needs **Node ≥22 and ESM** (`@mastra/core` is ESM-first). Node is fine (22.x), but `package.json` has **no `"type": "module"`** and tsconfig is `nodenext` — Task 40 must explicitly resolve the ESM/CJS module strategy before building on Mastra.
@@ -19,7 +20,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 ## Definition of Done
 - Real OCR (Pass 1) transcribes a document to markdown, stored as a Conversation Artifact.
 - Pass 2 (Mastra agent + tools) emits a Zod-validated `TriageResult` (amounts, document tax-point date, supplier proposal, category, `document_vat_marking`, confidence) — never an account/VAT code.
-- The intake Workflow suspends for human approval on low confidence / uncertain supplier-or-category, persists durably (survives restart), and resumes on the Approval resolving.
+- The intake Workflow routes draft-or-triage: confident `new_expense` → draft → pipeline (auto-post or hold→Approval); uncertain/unknown → no draft → `AuditFinding(needs_triage)`. Both human waits are durable on our aggregates (survive restart); no Mastra `suspend()` in v1.
 - `auto_post_min_confidence` Policy gate is wired (un-stubbed) to the real confidence.
 - AI provenance (proposal + model id/version + markdown) persisted for audit, outside the hash chain.
 - **Wave gate — ALL green, exactly as CI runs them**: `npm run build && npm run lint && npm run test && npm run test:e2e`.
@@ -39,7 +40,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   - Add `@mastra/core` (pin the version — API churn; `engines: node>=22.13`, dual ESM+CJS build) and a `MastraService` NestJS provider. **Load Mastra via an async factory provider using dynamic `import()`** (`useFactory: async () => await import('@mastra/core')`) — the safe default that survives `ERR_REQUIRE_ASYNC_MODULE` if a transitive dep uses top-level await. (Smoke-test a plain `require('@mastra/core')` first; if it works synchronously, a normal import is fine.) dev-server NOT used — embedded library only.
   - **Storage:** point Mastra's storage at SQLite (LibSQL) — its snapshot/memory tables live **alongside** our domain tables, NOT replacing `Approval`/`Conversation` (ledger/Approval = SoR, VISION §505).
   - **Model profiles:** wire the CONFIG LLM profiles (`ocr`, `processing`, …) to Mastra's model router (provider/model/temperature per task).
-  - **Tool layer (the invariant):** define tools as thin wrappers over kernel services. **Read-tools** (`searchSuppliers`, `listCategories`, `getClassificationMemory`, `previewCategoryMapping`) free; the only **write-tool** `proposeDraft`. **No `post()` tool.** Minimal toolset per agent (ADR-0018). Tool schemas in **Zod**.
+  - **Tool layer (the invariant):** the agent gets **read-tools ONLY** — thin read-wrappers over kernel services (`searchSuppliers`, `listCategories`, `getClassificationMemory`, `previewCategoryMapping`). The agent has **no write tool** (no `proposeDraft`, no `post`) — so it cannot create half-baked drafts (see Task 43). `proposeDraft` is a **deterministic post-agent step**, not an agent tool. Minimal toolset per agent (ADR-0018). Tool schemas in **Zod**.
   - **`proposeDraft` contract (Codex W7 P1):** the pipeline does NOT accept a raw AI proposal — it operates on an existing business object (`expense`/`sales_invoice`) and updates that table. So `proposeDraft(TriageResult)` = **create the `Expense` business object** (via the existing `ExpensesService.createExpense`, purchase-side per Wave-5 Task 38) from the validated `TriageResult`, then run the **existing** `generateDraftVoucher → posting pipeline (Rules→Policy→post)`. No new pipeline entry-point, no ad-hoc posting — it reuses the Wave-3/4 path. The agent never sees the voucher/post; it only proposes the business object.
   - **Route by `kind` (NF-2):** `proposeDraft` handles only `kind='new_expense'`. `correction`/`duplicate` route to the Wave-4 correction / dedup paths (link to original — stub if not yet built); `unknown` → hold for human triage. Never silently create a new expense for a non-`new_expense` kind.
 
@@ -81,7 +82,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   **What to do**:
   - **Replace the Wave-4 TS-interface `TriageResult` with a Zod schema (Codex W7 P0)** — the validated AI-output contract. The current `src/triage/types.ts` interface still has a `vat_code` field; **remove it**. Fields: **`kind`** (discriminant — `new_expense | correction | duplicate | unknown`, the Wave-5 Task-38 outcome union; NF-2), `gross_amount`, `vat_amount`, **`currency`** (`z.string().length(3)`; if the document omits it, fall back to the org base currency — NF-4, `createExpense` requires it), **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`. **No `vat_code`, no account** — the plugin resolves account+VAT (ADR-0002); the marking is evidence, never authority.
   - A Mastra **agent** over the Pass-1 markdown with read-tools (`searchSuppliers`/`listCategories`/`getClassificationMemory`) emits **`structuredOutput`** = that Zod `TriageResult`.
-  - **Bounded retry** on invalid structured output; if still invalid → hand to the suspend gate (Task 43), never post garbage.
+  - **Bounded retry** on invalid structured output; if still invalid → route to `needs_triage` (no draft, Task 43), never post garbage.
   - `classification memory` fed as an advisory prior (CONTEXT.md — never a gate).
 
   **Must NOT do**:
@@ -106,7 +107,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   - Mastra **Workflow**: `pass1 (OCR→markdown) → pass2 (read-only agent → complete TriageResult) → route by confidence + kind`:
     - **confident + `kind='new_expense'`** → the deterministic `proposeDraft` step creates the draft `Expense` (one shot) → existing `generateDraftVoucher → Rules → Policy` (Task 44). Policy decides **auto-post** or **hold → Approval(object=the draft Expense)** (Wave-6) — the existing HITL; resume = Wave-6 `approve → post`.
     - **uncertain / `kind='unknown'` / supplier unresolved** → **NO draft.** Emit an `AuditFinding(finding_type='needs_triage')` (Wave-6) referencing the Document/Conversation → human triages (Wave-8 surfaces it) → **re-run** the workflow. No partial Expense is ever created.
-    - `correction`/`duplicate` → Wave-4 correction/dedup path (link to original; stub if unbuilt).
+    - `correction`/`duplicate` → Wave-4 correction/dedup path (link to original; stub if unbuilt). **NF-9 (deferred to post-Wave-5 re-review):** the exact handoff — which `TriageResult` fields these kinds carry and which service/endpoint they call (`POST /api/expenses/:id/correct` payload, or the dedup lookup) — is specified once Wave-5's correction/dedup stubs land; v1 may simply route these to `needs_triage` until then.
   - The workflow **ends** after routing (no long-lived suspended run). Durability is the Approval / AuditFinding row, not Mastra state.
 
   **Must NOT do**:
@@ -147,7 +148,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **What to do**:
   - Replace the Wave-4 `OcrService.extract()` stub usage in `TriageService` with the real Workflow (Tasks 41-43); triage now produces real drafts with real confidence + document tax-point date.
-  - Update `test/intake.e2e-spec.ts`: upload → real OCR (faux/fixture model) → Pass 2 → (confident) auto-post-eligible / (uncertain) suspend+Approval → resume → posted. Keep deterministic via a fixture model profile (no live LLM in CI).
+  - Update `test/intake.e2e-spec.ts`: upload → real OCR (faux/fixture model) → Pass 2 → **(confident `new_expense`)** draft → pipeline → auto-post/Approval; **(uncertain)** no draft → `AuditFinding(needs_triage)`. Keep deterministic via a fixture model profile (no live LLM in CI).
 
   **Must NOT do**:
   - Do NOT leave the deterministic odd/even stub in the live path (it stays only as a test fixture / faux model).
@@ -156,7 +157,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   **References**: ADR-0024, Wave-4 Task 17/20, Wave-5 Task 38.
 
   **Acceptance**:
-  - [ ] Intake e2e runs the real 2-pass path against a fixture model and posts (confident) / suspends→resumes→posts (uncertain).
+  - [ ] Intake e2e runs the real 2-pass path against a fixture model: confident `new_expense` → posts (or holds→Approval); uncertain → no expense row + a `needs_triage` AuditFinding.
   - [ ] No live LLM call in CI; tests deterministic.
 
   **Commit**: `feat(ai): wire real 2-pass intake + e2e`
