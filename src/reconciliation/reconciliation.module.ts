@@ -5,6 +5,7 @@ import { EntitiesModule } from '../entities/entities.module';
 import { AccountModule } from '../ledger/account/account.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { PluginsModule } from '../plugins/plugins.module';
+import { CurrencyModule } from '../currency/currency.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { ReconciliationService } from './reconciliation.service';
 import { ReconciliationController } from './reconciliation.controller';
@@ -23,6 +24,7 @@ import { FXRealizedController } from './fx-realized.controller';
     AccountModule,
     PostingModule,
     PluginsModule,
+    CurrencyModule,
     OrganizationModule,
   ],
   providers: [
