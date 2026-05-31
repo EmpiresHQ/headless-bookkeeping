@@ -9,20 +9,22 @@ Wave 8 is the **interaction layer**: the channels (email/Telegram/Slack/Drive) a
 
 - **Channel-adapter boundary:** adapters are the ONLY channel-specific code (inbound raw → unified envelope `{channel, sender, conv-key, message, attachments, metadata, auth}`; outbound abstract action-point → channel delivery). The core (router/flows/Conversation/pipeline) is **channel-agnostic**. Access gating (whitelist / DKIM-SPF) lives **once in the core** over the adapter's `auth` signals — not duplicated per adapter.
 - **Router per inbound envelope:** (1) resolve Conversation (deterministic, by conv-key); (2) ingest attachments per the ingest policy; (3) if gated-in (whitelist + auth) and there's a message → classify intent (probabilistic) → dispatch flow. The router is **not a security boundary** — a misroute only yields a *draft* gated by Rules→Policy (ADR-0016/0012). Ingest and a dispatched intent are not mutually exclusive.
+- **Email confirmation-loop = one action-point per Conversation:** a Conversation has at most one open action-point at a time (serialize if more). An inbound reply → resolve Conversation (conv-key) → commit only if it has an open action-point AND sender ∈ approver-whitelist AND DKIM/SPF passes AND the body is an explicit unambiguous affirmative; a hedge → re-ask; a modification → re-propose (new action-point); spoof/non-approver → reject; timeout → reminder only (no auto-resolve, ADR-0015). conv-key makes "yes" unambiguous.
+- **No invoice send in v1:** the SalesInvoice issuance flow only **registers** the accounting record (business object → Voucher). No PDF render, no delivery — that is a **v2 plugin** (V2-ROADMAP). Outbound SMTP in v1 = dialogue only (replies/re-asks/reports).
 - **Ingest is sender-gated (reverses ADR-0016 "open"):** a deterministic sender allowlist configured at **initial setup** (editable via admin/config); **unknown → reject** by default (`ingest_policy: known-only | quarantine | open`). Anti-spam/hygiene only — the kernel never auto-books an unknown-supplier doc anyway (Wave-7 → `needs_triage`). Amended in ADR-0016 / CONTEXT.md / CONFIG / VISION.
 
 ## Scope (deferred here from earlier waves)
 
 ### Channels (ADR-0016, CONFIG §5)
 - **Telegram**: bot + webhook; inline **action-point buttons** carrying `callback_data` (conversation/approval id — un-skippable commit signal).
-- **Email**: ingest **sender-gated** by a deterministic allowlist (configured at setup; `ingest_policy: known-only [default] | quarantine | open` — unknown rejected by default, ADR-0016 Wave-8 amendment); conversation/commands whitelist-only; action/approval via **confirmation-loop** ("YES"/re-ask) + **DKIM/SPF**; outbound **SMTP** (invoices/replies/reports). Embeds the **Conversation id in the body** (`[conv:…]`) since threading headers can be stripped.
+- **Email**: ingest **sender-gated** by a deterministic allowlist (configured at setup; `ingest_policy: known-only [default] | quarantine | open` — unknown rejected by default, ADR-0016 Wave-8 amendment); conversation/commands whitelist-only; action/approval via **confirmation-loop** ("YES"/re-ask) + **DKIM/SPF**; outbound **SMTP** for **dialogue only** (replies / confirmation re-asks / reports) — **NOT invoice delivery** (that is a v2 plugin). Embeds the **Conversation id in the body** (`[conv:…]`) since threading headers can be stripped.
 - **Slack** (buttons, like Telegram); **Google Drive** watcher (passive intake); HTTP/webhooks.
 
 ### Intent router (ADR-0016)
 - **Deterministic Conversation resolution FIRST** (channel + thread key; email body `conv:` token / TG `callback_data`), then **probabilistic** intent classification (`advisory | action | report | reconciliation`). Wires the **Conversation aggregate** (Wave-6 Task 36, built service-level) to live channels.
 
 ### Conversational flows (on the Wave-7 Mastra runtime)
-- **Outbound sales-invoice issuance** (the gap surfaced in W7 grilling): router intent `create_sales_invoice` → a Mastra **interview** flow (agent + tools: `searchCustomers` [Entity role=customer], `listCategories`, plugin for output VAT) collects customer/amount/date/lines → `SalesInvoice` draft (the Wave-3 kernel path already exists) → `generateDraftVoucher → Rules → Policy → post`. **No OCR** here — it is interview/collect, not extract. Then **SEND** the invoice (email/PDF) — a high-stakes **Action point**, approval-required (ADR-0016), outbound SMTP.
+- **Sales-invoice REGISTRATION** (the gap surfaced in W7 grilling): router intent `create_sales_invoice` → a Mastra **interview** flow (agent + tools: `searchCustomers` [Entity role=customer], `listCategories`, plugin for output VAT) collects customer/amount/date/lines → `SalesInvoice` (the Wave-3 kernel path) → `generateDraftVoucher → Rules → Policy → post`. **No OCR** (interview/collect, not extract). **We do NOT send the invoice in v1** — no PDF render, no delivery. We register the accounting record only; **PDF rendering + delivery to the customer is a v2 domain plugin** (V2-ROADMAP).
 - **Advisory chat** (the `advisory` LLM profile) — read-only Q&A over the books.
 
 ### Human-in-the-loop delivery (the Wave-7 deferral)
@@ -39,5 +41,4 @@ Wave 8 is the **interaction layer**: the channels (email/Telegram/Slack/Drive) a
 - Email confirmation-loop exact state machine; DKIM/SPF failure handling.
 - Router intent taxonomy + misroute recovery (ADR-0016 says misroute is harmless — verify under real channels).
 - Issuance interview: which fields are mandatory vs plugin-defaulted; multi-line invoices; customer onboarding mid-flow (mirror of supplier-at-intake, Wave-5 Task 35).
-- SEND idempotency + the action-point/approval contract for outbound.
-- Outbound artifacts (sent invoice PDF) as Conversation `Artifact` (`outbound_output` kind).
+- Outbound **dialogue** artifacts (sent replies/reports) as Conversation `Artifact` (`outbound_output` kind). (Invoice PDF rendering + delivery + send-idempotency are a **v2 plugin**, not Wave 8 — V2-ROADMAP.)

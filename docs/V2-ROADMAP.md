@@ -25,6 +25,14 @@ Capabilities deliberately **out of v1 scope**, to be added post-v1 as **domain p
 
 ---
 
+## Invoice rendering + delivery (domain plugin)
+
+**What:** Render a registered **SalesInvoice** to a document (PDF) and **deliver** it to the customer (email/portal). v1 only **registers** the invoice as the accounting record (business object → Voucher); it does **not** render or send — there is no PDF renderer and no invoice-send path.
+
+**Why a domain plugin:** rendering (templates, branding, locale/format) + delivery (SMTP/portal, bounce handling, idempotent at-most-once send) is a self-contained sub-domain with its own concerns; the kernel just holds the registered invoice. Posts nothing new to the ledger — it reads a registered invoice and produces/sends a document. The **SEND** is a high-stakes, irreversible action (action-point/approval, ADR-0016) and idempotent — but all of that lives in the plugin, deferred to v2.
+
+**Why deferred:** v1's job is the *ledger record* of what will be billed; actual document production/delivery is out of scope.
+
 ## Other deferred (not domain plugins)
 
 - **RBAC / roles / per-route permissions** — *uncertain*. v1 ships a single table-backed owner API token (Wave-6 Task 39): `Authorization: Bearer <token>`, hash-stored, NestJS guard over `/api`+`/admin`. Multiple roles/scopes are deferred to v2 and may never be needed for a single-owner, self-hosted, single-tenant deployment (ADR-0003). Revisit only if multi-user access becomes a real requirement.

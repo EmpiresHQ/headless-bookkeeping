@@ -22,4 +22,4 @@ Email behaves on three distinct tracks, gated differently:
 
 Because email is spoofable, action/approval over email also requires a **DKIM/SPF pass** — on top of the whitelist, to prove the mail really came from the whitelisted address rather than a spoof. The deployment is self-hosted, so the threat model is relaxed, but DKIM/SPF is still checked.
 
-Outbound email over SMTP (sending invoices, replies, reports) is a *system* action; when it needs approval it is confirmed on whatever channel initiated it (a button on TG/Slack, or the email confirmation loop).
+Outbound email over SMTP carries **dialogue only** (replies, confirmation re-asks, reports) — a *system* action confirmed on whatever channel initiated it (a button on TG/Slack, or the email confirmation loop). **Invoice rendering + delivery to the customer is NOT in v1** (no PDF renderer, no invoice-send): v1 only *registers* the SalesInvoice as the accounting record; rendering+delivery is a v2 plugin (V2-ROADMAP).
