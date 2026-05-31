@@ -1,323 +1,38 @@
 {
   "schema_version": 2,
-  "active_work_id": "wave-5-reconciliation-a1b2c3d4",
+  "active_work_id": "wave-6-agents-admin",
   "works": {
-    "wave-5-reconciliation-a1b2c3d4": {
-      "work_id": "wave-5-reconciliation-a1b2c3d4",
-      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-5-reconciliation.md",
-      "plan_name": "wave-5-reconciliation",
-      "status": "completed",
-      "started_at": "2026-05-31T16:51:54.826Z",
-      "updated_at": "2026-05-31T20:18:57.557Z",
-      "ended_at": "2026-05-31T20:18:57.557Z",
+    "wave-6-agents-admin": {
+      "work_id": "wave-6-agents-admin",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
+      "plan_name": "wave-6-agents-admin",
+      "status": "active",
+      "started_at": "2026-05-31T20:46:48.010Z",
+      "updated_at": "2026-05-31T20:46:48.010Z",
       "session_ids": [
-        "opencode:ses_1810d0105ffeYqv7WDor7a1f3d",
-        "opencode:ses_180d84edbffejsHAz6D2bd60uJ",
-        "opencode:ses_18097fcf8ffeIuVlvfAu9SeFsG"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq"
       ],
       "session_origins": {
-        "opencode:ses_1810d0105ffeYqv7WDor7a1f3d": "direct",
-        "opencode:ses_180d84edbffejsHAz6D2bd60uJ": "direct",
-        "opencode:ses_18097fcf8ffeIuVlvfAu9SeFsG": "direct"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
       },
       "agent": "atlas",
-      "task_sessions": {
-        "todo:21": {
-          "task_key": "todo:21",
-          "task_label": "21",
-          "task_title": "BankStatement + BankTransaction schema",
-          "session_id": "opencode:ses_180f9fc17ffee7GuqYVe6x9YmV",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "started_at": "2026-05-31T17:07:18.244Z",
-          "status": "completed",
-          "updated_at": "2026-05-31T17:24:30.799Z",
-          "ended_at": "2026-05-31T17:24:30.799Z",
-          "elapsed_ms": 1032555
-        },
-        "todo:22": {
-          "task_key": "todo:22",
-          "task_label": "22",
-          "task_title": "Matching engine (N:M deterministic)",
-          "session_id": "opencode:ses_180d548beffedQrXjrV9A6L45A",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "started_at": "2026-05-31T17:27:49.537Z",
-          "status": "completed",
-          "updated_at": "2026-05-31T18:17:54.806Z",
-          "ended_at": "2026-05-31T18:17:54.806Z",
-          "elapsed_ms": 3005269
-        },
-        "todo:23": {
-          "task_key": "todo:23",
-          "task_label": "23",
-          "task_title": "Prepayment balances (liability/asset vouchers)",
-          "session_id": "opencode:ses_180bd884fffeVBlex5trbDyFfY",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "updated_at": "2026-05-31T18:29:05.987Z",
-          "started_at": "2026-05-31T18:26:20.759Z",
-          "status": "completed",
-          "ended_at": "2026-05-31T18:29:05.987Z",
-          "elapsed_ms": 165228
-        },
-        "todo:24": {
-          "task_key": "todo:24",
-          "task_label": "24",
-          "task_title": "Personal disposition",
-          "session_id": "opencode:ses_180b397a9ffeUhmS98ktpBeOvx",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "updated_at": "2026-05-31T19:00:00.000Z",
-          "started_at": "2026-05-31T18:38:05.611Z",
-          "status": "completed",
-          "ended_at": "2026-05-31T19:00:00.000Z",
-          "elapsed_ms": 1320000
-        },
-        "todo:25": {
-          "task_key": "todo:25",
-          "task_label": "25",
-          "task_title": "FX realized auto-posting",
-          "session_id": "opencode:ses_18095fe7affesGMDhE6f7Hy08V",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "status": "completed",
-          "updated_at": "2026-05-31T19:30:00.000Z",
-          "ended_at": "2026-05-31T19:30:00.000Z",
-          "elapsed_ms": 915000
-        },
-        "todo:26": {
-          "task_key": "todo:26",
-          "task_label": "26",
-          "task_title": "Reconciliation integration",
-          "session_id": "opencode:ses_1806c62b5ffe5rbA3tdWC1aVfv",
-          "agent": "Sisyphus-Junior",
-          "category": "deep",
-          "status": "completed",
-          "updated_at": "2026-05-31T19:45:00.000Z",
-          "ended_at": "2026-05-31T19:45:00.000Z",
-          "elapsed_ms": 722000
-        },
-        "todo:32": {
-          "task_key": "todo:32",
-          "task_label": "32",
-          "task_title": "Persist the Document VAT marking as evidence",
-          "session_id": "previous-session",
-          "agent": "Sisyphus-Junior",
-          "category": "quick",
-          "status": "completed",
-          "updated_at": "2026-05-31T17:00:00.000Z",
-          "ended_at": "2026-05-31T17:00:00.000Z",
-          "elapsed_ms": 600000
-        },
-        "todo:33": {
-          "task_key": "todo:33",
-          "task_label": "33",
-          "task_title": "Supplier / Entity aggregate + onboarding",
-          "session_id": "previous-session",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "status": "completed",
-          "updated_at": "2026-05-31T17:00:00.000Z",
-          "ended_at": "2026-05-31T17:00:00.000Z",
-          "elapsed_ms": 1800000
-        },
-        "todo:34": {
-          "task_key": "todo:34",
-          "task_label": "34",
-          "task_title": "Cross-border VAT treatment resolution in the country plugin",
-          "session_id": "opencode:ses_18095caecffeHDN5FeukDTnvGF",
-          "agent": "Sisyphus-Junior",
-          "category": "deep",
-          "status": "completed",
-          "updated_at": "2026-05-31T19:30:00.000Z",
-          "ended_at": "2026-05-31T19:30:00.000Z",
-          "elapsed_ms": 1424000
-        },
-        "todo:35": {
-          "task_key": "todo:35",
-          "task_label": "35",
-          "task_title": "Resolve the Supplier at intake (find / create-or-reuse), not at posting",
-          "session_id": "opencode:ses_1807b4d87ffekM1wpyVrONHVkS",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "status": "completed",
-          "updated_at": "2026-05-31T19:45:00.000Z",
-          "ended_at": "2026-05-31T19:45:00.000Z",
-          "elapsed_ms": 832000
-        },
-        "todo:38": {
-          "task_key": "todo:38",
-          "task_label": "38",
-          "task_title": "Remediate triage outcomes — purchase-side only (drop sales_invoice)",
-          "session_id": "opencode:ses_18095a759ffezVK6kdmrdq2D8j",
-          "agent": "Sisyphus-Junior",
-          "category": "quick",
-          "status": "completed",
-          "updated_at": "2026-05-31T19:30:00.000Z",
-          "ended_at": "2026-05-31T19:30:00.000Z",
-          "elapsed_ms": 453000
-        }
-      },
       "worktree_path": null,
-      "elapsed_ms": 12422731
+      "elapsed_ms": 0
     }
   },
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-5-reconciliation.md",
-  "started_at": "2026-05-31T16:51:54.826Z",
-  "status": "completed",
-  "updated_at": "2026-05-31T20:18:57.557Z",
-  "ended_at": "2026-05-31T20:18:57.557Z",
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
+  "started_at": "2026-05-31T20:46:48.010Z",
+  "status": "active",
+  "updated_at": "2026-05-31T20:46:48.010Z",
   "session_ids": [
-    "opencode:ses_1810d0105ffeYqv7WDor7a1f3d",
-    "opencode:ses_180d84edbffejsHAz6D2bd60uJ",
-    "opencode:ses_18097fcf8ffeIuVlvfAu9SeFsG"
+    "opencode:ses_18035f62fffepbex2WYoi1iIAq"
   ],
   "session_origins": {
-    "opencode:ses_1810d0105ffeYqv7WDor7a1f3d": "direct",
-    "opencode:ses_180d84edbffejsHAz6D2bd60uJ": "direct",
-    "opencode:ses_18097fcf8ffeIuVlvfAu9SeFsG": "direct"
+    "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
   },
-  "plan_name": "wave-5-reconciliation",
-  "task_sessions": {
-    "todo:21": {
-      "task_key": "todo:21",
-      "task_label": "21",
-      "task_title": "BankStatement + BankTransaction schema",
-      "session_id": "opencode:ses_180f9fc17ffee7GuqYVe6x9YmV",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "started_at": "2026-05-31T17:07:18.244Z",
-      "status": "completed",
-      "updated_at": "2026-05-31T17:24:30.799Z",
-      "ended_at": "2026-05-31T17:24:30.799Z",
-      "elapsed_ms": 1032555
-    },
-    "todo:22": {
-      "task_key": "todo:22",
-      "task_label": "22",
-      "task_title": "Matching engine (N:M deterministic)",
-      "session_id": "opencode:ses_180d548beffedQrXjrV9A6L45A",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "started_at": "2026-05-31T17:27:49.537Z",
-      "status": "completed",
-      "updated_at": "2026-05-31T18:17:54.806Z",
-      "ended_at": "2026-05-31T18:17:54.806Z",
-      "elapsed_ms": 3005269
-    },
-    "todo:23": {
-      "task_key": "todo:23",
-      "task_label": "23",
-      "task_title": "Prepayment balances (liability/asset vouchers)",
-      "session_id": "opencode:ses_180bd884fffeVBlex5trbDyFfY",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-31T18:29:05.987Z",
-      "started_at": "2026-05-31T18:26:20.759Z",
-      "status": "completed",
-      "ended_at": "2026-05-31T18:29:05.987Z",
-      "elapsed_ms": 165228
-    },
-    "todo:24": {
-      "task_key": "todo:24",
-      "task_label": "24",
-      "task_title": "Personal disposition",
-      "session_id": "opencode:ses_180b397a9ffeUhmS98ktpBeOvx",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-31T19:00:00.000Z",
-      "started_at": "2026-05-31T18:38:05.611Z",
-      "status": "completed",
-      "ended_at": "2026-05-31T19:00:00.000Z",
-      "elapsed_ms": 1320000
-    },
-    "todo:25": {
-      "task_key": "todo:25",
-      "task_label": "25",
-      "task_title": "FX realized auto-posting",
-      "session_id": "opencode:ses_18095fe7affesGMDhE6f7Hy08V",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "status": "completed",
-      "updated_at": "2026-05-31T19:30:00.000Z",
-      "ended_at": "2026-05-31T19:30:00.000Z",
-      "elapsed_ms": 915000
-    },
-    "todo:26": {
-      "task_key": "todo:26",
-      "task_label": "26",
-      "task_title": "Reconciliation integration",
-      "session_id": "opencode:ses_1806c62b5ffe5rbA3tdWC1aVfv",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "status": "completed",
-      "updated_at": "2026-05-31T19:45:00.000Z",
-      "ended_at": "2026-05-31T19:45:00.000Z",
-      "elapsed_ms": 722000
-    },
-    "todo:32": {
-      "task_key": "todo:32",
-      "task_label": "32",
-      "task_title": "Persist the Document VAT marking as evidence",
-      "session_id": "previous-session",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "status": "completed",
-      "updated_at": "2026-05-31T17:00:00.000Z",
-      "ended_at": "2026-05-31T17:00:00.000Z",
-      "elapsed_ms": 600000
-    },
-    "todo:33": {
-      "task_key": "todo:33",
-      "task_label": "33",
-      "task_title": "Supplier / Entity aggregate + onboarding",
-      "session_id": "previous-session",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "status": "completed",
-      "updated_at": "2026-05-31T17:00:00.000Z",
-      "ended_at": "2026-05-31T17:00:00.000Z",
-      "elapsed_ms": 1800000
-    },
-    "todo:34": {
-      "task_key": "todo:34",
-      "task_label": "34",
-      "task_title": "Cross-border VAT treatment resolution in the country plugin",
-      "session_id": "opencode:ses_18095caecffeHDN5FeukDTnvGF",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "status": "completed",
-      "updated_at": "2026-05-31T19:30:00.000Z",
-      "ended_at": "2026-05-31T19:30:00.000Z",
-      "elapsed_ms": 1424000
-    },
-    "todo:35": {
-      "task_key": "todo:35",
-      "task_label": "35",
-      "task_title": "Resolve the Supplier at intake (find / create-or-reuse), not at posting",
-      "session_id": "opencode:ses_1807b4d87ffekM1wpyVrONHVkS",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "status": "completed",
-      "updated_at": "2026-05-31T19:45:00.000Z",
-      "ended_at": "2026-05-31T19:45:00.000Z",
-      "elapsed_ms": 832000
-    },
-    "todo:38": {
-      "task_key": "todo:38",
-      "task_label": "38",
-      "task_title": "Remediate triage outcomes — purchase-side only (drop sales_invoice)",
-      "session_id": "opencode:ses_18095a759ffezVK6kdmrdq2D8j",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "status": "completed",
-      "updated_at": "2026-05-31T19:30:00.000Z",
-      "ended_at": "2026-05-31T19:30:00.000Z",
-      "elapsed_ms": 453000
-    }
-  },
+  "plan_name": "wave-6-agents-admin",
+  "task_sessions": {},
   "agent": "atlas",
   "worktree_path": null,
-  "elapsed_ms": 12422731
+  "elapsed_ms": 0
 }

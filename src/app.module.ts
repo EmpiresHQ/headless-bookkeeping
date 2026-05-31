@@ -16,6 +16,9 @@ import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.mo
 import { EntitiesModule } from './entities/entities.module';
 import { BankModule } from './bank/bank.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { AuditFindingsModule } from './audit-findings/audit-findings.module';
+import { AgentsModule } from './agents/agents.module';
+import { VatReportModule } from './vat-report/vat-report.module';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     EntitiesModule,
     BankModule,
     ReconciliationModule,
+    AuditFindingsModule,
+    AgentsModule,
+    VatReportModule,
   ],
 })
 export class AppModule {}

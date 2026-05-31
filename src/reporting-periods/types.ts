@@ -16,3 +16,10 @@ export interface CreateReportingPeriodDto {
   start_date: string;
   end_date: string;
 }
+
+export interface PeriodWarning {
+  type: 'pending_approval' | 'unposted_draft';
+  object_type: string;
+  object_id: number;
+  description: string;
+}

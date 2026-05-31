@@ -213,4 +213,40 @@ export interface CountryPlugin {
     orgContext: OrgContext,
     context: { vatCharged: boolean },
   ): CrossBorderResolution;
+
+  /**
+   * Returns the dividend withholding tax rate for the Organization's country.
+   *
+   * The rate is a fraction (0.0 – 1.0) applied to the gross dividend amount.
+   * E.g. 0.27 for Denmark's 27% udbytteskat, 0.0 for Ireland (no DWT on
+   * resident distributions).
+   *
+   * When the rate is > 0, the declaration voucher splits the payable:
+   *   Dr RETAINED_EARNINGS            (gross)
+   *   Cr DIVIDEND_PAYABLE             (net to owner)
+   *   Cr DIVIDEND_WITHHOLDING_TAX_PAYABLE  (withheld portion)
+   *
+   * @param orgContext - The Organization's context
+   * @returns Withholding rate as a fraction (0.0 = none)
+   */
+  dividendWithholdingRate(orgContext: OrgContext): number;
+
+  /**
+   * Checks whether a dividend of the given gross amount can be distributed
+   * from the available retained earnings.
+   *
+   * Per ADR-0023: dividends are constrained by distributable profits — they
+   * may not exceed retained earnings (a legal cap). The country plugin decides
+   * whether this is a hard block (throws / returns false) or a soft warning.
+   *
+   * @param grossAmount - The proposed gross dividend in base-currency cents
+   * @param retainedEarnings - Current retained-earnings balance in base-currency cents
+   * @param orgContext - The Organization's context
+   * @returns true if the distribution is permitted; false if it must be blocked
+   */
+  assertDistributable(
+    grossAmount: number,
+    retainedEarnings: number,
+    orgContext: OrgContext,
+  ): boolean;
 }

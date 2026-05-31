@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CategoryMappingResult,
   CountryPlugin,
@@ -23,6 +23,8 @@ export const NULL_VAT_CODE = 'NULL_STANDARD';
  */
 @Injectable()
 export class NullCountryPlugin implements CountryPlugin {
+  private readonly logger = new Logger(NullCountryPlugin.name);
+
   getName(): string {
     return 'null';
   }
@@ -114,5 +116,27 @@ export class NullCountryPlugin implements CountryPlugin {
     }
     // Different country → unresolvable (hold for Approval).
     return { treatment: 'unresolvable', vatCode: null };
+  }
+
+  dividendWithholdingRate(_orgContext: OrgContext): number {
+    // Null plugin: no withholding tax (0%).
+    return 0.0;
+  }
+
+  assertDistributable(
+    grossAmount: number,
+    retainedEarnings: number,
+    _orgContext: OrgContext,
+  ): boolean {
+    // Soft check: warn but don't block.
+    // Real country plugins may hard-block (throw) when dividends exceed
+    // retained earnings (a legal cap in most jurisdictions).
+    if (grossAmount > retainedEarnings) {
+      this.logger.warn(
+        `Dividend of ${grossAmount} cents exceeds retained earnings of ${retainedEarnings} cents — soft warning, not blocked`,
+      );
+    }
+    // Always return true — soft check only.
+    return true;
   }
 }

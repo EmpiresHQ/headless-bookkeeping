@@ -7,7 +7,11 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ReportingPeriodsService } from './reporting-periods.service';
-import type { ReportingPeriod, CreateReportingPeriodDto } from './types';
+import type {
+  ReportingPeriod,
+  CreateReportingPeriodDto,
+  PeriodWarning,
+} from './types';
 
 @Controller('api/reporting-periods')
 export class ReportingPeriodsController {
@@ -36,5 +40,18 @@ export class ReportingPeriodsController {
     @Body() dto: CreateReportingPeriodDto,
   ): Promise<ReportingPeriod> {
     return this.service.create(dto);
+  }
+
+  @Post(':id/lock')
+  async lock(@Param('id', ParseIntPipe) id: number): Promise<ReportingPeriod> {
+    return this.service.lock(id);
+  }
+
+  @Get(':id/warnings')
+  async getWarnings(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ warnings: PeriodWarning[] }> {
+    const warnings = await this.service.getWarnings(id);
+    return { warnings };
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../../database/types';
@@ -23,6 +23,9 @@ export class PostingService {
    * Resolves account codes, validates, then delegates to postVoucherTx.
    */
   async postVoucher(draft: DraftVoucher): Promise<PostedVoucher> {
+    // Hard process rule: cannot post into a locked reporting period (ADR-0009)
+    await this.assertPeriodOpen(this.db, draft.tax_point_date);
+
     const codes = [...new Set(draft.lines.map((l) => l.account_code))];
     const accounts = await this.accountService.getAccountsByCodes(codes);
     const byCode = new Map(accounts.map((a) => [a.code, a]));
@@ -65,6 +68,9 @@ export class PostingService {
     draft: DraftVoucher,
     resolved: ValidatableLine[],
   ): Promise<PostedVoucher> {
+    // Hard process rule: cannot post into a locked reporting period (ADR-0009)
+    await this.assertPeriodOpen(trx, draft.tax_point_date);
+
     const postedAt = Math.floor(Date.now() / 1000);
 
     // ── Gapless sequential voucher number (ADR-0021) ──────────────
@@ -168,5 +174,28 @@ export class PostingService {
         is_debit: toBool(l.is_debit),
       })),
     );
+  }
+
+  /**
+   * Hard process rule: reject posting if the tax_point_date falls within a
+   * locked reporting period (ADR-0009).
+   */
+  private async assertPeriodOpen(
+    trx: Kysely<Database>,
+    taxPointDate: string,
+  ): Promise<void> {
+    const locked = await trx
+      .selectFrom('reporting_period')
+      .select('name')
+      .where('status', '=', 'locked')
+      .where('start_date', '<=', taxPointDate)
+      .where('end_date', '>=', taxPointDate)
+      .executeTakeFirst();
+
+    if (locked) {
+      throw new BadRequestException(
+        `Cannot post into locked period ${locked.name}`,
+      );
+    }
   }
 }
