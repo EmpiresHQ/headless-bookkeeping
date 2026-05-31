@@ -7,6 +7,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { DraftVoucher, DraftVoucherLine } from '../ledger/voucher/types';
 import { CorrectionRequest, CorrectionResult } from './types';
+import { CorrectionParams } from './types/correction-params.type';
 
 @Injectable()
 export class CorrectionsService {
@@ -59,8 +60,7 @@ export class CorrectionsService {
     });
   }
 
-  private async correctBusinessObject(params: {
-    objectType: 'expense' | 'sales_invoice';
+  private async correctBusinessObject(params: CorrectionParams)
     objectId: number;
     status: string;
     voucherId: number | null;
