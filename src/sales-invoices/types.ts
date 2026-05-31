@@ -14,6 +14,7 @@ export interface SalesInvoice {
   status: SalesInvoiceStatus;
   sent_at: number | null;
   voucher_id: number | null;
+  document_vat_marking: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -26,4 +27,5 @@ export interface CreateSalesInvoiceDto {
   currency: string;
   tax_point_date: string;
   due_date?: string | null;
+  document_vat_marking?: string | null;
 }

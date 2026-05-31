@@ -30,7 +30,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
 
 ## TODOs
 
-- [ ] 21. BankStatement + BankTransaction schema
+- [x] 21. BankStatement + BankTransaction schema
 
   **What to do**:
   - Create `src/bank/` module
@@ -101,7 +101,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/bank/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 22. Matching engine (N:M deterministic)
+- [x] 22. Matching engine (N:M deterministic)
 
   **What to do**:
   - Create `src/reconciliation/` module
@@ -430,7 +430,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `test/reconciliation.e2e-spec.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 32. Persist the Document VAT marking as evidence
+- [x] 32. Persist the Document VAT marking as evidence
 
   > **Origin:** Wave-4 intake review + cross-border grilling. The OCR triage stub extracts a `vat_code` into `TriageResult`, but `TriageService.route` drops it. That field is **not a VAT code** in our sense (a VAT code is plugin-owned, ours) — it is the **Document VAT marking**: the raw code/rate *printed on the counterparty's document*, which for a foreign supplier is a foreign label belonging to no plugin (see CONTEXT.md). Naming it `source_vat_code` was a trap. This task persists it as opaque evidence only; it does NOT make it authoritative and does NOT implement cross-border resolution (that is Task 33).
 
@@ -471,7 +471,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: migration + `src/triage/`, `src/expenses/`, `src/sales-invoices/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 33. Supplier / Entity aggregate + onboarding
+- [x] 33. Supplier / Entity aggregate + onboarding
 
   > **Origin:** Cross-border grilling — planning-gap finding. The **Supplier/Entity** aggregate is richly defined in CONTEXT.md and decided in ADR-0014, and is referenced by `expense.supplier_id`, by supplier memory, and by Wave-5 Task 22 (matching) — **but no wave ever builds it.** Verified: there is no `supplier`/`entity` table in any migration (001–012), no entry in `database/types.ts`, and no module/service. Worse, `expense.supplier_id` is a bare `integer` column (migration 006) — not even a declared FK, pointing at a non-existent table. Half of Wave 5 (matching, cross-border, memory) silently assumes this aggregate. This task builds it.
 

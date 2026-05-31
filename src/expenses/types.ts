@@ -13,6 +13,7 @@ export interface Expense {
   tax_point_date: string;
   status: ExpenseStatus;
   voucher_id: number | null;
+  document_vat_marking: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -25,6 +26,7 @@ export interface CreateExpenseDto {
   vat_amount: number;
   currency: string;
   tax_point_date: string;
+  document_vat_marking?: string | null;
 }
 
 export interface ExpenseWithVoucher extends Expense {
