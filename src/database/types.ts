@@ -13,6 +13,11 @@ export interface Database {
   reporting_period: ReportingPeriodTable;
   document: DocumentTable;
   document_source: DocumentSourceTable;
+  entity: EntityTable;
+  entity_identifier: EntityIdentifierTable;
+  bank_statement: BankStatementTable;
+  bank_transaction: BankTransactionTable;
+  reconciliation_match: ReconciliationMatchTable;
 }
 
 export interface OrganizationTable {
@@ -22,6 +27,9 @@ export interface OrganizationTable {
   // plugin" (ADR-0004).
   base_currency: string | null;
   vat_registered: number;
+  // Legal form: 'company' | 'sole_proprietor' (ADR-0017/ADR-0023).
+  // Generated because migration 017 adds DEFAULT 'company'.
+  org_type: Generated<string>;
   created_at: number;
 }
 
@@ -83,6 +91,9 @@ export interface SalesInvoiceTable {
   status: string;
   sent_at: number | null;
   voucher_id: number | null;
+  // Raw VAT code/rate as printed on the counterparty's source document
+  // (opaque evidence, never used for booking — ADR-0002).
+  document_vat_marking: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -99,6 +110,9 @@ export interface ExpenseTable {
   // enum: 'draft' | 'pending' | 'posted' | 'reversed'
   status: string;
   voucher_id: number | null;
+  // Raw VAT code/rate as printed on the counterparty's source document
+  // (opaque evidence, never used for booking — ADR-0002).
+  document_vat_marking: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -154,4 +168,76 @@ export interface DocumentSourceTable {
 export interface VoucherSequenceTable {
   year: string;
   last_number: number;
+}
+
+// Entity: a counterparty (supplier or customer) identified by strong keys,
+// never by raw name (ADR-0014). Stores ONLY intrinsic facts — no VAT code.
+export interface EntityTable {
+  id: Generated<number>;
+  // 'supplier' | 'customer'
+  role: string;
+  // ISO 3166-1 alpha-2 country code
+  country: string;
+  name: string;
+  // 'goods' | 'services' | 'unknown'
+  goods_vs_services: string | null;
+  created_at: number | null;
+  updated_at: number | null;
+}
+
+// Identifiers anchored on a strong registration key (CVR/VAT number), IBAN,
+// merchant descriptor, or name alias. The kind column determines the type.
+export interface EntityIdentifierTable {
+  id: Generated<number>;
+  entity_id: number;
+  // 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias'
+  kind: string;
+  value: string;
+  // SQLite boolean (0/1): 1 = confirmed by user, 0 = unconfirmed (e.g. raw
+  // merchant_descriptor before user teaches it).
+  confirmed: number;
+}
+
+// Bank statement: an uploaded statement file for a specific bank account,
+// covering a date range.
+export interface BankStatementTable {
+  id: Generated<number>;
+  account_id: number;
+  start_date: string;
+  end_date: string;
+  uploaded_at: number;
+  file_path: string | null;
+}
+
+// Bank transaction: a single line from a bank statement. Amount is signed
+// cents: positive = incoming/credit, negative = outgoing/debit.
+export interface BankTransactionTable {
+  id: Generated<number>;
+  statement_id: number;
+  transaction_date: string;
+  description: string | null;
+  amount: number;
+  currency: string;
+  source_currency: string | null;
+  source_amount: number | null;
+  fx_rate: number | null;
+  counterparty_iban: string | null;
+  counterparty_descriptor: string | null;
+  reference: string | null;
+  status: string;
+  created_at: number;
+}
+
+// Reconciliation match: N:M link between a bank transaction and a voucher.
+// Match state (unmatched/partial/full) is DERIVED from SUM(amount_matched)
+// vs |bank_transaction.amount| — never stored on the transaction itself.
+export interface ReconciliationMatchTable {
+  id: Generated<number>;
+  bank_transaction_id: number;
+  voucher_id: number;
+  // 'exact' | 'partial' | 'prepayment'
+  match_type: string;
+  // Positive cents — the matched portion of this link.
+  amount_matched: number;
+  created_at: number;
 }
