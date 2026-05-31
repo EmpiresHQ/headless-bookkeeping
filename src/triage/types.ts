@@ -4,7 +4,7 @@ export interface TriageResult {
   gross_amount: number;
   vat_amount: number;
   category: string;
-  document_vat_marking: string;
+  vat_code: string;
   confidence: number;
 }
 

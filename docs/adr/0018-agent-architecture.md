@@ -2,8 +2,6 @@
 
 Agents are separated by responsibility zone and risk/capability, not cosmetically. Each gets a minimal toolset; all share the same `controller → service ← tool` services and reach the ledger only through the pipeline (Rules → Policy). Mastra is the orchestration / conversational-state / middleware layer *above* the services — it can "think" freely but has no access to `post()` (ADR-0012); every output funnels through the pipeline.
 
-**Conversational state is two layers, not one.** Mastra's "conversational-state" above is *transient working memory* (the model's scratchpad for a turn). It is distinct from the **Conversation** — a persisted, auditable domain aggregate (the thread's **Message**s + **Artifact**s, associated M:N to the **Document**(s) and business object(s) it processes). The router resolves the Conversation deterministically by channel + thread key (ADR-0016); a bare reply reuses the original Document via that binding. The Conversation is the durable audit record (not part of the hash-chained ledger — that stays the accounting system of record); Mastra memory is ephemeral and rebuildable from it.
-
 | Agent | Trigger | Ledger | Messages user |
 |---|---|---|---|
 | **AccountingAgent** | reactive (intake / command) | draft/submit via pipeline | on request |

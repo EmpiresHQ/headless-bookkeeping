@@ -10,13 +10,11 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { ExpensesService } from './expenses.service';
-import { EntitiesService } from '../entities/entities.service';
 import { NotFoundException } from '@nestjs/common';
 
 describe('ExpensesService (integration)', () => {
   let db: Kysely<Database>;
   let service: ExpensesService;
-  let entitiesService: EntitiesService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -40,13 +38,11 @@ describe('ExpensesService (integration)', () => {
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
-        EntitiesService,
         ExpensesService,
       ],
     }).compile();
 
     service = module.get(ExpensesService);
-    entitiesService = module.get(EntitiesService);
   });
 
   afterEach(async () => {
@@ -74,20 +70,13 @@ describe('ExpensesService (integration)', () => {
     });
 
     it('accepts optional document_id and supplier_id', async () => {
-      const supplier = await entitiesService.onboard({
-        role: 'supplier',
-        country: 'DK',
-        name: 'Test Supplier',
-        registrationKey: 'DK12345',
-      });
-
       const expense = await service.createExpense({
         ...sampleDto(),
-        document_id: null,
-        supplier_id: supplier.id,
+        document_id: 42,
+        supplier_id: 7,
       });
-      expect(expense.document_id).toBeNull();
-      expect(expense.supplier_id).toBe(supplier.id);
+      expect(expense.document_id).toBe(42);
+      expect(expense.supplier_id).toBe(7);
     });
   });
 

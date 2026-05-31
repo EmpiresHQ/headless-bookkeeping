@@ -15,7 +15,7 @@ describe('OcrService', () => {
       expect(result.gross_amount).toBe(1525);
       expect(result.vat_amount).toBe(285);
       expect(result.category).toBe('transport');
-      expect(result.document_vat_marking).toBe('IE_INPUT_23');
+      expect(result.vat_code).toBe('IE_INPUT_23');
       expect(result.confidence).toBe(0.94);
     });
 
@@ -26,7 +26,7 @@ describe('OcrService', () => {
       expect(result.gross_amount).toBe(12300);
       expect(result.vat_amount).toBe(2300);
       expect(result.category).toBe('revenue');
-      expect(result.document_vat_marking).toBe('IE_OUTPUT_23');
+      expect(result.vat_code).toBe('IE_OUTPUT_23');
       expect(result.confidence).toBe(0.98);
     });
 

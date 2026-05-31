@@ -30,14 +30,12 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
 
 ## TODOs
 
-- [x] 21. BankStatement + BankTransaction schema
+- [ ] 21. BankStatement + BankTransaction schema
 
   **What to do**:
   - Create `src/bank/` module
   - `bank_statement` table: id (INTEGER PK), account_id (INTEGER FK to account — must be BANK_*), start_date (TEXT), end_date (TEXT), uploaded_at (INTEGER), file_path (TEXT, nullable)
-  - `bank_transaction` table: id (INTEGER PK), statement_id (INTEGER FK), transaction_date (TEXT NOT NULL), description (TEXT), amount (INTEGER NOT NULL — cents in the **account** currency, positive credit / negative debit), currency (TEXT NOT NULL — account currency), source_currency (TEXT, nullable — the payment's original currency when the line was bank-converted, e.g. `USD`), source_amount (INTEGER, nullable — cents in `source_currency`), fx_rate (REAL, nullable — the bank's **actual** conversion rate), counterparty_iban (TEXT, nullable — present on SEPA transfers/DD, absent on card payments), counterparty_descriptor (TEXT, nullable — card merchant descriptor when no IBAN), reference (TEXT, nullable — parsed invoice number(s) / match key), status (TEXT — **disposition** enum: `open`, `prepayment`, `personal`, `bank_fee`, `dividend`; CHECK-constrained; minimal for now, expandable later. `dividend` is *reserved* here but wired in Wave-6 Task 37 — its draw-down needs a declared Dividend-payable), created_at (INTEGER)
-  - **Foreign-leg capture (drives realized FX, Task 25):** parse `source_currency` + (`source_amount` and/or `fx_rate`) out of the statement-line description (free text, e.g. `"… 16.00 USD @ 1.08"`). Invariant: when `source_currency` is set and ≠ `currency`, at least one of `source_amount` / `fx_rate` must be present (the third is derived: `base × rate = foreign`). If **neither** is present → the transaction cannot be realized deterministically → it is flagged for **user feedback** (Approval / Action point), never stub-estimated (ADR-0004).
-  - **No `matched_voucher_id`** (Q9 resolution): matching is N:M and lives in `reconciliation_match` (Task 22). Whether a transaction is unmatched / partially / fully matched is **derived** — `SUM(reconciliation_match.amount_matched) WHERE bank_transaction_id = ?` vs `|amount|` — never stored as a single-FK flag. `status` carries only the mutually-exclusive *disposition* (open / prepayment / personal / bank_fee), not match-state.
+  - `bank_transaction` table: id (INTEGER PK), statement_id (INTEGER FK), transaction_date (TEXT NOT NULL), description (TEXT), amount (INTEGER NOT NULL — cents, positive for credit/incoming, negative for debit/outgoing), currency (TEXT NOT NULL), reference (TEXT, nullable — invoice number or match key), matched_voucher_id (INTEGER FK to voucher, nullable), status (TEXT — enum: unmatched, matched, personal, bank_fee), created_at (INTEGER)
   - `POST /api/bank-statements` accepts JSON or CSV upload, creates statement + transactions
   - `GET /api/bank-statements` lists statements
   - `GET /api/bank-statements/:id/transactions` lists transactions for a statement
@@ -101,26 +99,28 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/bank/`
   - Pre-commit: `npm run build && npm test`
 
-- [x] 22. Matching engine (N:M deterministic)
+- [ ] 22. Matching engine (N:M deterministic)
 
   **What to do**:
   - Create `src/reconciliation/` module
-  - **Statement-line parse step:** extract structured tokens from the free-text `description`/`reference` — invoice number(s), counterparty IBAN, card merchant descriptor, FX foreign-leg (Task 21). Structured-token extraction is **deterministic** (not fuzzy).
-  - `ReconciliationService` with `proposeMatches(statementId: number): MatchProposal[]` — signal hierarchy, strongest first:
-    1. **Invoice number(s) in reference/description** → exact-match to the voucher(s). **Multiple numbers in one line → N:M split directly** (one transaction → several `reconciliation_match` rows). Strongest, deterministic.
-    2. **Counterparty** — IBAN → Entity (deterministic, transfers); card merchant descriptor → Entity via a **learned alias** (transactional memory; first sight → user feedback teaches it). Used to filter/rank candidate AR/AP vouchers by counterparty; never name-fuzzy (ADR-0014).
-    3. **Amount + date window (±7 days)** → baseline / confirmation, and the fallback when 1–2 are absent.
-    - Incoming (amount > 0): candidate unpaid **AR** + **CustomerPrepayment** vouchers. Outgoing (amount < 0): candidate unpaid **AP** vouchers. Rank by the highest signal matched (invoice-no > counterparty+amount > amount+date).
+  - `ReconciliationService` with `proposeMatches(statementId: number): MatchProposal[]`:
+    - For each unmatched incoming transaction (amount > 0):
+      - Find unpaid AR vouchers (SalesInvoice vouchers) with matching amount + date within ±7 days
+      - Find CustomerPrepayment vouchers with matching amount + date within ±7 days
+      - Return proposals sorted by confidence (exact amount match = highest)
+    - For each unmatched outgoing transaction (amount < 0):
+      - Find unpaid AP vouchers (Expense vouchers with AP line) with matching |amount| + date within ±7 days
+      - Return proposals
   - `POST /api/bank-statements/:id/match` executes proposed matches
   - `reconciliation_match` table: id, bank_transaction_id, voucher_id, match_type (enum: exact, partial, prepayment), amount_matched (INTEGER), created_at
-  - N:M matching: one transaction can match multiple vouchers, one voucher can match multiple transactions. **`reconciliation_match` is the single source of truth** for matching (Q9); there is no `matched_voucher_id` on the transaction.
-  - Do NOT store a transaction match-flag — **derive** unmatched / partially_matched / fully_matched from `SUM(reconciliation_match.amount_matched)` vs `|amount|`. Only the *disposition* (`status`: open/prepayment/personal/bank_fee) is stored. (When an incoming transaction is dispositioned as a prepayment, set `status='prepayment'` — Task 23.)
+  - N:M matching: one transaction can match multiple vouchers, one voucher can match multiple transactions
+  - Update voucher and transaction status on match
   - Write tests for matching logic
 
   **Must NOT do**:
   - Do NOT use ML/AI for matching — deterministic rules only (amount + date + counterparty)
   - Do NOT auto-execute matches without explicit action — only propose, user/agent must confirm
-  - Do NOT do **fuzzy** matching = approximate string similarity on free text / counterparty names (ADR-0014). **Structured-token extraction is allowed and is the primary signal**: parsing an invoice number or IBAN out of the description and *exact*-matching it is deterministic, not fuzzy. A card merchant descriptor maps to an Entity only via a *learned* alias (confirmed once via user feedback), never by name similarity.
+  - Do NOT implement fuzzy matching on descriptions — exact amount + date window only
 
   **Recommended Agent Profile**:
   - **Category**: `unspecified-high`
@@ -131,7 +131,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - **Can Run In Parallel**: YES (with Tasks 21, 23, 24, 25)
   - **Parallel Group**: Wave 5 (with Tasks 21, 23, 24, 25)
   - **Blocks**: Task 23 (prepayments use matching), Task 26 (integration)
-  - **Blocked By**: Task 21 (needs bank transactions), Task 7 (needs vouchers), Task 12 (needs AR/AP vouchers), **Task 33 (Supplier/Entity — identity to match counterparties on, ADR-0014)**
+  - **Blocked By**: Task 21 (needs bank transactions), Task 7 (needs vouchers), Task 12 (needs AR/AP vouchers)
 
   **References**:
   - ADR-0011: "Drawn down by one or more later invoices via the same N:M matching, with a two-sided outstanding"
@@ -176,7 +176,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/`
   - Pre-commit: `npm run build && npm test`
 
-- [x] 23. Prepayment balances (liability/asset vouchers)
+- [ ] 23. Prepayment balances (liability/asset vouchers)
 
   **What to do**:
   - Implement prepayment voucher creation per ADR-0011:
@@ -250,19 +250,18 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/prepayment.service.ts`, `src/reconciliation/prepayment.controller.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [x] 24. Personal disposition
+- [ ] 24. Personal disposition
 
   **What to do**:
-  - Implement personal disposition per ADR-0017 — **the booking account is resolved by the country plugin, not hardcoded** (same boundary as VAT codes / cross-border, ADR-0002):
-    - Migration: add `org_type` (TEXT NOT NULL, CHECK in (`company`,`sole_proprietor`), **default `company`** — v1 primary persona, ADR-0023) to `organization` (Wave-1 table; new column migration). Without it the plugin can't choose.
-    - Add a `CountryPlugin` method `resolvePersonalDispositionAccount(orgType): accountCode`. Null/IE plugin: `sole_proprietor → OWNERS_DRAWINGS` (equity contra), `company → SHAREHOLDER_LOAN` (receivable-from-owner, asset). DK *kapitalejerlån* legal-restriction advisory deferred to a real plugin.
-    - `POST /api/bank-transactions/:id/personal` — sets `status='personal'`, creates voucher `Dr {plugin-resolved account} / Cr BANK`.
-    - `GET /api/bank-transactions/:id` shows disposition status.
-  - Write tests: sole_proprietor → OWNERS_DRAWINGS, company → SHAREHOLDER_LOAN, both via the plugin (not a service constant).
+  - Implement personal disposition per ADR-0017:
+    - `POST /api/bank-transactions/:id/personal` — marks transaction as personal, creates voucher: Dr OWNERS_DRAWINGS / Cr BANK
+    - For sole proprietors: Owner's-drawings (equity contra)
+    - For companies (ApS): Receivable-from-owner (asset) — but for v1, use Owner's-drawings as default
+    - `GET /api/bank-transactions/:id` shows disposition status
+  - Write tests for personal disposition
 
   **Must NOT do**:
-  - Do NOT hardcode the disposition account in `ReconciliationService` — it is a plugin decision keyed on `org_type` (+ country). v1 simplicity = the *default* `org_type` is `company`, NOT a hardcoded account.
-  - Do NOT implement the DK kapitalejerlån tax-on-creation advisory here — that is a real-plugin concern (deferred).
+  - Do NOT implement company-type-specific logic (ApS vs sole proprietor) — default to Owner's-drawings
 
   **Recommended Agent Profile**:
   - **Category**: `unspecified-high`
@@ -304,20 +303,20 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/personal-disposition.service.ts`, `src/reconciliation/personal-disposition.controller.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [x] 25. FX realized auto-posting
+- [ ] 25. FX realized auto-posting
 
   **What to do**:
-  - Implement FX realized auto-posting per ADR-0004 — **computed from the bank line's ACTUAL settlement, not a reference/stub rate**:
-    - On settling a foreign-currency receivable/payable, `realized = voucher.base_amount(settled portion) − bank_transaction.base_amount(actual)`, where the actual base is the EUR the bank moved (from `amount`, or derived from `source_amount` × `fx_rate` — Task 21 foreign-leg fields).
-    - Create a **system-generated** voucher posting the difference to the single net **`FX_GAIN_LOSS`** account (ADR-0004 — NOT separate FX_GAIN/FX_LOSS) + adjust the bank/settlement side; balanced in base currency.
-    - `FXRealizedService.computeAndPost(...)` — called by the matching engine when a foreign settlement is matched and the actual base ≠ booked base.
-    - **No stub rate:** if the bank line lacks both `source_amount` and `fx_rate` (Task 21 invariant), realized FX cannot be computed → the settlement is flagged for **user feedback** (Approval / Action point), never estimated.
-  - Write tests for FX realized posting (gain, loss, and the missing-data → user-feedback path).
+  - Implement FX realized auto-posting per ADR-0004:
+    - When settling a foreign-currency invoice from a foreign-currency bank account at a different rate than booked:
+    - Auto-compute realized FX gain/loss: (invoice FX rate - settlement FX rate) * amount
+    - Create system-generated voucher: Dr/Cr FX_GAIN or FX_LOSS + adjust Bank account
+    - `FXRealizedService.computeAndPost(...)` — called by matching engine when FX rates differ
+    - Stub for Wave 5: hardcoded rate comparison, real rate service deferred
+  - Write tests for FX realized posting
 
   **Must NOT do**:
-  - Do NOT implement unrealized FX revaluation — deferred to v1+ (ADR-0004).
-  - Do NOT source the realized rate from a reference rate, Task-4 stub, or external API — realized FX uses the bank's **actual** settlement (ADR-0004); the plugin reference rate is for *booking* only.
-  - Do NOT split into FX_GAIN / FX_LOSS — single net `FX_GAIN_LOSS` (ADR-0004).
+  - Do NOT implement unrealized FX revaluation — deferred to v1+
+  - Do NOT integrate with external FX rate APIs — use stub rates from Task 4
 
   **Recommended Agent Profile**:
   - **Category**: `unspecified-high`
@@ -328,7 +327,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - **Can Run In Parallel**: YES (with Tasks 21, 22, 23, 24)
   - **Parallel Group**: Wave 5 (with Tasks 21, 22, 23, 24)
   - **Blocks**: Task 26 (integration tests FX flow)
-  - **Blocked By**: Task 9 (posting service), Task 6 (needs the single `FX_GAIN_LOSS` account), Task 21 (bank transactions + foreign-leg fields), Task 22 (matching engine triggers FX)
+  - **Blocked By**: Task 9 (posting service), Task 6 (needs FX_GAIN, FX_LOSS accounts), Task 4 (FX rate stub), Task 21 (bank transactions), Task 22 (matching engine triggers FX)
 
   **References**:
   - ADR-0004: "Realized FX gain/loss is always computed in the kernel — posted automatically"
@@ -336,7 +335,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
 
   **Acceptance Criteria**:
   - [ ] FX realized computed when settling USD invoice from USD account at different rate
-  - [ ] FX voucher lines balance to zero (e.g., Dr `FX_GAIN_LOSS` 100, Cr BANK 100; a net gain just makes the `FX_GAIN_LOSS` balance negative)
+  - [ ] FX voucher lines balance to zero (e.g., Dr FX_LOSS 100, Cr BANK 100)
   - [ ] Tests pass: `fx-realized.service.spec.ts`
 
   **QA Scenarios**:
@@ -348,7 +347,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
     Steps:
       1. Match transaction to invoice
       2. Check for auto-created FX voucher
-    Expected Result: FX voucher exists, lines: `FX_GAIN_LOSS` vs BANK, amount = booked base − actual settled base
+    Expected Result: FX voucher exists, lines: Dr FX_GAIN (or Cr FX_LOSS), amount = difference * base_amount
     Failure Indicators: No FX voucher, wrong calculation
     Evidence: .omo/evidence/task-25-fx-realized.json
   ```
@@ -361,7 +360,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/fx-realized.service.ts`, `src/reconciliation/fx-realized.controller.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [x] 26. Reconciliation integration
+- [ ] 26. Reconciliation integration
 
   **What to do**:
   - End-to-end integration test for reconciliation flow:
@@ -430,221 +429,76 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `test/reconciliation.e2e-spec.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [x] 32. Persist the Document VAT marking as evidence
+- [ ] 32. Persist OCR source VAT code as evidence (cross-border enabler)
 
-  > **Origin:** Wave-4 intake review + cross-border grilling. The OCR triage stub extracts a `vat_code` into `TriageResult`, but `TriageService.route` drops it. That field is **not a VAT code** in our sense (a VAT code is plugin-owned, ours) — it is the **Document VAT marking**: the raw code/rate *printed on the counterparty's document*, which for a foreign supplier is a foreign label belonging to no plugin (see CONTEXT.md). Naming it `source_vat_code` was a trap. This task persists it as opaque evidence only; it does NOT make it authoritative and does NOT implement cross-border resolution (that is Task 33).
+  > **Origin:** Wave-4 intake review. The OCR triage stub already extracts a `vat_code` into `TriageResult`, but `TriageService.route` drops it — the field never lands on the business object. ADR-0010 calls this the "candidate VAT code"; it is the code/rate **printed on the source document**, which for a cross-border invoice (e.g. a Danish supplier billed to an Estonian org) is a *foreign* code at a foreign rate — NOT the local accounting code. We need to preserve it as evidence so a country plugin can later resolve the local treatment (reverse-charge, foreign-VAT-cost) from it. This task only **persists** the candidate; it does NOT make it authoritative and does NOT implement reverse-charge.
 
   **What to do**:
-  - Migration: add `document_vat_marking (TEXT, nullable)` to `expense` and `sales_invoice` (schema only in migrations — G4). Monetary facts (`gross_amount`, `vat_amount`) are already persisted; this adds the printed marking as captured evidence.
-  - Thread `TriageResult.vat_code` (rename the OCR field to `document_vat_marking` while here) through `TriageService.route` → `createExpense` / `createInvoice` → the new column. Store verbatim (no normalization).
-  - Surface `document_vat_marking` in `GET /api/expenses/:id` and `GET /api/sales-invoices/:id`.
-  - The voucher line `vat_code` continues to come **solely** from the country plugin — unchanged. The marking is read-only evidence.
+  - Migration: add `source_vat_code (TEXT, nullable)` to `expense` and `sales_invoice` (schema only in migrations — G4). The OCR-extracted monetary facts (`gross_amount`, `vat_amount`) are already persisted; this adds the document's printed VAT-code label as captured evidence.
+  - Thread `TriageResult.vat_code` through `TriageService.route` → `createExpense` / `createInvoice` → the new column. Store verbatim (no normalization).
+  - Surface `source_vat_code` in `GET /api/expenses/:id` and `GET /api/sales-invoices/:id` responses.
+  - The voucher line `vat_code` continues to come **solely** from `plugin.resolveCategoryMapping(...)` — unchanged. `source_vat_code` is read-only evidence.
+  - Write tests proving the source code is stored AND that the posted voucher line still carries the plugin-resolved local code, not the source code.
 
   **Must NOT do**:
-  - Do NOT feed `document_vat_marking` into voucher-line resolution or semantic validation — the plugin stays the sole resolver of the booking VAT code (ADR-0002). A foreign printed label must never drive a booking.
-  - Do NOT reconstruct a rate as authoritative — `vat_amount`/net carry the monetary truth; this is the printed label, kept for audit/triage review and as a "was VAT charged?" hint.
-  - Do NOT add a canonical cross-country VAT vocabulary — rejected by ADR-0002.
+  - Do NOT feed `source_vat_code` into voucher-line resolution or semantic validation — the country plugin stays the sole resolver of the booking VAT code (ADR-0002 §8). Doing so would let a foreign printed code drive a domestic booking.
+  - Do NOT implement reverse-charge / intra-community resolution here — that needs `supplier.country` (intrinsic fact, deferred to ADR-0014 supplier-identity) and a real (non-null) country plugin. This task is evidence capture only.
+  - Do NOT reconstruct or store a rate as authoritative — `vat_amount`/net already carry the monetary truth; this is the printed-code label, kept for audit/triage review.
+  - Do NOT add a canonical cross-country VAT vocabulary (`REVERSE_CHARGE_SERVICES`, …) — explicitly rejected by ADR-0002 §7.
 
   **Recommended Agent Profile**:
   - **Category**: `quick`
-    - Reason: One nullable column on two tables + rename/thread a field through triage; no new logic.
+    - Reason: One nullable column on two tables + thread a field through triage; no new logic.
   - **Skills**: []
 
   **Parallelization**:
   - **Can Run In Parallel**: YES (independent of bank/matching tasks)
   - **Parallel Group**: Wave 5 (with Tasks 21–26)
-  - **Blocks**: Task 33 (cross-border resolution reads the marking as a hint)
+  - **Blocks**: nothing in Wave 5; unblocks future reverse-charge work (real country plugin + ADR-0014 supplier identity)
   - **Blocked By**: Wave 4 (documents + triage + expense/sales-invoice modules)
 
   **References**:
-  - CONTEXT.md: **Document VAT marking** vs **VAT code** (distinct concepts; the marking is opaque evidence).
-  - ADR-0002: country plugin is the sole resolver; no cross-country VAT vocabulary.
+  - ADR-0002 §7-8: the country plugin is the **sole resolver** of a VAT code from `(Supplier intrinsic facts + Organization country/registration)`; a Supplier never stores a VAT code; no abstract canonical VAT layer.
+  - ADR-0010: triage produces a draft with a "candidate VAT code, confidence" — this persists that candidate.
+  - ADR-0004: base-currency VAT converted at the prescribed reference rate (the local treatment, plugin-owned).
+  - ADR-0014: supplier identity / `supplier.country` — the real cross-border carrier (future wave).
+  - Wave-4 review finding: OCR `vat_code` captured but dropped; only `gross_amount`/`vat_amount` survive to the business object.
 
   **Acceptance Criteria**:
-  - [ ] Migration adds `document_vat_marking` (nullable) to `expense` and `sales_invoice`; grep clean for DDL outside `src/database/migrations/` (G4).
-  - [ ] Triaging stores the OCR marking on the business object; `GET /api/expenses/:id` returns it.
-  - [ ] Real-DI integration test (G2): after posting, the voucher line `vat_code` equals the **plugin-resolved** code, proving the marking did not leak into the booking.
+  - [ ] Migration adds `source_vat_code` (nullable) to `expense` and `sales_invoice`; grep clean for DDL outside `src/database/migrations/` (G4).
+  - [ ] Triaging an odd document stores `source_vat_code = 'IE_INPUT_23'` on the Expense; even stores `'IE_OUTPUT_23'` on the SalesInvoice (matches the current OCR stub).
+  - [ ] `GET /api/expenses/:id` returns `source_vat_code`.
+  - [ ] Real-DI integration test (G2): after posting, the voucher line `vat_code` equals the **plugin-resolved** code (`IE_INPUT_23` for transport), proving `source_vat_code` did not leak into the booking.
   - [ ] Tests pass.
 
+  **QA Scenarios**:
+
+  ```
+  Scenario: OCR source VAT code persisted as evidence, not used for booking
+    Tool: Bash (curl)
+    Preconditions: App running
+    Steps:
+      1. Upload a document (odd id), triage it
+      2. `curl -s http://localhost:3000/api/expenses/{id}` → assert source_vat_code present
+      3. Post the expense, fetch the voucher
+    Expected Result: expense.source_vat_code = OCR value; voucher line vat_code = plugin-resolved local code (unchanged)
+    Failure Indicators: source_vat_code null/missing; voucher line carries the source code instead of the plugin code
+    Evidence: .omo/evidence/task-32-source-vat-code.json
+  ```
+
+  **Evidence to Capture**:
+  - [ ] API response showing `source_vat_code` on the business object
+  - [ ] Voucher detail showing the plugin-resolved line `vat_code`
+
   **Commit**: YES
-  - Message: `feat(intake): persist Document VAT marking as evidence`
+  - Message: `feat(intake): persist OCR source VAT code as evidence`
   - Files: migration + `src/triage/`, `src/expenses/`, `src/sales-invoices/`
-  - Pre-commit: `npm run build && npm test`
-
-- [x] 33. Supplier / Entity aggregate + onboarding
-
-  > **Origin:** Cross-border grilling — planning-gap finding. The **Supplier/Entity** aggregate is richly defined in CONTEXT.md and decided in ADR-0014, and is referenced by `expense.supplier_id`, by supplier memory, and by Wave-5 Task 22 (matching) — **but no wave ever builds it.** Verified: there is no `supplier`/`entity` table in any migration (001–012), no entry in `database/types.ts`, and no module/service. Worse, `expense.supplier_id` is a bare `integer` column (migration 006) — not even a declared FK, pointing at a non-existent table. Half of Wave 5 (matching, cross-border, memory) silently assumes this aggregate. This task builds it.
-
-  **What to do**:
-  - Migration: `entity` table per ADR-0014 — id (INTEGER PK), `role` (TEXT NOT NULL — CHECK in (`supplier`,`customer`)), `country` (TEXT NOT NULL — ISO), `name` (TEXT NOT NULL — legal/primary), `goods_vs_services` (TEXT — `goods`|`services`|`unknown`), `created_at`, `updated_at`.
-  - **Typed identifiers as a child table** `entity_identifier` (id, entity_id FK, `kind` CHECK in (`registration_key`,`iban`,`merchant_descriptor`,`name_alias`), `value`, `confirmed` INTEGER) — NOT a single `registration_key` column, because counterparty keys are rail-dependent (grilling): `registration_key` (CVR/VAT) is strongest; `iban` is strong (SEPA transfers/DD — absent on card payments); `merchant_descriptor` is a **weak, learned** alias (card payments — bound to the entity only after a user confirms it once, then deterministic); `name_alias` is never an identity key, only a display/search aid. Matching (Task 22) resolves a bank line by the **strongest available** identifier. Classification-memory stays a separate child table (`entity_classification`). Identity is anchored on identifiers, never on raw name (ADR-0014).
-  - Add the **real FK** `expense.supplier_id → entity.id` and `sales_invoice.customer_id → entity.id` (new migration; the existing columns are bare integers today). Keep nullable (drafts may precede identity).
-  - `src/entities/` module: `EntityService` (create/onboard, find-by-registration-key, add-alias, list), `POST /api/entities` (onboard: role + country + registration key + name), `GET /api/entities`, `GET /api/entities/:id`.
-  - Stores intrinsic, context-free facts only — **never a VAT code** (ADR-0002). `country` is the cross-border carrier (feeds Task 34).
-  - Real-DI tests: onboarding, registration-key identity, alias resolution, FK linkage from expense/invoice.
-
-  **Must NOT do**:
-  - Do NOT anchor identity on name — registration key is the identity; names (legal + binavne + OCR variants) are aliases (ADR-0014).
-  - Do NOT store a VAT code on the Entity — that depends on Organization context (ADR-0002).
-  - Do NOT implement fuzzy/AI entity matching here — deterministic registration-key + alias lookup only (matching engine is Task 22).
-  - Do NOT build classification-memory *scoring* — store the facts; weighing is an LLM-context concern (CONTEXT.md: classification memory is advisory, never a gate).
-
-  **Recommended Agent Profile**:
-  - **Category**: `unspecified-high`
-    - Reason: New aggregate (schema + child tables + FKs + module) underpinning matching, memory, and cross-border.
-  - **Skills**: []
-
-  **Parallelization**:
-  - **Schedule FIRST in Wave 5** — it has no Wave-5 blockers and underpins matching, cross-border, supplier memory, and the Policy known/unknown gate. Numbered 33 (added during grilling), but execute before Tasks 22/34/35.
-  - **Can Run In Parallel**: only with Task 21 (bank schema, supplier-independent).
-  - **Blocks**: Task 22 (identity to match on), Task 34 (needs `entity.country`), Task 35 (triage supplier resolution).
-  - **Blocked By**: Task 1 (migration runner), Wave 3 (expense/sales-invoice tables to FK into).
-
-  **References**:
-  - ADR-0014: supplier memory & identity — registration-key anchor, aliases, classification memory.
-  - ADR-0002: Entity stores intrinsic facts only, never a VAT code.
-  - CONTEXT.md: **Entity**, **Supplier**, **Customer**.
-
-  **Acceptance Criteria**:
-  - [ ] Migration creates `entity` (+ `entity_alias`, `entity_classification`); `expense.supplier_id`/`sales_invoice.customer_id` become real FKs to `entity.id` (proven by a DB-constraint test — G6).
-  - [ ] `POST /api/entities` onboards a supplier with `country`; find-by-registration-key returns it; an alias resolves to the same entity.
-  - [ ] Real-DI test (G2): an Expense links to an onboarded supplier; `entity.country` is readable for downstream resolution.
-  - [ ] Tests pass.
-
-  **Commit**: YES
-  - Message: `feat(entities): Supplier/Entity aggregate + onboarding (ADR-0014)`
-  - Files: migrations + `src/entities/`
-  - Pre-commit: `npm run build && npm test`
-
-- [x] 34. Cross-border VAT treatment resolution in the country plugin
-
-  > **Origin:** Cross-border grilling. Today a foreign-supplier invoice is **silently mis-booked**: `NullCountryPlugin.resolveCategoryMapping` returns `IE_INPUT_23` regardless of supplier country, so a German invoice's VAT books as reclaimable Irish input VAT. The fix is NOT to read foreign codes — reverse-charge uses *our* code. The plugin must map the supplier's country to a **VAT territory** and decide the treatment. See ADR-0002 (amended) and CONTEXT.md **VAT territory**. **Prerequisite:** Task 33 (Supplier/Entity aggregate) — the supplier must carry a `country`.
-
-  **What to do**:
-  - Add a `CountryPlugin` method, e.g. `resolveCrossBorderTreatment(supplierFacts, orgContext, { vatCharged: boolean }): { treatment: 'domestic' | 'reverse_charge' | 'import' | 'foreign_cost' | 'unresolvable'; vatCode: VATCode | null }`. `supplierFacts.country` is already the input channel.
-  - The plugin owns a **VAT-territory membership map** (EU VAT territory incl. enclave corrections like Canary Islands / Monaco, EAEU, third country) and the eligibility rule. Each plugin encodes its own jurisdiction's view (duplication of the EU list across EU plugins is acceptable).
-  - Wire the draft generators (`expenses`/`sales-invoices`) to consult the treatment: `reverse_charge` → self-assess output+input VAT at *our* rate using our VAT code (supplier charged net); `import` → no input VAT on the supplier invoice (import VAT is a separate document); `foreign_cost` → book **gross as a cost**, no input VAT reclaimed; `domestic` → current behaviour; `unresolvable` → hold for **Approval** (ADR-0015), conservative default gross-as-cost.
-  - `NullCountryPlugin`: implement conservatively — same-country → `domestic`; different country → `unresolvable` (hold), never silently reclaim.
-  - Real-DI tests for each branch.
-
-  **Must NOT do**:
-  - Do NOT read or trust the `document_vat_marking` as the decision — it is at most a "was VAT charged?" hint; the decision is `supplier.country` + goods/services (ADR-0002).
-  - Do NOT silently reclaim foreign VAT in any branch — `foreign_cost`/`unresolvable` never produce a `VAT_RECEIVABLE` line.
-  - Do NOT put the territory map or eligibility rule in the kernel — it lives in the plugin (ADR-0002, amended).
-  - Do NOT post import VAT from the supplier invoice — import VAT arrives via a separate customs document (out of scope here).
-
-  **Recommended Agent Profile**:
-  - **Category**: `deep`
-    - Reason: New plugin contract + branch wiring into both draft generators + correctness-critical VAT logic.
-  - **Skills**: []
-
-  **Parallelization**:
-  - **Can Run In Parallel**: NO — depends on Task 32 (marking hint) and Task 33 (Supplier/Entity with `country`).
-  - **Blocked By**: Task 32; Task 33 (Supplier/Entity aggregate).
-
-  **References**:
-  - ADR-0002 (amended): cross-border treatment is a plugin decision keyed on VAT-territory membership; foreign VAT never silently reclaimed; unresolvable → Approval.
-  - ADR-0014: supplier identity / `supplier.country` — the real carrier.
-  - ADR-0015: Approval lifecycle (the escape valve for `unresolvable`).
-  - CONTEXT.md: **VAT territory**, **Document VAT marking**.
-
-  **Acceptance Criteria**:
-  - [ ] `NullCountryPlugin` returns `domestic` for same-country, `unresolvable` for foreign — proven by test.
-  - [ ] A foreign-supplier expense never produces a `VAT_RECEIVABLE` line; it either holds for Approval or books gross-as-cost.
-  - [ ] Reverse-charge branch self-assesses VAT with *our* VAT code, balanced — proven by a real-DI test (when a non-null test plugin is supplied).
-  - [ ] Tests pass.
-
-  **Commit**: YES
-  - Message: `feat(plugins): cross-border VAT treatment via VAT-territory map`
-  - Files: `src/plugins/`, `src/expenses/`, `src/sales-invoices/`, tests
-  - Pre-commit: `npm run build && npm test`
-
-- [x] 35. Resolve the Supplier at intake (find / create-or-reuse), not at posting
-
-  > **Origin:** Cross-border grilling. The Policy rule `unknown_supplier_requires_approval` is a **chicken-and-egg trap** if it gates at posting: we should *propose creating a Supplier*, not kill the voucher. Identity must be resolved **during intake**, so a posted voucher always carries a real `supplier_id`. The intake flow is: **(1) OCR → (2) Supplier check: lookup by registration key/alias; if found → reuse, else → propose create new (human-in-the-loop) → (3) create the business object WITH the resolved `supplier_id`.** Consequence: the Policy unknown-supplier gate becomes a **backstop that should never fire in the happy path** — defense-in-depth, not the primary mechanism.
-
-  **What to do**:
-  - Extend `TriageService.route`: after OCR, extract supplier hints (name + any registration key) and call `EntityService.findByRegistrationKey` / alias lookup (Task 33).
-    - **Found** → reuse: set `supplier_id` on the created Expense/SalesInvoice.
-    - **Not found** → return a triage outcome that **proposes supplier creation** (the human-in-the-loop / Action point — Telegram/Slack button or email confirmation, ADR-0016/CONTEXT.md), carrying the OCR-extracted candidate facts (name, country guess, registration key). On confirmation → `EntityService.onboard(...)` → link `supplier_id`. This is where the one-time "onboard supplier (incl. country)" happens.
-  - The business object is created/finalized **with** `supplier_id` set → the pipeline never sees a null supplier in the happy path.
-  - Wire the **backstop**: implement the currently-stubbed supplier check in `PolicyService` (`policy.service.ts:31` — "always pass") so `unknown_supplier_requires_approval` actually inspects `entity`. It should be **unreachable** in the normal flow (intake resolved it); if it ever fires, that signals an intake-bypass and correctly holds for Approval.
-  - Real-DI tests: found→reuse; not-found→propose-create→onboard→link; posted voucher always has `supplier_id`; backstop holds only on a deliberately-bypassed intake.
-
-  **Must NOT do**:
-  - Do NOT gate the voucher at posting for an unknown supplier as the *primary* path — resolve at intake (propose-create). The Policy rule is only a backstop.
-  - Do NOT auto-create a supplier silently from OCR — creation is a human-confirmed Action point (OCR facts are a proposal, not authority; CONTEXT.md classification memory is advisory).
-  - Do NOT match on name alone — registration key / alias (ADR-0014).
-
-  **Recommended Agent Profile**:
-  - **Category**: `unspecified-high`
-    - Reason: Triage-flow change + human-in-the-loop create/reuse + Policy backstop wiring.
-  - **Skills**: []
-
-  **Parallelization**:
-  - **Can Run In Parallel**: NO — depends on Task 33 (Entity registry + onboarding).
-  - **Blocked By**: Task 33; Wave-4 triage.
-
-  **References**:
-  - ADR-0010 (amended): supplier identity is resolved at triage (find / create-or-reuse); Policy unknown-supplier is a backstop.
-  - ADR-0014: registration-key identity, aliases.
-  - ADR-0016: free-chat with Action-point commit (the create/reuse confirmation).
-  - CONTEXT.md: **Action point**, **Approval**, **Entity**. DOMAIN-MODEL.md: intake flow.
-
-  **Acceptance Criteria**:
-  - [ ] Triaging a document whose supplier exists (by registration key/alias) links the existing `entity` — no new entity created.
-  - [ ] Triaging an unknown supplier returns a propose-create outcome; on confirmation the entity is onboarded (with `country`) and linked.
-  - [ ] A posted voucher in the happy path always has a non-null `supplier_id` (real-DI test).
-  - [ ] The Policy backstop holds for Approval only when intake was bypassed (proven by a test); it does NOT fire in the normal flow.
-  - [ ] Tests pass.
-
-  **Commit**: YES
-  - Message: `feat(triage): resolve supplier at intake (find/create-or-reuse); Policy backstop`
-  - Files: `src/triage/`, `src/entities/`, `src/policy/`, tests
-  - Pre-commit: `npm run build && npm test`
-
-- [x] 38. Remediate triage outcomes — purchase-side only (drop `sales_invoice`)
-
-  > **Origin:** Cross-border grilling + Wave-4 review. Wave-4 shipped a triage outcome union `expense | invoice | unknown` and a stub routing even-id documents → **SalesInvoice**. That mis-models the domain (ADR-0010, amended): **intake is the purchase side** — an incoming document is an Expense, a correction, or a duplicate, never our own SalesInvoice (we issue those outbound). The union also omits ADR-0010's `correction`/`duplicate` outcomes. Self-billing (incoming = revenue) is deferred to v2 as a domain plugin (V2-ROADMAP), NOT this path.
-
-  **What to do**:
-  - Change `TriageOutcome` to `new_expense | correction | duplicate | unknown` (drop `invoice`; add `correction`, `duplicate`) — matches ADR-0010.
-  - Fix the OCR stub (`ocr.service.ts`): both odd and even produce **purchase-side** documents (e.g. two different expense shapes, or one expense + one correction/duplicate scenario) — never a SalesInvoice.
-  - Update `TriageService.route` to never create a SalesInvoice; wire `duplicate` (already-known hash → existing document) and a `correction` stub (links to original per ADR-0010) outcomes.
-  - Update tests: `ocr.service.spec.ts`, `triage.integration.spec.ts`, and `test/intake.e2e-spec.ts` (scenario 3 "even → SalesInvoice" must become a purchase-side scenario).
-
-  **Must NOT do**:
-  - Do NOT route any incoming document to a SalesInvoice (sales invoices are outbound; self-billing is v2 — V2-ROADMAP).
-  - Do NOT implement full correction logic here — `correction` outcome links to the original (stub), consistent with Wave-4 Task 18 scope.
-
-  **Recommended Agent Profile**:
-  - **Category**: `quick`
-    - Reason: Realign a discriminated union + stub + tests; no new subsystem.
-  - **Skills**: []
-
-  **Parallelization**:
-  - **Can Run In Parallel**: YES (independent).
-  - **Blocked By**: Wave-4 triage; benefits from Task 33 (Entity) for the `correction` link.
-
-  **References**:
-  - ADR-0010 (amended): intake = purchase side; outcomes `new_expense | correction | duplicate | unknown`; self-billing deferred to v2 domain plugin.
-  - V2-ROADMAP.md: self-billing.
-
-  **Acceptance Criteria**:
-  - [ ] `TriageOutcome` has no `invoice`/`sales_invoice` member; has `correction` + `duplicate`.
-  - [ ] No code path creates a SalesInvoice from an incoming document (grep clean).
-  - [ ] OCR stub produces only purchase-side documents; tests updated and green.
-  - [ ] `intake.e2e-spec.ts` scenario 3 reworked to a purchase-side flow.
-
-  **Commit**: YES
-  - Message: `fix(triage): purchase-side outcomes only; drop sales_invoice from intake`
-  - Files: `src/triage/`, `test/intake.e2e-spec.ts`
   - Pre-commit: `npm run build && npm test`
 
 ---
 
 ## Wave Acceptance Criteria
-- [ ] All 11 tasks complete
+- [ ] All 7 tasks complete
 - [ ] `docker compose up` starts and health responds 200
 - [ ] `npm run build` passes with zero errors
 - [ ] `npm test` passes with new tests

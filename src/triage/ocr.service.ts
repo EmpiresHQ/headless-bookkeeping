@@ -22,7 +22,7 @@ export class OcrService {
         gross_amount: 1525,
         vat_amount: 285,
         category: 'transport',
-        document_vat_marking: 'IE_INPUT_23',
+        vat_code: 'IE_INPUT_23',
         confidence: 0.94,
       };
     }
@@ -33,7 +33,7 @@ export class OcrService {
       gross_amount: 12300,
       vat_amount: 2300,
       category: 'revenue',
-      document_vat_marking: 'IE_OUTPUT_23',
+      vat_code: 'IE_OUTPUT_23',
       confidence: 0.98,
     };
   }

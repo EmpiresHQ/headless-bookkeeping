@@ -41,14 +41,6 @@ The remediation (Wave-4 prologue, carried from the Wave-3 review) makes the rate
 - `NullCountryPlugin` returns `1.0` for same-currency conversions and a documented fixed stub (or a small seeded reference table) for cross-currency, so the path is exercisable end-to-end; real ECB/customs rates land in real country plugins.
 - **Realized FX gain/loss stays out of scope** until a settlement/payment voucher exists (there is none in Wave 3) — recognition at the tax point uses a single uniform rate across the draft's lines, so the voucher still balances in base currency within the ±1-cent tolerance. The realized gain/loss only arises when a foreign position later moves, per the kernel rule above.
 
-## Realized FX uses the bank's actual settlement, not a reference rate (Wave-5)
-
-Realized FX is the gap between the **booked** base value (the receivable/payable, at the prescribed reference rate) and the **actually settled** base value (the cash). It must therefore be computed from the **bank line's own data**, never from a reference rate or a hardcoded stub — a reference rate would just compare one estimate to another, not realize the actual gap.
-
-A bank line, even when booked in the base currency (EUR), carries in its description the currency the payment arrived in, and almost always either the original foreign amount (e.g. `16 USD`) or the conversion rate. So `bank_transaction` captures `source_currency`, and at least one of `source_amount` / `fx_rate` (parsed from the statement line); the third is derived (`base × rate = foreign`). Realized FX = `voucher.base_amount (of the settled portion) − bank.base_amount`, posted automatically to the single net `FX_GAIN_LOSS` account.
-
-When a foreign-currency line carries **neither** the source amount **nor** the rate, the kernel does **not** guess (no stub): it escalates to **user feedback** (Approval / Action point) to supply the missing datum. Silent estimation of a realized figure is forbidden.
-
 ## FX gain/loss account granularity
 
 The canonical chart carries a **single net** `FX_GAIN_LOSS` account (`type: expense`; a net gain simply makes the balance negative), not separate `FX_GAIN` / `FX_LOSS` accounts. The account is hidden from the SMB user (ADR-0001), so gain-vs-loss split is pure P&L presentation granularity — over-built for a micro-SMB. The door stays open: a later split is the Wave-5 conditional "add `FX_GAIN` if absent" migration, to be done only if a jurisdiction's presentation requires it. This supersedes carry-forward seam #2's "add `FX_GAIN` in Wave 2".

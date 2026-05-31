@@ -44,29 +44,11 @@ _Avoid_: Refund, reversal
 Our own internal cancellation of a posted Voucher by a mirrored counter-voucher (the original stays in the books). Used for *our* errors (e.g. OCR misread). Contrast **Credit note** (the counterparty's external document).
 _Avoid_: Void, storno (English canon is "reversal")
 
-### Channels & conversations
-
-**Conversation**:
-A persisted, auditable thread of **Message**s on a single channel (an email thread, a Telegram/Slack chat thread) through which an intake is processed. Identified by channel + thread key (email `Message-ID`/`References`; chat thread id). The **router** resolves an inbound message to its Conversation **deterministically** by these keys — distinct from the *probabilistic* intent routing (ADR-0016) — creating a new Conversation only when none matches. Owns its **Message**s and **Artifact**s; *associates* (M:N) to the **Document**(s) and business object(s) it concerns, so a reply carrying no attachment still binds to the original **Document**. An auditable *operational* record linked to the ledger, but **NOT** part of the hash-chained ledger (the ledger stays the accounting system of record). States: `open → closed` — **closed** once every associated in-flight business object reaches a terminal state (its **Voucher** posted, or rejected). A closed Conversation is **retained and retrievable by association**: a later **correction**/modification of a posted object pulls it back for context. A new inbound message that the router resolves (by thread key) to a closed Conversation **reopens** it (logged); a correction arriving on a different thread starts a *new* Conversation associated to the same object.
-_Avoid_: Ticket, case, thread (when ambiguous); "Mastra state" (that is transient working memory, not the durable record)
-
-**Message**:
-One turn in a **Conversation** — direction (inbound/outbound), sender, timestamp, body, threading keys, and (for email) the DKIM/SPF result. An inbound attachment feeds **Document** dedup.
-_Avoid_: Email, chat (when referring to the persisted turn)
-
-**Artifact**:
-A file bound to a **Conversation** — an inbound attachment (→ **Document**) or an outbound generated output (a sent invoice PDF, a report). Retained for audit.
-_Avoid_: Attachment (when referring to outbound or deduped artifacts), file
-
 ### Dispositions
 
 **Personal (non-business) disposition**:
 A user-facing label for a payment from company funds that is actually personal (corporate card used by mistake, no receipt). Not a business expense: no input VAT, not deductible. The ledger books it as Owner's-drawings (sole proprietor) or Receivable-from-owner / shareholder-loan (company) — which one is org-type + country (plugin). Approval-required. One of the **ReconciliationAgent**'s dispositions for an unmatched bank line. In some jurisdictions (DK *kapitalejerlån*) a shareholder loan is legally restricted and taxable on creation — the plugin must surface this as advisory.
 _Avoid_: Personal expense (it is not an expense), drawings (user-facing term is "personal")
-
-**Dividend**:
-A distribution of a **company**'s profit to its owner(s) — the **primary owner-withdrawal path** in v1. An equity **distribution**, NOT an expense: declared `Dr Retained-earnings / Cr Dividend-payable`, settled `Dr Dividend-payable / Cr Bank` (the settlement reconciled via a `dividend` disposition that draws down the payable). Constrained by **distributable profits** (may not exceed retained earnings — a legal cap) and may carry **dividend withholding tax** (IE DWT, DK *udbytteskat*) — both country-plugin rules. Approval-required. Only a `company` pays dividends; a sole proprietor takes drawings. Distinct from a **Personal (non-business) disposition** (accidental personal spend) and from salary (payroll — deferred to a **Domain plugin**, ADR-0022). See ADR-0023.
-_Avoid_: Distribution (when ambiguous), payout, drawings
 
 ### Basis & settlement
 
@@ -93,8 +75,8 @@ A counterparty we sell to.
 _Avoid_: Client, buyer
 
 **Organization**:
-The single business that owns this deployment — "us", the buyer/seller. Has exactly one country, one VAT-registration status, and one **legal form** (`org_type`: `company` | `sole_proprietor`; **default `company`** — the v1 primary persona is a one-person company that withdraws via **Dividend**s) — the legal form, with country, drives org-type-dependent bookings the country plugin resolves (e.g. a **Personal (non-business) disposition** → shareholder-loan for a company vs Owner's-drawings for a sole proprietor). One deployment = one Organization (mono-structure); it is implicit, so no `org_id` is scoped through the schema. Multiple businesses → multiple deployments.
-_Avoid_: Tenant, account, company (when ambiguous; "company" is one `org_type` value, not a synonym for Organization)
+The single business that owns this deployment — "us", the buyer/seller. Has exactly one country and one VAT-registration status. One deployment = one Organization (mono-structure); it is implicit, so no `org_id` is scoped through the schema. Multiple businesses → multiple deployments.
+_Avoid_: Tenant, account, company (when ambiguous)
 
 **Entity**:
 A counterparty the Organization deals with, tagged by `role` (`supplier` | `customer`). NOT the Organization itself.
@@ -144,14 +126,6 @@ _Avoid_: Blockchain, ledger hash (when ambiguous)
 The country-specific classification of a line's VAT treatment, owned and defined by a country plugin (e.g. `DK_INPUT_25`). The set and naming vary per country — there is NO canonical kernel VAT vocabulary. It is what a VAT report's boxes are built from. Distinct from the VAT *rate*.
 _Avoid_: VAT rate, tax class, VAT treatment (no such abstract layer exists)
 
-**Document VAT marking**:
-The raw VAT code/rate as printed on a counterparty's source document (e.g. a German supplier's invoice processed by an Irish Organization). An opaque, un-interpreted evidence string captured at intake; it belongs to **no** country plugin and is **never** an input to balancing, posting, or a **VAT report**. A country plugin may *read* it as a hint (mainly "was VAT charged at all?") when resolving the local treatment, but the booking **VAT code** is always plugin-resolved from `(Supplier intrinsic facts + Organization context)`. Distinct from **VAT code** — a Document VAT marking is the counterparty's foreign label; a **VAT code** is ours (kernel/plugin-owned).
-_Avoid_: source VAT code, foreign VAT code (when implying it is itself a real "VAT code")
-
-**VAT territory**:
-The fiscal zone that governs cross-border VAT treatment — membership in the EU VAT territory, the EAEU, or "third country" — keyed on a counterparty's location, NOT its political country (the EU VAT territory *excludes* some EU regions, e.g. the Canary Islands, and *includes* some non-EU ones, e.g. Monaco). A country plugin maps a **Supplier**'s country to a VAT territory and decides, from `(our VAT territory + the supplier's VAT territory + goods-vs-services + whether VAT was charged)`, whether a purchase is **domestic**, **reverse-charged**, an **import**, or a **non-reclaimable foreign cost**. Both the membership map and the eligibility rule live in the country plugin (each plugin encodes its own jurisdiction's view); the kernel holds no cross-country VAT layer (ADR-0002). A foreign **Document VAT marking** is never silently reclaimed as input VAT; when the treatment cannot be resolved it is held for **Approval** (conservative default: book gross as a cost).
-_Avoid_: country, jurisdiction (when ambiguous), VAT zone, trade bloc
-
 ### Voucher kinds
 
 **Intake-driven Voucher**:
@@ -197,16 +171,6 @@ _Avoid_: Authorization, sign-off
 The unambiguous commit step inside an otherwise free-chat flow. On Telegram/Slack it is a button (Confirm / Send / Approve). On email — which has no buttons — it is a **confirmation loop**: commit only on an explicit "YES", re-ask on any hedge, never on a maybe. The free conversation leads up to it; the commit closes it.
 _Avoid_: Confirmation dialog
 
-### Extension model
-
-**Country plugin**:
-An **in-process, stateless** resolver of country-specific *rules* — VAT codes, `Category → Account + VAT code` mapping, cross-border / **VAT territory** treatment, reporting-period frequency, reference FX rate, base currency, org-type-dependent account choices. It has **no database of its own** (pure functions over Supplier facts + Organization context). The **sole resolver** of a **VAT code** (ADR-0002). Exactly one is active per deployment (the Organization's country).
-_Avoid_: Plugin (when ambiguous with **Domain plugin**)
-
-**Domain plugin**:
-An **out-of-process bounded context with its own database**, integrating with the kernel over an **API**, that owns a whole functional sub-domain end-to-end (first: **payroll** — employees, gross→net, payroll-internal reconciliation). It posts only **summarized Voucher**s, and — like intake — does so **through the pipeline** (**Rules** → **Policy** → post), **never** writing the ledger directly (ADR-0012/0019). Its database is an *operational* store, **not** the accounting system of record (the kernel ledger is). Contrast **Country plugin** (in-process, stateless). See ADR-0022.
-_Avoid_: Functional plugin, microservice, satellite service, module
-
 ## Relationships
 
 - A **Voucher** has two or more **VoucherLines** whose debits equal their credits in **base currency** (balanced double-entry). Each line carries a positive magnitude (`amount`/`base_amount`) plus an `is_debit` direction — the model is unsigned-magnitude + direction, not signed amounts that literally sum to zero.
@@ -218,9 +182,6 @@ _Avoid_: Functional plugin, microservice, satellite service, module
 - A **Category** maps (via a country plugin) to one **Account** + **VAT code**, but the mapping may depend on the **Supplier**'s intrinsic facts and the **Organization**'s context
 - A **VAT code** belongs to exactly one country plugin
 - The country plugin is the **sole resolver** of a **VAT code** from `(Supplier intrinsic facts + Organization country/registration)`. No abstract cross-country VAT layer exists.
-- A country plugin maps a **Supplier**'s country to a **VAT territory** and resolves the cross-border treatment (domestic / reverse-charge / import / non-reclaimable foreign cost) from it. Reverse-charge uses *our* **VAT code**, not the supplier's; the kernel never reclaims a foreign **Document VAT marking** as input VAT. Unresolvable → **Approval**.
-- A **Conversation** owns its **Message**s and **Artifact**s and associates (M:N) to the **Document**(s) and business object(s) it processes; the **router** resolves an inbound message to its Conversation *deterministically* by channel + thread key before doing (probabilistic) intent routing.
-- The kernel is extended on **two axes**: **Country plugin**s (in-process, stateless rule resolvers, ADR-0002) and **Domain plugin**s (out-of-process bounded contexts with their own data, ADR-0022). Neither writes the ledger directly — both reach it only through the pipeline (ADR-0012/0019). The two compose: a **Domain plugin** may use a **Country plugin** internally.
 - The kernel owns a thin canonical chart of **Accounts**: Cash, Bank (per currency), AR, AP, Revenue, Expense-by-category, VAT-payable, VAT-receivable, Equity, Owner's-drawings (equity contra), Receivable-from-owner/shareholder-loan (asset), Customer-prepayments (liability), Supplier-prepayments/prepaid-expense (asset), FX-gain/loss, Bad-debt-expense, Accumulated-depreciation + Depreciation-expense (when assets are enabled), Suspense (clearing). All are kernel-canonical, country-agnostic; a country plugin may extend/refine, never replace.
 
 ## Example dialogue
@@ -231,5 +192,3 @@ _Avoid_: Functional plugin, microservice, satellite service, module
 ## Flagged ambiguities
 
 - "Category" vs "Account": resolved — Category is the user-facing label, Account is the hidden double-entry node. They are distinct layers; a country plugin bridges them.
-- "VAT code" vs the code printed on a counterparty's document: resolved — the latter is a **Document VAT marking** (opaque evidence), NOT a **VAT code**. A VAT code is always plugin-owned (ours); no cross-country VAT vocabulary exists (ADR-0002). Naming `source_vat_code` was a trap — it implied the foreign label is a "VAT code". Renamed to `document_vat_marking` (Wave-5 Task 32).
-- "conversation" (lowercase — ADR-0016 free-chat context) vs **Conversation** (the aggregate): resolved — the former is the *transient* per-channel context fed to the router (Mastra working memory, ADR-0018); the **Conversation** is the *durable, auditable* record (messages + artifacts), persisted and associated to Documents/business objects.

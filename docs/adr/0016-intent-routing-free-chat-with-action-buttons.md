@@ -3,7 +3,6 @@
 Free natural-language chat is the product's selling point — users talk to the system like a person, not via forms. Routing is therefore done by a strong, context-rich LLM; cost is explicitly not a concern.
 
 - **Rich per-channel context feeds the router.** Channel adapters extract the full conversational context: the last N messages of a Telegram thread, the entire `>`-quoted nesting of an email, etc. The router classifies free text into `advisory | action | report | reconciliation` (and clarifies in-chat when uncertain — a natural part of the UX, not friction).
-- **Conversation resolution is deterministic and precedes routing.** Before classifying intent, the router binds the inbound message to its **Conversation** by channel + thread key (email `Message-ID`/`References`; chat thread id) — a key lookup, not an LLM guess — creating a new Conversation only when none matches. This is what lets a bare reply (no re-attached document) reuse the original **Document** and business-object context of the thread (client → agent → client → agent). Identity binding (deterministic) is kept separate from intent classification (probabilistic). The **Conversation** is a persisted, auditable aggregate (messages + artifacts), distinct from Mastra's transient working memory (ADR-0018).
 - **The router is not a security boundary.** A misroute is harmless: an action intent only ever produces a *draft* (the pipeline still gates posting, ADR-0012). This is why the router can be probabilistic.
 
 The one place that is deterministic is the **action point**:

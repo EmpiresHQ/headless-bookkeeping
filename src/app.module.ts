@@ -13,9 +13,6 @@ import { DocumentsModule } from './documents/documents.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { TriageModule } from './triage/triage.module';
 import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.module';
-import { EntitiesModule } from './entities/entities.module';
-import { BankModule } from './bank/bank.module';
-import { ReconciliationModule } from './reconciliation/reconciliation.module';
 
 @Module({
   imports: [
@@ -33,9 +30,6 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     CorrectionsModule,
     TriageModule,
     ReportingPeriodsModule,
-    EntitiesModule,
-    BankModule,
-    ReconciliationModule,
   ],
 })
 export class AppModule {}
