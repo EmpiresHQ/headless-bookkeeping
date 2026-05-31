@@ -36,8 +36,9 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Implement period locking per ADR-0009 and ADR-0015:
     - `POST /api/reporting-periods/:id/lock` — changes status from `open` to `locked`, sets `filed_at`
     - Lock is idempotent (re-locking returns 200, not error)
-    - **Hard process rule**: `PostingService` rejects any voucher whose `tax_point_date` falls in a locked period
-      - Returns `400` with error "Cannot post into locked period {period_name}"
+    - **Hard process rule (reject — for DIRECT posts):** `PostingService` rejects any voucher whose `tax_point_date` falls in a locked period
+      - Returns `400` with error "Cannot post into locked period {period_name}". Never silently re-dates.
+    - **Redirect path (corrections + late documents → current open period, ADR-0009):** the reject is only for a *direct* post. The **correction** flow (un-stub Wave-4 Task 18's locked branch) and the **late-arriving-document** flow detect a locked target *up front* and re-route into the **current open period** — re-dated to it, carrying `reverses`/`corrects_object` where applicable — instead of hitting the wall. A late new Q1 expense whose document arrives after Q1 is filed lands in the current open period (the "next VAT return" rule). This redirect is what makes the warn-and-allow filing guard sound (else legitimate late items strand forever). Provide a helper, e.g. `ReportingPeriodsService.currentOpenPeriod()` + a `resolvePostingPeriod(taxPointDate)` that returns the open period to re-date into when the natural target is locked.
     - **Filing guard**: Before locking, warn if unresolved items exist in the period:
       - Query for pending approvals (Policy hold) with tax_point_date in period
       - Query for unposted drafts with tax_point_date in period
@@ -49,6 +50,8 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Do NOT implement VAT report computation on lock — that's Task 28
   - Do NOT implement amended return logic — deferred
   - Do NOT auto-reject lock if warnings exist — only warn, user decides
+  - Do NOT **silently re-date a direct post** to dodge the lock — a direct post into a locked period is a hard 400. Re-dating happens only inside the explicit correction / late-document flows (ADR-0009).
+  - Do NOT let a correction or late document **dead-end on 400** — those must redirect to the current open period, never strand.
 
   **Recommended Agent Profile**:
   - **Category**: `unspecified-high`
@@ -70,7 +73,9 @@ This wave closes the system: period locking prevents posting into filed periods,
   **Acceptance Criteria**:
   - [ ] `POST /api/reporting-periods/1/lock` changes status to `locked`
   - [ ] Re-locking same period returns 200 (idempotent)
-  - [ ] Posting voucher with tax_point_date in locked period returns 400
+  - [ ] A **direct** post with tax_point_date in a locked period returns 400
+  - [ ] A **correction** of a locked-period item posts (reversal + corrected) into the **current open period**, re-dated, carrying `reverses`/`corrects_object` — real-DI test (G2).
+  - [ ] A **late-arriving document** whose tax-point falls in a filed period lands in the current open period — real-DI test.
   - [ ] `GET /api/reporting-periods/1/warnings` lists pending items before lock
   - [ ] Tests pass: `reporting-periods-lock.spec.ts`
 
@@ -113,17 +118,19 @@ This wave closes the system: period locking prevents posting into filed periods,
     - Group VoucherLines by VAT code
     - Sum base_amount per VAT code (input VAT vs output VAT)
     - Compute net VAT payable/receivable
-    - Create immutable snapshot in `vat_report` table: id, period_id, generated_at, voucher_ids (JSON), vat_summary (JSON), total_payable (INTEGER), total_receivable (INTEGER)
-    - Compute Merkle root placeholder: store `merkle_root` column as NULL with comment "deferred to v1+"
+    - Create immutable snapshot in `vat_report` table: id, period_id, generated_at, vat_summary (JSON — frozen computed boxes), total_payable (INTEGER), total_receivable (INTEGER), `merkle_root` (TEXT NOT NULL), `version` (INTEGER NOT NULL DEFAULT 1), `supersedes_id` (INTEGER, nullable, FK to vat_report — forward-compat for an **amended return** "Q1 v2" that supersedes a prior filing, CONTEXT.md). The amend *flow* is v2 — these columns are **reserved now** so the immutable table needn't be migrated later; v1 always writes version 1 / NULL supersedes.
+    - **Included vouchers as a join table** `vat_report_voucher` (vat_report_id FK, voucher_id FK) — NOT a `voucher_ids` JSON blob (queryable, FK-constrained; `GET /vat-reports/:id/vouchers` reads it).
+    - **Compute the real Merkle root** over the included vouchers' hashes (the hash-chain hashes already exist from W3-3 — cheap). This is the cryptographic "proof of exactly what was filed" (ADR-0013/0009); do NOT defer it. Store in `merkle_root`.
   - `POST /api/reporting-periods/:id/vat-report` triggers generation
   - `GET /api/vat-reports/:id` returns the snapshot
   - `GET /api/vat-reports/:id/vouchers` returns the list of included vouchers
   - Write tests for report generation and immutability
 
   **Must NOT do**:
-  - Do NOT compute real Merkle root — column reserved, logic deferred
-  - Do NOT allow editing a VAT report after generation — immutable
-  - Do NOT implement country-specific report formats (e.g., Danish VAT return) — just JSON summary
+  - Do NOT defer / NULL the Merkle root — compute it for real (ADR-0013/0009); the voucher hashes already exist (W3-3), so it is cheap and it is what makes the snapshot a *proof*.
+  - Do NOT store included vouchers as a JSON blob — use the `vat_report_voucher` join table.
+  - Do NOT allow editing a VAT report after generation — immutable.
+  - Do NOT implement country-specific report formats (e.g., Danish VAT return) — just the JSON summary + Merkle root.
 
   **Recommended Agent Profile**:
   - **Category**: `unspecified-high`
@@ -143,8 +150,9 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **Acceptance Criteria**:
   - [ ] `POST /api/reporting-periods/1/vat-report` creates snapshot with correct VAT summaries
+  - [ ] `merkle_root` is non-NULL and **deterministic** — recomputing over the same voucher set yields the identical root (test); changing any included voucher's hash changes the root.
+  - [ ] Included vouchers live in `vat_report_voucher` (join table, FK); `GET /vat-reports/:id/vouchers` reads it.
   - [ ] `GET /api/vat-reports/1` returns immutable snapshot
-  - [ ] Snapshot includes all vouchers from the period
   - [ ] Tests pass: `vat-report.service.spec.ts`
 
   **QA Scenarios**:
@@ -182,7 +190,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **What to do**:
   - Create `src/approvals/` module
-  - `approval` table: id (INTEGER PK), object_type (TEXT — expense, sales_invoice), object_id (INTEGER), status (TEXT — enum: pending, approved, rejected, superseded), requested_by (TEXT), approved_by (TEXT, nullable), rejected_reason (TEXT, nullable), superseded_by (INTEGER FK to approval, nullable), created_at (INTEGER), resolved_at (INTEGER, nullable)
+  - `approval` table: id (INTEGER PK), object_type (TEXT — **CHECK in the full approval-required set**: `expense`, `sales_invoice`, `dividend`, `personal_disposition`, `bad_debt`, `correction`; migration-extensible as new approvable kinds land — NOT just expense/sales_invoice, or ADR-required approvals for dividend/personal/bad-debt/correction would bounce on the constraint), object_id (INTEGER — `(object_type, object_id)` is the polymorphic reference to the approvable business object or system action), status (TEXT — enum: pending, approved, rejected, superseded), requested_by (TEXT), approved_by (TEXT, nullable — for the solo persona typically equals `requested_by`; the approver is the owner, ADR-0016), rejected_reason (TEXT, nullable), superseded_by (INTEGER FK to approval, nullable), created_at (INTEGER), resolved_at (INTEGER, nullable)
   - `POST /api/approvals` — creates an Approval when Policy holds a voucher (called by pipeline)
   - `POST /api/approvals/:id/approve` — changes status to `approved`, triggers idempotent posting
   - `POST /api/approvals/:id/reject` — changes status to `rejected`, returns draft to editable state with reason
@@ -257,7 +265,10 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **What to do**:
   - **AuditFinding** (ADR-0018):
-    - `audit_finding` table: id (INTEGER PK), finding_type (TEXT — e.g., missing_receipt, pending_approval, period_deadline, unmatched_bank), severity (TEXT — enum: low, medium, high, critical), description (TEXT), referenced_object_type (TEXT), referenced_object_id (INTEGER), status (TEXT — enum: open, resolved, snoozed), created_at (INTEGER), resolved_at (INTEGER, nullable)
+    - `audit_finding` table: id (INTEGER PK), finding_type (TEXT — e.g., missing_receipt, pending_approval, period_deadline, unmatched_bank), severity (TEXT — enum: low, medium, high, critical), description (TEXT), referenced_object_type (TEXT), referenced_object_id (INTEGER), status (TEXT — enum: open, resolved, snoozed), severity_scored_at (INTEGER — last re-score sweep), last_nagged_at (INTEGER, nullable — SecretaryAgent anti-spam, ADR-0018), created_at (INTEGER), resolved_at (INTEGER, nullable)
+    - **UNIQUE natural key** `(finding_type, referenced_object_type, referenced_object_id)` — a real DB constraint (G6, prove with a test): one finding per (issue-type, object), so a re-sweep **re-scores** it, never duplicates it (ADR-0018).
+    - **Finding FSM** (like Approval / ReportingPeriod — findings are state-machine-governed, not free status writes): states `open → snoozed → open`, `open|snoozed → resolved`, and `resolved → open` (**reopen** when a sweep re-detects an issue that was resolved — same row via the UNIQUE key, transition logged). The service enforces legal transitions and rejects illegal ones; `severity` re-scores while `open`/`snoozed` (ADR-0018 dynamic severity). `resolved` is soft-terminal (reopenable), not delete.
+    - **Resolution provenance** — objects *created in response to* a finding link back to it: a child table `finding_reference` (finding_id FK, object_type, object_id, created_at). When uploading the missing receipt, posting a correction, or making a match to clear a finding, record the link, so the audit trail shows *what was done to resolve finding F* (mirrors the Voucher's `corrects_object`). A finding may have several resolution references.
     - `POST /api/audit-findings` — creates a finding (typically called by AuditAgent cron or triggers)
     - `GET /api/audit-findings` — lists findings with severity filter
     - `POST /api/audit-findings/:id/resolve` — marks as resolved
@@ -266,18 +277,21 @@ This wave closes the system: period locking prevents posting into filed periods,
     - Create `src/agents/` directory with stub implementations for 5 agents:
       - `AccountingAgent`: empty stub with `@Injectable()`
       - `ReconciliationAgent`: empty stub
-      - `AuditAgent`: stub with method `sweep()` that creates sample AuditFindings (for testing)
+      - `AuditAgent`: stub with method `sweep()` that is a **no-op** (logs "would sweep", writes nothing) — or runs real detection later. It **upserts** by the UNIQUE key (re-score, not duplicate); it never fabricates sample findings on a live schedule. Sample findings for demo come only from an explicit **seed/test fixture**, never the cron.
       - `SecretaryAgent`: stub with method `notify()` that logs "would notify user" (no real channels)
       - `DevAgent`: empty stub, disabled by default
     - Each agent is a NestJS service, not a separate process
-    - `AuditAgent` sweep runs on a NestJS `@Cron()` decorator (every hour) — creates sample findings for demo
-    - `SecretaryAgent` reads open AuditFindings and logs them (no real Telegram/Slack)
+    - `AuditAgent` sweep is wired to a NestJS `@Cron()` decorator (e.g. hourly), but the stub sweep is a **no-op** (no fabricated findings); when real, it **upserts** by the UNIQUE key and drives the finding **FSM** (re-score / resolve / reopen). The cron never writes demo data.
+    - `SecretaryAgent` reads `open` AuditFindings and logs them (no real Telegram/Slack), respecting `last_nagged_at` vs `severity` for anti-spam cadence (ADR-0018).
   - Write tests for AuditFinding CRUD and agent stubs
 
   **Must NOT do**:
   - Do NOT implement real agent logic (AI, OCR, reconciliation algorithms) — stubs only
   - Do NOT integrate with external channels (Telegram, Slack, email) — log only
   - Do NOT run agents as separate processes — in-process NestJS services
+  - Do NOT fabricate sample findings on the live cron — sweep is a no-op/real-detection; demo data comes only from a seed/fixture.
+  - Do NOT write `status` arbitrarily — only via the **FSM** transitions (reject illegal ones).
+  - Do NOT insert a duplicate finding for the same `(finding_type, ref_type, ref_id)` — upsert/re-score the existing row.
 
   **Recommended Agent Profile**:
   - **Category**: `unspecified-high`
@@ -298,9 +312,12 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **Acceptance Criteria**:
   - [ ] `GET /api/audit-findings` returns list including severity
-  - [ ] `AuditAgent.sweep()` creates at least one sample finding when run
-  - [ ] `SecretaryAgent.notify()` logs open findings (no external calls)
-  - [ ] Cron decorator is present on `AuditAgent.sweep()` (every hour)
+  - [ ] UNIQUE `(finding_type, ref_type, ref_id)` is a real DB constraint — a second insert for the same triple is rejected / upserts (G6 test).
+  - [ ] A re-sweep **re-scores** the existing finding (no duplicate row); a `resolved` finding re-detected **reopens** (FSM transition logged).
+  - [ ] FSM rejects an illegal transition (e.g. `resolved → snoozed` direct write) — test.
+  - [ ] Resolving via a created object records a `finding_reference` (provenance) link.
+  - [ ] `SecretaryAgent.notify()` logs open findings respecting `last_nagged_at` (no external calls).
+  - [ ] Sample findings come from a seed/fixture; the cron sweep writes none.
   - [ ] Tests pass: `audit-finding.controller.spec.ts`, `agents.service.spec.ts`
 
   **QA Scenarios**:
@@ -316,14 +333,14 @@ This wave closes the system: period locking prevents posting into filed periods,
     Failure Indicators: 400/500, finding not in list
     Evidence: .omo/evidence/task-30-findings.json
 
-  Scenario: Agent sweep creates findings
-    Tool: Bash (node REPL)
-    Preconditions: Build passes
+  Scenario: Re-sweep re-scores, does not duplicate (dedup + FSM)
+    Tool: Bash (curl) + a seeded finding
+    Preconditions: App running; one finding seeded for (missing_receipt, expense, 123)
     Steps:
-      1. `node -e "const { AuditAgent } = require('./dist/agents/audit.agent'); const a = new AuditAgent(); a.sweep(); console.log('sweep done');"`
-      2. Query DB for new findings
-    Expected Result: New audit_finding rows created
-    Failure Indicators: No findings created, errors
+      1. Trigger the AuditAgent sweep (DI-resolved service; not `new AuditAgent()`)
+      2. `curl -s http://localhost:3000/api/audit-findings | jq '[.[]|select(.referenced_object_id==123)] | length'`
+    Expected Result: still exactly 1 finding for object 123 (re-scored, not duplicated); a resolved-then-re-detected finding shows status back to `open`
+    Failure Indicators: duplicate rows for the same (type,object); sweep fabricating demo findings; illegal status writes
     Evidence: .omo/evidence/task-30-agent-sweep.txt
   ```
 
@@ -351,12 +368,13 @@ This wave closes the system: period locking prevents posting into filed periods,
     - `GET /admin/findings/open` — list open findings
     - `GET /admin/health` — admin health check (same as public health but with extra DB connectivity check)
   - All endpoints return JSON (no HTML, no React)
-  - Simple API key auth: `X-Admin-Key: dev` header (hardcoded, no real auth system)
+  - Auth via the **`ApiTokenGuard`** (Task 39) — `Authorization: Bearer <token>`; no hardcoded key.
   - Write tests for all admin endpoints
 
   **Must NOT do**:
   - Do NOT build a React/Vite frontend — API only
-  - Do NOT implement complex RBAC or permissions — one hardcoded admin key
+  - Do NOT implement complex RBAC or permissions — single owner token (Task 39); RBAC is v2 (uncertain)
+  - Do NOT reintroduce a hardcoded key — use the `ApiTokenGuard` (Task 39)
   - Do NOT allow admin endpoints to mutate posted vouchers (read-only for ledger)
 
   **Recommended Agent Profile**:
@@ -368,7 +386,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - **Can Run In Parallel**: YES (with Tasks 27, 28, 29, 30)
   - **Parallel Group**: Wave 6 (with Tasks 27, 28, 29, 30)
   - **Blocks**: None
-  - **Blocked By**: Tasks 27-30 (all admin data sources)
+  - **Blocked By**: Tasks 27-30 (all admin data sources), Task 39 (ApiTokenGuard)
 
   **References**:
   - VISION.md: "Admin UI only for: setup, integrations, reviews, diagnostics, configs"
@@ -379,7 +397,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - [ ] `GET /admin/vouchers` supports date range filter
   - [ ] `GET /admin/approvals/pending` returns only pending approvals
   - [ ] `GET /admin/findings/open` returns only open findings
-  - [ ] All admin endpoints require `X-Admin-Key: dev` header (return 401 otherwise)
+  - [ ] All admin endpoints require a valid `Authorization: Bearer <token>` via `ApiTokenGuard` (return 401 otherwise)
   - [ ] Tests pass: `admin.controller.spec.ts`
 
   **QA Scenarios**:
@@ -389,7 +407,7 @@ This wave closes the system: period locking prevents posting into filed periods,
     Tool: Bash (curl)
     Preconditions: App running
     Steps:
-      1. `curl -s -H "X-Admin-Key: dev" http://localhost:3000/admin/accounts | jq '.accounts | length'`
+      1. `curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/admin/accounts | jq '.accounts | length'`
     Expected Result: Number ≥ 20 (all canonical accounts)
     Failure Indicators: 401, empty array, wrong count
     Evidence: .omo/evidence/task-31-admin-accounts.json
@@ -505,10 +523,53 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: migrations + `src/dividends/`, `src/plugins/`, `src/reconciliation/`
   - Pre-commit: `npm run build && npm test`
 
+- [ ] 39. API token authentication (table + NestJS guard)
+
+  > **Origin:** Wave-6 grilling. The admin API shipped a hardcoded `X-Admin-Key: dev` — a stub, not auth. Replace it with a real, table-backed API token verified by a NestJS guard. RBAC is deferred to v2 (and uncertain — see V2-ROADMAP). NestJS makes this small: one `CanActivate` guard + one table.
+
+  **What to do**:
+  - Migration: `api_token` table — id (INTEGER PK), `token_hash` (TEXT NOT NULL UNIQUE — store a **hash** of the token, never plaintext; verify by hashing the presented token + constant-time compare), `label` (TEXT), created_at (INTEGER), revoked_at (INTEGER, nullable). On init, **generate one token**, store its hash, and surface the plaintext **once** (boot log / a seed value for dev so tests have a known token). Plaintext is never persisted.
+  - `ApiTokenGuard` (`CanActivate`): read `Authorization: Bearer <token>`, hash it, match a non-revoked `api_token` row (constant-time); `401` on miss/missing/revoked.
+  - Apply the guard **globally to `/api` and `/admin`**; leave `/health` (and the open document-ingest webhook, ADR-0016 "ingest open to any sender") **unauthenticated**.
+  - Replace Task 31's `X-Admin-Key: dev` with this guard.
+  - Tests: valid token → 200; missing/wrong/revoked → 401; health stays open; token stored hashed (no plaintext column).
+
+  **Must NOT do**:
+  - Do NOT store the token in plaintext — hash + constant-time compare.
+  - Do NOT implement RBAC / roles / per-route permissions — single owner token for v1 (RBAC deferred to v2, uncertain — V2-ROADMAP).
+  - Do NOT gate `/health` or open document ingest behind the token (ADR-0016).
+  - Do NOT hardcode the token in source — generated/seeded into the table.
+
+  **Recommended Agent Profile**:
+  - **Category**: `unspecified-high`
+    - Reason: Migration + a global guard + init token generation; cross-cutting but small.
+  - **Skills**: []
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES (independent).
+  - **Blocks**: Task 31 (admin endpoints use the guard).
+  - **Blocked By**: Task 1 (migration runner).
+
+  **References**:
+  - ADR-0016: ingest open to any sender (do not gate ingest); conversation/commands/approval are the gated tracks.
+  - V2-ROADMAP.md: RBAC (deferred, uncertain).
+
+  **Acceptance Criteria**:
+  - [ ] Migration creates `api_token` with a UNIQUE `token_hash`; an init token exists (hash stored, plaintext surfaced once).
+  - [ ] `ApiTokenGuard` returns 401 without/with a wrong/revoked token; 200 with a valid one — real-DI test.
+  - [ ] `/health` stays open; `/api` + `/admin` require the token.
+  - [ ] No plaintext token column exists (grep/schema check).
+  - [ ] Tests pass.
+
+  **Commit**: YES
+  - Message: `feat(auth): table-backed API token + NestJS guard`
+  - Files: migration + `src/auth/`
+  - Pre-commit: `npm run build && npm test`
+
 ---
 
 ## Wave Acceptance Criteria
-- [ ] All 7 tasks complete
+- [ ] All 8 tasks complete
 - [ ] `docker compose up` starts and health responds 200
 - [ ] `npm run build` passes with zero errors
 - [ ] `npm test` passes with new tests

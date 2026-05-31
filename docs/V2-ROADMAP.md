@@ -25,4 +25,10 @@ Capabilities deliberately **out of v1 scope**, to be added post-v1 as **domain p
 
 ---
 
+## Other deferred (not domain plugins)
+
+- **RBAC / roles / per-route permissions** — *uncertain*. v1 ships a single table-backed owner API token (Wave-6 Task 39): `Authorization: Bearer <token>`, hash-stored, NestJS guard over `/api`+`/admin`. Multiple roles/scopes are deferred to v2 and may never be needed for a single-owner, self-hosted, single-tenant deployment (ADR-0003). Revisit only if multi-user access becomes a real requirement.
+
+---
+
 _Add further deferred bounded contexts here as they surface during grilling. The test for "domain plugin vs kernel feature": does it carry its own operational data + lifecycle (→ domain plugin), or is it ledger-native rules/accounts (→ kernel + country plugin)? (ADR-0022)_

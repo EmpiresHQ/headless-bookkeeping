@@ -93,6 +93,19 @@ Inbound message arrives (channel adapter)
 - **Retrieval for modification:** a **correction** of a posted object (reversal + repost, ADR-0010/ADR-0006) fetches the associated Conversation(s) — open *or* closed — via the M:N association, to recover the original dialogue and **Artifact**s as context. A correction arriving on a *different* thread/channel starts a **new** Conversation associated to the same object (which can then pull the prior closed one for context).
 - The closed Conversation is never mutated to rewrite history; reopen/append and new-linked-Conversation are both append-only, audit-preserving.
 
+## State machines
+
+Several aggregates are **FSM-governed** — status is only ever changed via a defined transition, never an arbitrary write (the service rejects illegal transitions). Consistent posture across the system:
+
+- **ReportingPeriod**: `open → locked` (locked is terminal; no unlock — ADR-0012/0009).
+- **Approval**: `pending → approved | rejected | superseded` (never auto-resolves — ADR-0015).
+- **Business object** (Expense/SalesInvoice): `draft → pending → posted → reversed` (corrections reverse + repost, never edit).
+- **AuditFinding**: `open ⇄ snoozed`, `open|snoozed → resolved`, `resolved → open` (**reopen** when a sweep re-detects a resolved issue — same row via its UNIQUE key; severity re-scores while open/snoozed — ADR-0018).
+- **Document**: `received → triaged → processed` (+ `error`).
+- **bank_transaction** disposition: `open → prepayment | personal | bank_fee | dividend`.
+
+Objects created *to resolve* a finding link back via `finding_reference` (provenance) — mirroring the Voucher's `reverses`/`corrects_object` back-references.
+
 ## Open structural gaps (tracked)
 
 - **Entity aggregate unbuilt** — no table/module until Wave-5 Task 33; `expense.supplier_id` is a bare integer (not a FK), supplier memory and `(supplier, invoice_number)` dedup have no backing store, and the Policy known/unknown gate is an inert stub. (Wave-4 grilling finding.)
