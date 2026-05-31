@@ -150,3 +150,38 @@
 - `npm run lint` → clean (0 errors, 0 warnings).
 - Unit tests: all 29 suites passed (plugin-loader: 25 tests — 5 new `getReferenceRate`).
 - `npm run test:e2e` → 6 suites, 28/28 passed.
+
+## W3-3: Gapless sequential voucher numbering + atomic idempotency claim + hash chain fix (2026-05-31)
+
+### What was built
+- **`src/database/migrations/012_create_voucher_sequence.ts`** — Creates `voucher_sequence(year TEXT PRIMARY KEY, last_number INTEGER NOT NULL DEFAULT 0)`. Per-year sequence counter for gapless V-YYYY-NNNNNN numbering.
+- **`src/database/migrations/index.ts`** — Registered migration 012.
+- **`src/database/types.ts`** — Added `VoucherSequenceTable` to `Database` interface.
+- **`src/ledger/posting/voucher-hash.ts`** — Fixed `computeVoucherHash` per ADR-0013: `previous_hash` is now **prepended** to the canonical JSON string (`prevHash + canonical`), not embedded inside the JSON object. Uses `GENESIS_HASH` as fallback when `previous_hash` is null.
+- **`src/ledger/posting/posting.service.ts`** — `postVoucherTx` now mints gapless `V-YYYY-NNNNNN` numbers inside the transaction using the `voucher_sequence` table. Ignores `draft.voucher_number` entirely (never carries DRAFT- prefix or business-object-derived number into posted voucher). Uses `sql` template for atomic `last_number + 1` increment.
+- **`src/ledger/pipeline/posting-pipeline.service.ts`** — Replaced external `getStatus` check-then-act with atomic conditional UPDATE: both the auto-post path (`atomicPost`) and hold-for-approval path (`claimForApproval`) use `WHERE status = 'draft'` with `returning('id')`; if no rows updated, throws `ConflictException`. Removed `getStatus`, `updateStatus`, and `isUniqueViolation` methods. Removed `NotFoundException` import (no longer needed).
+- **`src/ledger/voucher/types.ts`** — Made `voucher_number` optional in `DraftVoucher` (`voucher_number?: string`).
+- **`src/ledger/voucher/voucher.schema.ts`** — Made `voucher_number` optional in Zod schema (`.optional()`).
+- **`src/expenses/expenses.service.ts`** — `generateDraftVoucher` now returns `voucher_number: 'PENDING'` instead of `DRAFT-EXP-${id}-${Date.now()}`.
+- **`src/sales-invoices/sales-invoices.service.ts`** — `generateDraftVoucher` now returns `voucher_number: 'PENDING'` instead of `invoice.invoice_number`.
+
+### Test updates
+- **`src/expenses/expenses.service.spec.ts`** — Changed `expect(draft.voucher_number).toMatch(/^DRAFT-EXP-/)` to `expect(draft.voucher_number).toBe('PENDING')`.
+- **`src/sales-invoices/sales-invoices.service.spec.ts`** — Changed `expect(draft.voucher_number).toBe('INV-2026-001')` to `expect(draft.voucher_number).toBe('PENDING')`.
+- **`src/sales-invoices/sales-invoices.controller.spec.ts`** — Updated `mockDraft.voucher_number` to `'PENDING'` and corresponding assertion.
+- **`src/corrections/corrections.service.spec.ts`** — Removed assertions on `voucher_number` in `postVoucher` call args (reversal `-REV` and corrected `-COR` suffixes), since posting service now ignores draft voucher_number.
+- **`src/corrections/corrections.integration.spec.ts`** — Changed reversal/corrected voucher number assertions from exact `-REV`/`-COR` suffix matches to regex `^V-2026-\d{6}$` format check + non-equality with original.
+- **`test/voucher.e2e-spec.ts`** — Updated "duplicate" test to verify gapless mints fresh numbers each time. Updated GET test to match `V-2026-NNNNNN` format instead of exact input value.
+
+### Key decisions
+- **Sequence inside transaction**: The `voucher_sequence` increment happens in the same transaction as the voucher insert — SQLite's single writer ensures no race conditions, making the sequence truly gapless.
+- **Per-year sequence**: One counter per calendar year (`year` is the PK). Reset per year (not continuous) per ADR-0021 — the exact reset cadence is a country-plugin presentation choice.
+- **Hash chain fix**: `previous_hash` is no longer inside the JSON object — it's prepended as a string before hashing. This makes the chain cryptographic: each voucher commits to the full prior state hash, not just its own data.
+- **Atomic idempotency**: Conditional `UPDATE ... SET status = 'posted' WHERE id = ? AND status = 'draft'` inside the transaction closes the TOCTOU window. The `returning('id')` pattern (returns `undefined` on no match) is the clean way to detect zero-affected-rows in Kysely + better-sqlite3.
+- **Draft vouchers have no real number**: `voucher_number` is optional in `DraftVoucher` and set to `'PENDING'` as a placeholder. The real gapless number is minted only at posting time, consistent with ADR-0020 (voucher minted only at posting).
+
+### Verification
+- `npm run build` → clean (0 errors).
+- `npm run lint` → clean (0 errors, 0 warnings).
+- `npm test` → 28 suites, all passed.
+- `npm run test:e2e` → 6 suites, 28/28 passed.

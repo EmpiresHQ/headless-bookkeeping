@@ -19,9 +19,17 @@ interface HashableLine {
 }
 
 /**
- * H(N) = SHA-256(canonical(N)), where canonical folds in the previous voucher's
- * hash via `previous_hash`. The field list + ordering is a forever-contract
- * (ADR-0013); changing it requires a new ADR + migration story.
+ * H(N) = SHA-256(prevHash ‖ canonical(N)), where canonical(N) is a
+ * deterministic JSON serialization of the voucher's immutable fields
+ * plus all its lines — but NOT the previous_hash field itself.
+ *
+ * The `prevHash` is prepended to the JSON string before hashing, making
+ * the chain truly cryptographic (each voucher commits to the full prior
+ * state, not just its own data). ADR-0013.
+ *
+ * When `previous_hash` is null (historic vouchers pre-hash-chain), the
+ * GENESIS_HASH is used as the concatenation base so the function never
+ * produces a hash that depends on a nullable field.
  */
 export function computeVoucherHash(
   voucher: HashableVoucher,
@@ -31,7 +39,6 @@ export function computeVoucherHash(
     voucher_number: voucher.voucher_number,
     tax_point_date: voucher.tax_point_date,
     posted_at: voucher.posted_at,
-    previous_hash: voucher.previous_hash,
     lines: lines.map((l) => ({
       account_id: l.account_id,
       amount: l.amount,
@@ -41,5 +48,8 @@ export function computeVoucherHash(
       is_debit: l.is_debit ? 1 : 0,
     })),
   });
-  return createHash('sha256').update(canonical).digest('hex');
+  const prevHash = voucher.previous_hash ?? GENESIS_HASH;
+  return createHash('sha256')
+    .update(prevHash + canonical)
+    .digest('hex');
 }

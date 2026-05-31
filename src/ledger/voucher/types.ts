@@ -33,7 +33,8 @@ export interface DraftVoucherLine {
 }
 
 export interface DraftVoucher {
-  voucher_number: string;
+  /** Optional — the posting service mints the gapless sequential number at post time. */
+  voucher_number?: string;
   tax_point_date: string;
   lines: DraftVoucherLine[];
   reverses_id?: number;

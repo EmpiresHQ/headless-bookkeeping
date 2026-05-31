@@ -10,6 +10,7 @@ import * as m008 from './008_create_overrides';
 import * as m009 from './009_create_policy_config';
 import * as m010 from './010_create_document';
 import * as m011 from './011_create_reporting_period';
+import * as m012 from './012_create_voucher_sequence';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -23,4 +24,5 @@ export const migrations: Record<string, Migration> = {
   '009_create_policy_config': m009,
   '010_create_document': m010,
   '011_create_reporting_period': m011,
+  '012_create_voucher_sequence': m012,
 };

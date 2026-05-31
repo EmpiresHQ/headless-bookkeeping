@@ -147,7 +147,8 @@ describe('Corrections (integration)', () => {
       const reversalId = result.reversalVoucherId as number;
       const reversal = await voucherRepo.getVoucherById(reversalId);
       expect(reversal).not.toBeNull();
-      expect(reversal!.voucher_number).toBe(`${posted.voucher_number}-REV`);
+      expect(reversal!.voucher_number).toMatch(/^V-2026-\d{6}$/);
+      expect(reversal!.voucher_number).not.toBe(posted.voucher_number);
       expect(reversal!.reverses_id).toBe(posted.id);
       expect(reversal!.reason).toBe('Wrong amount');
       expect(reversal!.corrects_object_type).toBeNull();
@@ -174,7 +175,8 @@ describe('Corrections (integration)', () => {
       const correctedId = result.correctedVoucherId as number;
       const corrected = await voucherRepo.getVoucherById(correctedId);
       expect(corrected).not.toBeNull();
-      expect(corrected!.voucher_number).toBe(`${posted.voucher_number}-COR`);
+      expect(corrected!.voucher_number).toMatch(/^V-2026-\d{6}$/);
+      expect(corrected!.voucher_number).not.toBe(posted.voucher_number);
       expect(corrected!.corrects_object_type).toBe('expense');
       expect(corrected!.corrects_object_id).toBe(expense.id);
       expect(corrected!.reason).toBe('Wrong amount');
@@ -226,14 +228,16 @@ describe('Corrections (integration)', () => {
         result.reversalVoucherId as number,
       );
       expect(reversal!.reverses_id).toBe(posted.id);
-      expect(reversal!.voucher_number).toBe(`${posted.voucher_number}-REV`);
+      expect(reversal!.voucher_number).toMatch(/^V-2026-\d{6}$/);
+      expect(reversal!.voucher_number).not.toBe(posted.voucher_number);
 
       const corrected = await voucherRepo.getVoucherById(
         result.correctedVoucherId as number,
       );
       expect(corrected!.corrects_object_type).toBe('sales_invoice');
       expect(corrected!.corrects_object_id).toBe(invoice.id);
-      expect(corrected!.voucher_number).toBe(`${posted.voucher_number}-COR`);
+      expect(corrected!.voucher_number).toMatch(/^V-2026-\d{6}$/);
+      expect(corrected!.voucher_number).not.toBe(posted.voucher_number);
 
       const updatedInvoice = await salesInvoicesService.getInvoiceById(
         invoice.id,

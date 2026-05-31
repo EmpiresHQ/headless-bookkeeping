@@ -5,6 +5,7 @@ export interface Database {
   account: AccountTable;
   voucher: VoucherTable;
   voucher_line: VoucherLineTable;
+  voucher_sequence: VoucherSequenceTable;
   expense: ExpenseTable;
   sales_invoice: SalesInvoiceTable;
   override: OverrideTable;
@@ -148,4 +149,9 @@ export interface DocumentSourceTable {
   channel: string;
   source_identifier: string | null;
   received_at: number;
+}
+
+export interface VoucherSequenceTable {
+  year: string;
+  last_number: number;
 }

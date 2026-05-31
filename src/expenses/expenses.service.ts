@@ -132,7 +132,7 @@ export class ExpensesService {
     ];
 
     return {
-      voucher_number: `DRAFT-EXP-${expense.id}-${Date.now()}`,
+      voucher_number: 'PENDING',
       tax_point_date: expense.tax_point_date,
       lines,
     };

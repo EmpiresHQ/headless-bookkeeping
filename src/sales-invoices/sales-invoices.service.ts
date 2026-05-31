@@ -102,7 +102,7 @@ export class SalesInvoicesService {
     const netAmount = invoice.gross_amount - invoice.vat_amount;
 
     const draft: DraftVoucher = {
-      voucher_number: invoice.invoice_number,
+      voucher_number: 'PENDING',
       tax_point_date: invoice.tax_point_date,
       lines: [
         {

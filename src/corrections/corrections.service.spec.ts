@@ -292,7 +292,6 @@ describe('CorrectionsService (unit)', () => {
           ]
         >
       )[0][0];
-      expect(reversalCall.voucher_number).toBe('V-2026-001-REV');
       expect(reversalCall.reverses_id).toBe(10);
       expect(reversalCall.reason).toBe('Wrong amount');
       expect(reversalCall.lines).toHaveLength(2);
@@ -312,7 +311,6 @@ describe('CorrectionsService (unit)', () => {
           ]
         >
       )[1][0];
-      expect(correctedCall.voucher_number).toBe('V-2026-001-COR');
       expect(correctedCall.corrects_object_type).toBe('expense');
       expect(correctedCall.corrects_object_id).toBe(1);
       expect(correctedCall.reason).toBe('Wrong amount');
