@@ -851,4 +851,73 @@ describe('ReconciliationService (integration)', () => {
       expect(match).toBeUndefined();
     });
   });
+
+  describe('getRemainingVoucherBalance — AR/AP netting', () => {
+    it('nets an AR debit against an AP credit on the same voucher to zero', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      voucherCounter++;
+
+      const voucher = await db
+        .insertInto('voucher')
+        .values({
+          voucher_number: `V-2025-${String(voucherCounter).padStart(6, '0')}`,
+          tax_point_date: '2025-01-10',
+          posted_at: now,
+          previous_hash: null,
+          reverses_id: null,
+          corrects_object_type: null,
+          corrects_object_id: null,
+          reason: null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const arAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'AR')
+        .executeTakeFirstOrThrow();
+
+      const apAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'AP')
+        .executeTakeFirstOrThrow();
+
+      // A contra/reclass voucher carrying both an AR debit and an AP credit
+      // for the same base amount. These should net to zero, not sum to 20000.
+      await db
+        .insertInto('voucher_line')
+        .values([
+          {
+            voucher_id: voucher.id,
+            account_id: arAccount.id,
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1,
+            vat_code: null,
+            is_debit: 1,
+          },
+          {
+            voucher_id: voucher.id,
+            account_id: apAccount.id,
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1,
+            vat_code: null,
+            is_debit: 0,
+          },
+        ])
+        .execute();
+
+      const remaining =
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucher.id,
+        );
+
+      expect(remaining).toBe(0);
+    });
+  });
 });

@@ -591,20 +591,41 @@ export class ReconciliationService {
   }
 
   /**
+   * Test-only public wrapper around {@link getRemainingVoucherBalance}.
+   */
+  getRemainingVoucherBalanceForTest(voucherId: number): Promise<number> {
+    return this.getRemainingVoucherBalance(voucherId);
+  }
+
+  /**
    * Get the remaining unmatched balance for a voucher.
    */
   private async getRemainingVoucherBalance(voucherId: number): Promise<number> {
     // Get the total base_amount of AR/AP lines for this voucher.
     // AR lines are debits (is_debit=1), AP lines are credits (is_debit=0).
+    // Net the AR/AP lines by sign so a contra/reclass voucher carrying both an
+    // AR debit and an AP credit nets out instead of summing (which would inflate
+    // the balance). net = Σ(is_debit ? +base_amount : −base_amount).
     const lineTotal = await this.db
       .selectFrom('voucher_line')
       .innerJoin('account', 'account.id', 'voucher_line.account_id')
-      .select((eb) => eb.fn.sum<number>('voucher_line.base_amount').as('total'))
+      .select((eb) =>
+        eb.fn
+          .sum<number>(
+            eb
+              .case()
+              .when('voucher_line.is_debit', '=', 1)
+              .then(eb.ref('voucher_line.base_amount'))
+              .else(eb.neg(eb.ref('voucher_line.base_amount')))
+              .end(),
+          )
+          .as('net'),
+      )
       .where('voucher_line.voucher_id', '=', voucherId)
       .where('account.code', 'in', ['AR', 'AP'])
       .executeTakeFirst();
 
-    const totalBase = lineTotal?.total ?? 0;
+    const totalBase = Math.abs(lineTotal?.net ?? 0);
     if (totalBase === 0) return 0;
 
     const alreadyMatched = await this.getAlreadyMatched(voucherId);
