@@ -24,7 +24,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
 - **Schema only in migrations** — grep clean: no `createTable`/`CREATE TABLE` outside `src/database/migrations/` (G4)
 - **"Must NOT do" greps clean**; stated DB invariants are real DB constraints proven by a test (G5/G6)
 - **Per-wave verification pass** (plan-compliance + code-quality + scope-fidelity) before commit (G8)
-- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never EUR
+- Base currency and example payloads use **EUR** (Ireland default), per ADR-0004 — never DKK
 
 ---
 
@@ -429,10 +429,76 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `test/reconciliation.e2e-spec.ts`
   - Pre-commit: `npm run build && npm test`
 
+- [ ] 32. Persist OCR source VAT code as evidence (cross-border enabler)
+
+  > **Origin:** Wave-4 intake review. The OCR triage stub already extracts a `vat_code` into `TriageResult`, but `TriageService.route` drops it — the field never lands on the business object. ADR-0010 calls this the "candidate VAT code"; it is the code/rate **printed on the source document**, which for a cross-border invoice (e.g. a Danish supplier billed to an Estonian org) is a *foreign* code at a foreign rate — NOT the local accounting code. We need to preserve it as evidence so a country plugin can later resolve the local treatment (reverse-charge, foreign-VAT-cost) from it. This task only **persists** the candidate; it does NOT make it authoritative and does NOT implement reverse-charge.
+
+  **What to do**:
+  - Migration: add `source_vat_code (TEXT, nullable)` to `expense` and `sales_invoice` (schema only in migrations — G4). The OCR-extracted monetary facts (`gross_amount`, `vat_amount`) are already persisted; this adds the document's printed VAT-code label as captured evidence.
+  - Thread `TriageResult.vat_code` through `TriageService.route` → `createExpense` / `createInvoice` → the new column. Store verbatim (no normalization).
+  - Surface `source_vat_code` in `GET /api/expenses/:id` and `GET /api/sales-invoices/:id` responses.
+  - The voucher line `vat_code` continues to come **solely** from `plugin.resolveCategoryMapping(...)` — unchanged. `source_vat_code` is read-only evidence.
+  - Write tests proving the source code is stored AND that the posted voucher line still carries the plugin-resolved local code, not the source code.
+
+  **Must NOT do**:
+  - Do NOT feed `source_vat_code` into voucher-line resolution or semantic validation — the country plugin stays the sole resolver of the booking VAT code (ADR-0002 §8). Doing so would let a foreign printed code drive a domestic booking.
+  - Do NOT implement reverse-charge / intra-community resolution here — that needs `supplier.country` (intrinsic fact, deferred to ADR-0014 supplier-identity) and a real (non-null) country plugin. This task is evidence capture only.
+  - Do NOT reconstruct or store a rate as authoritative — `vat_amount`/net already carry the monetary truth; this is the printed-code label, kept for audit/triage review.
+  - Do NOT add a canonical cross-country VAT vocabulary (`REVERSE_CHARGE_SERVICES`, …) — explicitly rejected by ADR-0002 §7.
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: One nullable column on two tables + thread a field through triage; no new logic.
+  - **Skills**: []
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES (independent of bank/matching tasks)
+  - **Parallel Group**: Wave 5 (with Tasks 21–26)
+  - **Blocks**: nothing in Wave 5; unblocks future reverse-charge work (real country plugin + ADR-0014 supplier identity)
+  - **Blocked By**: Wave 4 (documents + triage + expense/sales-invoice modules)
+
+  **References**:
+  - ADR-0002 §7-8: the country plugin is the **sole resolver** of a VAT code from `(Supplier intrinsic facts + Organization country/registration)`; a Supplier never stores a VAT code; no abstract canonical VAT layer.
+  - ADR-0010: triage produces a draft with a "candidate VAT code, confidence" — this persists that candidate.
+  - ADR-0004: base-currency VAT converted at the prescribed reference rate (the local treatment, plugin-owned).
+  - ADR-0014: supplier identity / `supplier.country` — the real cross-border carrier (future wave).
+  - Wave-4 review finding: OCR `vat_code` captured but dropped; only `gross_amount`/`vat_amount` survive to the business object.
+
+  **Acceptance Criteria**:
+  - [ ] Migration adds `source_vat_code` (nullable) to `expense` and `sales_invoice`; grep clean for DDL outside `src/database/migrations/` (G4).
+  - [ ] Triaging an odd document stores `source_vat_code = 'IE_INPUT_23'` on the Expense; even stores `'IE_OUTPUT_23'` on the SalesInvoice (matches the current OCR stub).
+  - [ ] `GET /api/expenses/:id` returns `source_vat_code`.
+  - [ ] Real-DI integration test (G2): after posting, the voucher line `vat_code` equals the **plugin-resolved** code (`IE_INPUT_23` for transport), proving `source_vat_code` did not leak into the booking.
+  - [ ] Tests pass.
+
+  **QA Scenarios**:
+
+  ```
+  Scenario: OCR source VAT code persisted as evidence, not used for booking
+    Tool: Bash (curl)
+    Preconditions: App running
+    Steps:
+      1. Upload a document (odd id), triage it
+      2. `curl -s http://localhost:3000/api/expenses/{id}` → assert source_vat_code present
+      3. Post the expense, fetch the voucher
+    Expected Result: expense.source_vat_code = OCR value; voucher line vat_code = plugin-resolved local code (unchanged)
+    Failure Indicators: source_vat_code null/missing; voucher line carries the source code instead of the plugin code
+    Evidence: .omo/evidence/task-32-source-vat-code.json
+  ```
+
+  **Evidence to Capture**:
+  - [ ] API response showing `source_vat_code` on the business object
+  - [ ] Voucher detail showing the plugin-resolved line `vat_code`
+
+  **Commit**: YES
+  - Message: `feat(intake): persist OCR source VAT code as evidence`
+  - Files: migration + `src/triage/`, `src/expenses/`, `src/sales-invoices/`
+  - Pre-commit: `npm run build && npm test`
+
 ---
 
 ## Wave Acceptance Criteria
-- [ ] All 6 tasks complete
+- [ ] All 7 tasks complete
 - [ ] `docker compose up` starts and health responds 200
 - [ ] `npm run build` passes with zero errors
 - [ ] `npm test` passes with new tests
