@@ -27,6 +27,9 @@ export interface OrganizationTable {
   // plugin" (ADR-0004).
   base_currency: string | null;
   vat_registered: number;
+  // Legal form: 'company' | 'sole_proprietor' (ADR-0017/ADR-0023).
+  // Generated because migration 017 adds DEFAULT 'company'.
+  org_type: Generated<string>;
   created_at: number;
 }
 

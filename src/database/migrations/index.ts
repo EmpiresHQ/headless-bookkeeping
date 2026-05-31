@@ -15,6 +15,7 @@ import * as m013 from './013_create_entity';
 import * as m014 from './014_create_bank_statement';
 import * as m015 from './015_add_document_vat_marking';
 import * as m016 from './016_create_reconciliation_match';
+import * as m017 from './017_add_org_type';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -33,4 +34,5 @@ export const migrations: Record<string, Migration> = {
   '014_create_bank_statement': m014,
   '015_add_document_vat_marking': m015,
   '016_create_reconciliation_match': m016,
+  '017_add_org_type': m017,
 };

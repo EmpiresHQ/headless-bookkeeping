@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   CategoryMappingResult,
   CountryPlugin,
+  CrossBorderResolution,
   OrgContext,
   SupplierFacts,
   VATCode,
@@ -92,5 +93,26 @@ export class NullCountryPlugin implements CountryPlugin {
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
     return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+  }
+
+  resolvePersonalDispositionAccount(orgType: string): string {
+    if (orgType === 'sole_proprietor') {
+      return 'OWNERS_DRAWINGS';
+    }
+    // Default to 'company' → SHAREHOLDER_LOAN (ADR-0017/ADR-0023).
+    return 'SHAREHOLDER_LOAN';
+  }
+
+  resolveCrossBorderTreatment(
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+    _context: { vatCharged: boolean },
+  ): CrossBorderResolution {
+    // Same country → domestic with default VAT code.
+    if (supplierFacts.country === orgContext.country) {
+      return { treatment: 'domestic', vatCode: 'NULL_STANDARD' };
+    }
+    // Different country → unresolvable (hold for Approval).
+    return { treatment: 'unresolvable', vatCode: null };
   }
 }

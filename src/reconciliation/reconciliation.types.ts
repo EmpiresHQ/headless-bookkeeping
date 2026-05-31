@@ -1,3 +1,5 @@
+import { FXRealizedResult } from './fx-realized.service';
+
 /**
  * Types for the reconciliation matching engine.
  *
@@ -84,4 +86,13 @@ export interface CandidateVoucher {
   taxPointDate: string;
   /** Whether this is a prepayment voucher (CUSTOMER_PREPAYMENTS / SUPPLIER_PREPAYMENTS). */
   isPrepayment: boolean;
+}
+
+/**
+ * Result of executing a match: the persisted reconciliation_match records
+ * plus any realized-FX vouchers posted for foreign-currency settlements.
+ */
+export interface ExecuteMatchResult {
+  records: ReconciliationMatchRecord[];
+  fxResults: FXRealizedResult[];
 }

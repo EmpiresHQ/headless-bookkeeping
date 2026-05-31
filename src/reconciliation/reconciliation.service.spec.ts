@@ -9,7 +9,10 @@ import { AccountService } from '../ledger/account/account.service';
 import { BankStatementService } from '../bank/bank-statement.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
+import { PostingService } from '../ledger/posting/posting.service';
+import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { ReconciliationService } from './reconciliation.service';
+import { FXRealizedService } from './fx-realized.service';
 
 /**
  * Integration test for the reconciliation matching engine.
@@ -41,6 +44,9 @@ describe('ReconciliationService (integration)', () => {
         BankTransactionRepository,
         BankStatementService,
         EntitiesService,
+        LedgerValidationService,
+        PostingService,
+        FXRealizedService,
         ReconciliationService,
       ],
     }).compile();
@@ -380,7 +386,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
 
       expect(proposals.length).toBeGreaterThanOrEqual(1);
       const match = proposals.find((p) => p.voucherId === voucherId);
@@ -411,7 +419,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
 
       expect(proposals.length).toBeGreaterThanOrEqual(1);
       const match = proposals.find((p) => p.voucherId === voucherId);
@@ -437,7 +447,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
 
       expect(proposals.length).toBeGreaterThanOrEqual(1);
       const match = proposals.find((p) => p.voucherId === voucherId);
@@ -465,7 +477,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
 
       expect(proposals.length).toBeGreaterThanOrEqual(1);
       const match = proposals.find((p) => p.voucherId === voucherId);
@@ -491,7 +505,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       const match = proposals.find((p) => p.signal === 'amount_date');
       expect(match).toBeUndefined();
     });
@@ -522,7 +538,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
 
       const match1 = proposals.find((p) => p.voucherId === voucherId1);
       const match2 = proposals.find((p) => p.voucherId === voucherId2);
@@ -550,7 +568,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals1 = await reconciliationService.proposeMatches(stmt1.statement.id);
+      const proposals1 = await reconciliationService.proposeMatches(
+        stmt1.statement.id,
+      );
       expect(proposals1.length).toBeGreaterThanOrEqual(1);
       expect(proposals1[0].voucherId).toBe(voucherId);
       expect(proposals1[0].amountMatched).toBe(40000);
@@ -567,7 +587,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals2 = await reconciliationService.proposeMatches(stmt2.statement.id);
+      const proposals2 = await reconciliationService.proposeMatches(
+        stmt2.statement.id,
+      );
       const match2 = proposals2.find((p) => p.voucherId === voucherId);
       expect(match2).toBeDefined();
       expect(match2!.amountMatched).toBe(60000);
@@ -594,11 +616,13 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       expect(proposals.length).toBeGreaterThanOrEqual(1);
 
-      const records = await reconciliationService.executeMatch(proposals);
-      expect(records.length).toBe(proposals.length);
+      const result = await reconciliationService.executeMatch(proposals);
+      expect(result.records.length).toBe(proposals.length);
 
       const dbRecords = await db
         .selectFrom('reconciliation_match')
@@ -606,7 +630,7 @@ describe('ReconciliationService (integration)', () => {
         .where('voucher_id', '=', voucherId)
         .execute();
 
-      expect(dbRecords.length).toBe(records.length);
+      expect(dbRecords.length).toBe(result.records.length);
       expect(dbRecords[0].match_type).toBe('exact');
       expect(dbRecords[0].amount_matched).toBe(50000);
     });
@@ -672,7 +696,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       for (const p of proposals) {
         expect(p.amountMatched).toBeGreaterThan(0);
       }
@@ -690,7 +716,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       for (const p of proposals) {
         expect(p.amountMatched).toBeGreaterThan(0);
       }
@@ -716,7 +744,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       const match = proposals.find((p) => p.matchType === 'exact');
       expect(match).toBeDefined();
     });
@@ -739,7 +769,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       const match = proposals.find((p) => p.signal === 'invoice_number');
       expect(match).toBeDefined();
       expect(match!.matchType).toBe('partial');
@@ -786,7 +818,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const proposals = await reconciliationService.proposeMatches(stmt2.statement.id);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt2.statement.id,
+      );
       const match = proposals.find((p) => p.voucherId === voucherId);
       expect(match).toBeUndefined();
     });

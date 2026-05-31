@@ -71,10 +71,7 @@ export class BankTransactionRepository {
   }
 
   /** Update the status of a transaction. */
-  async updateStatus(
-    id: number,
-    status: BankTransactionStatus,
-  ): Promise<void> {
+  async updateStatus(id: number, status: BankTransactionStatus): Promise<void> {
     await this.db
       .updateTable('bank_transaction')
       .set({ status })

@@ -1,12 +1,10 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Param,
-  ParseIntPipe,
-} from '@nestjs/common';
+import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
 import { ReconciliationService } from './reconciliation.service';
-import type { ExecuteMatchInput, MatchProposal, ReconciliationMatchRecord } from './reconciliation.types';
+import type {
+  ExecuteMatchInput,
+  ExecuteMatchResult,
+  MatchProposal,
+} from './reconciliation.types';
 
 @Controller('api/bank-statements')
 export class ReconciliationController {
@@ -31,7 +29,7 @@ export class ReconciliationController {
   async executeMatch(
     @Param('id', ParseIntPipe) _id: number,
     @Body() input: ExecuteMatchInput,
-  ): Promise<ReconciliationMatchRecord[]> {
+  ): Promise<ExecuteMatchResult> {
     return this.service.executeMatch(input.matches);
   }
 }

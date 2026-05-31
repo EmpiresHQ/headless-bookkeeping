@@ -8,6 +8,6 @@ import { AccountModule } from '../ledger/account/account.module';
   imports: [AccountModule],
   providers: [BankStatementService, BankTransactionRepository],
   controllers: [BankStatementController],
-  exports: [BankStatementService],
+  exports: [BankStatementService, BankTransactionRepository],
 })
 export class BankModule {}

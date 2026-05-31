@@ -1,25 +1,32 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
+import { BankTransactionRecord } from '../bank/bank-statement.types';
 import { EntitiesService } from '../entities/entities.service';
+import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
   MatchProposal,
   MatchType,
   MatchConfidence,
   ReconciliationMatchRecord,
+  ExecuteMatchResult,
   ParsedTransactionTokens,
   CandidateVoucher,
 } from './reconciliation.types';
 
 /** Regex patterns for deterministic token extraction. */
 const INVOICE_NUMBER_PATTERNS = [
-  /INV[-_]?\d+/gi,          // INV-12345, INV_12345, INV12345
-  /#\d{4,}/g,               // #12345
-  /invoice\s*#?\s*\d+/gi,   // invoice 12345, invoice#12345
-  /SI[-_]?\d+/gi,           // SI-12345 (sales invoice prefix)
-  /BILL[-_]?\d+/gi,         // BILL-12345
+  /INV[-_]?\d+/gi, // INV-12345, INV_12345, INV12345
+  /#\d{4,}/g, // #12345
+  /invoice\s*#?\s*\d+/gi, // invoice 12345, invoice#12345
+  /SI[-_]?\d+/gi, // SI-12345 (sales invoice prefix)
+  /BILL[-_]?\d+/gi, // BILL-12345
 ];
 
 /** IBAN pattern: 2-letter country code + 2 check digits + up to 30 alphanumeric. */
@@ -34,6 +41,7 @@ export class ReconciliationService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly transactionRepo: BankTransactionRepository,
     private readonly entitiesService: EntitiesService,
+    private readonly fxRealizedService: FXRealizedService,
   ) {}
 
   /**
@@ -96,7 +104,8 @@ export class ReconciliationService {
    * For outgoing (amount < 0): candidate unpaid AP vouchers
    */
   async proposeMatches(statementId: number): Promise<MatchProposal[]> {
-    const transactions = await this.transactionRepo.findByStatementId(statementId);
+    const transactions =
+      await this.transactionRepo.findByStatementId(statementId);
     const openTxns = transactions.filter((t) => t.status === 'open');
 
     if (openTxns.length === 0) {
@@ -178,7 +187,12 @@ export class ReconciliationService {
     }
 
     // ── Signal 3: Amount + date window (fallback) ───────────────────
-    return this.matchByAmountAndDate(txn.id, absAmount, txn.transaction_date, isIncoming);
+    return this.matchByAmountAndDate(
+      txn.id,
+      absAmount,
+      txn.transaction_date,
+      isIncoming,
+    );
   }
 
   /**
@@ -236,7 +250,9 @@ export class ReconciliationService {
 
         for (const exp of expenses) {
           if (exp.voucher_id) {
-            const remaining = await this.getRemainingVoucherBalance(exp.voucher_id);
+            const remaining = await this.getRemainingVoucherBalance(
+              exp.voucher_id,
+            );
             if (remaining > 0) {
               const amountMatched = Math.min(absAmount, remaining);
               // Only propose if amount matches closely
@@ -287,13 +303,15 @@ export class ReconciliationService {
       // Determine match type.
       const matchType: MatchType = candidate.isPrepayment
         ? 'prepayment'
-        : amountMatched === candidate.remainingBalance && amountMatched === absAmount
+        : amountMatched === candidate.remainingBalance &&
+            amountMatched === absAmount
           ? 'exact'
           : 'partial';
 
       // Confidence: high if amount matches exactly, medium if partial.
       const confidence: MatchConfidence =
-        amountMatched === absAmount && amountMatched === candidate.remainingBalance
+        amountMatched === absAmount &&
+        amountMatched === candidate.remainingBalance
           ? 'high'
           : 'medium';
 
@@ -343,7 +361,8 @@ export class ReconciliationService {
 
       const matchType: MatchType = candidate.isPrepayment
         ? 'prepayment'
-        : amountMatched === candidate.remainingBalance && amountMatched === absAmount
+        : amountMatched === candidate.remainingBalance &&
+            amountMatched === absAmount
           ? 'exact'
           : 'partial';
 
@@ -375,7 +394,11 @@ export class ReconciliationService {
       // AR vouchers from posted sales_invoices linked to this customer.
       const arVouchers = await this.db
         .selectFrom('sales_invoice')
-        .innerJoin('voucher_line', 'voucher_line.voucher_id', 'sales_invoice.voucher_id')
+        .innerJoin(
+          'voucher_line',
+          'voucher_line.voucher_id',
+          'sales_invoice.voucher_id',
+        )
         .innerJoin('account', 'account.id', 'voucher_line.account_id')
         .innerJoin('voucher', 'voucher.id', 'sales_invoice.voucher_id')
         .select('sales_invoice.voucher_id as voucher_id')
@@ -438,7 +461,11 @@ export class ReconciliationService {
       // AP vouchers from posted expenses linked to this supplier.
       const apVouchers = await this.db
         .selectFrom('expense')
-        .innerJoin('voucher_line', 'voucher_line.voucher_id', 'expense.voucher_id')
+        .innerJoin(
+          'voucher_line',
+          'voucher_line.voucher_id',
+          'expense.voucher_id',
+        )
         .innerJoin('account', 'account.id', 'voucher_line.account_id')
         .innerJoin('voucher', 'voucher.id', 'expense.voucher_id')
         .select('expense.voucher_id as voucher_id')
@@ -496,7 +523,11 @@ export class ReconciliationService {
     if (isIncoming) {
       const vouchers = await this.db
         .selectFrom('sales_invoice')
-        .innerJoin('voucher_line', 'voucher_line.voucher_id', 'sales_invoice.voucher_id')
+        .innerJoin(
+          'voucher_line',
+          'voucher_line.voucher_id',
+          'sales_invoice.voucher_id',
+        )
         .innerJoin('account', 'account.id', 'voucher_line.account_id')
         .innerJoin('voucher', 'voucher.id', 'sales_invoice.voucher_id')
         .select('sales_invoice.voucher_id as voucher_id')
@@ -533,7 +564,11 @@ export class ReconciliationService {
     } else {
       const vouchers = await this.db
         .selectFrom('expense')
-        .innerJoin('voucher_line', 'voucher_line.voucher_id', 'expense.voucher_id')
+        .innerJoin(
+          'voucher_line',
+          'voucher_line.voucher_id',
+          'expense.voucher_id',
+        )
         .innerJoin('account', 'account.id', 'voucher_line.account_id')
         .innerJoin('voucher', 'voucher.id', 'expense.voucher_id')
         .select('expense.voucher_id as voucher_id')
@@ -608,9 +643,9 @@ export class ReconciliationService {
 
   /**
    * Execute proposed matches by inserting reconciliation_match records.
-   * Does NOT auto-post settlement vouchers — only records the match.
+   * For foreign-currency settlements, auto-posts realized-FX vouchers.
    */
-  async executeMatch(proposals: MatchProposal[]): Promise<ReconciliationMatchRecord[]> {
+  async executeMatch(proposals: MatchProposal[]): Promise<ExecuteMatchResult> {
     if (proposals.length === 0) {
       throw new BadRequestException('No match proposals provided');
     }
@@ -619,11 +654,13 @@ export class ReconciliationService {
     const txnIds = [...new Set(proposals.map((p) => p.bankTransactionId))];
     const voucherIds = [...new Set(proposals.map((p) => p.voucherId))];
 
+    const txnMap = new Map<number, BankTransactionRecord>();
     for (const txnId of txnIds) {
       const txn = await this.transactionRepo.findById(txnId);
       if (!txn) {
         throw new NotFoundException(`Bank transaction ${txnId} not found`);
       }
+      txnMap.set(txnId, txn);
     }
 
     for (const vid of voucherIds) {
@@ -639,6 +676,7 @@ export class ReconciliationService {
 
     const now = Math.floor(Date.now() / 1000);
     const records: ReconciliationMatchRecord[] = [];
+    const fxResults: FXRealizedResult[] = [];
 
     for (const proposal of proposals) {
       if (proposal.amountMatched <= 0) {
@@ -667,8 +705,28 @@ export class ReconciliationService {
         amountMatched: inserted.amount_matched,
         createdAt: inserted.created_at,
       });
+
+      // Compute realized FX for foreign-currency settlements.
+      const txn = txnMap.get(proposal.bankTransactionId);
+      if (
+        txn &&
+        txn.source_currency !== null &&
+        txn.source_currency !== txn.currency
+      ) {
+        const fxResult = await this.fxRealizedService.computeAndPost(
+          proposal.voucherId,
+          proposal.bankTransactionId,
+          proposal.amountMatched,
+        );
+        fxResults.push(fxResult);
+      } else {
+        fxResults.push({
+          status: 'no_fx',
+          message: 'Same currency — no realized FX',
+        });
+      }
     }
 
-    return records;
+    return { records, fxResults };
   }
 }

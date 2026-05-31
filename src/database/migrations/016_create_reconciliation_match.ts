@@ -20,9 +20,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn('match_type', 'text', (col) =>
       col
         .notNull()
-        .check(
-          sql`match_type IN ('exact', 'partial', 'prepayment')`,
-        ),
+        .check(sql`match_type IN ('exact', 'partial', 'prepayment')`),
     )
     .addColumn('amount_matched', 'integer', (col) => col.notNull())
     .addColumn('created_at', 'integer', (col) => col.notNull())

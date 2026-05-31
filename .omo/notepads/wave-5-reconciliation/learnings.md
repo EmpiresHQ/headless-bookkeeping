@@ -72,3 +72,38 @@
 - Matching is N:M and lives in `reconciliation_match` table
 - Whether a transaction is unmatched/partially/fully matched is DERIVED from SUM(reconciliation_match.amount_matched) vs |amount|
 - `status` carries only the disposition (open/prepayment/personal/bank_fee/dividend), NOT match-state
+
+## Fixed: Tasks 24/34 Missing Interface Methods (Wave-5 Triage)
+
+### Problem
+- Tasks 24 (Personal disposition) and 34 (Cross-border VAT) subagents claimed to modify the plugin interface but did not.
+- `personal-disposition.service.ts` called `this.plugin.resolvePersonalDispositionAccount(orgType)` which didn't exist.
+- Migration 017 (`017_add_org_type.ts`) existed as a file but was **not registered** in `src/database/migrations/index.ts` — so its column never existed at runtime.
+
+### Changes Made
+1. **`src/database/types.ts`**: Added `org_type: Generated<string>` to `OrganizationTable` (Generated because migration 017 adds DEFAULT 'company').
+2. **`src/plugins/country-plugin.interface.ts`**: Added `CrossBorderTreatment` type, `CrossBorderResolution` interface, `resolvePersonalDispositionAccount(orgType)` and `resolveCrossBorderTreatment(...)` methods.
+3. **`src/plugins/null-country.plugin.ts`**: Implemented both methods — `resolvePersonalDispositionAccount` returns SHAREHOLDER_LOAN/OWNERS_DRAWINGS; `resolveCrossBorderTreatment` returns domestic for same-country, unresolvable for different.
+4. **`src/organization/types.ts`**: Added `org_type: string` to `Organization` and `org_type?: 'company' | 'sole_proprietor'` to `UpdateOrganizationDto`.
+5. **`src/organization/organization.service.ts`**: Added org_type handling in `mapRow` and `updateOrganization`.
+6. **`src/database/migrations/index.ts`**: Registered migration 017 (`017_add_org_type`).
+
+## Task 25 Fix: Wire FXRealizedService into executeMatch
+
+### Problem
+- `executeMatch` returned `ReconciliationMatchRecord[]` but the test expected `{ records, fxResults }`.
+- `FXRealizedService.computeAndPost` was never called during match execution.
+
+### Changes Made
+1. **`reconciliation.types.ts`**: Added `ExecuteMatchResult { records, fxResults }` interface, importing `FXRealizedResult`.
+2. **`reconciliation.service.ts`**: Injected `FXRealizedService`; `executeMatch` now caches bank-transaction lookups in a `Map<number, BankTransactionRecord>` during validation, then for each match record checks `source_currency !== null && source_currency !== currency` and calls `computeAndPost` for foreign-currency settlements. Returns `{ records, fxResults }`.
+3. **`reconciliation.controller.ts`**: Changed `executeMatch` return type to `Promise<ExecuteMatchResult>`.
+4. **`reconciliation.module.ts`**: Added `FXRealizedService` to providers, `PostingModule` to imports.
+5. **`reconciliation.service.spec.ts`**: Added `FXRealizedService`, `PostingService`, `LedgerValidationService` to providers; updated `executeMatch` callers to destructure `result.records`.
+6. **`fx-realized.service.spec.ts`**: No changes needed — already had correct providers and result access.
+
+### Key Details
+- `executeMatch` always pushes an `fxResults` entry per proposal — either `{ status: 'posted', voucher }` for foreign-currency matches, or `{ status: 'no_fx' }` for same-currency.
+- Bank-transaction lookup is reused from the validation phase (no extra queries).
+- `FXRealizedResult` and `ExecuteMatchResult` are proper types — no `any` casts needed.
+- FX auto-posting uses the same `matchedAmount` as the match record (base-currency cents).

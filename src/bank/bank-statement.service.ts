@@ -22,9 +22,10 @@ export class BankStatementService {
    * Create a bank statement with its transaction lines.
    * Validates that the account_code starts with 'BANK_' — rejects others.
    */
-  async createStatement(
-    input: CreateStatementInput,
-  ): Promise<{ statement: BankStatementRecord; transactions: BankTransactionRecord[] }> {
+  async createStatement(input: CreateStatementInput): Promise<{
+    statement: BankStatementRecord;
+    transactions: BankTransactionRecord[];
+  }> {
     // Validate account code prefix.
     if (!input.account_code.startsWith('BANK_')) {
       throw new BadRequestException(
