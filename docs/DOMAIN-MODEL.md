@@ -100,19 +100,20 @@ The "AI proposes" layer — real OCR + agentic classification — embedded in-pr
 ```
 [Pass 1: OCR → markdown]            vision model; transcribe, don't structure;
         │                          markdown stored as Conversation Artifact (audit + replay anchor)
-[Pass 2: Mastra agent + tools]     read-tools (searchSuppliers/listCategories/memory) →
-        │                          Zod-validated TriageResult (amounts, document tax-point date,
-        │                          supplier proposal, category, document_vat_marking, confidence)
-[Approval gate]                    low confidence / uncertain supplier|category →
-        │                          Workflow suspend() (durable snapshot, survives restart)
-        │                          + domain Approval (SoR); resume on Approval resolution (Wave-8 channel)
-        ▼
-   proposeDraft → Rules → Policy → post   (the only ledger path)
+[Pass 2: read-only agent + tools]  read-tools (searchSuppliers/listCategories/memory) →
+        │                          ONE complete Zod-validated TriageResult (kind, amounts, currency,
+        │                          document tax-point date, supplier proposal, category, marking, confidence)
+[route by confidence + kind]
+   ├─ confident & kind=new_expense → proposeDraft (deterministic step) creates ONE draft Expense
+   │        → generateDraftVoucher → Rules → Policy → (auto-post | hold→Approval(draft))   [the only ledger path]
+   └─ uncertain / unknown / supplier unresolved → NO draft → AuditFinding(needs_triage) → human → re-run
 ```
 
-- **Boundary invariant:** only schema-validated structured output crosses into the kernel (no free text); bounded-retry-then-suspend. Confidence → **Policy** (not Rules). Classification proposes **category + supplier**, never account/VAT (plugin sole resolver, ADR-0002). Tools wrap services: read-free / write-via-pipeline / **no `post()` tool** / minimal per agent (ADR-0018/0012/0019).
-- **Non-determinism outside the chain:** the AI proposal + model id/version + markdown are persisted for audit; the hash-chained ledger only sees the deterministic posted voucher.
-- **Runtime:** Mastra (Zod, durable suspend/resume, workflow). `pi-agent-core` evaluated, rejected (no first-class structured output / durable suspend) — ADR-0024.
+- **No garbage drafts:** the agent is **read-only** (no create-draft tool); a draft is created once, deterministically, only from a complete confident `new_expense` result. Uncertain → no draft, a `needs_triage` AuditFinding instead.
+- **HITL is durable on our aggregates, not Mastra suspend (v1):** a held draft → `Approval` (Wave-6); an uncertain no-draft → `AuditFinding` (Wave-6). Both on-disk, reboot-safe. Mastra `suspend()` unused in v1 (reserved for future).
+- **Boundary invariant:** only schema-validated structured output crosses into the kernel (no free text). Confidence → **Policy** (not Rules). Classification proposes **category + supplier**, never account/VAT (plugin sole resolver, ADR-0002). Tools wrap services: read-only agent / draft created by deterministic step / **no `post()` tool** (ADR-0018/0012/0019).
+- **Non-determinism outside the chain:** the AI proposal + model id/version + markdown persisted for audit (`ai_proposal`); the hash-chained ledger only sees the deterministic posted voucher.
+- **Runtime:** Mastra (Zod structured output, workflow). `pi-agent-core` evaluated, rejected (no first-class structured output / durable suspend) — ADR-0024.
 
 ## State machines
 

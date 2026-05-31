@@ -8,13 +8,19 @@ The "AI proposes" layer (real OCR + agentic classification) — replacing the Wa
 - **Pass 2 — extract + classify.** A Mastra **agent** reasons over the markdown with read-tools (`searchSuppliers`, `listCategories`, `getClassificationMemory`) and emits a **schema-validated (Zod) structured `TriageResult`**: amounts, the document/invoice **tax-point date** (ADR-0009 — not the arrival timestamp), a supplier-identity proposal (match or create), category, `document_vat_marking`, and confidence.
 - Rationale: vision models transcribe far better than they emit strict structure; a text LLM reasons better over text. 2-pass is both simpler and more accurate than forcing structured output straight from the vision call.
 
-## Workflow spine + durable human-in-the-loop
+## Workflow spine + human-in-the-loop (draft-or-triage; no garbage drafts)
 
-The pipeline is a Mastra **Workflow** (pass1 → pass2 → approval gate) — deterministic control flow with one free-reasoning step (pass 2) and one durable checkpoint. On low confidence or an uncertain supplier/category, the workflow `suspend()`s: the run snapshot is **persisted to storage and survives process restarts/deploys** (not an in-memory async wait). The suspend is **correlated with a domain `Approval`** (the SoR; Mastra state is the mechanism, not the truth). **Resume is triggered by an external event** — the Approval being resolved — via Wave-8 channels (email/Telegram). Channels themselves are Wave 8.
+The pipeline is a Mastra **Workflow** (pass1 → pass2 → route) — deterministic control flow with one free-reasoning step (pass 2). The **agent is read-only**: it has no "create draft" tool, so it cannot produce half-baked or abandoned drafts; its sole output is **one complete, schema-validated `TriageResult`**. A draft is then created by a **deterministic post-agent step**, exactly once, **only when the result is confident and `kind='new_expense'`** — and that draft goes through the normal kernel (`generateDraftVoucher → Rules → Policy`), no AI bypass.
+
+**The human-in-the-loop is carried by the kernel's own durable aggregates, not by a Mastra `suspend()` (v1):**
+- A draft Policy holds → a domain **`Approval`** on that draft (Wave-6); resolved later (Wave-8 channel) → `approve → post`.
+- An **uncertain** result (low confidence / `kind='unknown'` / supplier unresolved) → **no draft is created** → an **`AuditFinding(needs_triage)`** (Wave-6) referencing the Document; a human triages → the workflow re-runs.
+
+Both waits are durable on-disk (Approval / AuditFinding rows) and reboot-safe; the workflow simply ends after routing. Mastra's own `suspend()/resume()` is **not used in v1** (it remains available, with `approval.workflow_run_id` reserved, for future flows that must pause a run mid-execution). Channels (email/Telegram) that deliver the approval/triage to the user are Wave 8.
 
 ## The AI↔kernel boundary (invariant)
 
-- **Only schema-validated structured output crosses into the kernel** — free text never does. Invalid output → bounded retry → then suspend for a human; never post garbage.
+- **Only schema-validated structured output crosses into the kernel** — free text never does. Invalid output → bounded retry → then route to `needs_triage` (no draft); never post garbage. The agent is read-only (no write tool) — drafts are created only by the deterministic post-agent step, from a complete confident result.
 - **Confidence is a Policy input, not a Rules input** (CONTEXT.md) — it drives `auto_post_min_confidence` (un-stub the gate). Below threshold → Approval.
 - **Classification proposes meaning, the plugin resolves accounting.** Pass 2 outputs **category + supplier identity**, *never* the account or VAT code — the country plugin is the sole resolver (ADR-0002). `classification memory` is an advisory prior, never a gate.
 - **Tools are thin wrappers over kernel services.** Read-tools are free; the only write-tool (`proposeDraft`) funnels through Rules → Policy → post; **there is no `post()` tool**; minimal toolset per agent (ADR-0018, ADR-0012, ADR-0019).

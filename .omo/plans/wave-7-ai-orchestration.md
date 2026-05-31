@@ -41,6 +41,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   - **Model profiles:** wire the CONFIG LLM profiles (`ocr`, `processing`, …) to Mastra's model router (provider/model/temperature per task).
   - **Tool layer (the invariant):** define tools as thin wrappers over kernel services. **Read-tools** (`searchSuppliers`, `listCategories`, `getClassificationMemory`, `previewCategoryMapping`) free; the only **write-tool** `proposeDraft`. **No `post()` tool.** Minimal toolset per agent (ADR-0018). Tool schemas in **Zod**.
   - **`proposeDraft` contract (Codex W7 P1):** the pipeline does NOT accept a raw AI proposal — it operates on an existing business object (`expense`/`sales_invoice`) and updates that table. So `proposeDraft(TriageResult)` = **create the `Expense` business object** (via the existing `ExpensesService.createExpense`, purchase-side per Wave-5 Task 38) from the validated `TriageResult`, then run the **existing** `generateDraftVoucher → posting pipeline (Rules→Policy→post)`. No new pipeline entry-point, no ad-hoc posting — it reuses the Wave-3/4 path. The agent never sees the voucher/post; it only proposes the business object.
+  - **Route by `kind` (NF-2):** `proposeDraft` handles only `kind='new_expense'`. `correction`/`duplicate` route to the Wave-4 correction / dedup paths (link to original — stub if not yet built); `unknown` → hold for human triage. Never silently create a new expense for a non-`new_expense` kind.
 
   **Must NOT do**:
   - Do NOT give any agent a tool that writes the ledger directly / bypasses the pipeline (ADR-0012/0019). No `post` tool.
@@ -78,7 +79,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 - [ ] 42. Pass 2 — Mastra agent + tools → structured TriageResult
 
   **What to do**:
-  - **Replace the Wave-4 TS-interface `TriageResult` with a Zod schema (Codex W7 P0)** — the validated AI-output contract. The current `src/triage/types.ts` interface still has a `vat_code` field; **remove it**. Fields: `gross_amount`, `vat_amount`, **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`. **No `vat_code`, no account** — the plugin resolves account+VAT (ADR-0002); the marking is evidence, never authority.
+  - **Replace the Wave-4 TS-interface `TriageResult` with a Zod schema (Codex W7 P0)** — the validated AI-output contract. The current `src/triage/types.ts` interface still has a `vat_code` field; **remove it**. Fields: **`kind`** (discriminant — `new_expense | correction | duplicate | unknown`, the Wave-5 Task-38 outcome union; NF-2), `gross_amount`, `vat_amount`, **`currency`** (`z.string().length(3)`; if the document omits it, fall back to the org base currency — NF-4, `createExpense` requires it), **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`. **No `vat_code`, no account** — the plugin resolves account+VAT (ADR-0002); the marking is evidence, never authority.
   - A Mastra **agent** over the Pass-1 markdown with read-tools (`searchSuppliers`/`listCategories`/`getClassificationMemory`) emits **`structuredOutput`** = that Zod `TriageResult`.
   - **Bounded retry** on invalid structured output; if still invalid → hand to the suspend gate (Task 43), never post garbage.
   - `classification memory` fed as an advisory prior (CONTEXT.md — never a gate).
@@ -93,36 +94,41 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
   **Acceptance**:
   - [ ] Pass 2 returns a Zod-validated `TriageResult` with a confidence and a document-date `tax_point_date`.
   - [ ] Output never contains an account/VAT code; the plugin still resolves them downstream (real-DI test).
-  - [ ] Invalid model output retries then suspends — never posts.
+  - [ ] Invalid model output retries (bounded) then routes to `needs_triage` (no draft) — never posts.
 
   **Commit**: `feat(ai): Pass 2 agentic extract+classify → validated TriageResult`
 
-- [ ] 43. Intake Workflow + durable suspend/resume HITL
+- [ ] 43. Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)
+
+  > **Design (Codex W7 NF-1/NF-3 + grilling):** the agent is **read-only** and produces ONE complete validated `TriageResult` (no "create draft" tool → no half-baked/abandoned drafts). A draft is created **once, deterministically, only when the result is confident and `kind='new_expense'`**. There is **no Mastra `suspend()` in v1** — durable human-in-the-loop is carried by our own Wave-6 aggregates (Approval for a held draft; AuditFinding for an uncertain no-draft case), both on-disk and reboot-safe. (Mastra's suspend/resume stays available for future flows; v1 doesn't need it.)
 
   **What to do**:
-  - A Mastra **Workflow**: `pass1 (OCR→markdown) → pass2 (agent) → approval gate`. The gate `suspend()`s on low confidence / uncertain supplier or category; the snapshot **persists to storage (survives restart/deploy)**.
-  - **Correlate the suspend with a domain `Approval`** (Wave-6) — the Approval is the SoR + the thing a channel shows the user. **Correlation storage (Codex W7 P1):** persist the Mastra `runId` on the approval row — column **`approval.workflow_run_id`** (added forward-compat in Wave-6 Task 29). On suspend: create the Approval with `workflow_run_id = run.id`. On resolution: look up `workflow_run_id` by `approval.id` → `run.resume(...)`. (Survives restart: both the Mastra snapshot and the Approval row are on disk.)
-  - **Resume on external event:** when the Approval resolves (Wave-8 channel, or the HTTP API in Wave 7), call `run.resume({...resumeData})` with the human decision; the workflow continues → `proposeDraft` → pipeline.
-  - Real-DI test: uncertain result → workflow suspends + Approval row pending; **kill/recreate the process**, then resume by `runId` → posts. (Proves durability across restart.)
+  - Mastra **Workflow**: `pass1 (OCR→markdown) → pass2 (read-only agent → complete TriageResult) → route by confidence + kind`:
+    - **confident + `kind='new_expense'`** → the deterministic `proposeDraft` step creates the draft `Expense` (one shot) → existing `generateDraftVoucher → Rules → Policy` (Task 44). Policy decides **auto-post** or **hold → Approval(object=the draft Expense)** (Wave-6) — the existing HITL; resume = Wave-6 `approve → post`.
+    - **uncertain / `kind='unknown'` / supplier unresolved** → **NO draft.** Emit an `AuditFinding(finding_type='needs_triage')` (Wave-6) referencing the Document/Conversation → human triages (Wave-8 surfaces it) → **re-run** the workflow. No partial Expense is ever created.
+    - `correction`/`duplicate` → Wave-4 correction/dedup path (link to original; stub if unbuilt).
+  - The workflow **ends** after routing (no long-lived suspended run). Durability is the Approval / AuditFinding row, not Mastra state.
 
   **Must NOT do**:
-  - Do NOT hold the suspended run in memory / async-wait — it must be a persisted snapshot (durable).
-  - Do NOT treat the Mastra run state as SoR — the Approval/ledger are.
+  - Do NOT give the agent a write/`create-draft`/`proposeDraft` tool — drafts are created by the deterministic post-agent step, only from a complete confident result (no garbage drafts).
+  - Do NOT create an Expense for an uncertain/unknown result — route to `needs_triage`, not a junk draft.
+  - Do NOT use Mastra `suspend()` for the human wait in v1 — the Approval/AuditFinding is the durable wait (Mastra state is not SoR).
 
-  **References**: ADR-0024 (spine + durable HITL), ADR-0015 (Approval), Wave-6 Task 29.
+  **References**: ADR-0024, ADR-0015 (Approval), ADR-0018 (AuditFinding), Wave-6 Task 29/30.
 
   **Acceptance**:
-  - [ ] Uncertain extraction → workflow `suspended` + one pending `Approval`.
-  - [ ] After a simulated process restart, `resume(runId, decision)` continues and posts via the pipeline (real-DI, G6).
-  - [ ] Confident extraction flows straight through (no suspend).
+  - [ ] Confident `new_expense` → exactly one draft Expense created → pipeline (auto-post or Approval) — real-DI test.
+  - [ ] Uncertain/unknown → **no** Expense row; one `needs_triage` AuditFinding — real-DI test (G6: assert zero expense rows).
+  - [ ] The agent has no write tool (grep clean); drafts only originate from the deterministic step.
+  - [ ] A held draft survives a process restart (the Approval row is on disk) and posts on approval.
 
-  **Commit**: `feat(ai): intake workflow + durable human-in-the-loop suspend/resume`
+  **Commit**: `feat(ai): intake workflow — draft-or-triage routing, read-only agent`
 
 - [ ] 44. Confidence → Policy + AI-provenance audit
 
   **What to do**:
-  - **Confidence input contract (Codex W7 P1):** `PolicyService.decide()` today takes only `(DraftVoucher, RuleResult[])` — there is no confidence channel. Add a **`PolicyContext { confidence?, supplierKnown?, … }`** parameter threaded from the pipeline, and **un-stub** the `auto_post_min_confidence` gate to read `context.confidence`: below threshold → Approval (suspend); at/above → auto-post-eligible (still subject to other Policy/Rules). Confidence is a **Policy** input, never Rules / never a voucher field (CONTEXT.md, ADR-0024).
-  - **AI provenance table (Codex W7 P1):** new `ai_proposal` table — `id`, `business_object_type`, `business_object_id`, `model_id`, `model_version`, `raw_triage_result` (JSON), `ocr_artifact_id` (FK → artifact), `confidence`, `created_at`. Written when an AI-originated draft is created; lets "why did the AI propose this" be reconstructed. **Operational record, outside the hash chain** — the voucher schema gets NO provenance field.
+  - **Confidence input contract (Codex W7 P1):** `PolicyService.decide()` today takes only `(DraftVoucher, RuleResult[])` — there is no confidence channel. Add a **`PolicyContext { confidence?, supplierKnown?, … }`** parameter threaded from the pipeline, and **un-stub** the `auto_post_min_confidence` gate to read `context.confidence`: below threshold → **hold → Approval** (on the existing draft Expense, Wave-6); at/above → auto-post-eligible (still subject to other Policy/Rules). Confidence is a **Policy** input, never Rules / never a voucher field (CONTEXT.md, ADR-0024).
+  - **AI provenance table (Codex W7 P1):** new `ai_proposal` table — `id`, `business_object_type`, `business_object_id`, `model_id`, `model_version`, `raw_triage_result` (JSON), `ocr_artifact_id` (FK → artifact), `confidence`, `created_at`. Written when an AI-originated draft is created; lets "why did the AI propose this" be reconstructed. **Operational record, outside the hash chain** — the voucher schema gets NO provenance field. **Migration spec (NF-5):** a numbered Kysely migration (next free number at impl time) registered in `migrations/index.ts`; add an `AiProposalTable` typing to the `Database` interface; FK `ocr_artifact_id → artifact.id`; `raw_triage_result` stored as **TEXT (serialized JSON)** per the repo's SQLite convention (cf. `document_source.metadata`).
   - Real-DI tests for both branches (below/above threshold) + provenance row exists for a posted AI-originated voucher.
 
   **Must NOT do**:
