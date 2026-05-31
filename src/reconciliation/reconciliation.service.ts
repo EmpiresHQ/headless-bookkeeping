@@ -239,41 +239,11 @@ export class ReconciliationService {
             });
           }
         }
-      } else {
-        // For outgoing / AP, try expense by amount within the invoice signal context.
-        const expenses = await this.db
-          .selectFrom('expense')
-          .select(['id', 'voucher_id', 'gross_amount', 'currency'])
-          .where('status', '=', 'posted')
-          .where('voucher_id', 'is not', null)
-          .execute();
-
-        for (const exp of expenses) {
-          if (exp.voucher_id) {
-            const remaining = await this.getRemainingVoucherBalance(
-              exp.voucher_id,
-            );
-            if (remaining > 0) {
-              const amountMatched = Math.min(absAmount, remaining);
-              // Only propose if amount matches closely
-              if (amountMatched === absAmount || amountMatched === remaining) {
-                const matchType: MatchType =
-                  amountMatched === remaining && amountMatched === absAmount
-                    ? 'exact'
-                    : 'partial';
-                proposals.push({
-                  bankTransactionId,
-                  voucherId: exp.voucher_id,
-                  matchType,
-                  amountMatched,
-                  confidence: 'high',
-                  signal: 'invoice_number',
-                });
-              }
-            }
-          }
-        }
       }
+      // Outgoing / AP payments have no invoice-number key: the `expense` table
+      // has no `invoice_number` column, so the invoice-number signal applies to
+      // incoming / AR only. Outgoing payments rely on the counterparty and
+      // amount-and-date signals (handled in proposeMatchesForTransaction).
     }
 
     return proposals;

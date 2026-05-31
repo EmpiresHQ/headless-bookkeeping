@@ -398,6 +398,32 @@ describe('ReconciliationService (integration)', () => {
       expect(match!.matchType).toBe('exact');
       expect(match!.amountMatched).toBe(50000);
     });
+
+    it('does NOT emit invoice_number proposals for outgoing/AP transactions (no invoice key on expenses)', async () => {
+      const supplier = await seedSupplier();
+      // Two posted expense vouchers with the SAME gross amount, neither tied to
+      // any invoice number.
+      await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
+      await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -42000,
+          reference: 'INV-1 INV-2',
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const invoiceMatches = proposals.filter(
+        (p) => p.signal === 'invoice_number',
+      );
+      expect(invoiceMatches).toHaveLength(0);
+    });
   });
 
   describe('proposeMatches — counterparty signal', () => {
