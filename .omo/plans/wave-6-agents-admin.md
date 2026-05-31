@@ -3,7 +3,7 @@
 ## Overview
 This wave closes the system: period locking prevents posting into filed periods, VAT report snapshots freeze what was filed, the approval lifecycle handles human decisions on Policy-held vouchers, agent stubs provide the cron-driven scaffolding for future intelligence, and admin API endpoints give diagnostics and oversight. Runs after Waves 4 and 5 complete.
 
-> **Detailed implementation plan (bite-sized TDD):** [`docs/superpowers/plans/2026-05-29-wave-6-agents-admin.md`](../../docs/superpowers/plans/2026-05-29-wave-6-agents-admin.md) — the step-by-step "how". This file remains the "what / why" spec.
+> **This `.omo` file is the canonical, authoritative spec — execute from it.** The old `docs/superpowers/plans/2026-05-29-wave-6-agents-admin.md` "how" plan is **SUPERSEDED / stale** (it still shows `X-Admin-Key`, `voucher_ids` JSON, `merkle_root: null`) — do NOT follow it; re-derive any step-by-step from this file.
 
 ## Prerequisites
 - **Wave 4 complete**: Documents, Triage, Corrections, ReportingPeriod CRUD
@@ -15,8 +15,9 @@ This wave closes the system: period locking prevents posting into filed periods,
 - ReportingPeriods can be locked; posting into locked periods is rejected
 - VAT report snapshots are immutable and include all period vouchers
 - Approval lifecycle supports pending → approved/rejected/superseded
-- 5 agent stubs exist with AuditAgent creating sample findings
-- Admin API endpoints provide read-only diagnostics with simple API key auth
+- 5 agent stubs exist; **AuditAgent sweep is a no-op** — demo findings come only via a seed/fixture, never the cron (Task 30)
+- Admin API endpoints provide read-only diagnostics behind the **table-backed `ApiTokenGuard`** (Task 39), not a hardcoded key
+- **Task 39 (API token) lands BEFORE the final QA pass.** Once it does, every `/api` + `/admin` QA curl / e2e uses `Authorization: Bearer <token>` (use the seeded dev token); only `/health` and the open document-ingest webhook stay unauthenticated. (The per-task QA snippets below omit the header for brevity — add it.)
 - Agent-executed QA scenarios pass with evidence captured
 - Git commit records the wave
 - **Wave gate — ALL green, exactly as CI runs them** (see `.omo/plans/engineering-guardrails.md`): `npm run build && npm run lint && npm run test && npm run test:e2e`
@@ -120,8 +121,9 @@ This wave closes the system: period locking prevents posting into filed periods,
     - Compute net VAT payable/receivable
     - Create immutable snapshot in `vat_report` table: id, period_id, generated_at, vat_summary (JSON — frozen computed boxes), total_payable (INTEGER), total_receivable (INTEGER), `merkle_root` (TEXT NOT NULL), `version` (INTEGER NOT NULL DEFAULT 1), `supersedes_id` (INTEGER, nullable, FK to vat_report — forward-compat for an **amended return** "Q1 v2" that supersedes a prior filing, CONTEXT.md). The amend *flow* is v2 — these columns are **reserved now** so the immutable table needn't be migrated later; v1 always writes version 1 / NULL supersedes.
     - **Included vouchers as a join table** `vat_report_voucher` (vat_report_id FK, voucher_id FK) — NOT a `voucher_ids` JSON blob (queryable, FK-constrained; `GET /vat-reports/:id/vouchers` reads it).
-    - **Compute the real Merkle root** over the included vouchers' hashes (the hash-chain hashes already exist from W3-3 — cheap). This is the cryptographic "proof of exactly what was filed" (ADR-0013/0009); do NOT defer it. Store in `merkle_root`.
+    - **Compute the real Merkle root** over the included vouchers' hashes. Contract (Codex review): the schema stores only `voucher.previous_hash`, not each voucher's own hash — so **recompute** `computeVoucherHash(voucher, lines)` (the existing W3-3 function) for each included voucher in a deterministic order (e.g. by voucher_number), then fold into a Merkle root. No new `voucher.hash` column needed. This is the cryptographic "proof of exactly what was filed" (ADR-0013/0009); do NOT defer it. Store in `merkle_root`.
   - `POST /api/reporting-periods/:id/vat-report` triggers generation
+  - **Link + one snapshot per period (Codex review):** on generate, set `reporting_period.vat_report_snapshot_id` to the new report id; a period files **once** — re-generating a period that already has a snapshot is rejected (a corrected filing is an amended return = `version`+`supersedes_id`, v2). Prevents ambiguous filed snapshots.
   - `GET /api/vat-reports/:id` returns the snapshot
   - `GET /api/vat-reports/:id/vouchers` returns the list of included vouchers
   - Write tests for report generation and immutability
@@ -152,6 +154,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - [ ] `POST /api/reporting-periods/1/vat-report` creates snapshot with correct VAT summaries
   - [ ] `merkle_root` is non-NULL and **deterministic** — recomputing over the same voucher set yields the identical root (test); changing any included voucher's hash changes the root.
   - [ ] Included vouchers live in `vat_report_voucher` (join table, FK); `GET /vat-reports/:id/vouchers` reads it.
+  - [ ] Generating sets `reporting_period.vat_report_snapshot_id`; re-generating an already-filed period is rejected.
   - [ ] `GET /api/vat-reports/1` returns immutable snapshot
   - [ ] Tests pass: `vat-report.service.spec.ts`
 
@@ -192,6 +195,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Create `src/approvals/` module
   - `approval` table: id (INTEGER PK), object_type (TEXT — **CHECK in the full approval-required set**: `expense`, `sales_invoice`, `dividend`, `personal_disposition`, `bad_debt`, `correction`; migration-extensible as new approvable kinds land — NOT just expense/sales_invoice, or ADR-required approvals for dividend/personal/bad-debt/correction would bounce on the constraint), object_id (INTEGER — `(object_type, object_id)` is the polymorphic reference to the approvable business object or system action), status (TEXT — enum: pending, approved, rejected, superseded), requested_by (TEXT), approved_by (TEXT, nullable — for the solo persona typically equals `requested_by`; the approver is the owner, ADR-0016), rejected_reason (TEXT, nullable), superseded_by (INTEGER FK to approval, nullable), created_at (INTEGER), resolved_at (INTEGER, nullable)
   - `POST /api/approvals` — creates an Approval when Policy holds a voucher (called by pipeline)
+  - **Wire the pipeline hold path (Codex review):** today `PostingPipelineService` Policy-hold only sets the object to `pending` (`claimForApproval`) and creates **no** approval row. Change it to also create the `Approval` (pending) in the same step — this is the "called by pipeline" contract. The integration test below proves it.
   - `POST /api/approvals/:id/approve` — changes status to `approved`, triggers idempotent posting
   - `POST /api/approvals/:id/reject` — changes status to `rejected`, returns draft to editable state with reason
   - `POST /api/approvals/:id/supersede` — changes status to `superseded` (called when newer version arrives)
@@ -225,6 +229,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **Acceptance Criteria**:
   - [ ] Creating approval sets status to `pending`
+  - [ ] **Pipeline contract (real-DI, G2):** a Policy-held post (e.g. large expense / semantic hold) leaves `expense.status='pending'` AND creates **exactly one** `approval` row for it — no approval is created on an auto-post.
   - [ ] Approving triggers posting, status becomes `approved`, voucher posted
   - [ ] Rejecting sets status `rejected`, expense returns to `draft` with reason
   - [ ] Double-approve does not double-post (idempotent)
@@ -442,7 +447,7 @@ This wave closes the system: period locking prevents posting into filed periods,
     - `appendMessage(...)`, `attachArtifact(...)` (inbound artifacts feed Document dedup via the existing `DocumentsService`), `associate(documentId | businessObjectRef)`.
     - **`close(conversationId)`** — allowed only when all associated in-flight business objects are terminal (Voucher posted / rejected).
     - `getForObject(businessObjectRef)` — returns associated Conversations (open or closed) for **correction/modification context** (ADR-0010/ADR-0006).
-  - Wire the router (or an intake entrypoint) to call `resolve(...)` first, then route intent with the Conversation's bound Document/object context.
+  - **Scope (Codex review): the `ConversationService` aggregate only — no live channel adapters / no router wiring in this wave.** There is no email/Telegram adapter task in Wave 6, and intake today is `TriageService.route(documentId)` with no message/thread context. So `resolve(channel, threadKeys)` is exercised **directly at the service level** (callers pass thread keys); wiring it into a real channel router is deferred to the channels/agents work. This keeps Task 36 to the durable aggregate + its FSM, testable without a live channel.
   - Real-DI tests: reply on an existing thread binds to the same Conversation and reuses the original Document; reply on a closed Conversation reopens it (logged); close blocked while an object is non-terminal; `getForObject` returns the closed thread for a later correction.
 
   **Must NOT do**:
@@ -457,7 +462,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - **Skills**: []
 
   **Parallelization**:
-  - **Blocked By**: Wave-4 Documents (dedup/artifacts); channel adapters (this wave); benefits from Wave-5 Task 33 (Entity, for associating counterparties).
+  - **Blocked By**: Wave-4 Documents (dedup/artifacts); benefits from Wave-5 Task 33 (Entity, for associating counterparties). (No channel-adapter dependency — service-level only; live channel/router wiring deferred.)
   - **Blocks**: durable multi-turn dialogue for all agents (ADR-0018), correction-with-context flows.
 
   **References**:
@@ -485,6 +490,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **What to do**:
   - Migration: extend the canonical chart with `RETAINED_EARNINGS` (equity) and `DIVIDEND_PAYABLE` (liability) accounts (schema/seed in migrations — G4).
+  - **Generalize the pipeline first (Codex review):** `PostingPipelineParams.businessObjectType` is currently `expense | sales_invoice` only. To post dividends *through* the pipeline (not bypass it / not special-case), widen that union to include `dividend` (and align it with the `approval.object_type` set from Task 29). Without this, dividends would either skip Rules→Policy or get a dirty special-case — both forbidden (ADR-0012/0019).
   - **Declaration** (owner/admin action, approval-required): `POST /api/dividends` — books `Dr RETAINED_EARNINGS / Cr DIVIDEND_PAYABLE` via the pipeline (Rules → Policy → post). Reject (or hold) if the country plugin's distributable-profits check fails.
   - Add `CountryPlugin` methods: `dividendWithholdingRate(orgContext): number` and `assertDistributable(amount, retainedEarnings): boolean`. Null/IE plugin: withholding `0`, soft profits-check (warn, don't block). A real plugin enforces IE DWT / DK udbytteskat + the legal cap.
   - If withholding applies, the declaration voucher splits the payable into net-to-owner + withholding-tax-payable (plugin-driven).
