@@ -138,7 +138,7 @@ export class PrepaymentService {
   /**
    * Create a customer prepayment from an unmatched incoming bank payment.
    *
-   * Posts: Dr BANK_EUR / Cr CUSTOMER_PREPAYMENTS (liability)
+   * Posts: Dr {resolved real bank account} / Cr CUSTOMER_PREPAYMENTS (liability)
    *
    * The bank transaction amount must be positive (incoming).
    */
@@ -184,7 +184,7 @@ export class PrepaymentService {
   /**
    * Create a supplier prepayment from an unmatched outgoing bank payment.
    *
-   * Posts: Dr SUPPLIER_PREPAYMENTS / Cr BANK_EUR (asset)
+   * Posts: Dr SUPPLIER_PREPAYMENTS / Cr {resolved real bank account} (asset)
    *
    * The bank transaction amount must be negative (outgoing).
    */
@@ -301,7 +301,14 @@ export class PrepaymentService {
       throw new BadRequestException('No amount available to draw down');
     }
 
-    const currency = prepaymentBalance.currency;
+    // Relief is computed in BASE currency (D3-family). `drawAmount` is the min
+    // of base-tracked remaining balances, so both legs are booked explicitly in
+    // base currency at fx 1.0. This balances in base and relieves AR/AP and the
+    // prepayment by the same base amount. Any residual invoice balance (because
+    // the invoice was booked at a different rate than the prepayment was
+    // received) correctly remains OPEN AR/AP, to be settled later by cash —
+    // realized FX is recognised at that settlement, NOT here at draw-down.
+    const currency = await this.currencyService.getBaseCurrency();
     const taxPointDate = new Date().toISOString().slice(0, 10);
 
     let draft: DraftVoucher;

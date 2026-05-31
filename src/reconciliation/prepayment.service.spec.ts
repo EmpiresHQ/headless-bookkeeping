@@ -213,6 +213,146 @@ describe('PrepaymentService (integration)', () => {
     return voucher.id;
   }
 
+  /**
+   * Seed a sales-invoice (AR) voucher booked in a FOREIGN currency, with the
+   * AR/revenue lines carrying base_amount = converted base value at `fxRate`.
+   * Mirrors how SalesInvoicesService.generateDraftVoucher books the AR line
+   * (currency = invoice currency, base_amount = round(gross * fxRate)).
+   */
+  async function seedForeignSalesInvoiceVoucher(
+    grossCents: number,
+    currency: string,
+    fxRate: number,
+    taxPointDate: string,
+  ): Promise<{ voucherId: number; arBase: number }> {
+    const now = Math.floor(Date.now() / 1000);
+    voucherCounter++;
+    const arBase = Math.round(grossCents * fxRate);
+
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-2024-${String(voucherCounter).padStart(6, '0')}`,
+        tax_point_date: taxPointDate,
+        posted_at: now,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const arAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'AR')
+      .executeTakeFirstOrThrow();
+    const revenueAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'REVENUE')
+      .executeTakeFirstOrThrow();
+
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: voucher.id,
+          account_id: arAccount.id,
+          amount: grossCents,
+          currency,
+          base_amount: arBase,
+          fx_rate: fxRate,
+          vat_code: null,
+          is_debit: 1,
+        },
+        {
+          voucher_id: voucher.id,
+          account_id: revenueAccount.id,
+          amount: grossCents,
+          currency,
+          base_amount: arBase,
+          fx_rate: fxRate,
+          vat_code: null,
+          is_debit: 0,
+        },
+      ])
+      .execute();
+
+    return { voucherId: voucher.id, arBase };
+  }
+
+  /**
+   * Seed a customer-prepayment voucher whose CUSTOMER_PREPAYMENTS line carries
+   * a NON-base currency (e.g. USD). This reproduces the cross-currency state
+   * the draw-down fix must defend against: the relief must be booked in BASE
+   * currency, not blindly inherit the prepayment line's stored currency.
+   */
+  async function seedForeignCustomerPrepaymentVoucher(
+    baseCents: number,
+    currency: string,
+    taxPointDate: string,
+  ): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    voucherCounter++;
+
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-2024-${String(voucherCounter).padStart(6, '0')}`,
+        tax_point_date: taxPointDate,
+        posted_at: now,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const bankAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'BANK_EUR')
+      .executeTakeFirstOrThrow();
+    const prepayAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'CUSTOMER_PREPAYMENTS')
+      .executeTakeFirstOrThrow();
+
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: voucher.id,
+          account_id: bankAccount.id,
+          amount: baseCents,
+          currency: 'EUR',
+          base_amount: baseCents,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 1,
+        },
+        {
+          voucher_id: voucher.id,
+          account_id: prepayAccount.id,
+          amount: baseCents,
+          currency,
+          base_amount: baseCents,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 0,
+        },
+      ])
+      .execute();
+
+    return voucher.id;
+  }
+
   // ── Customer prepayment creation ───────────────────────────────────
 
   describe('createCustomerPrepayment', () => {
@@ -413,6 +553,67 @@ describe('PrepaymentService (integration)', () => {
 
       expect(debitLine!.base_amount).toBe(30000);
       expect(creditLine!.base_amount).toBe(30000);
+    });
+
+    it('books cross-currency relief in base currency and leaves residual AR open', async () => {
+      // Prepayment line carries USD (non-base) currency; base balance = 9000 EUR.
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        9000,
+        'USD',
+        '2025-01-15',
+      );
+
+      // USD AR invoice: gross 20000 USD booked at 0.85 → AR base = 17000 EUR.
+      const { voucherId: invoiceVoucherId, arBase } =
+        await seedForeignSalesInvoiceVoucher(20000, 'USD', 0.85, '2025-01-20');
+      expect(arBase).toBe(17000);
+
+      // Draw down the full prepayment (9000 base). drawAmount = min(req, 9000, 17000) = 9000.
+      const drawDown = await prepaymentService.drawDownPrepayment(
+        prepayVoucherId,
+        invoiceVoucherId,
+        20000,
+      );
+
+      const debitLine = drawDown.lines.find((l) => l.is_debit)!;
+      const creditLine = drawDown.lines.find((l) => !l.is_debit)!;
+
+      const debitAccount = await db
+        .selectFrom('account')
+        .select('code')
+        .where('id', '=', debitLine.account_id)
+        .executeTakeFirstOrThrow();
+      expect(debitAccount.code).toBe('CUSTOMER_PREPAYMENTS');
+
+      const creditAccount = await db
+        .selectFrom('account')
+        .select('code')
+        .where('id', '=', creditLine.account_id)
+        .executeTakeFirstOrThrow();
+      expect(creditAccount.code).toBe('AR');
+
+      // Both legs booked in BASE currency (EUR), not the prepayment's stored USD.
+      expect(debitLine.currency).toBe('EUR');
+      expect(creditLine.currency).toBe('EUR');
+      expect(creditLine.base_amount).toBe(9000);
+      expect(debitLine.base_amount).toBe(9000);
+      expect(creditLine.amount).toBe(9000);
+      expect(creditLine.fx_rate).toBe(1.0);
+      expect(debitLine.fx_rate).toBe(1.0);
+
+      // Voucher balances in base.
+      expect(debitLine.base_amount).toBe(creditLine.base_amount);
+
+      // Residual AR remains open: 17000 - 9000 = 8000 (rate difference surfaces
+      // as open balance, settled later by cash — no realized-FX at draw-down).
+      const invoiceBalance = await (
+        prepaymentService as unknown as {
+          getInvoiceBalance: (
+            id: number,
+          ) => Promise<{ accountCode: string; remaining: number } | null>;
+        }
+      ).getInvoiceBalance(invoiceVoucherId);
+      expect(invoiceBalance!.remaining).toBe(8000);
     });
 
     it('clamps draw-down to prepayment remaining balance', async () => {
