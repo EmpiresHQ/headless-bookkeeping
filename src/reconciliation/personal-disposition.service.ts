@@ -99,11 +99,16 @@ export class PersonalDispositionService {
     // currency via the plugin reference rate (1.0 for same-currency).
     const absAmount = Math.abs(txn.amount);
     const baseCurrency = await this.currencyService.getBaseCurrency();
-    const fxRate = plugin.getReferenceRate(
-      txn.currency,
-      baseCurrency,
-      txn.transaction_date,
-    );
+    // Guard the plugin call to the cross-currency case only: same-currency is
+    // an identity (rate 1.0) and the null plugin throws on a real FX pair.
+    const fxRate =
+      txn.currency === baseCurrency
+        ? 1.0
+        : plugin.getReferenceRate(
+            txn.currency,
+            baseCurrency,
+            txn.transaction_date,
+          );
     const baseAmount = Math.round(absAmount * fxRate);
 
     const draft: DraftVoucher = {
