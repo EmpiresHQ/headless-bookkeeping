@@ -46,8 +46,8 @@ export class BankStatementService {
 
     const uploadedAt = Math.floor(Date.now() / 1000);
 
-    // Insert the statement.
-    await this.db
+    // Insert the statement — SQLite RETURNING gives us the row back atomically.
+    const row = await this.db
       .insertInto('bank_statement')
       .values({
         account_id: account.id,
@@ -56,23 +56,24 @@ export class BankStatementService {
         uploaded_at: uploadedAt,
         file_path: input.file_path ?? null,
       })
-      .execute();
-
-    // SQLite insert doesn't return the id directly; fetch it.
-    const statementRow = await this.db
-      .selectFrom('bank_statement')
-      .selectAll()
-      .orderBy('id', 'desc')
-      .limit(1)
+      .returningAll()
       .executeTakeFirstOrThrow();
 
+    const {
+      id,
+      account_id,
+      start_date,
+      end_date,
+      uploaded_at,
+      file_path,
+    } = row;
     const statement: BankStatementRecord = {
-      id: statementRow.id,
-      account_id: statementRow.account_id,
-      start_date: statementRow.start_date,
-      end_date: statementRow.end_date,
-      uploaded_at: statementRow.uploaded_at,
-      file_path: statementRow.file_path,
+      id,
+      account_id,
+      start_date,
+      end_date,
+      uploaded_at,
+      file_path,
     };
 
     // Insert transactions.
