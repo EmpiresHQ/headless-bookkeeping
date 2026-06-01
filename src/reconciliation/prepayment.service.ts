@@ -11,7 +11,11 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
-import { DraftVoucher, DraftVoucherLine, PostedVoucher } from '../ledger/voucher/types';
+import {
+  DraftVoucher,
+  DraftVoucherLine,
+  PostedVoucher,
+} from '../ledger/voucher/types';
 
 /** Accounts used for prepayment vouchers. */
 const CUSTOMER_PREPAYMENTS = 'CUSTOMER_PREPAYMENTS';

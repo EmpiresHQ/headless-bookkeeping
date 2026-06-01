@@ -231,7 +231,9 @@ describe('PersonalDispositionService — cross-currency bank account', () => {
   /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0; delegates account resolution. */
   const fakePlugin: Pick<
     CountryPlugin,
-    'getReferenceRate' | 'getDefaultBaseCurrency' | 'resolvePersonalDispositionAccount'
+    | 'getReferenceRate'
+    | 'getDefaultBaseCurrency'
+    | 'resolvePersonalDispositionAccount'
   > = {
     getReferenceRate(from: string, to: string): number {
       if (from === to) return 1.0;
