@@ -57,7 +57,7 @@ export class BankTransactionRepository {
       .where('statement_id', '=', statementId)
       .orderBy('transaction_date')
       .execute();
-    return rows.map(this.mapRow);
+    return rows.map((row) => this.mapRow(row));
   }
 
   /** Find a single transaction by id. */
@@ -89,7 +89,7 @@ export class BankTransactionRepository {
       .where('status', '=', status)
       .orderBy('transaction_date')
       .execute();
-    return rows.map(this.mapRow);
+    return rows.map((row) => this.mapRow(row));
   }
 
   private mapRow(row: Selectable<BankTransactionTable>): BankTransactionRecord {
