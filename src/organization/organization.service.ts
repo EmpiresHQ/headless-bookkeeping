@@ -48,6 +48,7 @@ export class OrganizationService {
       updates.base_currency = dto.base_currency;
     if (dto.vat_registered !== undefined)
       updates.vat_registered = dto.vat_registered ? 1 : 0;
+    if (dto.org_type !== undefined) updates.org_type = dto.org_type;
 
     if (Object.keys(updates).length === 0) {
       return this.getOrganization();
@@ -67,12 +68,14 @@ export class OrganizationService {
     country,
     base_currency,
     vat_registered,
+    org_type,
     created_at,
   }: {
     id: number;
     country: string;
     base_currency: string | null;
     vat_registered: number;
+    org_type: string;
     created_at: number;
   }): Organization {
     return {
@@ -80,6 +83,7 @@ export class OrganizationService {
       country,
       base_currency,
       vat_registered: toBool(vat_registered),
+      org_type,
       created_at,
     };
   }

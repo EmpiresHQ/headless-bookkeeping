@@ -34,6 +34,7 @@ export class SalesInvoicesService {
         currency: dto.currency,
         tax_point_date: dto.tax_point_date,
         due_date: dto.due_date ?? null,
+        document_vat_marking: dto.document_vat_marking ?? null,
         status: 'draft',
         sent_at: null,
         voucher_id: null,
@@ -230,6 +231,7 @@ export class SalesInvoicesService {
     status: string;
     sent_at: number | null;
     voucher_id: number | null;
+    document_vat_marking: string | null;
     created_at: number;
     updated_at: number;
   }): SalesInvoice {
@@ -245,6 +247,7 @@ export class SalesInvoicesService {
       status: this.validateStatus(row.status),
       sent_at: row.sent_at,
       voucher_id: row.voucher_id,
+      document_vat_marking: row.document_vat_marking,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

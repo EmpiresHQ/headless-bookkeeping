@@ -48,3 +48,6 @@ lerna-debug.log*
 
 # Lock files
 # package-lock.json is kept for reproducible Docker builds
+
+# CodeGraph local tooling
+.codegraph/
