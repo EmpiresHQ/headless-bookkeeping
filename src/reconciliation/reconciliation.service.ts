@@ -9,6 +9,9 @@ import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankTransactionRecord } from '../bank/bank-statement.types';
 import { EntitiesService } from '../entities/entities.service';
+import { CurrencyService } from '../currency/currency.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { OrganizationService } from '../organization/organization.service';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
   MatchProposal,
@@ -41,6 +44,9 @@ export class ReconciliationService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly transactionRepo: BankTransactionRepository,
     private readonly entitiesService: EntitiesService,
+    private readonly currencyService: CurrencyService,
+    private readonly pluginLoader: PluginLoader,
+    private readonly orgService: OrganizationService,
     private readonly fxRealizedService: FXRealizedService,
   ) {}
 
@@ -129,22 +135,44 @@ export class ReconciliationService {
   private async proposeMatchesForTransaction(txn: {
     id: number;
     amount: number;
+    currency: string;
     description: string | null;
     reference: string | null;
     counterparty_iban: string | null;
     counterparty_descriptor: string | null;
     transaction_date: string;
   }): Promise<MatchProposal[]> {
-    const absAmount = Math.abs(txn.amount);
     const isIncoming = txn.amount > 0;
     const tokens = this.parseTransactionTokens(txn);
+
+    // ── Normalise the bank amount to BASE currency ONCE (D7) ────────
+    // Voucher remaining balances are `voucher_line.base_amount` in BASE
+    // currency, so the bank amount (in the txn's OWN currency) must be
+    // converted to base before any signal compares the two. Same-currency
+    // reduces to identity and must NOT hit the plugin — NullCountryPlugin
+    // throws on real cross-currency pairs.
+    const absRaw = Math.abs(txn.amount);
+    const baseCurrency = await this.currencyService.getBaseCurrency();
+    let absBaseAmount: number;
+    if (txn.currency === baseCurrency) {
+      absBaseAmount = absRaw;
+    } else {
+      const org = await this.orgService.getOrganization();
+      const plugin = this.pluginLoader.resolve(org.country);
+      const refRate = plugin.getReferenceRate(
+        txn.currency,
+        baseCurrency,
+        txn.transaction_date,
+      );
+      absBaseAmount = Math.round(absRaw * refRate);
+    }
 
     // ── Signal 1: Invoice number match (strongest) ──────────────────
     if (tokens.invoiceNumbers.length > 0) {
       const invoiceMatches = await this.matchByInvoiceNumbers(
         txn.id,
         tokens.invoiceNumbers,
-        absAmount,
+        absBaseAmount,
         isIncoming,
       );
       if (invoiceMatches.length > 0) {
@@ -177,7 +205,7 @@ export class ReconciliationService {
       const counterpartyMatches = await this.matchByCounterparty(
         txn.id,
         entityId,
-        absAmount,
+        absBaseAmount,
         txn.transaction_date,
         isIncoming,
       );
@@ -189,7 +217,7 @@ export class ReconciliationService {
     // ── Signal 3: Amount + date window (fallback) ───────────────────
     return this.matchByAmountAndDate(
       txn.id,
-      absAmount,
+      absBaseAmount,
       txn.transaction_date,
       isIncoming,
     );
@@ -203,7 +231,7 @@ export class ReconciliationService {
   private async matchByInvoiceNumbers(
     bankTransactionId: number,
     invoiceNumbers: string[],
-    absAmount: number,
+    absBaseAmount: number,
     isIncoming: boolean,
   ): Promise<MatchProposal[]> {
     const proposals: MatchProposal[] = [];
@@ -224,9 +252,9 @@ export class ReconciliationService {
             salesInvoice.voucher_id,
           );
           if (remaining > 0) {
-            const amountMatched = Math.min(absAmount, remaining);
+            const amountMatched = Math.min(absBaseAmount, remaining);
             const matchType: MatchType =
-              amountMatched === remaining && amountMatched === absAmount
+              amountMatched === remaining && amountMatched === absBaseAmount
                 ? 'exact'
                 : 'partial';
             proposals.push({
@@ -257,7 +285,7 @@ export class ReconciliationService {
   private async matchByCounterparty(
     bankTransactionId: number,
     entityId: number,
-    absAmount: number,
+    absBaseAmount: number,
     _transactionDate: string,
     isIncoming: boolean,
   ): Promise<MatchProposal[]> {
@@ -267,20 +295,20 @@ export class ReconciliationService {
     for (const candidate of candidates) {
       if (candidate.remainingBalance <= 0) continue;
 
-      const amountMatched = Math.min(absAmount, candidate.remainingBalance);
+      const amountMatched = Math.min(absBaseAmount, candidate.remainingBalance);
       if (amountMatched <= 0) continue;
 
       // Determine match type.
       const matchType: MatchType = candidate.isPrepayment
         ? 'prepayment'
         : amountMatched === candidate.remainingBalance &&
-            amountMatched === absAmount
+            amountMatched === absBaseAmount
           ? 'exact'
           : 'partial';
 
       // Confidence: high if amount matches exactly, medium if partial.
       const confidence: MatchConfidence =
-        amountMatched === absAmount &&
+        amountMatched === absBaseAmount &&
         amountMatched === candidate.remainingBalance
           ? 'high'
           : 'medium';
@@ -312,13 +340,13 @@ export class ReconciliationService {
    */
   private async matchByAmountAndDate(
     bankTransactionId: number,
-    absAmount: number,
+    absBaseAmount: number,
     transactionDate: string,
     isIncoming: boolean,
   ): Promise<MatchProposal[]> {
     const proposals: MatchProposal[] = [];
     const candidates = await this.getCandidateVouchersByAmountAndDate(
-      absAmount,
+      absBaseAmount,
       transactionDate,
       isIncoming,
     );
@@ -326,13 +354,13 @@ export class ReconciliationService {
     for (const candidate of candidates) {
       if (candidate.remainingBalance <= 0) continue;
 
-      const amountMatched = Math.min(absAmount, candidate.remainingBalance);
+      const amountMatched = Math.min(absBaseAmount, candidate.remainingBalance);
       if (amountMatched <= 0) continue;
 
       const matchType: MatchType = candidate.isPrepayment
         ? 'prepayment'
         : amountMatched === candidate.remainingBalance &&
-            amountMatched === absAmount
+            amountMatched === absBaseAmount
           ? 'exact'
           : 'partial';
 

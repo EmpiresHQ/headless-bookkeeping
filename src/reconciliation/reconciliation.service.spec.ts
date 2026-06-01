@@ -15,6 +15,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
+import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { FXRealizedService } from './fx-realized.service';
 
@@ -927,5 +928,228 @@ describe('ReconciliationService (integration)', () => {
 
       expect(remaining).toBe(0);
     });
+  });
+});
+
+/**
+ * Currency-normalised matching (D7).
+ *
+ * The bank transaction amount is in the transaction's OWN currency (e.g. USD),
+ * while a voucher's remaining balance is `voucher_line.base_amount` in BASE
+ * currency (e.g. EUR). Matching must convert the bank amount to base ONCE (via
+ * the country plugin's reference rate) before comparing against
+ * `remainingBalance` so that a USD receipt settling a EUR-base invoice reports
+ * exact/high and `amountMatched` is the BASE amount — not the raw USD amount.
+ *
+ * NullCountryPlugin throws on real cross-currency pairs, so a fake PluginLoader
+ * is required (mirrors fx-realized / personal-disposition specs).
+ */
+describe('ReconciliationService — currency-normalised matching (D7)', () => {
+  let db: Kysely<Database>;
+  let reconciliationService: ReconciliationService;
+  let voucherCounter = 0;
+
+  /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0; base currency EUR. */
+  const fakePlugin: Pick<
+    CountryPlugin,
+    'getReferenceRate' | 'getDefaultBaseCurrency'
+  > = {
+    getReferenceRate(from: string, to: string): number {
+      if (from === to) return 1.0;
+      if (from === 'USD' && to === 'EUR') return 0.9;
+      throw new Error(`Unexpected pair ${from} → ${to}`);
+    },
+    getDefaultBaseCurrency: () => 'EUR',
+  };
+
+  const fakeLoader = {
+    resolve: () => fakePlugin as unknown as CountryPlugin,
+  };
+
+  beforeEach(async () => {
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        AccountService,
+        BankTransactionRepository,
+        BankStatementService,
+        EntitiesService,
+        LedgerValidationService,
+        PostingService,
+        OrganizationService,
+        NullCountryPlugin,
+        PluginLoader,
+        CurrencyService,
+        FXRealizedService,
+        ReconciliationService,
+      ],
+    })
+      .overrideProvider(PluginLoader)
+      .useValue(fakeLoader)
+      .compile();
+
+    reconciliationService = module.get(ReconciliationService);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('converts a USD receipt to base EUR before matching a EUR-base AR invoice (exact/high, amountMatched in base)', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    voucherCounter++;
+
+    // EUR-base AR invoice: remaining base balance 1 400 EUR.
+    const customer = await db
+      .insertInto('entity')
+      .values({
+        role: 'customer',
+        country: 'IE',
+        name: 'FX Customer Ltd',
+        goods_vs_services: 'services',
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const si = await db
+      .insertInto('sales_invoice')
+      .values({
+        customer_id: customer.id,
+        invoice_number: 'INV-14001',
+        gross_amount: 1_400,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2025-01-10',
+        due_date: '2025-01-10',
+        status: 'posted',
+        voucher_id: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-2025-${String(voucherCounter).padStart(6, '0')}`,
+        tax_point_date: '2025-01-10',
+        posted_at: now,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    await db
+      .updateTable('sales_invoice')
+      .set({ voucher_id: voucher.id })
+      .where('id', '=', si.id)
+      .execute();
+
+    const arAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'AR')
+      .executeTakeFirstOrThrow();
+    const revenueAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'REVENUE')
+      .executeTakeFirstOrThrow();
+
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: voucher.id,
+          account_id: arAccount.id,
+          amount: 1_400,
+          currency: 'EUR',
+          base_amount: 1_400,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 1,
+        },
+        {
+          voucher_id: voucher.id,
+          account_id: revenueAccount.id,
+          amount: 1_400,
+          currency: 'EUR',
+          base_amount: 1_400,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: 0,
+        },
+      ])
+      .execute();
+
+    // Bank statement on a USD account; incoming 1 555 USD.
+    // 1 555 USD × 0.9 (USD→EUR) = 1 399.5 → round → 1 400 EUR == remaining base.
+    const usdAccount = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'BANK_USD')
+      .executeTakeFirstOrThrow();
+
+    const statement = await db
+      .insertInto('bank_statement')
+      .values({
+        account_id: usdAccount.id,
+        start_date: '2025-01-01',
+        end_date: '2025-01-31',
+        uploaded_at: now,
+        file_path: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    await db
+      .insertInto('bank_transaction')
+      .values({
+        statement_id: statement.id,
+        transaction_date: '2025-01-12',
+        description: 'USD receipt for INV-14001',
+        amount: 1_555, // 1 555 USD incoming
+        currency: 'USD',
+        source_currency: null,
+        source_amount: null,
+        fx_rate: null,
+        reference: 'INV-14001',
+        counterparty_iban: null,
+        counterparty_descriptor: null,
+        status: 'open',
+        created_at: now,
+      })
+      .execute();
+
+    const proposals = await reconciliationService.proposeMatches(statement.id);
+
+    const match = proposals.find((p) => p.voucherId === voucher.id);
+    expect(match).toBeDefined();
+    expect(match!.signal).toBe('invoice_number');
+    // After USD→EUR conversion the base amount (1 400) EXACTLY equals the
+    // remaining base balance → exact / high.
+    expect(match!.matchType).toBe('exact');
+    expect(match!.confidence).toBe('high');
+    // amountMatched is in BASE currency (1 400 EUR), NOT the raw 1 555 USD.
+    expect(match!.amountMatched).toBe(1_400);
   });
 });
