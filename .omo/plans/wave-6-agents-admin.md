@@ -39,6 +39,7 @@ This wave closes the system: period locking prevents posting into filed periods,
     - Lock is idempotent (re-locking returns 200, not error; does not regenerate the snapshot)
     - **Hard process rule (reject — for DIRECT posts):** `PostingService` rejects any voucher whose `tax_point_date` falls in a locked period
       - Returns `400` with error "Cannot post into locked period {period_name}". Never silently re-dates.
+      - **Single chokepoint + Rules delegation (grilling 2026-06-04):** put the check in a `PeriodLockService.assertPeriodOpen(taxPointDate)` invoked inside `PostingService` — the one write path. FX-realized, prepayment, personal-disposition, corrections and the direct `POST /vouchers` all call `postVoucher` **outside** the pipeline today, so a pipeline-only guard would miss them. Also wire the existing `RulesService.validateHardProcess` stub (`rules.service.ts` — currently "period lock stub, always pass") to delegate to the **same** `PeriodLockService`, so the pipeline still rejects early and cleanly (defense-in-depth, ADR-0019).
     - **Redirect path (corrections + late documents → current open period, ADR-0009):** the reject is only for a *direct* post. The **correction** flow (un-stub Wave-4 Task 18's locked branch) and the **late-arriving-document** flow detect a locked target *up front* and re-route into the **current open period** — re-dated to it, carrying `reverses`/`corrects_object` where applicable — instead of hitting the wall. A late new Q1 expense whose document arrives after Q1 is filed lands in the current open period (the "next VAT return" rule). This redirect is what makes the warn-and-allow filing guard sound (else legitimate late items strand forever). Provide a helper, e.g. `ReportingPeriodsService.currentOpenPeriod()` + a `resolvePostingPeriod(taxPointDate)` that returns the open period to re-date into when the natural target is locked.
       - **Tax-point source (Codex review):** the `taxPointDate` driving membership/redirect is the **document/invoice date** (the tax point, ADR-0009 — a country-plugin rule), NOT the arrival timestamp. ⚠️ Known gap: `TriageService` currently derives it from `doc.created_at` (arrival) — wrong. So OCR/triage must extract and carry a real `tax_point_date` (document date); fold this into the triage remediation (Task 38). Without the real tax point, "late document in a filed period" can't be detected correctly.
     - **Filing guard**: Before locking, warn if unresolved items exist in the period:
@@ -364,7 +365,7 @@ This wave closes the system: period locking prevents posting into filed periods,
 
   **What to do**:
   - Create `src/admin/` module with read-only or simple state-transition endpoints:
-    - `GET /admin/accounts` — list all accounts with balances (sum of voucher lines)
+    - `GET /admin/accounts` — list all accounts with balances **netted by `is_debit`** (reuse the Wave-5 AR/AP netting fix — do NOT blind-sum line amounts, or debit/credit accounts net wrong; grilling 2026-06-04)
     - `GET /admin/vouchers` — list all vouchers with filters (date range, period, status)
     - `GET /admin/vouchers/:id` — voucher details with lines
     - `GET /admin/periods` — list reporting periods with lock status
@@ -491,11 +492,11 @@ This wave closes the system: period locking prevents posting into filed periods,
   > **Origin:** Cross-border/withdrawal grilling. The v1 primary persona is a one-person **company** whose **main owner-withdrawal path is dividends** (payroll deferred to a domain plugin, ADR-0022). Dividends were unmodelled. A dividend is an **equity distribution, not an expense** (ADR-0023): declare → Dividend-payable → settle against a bank line. Withholding tax and the distributable-profits cap are **country-plugin** rules. Wave-5 already reserved the `dividend` value in the bank-transaction disposition enum (Task 21); this wires the whole flow.
 
   **What to do**:
-  - Migration: extend the canonical chart with `RETAINED_EARNINGS` (equity) and `DIVIDEND_PAYABLE` (liability) accounts (schema/seed in migrations — G4).
+  - Migration: extend the canonical chart with `RETAINED_EARNINGS` (equity), `DIVIDEND_PAYABLE` (liability) **and `DIVIDEND_WITHHOLDING_PAYABLE` (liability)** accounts (the third is required for the withholding split below — grilling 2026-06-04; schema/seed in migrations — G4).
   - **`dividend` business-object table (Codex review):** the pipeline updates the business object's `status`/`voucher_id` by `businessObjectType` (table name) — so a `dividend` row must exist for it to post *through* the pipeline. Migration: `dividend` (id, amount INTEGER, withholding_amount INTEGER, declared_date TEXT, status TEXT CHECK `draft|pending|posted|reversed`, voucher_id INTEGER nullable, created_at, updated_at). The declaration creates a `dividend` row → pipeline → posted, exactly like an expense.
   - **Generalize the pipeline first (Codex review):** `PostingPipelineParams.businessObjectType` is currently `expense | sales_invoice` only. To post dividends *through* the pipeline (not bypass it / not special-case), widen that union to include `dividend` (and align it with the `approval.object_type` set from Task 29). Without this, dividends would either skip Rules→Policy or get a dirty special-case — both forbidden (ADR-0012/0019).
   - **Declaration** (owner/admin action, approval-required): `POST /api/dividends` — books `Dr RETAINED_EARNINGS / Cr DIVIDEND_PAYABLE` via the pipeline (Rules → Policy → post). Reject (or hold) if the country plugin's distributable-profits check fails.
-  - Add `CountryPlugin` methods: `dividendWithholdingRate(orgContext): number` and `assertDistributable(amount, retainedEarnings): boolean`. Null/IE plugin: withholding `0`, soft profits-check (warn, don't block). A real plugin enforces IE DWT / DK udbytteskat + the legal cap.
+  - Add `CountryPlugin` methods: `dividendWithholdingRate(orgContext): number` and `assertDistributable(amount, distributableProfits): boolean`. **The kernel computes `distributableProfits` live (grilling 2026-06-04)** = `RETAINED_EARNINGS` balance + (ΣRevenue − ΣExpense) − prior distributions — NOT the bare `RETAINED_EARNINGS` balance, which sits at ≈0 because v1 has no year-end close that sweeps P&L into equity. A declaration debits `RETAINED_EARNINGS` directly, so it may be **interim-negative** for a profitable company until a close engine exists (deferred; see ADR-0023). Null/IE plugin: withholding `0`, soft profits-check (warn, don't block). A real plugin enforces IE DWT / DK udbytteskat + the legal cap.
   - If withholding applies, the declaration voucher splits the payable into net-to-owner + withholding-tax-payable (plugin-driven).
   - **Settlement disposition:** wire the `dividend` value (reserved in Wave-5 Task 21) — `POST /api/bank-transactions/:id/dividend` draws down `DIVIDEND_PAYABLE` against the outgoing bank line (`Dr DIVIDEND_PAYABLE / Cr BANK`), via N:M `reconciliation_match` (Wave-5 Q9).
   - Real-DI tests: declare → payable exists; settle → payable drawn down, bank reconciled; withholding split when plugin rate > 0; profits-check path.
@@ -521,7 +522,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - ADR-0017: sibling owner-money-out disposition (personal); same approval-required posture.
 
   **Acceptance Criteria**:
-  - [ ] Migration adds `RETAINED_EARNINGS` + `DIVIDEND_PAYABLE`.
+  - [ ] Migration adds `RETAINED_EARNINGS` + `DIVIDEND_PAYABLE` + `DIVIDEND_WITHHOLDING_PAYABLE`.
   - [ ] Declaring a dividend posts `Dr RETAINED_EARNINGS / Cr DIVIDEND_PAYABLE` through the pipeline; never touches a P&L account (real-DI test).
   - [ ] Settling via the `dividend` disposition draws down `DIVIDEND_PAYABLE` and reconciles the bank line (N:M match).
   - [ ] Null plugin: withholding 0, soft profits-check; a strict test plugin enforces both (test).
