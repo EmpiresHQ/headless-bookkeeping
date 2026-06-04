@@ -21,6 +21,8 @@ import { AgentsModule } from './agents/agents.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { DividendsModule } from './dividends/dividends.module';
 import { AdminModule } from './admin/admin.module';
+import { VatReportModule } from './vat-report/vat-report.module';
+import { ApprovalsModule } from './approvals/approvals.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { AdminModule } from './admin/admin.module';
     ConversationsModule,
     DividendsModule,
     AdminModule,
+    VatReportModule,
+    ApprovalsModule,
   ],
 })
 export class AppModule {}
