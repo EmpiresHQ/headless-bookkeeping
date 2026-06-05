@@ -124,7 +124,10 @@ describe('VAT report snapshot generation (integration)', () => {
 
   it('(a) aggregates voucher_lines by vat_code into input vs output', async () => {
     // Seed two vouchers in 2024-Q1 (2024-01-01 to 2024-03-31)
-    // Voucher 1: purchase (debit) with VAT code "INPUT_25"
+    // Voucher 1: purchase (debit). The INPUT_25 code is on BOTH the net expense
+    // line and the VAT_RECEIVABLE line (as the real pipeline books it), but the
+    // VAT *amount* is only the VAT_RECEIVABLE line — the report must not count
+    // the 10000 taxable base as input VAT.
     await seedPostedVoucher('2024-02-15', [
       {
         account_code: 'EXPENSE_SOFTWARE',
@@ -136,10 +139,19 @@ describe('VAT report snapshot generation (integration)', () => {
         is_debit: true,
       },
       {
-        account_code: 'CASH',
-        amount: 10000,
+        account_code: 'VAT_RECEIVABLE',
+        amount: 2500,
         currency: 'EUR',
-        base_amount: 10000,
+        base_amount: 2500,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 12500,
+        currency: 'EUR',
+        base_amount: 12500,
         fx_rate: 1,
         vat_code: null,
         is_debit: false,
@@ -184,7 +196,7 @@ describe('VAT report snapshot generation (integration)', () => {
 
     const inputLine = report.vat_summary.find((l) => l.vat_code === 'INPUT_25');
     expect(inputLine).toBeDefined();
-    expect(inputLine!.input_vat).toBe(10000);
+    expect(inputLine!.input_vat).toBe(2500);
     expect(inputLine!.output_vat).toBe(0);
 
     const outputLine = report.vat_summary.find(
@@ -201,6 +213,15 @@ describe('VAT report snapshot generation (integration)', () => {
     await seedPostedVoucher('2024-01-10', [
       {
         account_code: 'EXPENSE_SOFTWARE',
+        amount: 20000,
+        currency: 'EUR',
+        base_amount: 20000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'VAT_RECEIVABLE',
         amount: 5000,
         currency: 'EUR',
         base_amount: 5000,
@@ -210,9 +231,9 @@ describe('VAT report snapshot generation (integration)', () => {
       },
       {
         account_code: 'CASH',
-        amount: 5000,
+        amount: 25000,
         currency: 'EUR',
-        base_amount: 5000,
+        base_amount: 25000,
         fx_rate: 1,
         vat_code: null,
         is_debit: false,
@@ -341,9 +362,18 @@ describe('VAT report snapshot generation (integration)', () => {
     await seedPostedVoucher('2024-02-15', [
       {
         account_code: 'EXPENSE_SOFTWARE',
-        amount: 10000,
+        amount: 8000,
         currency: 'EUR',
-        base_amount: 10000,
+        base_amount: 8000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'VAT_RECEIVABLE',
+        amount: 2000,
+        currency: 'EUR',
+        base_amount: 2000,
         fx_rate: 1,
         vat_code: 'INPUT_25',
         is_debit: true,

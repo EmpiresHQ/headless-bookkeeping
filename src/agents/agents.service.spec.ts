@@ -76,17 +76,16 @@ describe('Agents (real-DI)', () => {
       expect(typeof auditAgent.sweep).toBe('function');
     });
 
-    it('sweep() creates a sample AuditFinding', async () => {
+    it('sweep() is a no-op — it never fabricates findings on the live cron', async () => {
       const before = await auditFindingsService.list();
       expect(before).toHaveLength(0);
 
-      await auditAgent.sweep();
+      auditAgent.sweep();
 
+      // The scheduled sweep must write nothing (an hourly INSERT would flood
+      // audit_finding). Demo findings come only from a seed/fixture.
       const after = await auditFindingsService.list();
-      expect(after).toHaveLength(1);
-      expect(after[0].finding_type).toBe('missing_receipt');
-      expect(after[0].severity).toBe('medium');
-      expect(after[0].status).toBe('open');
+      expect(after).toHaveLength(0);
     });
   });
 

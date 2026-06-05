@@ -11,6 +11,8 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CurrencyService } from '../currency/currency.service';
 import {
   NullCountryPlugin,
   NULL_VAT_CODE,
@@ -62,6 +64,8 @@ describe('DividendsService (integration)', () => {
         BankTransactionRepository,
         BankStatementService,
         OrganizationService,
+        PluginLoader,
+        CurrencyService,
         NullCountryPlugin,
         { provide: COUNTRY_PLUGIN_TOKEN, useExisting: NullCountryPlugin },
         DividendsService,
@@ -326,6 +330,9 @@ describe('DividendsService (integration)', () => {
           BankTransactionRepository,
           BankStatementService,
           OrganizationService,
+          PluginLoader,
+          CurrencyService,
+          NullCountryPlugin,
           MockWithholdingPlugin,
           { provide: COUNTRY_PLUGIN_TOKEN, useClass: MockWithholdingPlugin },
           DividendsService,

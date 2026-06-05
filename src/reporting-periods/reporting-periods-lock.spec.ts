@@ -8,6 +8,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from './reporting-periods.service';
 import { ReportingPeriodsController } from './reporting-periods.controller';
+import { VatReportService } from '../vat-report/vat-report.service';
 import { PostingService } from '../ledger/posting/posting.service';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
@@ -76,6 +77,7 @@ describe('ReportingPeriod lock + filing guard (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         ReportingPeriodsService,
         ReportingPeriodsController,
+        VatReportService,
         AccountService,
         LedgerValidationService,
         PostingService,

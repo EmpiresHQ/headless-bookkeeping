@@ -9,6 +9,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { AccountService } from '../ledger/account/account.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import {
@@ -36,6 +37,7 @@ export class ApprovalsService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly accountService: AccountService,
     private readonly postingService: PostingService,
+    private readonly validation: LedgerValidationService,
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
   ) {}
@@ -158,6 +160,18 @@ export class ApprovalsService {
         account_currency: account?.currency ?? null,
       };
     });
+
+    // Structural validation: postVoucherTx trusts its caller (it does NOT
+    // re-validate), so the approval path must validate the re-derived draft
+    // itself — otherwise an unbalanced/invalid draft would post unchecked.
+    const validIds = new Set(accounts.map((a) => a.id));
+    const validationResult = this.validation.validateVoucherLines(
+      resolved,
+      validIds,
+    );
+    if (!validationResult.isValid) {
+      throw new BadRequestException(validationResult.errors.join('; '));
+    }
 
     const now = Math.floor(Date.now() / 1000);
 

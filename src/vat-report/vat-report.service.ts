@@ -18,9 +18,12 @@ export class VatReportService {
    *
    * Idempotent: if a snapshot already exists for this period, returns it.
    */
-  async generate(periodId: number): Promise<VatReport> {
+  async generate(
+    periodId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<VatReport> {
     // Check if a snapshot already exists for this period
-    const existing = await this.db
+    const existing = await executor
       .selectFrom('vat_report')
       .selectAll()
       .where('reporting_period_id', '=', periodId)
@@ -31,7 +34,7 @@ export class VatReportService {
     }
 
     // Fetch the period to get its date range
-    const period = await this.db
+    const period = await executor
       .selectFrom('reporting_period')
       .select(['id', 'name', 'start_date', 'end_date'])
       .where('id', '=', periodId)
@@ -41,28 +44,38 @@ export class VatReportService {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
 
-    // Query all voucher lines from posted vouchers within the period range
-    const lines = await this.db
+    // Query all voucher lines from posted vouchers within the period range,
+    // joined to the account so we can isolate the VAT-control lines.
+    const lines = await executor
       .selectFrom('voucher_line as vl')
       .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
       .select([
         'vl.vat_code',
         'vl.base_amount',
         'vl.is_debit',
         'v.id as voucher_id',
+        'a.code as account_code',
       ])
       .where('v.tax_point_date', '>=', period.start_date)
       .where('v.tax_point_date', '<=', period.end_date)
       .where('v.posted_at', 'is not', null)
       .execute();
 
-    // Group by vat_code, splitting input (debit) vs output (credit).
-    // Only lines with an explicit VAT code contribute to the VAT summary
-    // (lines without a VAT code — e.g. CASH, REVENUE — are not VAT-relevant).
+    // Group by vat_code. The VAT *amount* per code is the balance of the
+    // VAT-control accounts only (VAT_RECEIVABLE = input, VAT_PAYABLE = output);
+    // the taxable-base lines (expense/revenue) and non-VAT control lines (AP,
+    // AR, BANK — which the pipeline tags 'NULL_STANDARD') must NOT be summed
+    // here or the report counts the base as VAT. Netting is signed so a
+    // reversal of a VAT line correctly subtracts.
     const summaryMap = new Map<string, VatSummaryLine>();
 
     for (const line of lines) {
       if (line.vat_code === null || line.vat_code === undefined) continue;
+
+      const isInputVat = line.account_code === 'VAT_RECEIVABLE';
+      const isOutputVat = line.account_code === 'VAT_PAYABLE';
+      if (!isInputVat && !isOutputVat) continue;
 
       const key = line.vat_code;
       const existing_line = summaryMap.get(key) ?? {
@@ -72,10 +85,14 @@ export class VatReportService {
         line_count: 0,
       };
 
-      if (line.is_debit === 1) {
-        existing_line.input_vat += line.base_amount;
+      if (isInputVat) {
+        // VAT_RECEIVABLE is debit-normal: input VAT = debits − credits.
+        existing_line.input_vat +=
+          line.is_debit === 1 ? line.base_amount : -line.base_amount;
       } else {
-        existing_line.output_vat += line.base_amount;
+        // VAT_PAYABLE is credit-normal: output VAT = credits − debits.
+        existing_line.output_vat +=
+          line.is_debit === 1 ? -line.base_amount : line.base_amount;
       }
       existing_line.line_count += 1;
 
@@ -93,7 +110,8 @@ export class VatReportService {
     const total_payable = total_output_vat - total_input_vat;
     const total_receivable = total_input_vat - total_output_vat;
 
-    // Collect distinct voucher IDs
+    // Collect distinct voucher IDs — the report still *covers* every voucher
+    // in the period, even those with no VAT-control line.
     const voucherIds = [...new Set(lines.map((l) => l.voucher_id))].sort(
       (a, b) => a - b,
     );
@@ -101,7 +119,7 @@ export class VatReportService {
     const generatedAt = Math.floor(Date.now() / 1000);
 
     // Insert the snapshot
-    const row = await this.db
+    const row = await executor
       .insertInto('vat_report')
       .values({
         reporting_period_id: periodId,

@@ -9,6 +9,7 @@ import type { Response } from 'supertest';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { VatReportService } from '../vat-report/vat-report.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminKeyGuard } from './admin-key.guard';
@@ -37,6 +38,7 @@ describe('AdminController (integration)', () => {
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         ReportingPeriodsService,
+        VatReportService,
         AdminService,
         AdminKeyGuard,
       ],

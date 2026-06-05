@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
+import { VatReportService } from '../vat-report/vat-report.service';
 import {
   ReportingPeriod,
   CreateReportingPeriodDto,
@@ -10,7 +15,10 @@ import {
 
 @Injectable()
 export class ReportingPeriodsService {
-  constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
+  constructor(
+    @InjectKysely() private readonly db: Kysely<Database>,
+    private readonly vatReportService: VatReportService,
+  ) {}
 
   async list(): Promise<ReportingPeriod[]> {
     const rows = await this.db
@@ -69,24 +77,56 @@ export class ReportingPeriodsService {
   }
 
   /**
-   * Lock a reporting period (open → locked). Idempotent: re-locking an
-   * already-locked period returns 200 with the existing locked period.
+   * File (lock) a reporting period. Filing is ONE atomic act (ADR-0009): it
+   * generates the immutable VAT-report snapshot AND flips the period to
+   * `locked` (setting `filed_at` + `vat_report_snapshot_id`) in a single
+   * transaction — both or neither. There is no "locked without snapshot" state.
+   *
+   * Idempotent: re-filing an already-locked period returns it unchanged and
+   * never regenerates the snapshot. Filing must proceed in order: an earlier
+   * still-open period blocks filing a later one (409).
    */
   async lock(id: number): Promise<ReportingPeriod> {
     const existing = await this.getById(id);
 
-    // Idempotent: already locked → return as-is
+    // Idempotent: already locked → return as-is (no regeneration).
     if (existing.status === 'locked') {
       return existing;
     }
 
+    // Filing order: no filing a later period while an earlier one is still open.
+    const earlierOpen = await this.db
+      .selectFrom('reporting_period')
+      .select(['id', 'name'])
+      .where('status', '=', 'open')
+      .where('start_date', '<', existing.start_date)
+      .orderBy('start_date', 'asc')
+      .executeTakeFirst();
+
+    if (earlierOpen) {
+      throw new ConflictException(
+        `Cannot file period ${existing.name}: earlier period ${earlierOpen.name} is still open — file it first`,
+      );
+    }
+
     const filedAt = Math.floor(Date.now() / 1000);
-    const row = await this.db
-      .updateTable('reporting_period')
-      .set({ status: 'locked', filed_at: filedAt })
-      .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+
+    const row = await this.db.transaction().execute(async (trx) => {
+      // 1. Generate the immutable VAT snapshot inside the filing transaction.
+      const snapshot = await this.vatReportService.generate(id, trx);
+
+      // 2. Lock the period and bind it to the snapshot, atomically.
+      return trx
+        .updateTable('reporting_period')
+        .set({
+          status: 'locked',
+          filed_at: filedAt,
+          vat_report_snapshot_id: snapshot.id,
+        })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
 
     return this.mapRow(row);
   }

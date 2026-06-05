@@ -36,7 +36,11 @@ export class AdminKeyGuard implements CanActivate {
       .getRequest<{ headers: Record<string, string | undefined> }>();
     const adminKey = request.headers['x-admin-key'];
 
-    if (adminKey !== 'dev') {
+    // Sourced from config, not hardcoded. The 'dev' default applies only when
+    // ADMIN_API_KEY is unset (local/dev); deployments set a real secret.
+    const expectedKey = process.env.ADMIN_API_KEY ?? 'dev';
+
+    if (adminKey !== expectedKey) {
       throw new UnauthorizedException('Invalid or missing admin key');
     }
 

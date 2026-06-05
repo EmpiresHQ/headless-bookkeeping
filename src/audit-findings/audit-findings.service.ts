@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { Database } from '../database/types';
 import {
   AuditFinding,
@@ -115,11 +115,17 @@ export class AuditFindingsService {
    * Get all open findings (used by SecretaryAgent).
    */
   async getOpenFindings(): Promise<AuditFinding[]> {
+    // severity is a TEXT column, so a plain `ORDER BY severity DESC` sorts
+    // lexically (medium > low > high > critical) — wrong. Rank it explicitly so
+    // the SecretaryAgent surfaces critical first.
     const rows = await this.db
       .selectFrom('audit_finding')
       .selectAll()
       .where('status', '=', 'open')
-      .orderBy('severity', 'desc')
+      .orderBy(
+        sql`CASE severity WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END`,
+        'desc',
+      )
       .orderBy('created_at', 'asc')
       .execute();
 
