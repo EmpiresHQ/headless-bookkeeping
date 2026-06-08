@@ -1187,7 +1187,7 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
   /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0; base currency EUR. */
   const fakePlugin: Pick<
     CountryPlugin,
-    'getReferenceRate' | 'getDefaultBaseCurrency'
+    'getReferenceRate' | 'getDefaultBaseCurrency' | 'roundToBaseMinorUnits'
   > = {
     getReferenceRate(from: string, to: string): number {
       if (from === to) return 1.0;
@@ -1195,6 +1195,7 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
       throw new Error(`Unexpected pair ${from} → ${to}`);
     },
     getDefaultBaseCurrency: () => 'EUR',
+    roundToBaseMinorUnits: (amount: number) => Math.round(amount),
   };
 
   const fakeLoader = {

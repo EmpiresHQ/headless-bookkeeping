@@ -162,6 +162,25 @@ export interface CountryPlugin {
   ): number;
 
   /**
+   * Rounds a fractional base-currency amount to integer minor units (cents).
+   *
+   * Rounding a converted base amount to the base currency's minor units is a
+   * JURISDICTION rule, not a kernel constant: some VAT regimes mandate a
+   * specific rounding (e.g. round-half-up, round-half-even, or truncation) for
+   * the prescribed VAT-base conversion (EU VAT Directive Art. 91). The kernel
+   * therefore never hardcodes a rounding rule — it asks the active plugin
+   * (ADR-0002: rounding is explicitly a country-plugin concern).
+   *
+   * The neutral default (NullCountryPlugin) returns `Math.round(amount)` —
+   * round-half-away-from-zero — which is behavior-preserving for the IE/EUR
+   * deployment. A real country plugin overrides this with its own rule.
+   *
+   * @param amount - The fractional base-currency amount (e.g. 98.76 cents).
+   * @returns The amount rounded to integer minor units (cents).
+   */
+  roundToBaseMinorUnits(amount: number): number;
+
+  /**
    * Validates whether a VAT code is applicable in a given context.
    *
    * @param vatCode - The VAT code to validate

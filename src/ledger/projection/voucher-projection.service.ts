@@ -77,8 +77,13 @@ export class VoucherProjectionService {
       facts.currency,
       facts.taxPointDate,
     );
+    // Round each leg to base-currency minor units via the active plugin's rule
+    // (ADR-0002: rounding is a jurisdiction rule). The plugin is the same one
+    // resolved above; CurrencyService owns the multiply, the plugin the round.
     const baseAmount = (amount: number) =>
-      this.currencyService.convertToBaseRounded(amount, facts.currency, fxRate);
+      plugin.roundToBaseMinorUnits(
+        this.currencyService.convertToBase(amount, facts.currency, fxRate),
+      );
 
     const lines: DraftVoucherLine[] =
       direction === 'purchase'

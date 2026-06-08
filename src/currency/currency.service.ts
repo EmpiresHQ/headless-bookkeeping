@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
+import { CountryPlugin } from '../plugins/country-plugin.interface';
 
 /**
  * The result of converting a monetary amount to base currency.
@@ -41,6 +42,18 @@ export class CurrencyService {
   }
 
   /**
+   * Resolves the active country plugin for the Organization — the SAME
+   * resolution used by {@link getBaseCurrency} and {@link toBase}
+   * (`pluginLoader.resolve(org.country)`). Centralised so every plugin-owned
+   * rule (reference rate, base-currency, minor-unit rounding) is sourced
+   * consistently from one place rather than re-resolved ad hoc.
+   */
+  private async resolvePlugin(): Promise<CountryPlugin> {
+    const org = await this.organizationService.getOrganization();
+    return this.pluginLoader.resolve(org.country);
+  }
+
+  /**
    * Convert a monetary amount in some currency to the Organization's base
    * currency at a given date — the SOLE way to perform this conversion.
    *
@@ -51,7 +64,10 @@ export class CurrencyService {
    *   3. fetching the country-plugin prescribed reference rate (ADR-0002 keeps
    *      the plugin as the sole rate source; the kernel never invents a rate),
    *   4. the multiply, and
-   *   5. the cents rounding (`Math.round`).
+   *   5. rounding to base-currency minor units via the active plugin's rule
+   *      ({@link CountryPlugin.roundToBaseMinorUnits}) — rounding to minor units
+   *      is a JURISDICTION rule (ADR-0002), not a kernel constant. The neutral
+   *      null plugin rounds with `Math.round`, preserving prior behavior.
    *
    * Returns the rounded base amount together with the rate applied, so callers
    * that store `fx_rate` on a VoucherLine get a consistent pair from one place.
@@ -71,12 +87,13 @@ export class CurrencyService {
       return { baseAmount: amount, rate: 1.0, baseCurrency };
     }
 
-    const org = await this.organizationService.getOrganization();
-    const plugin = this.pluginLoader.resolve(org.country);
+    const plugin = await this.resolvePlugin();
     const rate = plugin.getReferenceRate(currency, baseCurrency, date);
 
     return {
-      baseAmount: Math.round(this.convertToBase(amount, currency, rate)),
+      baseAmount: plugin.roundToBaseMinorUnits(
+        this.convertToBase(amount, currency, rate),
+      ),
       rate,
       baseCurrency,
     };
@@ -102,14 +119,24 @@ export class CurrencyService {
 
   /**
    * Convert to base currency at an already-known rate, rounding to integer
-   * cents (`Math.round`) — the rounding rule owned by this module.
+   * minor units via the active country plugin's rounding rule
+   * ({@link CountryPlugin.roundToBaseMinorUnits}) — rounding to base-currency
+   * minor units is a JURISDICTION rule, not a kernel constant (ADR-0002). The
+   * plugin is resolved via the SAME path as {@link toBase} / {@link getBaseCurrency}.
    *
    * Used by multi-line draft generators (Expense / SalesInvoice) that resolve a
    * single uniform rate once via {@link toBase} and then book several line
    * amounts at that same rate (ADR-0004 Wave-3 amendment: one uniform rate per
    * draft so the voucher balances in base currency).
    */
-  convertToBaseRounded(amount: number, currency: string, rate: number): number {
-    return Math.round(this.convertToBase(amount, currency, rate));
+  async convertToBaseRounded(
+    amount: number,
+    currency: string,
+    rate: number,
+  ): Promise<number> {
+    const plugin = await this.resolvePlugin();
+    return plugin.roundToBaseMinorUnits(
+      this.convertToBase(amount, currency, rate),
+    );
   }
 }

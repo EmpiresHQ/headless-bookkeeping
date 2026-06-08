@@ -31,6 +31,10 @@ describe('VoucherProjectionService', () => {
 
   const mockPlugin = {
     resolveCategoryMapping,
+    // Rounding to base-currency minor units is a plugin rule (ADR-0002); the
+    // projection rounds each leg through it. Neutral Math.round matches the
+    // null-plugin default and keeps base_amounts byte-identical.
+    roundToBaseMinorUnits: jest.fn((amount: number) => Math.round(amount)),
   } as unknown as CountryPlugin;
 
   const mockOrg = {
@@ -56,8 +60,10 @@ describe('VoucherProjectionService', () => {
         baseCurrency: 'EUR',
       }),
     ),
-    convertToBaseRounded: jest.fn((amount: number, currency: string) =>
-      currency === 'EUR' ? amount : Math.round(amount * 2),
+    // Unrounded multiply (the projection applies the plugin's rounding rule on
+    // top). EUR is identity (rate 1.0); any other currency uses the fixed 2.0.
+    convertToBase: jest.fn((amount: number, currency: string) =>
+      currency === 'EUR' ? amount : amount * 2,
     ),
   };
 

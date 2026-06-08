@@ -292,6 +292,9 @@ describe('DividendsService (integration)', () => {
         if (fromCurrency === toCurrency) return 1.0;
         throw new Error('Cross-currency not supported');
       }
+      roundToBaseMinorUnits(amount: number): number {
+        return Math.round(amount);
+      }
       validateVATCode(
         vatCode: string,
         _context: { supplier: SupplierFacts; org: OrgContext },

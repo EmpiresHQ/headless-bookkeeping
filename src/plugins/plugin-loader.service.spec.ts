@@ -137,6 +137,17 @@ describe('NullCountryPlugin', () => {
     });
   });
 
+  describe('roundToBaseMinorUnits', () => {
+    it('rounds to integer minor units with Math.round semantics (half away from zero)', () => {
+      // Behavior-preserving for IE/EUR: identical to the kernel's former
+      // hardcoded Math.round.
+      expect(plugin.roundToBaseMinorUnits(98.76)).toBe(99);
+      expect(plugin.roundToBaseMinorUnits(2.5)).toBe(3);
+      expect(plugin.roundToBaseMinorUnits(2.4)).toBe(2);
+      expect(plugin.roundToBaseMinorUnits(714)).toBe(714);
+    });
+  });
+
   describe('validateVATCode', () => {
     it('should return true for "NULL_STANDARD"', () => {
       expect(
@@ -292,6 +303,11 @@ describe('StrictTestPlugin (second adapter — real seam)', () => {
         org: defaultOrg,
       }),
     ).toBe(true);
+  });
+
+  it('inherits NullCountryPlugin minor-unit rounding (Math.round) unchanged', () => {
+    expect(plugin.roundToBaseMinorUnits(98.76)).toBe(99);
+    expect(plugin.roundToBaseMinorUnits(2.5)).toBe(3);
   });
 
   it('falls through to NullCountryPlugin mapping for ordinary categories', () => {

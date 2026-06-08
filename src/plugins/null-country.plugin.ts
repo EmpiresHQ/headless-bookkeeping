@@ -98,6 +98,13 @@ export class NullCountryPlugin implements CountryPlugin {
     );
   }
 
+  roundToBaseMinorUnits(amount: number): number {
+    // Neutral default: round-half-away-from-zero. Behavior-preserving for the
+    // IE/EUR deployment (matches the kernel's former hardcoded Math.round).
+    // A real country plugin overrides this with its jurisdiction's rule.
+    return Math.round(amount);
+  }
+
   validateVATCode(
     vatCode: string,
     _context: { supplier: SupplierFacts; org: OrgContext },

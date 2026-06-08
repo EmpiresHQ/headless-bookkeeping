@@ -841,7 +841,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
   /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0; base currency EUR. */
   const fakePlugin: Pick<
     CountryPlugin,
-    'getReferenceRate' | 'getDefaultBaseCurrency'
+    'getReferenceRate' | 'getDefaultBaseCurrency' | 'roundToBaseMinorUnits'
   > = {
     getReferenceRate(from: string, to: string): number {
       if (from === to) return 1.0;
@@ -849,6 +849,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
       throw new Error(`Unexpected pair ${from} → ${to}`);
     },
     getDefaultBaseCurrency: () => 'EUR',
+    roundToBaseMinorUnits: (amount: number) => Math.round(amount),
   };
 
   const fakeLoader = {
