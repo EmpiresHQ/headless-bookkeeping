@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './database/database.module';
 import { OrganizationModule } from './organization/organization.module';
 import { CurrencyModule } from './currency/currency.module';
@@ -23,6 +24,9 @@ import { DividendsModule } from './dividends/dividends.module';
 import { AdminModule } from './admin/admin.module';
 import { VatReportModule } from './vat-report/vat-report.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { AuthModule } from './auth/auth.module';
+import { AiModule } from './ai/ai.module';
+import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
   imports: [
@@ -50,6 +54,14 @@ import { ApprovalsModule } from './approvals/approvals.module';
     AdminModule,
     VatReportModule,
     ApprovalsModule,
+    AuthModule,
+    AiModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ApiTokenGuard,
+    },
   ],
 })
 export class AppModule {}

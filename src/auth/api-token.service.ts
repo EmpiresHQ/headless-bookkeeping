@@ -79,7 +79,7 @@ export class ApiTokenService implements OnModuleInit {
       })
       .executeTakeFirst();
 
-    return { id: result.insertId, token: plaintext };
+    return { id: Number(result.insertId), token: plaintext };
   }
 
   /**

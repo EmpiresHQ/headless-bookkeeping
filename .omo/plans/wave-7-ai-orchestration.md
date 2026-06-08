@@ -33,7 +33,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
 ## TODOs
 
-- [ ] 40. Mastra runtime + tool layer (embed + invariant)
+- [x] 40. Mastra runtime + tool layer (embed + invariant)
 
   **What to do**:
   - **ESM strategy (researched — Codex W7 P2):** keep Nest **CommonJS** (do NOT add `"type":"module"`); keep tsconfig **`module: nodenext`** (Node 22.22 — and nodenext *preserves* dynamic `import()` in emitted CJS, whereas `module:commonjs` downlevels it to `require()` and throws `ERR_REQUIRE_ESM`). **Do NOT use SWC** (it emits ESM under nodenext — breaks; Nest's SWC recipe needs `commonjs`); use `tsc`/`nest build`. Full ESM migration is deferred to Nest v12 — not now.

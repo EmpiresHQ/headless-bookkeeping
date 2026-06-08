@@ -1,66 +1,58 @@
 {
   "schema_version": 2,
-  "active_work_id": "wave-6-agents-admin",
+  "active_work_id": "wave-7-ai-orchestration",
   "works": {
     "wave-6-agents-admin": {
       "work_id": "wave-6-agents-admin",
       "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
       "plan_name": "wave-6-agents-admin",
-      "status": "active",
+      "status": "completed",
       "started_at": "2026-05-31T20:46:48.010Z",
-      "updated_at": "2026-05-31T21:17:17.822Z",
+      "updated_at": "2026-06-08T18:06:49.733Z",
       "session_ids": [
-        "opencode:ses_18035f62fffepbex2WYoi1iIAq"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq",
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
       ],
       "session_origins": {
-        "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct",
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf": "direct"
+      },
+      "agent": "atlas",
+      "worktree_path": null,
+      "elapsed_ms": 680739984,
+      "task_sessions": {}
+    },
+    "wave-7-ai-orchestration": {
+      "work_id": "wave-7-ai-orchestration",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-7-ai-orchestration.md",
+      "plan_name": "wave-7-ai-orchestration",
+      "status": "active",
+      "started_at": "2026-06-08T17:43:51.433Z",
+      "updated_at": "2026-06-08T18:06:49.733Z",
+      "session_ids": [
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
+      ],
+      "session_origins": {
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf": "direct"
       },
       "agent": "atlas",
       "worktree_path": null,
       "elapsed_ms": 0,
-      "task_sessions": {
-        "todo:27": {
-          "task_key": "todo:27",
-          "task_label": "27",
-          "task_title": "ReportingPeriod lock + filing guard",
-          "session_id": "opencode:ses_1803044e8ffejMQAO4XQpDpnrA",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-high",
-          "updated_at": "2026-05-31T21:17:17.822Z",
-          "started_at": "2026-05-31T21:05:59.880Z",
-          "status": "completed",
-          "ended_at": "2026-05-31T21:17:17.822Z",
-          "elapsed_ms": 677942
-        }
-      }
+      "task_sessions": {}
     }
   },
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
-  "started_at": "2026-05-31T20:46:48.010Z",
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-7-ai-orchestration.md",
+  "started_at": "2026-06-08T17:43:51.433Z",
   "status": "active",
-  "updated_at": "2026-05-31T21:17:17.822Z",
+  "updated_at": "2026-06-08T18:06:49.733Z",
   "session_ids": [
-    "opencode:ses_18035f62fffepbex2WYoi1iIAq"
+    "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
   ],
   "session_origins": {
-    "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
+    "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf": "direct"
   },
-  "plan_name": "wave-6-agents-admin",
-  "task_sessions": {
-    "todo:27": {
-      "task_key": "todo:27",
-      "task_label": "27",
-      "task_title": "ReportingPeriod lock + filing guard",
-      "session_id": "opencode:ses_1803044e8ffejMQAO4XQpDpnrA",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-31T21:17:17.822Z",
-      "started_at": "2026-05-31T21:05:59.880Z",
-      "status": "completed",
-      "ended_at": "2026-05-31T21:17:17.822Z",
-      "elapsed_ms": 677942
-    }
-  },
+  "plan_name": "wave-7-ai-orchestration",
+  "task_sessions": {},
   "agent": "atlas",
   "worktree_path": null,
   "elapsed_ms": 0

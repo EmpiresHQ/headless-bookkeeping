@@ -17,10 +17,12 @@ export class OcrService {
   extract(documentId: number): TriageResult {
     if (documentId % 2 === 1) {
       return {
+        kind: 'new_expense',
         document_type: 'receipt',
-        entity_guess: 'Bolt',
         gross_amount: 1525,
         vat_amount: 285,
+        currency: 'EUR',
+        tax_point_date: '2025-01-15',
         category: 'transport',
         document_vat_marking: 'IE_INPUT_23',
         confidence: 0.94,
@@ -28,10 +30,12 @@ export class OcrService {
     }
 
     return {
+      kind: 'new_expense',
       document_type: 'invoice',
-      entity_guess: 'Acme Ltd',
       gross_amount: 12300,
       vat_amount: 2300,
+      currency: 'EUR',
+      tax_point_date: '2025-01-20',
       category: 'revenue',
       document_vat_marking: 'IE_OUTPUT_23',
       confidence: 0.98,

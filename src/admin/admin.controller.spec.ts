@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
@@ -12,7 +13,8 @@ import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.
 import { VatReportService } from '../vat-report/vat-report.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
-import { AdminKeyGuard } from './admin-key.guard';
+import { ApiTokenService } from '../auth/api-token.service';
+import { ApiTokenGuard } from '../auth/api-token.guard';
 
 /**
  * supertest types `res.body` as `any`; cast it to the asserted shape so member
@@ -23,6 +25,7 @@ const jsonBody = <T>(res: { body: unknown }): T => res.body as T;
 describe('AdminController (integration)', () => {
   let app: INestApplication;
   let db: Kysely<Database>;
+  let apiToken: string;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -46,12 +49,21 @@ describe('AdminController (integration)', () => {
         ReportingPeriodsService,
         VatReportService,
         AdminService,
-        AdminKeyGuard,
+        ApiTokenService,
+        {
+          provide: APP_GUARD,
+          useClass: ApiTokenGuard,
+        },
       ],
     }).compile();
 
     app = module.createNestApplication();
     await app.init();
+
+    // Create a test token for authenticated requests.
+    const tokenService = module.get(ApiTokenService);
+    const created = await tokenService.create('test-token');
+    apiToken = created.token;
   });
 
   afterEach(async () => {
@@ -61,33 +73,23 @@ describe('AdminController (integration)', () => {
 
   // ── Auth ────────────────────────────────────────────────────────────
 
-  it('GET /admin/* returns 401 without x-admin-key header', async () => {
+  it('GET /admin/* returns 401 without Authorization header', async () => {
     await request(app.getHttpServer())
       .get('/admin/accounts')
-      .expect(401)
-      .expect((res: Response) => {
-        expect((res.body as { message: string }).message).toBe(
-          'Invalid or missing admin key',
-        );
-      });
+      .expect(401);
   });
 
-  it('GET /admin/* returns 401 with wrong x-admin-key header', async () => {
+  it('GET /admin/* returns 401 with wrong Bearer token', async () => {
     await request(app.getHttpServer())
       .get('/admin/accounts')
-      .set('x-admin-key', 'wrong')
-      .expect(401)
-      .expect((res: Response) => {
-        expect((res.body as { message: string }).message).toBe(
-          'Invalid or missing admin key',
-        );
-      });
+      .set('Authorization', 'Bearer wrong-token')
+      .expect(401);
   });
 
-  it('GET /admin/* returns 200 with correct x-admin-key header', async () => {
+  it('GET /admin/* returns 200 with valid Bearer token', async () => {
     await request(app.getHttpServer())
       .get('/admin/accounts')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
   });
 
@@ -114,7 +116,7 @@ describe('AdminController (integration)', () => {
   it('GET /admin/accounts returns accounts with zero balance by default', async () => {
     const res = await request(app.getHttpServer())
       .get('/admin/accounts')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const accounts =
@@ -171,7 +173,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/accounts')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const accounts = jsonBody<Array<{ code: string; balance: number }>>(res);
@@ -204,7 +206,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/vouchers')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const vouchers = jsonBody<unknown[]>(res);
@@ -245,7 +247,7 @@ describe('AdminController (integration)', () => {
     const res = await request(app.getHttpServer())
       .get('/admin/vouchers')
       .query({ from: '2026-02-01', to: '2026-02-28' })
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const filtered = jsonBody<Array<{ voucher_number: string }>>(res);
@@ -290,7 +292,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/vouchers/1')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const voucher = jsonBody<{
@@ -308,7 +310,7 @@ describe('AdminController (integration)', () => {
   it('GET /admin/vouchers/:id returns 404 for unknown voucher', async () => {
     await request(app.getHttpServer())
       .get('/admin/vouchers/999')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(404);
   });
 
@@ -317,7 +319,7 @@ describe('AdminController (integration)', () => {
   it('GET /admin/periods returns reporting periods', async () => {
     const res = await request(app.getHttpServer())
       .get('/admin/periods')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     expect(Array.isArray(res.body)).toBe(true);
@@ -340,7 +342,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/admin/periods/1/lock')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     expect(jsonBody<{ status: string }>(res).status).toBe('locked');
@@ -363,7 +365,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/approvals')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const approvals = jsonBody<unknown[]>(res);
@@ -401,7 +403,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/approvals/pending')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const pending = jsonBody<Array<{ status: string }>>(res);
@@ -426,7 +428,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/findings')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const findings = jsonBody<unknown[]>(res);
@@ -463,7 +465,7 @@ describe('AdminController (integration)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/admin/findings/open')
-      .set('x-admin-key', 'dev')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
     const openFindings = jsonBody<Array<{ status: string }>>(res);

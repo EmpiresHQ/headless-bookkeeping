@@ -372,7 +372,7 @@ export interface ApiTokenTable {
   token_hash: string;
   // Human-readable label (e.g. "init-token").
   label: string | null;
-  created_at: number;
+  created_at: Generated<number>;
   // Unix seconds when revoked; NULL = active.
   revoked_at: number | null;
 }

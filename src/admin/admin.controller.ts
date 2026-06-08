@@ -5,14 +5,12 @@ import {
   Param,
   Query,
   ParseIntPipe,
-  UseGuards,
   NotFoundException,
 } from '@nestjs/common';
-import { AdminKeyGuard, Public } from './admin-key.guard';
+import { Public } from '../auth/api-token.guard';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
-@UseGuards(AdminKeyGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
