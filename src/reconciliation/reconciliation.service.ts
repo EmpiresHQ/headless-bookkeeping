@@ -10,7 +10,7 @@ import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankTransactionRecord } from '../bank/bank-statement.types';
 import { EntitiesService } from '../entities/entities.service';
 import { CurrencyService } from '../currency/currency.service';
-import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
   MatchProposal,
@@ -34,9 +34,6 @@ const INVOICE_NUMBER_PATTERNS = [
 /** IBAN pattern: 2-letter country code + 2 check digits + up to 30 alphanumeric. */
 const IBAN_PATTERN = /[A-Z]{2}\d{2}[A-Z0-9]{4,30}/gi;
 
-/** Date window for amount+date matching (±7 days). */
-const DATE_WINDOW_DAYS = 7;
-
 @Injectable()
 export class ReconciliationService {
   constructor(
@@ -44,7 +41,7 @@ export class ReconciliationService {
     private readonly transactionRepo: BankTransactionRepository,
     private readonly entitiesService: EntitiesService,
     private readonly currencyService: CurrencyService,
-    private readonly ledgerBalance: LedgerBalanceService,
+    private readonly outstandingVouchers: OutstandingVoucherService,
     private readonly fxRealizedService: FXRealizedService,
   ) {}
 
@@ -237,9 +234,10 @@ export class ReconciliationService {
           .executeTakeFirst();
 
         if (salesInvoice && salesInvoice.voucher_id) {
-          const remaining = await this.getRemainingVoucherBalance(
-            salesInvoice.voucher_id,
-          );
+          const remaining =
+            await this.outstandingVouchers.getRemainingVoucherBalance(
+              salesInvoice.voucher_id,
+            );
           if (remaining > 0) {
             const amountMatched = Math.min(absBaseAmount, remaining);
             const matchType: MatchType =
@@ -367,7 +365,9 @@ export class ReconciliationService {
   }
 
   /**
-   * Get candidate vouchers for a given entity.
+   * Get candidate vouchers for a given entity, delegating the join chain,
+   * account-code/polarity, and remaining-balance maths to
+   * {@link OutstandingVoucherService}.
    * For incoming: AR vouchers (via sales_invoice) + CustomerPrepayment vouchers.
    * For outgoing: AP vouchers (via expense).
    */
@@ -375,259 +375,45 @@ export class ReconciliationService {
     entityId: number,
     isIncoming: boolean,
   ): Promise<CandidateVoucher[]> {
-    const candidates: CandidateVoucher[] = [];
-
     if (isIncoming) {
-      // AR vouchers from posted sales_invoices linked to this customer.
-      const arVouchers = await this.db
-        .selectFrom('sales_invoice')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'sales_invoice.voucher_id',
-        )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'sales_invoice.voucher_id')
-        .select('sales_invoice.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('sales_invoice.customer_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('sales_invoice.customer_id', '=', entityId)
-        .where('sales_invoice.status', '=', 'posted')
-        .where('sales_invoice.voucher_id', 'is not', null)
-        .where('account.code', '=', 'AR')
-        .where('voucher_line.is_debit', '=', 1)
-        .execute();
-
-      for (const v of arVouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: v.base_amount - alreadyMatched,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
-
-      // Customer prepayment vouchers.
-      const prepayVouchers = await this.db
-        .selectFrom('voucher_line')
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'voucher_line.voucher_id')
-        .select('voucher_line.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('voucher.tax_point_date')
-        .where('account.code', '=', 'CUSTOMER_PREPAYMENTS')
-        .where('voucher_line.is_debit', '=', 0) // credit = liability increase
-        .execute();
-
-      for (const v of prepayVouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: v.base_amount - alreadyMatched,
+      const arCandidates =
+        await this.outstandingVouchers.findArCandidatesByCounterparty(entityId);
+      const prepaymentCandidates =
+        await this.outstandingVouchers.findCustomerPrepaymentCandidates(
           entityId,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: true,
-        });
-      }
-    } else {
-      // AP vouchers from posted expenses linked to this supplier.
-      const apVouchers = await this.db
-        .selectFrom('expense')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'expense.voucher_id',
-        )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'expense.voucher_id')
-        .select('expense.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('expense.supplier_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('expense.supplier_id', '=', entityId)
-        .where('expense.status', '=', 'posted')
-        .where('expense.voucher_id', 'is not', null)
-        .where('account.code', '=', 'AP')
-        .where('voucher_line.is_debit', '=', 0) // AP is a credit (liability)
-        .execute();
-
-      for (const v of apVouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: v.base_amount - alreadyMatched,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
+        );
+      return [...arCandidates, ...prepaymentCandidates];
     }
-
-    return candidates;
+    return this.outstandingVouchers.findApCandidatesByCounterparty(entityId);
   }
 
   /**
    * Get candidate vouchers by amount and date window (no entity filter).
-   * Fallback when no invoice number or counterparty match is found.
+   * Fallback when no invoice number or counterparty match is found. The
+   * ±7-day window, join chain, and single remaining-balance path all live in
+   * {@link OutstandingVoucherService}; the `remaining <= 0` skip stays here so
+   * the proposal-building loops below see only positive-balance candidates.
    */
   private async getCandidateVouchersByAmountAndDate(
     _absAmount: number,
     transactionDate: string,
     isIncoming: boolean,
   ): Promise<CandidateVoucher[]> {
-    const candidates: CandidateVoucher[] = [];
-    const txDate = new Date(transactionDate);
-    const windowStart = new Date(txDate);
-    windowStart.setDate(windowStart.getDate() - DATE_WINDOW_DAYS);
-    const windowEnd = new Date(txDate);
-    windowEnd.setDate(windowEnd.getDate() + DATE_WINDOW_DAYS);
-
-    const accountCode = isIncoming ? 'AR' : 'AP';
-    const windowStartStr = windowStart.toISOString().slice(0, 10);
-    const windowEndStr = windowEnd.toISOString().slice(0, 10);
-
-    if (isIncoming) {
-      const vouchers = await this.db
-        .selectFrom('sales_invoice')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'sales_invoice.voucher_id',
+    const candidates = isIncoming
+      ? await this.outstandingVouchers.findArCandidatesByAmountAndDate(
+          transactionDate,
         )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'sales_invoice.voucher_id')
-        .select('sales_invoice.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('sales_invoice.customer_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('sales_invoice.status', '=', 'posted')
-        .where('sales_invoice.voucher_id', 'is not', null)
-        .where('account.code', '=', accountCode)
-        .where('voucher_line.is_debit', '=', 1)
-        .where('voucher.tax_point_date', '>=', windowStartStr)
-        .where('voucher.tax_point_date', '<=', windowEndStr)
-        .execute();
-
-      for (const v of vouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        const remaining = v.base_amount - alreadyMatched;
-        if (remaining <= 0) continue;
-
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: remaining,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
-    } else {
-      const vouchers = await this.db
-        .selectFrom('expense')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'expense.voucher_id',
-        )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'expense.voucher_id')
-        .select('expense.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('expense.supplier_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('expense.status', '=', 'posted')
-        .where('expense.voucher_id', 'is not', null)
-        .where('account.code', '=', accountCode)
-        .where('voucher_line.is_debit', '=', 0) // AP is a credit (liability)
-        .where('voucher.tax_point_date', '>=', windowStartStr)
-        .where('voucher.tax_point_date', '<=', windowEndStr)
-        .execute();
-
-      for (const v of vouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        const remaining = v.base_amount - alreadyMatched;
-        if (remaining <= 0) continue;
-
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: remaining,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
-    }
-
-    return candidates;
+      : await this.outstandingVouchers.findApCandidatesByAmountAndDate(
+          transactionDate,
+        );
+    return candidates.filter((c) => c.remainingBalance > 0);
   }
 
   /**
-   * Get the total already-matched amount for a voucher from reconciliation_match.
-   */
-  private async getAlreadyMatched(voucherId: number): Promise<number> {
-    const result = await this.db
-      .selectFrom('reconciliation_match')
-      .select((eb) => eb.fn.sum<number>('amount_matched').as('total'))
-      .where('voucher_id', '=', voucherId)
-      .executeTakeFirst();
-
-    return result?.total ?? 0;
-  }
-
-  /**
-   * Test-only public wrapper around {@link getRemainingVoucherBalance}.
+   * Test-only public wrapper around the consolidated remaining-balance path.
    */
   getRemainingVoucherBalanceForTest(voucherId: number): Promise<number> {
-    return this.getRemainingVoucherBalance(voucherId);
-  }
-
-  /**
-   * Get the remaining unmatched balance for a voucher.
-   */
-  private async getRemainingVoucherBalance(voucherId: number): Promise<number> {
-    // Total AR/AP base of the voucher, netted by debit/credit sign (canonical
-    // maths in LedgerBalanceService), minus what's already matched.
-    const totalBase = await this.ledgerBalance.getVoucherNetBase(voucherId, [
-      'AR',
-      'AP',
-    ]);
-    if (totalBase === 0) return 0;
-
-    const alreadyMatched = await this.getAlreadyMatched(voucherId);
-    return Math.max(0, totalBase - alreadyMatched);
+    return this.outstandingVouchers.getRemainingVoucherBalance(voucherId);
   }
 
   /**

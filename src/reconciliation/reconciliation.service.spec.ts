@@ -19,6 +19,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
 
 /**
@@ -60,6 +61,7 @@ describe('ReconciliationService (integration)', () => {
         CurrencyService,
         FXRealizedService,
         LedgerBalanceService,
+        OutstandingVoucherService,
         ReconciliationService,
       ],
     }).compile();
@@ -999,6 +1001,7 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
         CurrencyService,
         FXRealizedService,
         LedgerBalanceService,
+        OutstandingVoucherService,
         ReconciliationService,
       ],
     })

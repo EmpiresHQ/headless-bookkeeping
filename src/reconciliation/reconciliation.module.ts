@@ -8,6 +8,7 @@ import { PluginsModule } from '../plugins/plugins.module';
 import { CurrencyModule } from '../currency/currency.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { ReconciliationService } from './reconciliation.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { ReconciliationController } from './reconciliation.controller';
 import { PrepaymentService } from './prepayment.service';
 import { PrepaymentController } from './prepayment.controller';
@@ -29,6 +30,7 @@ import { FXRealizedController } from './fx-realized.controller';
   ],
   providers: [
     ReconciliationService,
+    OutstandingVoucherService,
     PrepaymentService,
     PersonalDispositionService,
     FXRealizedService,

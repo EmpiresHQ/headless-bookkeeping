@@ -19,6 +19,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
 
 /**
@@ -71,6 +72,7 @@ describe('FXRealizedService (integration)', () => {
         CurrencyService,
         FXRealizedService,
         LedgerBalanceService,
+        OutstandingVoucherService,
         ReconciliationService,
       ],
     }).compile();
@@ -887,6 +889,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         CurrencyService,
         FXRealizedService,
         LedgerBalanceService,
+        OutstandingVoucherService,
         ReconciliationService,
       ],
     })
