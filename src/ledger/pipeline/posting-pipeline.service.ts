@@ -1,12 +1,7 @@
-import {
-  Injectable,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
-import { AccountService } from '../account/account.service';
 import { RulesService } from '../../rules/rules.service';
 import { PolicyService } from '../../policy/policy.service';
 import { PostingService } from '../posting/posting.service';
@@ -71,7 +66,6 @@ export interface PostingPipelineResult {
 export class PostingPipelineService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly accountService: AccountService,
     private readonly rulesService: RulesService,
     private readonly policyService: PolicyService,
     private readonly postingService: PostingService,
@@ -84,27 +78,18 @@ export class PostingPipelineService {
     // ── 1. Generate transient draft voucher ────────────────────
     const draft = await params.draftGenerator();
 
-    // ── 2. Resolve account codes and build ResolvedLine[] ───────────────────────────────
-    const codes = [...new Set(draft.lines.map((l) => l.account_code))];
-    const accounts = await this.accountService.getAccountsByCodes(codes);
-    const byCode = new Map(accounts.map((a) => [a.code, a]));
+    // ── 2. Resolve account codes (THE single resolver, ADR-0019) and enrich
+    // with the vat_code + category the Rules/Policy tiers need. Account
+    // resolution itself lives only in PostingService.resolveLines.
+    const { resolved, accounts } =
+      await this.postingService.resolveLines(draft);
     const validAccountIds = new Set(accounts.map((a) => a.id));
 
-    const resolvedLines: ResolvedLine[] = draft.lines.map((l) => {
-      const account = byCode.get(l.account_code) || { id: -1, currency: null };
-      const { id: account_id, currency: account_currency } = account;
-      return {
-        account_id,
-        amount: l.amount,
-        currency: l.currency,
-        base_amount: l.base_amount,
-        fx_rate: l.fx_rate,
-        is_debit: l.is_debit,
-        account_currency: account_currency,
-        vat_code: l.vat_code ?? 'NULL_STANDARD',
-        category: params.category,
-      };
-    });
+    const resolvedLines: ResolvedLine[] = resolved.map((l, i) => ({
+      ...l,
+      vat_code: draft.lines[i].vat_code ?? 'NULL_STANDARD',
+      category: params.category,
+    }));
 
     // ── 4. Build semantic validation context ───────────────────
     const org = await this.organizationService.getOrganization();
@@ -213,27 +198,15 @@ export class PostingPipelineService {
     try {
       const result = await this.db.transaction().execute(async (trx) => {
         // ── Atomic idempotency claim (ADR-0021) ──────────────────
-        // Conditional UPDATE: only transition from 'draft' succeeds.
-        // Zero rows affected → already claimed/posted → ConflictException.
-        const now = Math.floor(Date.now() / 1000);
-        const claimed = await trx
-          .updateTable(params.businessObjectType)
-          .set({ status: 'posted', updated_at: now })
-          .where('id', '=', params.businessObjectId)
-          .where('status', '=', 'draft')
-          .returning('id')
-          .executeTakeFirst();
-
-        if (!claimed) {
-          const current = await trx
-            .selectFrom(params.businessObjectType)
-            .select('status')
-            .where('id', '=', params.businessObjectId)
-            .executeTakeFirst();
-          throw new ConflictException(
-            `${this.label(params.businessObjectType)} ${params.businessObjectId} is already ${current?.status ?? 'unknown'}`,
-          );
-        }
+        // THE single claim, parameterized by the expected prior status
+        // (`draft` here). Zero rows → already claimed/posted → Conflict.
+        await this.postingService.claimObjectStatus(
+          trx,
+          params.businessObjectType,
+          params.businessObjectId,
+          'draft',
+          'posted',
+        );
 
         const voucher = await this.postingService.postVoucherTx(
           trx,
@@ -242,6 +215,7 @@ export class PostingPipelineService {
         );
 
         // Update voucher_id on the already-claimed object
+        const now = Math.floor(Date.now() / 1000);
         await trx
           .updateTable(params.businessObjectType)
           .set({ voucher_id: voucher.id, updated_at: now })
@@ -282,36 +256,21 @@ export class PostingPipelineService {
   }
 
   /**
-   * Atomic conditional claim for the hold-for-approval path.
-   * Transitions status from 'draft' to 'pending' only if the object
-   * is still in 'draft'. Throws ConflictException if already claimed.
+   * Atomic conditional claim for the hold-for-approval path. Transitions
+   * status from 'draft' to 'pending' only if the object is still in 'draft',
+   * via the single claim helper (ADR-0021). Throws ConflictException if
+   * already claimed.
    */
   private async claimForApproval(
     type: 'expense' | 'sales_invoice',
     id: number,
   ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    const claimed = await this.db
-      .updateTable(type)
-      .set({ status: 'pending', updated_at: now })
-      .where('id', '=', id)
-      .where('status', '=', 'draft')
-      .returning('id')
-      .executeTakeFirst();
-
-    if (!claimed) {
-      const current = await this.db
-        .selectFrom(type)
-        .select('status')
-        .where('id', '=', id)
-        .executeTakeFirst();
-      throw new ConflictException(
-        `${this.label(type)} ${id} is already ${current?.status ?? 'unknown'}`,
-      );
-    }
-  }
-
-  private label(type: 'expense' | 'sales_invoice'): string {
-    return type === 'expense' ? 'Expense' : 'SalesInvoice';
+    await this.postingService.claimObjectStatus(
+      this.db,
+      type,
+      id,
+      'draft',
+      'pending',
+    );
   }
 }

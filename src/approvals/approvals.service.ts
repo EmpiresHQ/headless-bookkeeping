@@ -7,9 +7,8 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
-import { AccountService } from '../ledger/account/account.service';
 import { PostingService } from '../ledger/posting/posting.service';
-import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
+import { ValidationError } from '../ledger/posting/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import {
@@ -35,9 +34,7 @@ import { PostedVoucher } from '../ledger/voucher/types';
 export class ApprovalsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly accountService: AccountService,
     private readonly postingService: PostingService,
-    private readonly validation: LedgerValidationService,
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
   ) {}
@@ -70,25 +67,17 @@ export class ApprovalsService {
     }
 
     const result = await this.db.transaction().execute(async (trx) => {
-      // Transition business object from draft → pending
-      const claimed = await trx
-        .updateTable(dto.object_type)
-        .set({ status: 'pending', updated_at: now })
-        .where('id', '=', dto.object_id)
-        .where('status', '=', 'draft')
-        .returning('id')
-        .executeTakeFirst();
-
-      if (!claimed) {
-        const current = await trx
-          .selectFrom(dto.object_type)
-          .select('status')
-          .where('id', '=', dto.object_id)
-          .executeTakeFirst();
-        throw new ConflictException(
-          `${this.label(dto.object_type)} ${dto.object_id} is ${current?.status ?? 'unknown'}, expected draft`,
-        );
-      }
+      // Transition business object from draft → pending via the single claim
+      // helper (ADR-0021), matching the pipeline's hold-for-approval claim.
+      await this.postingService.claimObjectStatus(
+        trx,
+        dto.object_type,
+        dto.object_id,
+        'draft',
+        'pending',
+        (actual) =>
+          `${this.label(dto.object_type)} ${dto.object_id} is ${actual}, expected draft`,
+      );
 
       // Create the approval record
       const approval = await trx
@@ -144,63 +133,44 @@ export class ApprovalsService {
       approval.object_id,
     );
 
-    const codes = [...new Set(draft.lines.map((l) => l.account_code))];
-    const accounts = await this.accountService.getAccountsByCodes(codes);
-    const byCode = new Map(accounts.map((a) => [a.code, a]));
-
-    const resolved = draft.lines.map((l) => {
-      const account = byCode.get(l.account_code);
-      return {
-        account_id: account?.id ?? -1,
-        amount: l.amount,
-        currency: l.currency,
-        base_amount: l.base_amount,
-        fx_rate: l.fx_rate,
-        is_debit: l.is_debit,
-        account_currency: account?.currency ?? null,
-      };
-    });
-
-    // Structural validation: postVoucherTx trusts its caller (it does NOT
-    // re-validate), so the approval path must validate the re-derived draft
-    // itself — otherwise an unbalanced/invalid draft would post unchecked.
-    const validIds = new Set(accounts.map((a) => a.id));
-    const validationResult = this.validation.validateVoucherLines(
-      resolved,
-      validIds,
-    );
-    if (!validationResult.isValid) {
-      throw new BadRequestException(validationResult.errors.join('; '));
+    // Resolve + structurally validate the re-derived draft through the single
+    // write path (ADR-0019). An Approval re-derives its draft at post time
+    // (ADR-0015); the semantic tier already passed at submit, so this posts as
+    // a system-generated marker (structural + hard-process only). prepare()
+    // throws ValidationError on a structural failure — re-thrown as 400 to
+    // preserve the prior error type.
+    let prepared;
+    try {
+      prepared = await this.postingService.prepare(draft, {
+        kind: 'system-generated',
+      });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        throw new BadRequestException(err.errors.join('; '));
+      }
+      throw err;
     }
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Post the voucher and update everything atomically
+    // Post the voucher and update everything atomically. The idempotency claim
+    // is THE single claim helper, with `pending` as the expected prior status
+    // (ADR-0021) — the same guarantee the auto-post path gets with `draft`.
     const voucher = await this.db.transaction().execute(async (trx) => {
-      // Transition business object from pending → posted
-      const claimed = await trx
-        .updateTable(approval.object_type)
-        .set({ status: 'posted', updated_at: now })
-        .where('id', '=', approval.object_id)
-        .where('status', '=', 'pending')
-        .returning('id')
-        .executeTakeFirst();
-
-      if (!claimed) {
-        const current = await trx
-          .selectFrom(approval.object_type)
-          .select('status')
-          .where('id', '=', approval.object_id)
-          .executeTakeFirst();
-        throw new ConflictException(
-          `${this.label(approval.object_type)} ${approval.object_id} is ${current?.status ?? 'unknown'}, expected pending`,
-        );
-      }
+      await this.postingService.claimObjectStatus(
+        trx,
+        approval.object_type,
+        approval.object_id,
+        'pending',
+        'posted',
+        (actual) =>
+          `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected pending`,
+      );
 
       const voucher = await this.postingService.postVoucherTx(
         trx,
         draft,
-        resolved,
+        prepared.resolved,
       );
 
       // Update voucher_id on the business object
