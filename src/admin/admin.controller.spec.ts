@@ -14,6 +14,12 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminKeyGuard } from './admin-key.guard';
 
+/**
+ * supertest types `res.body` as `any`; cast it to the asserted shape so member
+ * access is type-checked (satisfies @typescript-eslint/no-unsafe-member-access).
+ */
+const jsonBody = <T>(res: { body: unknown }): T => res.body as T;
+
 describe('AdminController (integration)', () => {
   let app: INestApplication;
   let db: Kysely<Database>;
@@ -92,9 +98,14 @@ describe('AdminController (integration)', () => {
       .get('/admin/health')
       .expect(200)
       .expect((res) => {
-        expect(res.body.status).toBe('ok');
-        expect(res.body.timestamp).toBeDefined();
-        expect(res.body.db).toBe(true);
+        const health = jsonBody<{
+          status: string;
+          timestamp: string;
+          db: boolean;
+        }>(res);
+        expect(health.status).toBe('ok');
+        expect(health.timestamp).toBeDefined();
+        expect(health.db).toBe(true);
       });
   });
 
@@ -106,11 +117,13 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
+    const accounts =
+      jsonBody<Array<Record<string, unknown> & { balance: number }>>(res);
+    expect(Array.isArray(accounts)).toBe(true);
+    expect(accounts.length).toBeGreaterThan(0);
 
     // Each account should have a balance field
-    for (const account of res.body) {
+    for (const account of accounts) {
       expect(account).toHaveProperty('id');
       expect(account).toHaveProperty('code');
       expect(account).toHaveProperty('name');
@@ -161,9 +174,10 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    const target = res.body.find((a: { code: string }) => a.code === 'CASH');
+    const accounts = jsonBody<Array<{ code: string; balance: number }>>(res);
+    const target = accounts.find((a) => a.code === 'CASH');
     expect(target).toBeDefined();
-    expect(target.balance).toBe(10000);
+    expect(target!.balance).toBe(10000);
   });
 
   // ── GET /admin/vouchers ─────────────────────────────────────────────
@@ -193,8 +207,9 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(2);
+    const vouchers = jsonBody<unknown[]>(res);
+    expect(Array.isArray(vouchers)).toBe(true);
+    expect(vouchers.length).toBe(2);
   });
 
   it('GET /admin/vouchers supports from/to date range filter', async () => {
@@ -233,8 +248,9 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(res.body.length).toBe(1);
-    expect(res.body[0].voucher_number).toBe('V-000002');
+    const filtered = jsonBody<Array<{ voucher_number: string }>>(res);
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].voucher_number).toBe('V-000002');
   });
 
   // ── GET /admin/vouchers/:id ────────────────────────────────────────
@@ -277,11 +293,16 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(res.body.id).toBe(1);
-    expect(res.body.voucher_number).toBe('V-000001');
-    expect(Array.isArray(res.body.lines)).toBe(true);
-    expect(res.body.lines.length).toBe(1);
-    expect(res.body.lines[0].base_amount).toBe(5000);
+    const voucher = jsonBody<{
+      id: number;
+      voucher_number: string;
+      lines: Array<{ base_amount: number }>;
+    }>(res);
+    expect(voucher.id).toBe(1);
+    expect(voucher.voucher_number).toBe('V-000001');
+    expect(Array.isArray(voucher.lines)).toBe(true);
+    expect(voucher.lines.length).toBe(1);
+    expect(voucher.lines[0].base_amount).toBe(5000);
   });
 
   it('GET /admin/vouchers/:id returns 404 for unknown voucher', async () => {
@@ -322,7 +343,7 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(201);
 
-    expect(res.body.status).toBe('locked');
+    expect(jsonBody<{ status: string }>(res).status).toBe('locked');
   });
 
   // ── GET /admin/approvals ───────────────────────────────────────────
@@ -345,8 +366,9 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(1);
+    const approvals = jsonBody<unknown[]>(res);
+    expect(Array.isArray(approvals)).toBe(true);
+    expect(approvals.length).toBe(1);
   });
 
   // ── GET /admin/approvals/pending ───────────────────────────────────
@@ -382,8 +404,9 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(res.body.length).toBe(1);
-    expect(res.body[0].status).toBe('pending');
+    const pending = jsonBody<Array<{ status: string }>>(res);
+    expect(pending.length).toBe(1);
+    expect(pending[0].status).toBe('pending');
   });
 
   // ── GET /admin/findings ────────────────────────────────────────────
@@ -406,8 +429,9 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(1);
+    const findings = jsonBody<unknown[]>(res);
+    expect(Array.isArray(findings)).toBe(true);
+    expect(findings.length).toBe(1);
   });
 
   // ── GET /admin/findings/open ───────────────────────────────────────
@@ -442,7 +466,8 @@ describe('AdminController (integration)', () => {
       .set('x-admin-key', 'dev')
       .expect(200);
 
-    expect(res.body.length).toBe(1);
-    expect(res.body[0].status).toBe('open');
+    const openFindings = jsonBody<Array<{ status: string }>>(res);
+    expect(openFindings.length).toBe(1);
+    expect(openFindings[0].status).toBe('open');
   });
 });
