@@ -1,6 +1,5 @@
 import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { MastraService } from '../src/ai/mastra.service';
-import { ApiTokenGuard } from '../src/auth/api-token.guard';
 
 export const fauxMastraService: MastraService = {
   onModuleInit: async () => {},

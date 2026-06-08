@@ -144,7 +144,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): confidence→Policy gate + AI provenance audit`
 
-- [ ] 45. Wire triage to the real pipeline + intake e2e
+- [x] 45. Wire triage to the real pipeline + intake e2e
 
   **What to do**:
   - Replace the Wave-4 `OcrService.extract()` stub usage in `TriageService` with the real Workflow (Tasks 41-43); triage now produces real drafts with real confidence + document tax-point date.

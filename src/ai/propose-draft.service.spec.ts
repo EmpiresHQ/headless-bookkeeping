@@ -27,7 +27,7 @@ describe('ProposeDraftService (integration)', () => {
   let module: TestingModule;
   let service: ProposeDraftService;
   let expensesService: ExpensesService;
-  let policyService: PolicyService;
+  let _policyService: PolicyService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -66,7 +66,7 @@ describe('ProposeDraftService (integration)', () => {
 
     service = module.get(ProposeDraftService);
     expensesService = module.get(ExpensesService);
-    policyService = module.get(PolicyService);
+    _policyService = module.get(PolicyService);
   });
 
   afterEach(async () => {
@@ -221,7 +221,10 @@ describe('ProposeDraftService (integration)', () => {
       expect(proposals[0].confidence).toBe(0.94);
       expect(proposals[0].raw_triage_result).toBeDefined();
       // Verify the stored JSON can be parsed back.
-      const parsed = JSON.parse(proposals[0].raw_triage_result!);
+      const parsed = JSON.parse(proposals[0].raw_triage_result!) as {
+        kind: string;
+        confidence: number;
+      };
       expect(parsed.kind).toBe('new_expense');
       expect(parsed.confidence).toBe(0.94);
     });

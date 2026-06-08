@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -21,23 +22,29 @@ describe('Pass2AgentService', () => {
   let mastraService: MastraService;
 
   // Mock classes for Mastra initialization.
-  const MockMastra = jest.fn().mockImplementation((config) => ({
-    agents: config.agents,
-    storage: config.storage,
-  }));
+  const MockMastra = jest
+    .fn()
+    .mockImplementation((config: Record<string, unknown>) => ({
+      agents: config.agents,
+      storage: config.storage,
+    }));
 
-  const MockAgent = jest.fn().mockImplementation((config) => ({
-    id: config.id,
-    name: config.name,
-    instructions: config.instructions,
-    tools: config.tools,
-    structuredOutput: jest.fn(),
-  }));
+  const MockAgent = jest
+    .fn()
+    .mockImplementation((config: Record<string, unknown>) => ({
+      id: config.id,
+      name: config.name,
+      instructions: config.instructions,
+      tools: config.tools,
+      structuredOutput: jest.fn(),
+    }));
 
-  const MockLibSQLStore = jest.fn().mockImplementation((config) => ({
-    id: config.id,
-    url: config.url,
-  }));
+  const MockLibSQLStore = jest
+    .fn()
+    .mockImplementation((config: Record<string, unknown>) => ({
+      id: config.id,
+      url: config.url,
+    }));
 
   const sampleTriageResult = (): TriageResult => ({
     kind: 'new_expense',
@@ -188,7 +195,7 @@ describe('Pass2AgentService', () => {
       expect(keys).not.toContain('account');
     });
 
-    it('agent uses the correct read-only tool set', async () => {
+    it('agent uses the correct read-only tool set', () => {
       const agent = mastraService.getAgent();
       const toolNames = Object.keys(agent.tools || {});
 

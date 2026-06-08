@@ -143,15 +143,18 @@ export class IntakeWorkflowService {
           'Duplicate kind detected — requires human review (stub, Task 43)',
         );
 
-      default:
+      default: {
         // Exhaustiveness guard — should never happen with the Zod schema.
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+        const unexpectedKind = (triageResult as any).kind;
         this.logger.error(
-          `Unexpected triage kind "${(triageResult as any).kind}" for document ${documentId}`,
+          `Unexpected triage kind "${unexpectedKind}" for document ${documentId}`,
         );
         return this.needsTriage(
           documentId,
-          `Unexpected triage kind: ${(triageResult as any).kind}`,
+          `Unexpected triage kind: ${unexpectedKind}`,
         );
+      }
     }
   }
 

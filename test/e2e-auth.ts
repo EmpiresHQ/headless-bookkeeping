@@ -19,8 +19,8 @@ export async function seedApiToken(db: Kysely<any>): Promise<string> {
  * Supertest request extension that adds the Bearer token header.
  */
 export function auth(
-  req: { set: (header: string, value: string) => any },
+  req: { set: (header: string, value: string) => unknown },
   token: string,
-) {
-  return req.set('Authorization', `Bearer ${token}`);
+): void {
+  req.set('Authorization', `Bearer ${token}`);
 }

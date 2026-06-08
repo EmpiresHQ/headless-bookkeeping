@@ -88,8 +88,8 @@ export function createListCategoriesTool() {
       'List all available expense categories. These are user-facing labels that map to accounting accounts and VAT codes.',
     inputSchema: listCategoriesOutputSchema,
     outputSchema: listCategoriesOutputSchema,
-    execute: async (): Promise<string[]> => {
-      return CANONICAL_CATEGORIES;
+    execute: (): Promise<string[]> => {
+      return Promise.resolve(CANONICAL_CATEGORIES);
     },
   };
 }

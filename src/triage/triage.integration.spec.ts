@@ -13,7 +13,6 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
-import { ConversationsService } from '../conversations/conversations.service';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { TriageService } from './triage.service';
 
@@ -29,8 +28,8 @@ describe('TriageService (integration)', () => {
   let db: Kysely<Database>;
   let triage: TriageService;
   let documents: DocumentsService;
-  let expenses: ExpensesService;
-  let salesInvoices: SalesInvoicesService;
+  let _expenses: ExpensesService;
+  let _salesInvoices: SalesInvoicesService;
 
   const mockWorkflow = {
     process: jest.fn(),
@@ -69,8 +68,8 @@ describe('TriageService (integration)', () => {
 
     triage = module.get(TriageService);
     documents = module.get(DocumentsService);
-    expenses = module.get(ExpensesService);
-    salesInvoices = module.get(SalesInvoicesService);
+    _expenses = module.get(ExpensesService);
+    _salesInvoices = module.get(SalesInvoicesService);
   });
 
   afterEach(async () => {

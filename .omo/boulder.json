@@ -8,7 +8,7 @@
       "plan_name": "wave-6-agents-admin",
       "status": "completed",
       "started_at": "2026-05-31T20:46:48.010Z",
-      "updated_at": "2026-06-08T19:05:05.986Z",
+      "updated_at": "2026-06-08T19:20:53.355Z",
       "session_ids": [
         "opencode:ses_18035f62fffepbex2WYoi1iIAq",
         "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
@@ -52,7 +52,7 @@
           "category": "quick",
           "started_at": "2026-06-08T18:55:19.302Z",
           "status": "running",
-          "updated_at": "2026-06-08T19:05:05.986Z"
+          "updated_at": "2026-06-08T19:20:53.355Z"
         }
       },
       "ended_at": "2026-06-08T18:14:07.414Z"

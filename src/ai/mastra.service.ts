@@ -1,4 +1,5 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/no-unsafe-assignment */
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EntitiesService } from '../entities/entities.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -11,7 +12,10 @@ import {
 } from './tools';
 
 // Types for the dynamically imported Mastra modules.
+// These are opaque runtime values from dynamic ESM imports.
+
 type MastraInstance = any;
+
 type AgentInstance = any;
 
 /**
@@ -55,13 +59,17 @@ export class MastraService implements OnModuleInit {
    * Accepts optional overrides for testing (mocked Mastra/Agent/LibSQLStore).
    */
   async initialize(overrides?: {
-    MastraClass: any;
-    AgentClass: any;
-    LibSQLStoreClass: any;
+    MastraClass: new (...args: any[]) => any;
+
+    AgentClass: new (...args: any[]) => any;
+
+    LibSQLStoreClass: new (...args: any[]) => any;
   }): Promise<void> {
-    let MastraClass: any;
-    let AgentClass: any;
-    let LibSQLStoreClass: any;
+    let MastraClass: new (...args: any[]) => any;
+
+    let AgentClass: new (...args: any[]) => any;
+
+    let LibSQLStoreClass: new (...args: any[]) => any;
 
     if (overrides) {
       ({ MastraClass, AgentClass, LibSQLStoreClass } = overrides);

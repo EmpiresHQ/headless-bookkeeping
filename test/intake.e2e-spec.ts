@@ -199,7 +199,9 @@ describe('Intake E2E (document → draft → pipeline)', () => {
     expect(proposals).toHaveLength(1);
     expect(proposals[0].business_object_type).toBe('expense');
     expect(proposals[0].confidence).toBe(0.95);
-    const parsed = JSON.parse(proposals[0].raw_triage_result!);
+    const parsed = JSON.parse(proposals[0].raw_triage_result!) as {
+      kind: string;
+    };
     expect(parsed.kind).toBe('new_expense');
 
     // 5. Mark document processed

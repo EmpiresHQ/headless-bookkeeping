@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -18,22 +19,28 @@ describe('MastraService', () => {
   let service: MastraService;
 
   // Mock classes for testing (avoid dynamic ESM imports in Jest).
-  const MockMastra = jest.fn().mockImplementation((config) => ({
-    agents: config.agents,
-    storage: config.storage,
-  }));
+  const MockMastra = jest
+    .fn()
+    .mockImplementation((config: Record<string, unknown>) => ({
+      agents: config.agents,
+      storage: config.storage,
+    }));
 
-  const MockAgent = jest.fn().mockImplementation((config) => ({
-    id: config.id,
-    name: config.name,
-    instructions: config.instructions,
-    tools: config.tools,
-  }));
+  const MockAgent = jest
+    .fn()
+    .mockImplementation((config: Record<string, unknown>) => ({
+      id: config.id,
+      name: config.name,
+      instructions: config.instructions,
+      tools: config.tools,
+    }));
 
-  const MockLibSQLStore = jest.fn().mockImplementation((config) => ({
-    id: config.id,
-    url: config.url,
-  }));
+  const MockLibSQLStore = jest
+    .fn()
+    .mockImplementation((config: Record<string, unknown>) => ({
+      id: config.id,
+      url: config.url,
+    }));
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -78,18 +85,19 @@ describe('MastraService', () => {
   });
 
   describe('initialization', () => {
-    it('resolves in DI and initializes Mastra + agent', async () => {
+    it('resolves in DI and initializes Mastra + agent', () => {
       expect(service).toBeDefined();
       expect(service.isInitialized()).toBe(true);
       expect(service.getMastra()).not.toBeNull();
       expect(service.getAgent()).not.toBeNull();
     });
 
-    it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', async () => {
+    it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', () => {
       const agent = service.getAgent();
       expect(agent).not.toBeNull();
 
-      const toolNames = Object.keys(agent.tools || {});
+      const agentAny = agent;
+      const toolNames = Object.keys(agentAny.tools || {});
       const writeKeywords = ['post', 'createDraft', 'proposeDraft'];
 
       for (const name of toolNames) {
@@ -99,9 +107,11 @@ describe('MastraService', () => {
       }
     });
 
-    it('agent has the expected read-only tools', async () => {
+    it('agent has the expected read-only tools', () => {
       const agent = service.getAgent();
-      const toolNames = Object.keys(agent.tools || {});
+
+      const agentAny = agent;
+      const toolNames = Object.keys(agentAny.tools || {});
 
       expect(toolNames).toContain('searchSuppliers');
       expect(toolNames).toContain('listCategories');

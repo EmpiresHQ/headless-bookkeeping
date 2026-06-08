@@ -3,7 +3,7 @@ import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
-import { existsSync, readFileSync, rmSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
 import { join } from 'path';
 import { NotFoundException } from '@nestjs/common';
 import { Database } from '../database/types';
@@ -16,8 +16,8 @@ import { ConversationsService } from '../conversations/conversations.service';
 describe('OcrService', () => {
   let db: Kysely<Database>;
   let service: OcrService;
-  let documentsService: DocumentsService;
-  let conversationsService: ConversationsService;
+  let _documentsService: DocumentsService;
+  let _conversationsService: ConversationsService;
   const testArtifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
 
   beforeEach(async () => {
@@ -46,8 +46,8 @@ describe('OcrService', () => {
     }).compile();
 
     service = module.get(OcrService);
-    documentsService = module.get(DocumentsService);
-    conversationsService = module.get(ConversationsService);
+    _documentsService = module.get(DocumentsService);
+    _conversationsService = module.get(ConversationsService);
   });
 
   afterEach(async () => {
