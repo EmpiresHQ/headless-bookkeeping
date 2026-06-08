@@ -7,6 +7,7 @@ import { Database } from '../database/types';
 import { DocumentsService } from '../documents/documents.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { TriageResult } from './types';
+import { crc32 } from '../common/crc32.util';
 
 /**
  * Faux OCR model output — deterministic markdown derived from document metadata.
@@ -21,10 +22,9 @@ import { TriageResult } from './types';
 function fauxOcrModel(documentId: number, filename: string): string {
   const lower = filename.toLowerCase();
   // Filename takes precedence; fall back to id parity for ambiguous names.
-  // Determine document type from filename keywords.
-  // Fall back to id parity for ambiguous names that aren't clearly receipts or invoices.
   const isReceipt =
     lower.includes('receipt') ||
+    lower.includes('bolt') ||
     (!lower.includes('invoice') && documentId % 2 === 1);
 
   if (isReceipt) {
@@ -90,14 +90,40 @@ export class OcrService {
     // 1. Look up the document.
     const document = await this.documentsService.getById(documentId);
 
-    // 2. Check for existing OCR markdown artifact (idempotency).
+    // 2. Check for existing OCR markdown artifact (idempotency + change detection).
     const existingArtifact = await this.findExistingOcrArtifact(documentId);
     if (existingArtifact) {
-      return readFileSync(existingArtifact.storage_path, 'utf-8');
+      const storedMarkdown = readFileSync(
+        existingArtifact.storage_path,
+        'utf-8',
+      );
+      if (existingArtifact.crc32 !== null) {
+        const currentCrc = crc32(storedMarkdown);
+        if (currentCrc === existingArtifact.crc32) {
+          return storedMarkdown;
+        }
+        // CRC mismatch: content changed on disk → overwrite file + update row.
+        const markdown = fauxOcrModel(documentId, document.filename);
+        const computedCrc = crc32(markdown);
+        writeFileSync(existingArtifact.storage_path, markdown, 'utf-8');
+        await this.db
+          .updateTable('artifact')
+          .set({
+            crc32: computedCrc,
+            created_at: Math.floor(Date.now() / 1000),
+          })
+          .where('id', '=', existingArtifact.id)
+          .execute();
+        return markdown;
+      } else {
+        // Legacy artifact without CRC: return stored markdown but don't block.
+        return storedMarkdown;
+      }
     }
 
     // 3. Call the OCR model (faux for v1).
     const markdown = fauxOcrModel(documentId, document.filename);
+    const computedCrc = crc32(markdown);
 
     // 4. Write markdown to filesystem.
     const artifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
@@ -114,6 +140,7 @@ export class OcrService {
       kind: 'ocr_markdown',
       storage_path: storagePath,
       document_id: documentId,
+      crc32: computedCrc,
     });
 
     // 6. Also associate the conversation with the document.
@@ -171,10 +198,12 @@ export class OcrService {
    */
   private async findExistingOcrArtifact(
     documentId: number,
-  ): Promise<{ storage_path: string } | undefined> {
+  ): Promise<
+    { id: number; storage_path: string; crc32: number | null } | undefined
+  > {
     return this.db
       .selectFrom('artifact')
-      .select('storage_path')
+      .select(['id', 'storage_path', 'crc32'])
       .where('kind', '=', 'ocr_markdown')
       .where('document_id', '=', documentId)
       .executeTakeFirst();

@@ -26,6 +26,8 @@ import * as m026 from './026_add_ocr_markdown_artifact_kind';
 import * as m027 from './027_add_ai_proposal';
 import * as m028 from './028_create_setting';
 
+import * as m029 from './029_add_artifact_crc32';
+
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
   '002_create_account': m002,
@@ -53,4 +55,5 @@ export const migrations: Record<string, Migration> = {
   '026_add_ocr_markdown_artifact_kind': m026,
   '027_add_ai_proposal': m027,
   '028_create_setting': m028,
+  '029_add_artifact_crc32': m029,
 };

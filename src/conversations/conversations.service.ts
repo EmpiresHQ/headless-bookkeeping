@@ -128,7 +128,7 @@ export class ConversationsService {
    * Inbound attachments feed Document dedup via DocumentsService (caller handles).
    */
   async attachArtifact(input: AttachArtifactInput): Promise<Artifact> {
-    const { conversation_id, kind, storage_path, document_id } = input;
+    const { conversation_id, kind, storage_path, document_id, crc32 } = input;
     const now = Math.floor(Date.now() / 1000);
 
     // Verify conversation exists.
@@ -148,6 +148,7 @@ export class ConversationsService {
         kind,
         storage_path,
         document_id: document_id ?? null,
+        crc32: crc32 ?? null,
         created_at: now,
       })
       .returningAll()
@@ -482,6 +483,7 @@ export class ConversationsService {
     kind: string;
     document_id: number | null;
     storage_path: string;
+    crc32: number | null;
     created_at: number;
   }): Artifact {
     return {
@@ -490,6 +492,7 @@ export class ConversationsService {
       kind: row.kind as Artifact['kind'],
       document_id: row.document_id,
       storage_path: row.storage_path,
+      crc32: row.crc32,
       created_at: row.created_at,
     };
   }

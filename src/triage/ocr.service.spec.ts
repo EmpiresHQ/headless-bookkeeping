@@ -3,7 +3,7 @@ import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { NotFoundException } from '@nestjs/common';
 import { Database } from '../database/types';
@@ -129,7 +129,7 @@ describe('OcrService', () => {
       expect(markdown).toContain('€123.00');
     });
 
-    it('stores markdown as an ocr_markdown artifact', async () => {
+    it('stores markdown as an ocr_markdown artifact with crc32', async () => {
       const docId = await seedDocument('receipt-test.pdf');
       await service.transcribe(docId);
 
@@ -145,6 +145,8 @@ describe('OcrService', () => {
       expect(artifact!.document_id).toBe(docId);
       expect(artifact!.storage_path).toContain('ocr');
       expect(artifact!.storage_path).toContain(`${docId}.md`);
+      expect(artifact!.crc32).not.toBeNull();
+      expect(typeof artifact!.crc32).toBe('number');
     });
 
     it('creates a conversation for the OCR transcription', async () => {
@@ -197,6 +199,35 @@ describe('OcrService', () => {
         .where('document_id', '=', docId)
         .executeTakeFirst();
 
+      expect(Number(count!.cnt)).toBe(1);
+    });
+
+    it('detects content changes via crc32 mismatch and re-transcribes', async () => {
+      const docId = await seedDocument('receipt-test.pdf');
+      const first = await service.transcribe(docId);
+
+      // Simulate an external modification of the stored markdown file.
+      const artifact = await db
+        .selectFrom('artifact')
+        .selectAll()
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', docId)
+        .executeTakeFirstOrThrow();
+
+      writeFileSync(artifact.storage_path, 'tampered content', 'utf-8');
+
+      // Re-run: should detect CRC mismatch, overwrite the file with correct content.
+      const second = await service.transcribe(docId);
+      expect(second).not.toBe('tampered content');
+      expect(second).toBe(first);
+
+      // Still only one artifact row.
+      const count = await db
+        .selectFrom('artifact')
+        .select(db.fn.count('id').as('cnt'))
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', docId)
+        .executeTakeFirst();
       expect(Number(count!.cnt)).toBe(1);
     });
 

@@ -189,6 +189,25 @@ describe('ConversationsService (integration)', () => {
       expect(artifact.kind).toBe('outbound_output');
     });
 
+    it('attaches an ocr_markdown artifact with crc32', async () => {
+      const conv = await service.resolve({
+        channel: 'api',
+        thread_key: 'api-ocr-crc32',
+      });
+
+      const artifact = await service.attachArtifact({
+        conversation_id: conv.id,
+        kind: 'ocr_markdown',
+        storage_path: '/data/artifacts/ocr/42.md',
+        document_id: null,
+        crc32: 123456789,
+      });
+
+      expect(artifact.kind).toBe('ocr_markdown');
+      expect(artifact.document_id).toBeNull();
+      expect(artifact.crc32).toBe(123456789);
+    });
+
     it('throws NotFoundException for non-existent conversation', async () => {
       await expect(
         service.attachArtifact({
