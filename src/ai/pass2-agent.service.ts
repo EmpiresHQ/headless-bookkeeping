@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { Injectable, Logger } from '@nestjs/common';
 import { MastraService } from './mastra.service';
 import { triageResultSchema, TriageResult } from '../triage/types';
@@ -47,7 +46,8 @@ export type Pass2Outcome = Pass2Success | Pass2Failure;
  *
  * Flow:
  * 1. Gets the Mastra agent from MastraService.
- * 2. Calls the agent with the markdown as input via structuredOutput.
+ * 2. Calls `agent.generate(markdown, { structuredOutput: { schema } })` and
+ *    reads the parsed structured object from `result.object`.
  * 3. Validates the output against the TriageResult Zod schema.
  * 4. Bounded retry: if validation fails, retry up to MAX_RETRIES times.
  * 5. After MAX_RETRIES failures, returns null (signals needs_triage).
@@ -87,7 +87,6 @@ export class Pass2AgentService {
       };
     }
 
-    const agentAny = agent;
     // Track whether any attempt produced parseable-but-invalid output (vs.
     // every attempt throwing). The former is an `invalid-output` (the model
     // ran but never satisfied the schema); the latter is `transient`.
@@ -98,9 +97,12 @@ export class Pass2AgentService {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       let rawOutput: unknown;
       try {
-        rawOutput = await agentAny.structuredOutput(markdown, {
-          schema: triageResultSchema,
+        // Real Mastra API: generate() with a `structuredOutput.schema` returns
+        // a FullOutput whose parsed structured object is on `.object`.
+        const result = await agent.generate(markdown, {
+          structuredOutput: { schema: triageResultSchema },
         });
+        rawOutput = result.object;
       } catch (error) {
         sawThrow = true;
         const err = error instanceof Error ? error : new Error(String(error));
@@ -111,8 +113,8 @@ export class Pass2AgentService {
         continue;
       }
 
-      // The call returned — explicit Zod parse in case structuredOutput
-      // returns unvalidated data (model-dependent behavior).
+      // The call returned — explicit Zod parse in case generate()'s structured
+      // output returns unvalidated data (model-dependent behavior).
       const parsed = triageResultSchema.safeParse(rawOutput);
       if (parsed.success) {
         return { ok: true, result: parsed.data };

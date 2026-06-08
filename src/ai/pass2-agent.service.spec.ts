@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -13,39 +12,17 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
+import type { Agent } from '@mastra/core/agent';
 import { MastraService } from './mastra.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { TriageResult } from '../triage/types';
+
+type GenerateResult = Awaited<ReturnType<Agent['generate']>>;
 
 describe('Pass2AgentService', () => {
   let db: Kysely<Database>;
   let service: Pass2AgentService;
   let mastraService: MastraService;
-
-  // Mock classes for Mastra initialization.
-  const MockMastra = jest
-    .fn()
-    .mockImplementation((config: Record<string, unknown>) => ({
-      agents: config.agents,
-      storage: config.storage,
-    }));
-
-  const MockAgent = jest
-    .fn()
-    .mockImplementation((config: Record<string, unknown>) => ({
-      id: config.id,
-      name: config.name,
-      instructions: config.instructions,
-      tools: config.tools,
-      structuredOutput: jest.fn(),
-    }));
-
-  const MockLibSQLStore = jest
-    .fn()
-    .mockImplementation((config: Record<string, unknown>) => ({
-      id: config.id,
-      url: config.url,
-    }));
 
   const sampleTriageResult = (): TriageResult => ({
     kind: 'new_expense',
@@ -92,22 +69,42 @@ describe('Pass2AgentService', () => {
     service = module.get(Pass2AgentService);
     mastraService = module.get(MastraService);
 
-    await mastraService.initialize({
-      MastraClass: MockMastra,
-      AgentClass: MockAgent,
-      LibSQLStoreClass: MockLibSQLStore,
-    });
+    // initialize() statically imports @mastra/*; under Jest those specifiers
+    // map to test/mastra-stub.ts (moduleNameMapper), whose Agent exposes a
+    // jest-spyable generate() returning a FullOutput-shaped object.
+    await mastraService.initialize();
   });
 
   afterEach(async () => {
     await db.destroy();
   });
 
+  /**
+   * Resolve the initialized triage Agent, asserting it is non-null so the spy
+   * has a concrete target (the stub Agent, via moduleNameMapper).
+   */
+  const requireAgent = (): NonNullable<
+    ReturnType<MastraService['getAgent']>
+  > => {
+    const agent = mastraService.getAgent();
+    if (!agent) throw new Error('agent not initialized');
+    return agent;
+  };
+
+  /**
+   * Build a FullOutput-shaped result for the real `generate()` contract — the
+   * parsed structured object lives on `.object`.
+   */
+  const generateOutput = (object: unknown): GenerateResult =>
+    ({ object, text: '' }) as unknown as GenerateResult;
+
   describe('classify', () => {
     it('returns a valid TriageResult for well-formed markdown', async () => {
-      const agent = mastraService.getAgent();
+      const agent = requireAgent();
       const mockResult = sampleTriageResult();
-      jest.spyOn(agent, 'structuredOutput').mockResolvedValue(mockResult);
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(mockResult));
 
       const markdown = `
         # Invoice
@@ -129,14 +126,24 @@ describe('Pass2AgentService', () => {
     });
 
     it('returns agent-unavailable when agent is not initialized', async () => {
-      // Create a fresh service with uninitialized MastraService.
-      const uninitializedMastra = new MastraService(
-        null as any,
-        null as any,
-        null as any,
-        null as any,
-        null as any,
-      );
+      // A MastraService whose initialize() was never called leaves getAgent()
+      // null — no DI graph needed to exercise the unavailable path.
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+          OrganizationService,
+          NullCountryPlugin,
+          PluginLoader,
+          CurrencyService,
+          VoucherProjectionService,
+          EntitiesService,
+          ExpensesService,
+          MastraService,
+          Pass2AgentService,
+        ],
+      }).compile();
+
+      const uninitializedMastra = module.get(MastraService);
       const freshService = new Pass2AgentService(uninitializedMastra);
 
       const result = await freshService.classify('some markdown');
@@ -148,17 +155,17 @@ describe('Pass2AgentService', () => {
     });
 
     it('retries on invalid output and reports invalid-output after max attempts', async () => {
-      const agent = mastraService.getAgent();
-      // structuredOutput returns data that fails Zod validation
+      const agent = requireAgent();
+      // generate() resolves with an object that fails Zod validation
       // (missing required fields).
       const invalidOutput = {
         kind: 'new_expense',
         // Missing: document_type, gross_amount, vat_amount, currency,
         // tax_point_date, category, document_vat_marking, confidence
       };
-      jest
-        .spyOn(agent, 'structuredOutput')
-        .mockResolvedValue(invalidOutput as any);
+      const generateSpy = jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(invalidOutput));
 
       const markdown = 'broken invoice content';
       const result = await service.classify(markdown);
@@ -168,18 +175,18 @@ describe('Pass2AgentService', () => {
         expect(result.category).toBe('invalid-output');
       }
       // Verify it was called MAX_RETRIES (3) times.
-      expect(agent.structuredOutput).toHaveBeenCalledTimes(3);
+      expect(generateSpy).toHaveBeenCalledTimes(3);
     });
 
-    it('retries on structuredOutput error and succeeds on second attempt', async () => {
-      const agent = mastraService.getAgent();
+    it('retries on generate() error and succeeds on second attempt', async () => {
+      const agent = requireAgent();
       const mockResult = sampleTriageResult();
 
-      jest
-        .spyOn(agent, 'structuredOutput')
+      const generateSpy = jest
+        .spyOn(agent, 'generate')
         .mockRejectedValueOnce(new Error('LLM timeout'))
         .mockRejectedValueOnce(new Error('LLM rate limit'))
-        .mockResolvedValue(mockResult);
+        .mockResolvedValue(generateOutput(mockResult));
 
       const markdown = 'valid invoice';
       const result = await service.classify(markdown);
@@ -188,13 +195,15 @@ describe('Pass2AgentService', () => {
       if (result.ok) {
         expect(result.result).toEqual(mockResult);
       }
-      expect(agent.structuredOutput).toHaveBeenCalledTimes(3);
+      expect(generateSpy).toHaveBeenCalledTimes(3);
     });
 
     it('output never contains vat_code or account (grep clean)', async () => {
-      const agent = mastraService.getAgent();
+      const agent = requireAgent();
       const mockResult = sampleTriageResult();
-      jest.spyOn(agent, 'structuredOutput').mockResolvedValue(mockResult);
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(mockResult));
 
       const result = await service.classify('test markdown');
 
@@ -209,9 +218,9 @@ describe('Pass2AgentService', () => {
       expect(keys).not.toContain('account');
     });
 
-    it('agent uses the correct read-only tool set', () => {
-      const agent = mastraService.getAgent();
-      const toolNames = Object.keys(agent.tools || {});
+    it('agent uses the correct read-only tool set', async () => {
+      const agent = requireAgent();
+      const toolNames = Object.keys((await agent.listTools()) ?? {});
 
       expect(toolNames).toContain('searchSuppliers');
       expect(toolNames).toContain('listCategories');
@@ -230,10 +239,10 @@ describe('Pass2AgentService', () => {
       }
     });
 
-    it('reports transient when structuredOutput throws every time', async () => {
-      const agent = mastraService.getAgent();
-      jest
-        .spyOn(agent, 'structuredOutput')
+    it('reports transient when generate() throws every time', async () => {
+      const agent = requireAgent();
+      const generateSpy = jest
+        .spyOn(agent, 'generate')
         .mockRejectedValue(new Error('persistent failure'));
 
       const result = await service.classify('any markdown');
@@ -242,16 +251,18 @@ describe('Pass2AgentService', () => {
       if (!result.ok) {
         expect(result.category).toBe('transient');
       }
-      expect(agent.structuredOutput).toHaveBeenCalledTimes(3);
+      expect(generateSpy).toHaveBeenCalledTimes(3);
     });
 
     it('validates currency is 3 characters', async () => {
-      const agent = mastraService.getAgent();
+      const agent = requireAgent();
       const invalidResult = {
         ...sampleTriageResult(),
         currency: 'EURO', // 4 chars, should fail z.string().length(3)
       };
-      jest.spyOn(agent, 'structuredOutput').mockResolvedValue(invalidResult);
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(invalidResult));
 
       const result = await service.classify('test');
 
@@ -262,12 +273,14 @@ describe('Pass2AgentService', () => {
     });
 
     it('validates confidence is between 0 and 1', async () => {
-      const agent = mastraService.getAgent();
+      const agent = requireAgent();
       const invalidResult = {
         ...sampleTriageResult(),
         confidence: 1.5, // > 1, should fail z.number().min(0).max(1)
       };
-      jest.spyOn(agent, 'structuredOutput').mockResolvedValue(invalidResult);
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(invalidResult));
 
       const result = await service.classify('test');
 
@@ -278,12 +291,14 @@ describe('Pass2AgentService', () => {
     });
 
     it('validates kind is a valid enum value', async () => {
-      const agent = mastraService.getAgent();
+      const agent = requireAgent();
       const invalidResult = {
         ...sampleTriageResult(),
         kind: 'invalid_kind',
       };
-      jest.spyOn(agent, 'structuredOutput').mockResolvedValue(invalidResult);
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(invalidResult));
 
       const result = await service.classify('test');
 

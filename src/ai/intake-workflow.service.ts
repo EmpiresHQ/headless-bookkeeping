@@ -127,6 +127,11 @@ export class IntakeWorkflowService {
     // ── Deterministic routing — the ONE place that decides ──────
     const threshold = this.policyService.getConfig().auto_post_min_confidence;
 
+    // Capture the discriminant up front: in the exhaustive `default` branch
+    // `triageResult` narrows to `never`, so the unexpected value has to be read
+    // from a variable widened to `string` rather than the narrowed local.
+    const triageKind: string = triageResult.kind;
+
     switch (triageResult.kind) {
       case 'new_expense':
         if (triageResult.confidence >= threshold) {
@@ -178,8 +183,7 @@ export class IntakeWorkflowService {
 
       default: {
         // Exhaustiveness guard — should never happen with the Zod schema.
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-        const unexpectedKind = (triageResult as any).kind;
+        const unexpectedKind = triageKind;
         this.logger.error(
           `Unexpected triage kind "${unexpectedKind}" for document ${documentId}`,
         );

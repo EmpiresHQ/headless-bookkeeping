@@ -81,6 +81,11 @@
     "transformIgnorePatterns": [
       "node_modules/(?!(kysely|nestjs-kysely)/)"
     ],
+    "moduleNameMapper": {
+      "^@mastra/core$": "<rootDir>/../test/mastra-stub.ts",
+      "^@mastra/core/agent$": "<rootDir>/../test/mastra-stub.ts",
+      "^@mastra/libsql$": "<rootDir>/../test/mastra-stub.ts"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -18,31 +17,6 @@ import { MastraService } from './mastra.service';
 describe('MastraService', () => {
   let db: Kysely<Database>;
   let service: MastraService;
-
-  // Mock classes for testing (avoid dynamic ESM imports in Jest).
-  const MockMastra = jest
-    .fn()
-    .mockImplementation((config: Record<string, unknown>) => ({
-      agents: config.agents,
-      storage: config.storage,
-    }));
-
-  const MockAgent = jest
-    .fn()
-    .mockImplementation((config: Record<string, unknown>) => ({
-      id: config.id,
-      name: config.name,
-      instructions: config.instructions,
-      tools: config.tools,
-      model: config.model,
-    }));
-
-  const MockLibSQLStore = jest
-    .fn()
-    .mockImplementation((config: Record<string, unknown>) => ({
-      id: config.id,
-      url: config.url,
-    }));
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -75,12 +49,10 @@ describe('MastraService', () => {
 
     service = module.get(MastraService);
 
-    // Initialize with mock classes instead of dynamic imports.
-    await service.initialize({
-      MastraClass: MockMastra,
-      AgentClass: MockAgent,
-      LibSQLStoreClass: MockLibSQLStore,
-    });
+    // initialize() statically imports @mastra/*; under Jest those specifiers
+    // are mapped to test/mastra-stub.ts (see moduleNameMapper), so the real
+    // API is exercised against the stub classes.
+    await service.initialize();
   });
 
   afterEach(async () => {
@@ -95,12 +67,11 @@ describe('MastraService', () => {
       expect(service.getAgent()).not.toBeNull();
     });
 
-    it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', () => {
+    it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', async () => {
       const agent = service.getAgent();
       expect(agent).not.toBeNull();
 
-      const agentAny = agent;
-      const toolNames = Object.keys(agentAny.tools || {});
+      const toolNames = Object.keys((await agent?.listTools()) ?? {});
       const writeKeywords = ['post', 'createDraft', 'proposeDraft'];
 
       for (const name of toolNames) {
@@ -110,11 +81,10 @@ describe('MastraService', () => {
       }
     });
 
-    it('agent has the expected read-only tools', () => {
+    it('agent has the expected read-only tools', async () => {
       const agent = service.getAgent();
 
-      const agentAny = agent;
-      const toolNames = Object.keys(agentAny.tools || {});
+      const toolNames = Object.keys((await agent?.listTools()) ?? {});
 
       expect(toolNames).toContain('searchSuppliers');
       expect(toolNames).toContain('listCategories');
@@ -128,7 +98,7 @@ describe('MastraService', () => {
     it('falls back to the default model when no setting row exists', () => {
       const agent = service.getAgent();
       expect(agent).not.toBeNull();
-      expect(agent.model).toBe('openai/gpt-4o-mini');
+      expect(agent?.model).toBe('openai/gpt-4o-mini');
     });
 
     it('reads the model from the settings table', async () => {
@@ -141,25 +111,11 @@ describe('MastraService', () => {
         })
         .execute();
 
-      const freshMockAgent = jest
-        .fn()
-        .mockImplementation((config: Record<string, unknown>) => ({
-          id: config.id,
-          name: config.name,
-          instructions: config.instructions,
-          tools: config.tools,
-          model: config.model,
-        }));
-
-      await service.initialize({
-        MastraClass: MockMastra,
-        AgentClass: freshMockAgent,
-        LibSQLStoreClass: MockLibSQLStore,
-      });
+      await service.initialize();
 
       const agent = service.getAgent();
       expect(agent).not.toBeNull();
-      expect(agent.model).toBe('openai/gpt-4o');
+      expect(agent?.model).toBe('openai/gpt-4o');
     });
   });
 });
