@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { AccountService } from '../ledger/account/account.service';
@@ -22,6 +23,7 @@ import { CorrectionParams } from './types/correction-params.type';
 export class CorrectionsService {
   constructor(
     private readonly postingService: PostingService,
+    private readonly statusTransition: StatusTransitionService,
     private readonly voucherRepository: VoucherRepository,
     private readonly voucherLineRepository: VoucherLineRepository,
     private readonly accountService: AccountService,
@@ -47,8 +49,6 @@ export class CorrectionsService {
         this.expensesService.previewPatchedDraft(id, patch),
       patchAmountsTx: (trx, patch) =>
         this.expensesService.patchAmountsTx(trx, id, patch),
-      markReversedTx: (trx, voucherId) =>
-        this.expensesService.markReversedTx(trx, id, voucherId),
     });
   }
 
@@ -70,8 +70,6 @@ export class CorrectionsService {
         this.salesInvoicesService.previewPatchedDraft(id, patch),
       patchAmountsTx: (trx, patch) =>
         this.salesInvoicesService.patchAmountsTx(trx, id, patch),
-      markReversedTx: (trx, voucherId) =>
-        this.salesInvoicesService.markReversedTx(trx, id, voucherId),
     });
   }
 
@@ -166,8 +164,19 @@ export class CorrectionsService {
                 await params.patchAmountsTx(trx, request.patch);
               }
             },
+            // Flip the object posted → reversed and re-point it at the
+            // corrected voucher, through the single status-transition seam
+            // (ADR-0006). The seam co-writes voucher_id with the status flip
+            // and rejects an illegal transition.
             afterPost: (trx, posted) =>
-              params.markReversedTx(trx, posted[1].id),
+              this.statusTransition.transition(
+                trx,
+                params.objectType,
+                params.objectId,
+                'posted',
+                'reversed',
+                { extras: { voucher_id: posted[1].id } },
+              ),
           },
         );
 

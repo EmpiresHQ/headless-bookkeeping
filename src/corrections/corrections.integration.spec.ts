@@ -14,6 +14,7 @@ import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
@@ -57,6 +58,7 @@ describe('Corrections (integration)', () => {
         VoucherLineRepository,
         LedgerValidationService,
         PostingService,
+        StatusTransitionService,
         PeriodLockService,
         VoucherProjectionService,
         ExpensesService,

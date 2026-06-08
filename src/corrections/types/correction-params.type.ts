@@ -24,5 +24,4 @@ export type CorrectionParams = {
   // reversed/voucher_id status update inside the posting transaction (trx).
   previewPatchedDraft: (patch: AmountPatch) => Promise<DraftVoucher>;
   patchAmountsTx: (trx: Kysely<Database>, patch: AmountPatch) => Promise<void>;
-  markReversedTx: (trx: Kysely<Database>, voucherId: number) => Promise<void>;
 };

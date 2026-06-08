@@ -187,10 +187,6 @@ export class SalesInvoicesService {
     return this.mapRow(row);
   }
 
-  async markReversed(id: number, newVoucherId: number): Promise<void> {
-    await this.updateInvoiceStatus(id, 'reversed', newVoucherId);
-  }
-
   /**
    * Apply an amount patch inside an existing transaction (trx) — transactional
    * twin of {@link patchAmounts} for the atomic correction flow.
@@ -212,23 +208,6 @@ export class SalesInvoicesService {
         }),
         updated_at: now,
       })
-      .where('id', '=', id)
-      .execute();
-  }
-
-  /**
-   * Mark the invoice reversed and re-point it at the corrected voucher inside an
-   * existing transaction (trx) — transactional twin of {@link markReversed}.
-   */
-  async markReversedTx(
-    trx: Kysely<Database>,
-    id: number,
-    newVoucherId: number,
-  ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    await trx
-      .updateTable('sales_invoice')
-      .set({ status: 'reversed', voucher_id: newVoucherId, updated_at: now })
       .where('id', '=', id)
       .execute();
   }

@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Optional,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable, Optional, BadRequestException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../../database/types';
@@ -48,12 +43,6 @@ export type PostingSemantics =
     }
   | { kind: 'system-generated' };
 
-/** A status a business object may legitimately be claimed FROM at post time. */
-export type ClaimableStatus = 'draft' | 'pending';
-
-/** Tables whose rows the seam claims atomically when posting on their behalf. */
-export type ClaimableObjectType = 'expense' | 'sales_invoice';
-
 /**
  * The result of preparing a draft: resolved lines (account_code → account_id),
  * carried into the posting transaction so resolution happens exactly once.
@@ -73,9 +62,11 @@ const SYSTEM_GENERATED: PostingSemantics = { kind: 'system-generated' };
  *  - account resolution (`account_code → {account_id, account_currency}`),
  *  - all three Rules tiers (structural + hard-process period-lock + semantic),
  *  - the period-lock invariant (ADR-0009), enforced by THROW (BadRequestException),
- *  - the idempotency status claim (ADR-0021), parameterized by the expected
- *    prior status (`draft` for the auto-post path, `pending` for approvals),
  *  - gapless voucher numbering + the hash chain (ADR-0013/0021).
+ *
+ * The business-object status transition + its atomic idempotency claim
+ * (ADR-0021) lives in {@link StatusTransitionService} — callers claim the
+ * object there, then post the voucher here, inside one transaction.
  *
  * Whether the country-plugin semantic tier runs is an EXPLICIT, centralized
  * decision carried in {@link PostingSemantics} — an intake-driven Voucher always
@@ -290,48 +281,6 @@ export class PostingService {
         message: 'Semantic validation failed',
         errors: [semanticResult.message],
       });
-    }
-  }
-
-  /**
-   * Atomic idempotency claim (ADR-0021): a single conditional UPDATE that
-   * transitions a business object's status only from `expected`. Zero rows
-   * affected → the object was already claimed/posted → ConflictException, no
-   * second voucher. THE single place the claim lives, parameterized by the
-   * expected prior status (`draft` for auto-post, `pending` for approvals).
-   *
-   * `next` defaults to `posted`; pass `pending` for the hold-for-approval claim.
-   */
-  async claimObjectStatus(
-    trx: Kysely<Database>,
-    type: ClaimableObjectType,
-    id: number,
-    expected: ClaimableStatus,
-    next: 'posted' | 'pending' = 'posted',
-    conflictMessage?: (actual: string) => string,
-  ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    const claimed = await trx
-      .updateTable(type)
-      .set({ status: next, updated_at: now })
-      .where('id', '=', id)
-      .where('status', '=', expected)
-      .returning('id')
-      .executeTakeFirst();
-
-    if (!claimed) {
-      const current = await trx
-        .selectFrom(type)
-        .select('status')
-        .where('id', '=', id)
-        .executeTakeFirst();
-      const actual = current?.status ?? 'unknown';
-      const label = type === 'expense' ? 'Expense' : 'SalesInvoice';
-      throw new ConflictException(
-        conflictMessage
-          ? conflictMessage(actual)
-          : `${label} ${id} is already ${actual}`,
-      );
     }
   }
 

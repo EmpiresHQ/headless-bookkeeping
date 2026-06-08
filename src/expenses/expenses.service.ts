@@ -168,10 +168,6 @@ export class ExpensesService {
     return this.mapRow(row);
   }
 
-  async markReversed(id: number, newVoucherId: number): Promise<void> {
-    await this.updateExpenseStatus(id, 'reversed', newVoucherId);
-  }
-
   /**
    * Apply an amount/category patch inside an existing transaction (trx) — the
    * transactional twin of {@link patchAmounts}, used by the atomic correction
@@ -195,23 +191,6 @@ export class ExpensesService {
         ...(patch.category !== undefined && { category: patch.category }),
         updated_at: now,
       })
-      .where('id', '=', id)
-      .execute();
-  }
-
-  /**
-   * Mark the expense reversed and re-point it at the corrected voucher inside an
-   * existing transaction (trx) — the transactional twin of {@link markReversed}.
-   */
-  async markReversedTx(
-    trx: Kysely<Database>,
-    id: number,
-    newVoucherId: number,
-  ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    await trx
-      .updateTable('expense')
-      .set({ status: 'reversed', voucher_id: newVoucherId, updated_at: now })
       .where('id', '=', id)
       .execute();
   }

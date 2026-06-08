@@ -5,6 +5,7 @@ import { Database } from '../../database/types';
 import { RulesService } from '../../rules/rules.service';
 import { PolicyService } from '../../policy/policy.service';
 import { PostingService } from '../posting/posting.service';
+import { StatusTransitionService } from '../status/status-transition.service';
 import { OrganizationService } from '../../organization/organization.service';
 import { mustReject } from '../../rules/rules.guards';
 import {
@@ -69,6 +70,7 @@ export class PostingPipelineService {
     private readonly rulesService: RulesService,
     private readonly policyService: PolicyService,
     private readonly postingService: PostingService,
+    private readonly statusTransition: StatusTransitionService,
     private readonly organizationService: OrganizationService,
   ) {}
 
@@ -197,10 +199,11 @@ export class PostingPipelineService {
   ): Promise<PostingPipelineResult> {
     try {
       const result = await this.db.transaction().execute(async (trx) => {
-        // ── Atomic idempotency claim (ADR-0021) ──────────────────
-        // THE single claim, parameterized by the expected prior status
-        // (`draft` here). Zero rows → already claimed/posted → Conflict.
-        await this.postingService.claimObjectStatus(
+        // ── Guarded atomic transition (ADR-0006 / ADR-0021) ──────
+        // THE single seam: rejects an illegal transition, then claims the
+        // object only from `draft`. Zero rows → already claimed/posted →
+        // Conflict.
+        await this.statusTransition.transition(
           trx,
           params.businessObjectType,
           params.businessObjectId,
@@ -257,15 +260,15 @@ export class PostingPipelineService {
 
   /**
    * Atomic conditional claim for the hold-for-approval path. Transitions
-   * status from 'draft' to 'pending' only if the object is still in 'draft',
-   * via the single claim helper (ADR-0021). Throws ConflictException if
-   * already claimed.
+   * status from 'draft' to 'pending' via the single status-transition seam
+   * (ADR-0006 / ADR-0021) — an illegal transition is rejected, and a
+   * ConflictException is thrown if the object was already claimed.
    */
   private async claimForApproval(
     type: 'expense' | 'sales_invoice',
     id: number,
   ): Promise<void> {
-    await this.postingService.claimObjectStatus(
+    await this.statusTransition.transition(
       this.db,
       type,
       id,

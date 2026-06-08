@@ -8,6 +8,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { ValidationError } from '../ledger/posting/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
@@ -35,6 +36,7 @@ export class ApprovalsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly postingService: PostingService,
+    private readonly statusTransition: StatusTransitionService,
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
   ) {}
@@ -67,16 +69,19 @@ export class ApprovalsService {
     }
 
     const result = await this.db.transaction().execute(async (trx) => {
-      // Transition business object from draft → pending via the single claim
-      // helper (ADR-0021), matching the pipeline's hold-for-approval claim.
-      await this.postingService.claimObjectStatus(
+      // Transition business object draft → pending via the single
+      // status-transition seam (ADR-0006 / ADR-0021), matching the pipeline's
+      // hold-for-approval claim.
+      await this.statusTransition.transition(
         trx,
         dto.object_type,
         dto.object_id,
         'draft',
         'pending',
-        (actual) =>
-          `${this.label(dto.object_type)} ${dto.object_id} is ${actual}, expected draft`,
+        {
+          conflictMessage: (actual) =>
+            `${this.label(dto.object_type)} ${dto.object_id} is ${actual}, expected draft`,
+        },
       );
 
       // Create the approval record
@@ -154,17 +159,21 @@ export class ApprovalsService {
     const now = Math.floor(Date.now() / 1000);
 
     // Post the voucher and update everything atomically. The idempotency claim
-    // is THE single claim helper, with `pending` as the expected prior status
-    // (ADR-0021) — the same guarantee the auto-post path gets with `draft`.
+    // is THE single status-transition seam, with `pending` as the expected
+    // prior status (ADR-0006 / ADR-0021) — the same guarantee the auto-post
+    // path gets with `draft`. The pending → posted transition co-writes
+    // voucher_id once the voucher exists.
     const voucher = await this.db.transaction().execute(async (trx) => {
-      await this.postingService.claimObjectStatus(
+      await this.statusTransition.transition(
         trx,
         approval.object_type,
         approval.object_id,
         'pending',
         'posted',
-        (actual) =>
-          `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected pending`,
+        {
+          conflictMessage: (actual) =>
+            `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected pending`,
+        },
       );
 
       const voucher = await this.postingService.postVoucherTx(
@@ -173,7 +182,7 @@ export class ApprovalsService {
         prepared.resolved,
       );
 
-      // Update voucher_id on the business object
+      // Re-point the now-posted object at its voucher.
       await trx
         .updateTable(approval.object_type)
         .set({ voucher_id: voucher.id, updated_at: now })
@@ -215,13 +224,20 @@ export class ApprovalsService {
     const now = Math.floor(Date.now() / 1000);
 
     await this.db.transaction().execute(async (trx) => {
-      // Return business object to draft
-      await trx
-        .updateTable(approval.object_type)
-        .set({ status: 'draft', updated_at: now })
-        .where('id', '=', approval.object_id)
-        .where('status', '=', 'pending')
-        .execute();
+      // Return business object to draft via the single status-transition seam
+      // (pending → draft, ADR-0006). The guarded transition rejects an illegal
+      // flip and atomically claims only from `pending`.
+      await this.statusTransition.transition(
+        trx,
+        approval.object_type,
+        approval.object_id,
+        'pending',
+        'draft',
+        {
+          conflictMessage: (actual) =>
+            `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected pending`,
+        },
+      );
 
       // Update approval status
       await trx

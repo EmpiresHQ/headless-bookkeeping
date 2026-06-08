@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CorrectionsService } from './corrections.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { AccountService } from '../ledger/account/account.service';
@@ -15,6 +16,10 @@ describe('CorrectionsService (unit)', () => {
 
   const mockPostingService = {
     postVouchersAtomic: jest.fn(),
+  };
+
+  const mockStatusTransition = {
+    transition: jest.fn(),
   };
 
   const mockPeriodLock = {
@@ -40,7 +45,6 @@ describe('CorrectionsService (unit)', () => {
     generateDraftVoucher: jest.fn(),
     previewPatchedDraft: jest.fn(),
     patchAmountsTx: jest.fn(),
-    markReversedTx: jest.fn(),
   };
 
   const mockSalesInvoicesService = {
@@ -49,7 +53,6 @@ describe('CorrectionsService (unit)', () => {
     generateDraftVoucher: jest.fn(),
     previewPatchedDraft: jest.fn(),
     patchAmountsTx: jest.fn(),
-    markReversedTx: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -59,6 +62,10 @@ describe('CorrectionsService (unit)', () => {
       providers: [
         CorrectionsService,
         { provide: PostingService, useValue: mockPostingService },
+        {
+          provide: StatusTransitionService,
+          useValue: mockStatusTransition,
+        },
         { provide: VoucherRepository, useValue: mockVoucherRepository },
         { provide: VoucherLineRepository, useValue: mockVoucherLineRepository },
         { provide: AccountService, useValue: mockAccountService },
