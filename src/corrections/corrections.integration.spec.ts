@@ -14,6 +14,7 @@ import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { CorrectionsService } from './corrections.service';
@@ -55,6 +56,7 @@ describe('Corrections (integration)', () => {
         VoucherLineRepository,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         ExpensesService,
         SalesInvoicesService,
         CorrectionsService,
@@ -188,6 +190,162 @@ describe('Corrections (integration)', () => {
       expect(updatedExpense.voucher_id).toBe(correctedId);
       expect(updatedExpense.gross_amount).toBe(15000);
       expect(updatedExpense.vat_amount).toBe(3000);
+    });
+
+    it('rolls back the amount patch if posting fails inside the transaction', async () => {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 12300,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
+
+      // Force the in-transaction post to fail AFTER the patch hook has run.
+      const spy = jest
+        .spyOn(postingService, 'postVoucherTx')
+        .mockRejectedValue(new Error('boom inside trx'));
+
+      await expect(
+        correctionsService.correctExpense(expense.id, {
+          kind: 'financial',
+          reason: 'Wrong amount',
+          patch: { gross_amount: 15000, vat_amount: 3000 },
+        }),
+      ).rejects.toThrow('boom inside trx');
+
+      // The whole operation rolled back: amounts unchanged, still posted on the
+      // original voucher, no reversal/correction vouchers written.
+      const after = await expensesService.getExpenseById(expense.id);
+      expect(after.gross_amount).toBe(12300);
+      expect(after.vat_amount).toBe(2300);
+      expect(after.status).toBe('posted');
+      expect(after.voucher_id).toBe(posted.id);
+      expect(await voucherRepo.getVouchers()).toHaveLength(1);
+
+      spy.mockRestore();
+    });
+  });
+
+  describe('locked-period redirect (ADR-0009)', () => {
+    it('re-dates reversal + correction into the current open period', async () => {
+      // 1. Create and post an expense dated in what will become a locked period.
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 12300,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
+
+      // 2. File (lock) the period containing the original, and open a later one.
+      await db
+        .insertInto('reporting_period')
+        .values({
+          name: '2026-Q1',
+          start_date: '2026-01-01',
+          end_date: '2026-03-31',
+          status: 'locked',
+          filed_at: 0,
+          created_at: 0,
+        })
+        .execute();
+      const openPeriod = await db
+        .insertInto('reporting_period')
+        .values({
+          name: '2026-Q2',
+          start_date: '2026-04-01',
+          end_date: '2026-06-30',
+          status: 'open',
+          filed_at: null,
+          created_at: 0,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      // 3. Correct the now-locked posted expense.
+      const result = await correctionsService.correctExpense(expense.id, {
+        kind: 'financial',
+        reason: 'Wrong amount, found after filing',
+        patch: { gross_amount: 15000, vat_amount: 3000 },
+      });
+
+      expect(result.outcome).toBe('posted_reversal_and_correction');
+      expect(result.redirected).toBe(true);
+      expect(result.redirectedToPeriodId).toBe(openPeriod.id);
+
+      // 4. Both new vouchers are dated into the open period, not the locked one.
+      const reversal = await voucherRepo.getVoucherById(
+        result.reversalVoucherId as number,
+      );
+      const corrected = await voucherRepo.getVoucherById(
+        result.correctedVoucherId as number,
+      );
+      expect(reversal!.tax_point_date).toBe('2026-04-01');
+      expect(corrected!.tax_point_date).toBe('2026-04-01');
+      expect(reversal!.reverses_id).toBe(posted.id);
+      expect(corrected!.corrects_object_type).toBe('expense');
+      expect(corrected!.corrects_object_id).toBe(expense.id);
+
+      // 5. The original locked voucher is untouched.
+      const original = await voucherRepo.getVoucherById(posted.id);
+      expect(original!.tax_point_date).toBe('2026-03-15');
+    });
+
+    it('throws when there is no open period to receive the correction', async () => {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 12300,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
+
+      // Lock everything: the migration-seeded period plus the original's period.
+      await db
+        .updateTable('reporting_period')
+        .set({ status: 'locked' })
+        .execute();
+      await db
+        .insertInto('reporting_period')
+        .values({
+          name: '2026-Q1',
+          start_date: '2026-01-01',
+          end_date: '2026-03-31',
+          status: 'locked',
+          filed_at: 0,
+          created_at: 0,
+        })
+        .execute();
+
+      await expect(
+        correctionsService.correctExpense(expense.id, {
+          kind: 'financial',
+          reason: 'No open period',
+          patch: { gross_amount: 15000 },
+        }),
+      ).rejects.toThrow(/no open period/i);
     });
   });
 

@@ -611,6 +611,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Change `TriageOutcome` to `new_expense | correction | duplicate | unknown` (drop `invoice`; add `correction`, `duplicate`) — matches ADR-0010.
   - Fix the OCR stub (`ocr.service.ts`): both odd and even produce **purchase-side** documents (e.g. two different expense shapes, or one expense + one correction/duplicate scenario) — never a SalesInvoice.
   - Update `TriageService.route` to never create a SalesInvoice; wire `duplicate` (already-known hash → existing document) and a `correction` stub (links to original per ADR-0010) outcomes.
+  - **Carry a real `tax_point_date` (Codex/Wave-6 review):** OCR must extract the **document/invoice date** (the tax point, a country-plugin rule, ADR-0009) and `TriageService` must use it for the business object's `tax_point_date` — NOT `doc.created_at` (arrival), which it does today. Period membership and the locked-period late-document redirect (Wave-6 Task 27) depend on the real tax point.
   - Update tests: `ocr.service.spec.ts`, `triage.integration.spec.ts`, and `test/intake.e2e-spec.ts` (scenario 3 "even → SalesInvoice" must become a purchase-side scenario).
 
   **Must NOT do**:

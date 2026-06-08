@@ -11,6 +11,7 @@ import { migrations } from './../src/database/migrations';
 import { AccountService } from './../src/ledger/account/account.service';
 import { LedgerValidationService } from './../src/ledger/validation/ledger-validation.service';
 import { PostingService } from './../src/ledger/posting/posting.service';
+import { PeriodLockService } from './../src/reporting-periods/period-lock.service';
 import { RulesService } from './../src/rules/rules.service';
 import { PolicyService } from './../src/policy/policy.service';
 import { PostingPipelineService } from './../src/ledger/pipeline/posting-pipeline.service';
@@ -49,6 +50,7 @@ describe('Pipeline (e2e)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         RulesService,
         PolicyService,
         PostingPipelineService,

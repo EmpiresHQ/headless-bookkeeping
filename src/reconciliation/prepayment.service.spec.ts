@@ -8,6 +8,7 @@ import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
@@ -47,6 +48,7 @@ describe('PrepaymentService (integration)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         BankTransactionRepository,
         BankStatementService,
         OrganizationService,
@@ -946,6 +948,7 @@ describe('PrepaymentService — cross-currency bank account', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         BankTransactionRepository,
         BankStatementService,
         OrganizationService,

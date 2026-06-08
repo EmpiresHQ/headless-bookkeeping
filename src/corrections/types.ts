@@ -17,4 +17,11 @@ export interface CorrectionResult {
   reversalVoucherId?: number;
   correctedVoucherId?: number;
   draftVoucher?: unknown;
+  /**
+   * True when the original voucher's period was locked and the reversal +
+   * correction were re-dated into the current open period (ADR-0009).
+   */
+  redirected?: boolean;
+  /** The open period the correction was redirected into (when `redirected`). */
+  redirectedToPeriodId?: number;
 }

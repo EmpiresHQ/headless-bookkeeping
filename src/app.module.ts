@@ -16,6 +16,13 @@ import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.mo
 import { EntitiesModule } from './entities/entities.module';
 import { BankModule } from './bank/bank.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { AuditFindingsModule } from './audit-findings/audit-findings.module';
+import { AgentsModule } from './agents/agents.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { DividendsModule } from './dividends/dividends.module';
+import { AdminModule } from './admin/admin.module';
+import { VatReportModule } from './vat-report/vat-report.module';
+import { ApprovalsModule } from './approvals/approvals.module';
 
 @Module({
   imports: [
@@ -36,6 +43,13 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     EntitiesModule,
     BankModule,
     ReconciliationModule,
+    AuditFindingsModule,
+    AgentsModule,
+    ConversationsModule,
+    DividendsModule,
+    AdminModule,
+    VatReportModule,
+    ApprovalsModule,
   ],
 })
 export class AppModule {}
