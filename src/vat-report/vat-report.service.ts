@@ -4,6 +4,8 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { VatReport, VatSummaryLine } from './types';
+import { computeVoucherHash } from '../ledger/posting/voucher-hash';
+import { computeMerkleRoot } from './merkle';
 
 @Injectable()
 export class VatReportService {
@@ -18,9 +20,18 @@ export class VatReportService {
    * Queries all posted vouchers whose tax_point_date falls within the period
    * range, joins voucher_line, groups by vat_code summing base_amount into
    * input (debit) vs output (credit), computes total_payable/total_receivable,
-   * and stores the snapshot with merkle_root=null.
+   * and stores the snapshot with a Merkle root over the covered Vouchers.
    *
-   * Idempotent: if a snapshot already exists for this period, returns it.
+   * Two distinct Voucher sets are involved (ADR-0009 / ADR-0013):
+   *  - the COVERED set = every Voucher whose tax-point date falls in the
+   *    Reporting period (regardless of whether it carries a VAT-control line).
+   *    This is what `voucher_ids` records and what the Merkle root commits to.
+   *  - the VAT-BOX contributors = only the VAT-control lines
+   *    (VAT_RECEIVABLE / VAT_PAYABLE) within those vouchers. Only these feed
+   *    the declaration box amounts.
+   *
+   * Idempotent: if a snapshot already exists for this period, returns the
+   * existing frozen report unchanged (same Merkle root, never recomputed).
    */
   async generate(
     periodId: number,
@@ -58,7 +69,6 @@ export class VatReportService {
         'vl.vat_code',
         'vl.base_amount',
         'vl.is_debit',
-        'v.id as voucher_id',
         'a.code as account_code',
       ])
       .where('v.tax_point_date', '>=', period.start_date)
@@ -115,11 +125,66 @@ export class VatReportService {
     const total_payable = total_output_vat - total_input_vat;
     const total_receivable = total_input_vat - total_output_vat;
 
-    // Collect distinct voucher IDs — the report still *covers* every voucher
-    // in the period, even those with no VAT-control line.
-    const voucherIds = [...new Set(lines.map((l) => l.voucher_id))].sort(
-      (a, b) => a - b,
-    );
+    // COVERED set: every posted Voucher whose tax-point date falls in the
+    // period — queried directly from `voucher`, NOT derived from the
+    // VAT-control lines above. A Voucher with no VAT_RECEIVABLE / VAT_PAYABLE
+    // line (e.g. a non-VAT cash transfer) still belongs to the period and must
+    // be covered by the snapshot and its Merkle root (CONTEXT.md: "the exact
+    // set of included Vouchers"). Ordered by id ascending — this is the fixed,
+    // deterministic Merkle leaf order (ADR-0013).
+    const coveredVouchers = await executor
+      .selectFrom('voucher')
+      .select([
+        'id',
+        'voucher_number',
+        'tax_point_date',
+        'posted_at',
+        'previous_hash',
+      ])
+      .where('tax_point_date', '>=', period.start_date)
+      .where('tax_point_date', '<=', period.end_date)
+      .where('posted_at', 'is not', null)
+      .orderBy('id', 'asc')
+      .execute();
+
+    const voucherIds = coveredVouchers.map((v) => v.id);
+
+    // Merkle root over exactly the covered Vouchers. Each leaf is the
+    // per-Voucher hash of the hash-chained voucher log (REUSED via
+    // computeVoucherHash) — not a second hashing scheme. Empty period ⇒ null;
+    // single Voucher ⇒ its own leaf hash (handled in computeMerkleRoot).
+    const leafHashes: string[] = [];
+    for (const v of coveredVouchers) {
+      const voucherLines = await executor
+        .selectFrom('voucher_line')
+        .select([
+          'account_id',
+          'amount',
+          'currency',
+          'base_amount',
+          'fx_rate',
+          'is_debit',
+        ])
+        .where('voucher_id', '=', v.id)
+        .orderBy('id', 'asc')
+        .execute();
+
+      leafHashes.push(
+        computeVoucherHash(
+          v,
+          voucherLines.map((l) => ({
+            account_id: l.account_id,
+            amount: l.amount,
+            currency: l.currency,
+            base_amount: l.base_amount,
+            fx_rate: l.fx_rate,
+            is_debit: l.is_debit === 1,
+          })),
+        ),
+      );
+    }
+
+    const merkleRoot = computeMerkleRoot(leafHashes);
 
     const generatedAt = Math.floor(Date.now() / 1000);
 
@@ -137,7 +202,7 @@ export class VatReportService {
         total_payable,
         total_receivable,
         voucher_ids: JSON.stringify(voucherIds),
-        merkle_root: null,
+        merkle_root: merkleRoot,
         generated_at: generatedAt,
       })
       .returningAll()
