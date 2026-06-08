@@ -1,0 +1,2 @@
+{"message":"VAT report is immutable","error":"Method Not Allowed","statusCode":405}
+HTTP_CODE:405

@@ -13,3 +13,18 @@ Key decisions:
 - **Reject is for *direct* posts; corrections and late items *redirect*, never dead-end.** The hard rule (no posting into a locked period) rejects a *direct* attempt to post with a tax-point in a locked period — it never silently rewrites a date. But the **correction** and **late-document** flows detect a locked target up front and re-route to the current open period (re-dated, carrying `reverses`/`corrects_object` where applicable) instead of hitting the wall. Without that redirect, the filing guard's "warn-and-allow lock" would strand legitimate late items forever; the redirect is what makes warn-and-allow sound.
 
 "Missed filing Q1" and "filed Q1 then found an error" are therefore different: the former leaves Q1 open (file it late, in place), the latter requires the current-period correction with back-references. A *new* document arriving for an already-filed Q1 is a third case — a late item redirected into the current open period (above).
+
+## Amendment (Wave 6 grilling, 2026-06-04)
+
+**Where the locked-period hard rule is enforced.** The check lives at the `PostingService` write chokepoint via a `PeriodLockService.assertPeriodOpen(taxPointDate)`, and `RulesService.validateHardProcess` **delegates to the same check**. The pipeline runs the `hard` rule tier so intake-driven vouchers reject early and cleanly; but several paths (FX-realized, prepayment, personal-disposition, corrections, the direct `POST /vouchers`) call `postVoucher` *outside* the pipeline and would otherwise bypass the rule. Enforcing at the single write path (ADR-0019) closes that hole; the Rules-tier delegation keeps the early, well-messaged rejection (defense-in-depth). The redirect for corrections/late documents (above) detects the locked target *before* posting, so it re-dates rather than tripping this guard.
+
+## Open question (Wave 6 follow-up, 2026-06-08): FX rate vs redirect date
+
+A redirected correction (locked original → reversal + correction re-dated into the current open period) currently computes the corrected voucher's `base_amount`/`fx_rate` from the **original** tax-point date's reference rate (the business object's stored `tax_point_date` is unchanged; only the *voucher's* stated date is moved to the open period). For a foreign-currency correction this leaves the voucher's stated tax point in the current period while its conversion rate is the original period's — a tension between ADR-0004 ("reference rate as of the tax point") and this ADR ("redirected vouchers are tax-point-dated in the current period").
+
+This is **not currently observable**: `NullCountryPlugin.getReferenceRate` returns a date-independent rate, so domestic/EUR corrections (the v1 path) are unaffected. It only bites a country plugin with date-sensitive rates correcting a foreign-currency item out of a filed period. The reversal must keep the original amounts regardless (it has to net the original booking exactly), so the question is purely about which rate the *corrected* leg uses:
+
+- **Original-date rate** — treats the correction as an adjustment of a past economic event (the real tax point is the original date); the open-period date is only a VAT-return-membership device.
+- **Open-period-date rate** — makes the voucher internally consistent (stated date and rate agree), at the cost of revaluing the corrected leg.
+
+**Decision deferred** to whichever country plugin first needs date-sensitive FX. Whoever picks it up should add a non-EUR locked-period correction test against a date-varying rate plugin and choose explicitly; the kernel should not hardcode the answer (ADR-0002).

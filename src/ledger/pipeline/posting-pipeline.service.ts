@@ -135,10 +135,8 @@ export class PostingPipelineService {
       });
     }
 
-    const hardResult = this.rulesService.validate(
-      resolvedLines,
-      validAccountIds,
-      'hard',
+    const hardResult = await this.rulesService.validateHardProcess(
+      draft.tax_point_date,
     );
     if (mustReject(hardResult)) {
       throw new BadRequestException({

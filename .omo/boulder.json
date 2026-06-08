@@ -1,35 +1,67 @@
 {
   "schema_version": 2,
-  "active_work_id": "wave-4-intake-ca20f7a0",
+  "active_work_id": "wave-6-agents-admin",
   "works": {
-    "wave-4-intake-ca20f7a0": {
-      "work_id": "wave-4-intake-ca20f7a0",
-      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
-      "plan_name": "wave-4-intake",
+    "wave-6-agents-admin": {
+      "work_id": "wave-6-agents-admin",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
+      "plan_name": "wave-6-agents-admin",
       "status": "active",
-      "started_at": "2026-05-31T08:41:21.827Z",
-      "updated_at": "2026-05-31T08:41:21.827Z",
+      "started_at": "2026-05-31T20:46:48.010Z",
+      "updated_at": "2026-05-31T21:17:17.822Z",
       "session_ids": [
-        "ses_189dd88bdffe62f9e25yMGW0DY"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq"
       ],
       "session_origins": {
-        "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
       },
       "agent": "atlas",
-      "task_sessions": {}
+      "worktree_path": null,
+      "elapsed_ms": 0,
+      "task_sessions": {
+        "todo:27": {
+          "task_key": "todo:27",
+          "task_label": "27",
+          "task_title": "ReportingPeriod lock + filing guard",
+          "session_id": "opencode:ses_1803044e8ffejMQAO4XQpDpnrA",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-05-31T21:17:17.822Z",
+          "started_at": "2026-05-31T21:05:59.880Z",
+          "status": "completed",
+          "ended_at": "2026-05-31T21:17:17.822Z",
+          "elapsed_ms": 677942
+        }
+      }
     }
   },
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
-  "started_at": "2026-05-31T08:41:21.827Z",
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
+  "started_at": "2026-05-31T20:46:48.010Z",
   "status": "active",
-  "updated_at": "2026-05-31T08:41:21.827Z",
+  "updated_at": "2026-05-31T21:17:17.822Z",
   "session_ids": [
-    "ses_189dd88bdffe62f9e25yMGW0DY"
+    "opencode:ses_18035f62fffepbex2WYoi1iIAq"
   ],
   "session_origins": {
-    "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
+    "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct"
   },
-  "plan_name": "wave-4-intake",
-  "task_sessions": {},
-  "agent": "atlas"
+  "plan_name": "wave-6-agents-admin",
+  "task_sessions": {
+    "todo:27": {
+      "task_key": "todo:27",
+      "task_label": "27",
+      "task_title": "ReportingPeriod lock + filing guard",
+      "session_id": "opencode:ses_1803044e8ffejMQAO4XQpDpnrA",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-31T21:17:17.822Z",
+      "started_at": "2026-05-31T21:05:59.880Z",
+      "status": "completed",
+      "ended_at": "2026-05-31T21:17:17.822Z",
+      "elapsed_ms": 677942
+    }
+  },
+  "agent": "atlas",
+  "worktree_path": null,
+  "elapsed_ms": 0
 }

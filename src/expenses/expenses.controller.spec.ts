@@ -12,6 +12,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { RulesService } from '../rules/rules.service';
 import { PolicyService } from '../policy/policy.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
@@ -49,6 +50,7 @@ describe('ExpensesController (integration)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         RulesService,
         PolicyService,
         PostingPipelineService,

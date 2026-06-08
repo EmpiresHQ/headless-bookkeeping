@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CategoryMappingResult,
   CountryPlugin,
+  CrossBorderResolution,
   OrgContext,
   SupplierFacts,
   VATCode,
@@ -22,6 +23,8 @@ export const NULL_VAT_CODE = 'NULL_STANDARD';
  */
 @Injectable()
 export class NullCountryPlugin implements CountryPlugin {
+  private readonly logger = new Logger(NullCountryPlugin.name);
+
   getName(): string {
     return 'null';
   }
@@ -92,5 +95,48 @@ export class NullCountryPlugin implements CountryPlugin {
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
     return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+  }
+
+  resolvePersonalDispositionAccount(orgType: string): string {
+    if (orgType === 'sole_proprietor') {
+      return 'OWNERS_DRAWINGS';
+    }
+    // Default to 'company' → SHAREHOLDER_LOAN (ADR-0017/ADR-0023).
+    return 'SHAREHOLDER_LOAN';
+  }
+
+  resolveCrossBorderTreatment(
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+    _context: { vatCharged: boolean },
+  ): CrossBorderResolution {
+    // Same country → domestic with default VAT code.
+    if (supplierFacts.country === orgContext.country) {
+      return { treatment: 'domestic', vatCode: 'NULL_STANDARD' };
+    }
+    // Different country → unresolvable (hold for Approval).
+    return { treatment: 'unresolvable', vatCode: null };
+  }
+
+  dividendWithholdingRate(_orgContext: OrgContext): number {
+    // Null plugin: no withholding tax (0%).
+    return 0.0;
+  }
+
+  assertDistributable(
+    grossAmount: number,
+    retainedEarnings: number,
+    _orgContext: OrgContext,
+  ): boolean {
+    // Soft check: warn but don't block.
+    // Real country plugins may hard-block (throw) when dividends exceed
+    // retained earnings (a legal cap in most jurisdictions).
+    if (grossAmount > retainedEarnings) {
+      this.logger.warn(
+        `Dividend of ${grossAmount} cents exceeds retained earnings of ${retainedEarnings} cents — soft warning, not blocked`,
+      );
+    }
+    // Always return true — soft check only.
+    return true;
   }
 }

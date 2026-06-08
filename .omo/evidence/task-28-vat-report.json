@@ -1,0 +1,1 @@
+{"id":1,"reporting_period_id":5,"period_name":"Q2 2026","start_date":"2026-04-01","end_date":"2026-06-30","vat_summary":[{"vat_code":"NULL_STANDARD","input_vat":10000,"output_vat":10000,"line_count":2}],"total_input_vat":10000,"total_output_vat":10000,"total_payable":0,"total_receivable":0,"voucher_ids":[1],"merkle_root":null,"generated_at":1780570394}

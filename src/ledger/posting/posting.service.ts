@@ -5,6 +5,7 @@ import { Database } from '../../database/types';
 import { toBool } from '../../database/helpers';
 import { AccountService } from '../account/account.service';
 import { LedgerValidationService } from '../validation/ledger-validation.service';
+import { PeriodLockService } from '../../reporting-periods/period-lock.service';
 import { ValidatableLine } from '../validation/types';
 import { DraftVoucher, PostedVoucher, VoucherLine } from '../voucher/types';
 import { ValidationError } from './types';
@@ -16,6 +17,7 @@ export class PostingService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly accountService: AccountService,
     private readonly validation: LedgerValidationService,
+    private readonly periodLock: PeriodLockService,
   ) {}
 
   /**
@@ -23,6 +25,71 @@ export class PostingService {
    * Resolves account codes, validates, then delegates to postVoucherTx.
    */
   async postVoucher(draft: DraftVoucher): Promise<PostedVoucher> {
+    // Hard process rule: cannot post into a locked reporting period (ADR-0009)
+    await this.periodLock.assertPeriodOpen(draft.tax_point_date, this.db);
+
+    const resolved = await this.resolveAndValidate(draft);
+
+    return this.db.transaction().execute(async (trx) => {
+      return this.postVoucherTx(trx, draft, resolved);
+    });
+  }
+
+  /**
+   * Post several drafts in a single transaction — all or nothing. Resolves and
+   * validates every draft up front (outside the transaction, per the
+   * better-sqlite3 single-connection constraint), then posts each via
+   * postVoucherTx in order so the voucher sequence and hash chain advance
+   * atomically. Used by the corrections flow so a reversal can never be posted
+   * without its paired correction (ADR-0006 / ADR-0009).
+   *
+   * Optional `hooks` let the caller fold its own writes into the SAME
+   * transaction: `beforePost` runs before any voucher is inserted, `afterPost`
+   * runs once all vouchers are inserted (receiving them). The corrections flow
+   * uses these to persist the business-object patch and the reversed/voucher_id
+   * status update atomically with the two vouchers. Hooks MUST use the provided
+   * `trx` (never `this.db`) — reads/writes through `this.db` inside the open
+   * transaction would deadlock better-sqlite3's single connection.
+   */
+  async postVouchersAtomic(
+    drafts: DraftVoucher[],
+    hooks?: {
+      beforePost?: (trx: Kysely<Database>) => Promise<void>;
+      afterPost?: (
+        trx: Kysely<Database>,
+        posted: PostedVoucher[],
+      ) => Promise<void>;
+    },
+  ): Promise<PostedVoucher[]> {
+    const resolvedAll: ValidatableLine[][] = [];
+    for (const draft of drafts) {
+      await this.periodLock.assertPeriodOpen(draft.tax_point_date, this.db);
+      resolvedAll.push(await this.resolveAndValidate(draft));
+    }
+
+    return this.db.transaction().execute(async (trx) => {
+      if (hooks?.beforePost) {
+        await hooks.beforePost(trx);
+      }
+      const posted: PostedVoucher[] = [];
+      for (let i = 0; i < drafts.length; i++) {
+        posted.push(await this.postVoucherTx(trx, drafts[i], resolvedAll[i]));
+      }
+      if (hooks?.afterPost) {
+        await hooks.afterPost(trx, posted);
+      }
+      return posted;
+    });
+  }
+
+  /**
+   * Resolve a draft's account codes to {account_id, account_currency} and run
+   * structural validation. Throws ValidationError on a structural failure.
+   * Shared by the single- and multi-voucher posting paths.
+   */
+  private async resolveAndValidate(
+    draft: DraftVoucher,
+  ): Promise<ValidatableLine[]> {
     const codes = [...new Set(draft.lines.map((l) => l.account_code))];
     const accounts = await this.accountService.getAccountsByCodes(codes);
     const byCode = new Map(accounts.map((a) => [a.code, a]));
@@ -46,9 +113,7 @@ export class PostingService {
       throw new ValidationError(result.errors);
     }
 
-    return this.db.transaction().execute(async (trx) => {
-      return this.postVoucherTx(trx, draft, resolved);
-    });
+    return resolved;
   }
 
   /**
@@ -65,6 +130,9 @@ export class PostingService {
     draft: DraftVoucher,
     resolved: ValidatableLine[],
   ): Promise<PostedVoucher> {
+    // Hard process rule: cannot post into a locked reporting period (ADR-0009)
+    await this.periodLock.assertPeriodOpen(draft.tax_point_date, trx);
+
     const postedAt = Math.floor(Date.now() / 1000);
 
     // ── Gapless sequential voucher number (ADR-0021) ──────────────

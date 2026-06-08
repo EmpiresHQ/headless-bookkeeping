@@ -1,0 +1,1 @@
+{"id":1,"channel":"email","thread_key":"test-thread-123","status":"open","created_at":1780570496,"updated_at":1780570496,"closed_at":null,"messages":[{"id":1,"conversation_id":1,"direction":"inbound","sender":"test@example.com","body":"Test message","threading_keys":null,"dkim_spf_pass":null,"created_at":1780570496}],"artifacts":[]}

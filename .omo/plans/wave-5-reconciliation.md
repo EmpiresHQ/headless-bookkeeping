@@ -30,7 +30,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
 
 ## TODOs
 
-- [ ] 21. BankStatement + BankTransaction schema
+- [x] 21. BankStatement + BankTransaction schema
 
   **What to do**:
   - Create `src/bank/` module
@@ -101,7 +101,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/bank/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 22. Matching engine (N:M deterministic)
+- [x] 22. Matching engine (N:M deterministic)
 
   **What to do**:
   - Create `src/reconciliation/` module
@@ -176,7 +176,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 23. Prepayment balances (liability/asset vouchers)
+- [x] 23. Prepayment balances (liability/asset vouchers)
 
   **What to do**:
   - Implement prepayment voucher creation per ADR-0011:
@@ -250,7 +250,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/prepayment.service.ts`, `src/reconciliation/prepayment.controller.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 24. Personal disposition
+- [x] 24. Personal disposition
 
   **What to do**:
   - Implement personal disposition per ADR-0017 — **the booking account is resolved by the country plugin, not hardcoded** (same boundary as VAT codes / cross-border, ADR-0002):
@@ -304,7 +304,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/personal-disposition.service.ts`, `src/reconciliation/personal-disposition.controller.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 25. FX realized auto-posting
+- [x] 25. FX realized auto-posting
 
   **What to do**:
   - Implement FX realized auto-posting per ADR-0004 — **computed from the bank line's ACTUAL settlement, not a reference/stub rate**:
@@ -361,7 +361,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/reconciliation/fx-realized.service.ts`, `src/reconciliation/fx-realized.controller.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 26. Reconciliation integration
+- [x] 26. Reconciliation integration
 
   **What to do**:
   - End-to-end integration test for reconciliation flow:
@@ -430,7 +430,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `test/reconciliation.e2e-spec.ts`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 32. Persist the Document VAT marking as evidence
+- [x] 32. Persist the Document VAT marking as evidence
 
   > **Origin:** Wave-4 intake review + cross-border grilling. The OCR triage stub extracts a `vat_code` into `TriageResult`, but `TriageService.route` drops it. That field is **not a VAT code** in our sense (a VAT code is plugin-owned, ours) — it is the **Document VAT marking**: the raw code/rate *printed on the counterparty's document*, which for a foreign supplier is a foreign label belonging to no plugin (see CONTEXT.md). Naming it `source_vat_code` was a trap. This task persists it as opaque evidence only; it does NOT make it authoritative and does NOT implement cross-border resolution (that is Task 33).
 
@@ -471,7 +471,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: migration + `src/triage/`, `src/expenses/`, `src/sales-invoices/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 33. Supplier / Entity aggregate + onboarding
+- [x] 33. Supplier / Entity aggregate + onboarding
 
   > **Origin:** Cross-border grilling — planning-gap finding. The **Supplier/Entity** aggregate is richly defined in CONTEXT.md and decided in ADR-0014, and is referenced by `expense.supplier_id`, by supplier memory, and by Wave-5 Task 22 (matching) — **but no wave ever builds it.** Verified: there is no `supplier`/`entity` table in any migration (001–012), no entry in `database/types.ts`, and no module/service. Worse, `expense.supplier_id` is a bare `integer` column (migration 006) — not even a declared FK, pointing at a non-existent table. Half of Wave 5 (matching, cross-border, memory) silently assumes this aggregate. This task builds it.
 
@@ -516,7 +516,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: migrations + `src/entities/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 34. Cross-border VAT treatment resolution in the country plugin
+- [x] 34. Cross-border VAT treatment resolution in the country plugin
 
   > **Origin:** Cross-border grilling. Today a foreign-supplier invoice is **silently mis-booked**: `NullCountryPlugin.resolveCategoryMapping` returns `IE_INPUT_23` regardless of supplier country, so a German invoice's VAT books as reclaimable Irish input VAT. The fix is NOT to read foreign codes — reverse-charge uses *our* code. The plugin must map the supplier's country to a **VAT territory** and decide the treatment. See ADR-0002 (amended) and CONTEXT.md **VAT territory**. **Prerequisite:** Task 33 (Supplier/Entity aggregate) — the supplier must carry a `country`.
 
@@ -559,7 +559,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/plugins/`, `src/expenses/`, `src/sales-invoices/`, tests
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 35. Resolve the Supplier at intake (find / create-or-reuse), not at posting
+- [x] 35. Resolve the Supplier at intake (find / create-or-reuse), not at posting
 
   > **Origin:** Cross-border grilling. The Policy rule `unknown_supplier_requires_approval` is a **chicken-and-egg trap** if it gates at posting: we should *propose creating a Supplier*, not kill the voucher. Identity must be resolved **during intake**, so a posted voucher always carries a real `supplier_id`. The intake flow is: **(1) OCR → (2) Supplier check: lookup by registration key/alias; if found → reuse, else → propose create new (human-in-the-loop) → (3) create the business object WITH the resolved `supplier_id`.** Consequence: the Policy unknown-supplier gate becomes a **backstop that should never fire in the happy path** — defense-in-depth, not the primary mechanism.
 
@@ -603,7 +603,7 @@ This wave implements bank statement ingestion, deterministic N:M matching, prepa
   - Files: `src/triage/`, `src/entities/`, `src/policy/`, tests
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 38. Remediate triage outcomes — purchase-side only (drop `sales_invoice`)
+- [x] 38. Remediate triage outcomes — purchase-side only (drop `sales_invoice`)
 
   > **Origin:** Cross-border grilling + Wave-4 review. Wave-4 shipped a triage outcome union `expense | invoice | unknown` and a stub routing even-id documents → **SalesInvoice**. That mis-models the domain (ADR-0010, amended): **intake is the purchase side** — an incoming document is an Expense, a correction, or a duplicate, never our own SalesInvoice (we issue those outbound). The union also omits ADR-0010's `correction`/`duplicate` outcomes. Self-billing (incoming = revenue) is deferred to v2 as a domain plugin (V2-ROADMAP), NOT this path.
 

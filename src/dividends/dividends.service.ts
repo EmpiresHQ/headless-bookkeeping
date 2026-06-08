@@ -1,0 +1,310 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+} from '@nestjs/common';
+import { InjectKysely } from 'nestjs-kysely';
+import { Kysely, sql } from 'kysely';
+import { Database } from '../database/types';
+import { PostingService } from '../ledger/posting/posting.service';
+import type { CountryPlugin } from '../plugins/country-plugin.interface';
+import { OrganizationService } from '../organization/organization.service';
+import { CurrencyService } from '../currency/currency.service';
+import { BankTransactionRepository } from '../bank/bank-transaction.repository';
+import { DraftVoucher } from '../ledger/voucher/types';
+import {
+  DividendDeclarationDto,
+  DividendDeclarationResult,
+  DividendSettlementResult,
+} from './types';
+
+/** Injection token for the country plugin (allows test overrides). */
+export const COUNTRY_PLUGIN_TOKEN = 'COUNTRY_PLUGIN';
+
+/** Account codes for dividend distribution. */
+const RETAINED_EARNINGS = 'RETAINED_EARNINGS';
+const DIVIDEND_PAYABLE = 'DIVIDEND_PAYABLE';
+const DIVIDEND_WITHHOLDING_TAX_PAYABLE = 'DIVIDEND_WITHHOLDING_TAX_PAYABLE';
+
+@Injectable()
+export class DividendsService {
+  constructor(
+    @InjectKysely() private readonly db: Kysely<Database>,
+    private readonly postingService: PostingService,
+    @Inject(COUNTRY_PLUGIN_TOKEN)
+    private readonly plugin: CountryPlugin,
+    private readonly orgService: OrganizationService,
+    private readonly currencyService: CurrencyService,
+    private readonly transactionRepo: BankTransactionRepository,
+  ) {}
+
+  /**
+   * Declare a dividend distribution.
+   *
+   * Posts a declaration voucher through the full pipeline (Rules → Policy → post):
+   *   Dr RETAINED_EARNINGS              (gross amount)
+   *   Cr DIVIDEND_PAYABLE               (net to owner, after withholding)
+   *   Cr DIVIDEND_WITHHOLDING_TAX_PAYABLE  (withheld portion, if any)
+   *
+   * The country plugin resolves:
+   * - Withholding rate (dividendWithholdingRate)
+   * - Distributable-profits check (assertDistributable)
+   *
+   * Per ADR-0023: dividend is an equity distribution, NOT a P&L expense.
+   * Per ADR-0002: withholding and profits-cap are country-plugin rules only.
+   *
+   * @param dto - Declaration input (gross amount, tax-point date, optional reason)
+   * @returns The posted declaration voucher + breakdown
+   */
+  async declare(
+    dto: DividendDeclarationDto,
+  ): Promise<DividendDeclarationResult> {
+    if (dto.gross_amount <= 0) {
+      throw new BadRequestException('gross_amount must be positive');
+    }
+
+    // Get org context for plugin resolution. The declaration voucher books
+    // equity accounts entirely in base currency (amounts are base-currency cents).
+    const org = await this.orgService.getOrganization();
+    const baseCurrency = await this.currencyService.getBaseCurrency();
+    const orgContext = {
+      country: org.country,
+      vatRegistered: !!org.vat_registered,
+      baseCurrency,
+    };
+
+    // ── Distributable-profits check (plugin-driven) ──────────────────
+    // The kernel computes the *live* distributable figure (RETAINED_EARNINGS +
+    // current net income − prior distributions); the plugin owns only the cap
+    // rule. v1 has no year-end close, so the bare RE balance is meaningless.
+    const distributableProfits = await this.getDistributableProfits();
+    const distributable = this.plugin.assertDistributable(
+      dto.gross_amount,
+      distributableProfits,
+      orgContext,
+    );
+    if (!distributable) {
+      throw new BadRequestException(
+        `Dividend of ${dto.gross_amount} cents exceeds distributable profits ` +
+          `(${distributableProfits} cents)`,
+      );
+    }
+
+    // ── Withholding rate (plugin-driven) ─────────────────────────────
+    const withholdingRate = this.plugin.dividendWithholdingRate(orgContext);
+    const withholdingAmount = Math.round(dto.gross_amount * withholdingRate);
+    const netPayable = dto.gross_amount - withholdingAmount;
+
+    // ── Build declaration voucher lines (all in base currency) ───────
+    const lines: DraftVoucher['lines'] = [
+      // Dr RETAINED_EARNINGS (gross)
+      {
+        account_code: RETAINED_EARNINGS,
+        amount: dto.gross_amount,
+        currency: baseCurrency,
+        base_amount: dto.gross_amount,
+        fx_rate: 1.0,
+        is_debit: true,
+      },
+      // Cr DIVIDEND_PAYABLE (net to owner)
+      {
+        account_code: DIVIDEND_PAYABLE,
+        amount: netPayable,
+        currency: baseCurrency,
+        base_amount: netPayable,
+        fx_rate: 1.0,
+        is_debit: false,
+      },
+    ];
+
+    // If withholding applies, add the withholding tax payable line.
+    if (withholdingAmount > 0) {
+      lines.push({
+        account_code: DIVIDEND_WITHHOLDING_TAX_PAYABLE,
+        amount: withholdingAmount,
+        currency: baseCurrency,
+        base_amount: withholdingAmount,
+        fx_rate: 1.0,
+        is_debit: false,
+      });
+    }
+
+    const draft: DraftVoucher = {
+      tax_point_date: dto.tax_point_date,
+      reason: dto.reason ?? `Dividend declaration: ${dto.gross_amount} cents`,
+      lines,
+    };
+
+    const voucher = await this.postingService.postVoucher(draft);
+
+    return {
+      voucher_id: voucher.id,
+      gross_amount: dto.gross_amount,
+      net_payable: netPayable,
+      withholding_amount: withholdingAmount,
+    };
+  }
+
+  /**
+   * Settle a dividend against a bank transaction.
+   *
+   * Posts a settlement voucher through the pipeline:
+   *   Dr DIVIDEND_PAYABLE  (amount of bank outflow)
+   *   Cr BANK_EUR          (same amount)
+   *
+   * Then creates an N:M reconciliation_match linking the bank transaction
+   * to the declaration voucher, so the payable is drawn down.
+   *
+   * The bank transaction must have status 'dividend' (reserved in Wave 5).
+   *
+   * @param bankTransactionId - The bank transaction to settle against
+   * @param declarationVoucherId - The declaration voucher to draw down
+   * @returns Settlement result with voucher + reconciliation match
+   */
+  async settle(
+    bankTransactionId: number,
+    declarationVoucherId: number,
+  ): Promise<DividendSettlementResult> {
+    // 1. Look up bank transaction.
+    const txn = await this.transactionRepo.findById(bankTransactionId);
+    if (!txn) {
+      throw new NotFoundException(
+        `Bank transaction ${bankTransactionId} not found`,
+      );
+    }
+
+    // 2. Validate status is 'dividend'.
+    if (txn.status !== 'dividend') {
+      throw new BadRequestException(
+        `Transaction ${bankTransactionId} is not a dividend (status: ${txn.status})`,
+      );
+    }
+
+    // 3. Validate the declaration voucher exists.
+    const declarationVoucher = await this.db
+      .selectFrom('voucher')
+      .select('id')
+      .where('id', '=', declarationVoucherId)
+      .executeTakeFirst();
+    if (!declarationVoucher) {
+      throw new NotFoundException(
+        `Declaration voucher ${declarationVoucherId} not found`,
+      );
+    }
+
+    // 4. Idempotency: a dividend bank line settles exactly once. If it already
+    // carries a reconciliation match, refuse to double-post the settlement.
+    const existingMatch = await this.db
+      .selectFrom('reconciliation_match')
+      .select('id')
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .executeTakeFirst();
+    if (existingMatch) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} is already settled (match ${existingMatch.id})`,
+      );
+    }
+
+    // 5. Resolve the REAL bank account from the transaction's statement and
+    // convert the outflow to base currency (mirrors the Wave-5 reconciliation
+    // services — never assume the bank line is already in base currency).
+    const bankAccount = await this.db
+      .selectFrom('bank_transaction')
+      .innerJoin(
+        'bank_statement',
+        'bank_statement.id',
+        'bank_transaction.statement_id',
+      )
+      .innerJoin('account', 'account.id', 'bank_statement.account_id')
+      .select('account.code as account_code')
+      .where('bank_transaction.id', '=', bankTransactionId)
+      .executeTakeFirstOrThrow();
+    const resolvedBankCode = bankAccount.account_code;
+
+    const absAmount = Math.abs(txn.amount);
+    const baseCurrency = await this.currencyService.getBaseCurrency();
+    const fxRate =
+      txn.currency === baseCurrency
+        ? 1.0
+        : this.plugin.getReferenceRate(
+            txn.currency,
+            baseCurrency,
+            txn.transaction_date,
+          );
+    const baseAmount = Math.round(absAmount * fxRate);
+
+    // 6. Post settlement voucher: Dr DIVIDEND_PAYABLE (base) / Cr {bank} (txn ccy).
+    const draft: DraftVoucher = {
+      tax_point_date: txn.transaction_date,
+      reason: `Dividend settlement for declaration voucher ${declarationVoucherId}`,
+      lines: [
+        {
+          account_code: DIVIDEND_PAYABLE,
+          amount: baseAmount,
+          currency: baseCurrency,
+          base_amount: baseAmount,
+          fx_rate: 1.0,
+          is_debit: true,
+        },
+        {
+          account_code: resolvedBankCode,
+          amount: absAmount,
+          currency: txn.currency,
+          base_amount: baseAmount,
+          fx_rate: fxRate,
+          is_debit: false,
+        },
+      ],
+    };
+
+    const voucher = await this.postingService.postVoucher(draft);
+
+    // 7. Create N:M reconciliation_match (base-currency cents) linking the bank
+    // transaction to the declaration voucher — this is the settlement record;
+    // match-state is derived from it (Wave-5 Q9), the txn status stays 'dividend'.
+    const now = Math.floor(Date.now() / 1000);
+    const [match] = await this.db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: bankTransactionId,
+        voucher_id: declarationVoucherId,
+        match_type: 'exact',
+        amount_matched: baseAmount,
+        created_at: now,
+      })
+      .returningAll()
+      .execute();
+
+    return {
+      voucher_id: voucher.id,
+      reconciliation_match_id: match.id,
+      amount_settled: baseAmount,
+    };
+  }
+
+  /**
+   * Live distributable profits in base-currency cents (ADR-0023, amended).
+   *
+   * v1 has no year-end close, so net income is never swept into RETAINED_EARNINGS.
+   * Distributable = RETAINED_EARNINGS balance + current net income
+   * (ΣRevenue − ΣExpense), all measured credit-positive. Prior dividend
+   * declarations already debited RETAINED_EARNINGS, so they are reflected.
+   */
+  private async getDistributableProfits(): Promise<number> {
+    const result = await this.db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(
+        sql<number>`COALESCE(SUM(CASE WHEN vl.is_debit = 1 THEN -vl.base_amount ELSE vl.base_amount END), 0)`.as(
+          'net',
+        ),
+      )
+      .where(
+        sql<boolean>`a.code = ${RETAINED_EARNINGS} OR a.type IN ('revenue', 'expense')`,
+      )
+      .executeTakeFirst();
+
+    return Number(result?.net ?? 0);
+  }
+}
