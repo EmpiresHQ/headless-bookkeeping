@@ -15,10 +15,8 @@ import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
-import {
-  NullCountryPlugin,
-  NULL_VAT_CODE,
-} from '../plugins/null-country.plugin';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 import {
   CountryPlugin,
   OrgContext,

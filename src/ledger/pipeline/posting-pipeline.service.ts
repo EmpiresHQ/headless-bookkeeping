@@ -16,6 +16,7 @@ import {
 import { DraftVoucher, PostedVoucher } from '../voucher/types';
 import { PolicyDecision } from '../../policy/types';
 import { ValidationError } from '../posting/types';
+import { NULL_VAT_CODE } from '../posting/vat-constants';
 
 /**
  * Parameters for the posting pipeline.
@@ -85,7 +86,7 @@ export class PostingPipelineService {
 
     const resolvedLines: ResolvedLine[] = resolved.map((l, i) => ({
       ...l,
-      vat_code: draft.lines[i].vat_code ?? 'NULL_STANDARD',
+      vat_code: draft.lines[i].vat_code ?? NULL_VAT_CODE,
       category: params.category,
     }));
 
@@ -125,7 +126,7 @@ export class PostingPipelineService {
         taxPointDate: draft.tax_point_date,
         context: semanticContext,
         semanticLines: resolvedLines.filter(
-          (l) => l.vat_code !== 'NULL_STANDARD',
+          (l) => l.vat_code !== NULL_VAT_CODE,
         ),
         override: params.override?.ruleType
           ? {

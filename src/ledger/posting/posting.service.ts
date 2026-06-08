@@ -20,6 +20,7 @@ import { ValidatableLine } from '../validation/types';
 import { DraftVoucher, PostedVoucher, VoucherLine } from '../voucher/types';
 import { ValidationError } from './types';
 import { GENESIS_HASH, computeVoucherHash } from './voucher-hash';
+import { NULL_VAT_CODE } from './vat-constants';
 
 /**
  * The semantic-validation decision for a post, made EXPLICITLY by the caller
@@ -256,10 +257,10 @@ export class PostingService {
     const semanticLines: ResolvedLine[] = draft.lines
       .map((l, i) => ({
         ...resolved[i],
-        vat_code: l.vat_code ?? 'NULL_STANDARD',
+        vat_code: l.vat_code ?? NULL_VAT_CODE,
         category: semantics.context.category,
       }))
-      .filter((l) => l.vat_code !== 'NULL_STANDARD');
+      .filter((l) => l.vat_code !== NULL_VAT_CODE);
 
     if (semanticLines.length === 0) {
       return;

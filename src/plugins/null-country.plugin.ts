@@ -7,8 +7,16 @@ import {
   SupplierFacts,
   VATCode,
 } from './country-plugin.interface';
+import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
-export const NULL_VAT_CODE = 'NULL_STANDARD';
+/**
+ * Re-exported for backward compatibility with existing importers. The SOURCE
+ * OF TRUTH is now the kernel (`src/ledger/posting/vat-constants.ts`):
+ * `NULL_VAT_CODE` is a kernel POSTING convention (a line not subject to VAT
+ * reporting), NOT a jurisdiction VAT code this plugin owns. The plugin merely
+ * REFERENCES it as one of the codes it recognizes.
+ */
+export { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
 /**
  * NullCountryPlugin - A stub implementation of CountryPlugin that returns safe defaults.
@@ -30,7 +38,7 @@ export class NullCountryPlugin implements CountryPlugin {
   }
 
   getVATCodes(): VATCode[] {
-    return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'];
+    return [NULL_VAT_CODE, 'IE_INPUT_23', 'IE_OUTPUT_23'];
   }
 
   resolveCategoryMapping(
@@ -94,7 +102,7 @@ export class NullCountryPlugin implements CountryPlugin {
     vatCode: string,
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
-    return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+    return [NULL_VAT_CODE, 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
   }
 
   resolvePersonalDispositionAccount(orgType: string): string {
@@ -112,7 +120,7 @@ export class NullCountryPlugin implements CountryPlugin {
   ): CrossBorderResolution {
     // Same country → domestic with default VAT code.
     if (supplierFacts.country === orgContext.country) {
-      return { treatment: 'domestic', vatCode: 'NULL_STANDARD' };
+      return { treatment: 'domestic', vatCode: NULL_VAT_CODE };
     }
     // Different country → unresolvable (hold for Approval).
     return { treatment: 'unresolvable', vatCode: null };
