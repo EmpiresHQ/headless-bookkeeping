@@ -314,11 +314,11 @@ export interface MessageTable {
   created_at: number;
 }
 
-// Artifact: a file bound to a Conversation — inbound attachment or outbound output.
+// Artifact: a file bound to a Conversation — inbound attachment, outbound output, or OCR markdown.
 export interface ArtifactTable {
   id: Generated<number>;
   conversation_id: number;
-  // 'inbound_attachment' | 'outbound_output'
+  // 'inbound_attachment' | 'outbound_output' | 'ocr_markdown'
   kind: string;
   document_id: number | null;
   storage_path: string;

@@ -52,3 +52,28 @@ Implemented the Mastra runtime embedded in-process within the NestJS application
 ### Verification
 - `npm run build` — passes with zero errors
 - `npm test` — 473 tests pass (50 suites)
+
+## Task 42: Pass 2 — Mastra agent + tools → structured TriageResult
+
+### Date
+2026-06-08
+
+### Summary
+Implemented Pass2AgentService that runs the Pass 2 Mastra agent over Pass-1 markdown and emits a Zod-validated TriageResult with bounded retry.
+
+### Key Decisions
+
+1. **Bounded retry pattern**: The `classify()` method retries up to 3 times on any failure (Zod validation error or agent error). After 3 failures, returns `null` to signal needs_triage (Task 43).
+
+2. **Double validation**: Even though Mastra's `structuredOutput` accepts a Zod schema, we add an explicit `triageResultSchema.parse()` call as a safety net. Model-dependent behavior may return unvalidated data.
+
+3. **Real-DI testing**: Tests use the same mock-class override pattern as MastraService tests. The agent's `structuredOutput` is spied/mocked to return deterministic results or throw errors for retry testing.
+
+4. **Grep-clean output**: Verified that TriageResult has no `vat_code` or `account` fields — the country plugin is the sole resolver (ADR-0002). Tests explicitly assert these properties are absent.
+
+5. **Null on uninitialized**: If Mastra agent is not initialized, `classify()` returns `null` immediately (no retries).
+
+### Files Created/Modified
+- `src/ai/pass2-agent.service.ts` — Pass2AgentService with classify() method
+- `src/ai/pass2-agent.service.spec.ts` — 10 tests covering valid output, retry, validation, grep-clean
+- `src/ai/ai.module.ts` — registered Pass2AgentService in providers and exports

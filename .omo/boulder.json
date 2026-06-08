@@ -8,7 +8,7 @@
       "plan_name": "wave-6-agents-admin",
       "status": "completed",
       "started_at": "2026-05-31T20:46:48.010Z",
-      "updated_at": "2026-06-08T18:06:49.733Z",
+      "updated_at": "2026-06-08T18:14:07.414Z",
       "session_ids": [
         "opencode:ses_18035f62fffepbex2WYoi1iIAq",
         "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
@@ -19,8 +19,9 @@
       },
       "agent": "atlas",
       "worktree_path": null,
-      "elapsed_ms": 680739984,
-      "task_sessions": {}
+      "elapsed_ms": 682039404,
+      "task_sessions": {},
+      "ended_at": "2026-06-08T18:14:07.414Z"
     },
     "wave-7-ai-orchestration": {
       "work_id": "wave-7-ai-orchestration",
