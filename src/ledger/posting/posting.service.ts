@@ -176,7 +176,7 @@ export class PostingService {
     const { resolved, accounts } = await this.resolveAndValidate(draft);
 
     if (semantics.kind === 'intake-driven') {
-      this.enforceSemantic(draft, resolved, accounts, semantics);
+      await this.enforceSemantic(draft, resolved, accounts, semantics);
     }
 
     return { draft, resolved };
@@ -239,12 +239,12 @@ export class PostingService {
    * BadRequestException — matching the pipeline's prior behavior so callers see
    * the same error type.
    */
-  private enforceSemantic(
+  private async enforceSemantic(
     draft: DraftVoucher,
     resolved: ValidatableLine[],
     accounts: { id: number }[],
     semantics: Extract<PostingSemantics, { kind: 'intake-driven' }>,
-  ): void {
+  ): Promise<void> {
     if (!this.rules) {
       throw new BadRequestException(
         'Semantic validation requested for an intake-driven voucher but ' +
@@ -265,13 +265,17 @@ export class PostingService {
       return;
     }
 
-    const semanticResult = this.rules.validate(
-      semanticLines,
+    // Unified tier interface (ADR-0005): the semantic tier is reached through
+    // the single async `validate(tier, input)` entry. A failure (invalid VAT
+    // code, missing category mapping, or an UNRESOLVABLE cross-border treatment
+    // — ADR-0002) that is not overridden throws BadRequestException, matching
+    // the pipeline's behavior so callers see the same error type.
+    const semanticResult = await this.rules.validate('semantic', {
+      resolvedLines: semanticLines,
       validAccountIds,
-      'semantic',
-      semantics.context,
-      semantics.override,
-    );
+      context: semantics.context,
+      override: semantics.override,
+    });
 
     if (
       isUnresolvedSemanticFailure(semanticResult) ||

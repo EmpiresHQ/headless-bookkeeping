@@ -8,11 +8,7 @@ import { PostingService } from '../posting/posting.service';
 import { StatusTransitionService } from '../status/status-transition.service';
 import { OrganizationService } from '../../organization/organization.service';
 import { mustReject } from '../../rules/rules.guards';
-import {
-  ResolvedLine,
-  SemanticValidationContext,
-  RuleResult,
-} from '../../rules/types';
+import { ResolvedLine, SemanticValidationContext } from '../../rules/types';
 import {
   SupplierFacts,
   OrgContext,
@@ -113,55 +109,49 @@ export class PostingPipelineService {
       category: params.category,
     };
 
-    // ── 5. Run Rules validation ────────────────────────────────
-    const structuralResult = this.rulesService.validate(
-      resolvedLines,
-      validAccountIds,
-      'structural',
-    );
-    if (mustReject(structuralResult)) {
-      throw new BadRequestException({
-        message: 'Structural validation failed',
-        errors: [structuralResult.message],
-      });
-    }
-
-    const hardResult = await this.rulesService.validateHardProcess(
-      draft.tax_point_date,
-    );
-    if (mustReject(hardResult)) {
-      throw new BadRequestException({
-        message: 'Hard process validation failed',
-        errors: [hardResult.message],
-      });
-    }
-
-    // Semantic validation: only on lines with a real VAT code
-    const semanticLines = resolvedLines.filter(
-      (l) => l.vat_code !== 'NULL_STANDARD',
-    );
-    let semanticResult: RuleResult = {
-      passed: true,
-      ruleType: 'semantic',
-      message: 'Semantic validation skipped (no lines with VAT code)',
-      overrideable: true,
-    };
-    if (semanticLines.length > 0) {
-      semanticResult = this.rulesService.validate(
-        semanticLines,
+    // ── 5. Run Rules validation (ONE unified call across all three tiers) ──
+    // The unified tier interface (ADR-0005): one async validateAll runs
+    // structural + hard-process + semantic and returns them in one shape, so
+    // this caller no longer orchestrates a sync `validate` plus a separate
+    // async `validateHardProcess`. The semantic tier evaluates only the lines
+    // carrying a real VAT code (a NULL_STANDARD placeholder is not semantically
+    // meaningful) — including the cross-border treatment check (ADR-0002),
+    // which surfaces an unresolvable foreign-supplier treatment as an
+    // overrideable semantic failure so Policy HOLDS it for Approval.
+    const { structural, hardProcess, semantic } =
+      await this.rulesService.validateAll({
+        resolvedLines,
         validAccountIds,
-        'semantic',
-        semanticContext,
-        params.override?.ruleType
+        taxPointDate: draft.tax_point_date,
+        context: semanticContext,
+        semanticLines: resolvedLines.filter(
+          (l) => l.vat_code !== 'NULL_STANDARD',
+        ),
+        override: params.override?.ruleType
           ? {
               ruleType: params.override.ruleType,
               reason: params.override.reason,
             }
           : undefined,
-      );
+      });
+
+    // Defense-in-depth: the inviolable tiers (structural + hard-process) reject
+    // here with a tier-specific 400 before any write is attempted. The
+    // authoritative throws still live in PostingService (ADR-0019).
+    if (mustReject(structural)) {
+      throw new BadRequestException({
+        message: 'Structural validation failed',
+        errors: [structural.message],
+      });
+    }
+    if (mustReject(hardProcess)) {
+      throw new BadRequestException({
+        message: 'Hard process validation failed',
+        errors: [hardProcess.message],
+      });
     }
 
-    const ruleResults = [structuralResult, hardResult, semanticResult];
+    const ruleResults = [structural, hardProcess, semantic];
 
     // ── 6. Policy gate ─────────────────────────────────────────
     const policyDecision = await this.policyService.decide(draft, ruleResults, {

@@ -70,23 +70,22 @@ describe('RulesService (unit)', () => {
   });
 
   describe('structural tier', () => {
-    it('passes a balanced voucher', () => {
-      const result = service.validate(
-        [
+    it('passes a balanced voucher', async () => {
+      const result = await service.validate('structural', {
+        resolvedLines: [
           resolvedLine({ account_id: 1, is_debit: true }),
           resolvedLine({ account_id: 2, is_debit: false }),
         ],
-        validIds,
-        'structural',
-      );
+        validAccountIds: validIds,
+      });
       expect(result.passed).toBe(true);
       expect(result.ruleType).toBe('structural');
       expect(result.overrideable).toBe(false);
     });
 
-    it('fails an unbalanced voucher → passed:false, overrideable:false', () => {
-      const result = service.validate(
-        [
+    it('fails an unbalanced voucher → passed:false, overrideable:false', async () => {
+      const result = await service.validate('structural', {
+        resolvedLines: [
           resolvedLine({
             account_id: 1,
             amount: 10000,
@@ -100,9 +99,8 @@ describe('RulesService (unit)', () => {
             is_debit: false,
           }),
         ],
-        validIds,
-        'structural',
-      );
+        validAccountIds: validIds,
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(false);
       expect(result.message).toContain('do not balance');
@@ -110,35 +108,32 @@ describe('RulesService (unit)', () => {
       expect(isUnresolvedSemanticFailure(result)).toBe(false);
     });
 
-    it('fails a non-existent account → passed:false, overrideable:false', () => {
-      const result = service.validate(
-        [
+    it('fails a non-existent account → passed:false, overrideable:false', async () => {
+      const result = await service.validate('structural', {
+        resolvedLines: [
           resolvedLine({ account_id: 1, is_debit: true }),
           resolvedLine({ account_id: 42, is_debit: false }),
         ],
-        validIds,
-        'structural',
-      );
+        validAccountIds: validIds,
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(false);
       expect(result.message).toContain('Account does not exist');
     });
 
-    it('structural failure + Override attempt → still passed:false', () => {
+    it('structural failure + Override attempt → still passed:false', async () => {
       const override: Override = {
         ruleType: 'structural',
         reason: 'I want to force this through',
       };
-      const result = service.validate(
-        [
+      const result = await service.validate('structural', {
+        resolvedLines: [
           resolvedLine({ account_id: 1, is_debit: true }),
           resolvedLine({ account_id: 42, is_debit: false }),
         ],
-        validIds,
-        'structural',
-        undefined,
+        validAccountIds: validIds,
         override,
-      );
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(false);
     });
@@ -176,27 +171,41 @@ describe('RulesService (unit)', () => {
       expect(result.message).toContain('locked period Q1');
       expect(mustReject(result)).toBe(true);
     });
+
+    it('is reachable through the unified validate() entry (same async shape)', async () => {
+      mockPeriodLock.findLockedPeriod.mockResolvedValue(undefined);
+
+      const result = await service.validate('hard_process', {
+        taxPointDate: '2026-05-15',
+      });
+
+      expect(mockPeriodLock.findLockedPeriod).toHaveBeenCalledWith(
+        '2026-05-15',
+      );
+      expect(result.passed).toBe(true);
+      expect(result.ruleType).toBe('hard_process');
+      expect(result.overrideable).toBe(false);
+    });
   });
 
   describe('semantic tier', () => {
-    it('passes with valid VAT code and known category', () => {
-      const result = service.validate(
-        [
+    it('passes with valid VAT code and known category', async () => {
+      const result = await service.validate('semantic', {
+        resolvedLines: [
           resolvedLine({ account_id: 1, is_debit: true }),
           resolvedLine({ account_id: 2, is_debit: false }),
         ],
-        validIds,
-        'semantic',
-        defaultSemanticContext,
-      );
+        validAccountIds: validIds,
+        context: defaultSemanticContext,
+      });
       expect(result.passed).toBe(true);
       expect(result.ruleType).toBe('semantic');
       expect(result.overrideable).toBe(true);
     });
 
-    it('fails with invalid VAT code → passed:false, overrideable:true', () => {
-      const result = service.validate(
-        [
+    it('fails with invalid VAT code → passed:false, overrideable:true', async () => {
+      const result = await service.validate('semantic', {
+        resolvedLines: [
           resolvedLine({
             account_id: 1,
             is_debit: true,
@@ -208,10 +217,9 @@ describe('RulesService (unit)', () => {
             vat_code: 'DK_INPUT_25',
           }),
         ],
-        validIds,
-        'semantic',
-        defaultSemanticContext,
-      );
+        validAccountIds: validIds,
+        context: defaultSemanticContext,
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(true);
       expect(result.message).toContain('Invalid VAT code');
@@ -219,11 +227,11 @@ describe('RulesService (unit)', () => {
       expect(mustReject(result)).toBe(false);
     });
 
-    it('fails with invalid VAT code on unknown category → passed:false, overrideable:true', () => {
+    it('fails with invalid VAT code on unknown category → passed:false, overrideable:true', async () => {
       // NullCountryPlugin maps unknown categories to EXPENSE_OTHER,
       // so category mapping never fails. The real semantic gate is VAT code validity.
-      const result = service.validate(
-        [
+      const result = await service.validate('semantic', {
+        resolvedLines: [
           resolvedLine({
             account_id: 1,
             is_debit: true,
@@ -237,22 +245,21 @@ describe('RulesService (unit)', () => {
             vat_code: 'INVALID_VAT_CODE',
           }),
         ],
-        validIds,
-        'semantic',
-        defaultSemanticContext,
-      );
+        validAccountIds: validIds,
+        context: defaultSemanticContext,
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(true);
       expect(result.message).toContain('Invalid VAT code');
     });
 
-    it('semantic failure + Override reason → passed:true', () => {
+    it('semantic failure + Override reason → passed:true', async () => {
       const override: Override = {
         ruleType: 'semantic',
         reason: 'Supplier confirmed this is a valid special VAT treatment',
       };
-      const result = service.validate(
-        [
+      const result = await service.validate('semantic', {
+        resolvedLines: [
           resolvedLine({
             account_id: 1,
             is_debit: true,
@@ -264,11 +271,10 @@ describe('RulesService (unit)', () => {
             vat_code: 'INVALID_VAT_CODE',
           }),
         ],
-        validIds,
-        'semantic',
-        defaultSemanticContext,
+        validAccountIds: validIds,
+        context: defaultSemanticContext,
         override,
-      );
+      });
       expect(result.passed).toBe(true);
       expect(result.ruleType).toBe('semantic');
       expect(result.overrideable).toBe(true);
@@ -276,27 +282,26 @@ describe('RulesService (unit)', () => {
       expect(result.message).toContain(override.reason);
     });
 
-    it('fails when context is missing', () => {
-      const result = service.validate(
-        [
+    it('fails when context is missing', async () => {
+      const result = await service.validate('semantic', {
+        resolvedLines: [
           resolvedLine({ account_id: 1, is_debit: true }),
           resolvedLine({ account_id: 2, is_debit: false }),
         ],
-        validIds,
-        'semantic',
-      );
+        validAccountIds: validIds,
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(true);
       expect(result.message).toContain('requires context');
     });
 
-    it('override on wrong ruleType is ignored', () => {
+    it('override on wrong ruleType is ignored', async () => {
       const override: Override = {
         ruleType: 'hard_process',
         reason: 'Wrong tier override',
       };
-      const result = service.validate(
-        [
+      const result = await service.validate('semantic', {
+        resolvedLines: [
           resolvedLine({
             account_id: 1,
             is_debit: true,
@@ -308,13 +313,120 @@ describe('RulesService (unit)', () => {
             vat_code: 'INVALID',
           }),
         ],
-        validIds,
-        'semantic',
-        defaultSemanticContext,
+        validAccountIds: validIds,
+        context: defaultSemanticContext,
         override,
-      );
+      });
       expect(result.passed).toBe(false);
       expect(result.overrideable).toBe(true);
+    });
+  });
+
+  describe('semantic tier — cross-border treatment (ADR-0002)', () => {
+    // A foreign supplier whose VAT territory the NullCountryPlugin does not
+    // cover resolves to `unresolvable`. The kernel must never silently reclaim
+    // a foreign document_vat_marking, so this surfaces as an overrideable
+    // semantic failure → held for Approval by Policy (book gross as cost).
+    const foreignSupplier: SupplierFacts = {
+      country: 'US',
+      goodsVsServices: 'services',
+      classificationMemory: [],
+    };
+    const foreignContext: SemanticValidationContext = {
+      countryCode: 'null',
+      supplierFacts: foreignSupplier,
+      orgContext: defaultOrg,
+      category: 'software',
+    };
+
+    it('unresolvable foreign-supplier treatment → overrideable failure (held for Approval)', async () => {
+      const result = await service.validate('semantic', {
+        resolvedLines: [
+          resolvedLine({ account_id: 1, is_debit: true }),
+          resolvedLine({ account_id: 2, is_debit: false }),
+        ],
+        validAccountIds: validIds,
+        context: foreignContext,
+      });
+      expect(result.passed).toBe(false);
+      expect(result.overrideable).toBe(true);
+      expect(result.message).toContain('cross-border');
+      expect(isUnresolvedSemanticFailure(result)).toBe(true);
+      expect(mustReject(result)).toBe(false);
+    });
+
+    it('resolvable domestic (same-country) treatment → passes', async () => {
+      const result = await service.validate('semantic', {
+        resolvedLines: [
+          resolvedLine({ account_id: 1, is_debit: true }),
+          resolvedLine({ account_id: 2, is_debit: false }),
+        ],
+        validAccountIds: validIds,
+        context: defaultSemanticContext,
+      });
+      expect(result.passed).toBe(true);
+    });
+
+    it('unresolvable cross-border can be relaxed by a logged Override', async () => {
+      const override: Override = {
+        ruleType: 'semantic',
+        reason:
+          'US supplier confirmed reverse-charge applies; book accordingly',
+      };
+      const result = await service.validate('semantic', {
+        resolvedLines: [
+          resolvedLine({ account_id: 1, is_debit: true }),
+          resolvedLine({ account_id: 2, is_debit: false }),
+        ],
+        validAccountIds: validIds,
+        context: foreignContext,
+        override,
+      });
+      expect(result.passed).toBe(true);
+      expect(result.message).toContain('overridden');
+    });
+  });
+
+  describe('validateAll — unified single-call tier interface', () => {
+    beforeEach(() =>
+      mockPeriodLock.findLockedPeriod.mockResolvedValue(undefined),
+    );
+    afterEach(() => mockPeriodLock.findLockedPeriod.mockReset());
+
+    it('runs all three tiers and returns them in declaration order', async () => {
+      const lines = [
+        resolvedLine({ account_id: 1, is_debit: true }),
+        resolvedLine({ account_id: 2, is_debit: false }),
+      ];
+      const { structural, hardProcess, semantic } = await service.validateAll({
+        resolvedLines: lines,
+        validAccountIds: validIds,
+        taxPointDate: '2026-05-15',
+        context: defaultSemanticContext,
+        semanticLines: lines,
+      });
+      expect(structural.ruleType).toBe('structural');
+      expect(structural.passed).toBe(true);
+      expect(hardProcess.ruleType).toBe('hard_process');
+      expect(hardProcess.passed).toBe(true);
+      expect(semantic.ruleType).toBe('semantic');
+      expect(semantic.passed).toBe(true);
+    });
+
+    it('skips the semantic tier (passing) when no lines carry a real VAT code', async () => {
+      const lines = [
+        resolvedLine({ account_id: 1, is_debit: true }),
+        resolvedLine({ account_id: 2, is_debit: false }),
+      ];
+      const { semantic } = await service.validateAll({
+        resolvedLines: lines,
+        validAccountIds: validIds,
+        taxPointDate: '2026-05-15',
+        context: defaultSemanticContext,
+        semanticLines: [],
+      });
+      expect(semantic.passed).toBe(true);
+      expect(semantic.message).toContain('skipped');
     });
   });
 });
@@ -405,16 +517,18 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
       },
     ];
 
-    const structural = service.validate(lines, validAccountIds, 'structural');
+    const structural = await service.validate('structural', {
+      resolvedLines: lines,
+      validAccountIds,
+    });
     expect(structural.passed).toBe(true);
     expect(structural.overrideable).toBe(false);
 
-    const semantic = service.validate(
-      lines,
+    const semantic = await service.validate('semantic', {
+      resolvedLines: lines,
       validAccountIds,
-      'semantic',
-      defaultSemanticContext,
-    );
+      context: defaultSemanticContext,
+    });
     expect(semantic.passed).toBe(true);
     expect(semantic.overrideable).toBe(true);
   });
@@ -456,7 +570,10 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
       },
     ];
 
-    const result = service.validate(lines, validAccountIds, 'structural');
+    const result = await service.validate('structural', {
+      resolvedLines: lines,
+      validAccountIds,
+    });
     expect(result.passed).toBe(false);
     expect(result.overrideable).toBe(false);
     expect(result.message).toContain('do not balance');
@@ -499,12 +616,11 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
       },
     ];
 
-    const result = service.validate(
-      lines,
+    const result = await service.validate('semantic', {
+      resolvedLines: lines,
       validAccountIds,
-      'semantic',
-      defaultSemanticContext,
-    );
+      context: defaultSemanticContext,
+    });
     expect(result.passed).toBe(false);
     expect(result.overrideable).toBe(true);
     expect(result.message).toContain('Invalid VAT code');
@@ -552,13 +668,12 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
       reason: 'Cross-border triangulation — DK supplier, IE recipient',
     };
 
-    const result = service.validate(
-      lines,
+    const result = await service.validate('semantic', {
+      resolvedLines: lines,
       validAccountIds,
-      'semantic',
-      defaultSemanticContext,
+      context: defaultSemanticContext,
       override,
-    );
+    });
     expect(result.passed).toBe(true);
     expect(result.overrideable).toBe(true);
     expect(result.message).toContain('overridden');
