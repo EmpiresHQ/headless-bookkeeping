@@ -7,14 +7,37 @@ import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.serv
 import { TriageResult } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
 
+/** The posting pipeline's result shape (Rules → Policy → post/hold). */
+export type PipelineRunResult = Awaited<
+  ReturnType<typeof PostingPipelineService.prototype.runPipeline>
+>;
+
 /**
- * Result of the propose-draft pipeline.
+ * A marker the idempotency replay returns instead of re-running the pipeline:
+ * the draft already exists and was already posted/held on the original pass.
+ */
+export interface ReplayedPipelineResult {
+  replayed: true;
+}
+
+/**
+ * Result of a FRESH propose-draft run — the pipeline actually executed, so
+ * `pipelineResult` is the concrete pipeline output (callers may read
+ * `.policy.action`).
  */
 export interface ProposeDraftResult {
   expenseId: number;
-  pipelineResult: Awaited<
-    ReturnType<typeof PostingPipelineService.prototype.runPipeline>
-  >;
+  pipelineResult: PipelineRunResult;
+}
+
+/**
+ * Result the workflow's idempotency replay surfaces — either a fresh run or a
+ * replayed marker (the pipeline did NOT re-run). The wider union; assignable
+ * from {@link ProposeDraftResult}.
+ */
+export interface DraftReplayResult {
+  expenseId: number;
+  pipelineResult: PipelineRunResult | ReplayedPipelineResult;
 }
 
 /**
@@ -28,7 +51,11 @@ export interface ProposeDraftResult {
  *    (generateDraftVoucher → Rules → Policy → post/hold)
  * 4. Writes an ai_proposal row for provenance audit
  *
- * Only handles kind='new_expense'; other kinds throw (to be wired in Task 43).
+ * Routing is NOT decided here — the IntakeWorkflowService is the single owner
+ * of the `kind` + confidence decision and only ever calls this with a
+ * validated, already-routed confident `new_expense`. The `kind` check below is
+ * a defensive backstop (a misuse guard), not a second routing point: it throws
+ * for any non-new_expense so a bypass can never produce a garbage draft.
  */
 @Injectable()
 export class ProposeDraftService {
@@ -50,11 +77,14 @@ export class ProposeDraftService {
     documentId?: number | null,
     supplierId?: number | null,
   ): Promise<ProposeDraftResult> {
-    // Only handle new_expense for now; other kinds deferred to Task 43.
+    // Defensive backstop, NOT a routing point: the workflow already decided
+    // this is a confident new_expense. Reject anything else so a bypass can
+    // never create a garbage draft. (correction/duplicate wired in Task 43.)
     if (triageResult.kind !== 'new_expense') {
       throw new BadRequestException(
         `proposeDraft only supports kind='new_expense', got '${triageResult.kind}'. ` +
-          `Other kinds (correction, duplicate, unknown) will be wired in Task 43.`,
+          `Routing is owned by IntakeWorkflowService; other kinds (correction, ` +
+          `duplicate, unknown) will be wired in Task 43.`,
       );
     }
 
@@ -92,6 +122,36 @@ export class ProposeDraftService {
     return {
       expenseId: expense.id,
       pipelineResult,
+    };
+  }
+
+  /**
+   * Find an Expense already drafted from a Document, if any. Used by the
+   * IntakeWorkflowService idempotency guard to replay an already-triaged
+   * Document's draft instead of creating a second one. Returns the lightweight
+   * identity (expenseId) wrapped so an idempotent re-run is observably a no-op;
+   * the full pipeline is NOT re-run.
+   */
+  async findExistingDraft(
+    documentId: number,
+  ): Promise<DraftReplayResult | undefined> {
+    const expense = await this.db
+      .selectFrom('expense')
+      .select('id')
+      .where('document_id', '=', documentId)
+      .orderBy('id', 'asc')
+      .executeTakeFirst();
+
+    if (!expense) {
+      return undefined;
+    }
+
+    return {
+      expenseId: expense.id,
+      // The pipeline already ran on the original pass; a replay does not
+      // re-post. `replayed` marks this as an idempotent surfacing, not a
+      // fresh pipeline run.
+      pipelineResult: { replayed: true },
     };
   }
 

@@ -203,5 +203,35 @@ describe('OcrService', () => {
     it('throws NotFoundException for non-existent document', async () => {
       await expect(service.transcribe(9999)).rejects.toThrow(NotFoundException);
     });
+
+    it('is race/retry-safe — concurrent transcribe() calls create exactly one artifact', async () => {
+      const docId = await seedDocument('race-receipt.pdf');
+
+      // Fire two transcribe() calls concurrently. Both will see no artifact at
+      // the fast-path check; the transactional re-check must ensure only one
+      // artifact (and one conversation) is created.
+      const [a, b] = await Promise.all([
+        service.transcribe(docId),
+        service.transcribe(docId),
+      ]);
+
+      expect(a).toBe(b);
+
+      const artifactCount = await db
+        .selectFrom('artifact')
+        .select(db.fn.count('id').as('cnt'))
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', docId)
+        .executeTakeFirst();
+      expect(Number(artifactCount!.cnt)).toBe(1);
+
+      // And exactly one OCR conversation for the document.
+      const convCount = await db
+        .selectFrom('conversation')
+        .select(db.fn.count('id').as('cnt'))
+        .where('thread_key', '=', `ocr:${docId}`)
+        .executeTakeFirst();
+      expect(Number(convCount!.cnt)).toBe(1);
+    });
   });
 });

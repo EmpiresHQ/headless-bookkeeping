@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { EntitiesModule } from '../entities/entities.module';
 import { ExpensesModule } from '../expenses/expenses.module';
 import { PluginsModule } from '../plugins/plugins.module';
@@ -36,6 +37,7 @@ import { IntakeWorkflowService } from './intake-workflow.service';
 @Module({
   imports: [
     DatabaseModule,
+    DocumentsModule,
     EntitiesModule,
     ExpensesModule,
     PluginsModule,

@@ -164,6 +164,8 @@ export interface DocumentTable {
   mime_type: string;
   size_bytes: number;
   storage_path: string | null;
+  // enum: 'pending' | 'triaged' | 'needs_triage' | 'processed' | 'error'
+  // (CHECK widened in migration 030; owned by IntakeWorkflowService, ADR-0024)
   status: string;
   created_at: number;
 }

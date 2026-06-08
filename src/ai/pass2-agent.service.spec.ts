@@ -120,13 +120,15 @@ describe('Pass2AgentService', () => {
 
       const result = await service.classify(markdown);
 
-      expect(result).not.toBeNull();
-      expect(result).toEqual(mockResult);
-      expect(result?.kind).toBe('new_expense');
-      expect(result?.confidence).toBe(0.94);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.result).toEqual(mockResult);
+        expect(result.result.kind).toBe('new_expense');
+        expect(result.result.confidence).toBe(0.94);
+      }
     });
 
-    it('returns null when agent is not initialized', async () => {
+    it('returns agent-unavailable when agent is not initialized', async () => {
       // Create a fresh service with uninitialized MastraService.
       const uninitializedMastra = new MastraService(
         null as any,
@@ -139,10 +141,13 @@ describe('Pass2AgentService', () => {
 
       const result = await freshService.classify('some markdown');
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.category).toBe('agent-unavailable');
+      }
     });
 
-    it('retries on invalid output and returns null after max attempts', async () => {
+    it('retries on invalid output and reports invalid-output after max attempts', async () => {
       const agent = mastraService.getAgent();
       // structuredOutput returns data that fails Zod validation
       // (missing required fields).
@@ -158,7 +163,10 @@ describe('Pass2AgentService', () => {
       const markdown = 'broken invoice content';
       const result = await service.classify(markdown);
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.category).toBe('invalid-output');
+      }
       // Verify it was called MAX_RETRIES (3) times.
       expect(agent.structuredOutput).toHaveBeenCalledTimes(3);
     });
@@ -176,8 +184,10 @@ describe('Pass2AgentService', () => {
       const markdown = 'valid invoice';
       const result = await service.classify(markdown);
 
-      expect(result).not.toBeNull();
-      expect(result).toEqual(mockResult);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.result).toEqual(mockResult);
+      }
       expect(agent.structuredOutput).toHaveBeenCalledTimes(3);
     });
 
@@ -188,12 +198,13 @@ describe('Pass2AgentService', () => {
 
       const result = await service.classify('test markdown');
 
-      expect(result).not.toBeNull();
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('unreachable');
       // TriageResult schema has no vat_code or account fields.
-      expect(result).not.toHaveProperty('vat_code');
-      expect(result).not.toHaveProperty('account');
+      expect(result.result).not.toHaveProperty('vat_code');
+      expect(result.result).not.toHaveProperty('account');
       // The result keys should match the TriageResult schema.
-      const keys = Object.keys(result!);
+      const keys = Object.keys(result.result);
       expect(keys).not.toContain('vat_code');
       expect(keys).not.toContain('account');
     });
@@ -219,7 +230,7 @@ describe('Pass2AgentService', () => {
       }
     });
 
-    it('returns null when structuredOutput throws every time', async () => {
+    it('reports transient when structuredOutput throws every time', async () => {
       const agent = mastraService.getAgent();
       jest
         .spyOn(agent, 'structuredOutput')
@@ -227,7 +238,10 @@ describe('Pass2AgentService', () => {
 
       const result = await service.classify('any markdown');
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.category).toBe('transient');
+      }
       expect(agent.structuredOutput).toHaveBeenCalledTimes(3);
     });
 
@@ -241,7 +255,10 @@ describe('Pass2AgentService', () => {
 
       const result = await service.classify('test');
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.category).toBe('invalid-output');
+      }
     });
 
     it('validates confidence is between 0 and 1', async () => {
@@ -254,7 +271,10 @@ describe('Pass2AgentService', () => {
 
       const result = await service.classify('test');
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.category).toBe('invalid-output');
+      }
     });
 
     it('validates kind is a valid enum value', async () => {
@@ -267,7 +287,10 @@ describe('Pass2AgentService', () => {
 
       const result = await service.classify('test');
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.category).toBe('invalid-output');
+      }
     });
   });
 });

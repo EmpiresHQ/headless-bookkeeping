@@ -24,6 +24,11 @@ import { TriageService } from './triage.service';
  * The AI pipeline (OCR + agent + proposeDraft) has its own comprehensive
  * tests in src/ai/*.spec.ts. This test verifies TriageService's routing
  * logic against mocked workflow outcomes.
+ *
+ * NOTE: the Document status transition is now owned by the IntakeWorkflowService
+ * (the single deep owner of "Document -> outcome"), NOT by TriageService. The
+ * mock therefore performs the status move to model the real workflow, and the
+ * assertions confirm TriageService no longer touches the status itself.
  */
 describe('TriageService (integration)', () => {
   let db: Kysely<Database>;
@@ -107,16 +112,20 @@ describe('TriageService (integration)', () => {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    mockWorkflow.process.mockResolvedValue({
-      status: 'draft_proposed',
-      draft: {
-        expenseId: expense.id,
-        pipelineResult: {
-          businessObject: expense,
-          voucher: null,
-          policy: { action: 'hold-for-approval', reason: 'test' },
+    // The workflow owns the status transition; the mock models that ownership.
+    mockWorkflow.process.mockImplementation(async (id: number) => {
+      await documents.setStatus(id, 'triaged');
+      return {
+        status: 'draft_proposed',
+        draft: {
+          expenseId: expense.id,
+          pipelineResult: {
+            businessObject: expense,
+            voucher: null,
+            policy: { action: 'hold-for-approval', reason: 'test' },
+          },
         },
-      },
+      };
     });
 
     const outcome = await triage.route(doc.id);
@@ -138,23 +147,27 @@ describe('TriageService (integration)', () => {
     });
     const doc = uploadResult.document;
 
-    mockWorkflow.process.mockResolvedValue({
-      status: 'needs_triage',
-      reason: 'AI confidence too low',
-      finding: {
-        id: 1,
-        severity: 'medium',
-        finding_type: 'needs_triage',
-        description: 'AI confidence too low',
-        referenced_object_type: 'document',
-        referenced_object_id: doc.id,
-        status: 'open',
-        created_at: Math.floor(Date.now() / 1000),
-        resolved_at: null,
-        snoozed_at: null,
-        transitioned_by: null,
-        transition_reason: null,
-      },
+    // The workflow owns the status transition to needs_triage.
+    mockWorkflow.process.mockImplementation(async (id: number) => {
+      await documents.setStatus(id, 'needs_triage');
+      return {
+        status: 'needs_triage',
+        reason: 'AI confidence too low',
+        finding: {
+          id: 1,
+          severity: 'medium',
+          finding_type: 'needs_triage',
+          description: 'AI confidence too low',
+          referenced_object_type: 'document',
+          referenced_object_id: doc.id,
+          status: 'open',
+          created_at: Math.floor(Date.now() / 1000),
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
+        },
+      };
     });
 
     const outcome = await triage.route(doc.id);
@@ -163,8 +176,9 @@ describe('TriageService (integration)', () => {
     expect(outcome.document_id).toBe(doc.id);
     expect(outcome.reason).toBe('AI confidence too low');
 
+    // The workflow (not TriageService) moved the Document to needs_triage.
     const updatedDoc = await documents.getById(doc.id);
-    expect(updatedDoc.status).toBe('triaged');
+    expect(updatedDoc.status).toBe('needs_triage');
   });
 
   it('throws NotFoundException for unknown document id', async () => {

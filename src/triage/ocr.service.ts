@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, Transaction } from 'kysely';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { Database } from '../database/types';
 import { DocumentsService } from '../documents/documents.service';
-import { ConversationsService } from '../conversations/conversations.service';
 import { TriageResult } from './types';
 
 /**
@@ -71,7 +70,6 @@ export class OcrService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly documentsService: DocumentsService,
-    private readonly conversationsService: ConversationsService,
   ) {}
 
   /**
@@ -90,7 +88,7 @@ export class OcrService {
     // 1. Look up the document.
     const document = await this.documentsService.getById(documentId);
 
-    // 2. Check for existing OCR markdown artifact (idempotency).
+    // 2. Fast path: an OCR markdown artifact already exists (idempotency).
     const existingArtifact = await this.findExistingOcrArtifact(documentId);
     if (existingArtifact) {
       return readFileSync(existingArtifact.storage_path, 'utf-8');
@@ -99,7 +97,9 @@ export class OcrService {
     // 3. Call the OCR model (faux for v1).
     const markdown = fauxOcrModel(documentId, document.filename);
 
-    // 4. Write markdown to filesystem.
+    // 4. Write markdown to filesystem. The path is deterministic per document
+    //    (`{id}.md`) and the content is deterministic, so a concurrent/retried
+    //    write is idempotent (same bytes, same path) — no race on the file.
     const artifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
     if (!existsSync(artifactsDir)) {
       mkdirSync(artifactsDir, { recursive: true });
@@ -107,19 +107,51 @@ export class OcrService {
     const storagePath = join(artifactsDir, `${documentId}.md`);
     writeFileSync(storagePath, markdown, 'utf-8');
 
-    // 5. Find or create a Conversation for the document, then attach artifact.
-    const conversation = await this.resolveConversation(documentId);
-    await this.conversationsService.attachArtifact({
-      conversation_id: conversation.id,
-      kind: 'ocr_markdown',
-      storage_path: storagePath,
-      document_id: documentId,
-    });
+    // 5. Race-safe find-or-create of the artifact + conversation. Two
+    //    concurrent/retried transcribe() calls both saw no artifact at step 2;
+    //    without a guard both would attach a duplicate ocr_markdown artifact.
+    //    We re-check inside a single write transaction (better-sqlite3
+    //    serializes write transactions, so the re-check + insert is atomic):
+    //    the loser of the race sees the committed artifact and reuses it.
+    await this.db.transaction().execute(async (trx) => {
+      const racedArtifact = await trx
+        .selectFrom('artifact')
+        .select('id')
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', documentId)
+        .executeTakeFirst();
+      if (racedArtifact) {
+        // Another call won — leave its artifact untouched (no duplicate).
+        return;
+      }
 
-    // 6. Also associate the conversation with the document.
-    await this.conversationsService.associateDocument({
-      conversation_id: conversation.id,
-      document_id: documentId,
+      // Find or create the per-document OCR conversation inside the txn.
+      const conversation = await this.resolveConversationTx(trx, documentId);
+
+      const now = Math.floor(Date.now() / 1000);
+      await trx
+        .insertInto('artifact')
+        .values({
+          conversation_id: conversation.id,
+          kind: 'ocr_markdown',
+          storage_path: storagePath,
+          document_id: documentId,
+          created_at: now,
+        })
+        .execute();
+
+      // Associate the conversation with the document (idempotent insert).
+      await trx
+        .insertInto('conversation_document')
+        .values({ conversation_id: conversation.id, document_id: documentId })
+        .ignore()
+        .execute();
+
+      await trx
+        .updateTable('conversation')
+        .set({ updated_at: now })
+        .where('id', '=', conversation.id)
+        .execute();
     });
 
     return markdown;
@@ -181,16 +213,43 @@ export class OcrService {
   }
 
   /**
-   * Resolve or create a Conversation for a document's OCR transcription.
+   * Resolve or create the per-document OCR Conversation INSIDE a transaction.
    *
-   * Uses channel='api' and thread_key='ocr:{documentId}' for deterministic
-   * resolution. This creates a dedicated conversation per document for the
-   * OCR pass.
+   * Mirrors ConversationsService.resolve (deterministic by channel='api' +
+   * thread_key='ocr:{documentId}'), but operates on the transaction handle so
+   * the conversation find-or-create shares atomicity with the artifact insert
+   * in transcribe(). Keeps the single-call path behavior-identical.
    */
-  private async resolveConversation(documentId: number) {
-    return this.conversationsService.resolve({
-      channel: 'api',
-      thread_key: `ocr:${documentId}`,
-    });
+  private async resolveConversationTx(
+    trx: Transaction<Database>,
+    documentId: number,
+  ): Promise<{ id: number }> {
+    const channel = 'api';
+    const threadKey = `ocr:${documentId}`;
+
+    const existing = await trx
+      .selectFrom('conversation')
+      .select('id')
+      .where('channel', '=', channel)
+      .where('thread_key', '=', threadKey)
+      .executeTakeFirst();
+    if (existing) {
+      return { id: existing.id };
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const created = await trx
+      .insertInto('conversation')
+      .values({
+        channel,
+        thread_key: threadKey,
+        status: 'open',
+        created_at: now,
+        updated_at: now,
+        closed_at: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    return { id: created.id };
   }
 }

@@ -178,6 +178,37 @@ export class AuditFindingsService {
   }
 
   /**
+   * Find a single open finding of a given type that references a specific
+   * business object. This is the deterministic idempotency guard the intake
+   * workflow uses before creating a `needs_triage` finding: a retry of a
+   * Document that already routed to a human must reuse the existing finding
+   * rather than double-create one.
+   *
+   * Returns the most-recent matching open finding, or undefined if none.
+   */
+  async findOpenByReference(
+    findingType: FindingType,
+    referencedObjectType: ReferencedObjectType,
+    referencedObjectId: number,
+  ): Promise<AuditFinding | undefined> {
+    this.assertFindingType(findingType);
+    this.assertReferencedObjectType(referencedObjectType);
+
+    const row = await this.db
+      .selectFrom('audit_finding')
+      .selectAll()
+      .where('finding_type', '=', findingType)
+      .where('referenced_object_type', '=', referencedObjectType)
+      .where('referenced_object_id', '=', referencedObjectId)
+      .where('status', '=', 'open')
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .executeTakeFirst();
+
+    return row ? this.mapRow(row) : undefined;
+  }
+
+  /**
    * Get all open findings (used by SecretaryAgent), severity-ranked.
    */
   async getOpenFindings(): Promise<AuditFinding[]> {

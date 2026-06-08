@@ -9,9 +9,8 @@ import { migrations } from '../src/database/migrations';
 import { DOCUMENT_STORAGE_ROOT } from '../src/documents/document-storage.service';
 import { AppModule } from '../src/app.module';
 import { MastraService } from '../src/ai/mastra.service';
-import { Pass2AgentService } from '../src/ai/pass2-agent.service';
+import { Pass2AgentService, Pass2Outcome } from '../src/ai/pass2-agent.service';
 import { fauxMastraService } from './faux-mastra.service';
-import { TriageResult } from '../src/triage/types';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { mkdtempSync, rmSync } from 'fs';
@@ -36,7 +35,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
   /** Faux Pass 2 agent — deterministic based on document filename. */
   function createFauxPass2Agent(db: Kysely<Database>): Pass2AgentService {
     return {
-      async classify(_markdown: string): Promise<TriageResult | null> {
+      async classify(_markdown: string): Promise<Pass2Outcome> {
         const doc = await db
           .selectFrom('document')
           .select('filename')
@@ -44,49 +43,64 @@ describe('Intake E2E (document → draft → pipeline)', () => {
           .limit(1)
           .executeTakeFirst();
 
-        if (!doc) return null;
+        if (!doc) {
+          return {
+            ok: false,
+            category: 'invalid-output',
+            detail: 'no document found',
+          };
+        }
 
         const lower = doc.filename.toLowerCase();
 
         // v1 AI intake is purchase-side only — invoices return unknown.
         if (lower.includes('invoice')) {
           return {
-            kind: 'unknown',
-            document_type: 'invoice',
-            gross_amount: 0,
-            vat_amount: 0,
-            currency: 'EUR',
-            tax_point_date: '2026-03-15',
-            category: 'unknown',
-            document_vat_marking: null,
-            confidence: 0.2,
+            ok: true,
+            result: {
+              kind: 'unknown',
+              document_type: 'invoice',
+              gross_amount: 0,
+              vat_amount: 0,
+              currency: 'EUR',
+              tax_point_date: '2026-03-15',
+              category: 'unknown',
+              document_vat_marking: null,
+              confidence: 0.2,
+            },
           };
         }
 
         if (lower.includes('receipt')) {
           return {
-            kind: 'new_expense',
-            document_type: 'receipt',
-            gross_amount: 1525,
-            vat_amount: 285,
-            currency: 'EUR',
-            tax_point_date: '2026-03-15',
-            category: 'transport',
-            document_vat_marking: 'IE_INPUT_23',
-            confidence: 0.95,
+            ok: true,
+            result: {
+              kind: 'new_expense',
+              document_type: 'receipt',
+              gross_amount: 1525,
+              vat_amount: 285,
+              currency: 'EUR',
+              tax_point_date: '2026-03-15',
+              category: 'transport',
+              document_vat_marking: 'IE_INPUT_23',
+              confidence: 0.95,
+            },
           };
         }
 
         return {
-          kind: 'unknown',
-          document_type: 'unknown',
-          gross_amount: 0,
-          vat_amount: 0,
-          currency: 'EUR',
-          tax_point_date: '2026-01-01',
-          category: 'unknown',
-          document_vat_marking: null,
-          confidence: 0.2,
+          ok: true,
+          result: {
+            kind: 'unknown',
+            document_type: 'unknown',
+            gross_amount: 0,
+            vat_amount: 0,
+            currency: 'EUR',
+            tax_point_date: '2026-01-01',
+            category: 'unknown',
+            document_vat_marking: null,
+            confidence: 0.2,
+          },
         };
       },
     } as unknown as Pass2AgentService;
