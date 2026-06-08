@@ -59,14 +59,8 @@ export class BankStatementService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    const {
-      id,
-      account_id,
-      start_date,
-      end_date,
-      uploaded_at,
-      file_path,
-    } = row;
+    const { id, account_id, start_date, end_date, uploaded_at, file_path } =
+      row;
     const statement: BankStatementRecord = {
       id,
       account_id,
