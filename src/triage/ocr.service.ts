@@ -21,9 +21,10 @@ import { TriageResult } from './types';
 function fauxOcrModel(documentId: number, filename: string): string {
   const lower = filename.toLowerCase();
   // Filename takes precedence; fall back to id parity for ambiguous names.
+  // Determine document type from filename keywords.
+  // Fall back to id parity for ambiguous names that aren't clearly receipts or invoices.
   const isReceipt =
     lower.includes('receipt') ||
-    lower.includes('bolt') ||
     (!lower.includes('invoice') && documentId % 2 === 1);
 
   if (isReceipt) {
