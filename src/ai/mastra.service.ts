@@ -124,7 +124,16 @@ export class MastraService implements OnModuleInit {
         'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
         'Always return structured output with kind, document_type, gross_amount, ' +
         'vat_amount, currency, tax_point_date, category, document_vat_marking, ' +
-        'confidence, and optionally supplier_proposal.',
+        'confidence, and optionally supplier_proposal. ' +
+        'When you include supplier_proposal it MUST set a "mode" discriminant ' +
+        'and carry EXACTLY the fields for that mode: ' +
+        'either { mode: "match", match_entity_id } when getClassificationContext ' +
+        "resolved the document to an existing supplier (use that supplier's id), " +
+        'or { mode: "create", create_name, create_country } when no existing ' +
+        'supplier matched and you propose creating one (provide BOTH the name and ' +
+        'the ISO country code). Never mix the two modes, never half-fill a ' +
+        'create proposal, and omit supplier_proposal entirely if you cannot ' +
+        'determine the supplier.',
       model,
       tools,
     });

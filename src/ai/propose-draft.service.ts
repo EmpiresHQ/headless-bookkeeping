@@ -4,8 +4,16 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
-import { TriageResult } from '../triage/types';
+import { SupplierProposal, TriageResult } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
+
+/**
+ * Reason a 'create' supplier proposal cannot yet be resolved to a Supplier id.
+ * Supplier creation is deferred (Task 43); until then a 'create' proposal must
+ * route to needs_triage rather than silently yielding a null-supplier draft.
+ */
+export const SUPPLIER_CREATE_NOT_IMPLEMENTED =
+  'supplier creation not yet implemented (Task 43)';
 
 /** The posting pipeline's result shape (Rules → Policy → post/hold). */
 export type PipelineRunResult = Awaited<
@@ -26,9 +34,27 @@ export interface ReplayedPipelineResult {
  * `.policy.action`).
  */
 export interface ProposeDraftResult {
+  outcome: 'draft';
   expenseId: number;
   pipelineResult: PipelineRunResult;
 }
+
+/**
+ * Result when proposeDraft could NOT produce a draft because the
+ * supplier_proposal asked to CREATE a Supplier — deferred (Task 43). No draft
+ * is created (no null-supplier silent drop); the caller routes to needs_triage
+ * with {@link reason}.
+ */
+export interface SupplierUnresolvedResult {
+  outcome: 'supplier-unresolved';
+  reason: string;
+}
+
+/**
+ * Discriminated outcome of a fresh proposeDraft call: either a created draft
+ * or an explicit "supplier could not be resolved, route to triage" signal.
+ */
+export type ProposeDraftOutcome = ProposeDraftResult | SupplierUnresolvedResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -36,6 +62,7 @@ export interface ProposeDraftResult {
  * from {@link ProposeDraftResult}.
  */
 export interface DraftReplayResult {
+  outcome: 'draft';
   expenseId: number;
   pipelineResult: PipelineRunResult | ReplayedPipelineResult;
 }
@@ -68,15 +95,22 @@ export class ProposeDraftService {
   /**
    * Process a TriageResult through the posting pipeline.
    *
+   * Returns a discriminated {@link ProposeDraftOutcome}: a created draft, or an
+   * explicit `supplier-unresolved` signal when the supplier_proposal asks to
+   * CREATE a Supplier (deferred — Task 43). The latter is NEVER a silent
+   * null-supplier draft; the caller routes it to needs_triage.
+   *
    * @param triageResult - The validated AI triage output
    * @param documentId - Optional document ID to associate with the expense
-   * @param supplierId - Optional supplier ID (from supplier_proposal.match_entity_id)
+   * @param supplierId - Optional explicit supplier ID. When omitted, the
+   *   supplier is resolved from `triageResult.supplier_proposal` (a 'match'
+   *   proposal resolves to its entity id; a 'create' proposal is unresolved).
    */
   async proposeDraft(
     triageResult: TriageResult,
     documentId?: number | null,
     supplierId?: number | null,
-  ): Promise<ProposeDraftResult> {
+  ): Promise<ProposeDraftOutcome> {
     // Defensive backstop, NOT a routing point: the workflow already decided
     // this is a confident new_expense. Reject anything else so a bypass can
     // never create a garbage draft. (correction/duplicate wired in Task 43.)
@@ -88,11 +122,23 @@ export class ProposeDraftService {
       );
     }
 
+    // Step 0: EXPLICIT supplier resolution. A 'match' proposal resolves to its
+    // entity id (as today); a 'create' proposal is NOT silently dropped into a
+    // null-supplier draft — it is reported unresolved so the caller routes to
+    // needs_triage (Supplier creation is Task 43).
+    const resolved = this.resolveSupplier(
+      triageResult.supplier_proposal,
+      supplierId,
+    );
+    if (resolved.outcome === 'supplier-unresolved') {
+      return resolved;
+    }
+    const resolvedSupplierId = resolved.supplierId;
+
     // Step 1: Create the Expense via ExpensesService.
     const createExpenseDto: CreateExpenseDto = {
       document_id: documentId ?? null,
-      supplier_id:
-        supplierId ?? triageResult.supplier_proposal?.match_entity_id ?? null,
+      supplier_id: resolvedSupplierId,
       category: triageResult.category,
       gross_amount: triageResult.gross_amount,
       vat_amount: triageResult.vat_amount,
@@ -113,15 +159,49 @@ export class ProposeDraftService {
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expense.id),
       confidence: triageResult.confidence,
-      supplierKnown: !!supplierId,
+      supplierKnown: resolvedSupplierId !== null,
     });
 
     // Step 3: Write AI provenance row (operational audit, NOT hash-chained).
     await this.writeAiProvenance(expense.id, triageResult);
 
     return {
+      outcome: 'draft',
       expenseId: expense.id,
       pipelineResult,
+    };
+  }
+
+  /**
+   * Resolve a supplier_proposal (plus any explicit override) to a concrete
+   * Supplier id — the EXPLICIT proposal→Supplier step (ADR-0014, ADR-0024).
+   *
+   * - An explicit `supplierId` (already resolved by the caller) wins.
+   * - A `{ mode: 'match', match_entity_id }` proposal resolves to that id.
+   * - A `{ mode: 'create', ... }` proposal is reported `supplier-unresolved`
+   *   (Supplier creation is Task 43) — never a silent null-supplier draft.
+   * - No proposal at all resolves to a null supplier (Policy gates unknown
+   *   suppliers downstream), preserving the prior behavior.
+   */
+  private resolveSupplier(
+    proposal: SupplierProposal | undefined,
+    explicitSupplierId?: number | null,
+  ):
+    | { outcome: 'resolved'; supplierId: number | null }
+    | SupplierUnresolvedResult {
+    if (explicitSupplierId != null) {
+      return { outcome: 'resolved', supplierId: explicitSupplierId };
+    }
+    if (!proposal) {
+      return { outcome: 'resolved', supplierId: null };
+    }
+    if (proposal.mode === 'match') {
+      return { outcome: 'resolved', supplierId: proposal.match_entity_id };
+    }
+    // mode === 'create' — deferred to Task 43.
+    return {
+      outcome: 'supplier-unresolved',
+      reason: SUPPLIER_CREATE_NOT_IMPLEMENTED,
     };
   }
 
@@ -147,6 +227,7 @@ export class ProposeDraftService {
     }
 
     return {
+      outcome: 'draft',
       expenseId: expense.id,
       // The pipeline already ran on the original pass; a replay does not
       // re-post. `replayed` marks this as an idempotent surfacing, not a

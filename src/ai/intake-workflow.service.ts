@@ -11,6 +11,18 @@ import { DocumentsService } from '../documents/documents.service';
 import { AuditFinding } from '../audit-findings/types';
 
 /**
+ * The needs_triage reason for a TriageResult `kind` the agent classifies
+ * confidently but the kernel does NOT yet act on (correction, duplicate —
+ * Task 43). Phrased so the route is unmistakably an "unimplemented kind", not a
+ * low-confidence or genuinely-unknown classification.
+ */
+export function unimplementedKindReason(
+  kind: 'correction' | 'duplicate',
+): string {
+  return `Triage kind '${kind}' is not yet implemented (Task 43): the document was classified as a ${kind}, but the kernel cannot act on it yet — held for human review.`;
+}
+
+/**
  * Outcome when the workflow routes to human triage.
  */
 export interface NeedsTriageOutcome {
@@ -139,13 +151,23 @@ export class IntakeWorkflowService {
           this.logger.log(
             `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
           );
-          // proposeDraft trusts this validated, already-routed new_expense.
-          const draft = await this.proposeDraft.proposeDraft(
+          // proposeDraft trusts this validated, already-routed new_expense. It
+          // performs the EXPLICIT supplier-proposal → Supplier resolution: a
+          // 'create' proposal cannot yet produce a draft (Task 43), so it
+          // returns `supplier-unresolved` and we route to needs_triage rather
+          // than silently dropping a null-supplier draft (ADR-0014/0024).
+          const outcome = await this.proposeDraft.proposeDraft(
             triageResult,
             documentId,
           );
+          if (outcome.outcome === 'supplier-unresolved') {
+            this.logger.warn(
+              `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason);
+          }
           await this.documents.setStatus(documentId, 'triaged');
-          return { status: 'draft_proposed', draft };
+          return { status: 'draft_proposed', draft: outcome };
         }
         this.logger.warn(
           `new_expense below confidence threshold (${triageResult.confidence} < ${threshold}) for document ${documentId}`,
@@ -165,21 +187,19 @@ export class IntakeWorkflowService {
         );
 
       case 'correction':
-        this.logger.warn(
-          `Correction kind for document ${documentId} — stub: routing to needs_triage`,
-        );
-        return this.routeNeedsTriage(
-          documentId,
-          'Correction kind detected — requires human review (stub, Task 43)',
-        );
-
       case 'duplicate':
+        // These kinds are GENUINELY classified by the agent but the kernel
+        // handling is NOT YET IMPLEMENTED (Task 43). The reason marks them as
+        // unimplemented-kind routes — explicitly distinct from a low-confidence
+        // new_expense or a genuinely-unknown classification — so a human (and
+        // any later automation) can tell "we recognised this but can't act on
+        // it yet" apart from "the AI was unsure".
         this.logger.warn(
-          `Duplicate kind for document ${documentId} — stub: routing to needs_triage`,
+          `Unimplemented kind '${triageResult.kind}' for document ${documentId} — routing to needs_triage (Task 43)`,
         );
         return this.routeNeedsTriage(
           documentId,
-          'Duplicate kind detected — requires human review (stub, Task 43)',
+          unimplementedKindReason(triageResult.kind),
         );
 
       default: {

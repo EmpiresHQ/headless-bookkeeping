@@ -20,9 +20,27 @@ import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.serv
 import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
-import { ProposeDraftService } from './propose-draft.service';
+import {
+  ProposeDraftService,
+  ProposeDraftResult,
+  ProposeDraftOutcome,
+  SUPPLIER_CREATE_NOT_IMPLEMENTED,
+} from './propose-draft.service';
 import { TriageResult } from '../triage/types';
 import { BadRequestException } from '@nestjs/common';
+
+/**
+ * proposeDraft now returns a discriminated ProposeDraftOutcome. The working
+ * path always yields a 'draft'; this narrows it (and fails the test loudly if
+ * a supplier-unresolved slipped through where a draft was expected).
+ */
+function expectDraft(outcome: ProposeDraftOutcome): ProposeDraftResult {
+  expect(outcome.outcome).toBe('draft');
+  if (outcome.outcome !== 'draft') {
+    throw new Error(`expected a draft outcome, got '${outcome.outcome}'`);
+  }
+  return outcome;
+}
 
 describe('ProposeDraftService (integration)', () => {
   let db: Kysely<Database>;
@@ -91,7 +109,9 @@ describe('ProposeDraftService (integration)', () => {
 
   describe('proposeDraft', () => {
     it('creates an expense and runs the posting pipeline', async () => {
-      const result = await service.proposeDraft(sampleTriageResult());
+      const result = expectDraft(
+        await service.proposeDraft(sampleTriageResult()),
+      );
 
       expect(result.expenseId).toBeGreaterThan(0);
       expect(result.pipelineResult).toBeDefined();
@@ -118,14 +138,68 @@ describe('ProposeDraftService (integration)', () => {
 
       const triageResult: TriageResult = {
         ...sampleTriageResult(),
-        supplier_proposal: { match_entity_id: supplier.id },
+        // The supplier_proposal is now a discriminated union: a 'match' carries
+        // the resolved entity id (the contract that previously admitted a bare
+        // { match_entity_id } now requires the `mode` discriminant).
+        supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
       };
 
-      const result = await service.proposeDraft(triageResult, 10, supplier.id);
+      const result = expectDraft(
+        await service.proposeDraft(triageResult, 10, supplier.id),
+      );
 
       const expense = await expensesService.getExpenseById(result.expenseId);
       expect(expense.document_id).toBe(10);
       expect(expense.supplier_id).toBe(supplier.id);
+    });
+
+    it('resolves a match supplier_proposal to its entity id (no explicit id)', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'Matched Supplier',
+        registrationKey: 'IE54321',
+      });
+
+      // No explicit supplierId — resolution comes solely from the proposal.
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+      };
+
+      const result = expectDraft(await service.proposeDraft(triageResult, 11));
+
+      const expense = await expensesService.getExpenseById(result.expenseId);
+      expect(expense.supplier_id).toBe(supplier.id);
+    });
+
+    it('routes a create supplier_proposal to needs_triage (no null-supplier draft, Task 43)', async () => {
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Brand New Supplier Ltd',
+          create_country: 'IE',
+        },
+      };
+
+      const outcome = await service.proposeDraft(triageResult, 12);
+
+      // No draft was created — the create proposal is reported unresolved.
+      expect(outcome.outcome).toBe('supplier-unresolved');
+      if (outcome.outcome === 'supplier-unresolved') {
+        expect(outcome.reason).toBe(SUPPLIER_CREATE_NOT_IMPLEMENTED);
+      }
+
+      // Crucially: NO expense (and therefore no null-supplier draft) was
+      // silently created for the document.
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 12)
+        .execute();
+      expect(expenses).toHaveLength(0);
     });
 
     it('throws BadRequestException for non-new_expense kinds', async () => {
@@ -167,7 +241,9 @@ describe('ProposeDraftService (integration)', () => {
         confidence: 0.5,
       };
 
-      const result = await service.proposeDraft(lowConfidenceResult);
+      const result = expectDraft(
+        await service.proposeDraft(lowConfidenceResult),
+      );
 
       expect(result.expenseId).toBeGreaterThan(0);
       expect(result.pipelineResult.policy.action).toBe('hold-for-approval');
@@ -186,10 +262,8 @@ describe('ProposeDraftService (integration)', () => {
         registrationKey: 'IE99999',
       });
 
-      const result = await service.proposeDraft(
-        sampleTriageResult(),
-        null,
-        supplier.id,
+      const result = expectDraft(
+        await service.proposeDraft(sampleTriageResult(), null, supplier.id),
       );
 
       expect(result.expenseId).toBeGreaterThan(0);
@@ -206,10 +280,8 @@ describe('ProposeDraftService (integration)', () => {
         registrationKey: 'IE88888',
       });
 
-      const result = await service.proposeDraft(
-        sampleTriageResult(),
-        null,
-        supplier.id,
+      const result = expectDraft(
+        await service.proposeDraft(sampleTriageResult(), null, supplier.id),
       );
 
       const proposals = await db
@@ -239,7 +311,9 @@ describe('ProposeDraftService (integration)', () => {
         confidence: 0.3,
       };
 
-      const result = await service.proposeDraft(lowConfidenceResult);
+      const result = expectDraft(
+        await service.proposeDraft(lowConfidenceResult),
+      );
 
       const proposals = await db
         .selectFrom('ai_proposal')
@@ -261,10 +335,8 @@ describe('ProposeDraftService (integration)', () => {
         registrationKey: 'IE77777',
       });
 
-      const result = await service.proposeDraft(
-        sampleTriageResult(),
-        null,
-        supplier.id,
+      const result = expectDraft(
+        await service.proposeDraft(sampleTriageResult(), null, supplier.id),
       );
 
       const proposals = await db

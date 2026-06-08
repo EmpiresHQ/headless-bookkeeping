@@ -5,7 +5,10 @@ import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
-import { IntakeWorkflowService } from './intake-workflow.service';
+import {
+  IntakeWorkflowService,
+  unimplementedKindReason,
+} from './intake-workflow.service';
 import { OcrService } from '../triage/ocr.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { ProposeDraftService } from './propose-draft.service';
@@ -128,6 +131,7 @@ describe('IntakeWorkflowService', () => {
         result: triageResult,
       });
       mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
         expenseId: 42,
         pipelineResult: {
           businessObject: { id: 42, status: 'posted' },
@@ -203,7 +207,7 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
 
-    it('creates AuditFinding for correction kind (stub)', async () => {
+    it('routes correction kind to needs_triage with an explicit unimplemented-kind reason', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
@@ -214,12 +218,20 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.reason).toContain('Correction');
+        // The reason marks this as a not-yet-implemented kind — distinct from a
+        // low-confidence new_expense or a genuinely-unknown classification.
+        expect(result.reason).toBe(unimplementedKindReason('correction'));
+        expect(result.reason).toContain('not yet implemented');
+        expect(result.reason).toContain("'correction'");
+        // High confidence: it is NOT a low-confidence route.
+        expect(result.reason).not.toContain('below threshold');
+        // No pass2 failure category: it was a valid, confident classification.
+        expect(result.pass2FailureCategory).toBeUndefined();
       }
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
 
-    it('creates AuditFinding for duplicate kind (stub)', async () => {
+    it('routes duplicate kind to needs_triage with an explicit unimplemented-kind reason', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
@@ -230,9 +242,49 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.reason).toContain('Duplicate');
+        expect(result.reason).toBe(unimplementedKindReason('duplicate'));
+        expect(result.reason).toContain('not yet implemented');
+        expect(result.reason).toContain("'duplicate'");
+        expect(result.reason).not.toContain('could not classify');
       }
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+    });
+
+    it('routes a create supplier_proposal to needs_triage (supplier-unresolved, Task 43)', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          kind: 'new_expense',
+          confidence: 0.97,
+          supplier_proposal: {
+            mode: 'create',
+            create_name: 'Fresh Supplier Ltd',
+            create_country: 'IE',
+          },
+        }),
+      });
+      // proposeDraft performs the explicit resolution and reports the create
+      // proposal as unresolved (no draft).
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'supplier-unresolved',
+        reason: 'supplier creation not yet implemented (Task 43)',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toContain(
+          'supplier creation not yet implemented',
+        );
+      }
+      // proposeDraft WAS consulted (it owns the resolution) but produced no draft.
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledTimes(1);
+
+      // The Document still moves to needs_triage — not triaged (no draft).
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
     });
 
     it('calls OCR transcribe with the correct documentId', async () => {
@@ -242,6 +294,7 @@ describe('IntakeWorkflowService', () => {
         result: sampleTriageResult({ confidence: 0.9 }),
       });
       mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
         expenseId: 1,
         pipelineResult: { replayed: true },
       });
@@ -260,6 +313,7 @@ describe('IntakeWorkflowService', () => {
         result: sampleTriageResult({ confidence: 0.9 }),
       });
       mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
         expenseId: 1,
         pipelineResult: { replayed: true },
       });
@@ -380,6 +434,7 @@ describe('IntakeWorkflowService', () => {
         result: sampleTriageResult({ confidence: 0.94 }),
       });
       mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
         expenseId: 77,
         pipelineResult: {
           businessObject: { id: 77, status: 'posted' },
@@ -395,6 +450,7 @@ describe('IntakeWorkflowService', () => {
       // The Document is now 'triaged'; a replay should surface the existing
       // draft via findExistingDraft, NOT call proposeDraft again.
       mockProposeDraft.findExistingDraft.mockResolvedValue({
+        outcome: 'draft',
         expenseId: 77,
         pipelineResult: { replayed: true },
       });
