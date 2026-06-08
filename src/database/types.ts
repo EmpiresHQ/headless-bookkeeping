@@ -275,16 +275,22 @@ export interface ApprovalTable {
 // with dynamic severity that drives nag cadence (ADR-0018).
 export interface AuditFindingTable {
   id: Generated<number>;
-  // 'low' | 'medium' | 'high' | 'critical'
+  // 'low' | 'medium' | 'high' | 'critical' — validated by AuditFindingsService
   severity: string;
+  // one of the known FindingType kinds — validated by AuditFindingsService
   finding_type: string;
   description: string;
+  // one of the known ReferencedObjectType kinds — validated on create
   referenced_object_type: string | null;
   referenced_object_id: number | null;
-  // 'open' | 'resolved' | 'snoozed'
+  // 'open' | 'resolved' | 'snoozed' — moved only via guarded transitions
   status: string;
   created_at: number;
   resolved_at: number | null;
+  // lifecycle-transition audit trail (migration 029)
+  snoozed_at: number | null;
+  transitioned_by: string | null;
+  transition_reason: string | null;
 }
 
 // Conversation: the durable, auditable thread of Messages on a single channel

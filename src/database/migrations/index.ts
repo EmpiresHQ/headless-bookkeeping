@@ -25,6 +25,7 @@ import * as m025 from './025_create_api_token';
 import * as m026 from './026_add_ocr_markdown_artifact_kind';
 import * as m027 from './027_add_ai_proposal';
 import * as m028 from './028_create_setting';
+import * as m029 from './029_add_finding_transition_audit';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -53,4 +54,5 @@ export const migrations: Record<string, Migration> = {
   '026_add_ocr_markdown_artifact_kind': m026,
   '027_add_ai_proposal': m027,
   '028_create_setting': m028,
+  '029_add_finding_transition_audit': m029,
 };

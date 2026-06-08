@@ -151,6 +151,9 @@ describe('TriageService (integration)', () => {
         status: 'open',
         created_at: Math.floor(Date.now() / 1000),
         resolved_at: null,
+        snoozed_at: null,
+        transitioned_by: null,
+        transition_reason: null,
       },
     });
 

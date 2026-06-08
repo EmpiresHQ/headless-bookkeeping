@@ -97,7 +97,7 @@ describe('Agents (real-DI)', () => {
     it('notify() logs open findings (no external calls)', async () => {
       // Create an open finding
       await auditFindingsService.create({
-        finding_type: 'test_finding',
+        finding_type: 'missing_receipt',
         severity: 'high',
         description: 'Test description',
       });
@@ -108,6 +108,41 @@ describe('Agents (real-DI)', () => {
 
     it('notify() handles no open findings gracefully', async () => {
       await expect(secretaryAgent.notify()).resolves.not.toThrow();
+    });
+
+    it('branches its nag copy on the typed finding kind', async () => {
+      const triage = await auditFindingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'doc 7',
+        referenced_object_type: 'document',
+        referenced_object_id: 7,
+      });
+      const receipt = await auditFindingsService.create({
+        finding_type: 'missing_receipt',
+        severity: 'medium',
+        description: 'expense 3',
+        referenced_object_type: 'expense',
+        referenced_object_id: 3,
+      });
+      const hold = await auditFindingsService.create({
+        finding_type: 'policy_hold',
+        severity: 'medium',
+        description: 'draft 9',
+      });
+
+      const triageNag = secretaryAgent.nagFor(triage);
+      const receiptNag = secretaryAgent.nagFor(receipt);
+      const holdNag = secretaryAgent.nagFor(hold);
+
+      // Each kind produces distinct, kind-specific phrasing — the buffer is no
+      // longer flattened into one identical nag line.
+      expect(triageNag).toContain('triage');
+      expect(receiptNag).toContain('receipt');
+      expect(holdNag).toContain('Policy hold');
+      expect(new Set([triageNag, receiptNag, holdNag]).size).toBe(3);
+      // The typed reference is surfaced when present.
+      expect(triageNag).toContain('document #7');
     });
   });
 
