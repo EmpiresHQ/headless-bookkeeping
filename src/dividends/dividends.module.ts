@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { AccountModule } from '../ledger/account/account.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
@@ -12,6 +13,7 @@ import { DividendsController } from './dividends.controller';
 @Module({
   imports: [
     DatabaseModule,
+    AccountModule,
     PostingModule,
     PluginsModule,
     OrganizationModule,

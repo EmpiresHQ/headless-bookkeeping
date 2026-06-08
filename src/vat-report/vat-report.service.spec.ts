@@ -8,6 +8,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { VatReportService } from './vat-report.service';
 import { VatReportController } from './vat-report.controller';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 
 /**
  * Integration test for Task 28: VAT report snapshot generation.
@@ -46,6 +47,7 @@ describe('VAT report snapshot generation (integration)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        LedgerBalanceService,
         VatReportService,
         VatReportController,
       ],

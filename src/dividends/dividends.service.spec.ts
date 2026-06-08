@@ -6,6 +6,7 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
@@ -60,6 +61,7 @@ describe('DividendsService (integration)', () => {
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
+        LedgerBalanceService,
         LedgerValidationService,
         PostingService,
         PeriodLockService,
@@ -327,6 +329,7 @@ describe('DividendsService (integration)', () => {
         providers: [
           { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
           AccountService,
+          LedgerBalanceService,
           LedgerValidationService,
           PostingService,
           PeriodLockService,

@@ -7,11 +7,11 @@ import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
 import request from 'supertest';
-import type { Response } from 'supertest';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { ApiTokenService } from '../auth/api-token.service';
@@ -49,6 +49,7 @@ describe('AdminController (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         ReportingPeriodsService,
         VatReportService,
+        LedgerBalanceService,
         AdminService,
         ApiTokenService,
         {

@@ -2,11 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { VatReport, VatSummaryLine } from './types';
 
 @Injectable()
 export class VatReportService {
-  constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
+  constructor(
+    @InjectKysely() private readonly db: Kysely<Database>,
+    private readonly ledgerBalance: LedgerBalanceService,
+  ) {}
 
   /**
    * Generate an immutable VAT report snapshot for a reporting period.
@@ -86,13 +90,14 @@ export class VatReportService {
       };
 
       if (isInputVat) {
-        // VAT_RECEIVABLE is debit-normal: input VAT = debits − credits.
-        existing_line.input_vat +=
-          line.is_debit === 1 ? line.base_amount : -line.base_amount;
+        // VAT_RECEIVABLE is debit-normal: input VAT = debits − credits. The
+        // signed-sum convention lives in LedgerBalanceService.
+        existing_line.input_vat += this.ledgerBalance.signedBaseAmount(line);
       } else {
         // VAT_PAYABLE is credit-normal: output VAT = credits − debits.
-        existing_line.output_vat +=
-          line.is_debit === 1 ? -line.base_amount : line.base_amount;
+        existing_line.output_vat += this.ledgerBalance.signedBaseAmount(line, {
+          creditPositive: true,
+        });
       }
       existing_line.line_count += 1;
 
