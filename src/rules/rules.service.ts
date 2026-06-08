@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import {
   ResolvedLine,
   RuleResult,
@@ -15,19 +16,26 @@ import {
  * 1. Structural (inviolable) — delegates to LedgerValidationService (AC-3).
  *    Checks: debits=credits in base currency, account exists, amounts positive,
  *    fx_rate positive, line currency matches account currency.
- * 2. Hard process (inviolable) — period lock check (stub until Wave 6).
+ * 2. Hard process (inviolable) — period lock check. Delegates to
+ *    PeriodLockService.findLockedPeriod (ADR-0009): the very same check the
+ *    PostingService write chokepoint enforces. Running it here gives the
+ *    pipeline an early, well-messaged rejection (defense-in-depth) before any
+ *    write is attempted.
  * 3. Semantic (overridable) — VAT code validity, category mapping existence.
  *    A logged Override with reason can bypass a semantic failure.
  *
- * All tiers operate on *resolved* lines: account codes have already been
- * mapped to {account_id, account_currency} by the single resolver (AC-4).
- * RulesService never re-resolves codes.
+ * The structural and semantic tiers operate on *resolved* lines: account codes
+ * have already been mapped to {account_id, account_currency} by the single
+ * resolver (AC-4). RulesService never re-resolves codes. The hard-process tier
+ * is a separate async call ({@link validateHardProcess}) keyed on the voucher's
+ * tax-point date rather than its lines.
  */
 @Injectable()
 export class RulesService {
   constructor(
     private readonly ledgerValidation: LedgerValidationService,
     private readonly pluginLoader: PluginLoader,
+    private readonly periodLock: PeriodLockService,
   ) {}
 
   /**
@@ -42,15 +50,13 @@ export class RulesService {
   validate(
     resolvedLines: ResolvedLine[],
     validAccountIds: Set<number>,
-    type: 'structural' | 'hard' | 'semantic',
+    type: 'structural' | 'semantic',
     context?: SemanticValidationContext,
     override?: Override,
   ): RuleResult {
     switch (type) {
       case 'structural':
         return this.validateStructural(resolvedLines, validAccountIds);
-      case 'hard':
-        return this.validateHardProcess(resolvedLines);
       case 'semantic':
         return this.validateSemantic(resolvedLines, context, override);
       default:
@@ -81,13 +87,27 @@ export class RulesService {
     };
   }
 
-  private validateHardProcess(_resolvedLines: ResolvedLine[]): RuleResult {
-    // Stub: period locking will be implemented in Wave 6.
-    // For now, always pass so the pipeline can proceed.
+  /**
+   * Hard process tier (ADR-0009): reject if the voucher's tax-point date falls
+   * within a locked reporting period. Delegates to the canonical
+   * PeriodLockService check so the rule lives in exactly one place; the
+   * PostingService write chokepoint runs the same check as the backstop.
+   * Non-overridable — a filed period is closed by law, not by arithmetic.
+   */
+  async validateHardProcess(taxPointDate: string): Promise<RuleResult> {
+    const locked = await this.periodLock.findLockedPeriod(taxPointDate);
+    if (locked) {
+      return {
+        passed: false,
+        ruleType: 'hard_process',
+        message: `Cannot post into locked period ${locked.name}`,
+        overrideable: false,
+      };
+    }
     return {
       passed: true,
       ruleType: 'hard_process',
-      message: 'Hard process validation passed (period lock stub)',
+      message: 'Hard process validation passed',
       overrideable: false,
     };
   }

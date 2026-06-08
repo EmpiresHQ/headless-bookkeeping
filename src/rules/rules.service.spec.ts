@@ -7,6 +7,7 @@ import { migrations } from '../database/migrations';
 import { RulesService } from './rules.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { OrgContext, SupplierFacts } from '../plugins/country-plugin.interface';
 import { ResolvedLine, Override, SemanticValidationContext } from './types';
@@ -29,6 +30,12 @@ const defaultSemanticContext: SemanticValidationContext = {
   supplierFacts: defaultSupplier,
   orgContext: defaultOrg,
   category: 'software',
+};
+
+// Mock the canonical lock check so the hard tier can be exercised in isolation
+// (PeriodLockService itself is covered by its own integration spec).
+const mockPeriodLock = {
+  findLockedPeriod: jest.fn(),
 };
 
 const resolvedLine = (over: Partial<ResolvedLine>): ResolvedLine => ({
@@ -55,6 +62,7 @@ describe('RulesService (unit)', () => {
         LedgerValidationService,
         PluginLoader,
         NullCountryPlugin,
+        { provide: PeriodLockService, useValue: mockPeriodLock },
       ],
     }).compile();
 
@@ -137,19 +145,36 @@ describe('RulesService (unit)', () => {
   });
 
   describe('hard process tier', () => {
-    it('always passes (stub until Wave 6)', () => {
-      const result = service.validate(
-        [
-          resolvedLine({ account_id: 1, is_debit: true }),
-          resolvedLine({ account_id: 2, is_debit: false }),
-        ],
-        validIds,
-        'hard',
+    afterEach(() => mockPeriodLock.findLockedPeriod.mockReset());
+
+    it('passes when the tax-point date is not in a locked period', async () => {
+      mockPeriodLock.findLockedPeriod.mockResolvedValue(undefined);
+
+      const result = await service.validateHardProcess('2026-05-15');
+
+      expect(mockPeriodLock.findLockedPeriod).toHaveBeenCalledWith(
+        '2026-05-15',
       );
       expect(result.passed).toBe(true);
       expect(result.ruleType).toBe('hard_process');
       expect(result.overrideable).toBe(false);
-      expect(result.message).toContain('period lock stub');
+    });
+
+    it('fails (non-overridable) when the tax-point date is in a locked period', async () => {
+      mockPeriodLock.findLockedPeriod.mockResolvedValue({
+        id: 1,
+        name: 'Q1',
+        start_date: '2026-01-01',
+        end_date: '2026-03-31',
+      });
+
+      const result = await service.validateHardProcess('2026-02-15');
+
+      expect(result.passed).toBe(false);
+      expect(result.ruleType).toBe('hard_process');
+      expect(result.overrideable).toBe(false);
+      expect(result.message).toContain('locked period Q1');
+      expect(mustReject(result)).toBe(true);
     });
   });
 
@@ -306,6 +331,7 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
         LedgerValidationService,
         PluginLoader,
         NullCountryPlugin,
+        { provide: PeriodLockService, useValue: mockPeriodLock },
       ],
     }).compile();
 

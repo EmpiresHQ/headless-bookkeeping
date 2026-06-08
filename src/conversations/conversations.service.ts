@@ -284,32 +284,46 @@ export class ConversationsService {
       .execute();
 
     const conversations = rows.map((r) => this.mapConversation(r));
+    if (conversations.length === 0) return [];
 
-    // Hydrate messages and artifacts for each conversation.
-    const results: ConversationWithDetails[] = [];
-    for (const conv of conversations) {
-      const messages = await this.db
-        .selectFrom('message')
-        .selectAll()
-        .where('conversation_id', '=', conv.id)
-        .orderBy('created_at', 'asc')
-        .execute();
+    // Hydrate messages and artifacts for all conversations in two batched
+    // queries (WHERE conversation_id IN (...)) instead of two per conversation,
+    // then group in memory.
+    const ids = conversations.map((c) => c.id);
 
-      const artifacts = await this.db
-        .selectFrom('artifact')
-        .selectAll()
-        .where('conversation_id', '=', conv.id)
-        .orderBy('created_at', 'asc')
-        .execute();
+    const messageRows = await this.db
+      .selectFrom('message')
+      .selectAll()
+      .where('conversation_id', 'in', ids)
+      .orderBy('created_at', 'asc')
+      .execute();
 
-      results.push({
-        ...conv,
-        messages: messages.map((m) => this.mapMessage(m)),
-        artifacts: artifacts.map((a) => this.mapArtifact(a)),
-      });
+    const artifactRows = await this.db
+      .selectFrom('artifact')
+      .selectAll()
+      .where('conversation_id', 'in', ids)
+      .orderBy('created_at', 'asc')
+      .execute();
+
+    const messagesByConv = new Map<number, Message[]>();
+    for (const m of messageRows) {
+      const list = messagesByConv.get(m.conversation_id) ?? [];
+      list.push(this.mapMessage(m));
+      messagesByConv.set(m.conversation_id, list);
     }
 
-    return results;
+    const artifactsByConv = new Map<number, Artifact[]>();
+    for (const a of artifactRows) {
+      const list = artifactsByConv.get(a.conversation_id) ?? [];
+      list.push(this.mapArtifact(a));
+      artifactsByConv.set(a.conversation_id, list);
+    }
+
+    return conversations.map((conv) => ({
+      ...conv,
+      messages: messagesByConv.get(conv.id) ?? [],
+      artifacts: artifactsByConv.get(conv.id) ?? [],
+    }));
   }
 
   /**
@@ -369,31 +383,28 @@ export class ConversationsService {
       .where('conversation_id', '=', conversation_id)
       .execute();
 
-    const nonTerminal: { object_type: string; object_id: number }[] = [];
+    // Batch the status lookups by object type (one query per table) rather than
+    // one query per association.
+    const expenseIds = associations
+      .filter((a) => a.object_type === 'expense')
+      .map((a) => a.object_id);
+    const invoiceIds = associations
+      .filter((a) => a.object_type === 'sales_invoice')
+      .map((a) => a.object_id);
 
+    const expenseStatus = await this.loadStatuses('expense', expenseIds);
+    const invoiceStatus = await this.loadStatuses('sales_invoice', invoiceIds);
+
+    const isTerminalStatus = (status: string | undefined): boolean =>
+      status === 'posted' || status === 'reversed';
+
+    const nonTerminal: { object_type: string; object_id: number }[] = [];
     for (const assoc of associations) {
       let isTerminal = false;
-
       if (assoc.object_type === 'expense') {
-        const expense = await this.db
-          .selectFrom('expense')
-          .select('status')
-          .where('id', '=', assoc.object_id)
-          .executeTakeFirst();
-        // Terminal: posted, reversed
-        isTerminal =
-          expense !== undefined &&
-          (expense.status === 'posted' || expense.status === 'reversed');
+        isTerminal = isTerminalStatus(expenseStatus.get(assoc.object_id));
       } else if (assoc.object_type === 'sales_invoice') {
-        const invoice = await this.db
-          .selectFrom('sales_invoice')
-          .select('status')
-          .where('id', '=', assoc.object_id)
-          .executeTakeFirst();
-        // Terminal: posted, reversed
-        isTerminal =
-          invoice !== undefined &&
-          (invoice.status === 'posted' || invoice.status === 'reversed');
+        isTerminal = isTerminalStatus(invoiceStatus.get(assoc.object_id));
       }
       // Unknown object types are considered terminal (no status to check).
 
@@ -403,6 +414,23 @@ export class ConversationsService {
     }
 
     return nonTerminal;
+  }
+
+  /**
+   * Load a map of id → status for a set of business-object ids in a single
+   * query. Returns an empty map for an empty id list (no query issued).
+   */
+  private async loadStatuses(
+    table: 'expense' | 'sales_invoice',
+    ids: number[],
+  ): Promise<Map<number, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.db
+      .selectFrom(table)
+      .select(['id', 'status'])
+      .where('id', 'in', ids)
+      .execute();
+    return new Map(rows.map((r) => [r.id, r.status]));
   }
 
   private mapConversation(row: {

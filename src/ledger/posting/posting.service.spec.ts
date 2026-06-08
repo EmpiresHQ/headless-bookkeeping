@@ -10,6 +10,7 @@ import { VoucherRepository } from '../voucher/voucher.repository';
 import { VoucherLineRepository } from '../voucher/voucher-line.repository';
 import { LedgerValidationService } from '../validation/ledger-validation.service';
 import { PostingService } from './posting.service';
+import { PeriodLockService } from '../../reporting-periods/period-lock.service';
 import { ValidationError } from './types';
 import { DraftVoucher } from '../voucher/types';
 import { GENESIS_HASH, computeVoucherHash } from './voucher-hash';
@@ -65,6 +66,7 @@ describe('PostingService (integration)', () => {
         VoucherLineRepository,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
       ],
     }).compile();
 
@@ -215,5 +217,79 @@ describe('PostingService (integration)', () => {
     };
     await expect(posting.postVoucher(attack)).rejects.toThrow(ValidationError);
     expect(await voucherRepo.getVouchers()).toHaveLength(0);
+  });
+
+  describe('postVouchersAtomic', () => {
+    it('posts multiple drafts in one transaction with a chained hash', async () => {
+      const [first, second] = await posting.postVouchersAtomic([
+        balanced('V-2026-300'),
+        balanced('V-2026-301'),
+      ]);
+
+      expect(await voucherRepo.getVouchers()).toHaveLength(2);
+      expect(first.previous_hash).toBe(GENESIS_HASH);
+
+      const firstLines = await lineRepo.getLinesByVoucherId(first.id);
+      expect(second.previous_hash).toBe(computeVoucherHash(first, firstLines));
+    });
+
+    it('rejects the whole batch up front if any draft is invalid (preflight)', async () => {
+      const invalidSecond: DraftVoucher = {
+        voucher_number: 'V-2026-302',
+        tax_point_date: '2026-03-15',
+        lines: [
+          {
+            account_code: 'EXPENSE_SOFTWARE',
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1,
+            is_debit: true,
+          },
+          {
+            account_code: 'CASH',
+            amount: 9900, // unbalanced
+            currency: 'EUR',
+            base_amount: 9900,
+            fx_rate: 1,
+            is_debit: false,
+          },
+        ],
+      };
+
+      await expect(
+        posting.postVouchersAtomic([balanced('V-2026-303'), invalidSecond]),
+      ).rejects.toThrow(ValidationError);
+
+      // The first (valid) draft must NOT have been posted.
+      expect(await voucherRepo.getVouchers()).toHaveLength(0);
+    });
+
+    it('rolls back the first voucher when a later post throws INSIDE the transaction', async () => {
+      // Force the second postVoucherTx to fail after the first has already
+      // inserted its voucher + sequence row inside the open transaction. The
+      // whole transaction must roll back: zero vouchers, sequence not advanced.
+      const original = posting.postVoucherTx.bind(posting);
+      const spy = jest
+        .spyOn(posting, 'postVoucherTx')
+        .mockImplementationOnce(original)
+        .mockImplementationOnce(() =>
+          Promise.reject(new Error('boom inside trx')),
+        );
+
+      await expect(
+        posting.postVouchersAtomic([
+          balanced('V-2026-304'),
+          balanced('V-2026-305'),
+        ]),
+      ).rejects.toThrow('boom inside trx');
+
+      expect(await voucherRepo.getVouchers()).toHaveLength(0);
+
+      const seq = await db.selectFrom('voucher_sequence').selectAll().execute();
+      expect(seq.every((s) => s.last_number === 0)).toBe(true);
+
+      spy.mockRestore();
+    });
   });
 });

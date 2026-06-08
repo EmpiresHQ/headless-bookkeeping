@@ -216,3 +216,45 @@
 - Migration index had stale reference to non-existent 023_create_conversation (from concurrent work) — fixed by rewriting index.ts with all existing migrations (001-020, 023, 024)
 - `CountryPlugin` must be imported with `import type` when used in `@Inject()` decorated constructor param (TS1272)
 - Mock plugin test requires `{ provide: COUNTRY_PLUGIN_TOKEN, useClass: MockWithholdingPlugin }` — not just adding the mock as a provider
+
+## Deferred batch (follow-up session): period-lock consolidation, atomic/redirected corrections, cleanups
+
+### What was built
+- **PeriodLockService** (`src/reporting-periods/period-lock.service.ts` + own `PeriodLockModule`): the single canonical lock check over `reporting_period`.
+  - `findLockedPeriod(date, executor?)`, `assertPeriodOpen(date, executor?)`, `getCurrentOpenPeriod(executor?)`.
+  - Optional `executor` (defaults to `this.db`) so posting transactions pass `trx` and see uncommitted period changes.
+  - Kept in a minimal standalone module (NOT ReportingPeriodsModule, which pulls VAT-report machinery) to avoid dependency cycles into Posting/Rules/Corrections.
+- **AM-1**: `RulesService.validateHardProcess(taxPointDate)` is now async and delegates to `PeriodLockService.findLockedPeriod` (was a stub that always passed). Removed `'hard'` from the synchronous `validate()` union; pipeline now `await`s `validateHardProcess(draft.tax_point_date)` for the early, well-messaged reject.
+- **PostingService** delegates its (previously inline private) `assertPeriodOpen` to `PeriodLockService` at both write sites (`postVoucher` via `this.db`, `postVoucherTx` via `trx`). One source of truth.
+- **#6 Atomic corrections**: new `PostingService.postVouchersAtomic(drafts[])` resolves+validates every draft up front, then posts all in ONE transaction (sequence + hash chain advance atomically). `CorrectionsService` posts reversal+corrected via this — a reversal can never land without its correction.
+- **#7 Locked-period redirect (ADR-0009)**: when the original voucher's tax-point falls in a locked period, the reversal AND correction are re-dated into the current open period's `start_date` (instead of the old `locked_period_not_implemented` dead-end). Result carries `redirected` + `redirectedToPeriodId`. Throws ConflictException if no open period exists. Removed the `isLockedPeriod` stub.
+- **Cleanups**:
+  - Conversations N+1: `getForObject` batches messages+artifacts via `WHERE conversation_id IN (...)` then groups in memory; `checkNonTerminalObjects` batches status lookups per object-type (new `loadStatuses` helper).
+  - AR/AP balance dedup: new `LedgerBalanceService.getVoucherNetBase(voucherId, codes)` (in AccountModule) is the canonical signed-net-base maths; `ReconciliationService.getRemainingVoucherBalance` and `FXRealizedService.getVoucherBookedBase` now delegate (was duplicated verbatim).
+
+### Gotchas
+- PostingService/RulesService gaining a PeriodLockService dep means EVERY real-DI spec that instantiates them must add `PeriodLockService` (and the Reconciliation/FX specs need `LedgerBalanceService`) to providers — mock specs (`useValue`) don't.
+- `validate()` is synchronous and keyed on resolved lines (no tax-point date) — the hard tier had to become a separate async method keyed on the date, not another `validate()` case.
+- Redirect re-dates the voucher drafts only; the business object keeps its original date (vouchers drive VAT-report membership, not the business object).
+
+### Gate
+- `npm run build` OK · `npx jest src` → 457/457 (47 suites) · `npm run lint` → 0 errors (16 pre-existing supertest `no-unsafe-argument` warnings in admin.controller.spec.ts).
+
+## Codex review follow-up (same session)
+
+Ran a Codex review of the deferred batch. Three findings, all verified against the code:
+
+- **SHOULD-FIX (fixed): atomicity test didn't prove rollback.** The original `postVouchersAtomic` test failed at up-front validation (before the transaction opened) → proved preflight rejection, not in-transaction rollback. Added a test that spies `postVoucherTx` to throw on the 2nd call (inside the trx) and asserts 0 vouchers + sequence not advanced.
+
+- **BLOCKER (fixed via full refactor): correction wasn't atomic end-to-end.** Only the two vouchers were atomic; `patchAmounts` (before) and `markReversed` (after) were separate writes. Closed it:
+  - `postVouchersAtomic(drafts, hooks?)` now takes optional `beforePost(trx)` / `afterPost(trx, posted)` hooks that run INSIDE the posting transaction.
+  - `ExpensesService`/`SalesInvoicesService` gained `previewPatchedDraft(id, patch)` (build the corrected draft from an in-memory-patched object, NO write — all reads happen up front, dodging the better-sqlite3 "no this.db reads inside a trx" rule) plus trx-aware `patchAmountsTx(trx,…)` / `markReversedTx(trx,…)`. `generateDraftVoucher` refactored to share a private `buildDraftVoucher(obj)`.
+  - `CorrectionsService` posted branch: builds the corrected draft via `previewPatchedDraft`, then `postVouchersAtomic([reversal, corrected], { beforePost: patchAmountsTx, afterPost: markReversedTx })`. Patch + 2 vouchers + status flip are now ONE transaction.
+  - `CorrectionParams` swapped `patchAmounts`/`markReversed` → `previewPatchedDraft`/`patchAmountsTx`/`markReversedTx` (draft branch still uses `updateDraft`/`generateDraftVoucher`).
+  - New integration test proves the amount patch ROLLS BACK when posting fails inside the transaction (spy `postVoucherTx` to throw; assert amounts/status/voucher_id unchanged, only the original voucher remains).
+  - NOTE: this supersedes the earlier "markReversed stays outside the transaction" note above — the whole correction is now atomic.
+
+- **SHOULD-FIX (documented, no code): FX rate vs redirect date.** A redirected foreign-currency correction computes the corrected leg's rate from the ORIGINAL tax-point date while stamping the voucher with the open-period date (ADR-0004 vs ADR-0009 tension). Not observable today (NullCountryPlugin's rate is date-independent). Recorded as an explicit "Open question" amendment in docs/adr/0009 — decision deferred to the first country plugin with date-sensitive FX (kernel must not hardcode it, ADR-0002).
+
+### Gate after follow-up
+- `npm run build` OK · `npx jest src` → 459/459 (47 suites) · `npm run lint` → 0 errors (16 pre-existing supertest warnings).

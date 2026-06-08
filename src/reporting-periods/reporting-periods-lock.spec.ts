@@ -10,6 +10,7 @@ import { ReportingPeriodsService } from './reporting-periods.service';
 import { ReportingPeriodsController } from './reporting-periods.controller';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { PeriodLockService } from './period-lock.service';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 // ValidationError not used in these tests
@@ -81,6 +82,7 @@ describe('ReportingPeriod lock + filing guard (integration)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
       ],
       controllers: [ReportingPeriodsController],
     }).compile();

@@ -71,7 +71,33 @@ export class SalesInvoicesService {
 
   async generateDraftVoucher(id: number): Promise<DraftVoucher> {
     const invoice = await this.getInvoiceById(id);
+    return this.buildDraftVoucher(invoice);
+  }
 
+  /**
+   * Build the draft voucher for an invoice as if `patch` were applied, WITHOUT
+   * persisting it. Used by the atomic correction flow (see ExpensesService for
+   * the rationale). The invoice's draft posts the fixed 'revenue' category, so a
+   * `category` patch has no effect here.
+   */
+  async previewPatchedDraft(
+    id: number,
+    patch: { gross_amount?: number; vat_amount?: number; category?: string },
+  ): Promise<DraftVoucher> {
+    const invoice = await this.getInvoiceById(id);
+    const patched: SalesInvoice = {
+      ...invoice,
+      ...(patch.gross_amount !== undefined && {
+        gross_amount: patch.gross_amount,
+      }),
+      ...(patch.vat_amount !== undefined && { vat_amount: patch.vat_amount }),
+    };
+    return this.buildDraftVoucher(patched);
+  }
+
+  private async buildDraftVoucher(
+    invoice: SalesInvoice,
+  ): Promise<DraftVoucher> {
     const org = await this.organizationService.getOrganization();
     const plugin = this.pluginLoader.resolve(org.country);
     const baseCurrency = await this.currencyService.getBaseCurrency();
@@ -217,6 +243,48 @@ export class SalesInvoicesService {
 
   async markReversed(id: number, newVoucherId: number): Promise<void> {
     await this.updateInvoiceStatus(id, 'reversed', newVoucherId);
+  }
+
+  /**
+   * Apply an amount patch inside an existing transaction (trx) — transactional
+   * twin of {@link patchAmounts} for the atomic correction flow.
+   */
+  async patchAmountsTx(
+    trx: Kysely<Database>,
+    id: number,
+    patch: { gross_amount?: number; vat_amount?: number; category?: string },
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await trx
+      .updateTable('sales_invoice')
+      .set({
+        ...(patch.gross_amount !== undefined && {
+          gross_amount: patch.gross_amount,
+        }),
+        ...(patch.vat_amount !== undefined && {
+          vat_amount: patch.vat_amount,
+        }),
+        updated_at: now,
+      })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  /**
+   * Mark the invoice reversed and re-point it at the corrected voucher inside an
+   * existing transaction (trx) — transactional twin of {@link markReversed}.
+   */
+  async markReversedTx(
+    trx: Kysely<Database>,
+    id: number,
+    newVoucherId: number,
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await trx
+      .updateTable('sales_invoice')
+      .set({ status: 'reversed', voucher_id: newVoucherId, updated_at: now })
+      .where('id', '=', id)
+      .execute();
   }
 
   private mapRow(row: {

@@ -6,6 +6,7 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 
 /**
@@ -28,6 +29,7 @@ export class FXRealizedService {
     private readonly currencyService: CurrencyService,
     private readonly pluginLoader: PluginLoader,
     private readonly orgService: OrganizationService,
+    private readonly ledgerBalance: LedgerBalanceService,
   ) {}
 
   /**
@@ -221,33 +223,11 @@ export class FXRealizedService {
   }
 
   /**
-   * The voucher's total booked AR/AP base amount, netted by sign and abs'd.
-   *
-   * Mirrors ReconciliationService.getRemainingVoucherBalance' netting query:
-   * sum over voucher_line joined to account where account.code IN ('AR','AP'),
-   * net = Σ(is_debit ? +base_amount : −base_amount), then abs(net). This is the
-   * denominator for scaling a partial match to its proportion of the voucher.
+   * The voucher's total booked AR/AP base amount, netted by sign and abs'd —
+   * the denominator for scaling a partial match to its proportion of the
+   * voucher. Delegates to the canonical LedgerBalanceService.
    */
-  private async getVoucherBookedBase(voucherId: number): Promise<number> {
-    const lineTotal = await this.db
-      .selectFrom('voucher_line')
-      .innerJoin('account', 'account.id', 'voucher_line.account_id')
-      .select((eb) =>
-        eb.fn
-          .sum<number>(
-            eb
-              .case()
-              .when('voucher_line.is_debit', '=', 1)
-              .then(eb.ref('voucher_line.base_amount'))
-              .else(eb.neg(eb.ref('voucher_line.base_amount')))
-              .end(),
-          )
-          .as('net'),
-      )
-      .where('voucher_line.voucher_id', '=', voucherId)
-      .where('account.code', 'in', ['AR', 'AP'])
-      .executeTakeFirst();
-
-    return Math.abs(lineTotal?.net ?? 0);
+  private getVoucherBookedBase(voucherId: number): Promise<number> {
+    return this.ledgerBalance.getVoucherNetBase(voucherId, ['AR', 'AP']);
   }
 }

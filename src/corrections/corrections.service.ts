@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PostingService } from '../ledger/posting/posting.service';
 import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { AccountService } from '../ledger/account/account.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import {
@@ -20,6 +25,7 @@ export class CorrectionsService {
     private readonly voucherRepository: VoucherRepository,
     private readonly voucherLineRepository: VoucherLineRepository,
     private readonly accountService: AccountService,
+    private readonly periodLock: PeriodLockService,
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
   ) {}
@@ -36,10 +42,13 @@ export class CorrectionsService {
       voucherId: expense.voucher_id,
       request,
       updateDraft: (patch) => this.expensesService.updateDraft(id, patch),
-      patchAmounts: (patch) => this.expensesService.patchAmounts(id, patch),
       generateDraftVoucher: () => this.expensesService.generateDraftVoucher(id),
-      markReversed: (voucherId) =>
-        this.expensesService.markReversed(id, voucherId),
+      previewPatchedDraft: (patch) =>
+        this.expensesService.previewPatchedDraft(id, patch),
+      patchAmountsTx: (trx, patch) =>
+        this.expensesService.patchAmountsTx(trx, id, patch),
+      markReversedTx: (trx, voucherId) =>
+        this.expensesService.markReversedTx(trx, id, voucherId),
     });
   }
 
@@ -55,12 +64,14 @@ export class CorrectionsService {
       voucherId: invoice.voucher_id,
       request,
       updateDraft: (patch) => this.salesInvoicesService.updateDraft(id, patch),
-      patchAmounts: (patch) =>
-        this.salesInvoicesService.patchAmounts(id, patch),
       generateDraftVoucher: () =>
         this.salesInvoicesService.generateDraftVoucher(id),
-      markReversed: (voucherId) =>
-        this.salesInvoicesService.markReversed(id, voucherId),
+      previewPatchedDraft: (patch) =>
+        this.salesInvoicesService.previewPatchedDraft(id, patch),
+      patchAmountsTx: (trx, patch) =>
+        this.salesInvoicesService.patchAmountsTx(trx, id, patch),
+      markReversedTx: (trx, voucherId) =>
+        this.salesInvoicesService.markReversedTx(trx, id, voucherId),
     });
   }
 
@@ -77,11 +88,6 @@ export class CorrectionsService {
     // 5. Credit note
     if (request.kind === 'credit_note') {
       return { outcome: 'credit_note_not_implemented' };
-    }
-
-    // 4. Locked period (stub)
-    if (this.isLockedPeriod(voucherId)) {
-      return { outcome: 'locked_period_not_implemented' };
     }
 
     // 2. Financial + draft/pending
@@ -104,39 +110,73 @@ export class CorrectionsService {
       const originalLines =
         await this.voucherLineRepository.getLinesByVoucherId(voucherId);
 
-      // Build reversal voucher (mirror lines)
+      // Locked-period redirect (ADR-0009): if the original voucher's period is
+      // now filed (locked), the correction may not touch it. Re-date BOTH the
+      // reversal and the correction into the current open period instead of
+      // dead-ending — the VAT effect surfaces in that period's return.
+      const lockedPeriod = await this.periodLock.findLockedPeriod(
+        originalVoucher.tax_point_date,
+      );
+      let effectiveTaxPointDate = originalVoucher.tax_point_date;
+      let redirected = false;
+      let redirectedToPeriodId: number | undefined;
+      if (lockedPeriod) {
+        const openPeriod = await this.periodLock.getCurrentOpenPeriod();
+        if (!openPeriod) {
+          throw new ConflictException(
+            `Cannot correct a voucher in locked period ${lockedPeriod.name}: no open period to receive the correction`,
+          );
+        }
+        effectiveTaxPointDate = openPeriod.start_date;
+        redirected = true;
+        redirectedToPeriodId = openPeriod.id;
+      }
+
+      // Build reversal voucher (mirror lines), dated into the effective period.
       const reversalDraft = await this.buildReversalDraft(
         originalVoucher.voucher_number,
-        originalVoucher.tax_point_date,
+        effectiveTaxPointDate,
         originalLines,
         voucherId,
         request.reason,
       );
-      const reversalVoucher =
-        await this.postingService.postVoucher(reversalDraft);
 
-      // Update business object with patch if provided
-      if (request.patch) {
-        await params.patchAmounts(request.patch);
-      }
-
-      // Build corrected voucher
-      const correctedDraft = await params.generateDraftVoucher();
+      // Build the corrected voucher from the patched-in-memory object WITHOUT
+      // persisting the patch yet — all reads happen up front (the better-sqlite3
+      // single connection forbids this.db reads inside the open transaction).
+      const correctedDraft = await params.previewPatchedDraft(
+        request.patch ?? {},
+      );
       correctedDraft.voucher_number = `${originalVoucher.voucher_number}-COR`;
+      correctedDraft.tax_point_date = effectiveTaxPointDate;
       correctedDraft.corrects_object_type =
         params.objectType === 'expense' ? 'expense' : 'sales_invoice';
       correctedDraft.corrects_object_id = params.objectId;
       correctedDraft.reason = request.reason;
 
-      const correctedVoucher =
-        await this.postingService.postVoucher(correctedDraft);
-
-      await params.markReversed(correctedVoucher.id);
+      // The whole correction is one transaction: persist the amount patch, post
+      // the reversal + correction vouchers, and flip the object to `reversed`
+      // (re-pointed at the corrected voucher) — all or nothing.
+      const [reversalVoucher, correctedVoucher] =
+        await this.postingService.postVouchersAtomic(
+          [reversalDraft, correctedDraft],
+          {
+            beforePost: async (trx) => {
+              if (request.patch) {
+                await params.patchAmountsTx(trx, request.patch);
+              }
+            },
+            afterPost: (trx, posted) =>
+              params.markReversedTx(trx, posted[1].id),
+          },
+        );
 
       return {
         outcome: 'posted_reversal_and_correction',
         reversalVoucherId: reversalVoucher.id,
         correctedVoucherId: correctedVoucher.id,
+        redirected,
+        redirectedToPeriodId,
       };
     }
 
@@ -177,10 +217,5 @@ export class CorrectionsService {
       reverses_id: originalVoucherId,
       reason,
     };
-  }
-
-  private isLockedPeriod(_voucherId: number | null): boolean {
-    // Stub: period lock enforcement is deferred
-    return false;
   }
 }

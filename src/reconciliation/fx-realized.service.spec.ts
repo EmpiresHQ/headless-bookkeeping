@@ -10,6 +10,8 @@ import { BankStatementService } from '../bank/bank-statement.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { OrganizationService } from '../organization/organization.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
@@ -62,11 +64,13 @@ describe('FXRealizedService (integration)', () => {
         EntitiesService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         OrganizationService,
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        LedgerBalanceService,
         ReconciliationService,
       ],
     }).compile();
@@ -876,11 +880,13 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         EntitiesService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         OrganizationService,
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        LedgerBalanceService,
         ReconciliationService,
       ],
     })
