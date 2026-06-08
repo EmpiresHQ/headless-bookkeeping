@@ -8,58 +8,12 @@ import { Database } from '../src/database/types';
 import { migrations } from '../src/database/migrations';
 import { AppModule } from '../src/app.module';
 import { NullCountryPlugin } from '../src/plugins/null-country.plugin';
+import { StrictTestPlugin } from '../src/plugins/strict-test.plugin';
 import { MastraService } from '../src/ai/mastra.service';
 import { fauxMastraService } from './faux-mastra.service';
 import { createHash } from 'crypto';
-import {
-  CategoryMappingResult,
-  SupplierFacts,
-  OrgContext,
-} from '../src/plugins/country-plugin.interface';
 import request from 'supertest';
 import { App } from 'supertest/types';
-
-/**
- * A strict test plugin that extends NullCountryPlugin but rejects
- * a specific VAT code so we can exercise the override path
- * end-to-end.  NullCountryPlugin is permissive by design; this
- * plugin exists ONLY for testing the override pipeline.
- */
-class StrictTestPlugin extends NullCountryPlugin {
-  private static readonly REJECTED_VAT = 'STRICT_REJECTED';
-
-  override getName(): string {
-    return 'strict-test';
-  }
-
-  override getVATCodes(): string[] {
-    return [...super.getVATCodes(), StrictTestPlugin.REJECTED_VAT];
-  }
-
-  override resolveCategoryMapping(
-    category: string,
-    supplierFacts: SupplierFacts,
-    orgContext: OrgContext,
-  ): CategoryMappingResult {
-    if (category === 'strict-test-category') {
-      return {
-        accountCode: 'EXPENSE_OTHER',
-        vatCode: StrictTestPlugin.REJECTED_VAT,
-      };
-    }
-    return super.resolveCategoryMapping(category, supplierFacts, orgContext);
-  }
-
-  override validateVATCode(
-    vatCode: string,
-    context: { supplier: SupplierFacts; org: OrgContext },
-  ): boolean {
-    if (vatCode === StrictTestPlugin.REJECTED_VAT) {
-      return false;
-    }
-    return super.validateVATCode(vatCode, context);
-  }
-}
 
 interface PostResponse {
   expense: { status: string; voucher_id: number; currency: string };
