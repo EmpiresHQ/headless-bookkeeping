@@ -223,16 +223,18 @@ export class DividendsService {
     const resolvedBankCode = bankAccount.account_code;
 
     const absAmount = Math.abs(txn.amount);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
-    const fxRate =
-      txn.currency === baseCurrency
-        ? 1.0
-        : this.plugin.getReferenceRate(
-            txn.currency,
-            baseCurrency,
-            txn.transaction_date,
-          );
-    const baseAmount = Math.round(absAmount * fxRate);
+    // CurrencyService owns base-currency resolution, the same-currency
+    // short-circuit, the plugin reference-rate fetch, and the cents rounding
+    // (ADR-0004). We book the bank leg at the same rate it returns.
+    const {
+      baseCurrency,
+      rate: fxRate,
+      baseAmount,
+    } = await this.currencyService.toBase(
+      absAmount,
+      txn.currency,
+      txn.transaction_date,
+    );
 
     // 6. Post settlement voucher: Dr DIVIDEND_PAYABLE (base) / Cr {bank} (txn ccy).
     const draft: DraftVoucher = {

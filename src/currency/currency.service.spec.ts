@@ -1,6 +1,5 @@
 import { Test } from '@nestjs/testing';
 import { CurrencyService } from './currency.service';
-import { FXRateService } from './fx-rate.service';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 
@@ -38,30 +37,91 @@ describe('CurrencyService.convertToBase', () => {
   });
 });
 
-describe('FXRateService', () => {
-  const service = new FXRateService();
+describe('CurrencyService.toBase (the deep conversion module)', () => {
+  let service: CurrencyService;
+  let getOrganization: jest.Mock;
+  let resolve: jest.Mock;
+  let getReferenceRate: jest.Mock;
+  let getDefaultBaseCurrency: jest.Mock;
 
-  describe('getRate', () => {
-    it('returns 7.14 for USD -> DKK', () => {
-      expect(service.getRate('USD', 'DKK')).toBe(7.14);
+  const buildService = (org: {
+    country: string;
+    base_currency: string | null;
+  }) => {
+    getReferenceRate = jest.fn();
+    getDefaultBaseCurrency = jest.fn().mockReturnValue('EUR');
+    getOrganization = jest.fn().mockResolvedValue(org);
+    resolve = jest.fn().mockReturnValue({
+      getReferenceRate,
+      getDefaultBaseCurrency,
     });
+    service = new CurrencyService(
+      { getOrganization } as unknown as OrganizationService,
+      { resolve } as unknown as PluginLoader,
+    );
+  };
 
-    it('returns 0.14 for DKK -> USD', () => {
-      expect(service.getRate('DKK', 'USD')).toBe(0.14);
-    });
+  it('same currency → identity, rate 1.0, never hits the plugin', async () => {
+    buildService({ country: 'IE', base_currency: null });
 
-    it('returns 7.46 for EUR -> DKK', () => {
-      expect(service.getRate('EUR', 'DKK')).toBe(7.46);
-    });
+    const result = await service.toBase(12345, 'EUR', '2026-01-15');
 
-    it('returns 0.134 for DKK -> EUR', () => {
-      expect(service.getRate('DKK', 'EUR')).toBe(0.134);
+    expect(result).toEqual({
+      baseAmount: 12345,
+      rate: 1.0,
+      baseCurrency: 'EUR',
     });
+    // The plugin's reference-rate path must NOT be touched for same currency
+    // (NullCountryPlugin throws on real cross-currency pairs).
+    expect(getReferenceRate).not.toHaveBeenCalled();
+  });
 
-    it('throws for an unsupported currency pair', () => {
-      expect(() => service.getRate('GBP', 'DKK')).toThrow(
-        'No FX rate configured for GBP → DKK',
-      );
+  it('foreign currency → multiply by the plugin reference rate and round (Math.round)', async () => {
+    buildService({ country: 'IE', base_currency: null });
+    // 100 USD * 0.9876 = 98.76 → rounds to 99
+    getReferenceRate.mockReturnValue(0.9876);
+
+    const result = await service.toBase(100, 'USD', '2026-01-15');
+
+    expect(getReferenceRate).toHaveBeenCalledWith('USD', 'EUR', '2026-01-15');
+    expect(result).toEqual({
+      baseAmount: 99,
+      rate: 0.9876,
+      baseCurrency: 'EUR',
     });
+  });
+
+  it('foreign currency → rounds half away from zero like Math.round', async () => {
+    buildService({ country: 'IE', base_currency: null });
+    // 1 unit * 2.5 = 2.5 → Math.round → 3
+    getReferenceRate.mockReturnValue(2.5);
+
+    const result = await service.toBase(1, 'USD', '2026-01-15');
+
+    expect(result.baseAmount).toBe(3);
+  });
+
+  it('base-currency resolution: uses the Organization override when set', async () => {
+    buildService({ country: 'IE', base_currency: 'USD' });
+    // Source EUR ≠ base USD → goes through the plugin.
+    getReferenceRate.mockReturnValue(1.1);
+
+    const result = await service.toBase(100, 'EUR', '2026-01-15');
+
+    expect(getReferenceRate).toHaveBeenCalledWith('EUR', 'USD', '2026-01-15');
+    expect(result.baseCurrency).toBe('USD');
+    expect(result.baseAmount).toBe(110);
+    // Override means the plugin default is never consulted.
+    expect(getDefaultBaseCurrency).not.toHaveBeenCalled();
+  });
+
+  it('base-currency resolution: falls back to the plugin default when no override', async () => {
+    buildService({ country: 'IE', base_currency: null });
+
+    const result = await service.toBase(500, 'EUR', '2026-01-15');
+
+    expect(getDefaultBaseCurrency).toHaveBeenCalled();
+    expect(result.baseCurrency).toBe('EUR');
+    expect(result.baseAmount).toBe(500);
   });
 });

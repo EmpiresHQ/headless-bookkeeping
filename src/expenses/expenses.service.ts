@@ -115,14 +115,21 @@ export class ExpensesService {
       orgContext,
     );
 
-    const baseCurrency = await this.currencyService.getBaseCurrency();
     const netAmount = expense.gross_amount - expense.vat_amount;
-    const fxRate = plugin.getReferenceRate(
+    // Single owner of currency→base conversion (ADR-0004): resolves base
+    // currency, short-circuits same-currency, sources the plugin reference
+    // rate, and rounds. We take the rate from the same place we book it.
+    const { rate: fxRate } = await this.currencyService.toBase(
+      netAmount,
       expense.currency,
-      baseCurrency,
       expense.tax_point_date,
     );
-    const baseAmount = (amount: number) => Math.round(amount * fxRate);
+    const baseAmount = (amount: number) =>
+      this.currencyService.convertToBaseRounded(
+        amount,
+        expense.currency,
+        fxRate,
+      );
 
     const lines: DraftVoucherLine[] = [
       {

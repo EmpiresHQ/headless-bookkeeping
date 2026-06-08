@@ -100,7 +100,6 @@ export class SalesInvoicesService {
   ): Promise<DraftVoucher> {
     const org = await this.organizationService.getOrganization();
     const plugin = this.pluginLoader.resolve(org.country);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
 
     const supplierFacts: SupplierFacts = {
       country: org.country,
@@ -120,13 +119,20 @@ export class SalesInvoicesService {
       orgContext,
     );
 
-    const fxRate = plugin.getReferenceRate(
+    const netAmount = invoice.gross_amount - invoice.vat_amount;
+    // Single owner of currency→base conversion (ADR-0004): one uniform rate per
+    // draft, sourced from the country plugin, rounded by the module.
+    const { rate: fxRate } = await this.currencyService.toBase(
+      netAmount,
       invoice.currency,
-      baseCurrency,
       invoice.tax_point_date,
     );
-    const baseAmount = (amount: number) => Math.round(amount * fxRate);
-    const netAmount = invoice.gross_amount - invoice.vat_amount;
+    const baseAmount = (amount: number) =>
+      this.currencyService.convertToBaseRounded(
+        amount,
+        invoice.currency,
+        fxRate,
+      );
 
     const draft: DraftVoucher = {
       voucher_number: 'PENDING',

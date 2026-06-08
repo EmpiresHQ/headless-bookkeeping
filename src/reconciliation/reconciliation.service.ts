@@ -10,8 +10,6 @@ import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankTransactionRecord } from '../bank/bank-statement.types';
 import { EntitiesService } from '../entities/entities.service';
 import { CurrencyService } from '../currency/currency.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { OrganizationService } from '../organization/organization.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
@@ -46,8 +44,6 @@ export class ReconciliationService {
     private readonly transactionRepo: BankTransactionRepository,
     private readonly entitiesService: EntitiesService,
     private readonly currencyService: CurrencyService,
-    private readonly pluginLoader: PluginLoader,
-    private readonly orgService: OrganizationService,
     private readonly ledgerBalance: LedgerBalanceService,
     private readonly fxRealizedService: FXRealizedService,
   ) {}
@@ -150,24 +146,15 @@ export class ReconciliationService {
     // ── Normalise the bank amount to BASE currency ONCE (D7) ────────
     // Voucher remaining balances are `voucher_line.base_amount` in BASE
     // currency, so the bank amount (in the txn's OWN currency) must be
-    // converted to base before any signal compares the two. Same-currency
-    // reduces to identity and must NOT hit the plugin — NullCountryPlugin
-    // throws on real cross-currency pairs.
+    // converted to base before any signal compares the two. CurrencyService
+    // owns base-currency resolution, the same-currency short-circuit, the
+    // plugin reference-rate fetch, and the cents rounding (ADR-0004).
     const absRaw = Math.abs(txn.amount);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
-    let absBaseAmount: number;
-    if (txn.currency === baseCurrency) {
-      absBaseAmount = absRaw;
-    } else {
-      const org = await this.orgService.getOrganization();
-      const plugin = this.pluginLoader.resolve(org.country);
-      const refRate = plugin.getReferenceRate(
-        txn.currency,
-        baseCurrency,
-        txn.transaction_date,
-      );
-      absBaseAmount = Math.round(absRaw * refRate);
-    }
+    const { baseAmount: absBaseAmount } = await this.currencyService.toBase(
+      absRaw,
+      txn.currency,
+      txn.transaction_date,
+    );
 
     // ── Signal 1: Invoice number match (strongest) ──────────────────
     if (tokens.invoiceNumbers.length > 0) {
