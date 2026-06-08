@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely, sql } from 'kysely';
+import { Kysely, Transaction, sql } from 'kysely';
 import { Database } from '../../database/types';
 import { AccountType } from './types';
+
+/**
+ * The minimal Kysely executor a net read runs through — a top-level connection
+ * or an open {@link Transaction}. Lets a caller that must read-then-write
+ * atomically (recording a **ReconciliationMatch**) route the net read through
+ * its own transaction.
+ */
+type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 /**
  * LedgerBalanceService — the ONE authoritative place that computes
@@ -88,8 +96,9 @@ export class LedgerBalanceService {
   async getVoucherNetBase(
     voucherId: number,
     accountCodes: string[],
+    executor: DbExecutor = this.db,
   ): Promise<number> {
-    const lineTotal = await this.db
+    const lineTotal = await executor
       .selectFrom('voucher_line')
       .innerJoin('account', 'account.id', 'voucher_line.account_id')
       .select((eb) =>

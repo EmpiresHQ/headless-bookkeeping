@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, Transaction } from 'kysely';
 import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankTransactionRecord } from '../bank/bank-statement.types';
@@ -417,17 +418,42 @@ export class ReconciliationService {
   }
 
   /**
-   * Execute proposed matches by inserting reconciliation_match records.
-   * For foreign-currency settlements, auto-posts realized-FX vouchers.
+   * Record one or more **ReconciliationMatch**es — the deep operation that
+   * enforces the "no over-match / no duplicate pair" invariant ATOMICALLY.
+   *
+   * ── Why this is a transaction, not a loop of inserts ──────────────────────
+   * The invariant — a match must never push a Voucher's matched total past its
+   * outstanding **Receivable** / **Payable** (or undrawn prepayment), and the
+   * SAME `(bank line, Voucher)` pair must never be recorded twice — used to
+   * live only in the proposal phase's `min(amount, remaining)`. Execution
+   * trusted the proposal and inserted blind, so two concurrent or repeated
+   * executes could over-match (1500 against a 1000 invoice) and a stale
+   * proposal could duplicate a pair. We now re-read the outstanding balance and
+   * INSERT inside ONE transaction, so the check the INSERT relies on cannot go
+   * stale between read and write. N:M stays legitimate: many Vouchers per bank
+   * line and many bank lines per Voucher are all distinct pairs the
+   * UNIQUE(bank_transaction_id, voucher_id) index (migration 031) admits — only
+   * the same pair and over-matching are rejected.
+   *
+   * Realized-FX posting happens AFTER the matching transaction commits: it
+   * posts its own balanced **Voucher** through PostingService and is not part
+   * of the match-recording invariant.
    */
   async executeMatch(proposals: MatchProposal[]): Promise<ExecuteMatchResult> {
     if (proposals.length === 0) {
       throw new BadRequestException('No match proposals provided');
     }
 
+    for (const proposal of proposals) {
+      if (proposal.amountMatched <= 0) {
+        throw new BadRequestException(
+          `amount_matched must be positive, got ${proposal.amountMatched}`,
+        );
+      }
+    }
+
     // Validate all proposals reference existing transactions and vouchers.
     const txnIds = [...new Set(proposals.map((p) => p.bankTransactionId))];
-    const voucherIds = [...new Set(proposals.map((p) => p.voucherId))];
 
     const txnMap = new Map<number, BankTransactionRecord>();
     for (const txnId of txnIds) {
@@ -438,50 +464,68 @@ export class ReconciliationService {
       txnMap.set(txnId, txn);
     }
 
-    for (const vid of voucherIds) {
-      const voucher = await this.db
-        .selectFrom('voucher')
-        .select('id')
-        .where('id', '=', vid)
-        .executeTakeFirst();
-      if (!voucher) {
-        throw new NotFoundException(`Voucher ${vid} not found`);
-      }
-    }
-
     const now = Math.floor(Date.now() / 1000);
-    const records: ReconciliationMatchRecord[] = [];
-    const fxResults: FXRealizedResult[] = [];
 
-    for (const proposal of proposals) {
-      if (proposal.amountMatched <= 0) {
-        throw new BadRequestException(
-          `amount_matched must be positive, got ${proposal.amountMatched}`,
+    // ── Atomic check-then-insert ──────────────────────────────────────────
+    // The remaining-balance read and the INSERT run on the SAME transaction
+    // connection, so the outstanding balance the rejection relies on cannot
+    // change between read and write. Proposals in this batch that target the
+    // same Voucher accumulate against ONE outstanding figure, so a batch can no
+    // more over-match than two separate executes can.
+    const records = await this.db.transaction().execute(async (trx) => {
+      const batchMatchedByVoucher = new Map<number, number>();
+      const inserted: ReconciliationMatchRecord[] = [];
+
+      for (const proposal of proposals) {
+        const voucher = await trx
+          .selectFrom('voucher')
+          .select('id')
+          .where('id', '=', proposal.voucherId)
+          .executeTakeFirst();
+        if (!voucher) {
+          throw new NotFoundException(
+            `Voucher ${proposal.voucherId} not found`,
+          );
+        }
+
+        // Re-read the outstanding AR/AP (or prepayment) balance INSIDE the
+        // transaction, then subtract anything already matched earlier in THIS
+        // batch against the same Voucher.
+        const persistedRemaining =
+          proposal.matchType === 'prepayment'
+            ? await this.outstandingVouchers.getRemainingPrepaymentBalance(
+                proposal.voucherId,
+                trx,
+              )
+            : await this.outstandingVouchers.getRemainingVoucherBalance(
+                proposal.voucherId,
+                trx,
+              );
+        const alreadyInBatch =
+          batchMatchedByVoucher.get(proposal.voucherId) ?? 0;
+        const available = persistedRemaining - alreadyInBatch;
+
+        if (proposal.amountMatched > available) {
+          throw new ConflictException(
+            `Match of ${proposal.amountMatched} would over-match voucher ` +
+              `${proposal.voucherId}: only ${available} outstanding remains`,
+          );
+        }
+
+        const row = await this.insertMatchRow(trx, proposal, now);
+        batchMatchedByVoucher.set(
+          proposal.voucherId,
+          alreadyInBatch + proposal.amountMatched,
         );
+        inserted.push(row);
       }
 
-      const [inserted] = await this.db
-        .insertInto('reconciliation_match')
-        .values({
-          bank_transaction_id: proposal.bankTransactionId,
-          voucher_id: proposal.voucherId,
-          match_type: proposal.matchType,
-          amount_matched: proposal.amountMatched,
-          created_at: now,
-        })
-        .returningAll()
-        .execute();
+      return inserted;
+    });
 
-      records.push({
-        id: inserted.id,
-        bankTransactionId: inserted.bank_transaction_id,
-        voucherId: inserted.voucher_id,
-        matchType: inserted.match_type as MatchType,
-        amountMatched: inserted.amount_matched,
-        createdAt: inserted.created_at,
-      });
-
-      // Compute realized FX for foreign-currency settlements.
+    // ── Realized FX (post-commit; posts its own Voucher) ──────────────────
+    const fxResults: FXRealizedResult[] = [];
+    for (const proposal of proposals) {
       const txn = txnMap.get(proposal.bankTransactionId);
       if (
         txn &&
@@ -503,5 +547,71 @@ export class ReconciliationService {
     }
 
     return { records, fxResults };
+  }
+
+  /**
+   * Insert one reconciliation_match row on the given transaction, translating a
+   * UNIQUE(bank_transaction_id, voucher_id) violation (migration 031) into a
+   * clear duplicate-pair rejection. The constraint is the backstop behind the
+   * outstanding-balance re-check; a duplicate pair from a stale proposal that
+   * slips past the balance check (e.g. a zero-outstanding re-match) still cannot
+   * be recorded twice.
+   */
+  private async insertMatchRow(
+    trx: Transaction<Database>,
+    proposal: MatchProposal,
+    now: number,
+  ): Promise<ReconciliationMatchRecord> {
+    let inserted: {
+      id: number;
+      bank_transaction_id: number;
+      voucher_id: number;
+      match_type: string;
+      amount_matched: number;
+      created_at: number;
+    };
+    try {
+      [inserted] = await trx
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: proposal.bankTransactionId,
+          voucher_id: proposal.voucherId,
+          match_type: proposal.matchType,
+          amount_matched: proposal.amountMatched,
+          created_at: now,
+        })
+        .returningAll()
+        .execute();
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        throw new ConflictException(
+          `Duplicate reconciliation match: bank transaction ` +
+            `${proposal.bankTransactionId} is already matched to voucher ` +
+            `${proposal.voucherId}`,
+        );
+      }
+      throw err;
+    }
+
+    return {
+      id: inserted.id,
+      bankTransactionId: inserted.bank_transaction_id,
+      voucherId: inserted.voucher_id,
+      matchType: inserted.match_type as MatchType,
+      amountMatched: inserted.amount_matched,
+      createdAt: inserted.created_at,
+    };
+  }
+
+  /** Whether an unknown error is a SQLite UNIQUE-constraint violation. */
+  private isUniqueViolation(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null) return false;
+    const code = (err as { code?: unknown }).code;
+    const message = (err as { message?: unknown }).message;
+    return (
+      code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+      code === 'SQLITE_CONSTRAINT' ||
+      (typeof message === 'string' && message.includes('UNIQUE constraint'))
+    );
   }
 }

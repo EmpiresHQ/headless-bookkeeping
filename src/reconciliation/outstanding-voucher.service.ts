@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, Transaction } from 'kysely';
 import { Database } from '../database/types';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { CandidateVoucher } from './reconciliation.types';
+
+/**
+ * The minimal Kysely executor this service reads through — satisfied by both a
+ * top-level connection and an open {@link Transaction}. Recording a
+ * **ReconciliationMatch** must re-check the outstanding balance and INSERT on
+ * ONE connection (so a concurrent/repeated execute cannot over-match), so the
+ * remaining-balance read accepts the caller's transaction.
+ */
+type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 /** Date window for amount+date candidate search (±7 days). */
 const DATE_WINDOW_DAYS = 7;
@@ -155,8 +164,24 @@ export class OutstandingVoucherService {
    * debit/credit sign, abs'd) minus what reconciliation has already matched.
    * Never the single-line `base_amount`.
    */
-  async getRemainingVoucherBalance(voucherId: number): Promise<number> {
-    return this.remainingOverCodes(voucherId, AR_AP_CODES);
+  async getRemainingVoucherBalance(
+    voucherId: number,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    return this.remainingOverCodes(voucherId, AR_AP_CODES, executor);
+  }
+
+  /**
+   * The remaining unmatched balance for a Voucher netted over the same
+   * prepayment codes a prepayment candidate uses. Exposed so the
+   * **ReconciliationMatch** execution path can re-check a prepayment draw-down's
+   * outstanding inside its transaction, exactly as it does for AR/AP.
+   */
+  async getRemainingPrepaymentBalance(
+    voucherId: number,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    return this.remainingOverCodes(voucherId, PREPAYMENT_CODES, executor);
   }
 
   /**
@@ -171,14 +196,16 @@ export class OutstandingVoucherService {
   private async remainingOverCodes(
     voucherId: number,
     accountCodes: string[],
+    executor: DbExecutor = this.db,
   ): Promise<number> {
     const totalBase = await this.ledgerBalance.getVoucherNetBase(
       voucherId,
       accountCodes,
+      executor,
     );
     if (totalBase === 0) return 0;
 
-    const alreadyMatched = await this.getAlreadyMatched(voucherId);
+    const alreadyMatched = await this.getAlreadyMatched(voucherId, executor);
     return Math.max(0, totalBase - alreadyMatched);
   }
 
@@ -274,8 +301,11 @@ export class OutstandingVoucherService {
   /**
    * Total already-matched amount for a Voucher from reconciliation_match.
    */
-  private async getAlreadyMatched(voucherId: number): Promise<number> {
-    const result = await this.db
+  private async getAlreadyMatched(
+    voucherId: number,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    const result = await executor
       .selectFrom('reconciliation_match')
       .select((eb) => eb.fn.sum<number>('amount_matched').as('total'))
       .where('voucher_id', '=', voucherId)

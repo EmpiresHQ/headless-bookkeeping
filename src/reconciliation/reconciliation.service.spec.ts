@@ -717,6 +717,235 @@ describe('ReconciliationService (integration)', () => {
         ]),
       ).rejects.toThrow();
     });
+
+    it('rejects a duplicate (bank line, voucher) pair — same pair cannot be matched twice', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-DUP-001',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment',
+          amount: 50000,
+          reference: 'INV-DUP-001',
+        },
+      ]);
+      const txnId = stmt.transactions[0].id;
+
+      // First match: a legitimate partial settlement of 20000.
+      await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txnId,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 20000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      // Re-matching the SAME (bank line, voucher) pair is rejected even though
+      // the voucher still has 30000 outstanding (the pair is the violation,
+      // not the amount).
+      await expect(
+        reconciliationService.executeMatch([
+          {
+            bankTransactionId: txnId,
+            voucherId,
+            matchType: 'partial',
+            amountMatched: 10000,
+            confidence: 'high',
+            signal: 'invoice_number',
+          },
+        ]),
+      ).rejects.toThrow();
+
+      // Exactly one row persisted for the pair.
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('bank_transaction_id', '=', txnId)
+        .where('voucher_id', '=', voucherId)
+        .execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].amount_matched).toBe(20000);
+    });
+
+    it('rejects an over-match beyond the outstanding AR balance (across two executes)', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        100000,
+        'INV-OVER-001',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Partial 1',
+          amount: 60000,
+          reference: 'INV-OVER-001',
+        },
+        {
+          transaction_date: '2025-01-13',
+          description: 'Partial 2 (would over-match)',
+          amount: 60000,
+          reference: 'INV-OVER-001',
+        },
+      ]);
+
+      // First bank line settles 60000 of the 100000 invoice.
+      await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 60000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      // A second (distinct) bank line trying to match another 60000 would push
+      // the matched total to 120000 > 100000 outstanding → rejected.
+      await expect(
+        reconciliationService.executeMatch([
+          {
+            bankTransactionId: stmt.transactions[1].id,
+            voucherId,
+            matchType: 'partial',
+            amountMatched: 60000,
+            confidence: 'high',
+            signal: 'invoice_number',
+          },
+        ]),
+      ).rejects.toThrow();
+
+      // Only the first 60000 match persisted; nothing over-matched.
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('voucher_id', '=', voucherId)
+        .execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].amount_matched).toBe(60000);
+    });
+
+    it('rejects an over-match within a single batch of two distinct bank lines', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        100000,
+        'INV-OVER-002',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Batch line 1',
+          amount: 70000,
+        },
+        {
+          transaction_date: '2025-01-13',
+          description: 'Batch line 2',
+          amount: 70000,
+        },
+      ]);
+
+      // Two distinct (bank line, voucher) pairs in ONE batch summing to 140000
+      // against a 100000 invoice → the whole atomic batch is rejected.
+      await expect(
+        reconciliationService.executeMatch([
+          {
+            bankTransactionId: stmt.transactions[0].id,
+            voucherId,
+            matchType: 'partial',
+            amountMatched: 70000,
+            confidence: 'medium',
+            signal: 'amount_date',
+          },
+          {
+            bankTransactionId: stmt.transactions[1].id,
+            voucherId,
+            matchType: 'partial',
+            amountMatched: 70000,
+            confidence: 'medium',
+            signal: 'amount_date',
+          },
+        ]),
+      ).rejects.toThrow();
+
+      // Atomic: NEITHER row persisted (the batch rolled back).
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('voucher_id', '=', voucherId)
+        .execute();
+      expect(rows).toHaveLength(0);
+    });
+
+    it('still records a legitimate N:M batch (two distinct vouchers) with identical amounts', async () => {
+      const customer = await seedCustomer();
+      const voucherId1 = await seedSalesInvoiceVoucher(
+        customer.id,
+        30000,
+        'INV-NM-001',
+        '2025-01-10',
+      );
+      const voucherId2 = await seedSalesInvoiceVoucher(
+        customer.id,
+        20000,
+        'INV-NM-002',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Bulk payment',
+          amount: 50000,
+          reference: 'INV-NM-001 INV-NM-002',
+        },
+      ]);
+      const txnId = stmt.transactions[0].id;
+
+      const result = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txnId,
+          voucherId: voucherId1,
+          matchType: 'exact',
+          amountMatched: 30000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+        {
+          bankTransactionId: txnId,
+          voucherId: voucherId2,
+          matchType: 'exact',
+          amountMatched: 20000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      expect(result.records).toHaveLength(2);
+      const persisted = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('bank_transaction_id', '=', txnId)
+        .execute();
+      expect(persisted).toHaveLength(2);
+      expect(
+        persisted.map((r) => r.amount_matched).sort((a, b) => a - b),
+      ).toEqual([20000, 30000]);
+    });
   });
 
   describe('incoming vs outgoing direction', () => {

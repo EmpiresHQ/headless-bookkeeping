@@ -27,6 +27,7 @@ import * as m027 from './027_add_ai_proposal';
 import * as m028 from './028_create_setting';
 import * as m029 from './029_add_finding_transition_audit';
 import * as m030 from './030_add_document_needs_triage_status';
+import * as m031 from './031_unique_reconciliation_match_pair';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -57,4 +58,5 @@ export const migrations: Record<string, Migration> = {
   '028_create_setting': m028,
   '029_add_finding_transition_audit': m029,
   '030_add_document_needs_triage_status': m030,
+  '031_unique_reconciliation_match_pair': m031,
 };
