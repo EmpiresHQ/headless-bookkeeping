@@ -26,6 +26,7 @@ export interface Database {
   artifact: ArtifactTable;
   conversation_document: ConversationDocumentTable;
   conversation_business_object: ConversationBusinessObjectTable;
+  api_token: ApiTokenTable;
 }
 
 export interface OrganizationTable {
@@ -361,4 +362,17 @@ export interface VatReportTable {
   // Merkle root over included vouchers (NULL until computed).
   merkle_root: string | null;
   generated_at: number;
+}
+
+// ApiToken: table-backed API tokens for authenticating /api and /admin routes.
+// token_hash is the SHA-256 hash of the plaintext token; no plaintext is stored.
+export interface ApiTokenTable {
+  id: Generated<number>;
+  // SHA-256 hash of the plaintext token.
+  token_hash: string;
+  // Human-readable label (e.g. "init-token").
+  label: string | null;
+  created_at: number;
+  // Unix seconds when revoked; NULL = active.
+  revoked_at: number | null;
 }
