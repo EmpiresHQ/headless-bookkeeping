@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { Database as DBType } from '../database/types';
 import { migrations } from '../database/migrations';
 import { PolicyService } from './policy.service';
+import { PolicyContext } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { RuleResult } from '../rules/types';
 
@@ -269,6 +270,142 @@ describe('PolicyService (real-DI)', () => {
       expect(decision.action).toBe('hold-for-approval');
       // Structural failure is checked first
       expect(decision.reason).toContain('Structural/hard rule failure');
+    });
+
+    it('auto-posts when confidence is at threshold (0.8)', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { confidence: 0.8 };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('auto-posts when confidence is above threshold (0.95)', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { confidence: 0.95 };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('holds for approval when confidence is below threshold (0.79)', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { confidence: 0.79 };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('hold-for-approval');
+      expect(decision.reason).toContain('AI confidence 0.79 below threshold 0.8');
+    });
+
+    it('holds for approval when confidence is very low (0.1)', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { confidence: 0.1 };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('hold-for-approval');
+      expect(decision.reason).toContain('AI confidence 0.1 below threshold 0.8');
+    });
+
+    it('skips confidence check when confidence is undefined (backward compatible)', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      // Empty context — no confidence field
+      const ctx: PolicyContext = {};
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('skips confidence check when context is not provided (backward compatible)', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+
+      // No context argument at all
+      const decision = service.decide(voucher, results);
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('holds for approval when supplier is unknown', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { supplierKnown: false };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('hold-for-approval');
+      expect(decision.reason).toContain('Unknown supplier requires approval');
+    });
+
+    it('auto-posts when supplier is known', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { supplierKnown: true };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('skips supplier check when supplierKnown is undefined', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = {};
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('holds for approval when both confidence is low AND supplier is unknown', () => {
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        passedResult('semantic', true),
+      ];
+      const ctx: PolicyContext = { confidence: 0.5, supplierKnown: false };
+
+      const decision = service.decide(voucher, results, ctx);
+      expect(decision.action).toBe('hold-for-approval');
+      // Confidence is checked before supplier
+      expect(decision.reason).toContain('AI confidence 0.5 below threshold 0.8');
     });
   });
 

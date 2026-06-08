@@ -8,7 +8,7 @@
       "plan_name": "wave-6-agents-admin",
       "status": "completed",
       "started_at": "2026-05-31T20:46:48.010Z",
-      "updated_at": "2026-06-08T18:14:07.414Z",
+      "updated_at": "2026-06-08T18:20:01.511Z",
       "session_ids": [
         "opencode:ses_18035f62fffepbex2WYoi1iIAq",
         "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
@@ -20,7 +20,30 @@
       "agent": "atlas",
       "worktree_path": null,
       "elapsed_ms": 682039404,
-      "task_sessions": {},
+      "task_sessions": {
+        "todo:41": {
+          "task_key": "todo:41",
+          "task_label": "41",
+          "task_title": "Pass 1 — OCR → markdown (+ audit artifact)",
+          "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-06-08T18:18:34.128Z",
+          "started_at": "2026-06-08T18:18:34.128Z",
+          "status": "running"
+        },
+        "todo:43": {
+          "task_key": "todo:43",
+          "task_label": "43",
+          "task_title": "Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)",
+          "session_id": "opencode:ses_1578d3bb2ffeVTOwCXhLcBZ5Q0",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-06-08T18:20:01.511Z",
+          "started_at": "2026-06-08T18:20:01.511Z",
+          "status": "running"
+        }
+      },
       "ended_at": "2026-06-08T18:14:07.414Z"
     },
     "wave-7-ai-orchestration": {

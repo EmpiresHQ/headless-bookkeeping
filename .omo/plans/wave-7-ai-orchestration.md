@@ -58,7 +58,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): embed Mastra runtime + tool layer (pipeline-gated, no post tool)`
 
-- [ ] 41. Pass 1 — OCR → markdown (+ audit artifact)
+- [x] 41. Pass 1 — OCR → markdown (+ audit artifact)
 
   **What to do**:
   - `OcrService.transcribe(documentId): string` — vision/OCR model (per the `ocr` profile) → **markdown** of the document. Transcribe, do NOT structure.
@@ -77,7 +77,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): Pass 1 OCR→markdown + audit artifact`
 
-- [ ] 42. Pass 2 — Mastra agent + tools → structured TriageResult
+- [x] 42. Pass 2 — Mastra agent + tools → structured TriageResult
 
   **What to do**:
   - **Replace the Wave-4 TS-interface `TriageResult` with a Zod schema (Codex W7 P0)** — the validated AI-output contract. The current `src/triage/types.ts` interface still has a `vat_code` field; **remove it**. Fields: **`kind`** (discriminant — `new_expense | correction | duplicate | unknown`, the Wave-5 Task-38 outcome union; NF-2), `gross_amount`, `vat_amount`, **`currency`** (`z.string().length(3)`; if the document omits it, fall back to the org base currency — NF-4, `createExpense` requires it), **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`. **No `vat_code`, no account** — the plugin resolves account+VAT (ADR-0002); the marking is evidence, never authority.

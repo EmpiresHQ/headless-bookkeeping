@@ -18,6 +18,6 @@ import { TriageController } from './triage.controller';
   ],
   controllers: [TriageController],
   providers: [OcrService, TriageService],
-  exports: [TriageService],
+  exports: [TriageService, OcrService],
 })
 export class TriageModule {}

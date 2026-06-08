@@ -77,3 +77,39 @@ Implemented Pass2AgentService that runs the Pass 2 Mastra agent over Pass-1 mark
 - `src/ai/pass2-agent.service.ts` — Pass2AgentService with classify() method
 - `src/ai/pass2-agent.service.spec.ts` — 10 tests covering valid output, retry, validation, grep-clean
 - `src/ai/ai.module.ts` — registered Pass2AgentService in providers and exports
+
+## Task 41: OCR → markdown (+ audit artifact)
+
+### Date
+2026-06-08
+
+### Summary
+Implemented Pass 1 OCR: `OcrService.transcribe(documentId)` calls a faux vision model, returns markdown, and stores it as a Conversation Artifact with `kind='ocr_markdown'`.
+
+### Key Decisions
+
+1. **Faux OCR model for v1**: Since no real vision model API is wired, `fauxOcrModel()` returns deterministic markdown based on document filename (receipt/invoice keywords) with id parity as fallback. This enables deterministic tests and pipeline integration.
+
+2. **Idempotent transcription**: `transcribe()` checks for an existing `ocr_markdown` artifact before calling the model. Re-running reads stored markdown without re-calling — critical for cost control when a real model is connected.
+
+3. **Dedicated OCR conversation**: Each document gets its own Conversation via `channel='api', thread_key='ocr:{documentId}'`. This creates a clean audit trail per document's OCR pass, separate from user-facing conversations.
+
+4. **Filesystem storage**: Markdown is written to `./data/artifacts/ocr/{documentId}.md` (not SQLite blobs). The artifact's `storage_path` points to this file. Follows the existing artifact storage convention.
+
+5. **Migration strategy**: SQLite doesn't support ALTER TABLE for CHECK constraints. Migration 026 recreates the `artifact` table with the expanded CHECK (`'inbound_attachment' | 'outbound_output' | 'ocr_markdown'`), copies data, drops old, renames new.
+
+6. **`extract()` preserved**: The existing `extract()` method (returns structured `TriageResult`) is kept alongside `transcribe()` (returns markdown). They serve different pipeline stages — extract() for the structured triage path, transcribe() for Pass 1 OCR.
+
+### Files Created/Modified
+- `src/database/migrations/026_add_ocr_markdown_artifact_kind.ts` — new migration
+- `src/database/migrations/index.ts` — registered migration 026
+- `src/conversations/types.ts` — added `'ocr_markdown'` to `ArtifactKind`
+- `src/database/types.ts` — updated `ArtifactTable` kind comment
+- `src/triage/ocr.service.ts` — added `transcribe()` with faux model + artifact storage
+- `src/triage/ocr.service.spec.ts` — 10 tests (3 extract + 7 transcribe)
+- `src/triage/triage.module.ts` — imported `ConversationsModule`
+- `src/triage/triage.integration.spec.ts` — added `ConversationsService` to DI
+
+### Verification
+- `npm run build` — passes with zero errors
+- `npm test` — 490 tests pass (51 suites)

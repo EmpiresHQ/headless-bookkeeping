@@ -5,13 +5,18 @@ import { ExpensesModule } from '../expenses/expenses.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
+import { TriageModule } from '../triage/triage.module';
+import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
+import { PolicyModule } from '../policy/policy.module';
 import { MastraService } from './mastra.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
+import { IntakeWorkflowService } from './intake-workflow.service';
 
 /**
  * AiModule — registers the Mastra runtime + tool layer, the Pass 2 agent
- * service, and the deterministic propose-draft service.
+ * service, the deterministic propose-draft service, and the intake workflow
+ * orchestrator.
  *
  * MastraService loads @mastra/core via dynamic import() and creates an agent
  * with read-only tools (searchSuppliers, listCategories, getClassificationMemory,
@@ -23,6 +28,10 @@ import { Pass2AgentService } from './pass2-agent.service';
  * ProposeDraftService takes a validated TriageResult and runs it through the
  * existing posting pipeline (createExpense → generateDraftVoucher → Rules →
  * Policy → post/hold).
+ *
+ * IntakeWorkflowService orchestrates the full intake pipeline:
+ * Pass 1 (OCR) → Pass 2 (agent classify) → deterministic routing
+ * (draft proposed or needs_triage finding created).
  */
 @Module({
   imports: [
@@ -32,8 +41,21 @@ import { Pass2AgentService } from './pass2-agent.service';
     PluginsModule,
     OrganizationModule,
     PostingPipelineModule,
+    TriageModule,
+    AuditFindingsModule,
+    PolicyModule,
   ],
-  providers: [MastraService, ProposeDraftService, Pass2AgentService],
-  exports: [MastraService, ProposeDraftService, Pass2AgentService],
+  providers: [
+    MastraService,
+    ProposeDraftService,
+    Pass2AgentService,
+    IntakeWorkflowService,
+  ],
+  exports: [
+    MastraService,
+    ProposeDraftService,
+    Pass2AgentService,
+    IntakeWorkflowService,
+  ],
 })
 export class AiModule {}

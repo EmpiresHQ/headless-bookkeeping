@@ -22,9 +22,12 @@ function fauxOcrModel(
   documentId: number,
   filename: string,
 ): string {
-  const isReceipt = filename.toLowerCase().includes('receipt')
-    || filename.toLowerCase().includes('bolt')
-    || documentId % 2 === 1;
+  const lower = filename.toLowerCase();
+  // Filename takes precedence; fall back to id parity for ambiguous names.
+  const isReceipt =
+    lower.includes('receipt') ||
+    lower.includes('bolt') ||
+    (!lower.includes('invoice') && documentId % 2 === 1);
 
   if (isReceipt) {
     return `# Receipt

@@ -13,6 +13,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
+import { ConversationsService } from '../conversations/conversations.service';
 import { OcrService } from './ocr.service';
 import { TriageService } from './triage.service';
 
@@ -58,6 +59,7 @@ describe('TriageService (integration)', () => {
         SalesInvoicesService,
         DocumentsService,
         DocumentStorageService,
+        ConversationsService,
         OcrService,
         TriageService,
       ],

@@ -27,6 +27,7 @@ export interface Database {
   conversation_document: ConversationDocumentTable;
   conversation_business_object: ConversationBusinessObjectTable;
   api_token: ApiTokenTable;
+  ai_proposal: AiProposalTable;
 }
 
 export interface OrganizationTable {
@@ -375,4 +376,19 @@ export interface ApiTokenTable {
   created_at: Generated<number>;
   // Unix seconds when revoked; NULL = active.
   revoked_at: number | null;
+}
+
+// AiProposal: operational audit trail for AI-driven posting attempts.
+// NOT part of the hash-chained ledger — stores model metadata, confidence,
+// and the raw triage result for reproducibility.
+export interface AiProposalTable {
+  id: Generated<number>;
+  business_object_type: string;
+  business_object_id: number;
+  model_id: string | null;
+  model_version: string | null;
+  raw_triage_result: string | null;
+  ocr_artifact_id: number | null;
+  confidence: number | null;
+  created_at: number;
 }

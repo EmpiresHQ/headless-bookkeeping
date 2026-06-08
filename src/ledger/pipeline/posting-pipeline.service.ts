@@ -45,6 +45,10 @@ export interface PostingPipelineParams {
   refetch: () => Promise<unknown>;
   /** Optional semantic rule override (ruleType + reason). */
   override?: { ruleType: string; reason: string };
+  /** AI confidence score (0–1). Passed to Policy; undefined → skip check. */
+  confidence?: number;
+  /** Whether the supplier is known (matched to an Entity). */
+  supplierKnown?: boolean;
 }
 
 export interface PostingPipelineResult {
@@ -173,7 +177,10 @@ export class PostingPipelineService {
     const ruleResults = [structuralResult, hardResult, semanticResult];
 
     // ── 6. Policy gate ─────────────────────────────────────────
-    const policyDecision = this.policyService.decide(draft, ruleResults);
+    const policyDecision = this.policyService.decide(draft, ruleResults, {
+      confidence: params.confidence,
+      supplierKnown: params.supplierKnown,
+    });
 
     if (policyDecision.action === 'auto-post') {
       // ── 7a. Atomic post + status update ──────────────────────

@@ -1,4 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { InjectKysely } from 'nestjs-kysely';
+import { Kysely } from 'kysely';
+import { Database } from '../database/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { TriageResult } from '../triage/types';
@@ -21,12 +24,14 @@ export interface ProposeDraftResult {
  * 2. Calls ExpensesService.createExpense() with the result data
  * 3. Runs the existing PostingPipelineService.runPipeline() flow
  *    (generateDraftVoucher → Rules → Policy → post/hold)
+ * 4. Writes an ai_proposal row for provenance audit
  *
  * Only handles kind='new_expense'; other kinds throw (to be wired in Task 43).
  */
 @Injectable()
 export class ProposeDraftService {
   constructor(
+    @InjectKysely() private readonly db: Kysely<Database>,
     private readonly expensesService: ExpensesService,
     private readonly postingPipelineService: PostingPipelineService,
   ) {}
@@ -66,6 +71,7 @@ export class ProposeDraftService {
     const expense = await this.expensesService.createExpense(createExpenseDto);
 
     // Step 2: Run the existing posting pipeline (generateDraftVoucher → Rules → Policy → post).
+    // Thread confidence and supplier-known status to Policy.
     const pipelineResult = await this.postingPipelineService.runPipeline({
       businessObjectId: expense.id,
       businessObjectType: 'expense',
@@ -73,11 +79,58 @@ export class ProposeDraftService {
         this.expensesService.generateDraftVoucher(expense.id),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expense.id),
+      confidence: triageResult.confidence,
+      supplierKnown: !!supplierId,
     });
+
+    // Step 3: Write AI provenance row (operational audit, NOT hash-chained).
+    await this.writeAiProvenance(expense.id, triageResult);
 
     return {
       expenseId: expense.id,
       pipelineResult,
     };
+  }
+
+  /**
+   * Persist an ai_proposal row for audit provenance.
+   * Looks up the ocr_markdown artifact for the expense's document.
+   */
+  private async writeAiProvenance(
+    expenseId: number,
+    triageResult: TriageResult,
+  ): Promise<void> {
+    // Look up the expense's document_id to find the ocr_markdown artifact.
+    const expense = await this.db
+      .selectFrom('expense')
+      .select('document_id')
+      .where('id', '=', expenseId)
+      .executeTakeFirst();
+
+    let ocrArtifactId: number | null = null;
+    if (expense?.document_id) {
+      const artifact = await this.db
+        .selectFrom('artifact')
+        .select('id')
+        .where('document_id', '=', expense.document_id)
+        .where('kind', '=', 'ocr_markdown')
+        .executeTakeFirst();
+      ocrArtifactId = artifact?.id ?? null;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .insertInto('ai_proposal')
+      .values({
+        business_object_type: 'expense',
+        business_object_id: expenseId,
+        model_id: 'openai/gpt-4o-mini',
+        model_version: 'v1',
+        raw_triage_result: JSON.stringify(triageResult),
+        ocr_artifact_id: ocrArtifactId,
+        confidence: triageResult.confidence,
+        created_at: now,
+      })
+      .execute();
   }
 }

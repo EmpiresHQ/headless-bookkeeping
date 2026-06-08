@@ -5,7 +5,7 @@ import { Database } from '../database/types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { RuleResult } from '../rules/types';
 import { isUnresolvedSemanticFailure, mustReject } from '../rules/rules.guards';
-import { PolicyDecision, PolicyConfig, OverrideRecord } from './types';
+import { PolicyDecision, PolicyConfig, OverrideRecord, PolicyContext } from './types';
 
 /**
  * Hardcoded v1 defaults. In later waves these may be read from the
@@ -40,7 +40,11 @@ export class PolicyService {
    * @param voucher — the draft voucher being evaluated
    * @param ruleResults — results from RulesService.validate() for all tiers
    */
-  decide(voucher: DraftVoucher, ruleResults: RuleResult[]): PolicyDecision {
+  decide(
+    voucher: DraftVoucher,
+    ruleResults: RuleResult[],
+    context?: PolicyContext,
+  ): PolicyDecision {
     // 1. Defensive guard: structural/hard failures should never reach Policy,
     //    but if they do, hold for approval.
     const structuralOrHardFailure = ruleResults.find((r) => mustReject(r));
@@ -76,9 +80,29 @@ export class PolicyService {
       };
     }
 
-    // 4. AI confidence deferred — will be wired when AI pipeline is implemented.
+    // 4. AI confidence gate — only when confidence is provided.
+    if (context?.confidence !== undefined) {
+      const threshold = DEFAULT_CONFIG.auto_post_min_confidence;
+      if (context.confidence < threshold) {
+        return {
+          action: 'hold-for-approval',
+          reason: `AI confidence ${context.confidence} below threshold ${threshold}`,
+        };
+      }
+    }
 
-    // 5. Default: auto-post.
+    // 5. Unknown-supplier gate.
+    if (
+      context?.supplierKnown === false &&
+      DEFAULT_CONFIG.unknown_supplier_requires_approval
+    ) {
+      return {
+        action: 'hold-for-approval',
+        reason: 'Unknown supplier requires approval',
+      };
+    }
+
+    // 6. Default: auto-post.
     return {
       action: 'auto-post',
       reason: 'All rules passed and amount within ceiling',
