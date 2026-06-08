@@ -309,7 +309,9 @@ describe('PolicyService (real-DI)', () => {
 
       const decision = service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
-      expect(decision.reason).toContain('AI confidence 0.79 below threshold 0.8');
+      expect(decision.reason).toContain(
+        'AI confidence 0.79 below threshold 0.8',
+      );
     });
 
     it('holds for approval when confidence is very low (0.1)', () => {
@@ -323,7 +325,9 @@ describe('PolicyService (real-DI)', () => {
 
       const decision = service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
-      expect(decision.reason).toContain('AI confidence 0.1 below threshold 0.8');
+      expect(decision.reason).toContain(
+        'AI confidence 0.1 below threshold 0.8',
+      );
     });
 
     it('skips confidence check when confidence is undefined (backward compatible)', () => {
@@ -405,7 +409,9 @@ describe('PolicyService (real-DI)', () => {
       const decision = service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
       // Confidence is checked before supplier
-      expect(decision.reason).toContain('AI confidence 0.5 below threshold 0.8');
+      expect(decision.reason).toContain(
+        'AI confidence 0.5 below threshold 0.8',
+      );
     });
   });
 

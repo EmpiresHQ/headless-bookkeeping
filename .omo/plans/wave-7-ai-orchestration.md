@@ -99,7 +99,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): Pass 2 agentic extract+classify → validated TriageResult`
 
-- [ ] 43. Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)
+- [x] 43. Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)
 
   > **Design (Codex W7 NF-1/NF-3 + grilling):** the agent is **read-only** and produces ONE complete validated `TriageResult` (no "create draft" tool → no half-baked/abandoned drafts). A draft is created **once, deterministically, only when the result is confident and `kind='new_expense'`**. There is **no Mastra `suspend()` in v1** — durable human-in-the-loop is carried by our own Wave-6 aggregates (Approval for a held draft; AuditFinding for an uncertain no-draft case), both on-disk and reboot-safe. (Mastra's suspend/resume stays available for future flows; v1 doesn't need it.)
 
@@ -125,7 +125,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): intake workflow — draft-or-triage routing, read-only agent`
 
-- [ ] 44. Confidence → Policy + AI-provenance audit
+- [x] 44. Confidence → Policy + AI-provenance audit
 
   **What to do**:
   - **Confidence input contract (Codex W7 P1):** `PolicyService.decide()` today takes only `(DraftVoucher, RuleResult[])` — there is no confidence channel. Add a **`PolicyContext { confidence?, supplierKnown?, … }`** parameter threaded from the pipeline, and **un-stub** the `auto_post_min_confidence` gate to read `context.confidence`: below threshold → **hold → Approval** (on the existing draft Expense, Wave-6); at/above → auto-post-eligible (still subject to other Policy/Rules). Confidence is a **Policy** input, never Rules / never a voucher field (CONTEXT.md, ADR-0024).

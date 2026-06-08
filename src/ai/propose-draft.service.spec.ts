@@ -27,6 +27,7 @@ describe('ProposeDraftService (integration)', () => {
   let module: TestingModule;
   let service: ProposeDraftService;
   let expensesService: ExpensesService;
+  let policyService: PolicyService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -65,6 +66,7 @@ describe('ProposeDraftService (integration)', () => {
 
     service = module.get(ProposeDraftService);
     expensesService = module.get(ExpensesService);
+    policyService = module.get(PolicyService);
   });
 
   afterEach(async () => {
@@ -153,6 +155,118 @@ describe('ProposeDraftService (integration)', () => {
       await expect(service.proposeDraft(duplicateResult)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('holds for approval when confidence is below threshold (0.5)', async () => {
+      const lowConfidenceResult: TriageResult = {
+        ...sampleTriageResult(),
+        confidence: 0.5,
+      };
+
+      const result = await service.proposeDraft(lowConfidenceResult);
+
+      expect(result.expenseId).toBeGreaterThan(0);
+      expect(result.pipelineResult.policy.action).toBe('hold-for-approval');
+      expect(result.pipelineResult.policy.reason).toContain(
+        'AI confidence 0.5 below threshold 0.8',
+      );
+    });
+
+    it('auto-posts when confidence is at or above threshold (0.94)', async () => {
+      // Create a supplier so supplierKnown = true (otherwise unknown-supplier gate holds).
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'Known Supplier',
+        registrationKey: 'IE99999',
+      });
+
+      const result = await service.proposeDraft(
+        sampleTriageResult(),
+        null,
+        supplier.id,
+      );
+
+      expect(result.expenseId).toBeGreaterThan(0);
+      expect(result.pipelineResult.policy.action).toBe('auto-post');
+    });
+
+    it('writes an ai_proposal row after proposeDraft (auto-post path)', async () => {
+      // Create a supplier so the pipeline auto-posts.
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'Provenance Supplier',
+        registrationKey: 'IE88888',
+      });
+
+      const result = await service.proposeDraft(
+        sampleTriageResult(),
+        null,
+        supplier.id,
+      );
+
+      const proposals = await db
+        .selectFrom('ai_proposal')
+        .selectAll()
+        .where('business_object_id', '=', result.expenseId)
+        .execute();
+
+      expect(proposals).toHaveLength(1);
+      expect(proposals[0].business_object_type).toBe('expense');
+      expect(proposals[0].model_id).toBe('openai/gpt-4o-mini');
+      expect(proposals[0].model_version).toBe('v1');
+      expect(proposals[0].confidence).toBe(0.94);
+      expect(proposals[0].raw_triage_result).toBeDefined();
+      // Verify the stored JSON can be parsed back.
+      const parsed = JSON.parse(proposals[0].raw_triage_result!);
+      expect(parsed.kind).toBe('new_expense');
+      expect(parsed.confidence).toBe(0.94);
+    });
+
+    it('writes an ai_proposal row after proposeDraft (hold-for-approval path)', async () => {
+      const lowConfidenceResult: TriageResult = {
+        ...sampleTriageResult(),
+        confidence: 0.3,
+      };
+
+      const result = await service.proposeDraft(lowConfidenceResult);
+
+      const proposals = await db
+        .selectFrom('ai_proposal')
+        .selectAll()
+        .where('business_object_id', '=', result.expenseId)
+        .execute();
+
+      expect(proposals).toHaveLength(1);
+      expect(proposals[0].confidence).toBe(0.3);
+      expect(proposals[0].business_object_type).toBe('expense');
+    });
+
+    it('sets ocr_artifact_id to null when no ocr_markdown artifact exists', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'OCR Test Supplier',
+        registrationKey: 'IE77777',
+      });
+
+      const result = await service.proposeDraft(
+        sampleTriageResult(),
+        null,
+        supplier.id,
+      );
+
+      const proposals = await db
+        .selectFrom('ai_proposal')
+        .select('ocr_artifact_id')
+        .where('business_object_id', '=', result.expenseId)
+        .executeTakeFirstOrThrow();
+
+      expect(proposals.ocr_artifact_id).toBeNull();
     });
   });
 });

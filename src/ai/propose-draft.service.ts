@@ -12,7 +12,9 @@ import { CreateExpenseDto } from '../expenses/types';
  */
 export interface ProposeDraftResult {
   expenseId: number;
-  pipelineResult: Awaited<ReturnType<typeof PostingPipelineService.prototype.runPipeline>>;
+  pipelineResult: Awaited<
+    ReturnType<typeof PostingPipelineService.prototype.runPipeline>
+  >;
 }
 
 /**
@@ -59,7 +61,8 @@ export class ProposeDraftService {
     // Step 1: Create the Expense via ExpensesService.
     const createExpenseDto: CreateExpenseDto = {
       document_id: documentId ?? null,
-      supplier_id: supplierId ?? triageResult.supplier_proposal?.match_entity_id ?? null,
+      supplier_id:
+        supplierId ?? triageResult.supplier_proposal?.match_entity_id ?? null,
       category: triageResult.category,
       gross_amount: triageResult.gross_amount,
       vat_amount: triageResult.vat_amount,

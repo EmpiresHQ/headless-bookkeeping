@@ -2,7 +2,10 @@ import { EntitiesService } from '../../entities/entities.service';
 import { ExpensesService } from '../../expenses/expenses.service';
 import { PluginLoader } from '../../plugins/plugin-loader.service';
 import { OrganizationService } from '../../organization/organization.service';
-import { SupplierFacts, OrgContext } from '../../plugins/country-plugin.interface';
+import {
+  SupplierFacts,
+  OrgContext,
+} from '../../plugins/country-plugin.interface';
 import {
   searchSuppliersInputSchema,
   searchSuppliersOutputSchema,
@@ -101,7 +104,7 @@ export function createGetClassificationMemoryTool(
   return {
     id: 'getClassificationMemory',
     description:
-      'Get historical category usage for a specific supplier. Shows what categories this supplier\'s expenses have been classified as in the past.',
+      "Get historical category usage for a specific supplier. Shows what categories this supplier's expenses have been classified as in the past.",
     inputSchema: getClassificationMemoryInputSchema,
     outputSchema: getClassificationMemoryOutputSchema,
     execute: async ({

@@ -8,7 +8,7 @@
       "plan_name": "wave-6-agents-admin",
       "status": "completed",
       "started_at": "2026-05-31T20:46:48.010Z",
-      "updated_at": "2026-06-08T18:20:01.511Z",
+      "updated_at": "2026-06-08T19:05:05.986Z",
       "session_ids": [
         "opencode:ses_18035f62fffepbex2WYoi1iIAq",
         "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
@@ -42,6 +42,17 @@
           "updated_at": "2026-06-08T18:20:01.511Z",
           "started_at": "2026-06-08T18:20:01.511Z",
           "status": "running"
+        },
+        "todo:45": {
+          "task_key": "todo:45",
+          "task_label": "45",
+          "task_title": "Wire triage to the real pipeline + intake e2e",
+          "session_id": "opencode:ses_1578804afffeEV4586YzoeyrVw",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "started_at": "2026-06-08T18:55:19.302Z",
+          "status": "running",
+          "updated_at": "2026-06-08T19:05:05.986Z"
         }
       },
       "ended_at": "2026-06-08T18:14:07.414Z"

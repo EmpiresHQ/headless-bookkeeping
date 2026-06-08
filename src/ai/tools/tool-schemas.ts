@@ -8,7 +8,11 @@ import { z } from 'zod';
 // ── searchSuppliers ──────────────────────────────────────────────────────────
 
 export const searchSuppliersInputSchema = z.object({
-  query: z.string().describe('Search query to match against supplier names or registration keys'),
+  query: z
+    .string()
+    .describe(
+      'Search query to match against supplier names or registration keys',
+    ),
 });
 
 export const searchSuppliersOutputSchema = z.array(
@@ -44,8 +48,12 @@ export const getClassificationMemoryOutputSchema = z.object({
   categoryCounts: z.record(z.string(), z.number()),
 });
 
-export type GetClassificationMemoryInput = z.infer<typeof getClassificationMemoryInputSchema>;
-export type GetClassificationMemoryOutput = z.infer<typeof getClassificationMemoryOutputSchema>;
+export type GetClassificationMemoryInput = z.infer<
+  typeof getClassificationMemoryInputSchema
+>;
+export type GetClassificationMemoryOutput = z.infer<
+  typeof getClassificationMemoryOutputSchema
+>;
 
 // ── previewCategoryMapping ───────────────────────────────────────────────────
 
@@ -65,5 +73,9 @@ export const previewCategoryMappingOutputSchema = z.object({
   vatCode: z.string(),
 });
 
-export type PreviewCategoryMappingInput = z.infer<typeof previewCategoryMappingInputSchema>;
-export type PreviewCategoryMappingOutput = z.infer<typeof previewCategoryMappingOutputSchema>;
+export type PreviewCategoryMappingInput = z.infer<
+  typeof previewCategoryMappingInputSchema
+>;
+export type PreviewCategoryMappingOutput = z.infer<
+  typeof previewCategoryMappingOutputSchema
+>;

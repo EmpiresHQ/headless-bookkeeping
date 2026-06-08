@@ -9,6 +9,9 @@ import { migrations } from '../src/database/migrations';
 import { DOCUMENT_STORAGE_ROOT } from '../src/documents/document-storage.service';
 import { AppModule } from '../src/app.module';
 import { EntitiesService } from '../src/entities/entities.service';
+import { MastraService } from '../src/ai/mastra.service';
+import { fauxMastraService } from './faux-mastra.service';
+import { createHash } from 'crypto';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -32,6 +35,7 @@ describe('Reconciliation E2E (full flow)', () => {
   let entitiesService: EntitiesService;
   let customerId: number;
   let supplierId: number;
+  let apiToken: string;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -57,10 +61,19 @@ describe('Reconciliation E2E (full flow)', () => {
       .useValue(db)
       .overrideProvider(DOCUMENT_STORAGE_ROOT)
       .useValue(root)
+      .overrideProvider(MastraService)
+      .useValue(fauxMastraService)
       .compile();
 
     app = module.createNestApplication();
     await app.init();
+
+    apiToken = 'test-token-e2e-12345';
+    const tokenHash = createHash('sha256').update(apiToken).digest('hex');
+    await db
+      .insertInto('api_token')
+      .values({ token_hash: tokenHash, label: 'e2e-test' })
+      .execute();
 
     entitiesService = module.get(EntitiesService);
 
@@ -105,6 +118,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Create the invoice.
     const createRes = await request(app.getHttpServer())
       .post('/api/sales-invoices')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         invoice_number: invoiceNumber,
         gross_amount: grossAmount,
@@ -121,6 +135,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Post through pipeline.
     const postRes = await request(app.getHttpServer())
       .post(`/api/sales-invoices/${Reflect.get(invoice, 'id') as number}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     const result = postRes.body as {
@@ -146,6 +161,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Create the expense.
     const createRes = await request(app.getHttpServer())
       .post('/api/expenses')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         category: 'software',
         gross_amount: grossAmount,
@@ -162,6 +178,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Post through pipeline.
     const postRes = await request(app.getHttpServer())
       .post(`/api/expenses/${Reflect.get(expense, 'id') as number}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     const result = postRes.body as {
@@ -194,6 +211,7 @@ describe('Reconciliation E2E (full flow)', () => {
   }> {
     const res = await request(app.getHttpServer())
       .post('/api/bank-statements')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         account_code: 'BANK_EUR',
         start_date: '2024-01-15',
@@ -260,6 +278,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // are seeded by migrations 002 and 017.
     const org = await request(app.getHttpServer())
       .get('/api/organization')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
     expect(Reflect.get(org.body, 'country')).toBe('IE');
     expect(Reflect.get(org.body, 'org_type')).toBe('company');
@@ -384,6 +403,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // ── Step 5: Propose matches ───────────────────────────────────────
     const proposeRes = await request(app.getHttpServer())
       .post(`/api/bank-statements/${statementId}/propose-matches`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     const proposals = proposeRes.body as Array<{
@@ -412,6 +432,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // ── Step 6: Execute match for Transaction A → AR voucher ──────────
     const matchRes = await request(app.getHttpServer())
       .post(`/api/bank-statements/${statementId}/match`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         matches: [
           {
@@ -456,6 +477,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // ── Step 7: Create prepayment for Transaction B ───────────────────
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnBId}/prepayment`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     const prepayVoucher = prepayRes.body as Record<string, unknown>;
@@ -502,6 +524,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // ── Step 8: Mark personal for Transaction C ───────────────────────
     const personalRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnCId}/personal`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     const personalVoucher = personalRes.body as Record<string, unknown>;
@@ -618,6 +641,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // ── Additional verification: GET /api/accounts/BANK_EUR ───────────
     const accountRes = await request(app.getHttpServer())
       .get('/api/accounts/BANK_EUR')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
     const account = accountRes.body as { code: string; name: string };
     expect(account.code).toBe('BANK_EUR');
@@ -648,12 +672,14 @@ describe('Reconciliation E2E (full flow)', () => {
     // Create prepayment.
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 
     // Draw down prepayment against the AR invoice.
     const drawRes = await request(app.getHttpServer())
       .post(`/api/prepayments/${prepayVoucherId}/draw-down`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         invoice_voucher_id: arVoucherId,
         amount: 5000,
@@ -696,6 +722,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Verify outstanding prepayments list.
     const listRes = await request(app.getHttpServer())
       .get('/api/prepayments')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
     const prepayments = listRes.body as Array<{
       voucher_id: number;
@@ -824,6 +851,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Propose matches — should find the USD invoice.
     const proposeRes = await request(app.getHttpServer())
       .post(`/api/bank-statements/${statementId}/propose-matches`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(201);
 
     const proposals = proposeRes.body as Array<{
@@ -838,6 +866,7 @@ describe('Reconciliation E2E (full flow)', () => {
     // Execute the match.
     const matchRes = await request(app.getHttpServer())
       .post(`/api/bank-statements/${statementId}/match`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         matches: [
           {

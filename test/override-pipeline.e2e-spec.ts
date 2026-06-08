@@ -8,6 +8,9 @@ import { Database } from '../src/database/types';
 import { migrations } from '../src/database/migrations';
 import { AppModule } from '../src/app.module';
 import { NullCountryPlugin } from '../src/plugins/null-country.plugin';
+import { MastraService } from '../src/ai/mastra.service';
+import { fauxMastraService } from './faux-mastra.service';
+import { createHash } from 'crypto';
 import {
   CategoryMappingResult,
   SupplierFacts,
@@ -67,6 +70,7 @@ interface PostResponse {
 describe('Override Pipeline E2E', () => {
   let app: INestApplication<App>;
   let db: Kysely<Database>;
+  let apiToken: string;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -91,10 +95,19 @@ describe('Override Pipeline E2E', () => {
       .useValue(db)
       .overrideProvider(NullCountryPlugin)
       .useClass(StrictTestPlugin)
+      .overrideProvider(MastraService)
+      .useValue(fauxMastraService)
       .compile();
 
     app = module.createNestApplication();
     await app.init();
+
+    apiToken = 'test-token-e2e-12345';
+    const tokenHash = createHash('sha256').update(apiToken).digest('hex');
+    await db
+      .insertInto('api_token')
+      .values({ token_hash: tokenHash, label: 'e2e-test' })
+      .execute();
   });
 
   afterEach(async () => {
@@ -105,6 +118,7 @@ describe('Override Pipeline E2E', () => {
   it('without override: semantic failure holds for approval', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/expenses')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         category: 'strict-test-category',
         gross_amount: 10000,
@@ -118,6 +132,7 @@ describe('Override Pipeline E2E', () => {
 
     const posted = await request(app.getHttpServer())
       .post(`/api/expenses/${expenseId}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({})
       .expect(201)
       .then((r) => r.body as PostResponse);
@@ -130,6 +145,7 @@ describe('Override Pipeline E2E', () => {
   it('with override: posts voucher and persists exactly one override row atomically', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/expenses')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         category: 'strict-test-category',
         gross_amount: 10000,
@@ -144,6 +160,7 @@ describe('Override Pipeline E2E', () => {
     const override = { ruleType: 'semantic', reason: 'e2e test override' };
     const posted = await request(app.getHttpServer())
       .post(`/api/expenses/${expenseId}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send(override)
       .expect(201)
       .then((r) => r.body as PostResponse);
@@ -175,6 +192,7 @@ describe('Override Pipeline E2E', () => {
   it('with override: NullCountryPlugin still passes normal expenses (no regression)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/expenses')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         category: 'software',
         gross_amount: 10000,
@@ -189,6 +207,7 @@ describe('Override Pipeline E2E', () => {
     // Post without override — should auto-post since all rules pass.
     const posted = await request(app.getHttpServer())
       .post(`/api/expenses/${expenseId}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({})
       .expect(201)
       .then((r) => r.body as PostResponse);
@@ -210,6 +229,7 @@ describe('Override Pipeline E2E', () => {
   it('double post is idempotent even with override', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/expenses')
+      .set('Authorization', `Bearer ${apiToken}`)
       .send({
         category: 'strict-test-category',
         gross_amount: 10000,
@@ -226,12 +246,14 @@ describe('Override Pipeline E2E', () => {
     // First post succeeds.
     await request(app.getHttpServer())
       .post(`/api/expenses/${expenseId}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send(override)
       .expect(201);
 
     // Second post returns 409 (idempotency guard).
     await request(app.getHttpServer())
       .post(`/api/expenses/${expenseId}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
       .send(override)
       .expect(409);
 

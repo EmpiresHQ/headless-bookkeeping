@@ -1,10 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  INestApplication,
-  Controller,
-  Get,
-  UseGuards,
-} from '@nestjs/common';
+import { INestApplication, Controller, Get, UseGuards } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -104,9 +99,7 @@ describe('ApiTokenGuard (integration)', () => {
   // ── Auth: missing header ────────────────────────────────────────────
 
   it('returns 401 without Authorization header', async () => {
-    await request(app.getHttpServer())
-      .get('/test/protected')
-      .expect(401);
+    await request(app.getHttpServer()).get('/test/protected').expect(401);
   });
 
   // ── Auth: wrong token ───────────────────────────────────────────────

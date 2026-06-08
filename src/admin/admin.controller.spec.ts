@@ -74,9 +74,7 @@ describe('AdminController (integration)', () => {
   // ── Auth ────────────────────────────────────────────────────────────
 
   it('GET /admin/* returns 401 without Authorization header', async () => {
-    await request(app.getHttpServer())
-      .get('/admin/accounts')
-      .expect(401);
+    await request(app.getHttpServer()).get('/admin/accounts').expect(401);
   });
 
   it('GET /admin/* returns 401 with wrong Bearer token', async () => {

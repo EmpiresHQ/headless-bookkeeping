@@ -82,7 +82,9 @@ describe('IntakeWorkflowService', () => {
     mockProposeDraft.proposeDraft.mockReset();
 
     // Default: OCR returns markdown.
-    mockOcrService.transcribe.mockResolvedValue('# Receipt\nSupplier: Test\nAmount: €15.25');
+    mockOcrService.transcribe.mockResolvedValue(
+      '# Receipt\nSupplier: Test\nAmount: €15.25',
+    );
   });
 
   afterEach(async () => {

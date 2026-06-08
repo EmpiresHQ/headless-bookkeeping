@@ -5,7 +5,12 @@ import { Database } from '../database/types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { RuleResult } from '../rules/types';
 import { isUnresolvedSemanticFailure, mustReject } from '../rules/rules.guards';
-import { PolicyDecision, PolicyConfig, OverrideRecord, PolicyContext } from './types';
+import {
+  PolicyDecision,
+  PolicyConfig,
+  OverrideRecord,
+  PolicyContext,
+} from './types';
 
 /**
  * Hardcoded v1 defaults. In later waves these may be read from the

@@ -5,7 +5,7 @@ import { ExpensesModule } from '../expenses/expenses.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
-import { TriageModule } from '../triage/triage.module';
+import { OcrModule } from '../triage/ocr.module';
 import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { PolicyModule } from '../policy/policy.module';
 import { MastraService } from './mastra.service';
@@ -41,7 +41,7 @@ import { IntakeWorkflowService } from './intake-workflow.service';
     PluginsModule,
     OrganizationModule,
     PostingPipelineModule,
-    TriageModule,
+    OcrModule,
     AuditFindingsModule,
     PolicyModule,
   ],

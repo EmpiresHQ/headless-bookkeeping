@@ -18,10 +18,7 @@ import { TriageResult } from './types';
  * When a real OCR provider is connected, this method will call the `ocr` LLM
  * profile (CONFIG.md §4) and return the raw markdown response.
  */
-function fauxOcrModel(
-  documentId: number,
-  filename: string,
-): string {
+function fauxOcrModel(documentId: number, filename: string): string {
   const lower = filename.toLowerCase();
   // Filename takes precedence; fall back to id parity for ambiguous names.
   const isReceipt =

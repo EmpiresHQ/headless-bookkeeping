@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OcrService } from '../triage/ocr.service';
 import { Pass2AgentService } from './pass2-agent.service';
-import { ProposeDraftService, ProposeDraftResult } from './propose-draft.service';
+import {
+  ProposeDraftService,
+  ProposeDraftResult,
+} from './propose-draft.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { AuditFinding } from '../audit-findings/types';
@@ -117,7 +120,10 @@ export class IntakeWorkflowService {
         this.logger.warn(
           `Unknown classification for document ${documentId}, creating needs_triage finding`,
         );
-        return this.needsTriage(documentId, 'AI could not classify the document');
+        return this.needsTriage(
+          documentId,
+          'AI could not classify the document',
+        );
 
       case 'correction':
         this.logger.warn(
