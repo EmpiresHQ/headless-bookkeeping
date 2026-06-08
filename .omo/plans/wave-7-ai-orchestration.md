@@ -165,11 +165,11 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 ---
 
 ## Wave Acceptance Criteria
-- [ ] All 6 tasks complete
-- [ ] `docker compose up` starts and health responds 200
-- [ ] `npm run build` / `lint` / `test` / `test:e2e` all green
-- [ ] Evidence files in `.omo/evidence/` for each task
-- [ ] Git commit records Wave 7
+- [x] All 6 tasks complete
+- [x] `docker compose up` starts and health responds 200
+- [x] `npm run build` / `lint` / `test` / `test:e2e` all green
+- [x] Evidence files in `.omo/evidence/` for each task
+- [x] Git commit records Wave 7
 
 ## Commit
 - Message: `feat(ai): Mastra 2-pass intake — real OCR + agentic classify + durable HITL`
