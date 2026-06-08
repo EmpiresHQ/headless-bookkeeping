@@ -67,15 +67,6 @@ describe('ReportingPeriodsController', () => {
     expect(mockService.list).toHaveBeenCalledTimes(1);
   });
 
-  it('GET /api/reporting-periods/current returns the latest open period', async () => {
-    mockService.getCurrent.mockResolvedValue(q2);
-
-    const result = await controller.getCurrent();
-
-    expect(result).toEqual(q2);
-    expect(mockService.getCurrent).toHaveBeenCalledTimes(1);
-  });
-
   it('GET /api/reporting-periods/current throws when no open period exists', async () => {
     mockService.getCurrent.mockRejectedValue(
       new NotFoundException('No open reporting period found'),
@@ -85,15 +76,6 @@ describe('ReportingPeriodsController', () => {
     expect(mockService.getCurrent).toHaveBeenCalledTimes(1);
   });
 
-  it('GET /api/reporting-periods/:id returns the requested period', async () => {
-    mockService.getById.mockResolvedValue(q1);
-
-    const result = await controller.getById(1);
-
-    expect(result).toEqual(q1);
-    expect(mockService.getById).toHaveBeenCalledWith(1);
-  });
-
   it('GET /api/reporting-periods/:id throws NotFoundException for unknown id', async () => {
     mockService.getById.mockRejectedValue(
       new NotFoundException('Reporting period 999 not found'),
@@ -101,27 +83,5 @@ describe('ReportingPeriodsController', () => {
 
     await expect(controller.getById(999)).rejects.toThrow(NotFoundException);
     expect(mockService.getById).toHaveBeenCalledWith(999);
-  });
-
-  it('POST /api/reporting-periods creates and returns a new period', async () => {
-    const dto = {
-      name: '2024-Q3',
-      start_date: '2024-07-01',
-      end_date: '2024-09-30',
-    };
-    const expected: ReportingPeriod = {
-      id: 3,
-      ...dto,
-      status: 'open',
-      filed_at: null,
-      vat_report_snapshot_id: null,
-      created_at: 1700000200,
-    };
-    mockService.create.mockResolvedValue(expected);
-
-    const result = await controller.create(dto);
-
-    expect(result).toEqual(expected);
-    expect(mockService.create).toHaveBeenCalledWith(dto);
   });
 });

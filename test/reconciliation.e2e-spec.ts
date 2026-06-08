@@ -891,10 +891,11 @@ describe('Reconciliation E2E (full flow)', () => {
     expect(matchResult.fxResults[0].voucher).toBeDefined();
 
     // Verify the FX voucher was posted: Dr BANK_EUR / Cr FX_GAIN_LOSS (gain).
-    const fxVoucherId = Reflect.get(
-      matchResult.fxResults[0].voucher,
-      'id',
-    ) as number;
+    const fxVoucher = matchResult.fxResults[0].voucher;
+    if (!fxVoucher) {
+      throw new Error('Expected FX result to include a posted voucher');
+    }
+    const fxVoucherId = fxVoucher.id;
     const fxLines = await db
       .selectFrom('voucher_line')
       .innerJoin('account', 'account.id', 'voucher_line.account_id')

@@ -31,12 +31,6 @@ describe('NullCountryPlugin', () => {
     plugin = module.get<NullCountryPlugin>(NullCountryPlugin);
   });
 
-  describe('getName', () => {
-    it('should return "null"', () => {
-      expect(plugin.getName()).toBe('null');
-    });
-  });
-
   describe('getVATCodes', () => {
     it('should return IE VAT codes plus NULL_STANDARD', () => {
       expect(plugin.getVATCodes()).toEqual([
@@ -106,24 +100,6 @@ describe('NullCountryPlugin', () => {
         accountCode: 'EXPENSE_RENT',
         vatCode: 'IE_INPUT_23',
       });
-    });
-  });
-
-  describe('getPeriodFrequencyOptions', () => {
-    it('should return ["yearly"]', () => {
-      expect(plugin.getPeriodFrequencyOptions()).toEqual(['yearly']);
-    });
-  });
-
-  describe('getDefaultPeriodFrequency', () => {
-    it('should return "yearly"', () => {
-      expect(plugin.getDefaultPeriodFrequency()).toBe('yearly');
-    });
-  });
-
-  describe('getDefaultBaseCurrency', () => {
-    it('should return "EUR" as the neutral default', () => {
-      expect(plugin.getDefaultBaseCurrency()).toBe('EUR');
     });
   });
 

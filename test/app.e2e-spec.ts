@@ -6,19 +6,20 @@ import SqliteDb from 'better-sqlite3';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { Database } from './../src/database/types';
 import { MastraService } from './../src/ai/mastra.service';
 import { fauxMastraService } from './faux-mastra.service';
 import { createHash } from 'crypto';
 
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
-  let db: Kysely<unknown>;
+  let db: Kysely<Database>;
   let apiToken: string;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<unknown>({
+    db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: rawDb }),
     });
 

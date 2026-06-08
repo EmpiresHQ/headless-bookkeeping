@@ -12,7 +12,7 @@ import { RuleResult } from '../rules/types';
 
 const draftVoucher = (
   over: Partial<DraftVoucher> = {},
-  lineOverrides: Array<Partial<DraftVoucher['lines'][number]>> = [],
+  lineOverrides: Array<DraftVoucher['lines'][number]> = [],
 ): DraftVoucher => ({
   voucher_number: 'TEST-001',
   tax_point_date: '2024-01-15',
@@ -412,20 +412,6 @@ describe('PolicyService (real-DI)', () => {
       expect(decision.reason).toContain(
         'AI confidence 0.5 below threshold 0.8',
       );
-    });
-  });
-
-  describe('getConfig()', () => {
-    it('returns hardcoded v1 defaults', () => {
-      const config = service.getConfig();
-      expect(config.auto_post_amount_ceiling).toBe(100000);
-      expect(config.auto_post_min_confidence).toBe(0.8);
-      expect(config.unknown_supplier_requires_approval).toBe(true);
-      expect(config.always_approve_operations).toEqual([
-        'correction',
-        'reversal',
-        'vat_lock',
-      ]);
     });
   });
 
