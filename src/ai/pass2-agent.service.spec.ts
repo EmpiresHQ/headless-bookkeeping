@@ -131,6 +131,7 @@ describe('Pass2AgentService', () => {
         null as any,
         null as any,
         null as any,
+        null as any,
       );
       const freshService = new Pass2AgentService(uninitializedMastra);
 

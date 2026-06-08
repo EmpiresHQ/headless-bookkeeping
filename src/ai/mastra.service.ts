@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/no-unsafe-assignment */
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { InjectKysely } from 'nestjs-kysely';
+import { Kysely } from 'kysely';
+import { Database } from '../database/types';
 import { EntitiesService } from '../entities/entities.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -10,7 +13,6 @@ import {
   createGetClassificationMemoryTool,
   createPreviewCategoryMappingTool,
 } from './tools';
-import { loadPrompt } from './prompt-loader';
 
 // Types for the dynamically imported Mastra modules.
 // These are opaque runtime values from dynamic ESM imports.
@@ -38,6 +40,7 @@ export class MastraService implements OnModuleInit {
     private readonly expensesService: ExpensesService,
     private readonly pluginLoader: PluginLoader,
     private readonly organizationService: OrganizationService,
+    @InjectKysely() private readonly db: Kysely<Database>,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -104,12 +107,28 @@ export class MastraService implements OnModuleInit {
       url: 'file:./data/mastra.sqlite',
     });
 
+    // Resolve model from settings table (propagated via NestJS Kysely module).
+    const settingRow = await this.db
+      .selectFrom('setting')
+      .select('value')
+      .where('key', '=', 'ai_model')
+      .executeTakeFirst();
+    const model = settingRow?.value ?? 'openai/gpt-4o-mini';
+
     // Create the triage agent with read-only tools.
     const triageAgent = new AgentClass({
       id: 'triage-agent',
       name: 'Triage Agent',
-      instructions: loadPrompt('triage-agent'),
-      model: 'openai/gpt-4o-mini',
+      instructions:
+        'You are a document triage agent for an accounting system. ' +
+        'Analyze incoming documents (receipts, invoices) and classify them. ' +
+        'Use the available tools to look up suppliers, check categories, ' +
+        'review classification memory, and preview category mappings. ' +
+        'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
+        'Always return structured output with kind, document_type, gross_amount, ' +
+        'vat_amount, currency, tax_point_date, category, document_vat_marking, ' +
+        'confidence, and optionally supplier_proposal.',
+      model,
       tools: {
         searchSuppliers,
         listCategories,

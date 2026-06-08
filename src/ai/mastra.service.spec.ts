@@ -33,6 +33,7 @@ describe('MastraService', () => {
       name: config.name,
       instructions: config.instructions,
       tools: config.tools,
+      model: config.model,
     }));
 
   const MockLibSQLStore = jest
@@ -118,6 +119,43 @@ describe('MastraService', () => {
       expect(toolNames).toContain('getClassificationMemory');
       expect(toolNames).toContain('previewCategoryMapping');
       expect(toolNames).toHaveLength(4);
+    });
+
+    it('falls back to the default model when no setting row exists', () => {
+      const agent = service.getAgent();
+      expect(agent).not.toBeNull();
+      expect(agent.model).toBe('openai/gpt-4o-mini');
+    });
+
+    it('reads the model from the settings table', async () => {
+      await db
+        .insertInto('setting')
+        .values({
+          key: 'ai_model',
+          value: 'openai/gpt-4o',
+          updated_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
+      const freshMockAgent = jest
+        .fn()
+        .mockImplementation((config: Record<string, unknown>) => ({
+          id: config.id,
+          name: config.name,
+          instructions: config.instructions,
+          tools: config.tools,
+          model: config.model,
+        }));
+
+      await service.initialize({
+        MastraClass: MockMastra,
+        AgentClass: freshMockAgent,
+        LibSQLStoreClass: MockLibSQLStore,
+      });
+
+      const agent = service.getAgent();
+      expect(agent).not.toBeNull();
+      expect(agent.model).toBe('openai/gpt-4o');
     });
   });
 });

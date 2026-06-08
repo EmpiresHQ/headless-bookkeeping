@@ -24,6 +24,7 @@ import * as m024 from './024_add_dividend_accounts';
 import * as m025 from './025_create_api_token';
 import * as m026 from './026_add_ocr_markdown_artifact_kind';
 import * as m027 from './027_add_ai_proposal';
+import * as m028 from './028_create_setting';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -51,4 +52,5 @@ export const migrations: Record<string, Migration> = {
   '025_create_api_token': m025,
   '026_add_ocr_markdown_artifact_kind': m026,
   '027_add_ai_proposal': m027,
+  '028_create_setting': m028,
 };

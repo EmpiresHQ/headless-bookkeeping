@@ -28,6 +28,7 @@ export interface Database {
   conversation_business_object: ConversationBusinessObjectTable;
   api_token: ApiTokenTable;
   ai_proposal: AiProposalTable;
+  setting: SettingTable;
 }
 
 export interface OrganizationTable {
@@ -391,4 +392,13 @@ export interface AiProposalTable {
   ocr_artifact_id: number | null;
   confidence: number | null;
   created_at: number;
+}
+
+// Setting: generic key-value store for application configuration.
+// Used for LLM model profiles and other tunable parameters.
+export interface SettingTable {
+  id: Generated<number>;
+  key: string;
+  value: string;
+  updated_at: number;
 }
