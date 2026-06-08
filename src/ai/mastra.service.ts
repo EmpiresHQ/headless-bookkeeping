@@ -12,6 +12,7 @@ import {
   createListCategoriesTool,
   createGetClassificationMemoryTool,
   createPreviewCategoryMappingTool,
+  createGetClassificationContextTool,
 } from './tools';
 
 // Types for the dynamically imported Mastra modules.
@@ -100,6 +101,15 @@ export class MastraService implements OnModuleInit {
       this.pluginLoader,
       this.organizationService,
     );
+    // Primary path: one deep read that composes supplier resolve/propose +
+    // classification memory + mapping preview (with the memory actually flowing
+    // through to the plugin). The granular tools above are retained as a fallback.
+    const getClassificationContext = createGetClassificationContextTool(
+      this.entitiesService,
+      this.expensesService,
+      this.pluginLoader,
+      this.organizationService,
+    );
 
     // Configure LibSQL storage for Mastra's operational tables (memory, threads).
     const storage = new LibSQLStoreClass({
@@ -122,8 +132,13 @@ export class MastraService implements OnModuleInit {
       instructions:
         'You are a document triage agent for an accounting system. ' +
         'Analyze incoming documents (receipts, invoices) and classify them. ' +
-        'Use the available tools to look up suppliers, check categories, ' +
-        'review classification memory, and preview category mappings. ' +
+        'Call listCategories to see the available categories, then call ' +
+        'getClassificationContext ONCE with the supplier evidence and your ' +
+        'candidate category — it resolves or proposes the supplier, gathers its ' +
+        'classification memory (an advisory prior, not a rule), and previews the ' +
+        'account + VAT code mapping in a single read. Prefer it over chaining ' +
+        'searchSuppliers, getClassificationMemory, and previewCategoryMapping ' +
+        '(those remain available as fallbacks). ' +
         'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
         'Always return structured output with kind, document_type, gross_amount, ' +
         'vat_amount, currency, tax_point_date, category, document_vat_marking, ' +
@@ -134,6 +149,7 @@ export class MastraService implements OnModuleInit {
         listCategories,
         getClassificationMemory,
         previewCategoryMapping,
+        getClassificationContext,
       },
     });
 

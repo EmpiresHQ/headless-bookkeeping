@@ -206,7 +206,9 @@ describe('Pass2AgentService', () => {
       expect(toolNames).toContain('listCategories');
       expect(toolNames).toContain('getClassificationMemory');
       expect(toolNames).toContain('previewCategoryMapping');
-      expect(toolNames).toHaveLength(4);
+      // The composed deep read is the primary path (granular tools retained).
+      expect(toolNames).toContain('getClassificationContext');
+      expect(toolNames).toHaveLength(5);
 
       // Verify no write tools.
       const writeKeywords = ['post', 'createDraft', 'proposeDraft'];

@@ -79,3 +79,78 @@ export type PreviewCategoryMappingInput = z.infer<
 export type PreviewCategoryMappingOutput = z.infer<
   typeof previewCategoryMappingOutputSchema
 >;
+
+// ── getClassificationContext (composed deep read) ────────────────────────────
+//
+// One deep read for the Pass 2 agent. From document evidence it resolves/proposes
+// the Supplier, gathers that Supplier's Classification memory (ADR-0014/0024), and
+// previews the Category → Account + VAT code mapping WITH that memory flowing
+// through to the country plugin (the sole resolver, ADR-0002). The agent calls
+// this once instead of orchestrating searchSuppliers → getClassificationMemory →
+// previewCategoryMapping itself. Classification memory stays advisory (a prior
+// fed to the model), never a deterministic gate.
+
+export const getClassificationContextInputSchema = z.object({
+  category: z.string().describe('The user-facing category label to preview'),
+  evidence: z
+    .object({
+      registrationKey: z
+        .string()
+        .optional()
+        .describe(
+          'Supplier strong registration key (e.g. VAT number / DK CVR) read from the document. The anchor for supplier identity (ADR-0014) — never the name.',
+        ),
+      name: z
+        .string()
+        .optional()
+        .describe('Supplier name as printed on the document (OCR variant).'),
+      country: z
+        .string()
+        .optional()
+        .describe('Supplier ISO country code read from the document.'),
+      goodsVsServices: z
+        .enum(['goods', 'services', 'unknown'])
+        .optional()
+        .describe('Whether the supplier provides goods or services.'),
+    })
+    .describe(
+      'Document evidence about the supplier extracted from the markdown',
+    ),
+});
+
+export const getClassificationContextOutputSchema = z.object({
+  supplier: z.object({
+    resolution: z
+      .enum(['matched', 'proposed'])
+      .describe(
+        "'matched' when an existing Supplier was resolved on its registration key; 'proposed' when no match — a new Supplier should be created from the evidence.",
+      ),
+    matchEntityId: z
+      .number()
+      .optional()
+      .describe('The resolved existing Supplier entity id (when matched).'),
+    name: z.string().nullable(),
+    country: z.string(),
+    goodsVsServices: z.enum(['goods', 'services', 'unknown']),
+  }),
+  classificationMemory: z
+    .array(z.string())
+    .describe(
+      "Advisory prior (ADR-0024): the Categories this Supplier's purchases have historically been classified as. Empty when matched-but-no-history or proposed (new) Supplier.",
+    ),
+  mapping: z
+    .object({
+      accountCode: z.string(),
+      vatCode: z.string(),
+    })
+    .describe(
+      'The country-plugin-resolved Account + VAT code for (category, supplier facts incl. classification memory, org context). The plugin is the sole resolver (ADR-0002).',
+    ),
+});
+
+export type GetClassificationContextInput = z.infer<
+  typeof getClassificationContextInputSchema
+>;
+export type GetClassificationContextOutput = z.infer<
+  typeof getClassificationContextOutputSchema
+>;

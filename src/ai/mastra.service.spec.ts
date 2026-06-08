@@ -120,7 +120,9 @@ describe('MastraService', () => {
       expect(toolNames).toContain('listCategories');
       expect(toolNames).toContain('getClassificationMemory');
       expect(toolNames).toContain('previewCategoryMapping');
-      expect(toolNames).toHaveLength(4);
+      // The composed deep read is the primary path (granular tools retained).
+      expect(toolNames).toContain('getClassificationContext');
+      expect(toolNames).toHaveLength(5);
     });
 
     it('falls back to the default model when no setting row exists', () => {
