@@ -533,7 +533,7 @@ This wave closes the system: period locking prevents posting into filed periods,
   - Files: migrations + `src/dividends/`, `src/plugins/`, `src/reconciliation/`
   - Pre-commit: `npm run build && npm test`
 
-- [ ] 39. API token authentication (table + NestJS guard)
+- [x] 39. API token authentication (table + NestJS guard)
 
   > **Origin:** Wave-6 grilling. The admin API shipped a hardcoded `X-Admin-Key: dev` — a stub, not auth. Replace it with a real, table-backed API token verified by a NestJS guard. RBAC is deferred to v2 (and uncertain — see V2-ROADMAP). NestJS makes this small: one `CanActivate` guard + one table.
 
