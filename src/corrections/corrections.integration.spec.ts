@@ -17,6 +17,7 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { CorrectionsService } from './corrections.service';
 import { CorrectionRequest } from './types';
 
@@ -57,6 +58,7 @@ describe('Corrections (integration)', () => {
         LedgerValidationService,
         PostingService,
         PeriodLockService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         CorrectionsService,

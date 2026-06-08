@@ -2,11 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { OrganizationService } from '../organization/organization.service';
-import { CurrencyService } from '../currency/currency.service';
-import { SupplierFacts, OrgContext } from '../plugins/country-plugin.interface';
 import { DraftVoucher } from '../ledger/voucher/types';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -17,9 +14,7 @@ import {
 export class SalesInvoicesService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly pluginLoader: PluginLoader,
-    private readonly organizationService: OrganizationService,
-    private readonly currencyService: CurrencyService,
+    private readonly projection: VoucherProjectionService,
   ) {}
 
   async createInvoice(dto: CreateSalesInvoiceDto): Promise<SalesInvoice> {
@@ -95,80 +90,25 @@ export class SalesInvoicesService {
     return this.buildDraftVoucher(patched);
   }
 
+  /**
+   * Thin adapter over the deep projection module (ADR-0006): a SalesInvoice
+   * supplies its economic facts (fixed 'revenue' Category) and the `sale`
+   * direction; the projection produces the balanced draft Voucher
+   * (Dr AR / Cr revenue / Cr VAT_PAYABLE).
+   */
   private async buildDraftVoucher(
     invoice: SalesInvoice,
   ): Promise<DraftVoucher> {
-    const org = await this.organizationService.getOrganization();
-    const plugin = this.pluginLoader.resolve(org.country);
-
-    const supplierFacts: SupplierFacts = {
-      country: org.country,
-      goodsVsServices: 'unknown',
-      classificationMemory: [],
-    };
-
-    const orgContext: OrgContext = {
-      country: org.country,
-      vatRegistered: org.vat_registered,
-      baseCurrency: org.base_currency,
-    };
-
-    const mapping = plugin.resolveCategoryMapping(
-      'revenue',
-      supplierFacts,
-      orgContext,
+    return this.projection.project(
+      {
+        category: 'revenue',
+        grossAmount: invoice.gross_amount,
+        vatAmount: invoice.vat_amount,
+        currency: invoice.currency,
+        taxPointDate: invoice.tax_point_date,
+      },
+      'sale',
     );
-
-    const netAmount = invoice.gross_amount - invoice.vat_amount;
-    // Single owner of currency→base conversion (ADR-0004): one uniform rate per
-    // draft, sourced from the country plugin, rounded by the module.
-    const { rate: fxRate } = await this.currencyService.toBase(
-      netAmount,
-      invoice.currency,
-      invoice.tax_point_date,
-    );
-    const baseAmount = (amount: number) =>
-      this.currencyService.convertToBaseRounded(
-        amount,
-        invoice.currency,
-        fxRate,
-      );
-
-    const draft: DraftVoucher = {
-      voucher_number: 'PENDING',
-      tax_point_date: invoice.tax_point_date,
-      lines: [
-        {
-          account_code: 'AR',
-          amount: invoice.gross_amount,
-          currency: invoice.currency,
-          base_amount: baseAmount(invoice.gross_amount),
-          fx_rate: fxRate,
-          vat_code: null,
-          is_debit: true,
-        },
-        {
-          account_code: mapping.accountCode,
-          amount: netAmount,
-          currency: invoice.currency,
-          base_amount: baseAmount(netAmount),
-          fx_rate: fxRate,
-          vat_code: mapping.vatCode,
-          is_debit: false,
-        },
-        {
-          account_code: 'VAT_PAYABLE',
-          amount: invoice.vat_amount,
-          currency: invoice.currency,
-          base_amount: baseAmount(invoice.vat_amount),
-          fx_rate: fxRate,
-          vat_code: mapping.vatCode,
-          is_debit: false,
-        },
-      ],
-    };
-
-    return draft;
   }
 
   async sendInvoice(id: number): Promise<SalesInvoice> {

@@ -8,6 +8,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { EntitiesService } from '../entities/entities.service';
 import { ExpensesService } from '../expenses/expenses.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
@@ -80,6 +81,7 @@ describe('Pass2AgentService', () => {
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
+        VoucherProjectionService,
         EntitiesService,
         ExpensesService,
         MastraService,

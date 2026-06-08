@@ -23,6 +23,7 @@ import { OrganizationService } from './../src/organization/organization.service'
 import { PluginLoader } from './../src/plugins/plugin-loader.service';
 import { NullCountryPlugin } from './../src/plugins/null-country.plugin';
 import { CurrencyService } from './../src/currency/currency.service';
+import { VoucherProjectionService } from './../src/ledger/projection/voucher-projection.service';
 import { ZodValidationPipe } from './../src/common/pipes/zod-validation.pipe';
 
 describe('Pipeline (e2e)', () => {
@@ -54,6 +55,7 @@ describe('Pipeline (e2e)', () => {
         RulesService,
         PolicyService,
         PostingPipelineService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         OrganizationService,

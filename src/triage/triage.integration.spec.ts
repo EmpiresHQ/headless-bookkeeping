@@ -11,6 +11,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
@@ -57,6 +58,7 @@ describe('TriageService (integration)', () => {
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         DocumentsService,

@@ -3,6 +3,7 @@ import { DatabaseModule } from '../database/database.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { CurrencyModule } from '../currency/currency.module';
+import { VoucherProjectionModule } from '../ledger/projection/voucher-projection.module';
 import { AccountModule } from '../ledger/account/account.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { RulesModule } from '../rules/rules.module';
@@ -17,6 +18,7 @@ import { SalesInvoicesService } from './sales-invoices.service';
     PluginsModule,
     OrganizationModule,
     CurrencyModule,
+    VoucherProjectionModule,
     AccountModule,
     PostingModule,
     RulesModule,

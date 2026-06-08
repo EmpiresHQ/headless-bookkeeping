@@ -17,6 +17,7 @@ import { RulesService } from '../rules/rules.service';
 import { PolicyService } from '../policy/policy.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { ExpensesService } from '../expenses/expenses.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { TriageResult } from '../triage/types';
@@ -58,6 +59,7 @@ describe('ProposeDraftService (integration)', () => {
         RulesService,
         PolicyService,
         PostingPipelineService,
+        VoucherProjectionService,
         ExpensesService,
         EntitiesService,
         ProposeDraftService,

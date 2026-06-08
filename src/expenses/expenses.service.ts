@@ -2,20 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
-import { OrganizationService } from '../organization/organization.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { CurrencyService } from '../currency/currency.service';
-import { SupplierFacts, OrgContext } from '../plugins/country-plugin.interface';
-import { DraftVoucher, DraftVoucherLine } from '../ledger/voucher/types';
+import { DraftVoucher } from '../ledger/voucher/types';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { Expense, CreateExpenseDto, ExpenseStatus } from './types';
 
 @Injectable()
 export class ExpensesService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly organizationService: OrganizationService,
-    private readonly pluginLoader: PluginLoader,
-    private readonly currencyService: CurrencyService,
+    private readonly projection: VoucherProjectionService,
   ) {}
 
   async createExpense(dto: CreateExpenseDto): Promise<Expense> {
@@ -92,84 +87,22 @@ export class ExpensesService {
     return this.buildDraftVoucher(patched);
   }
 
+  /**
+   * Thin adapter over the deep projection module (ADR-0006): an Expense supplies
+   * its economic facts and the `purchase` direction; the projection produces the
+   * balanced draft Voucher (Dr category / Dr VAT_RECEIVABLE / Cr AP).
+   */
   private async buildDraftVoucher(expense: Expense): Promise<DraftVoucher> {
-    const org = await this.organizationService.getOrganization();
-
-    const plugin = this.pluginLoader.resolve(org.country);
-
-    const supplierFacts: SupplierFacts = {
-      country: org.country,
-      goodsVsServices: 'unknown',
-      classificationMemory: [],
-    };
-
-    const orgContext: OrgContext = {
-      country: org.country,
-      vatRegistered: org.vat_registered,
-      baseCurrency: org.base_currency,
-    };
-
-    const mapping = plugin.resolveCategoryMapping(
-      expense.category,
-      supplierFacts,
-      orgContext,
-    );
-
-    const netAmount = expense.gross_amount - expense.vat_amount;
-    // Single owner of currency→base conversion (ADR-0004): resolves base
-    // currency, short-circuits same-currency, sources the plugin reference
-    // rate, and rounds. We take the rate from the same place we book it.
-    const { rate: fxRate } = await this.currencyService.toBase(
-      netAmount,
-      expense.currency,
-      expense.tax_point_date,
-    );
-    const baseAmount = (amount: number) =>
-      this.currencyService.convertToBaseRounded(
-        amount,
-        expense.currency,
-        fxRate,
-      );
-
-    const lines: DraftVoucherLine[] = [
+    return this.projection.project(
       {
-        account_code: mapping.accountCode,
-        amount: netAmount,
+        category: expense.category,
+        grossAmount: expense.gross_amount,
+        vatAmount: expense.vat_amount,
         currency: expense.currency,
-        base_amount: baseAmount(netAmount),
-        fx_rate: fxRate,
-        vat_code: mapping.vatCode,
-        is_debit: true,
+        taxPointDate: expense.tax_point_date,
       },
-      ...(expense.vat_amount > 0
-        ? [
-            {
-              account_code: 'VAT_RECEIVABLE',
-              amount: expense.vat_amount,
-              currency: expense.currency,
-              base_amount: baseAmount(expense.vat_amount),
-              fx_rate: fxRate,
-              vat_code: mapping.vatCode,
-              is_debit: true,
-            },
-          ]
-        : []),
-      {
-        account_code: 'AP',
-        amount: expense.gross_amount,
-        currency: expense.currency,
-        base_amount: baseAmount(expense.gross_amount),
-        fx_rate: fxRate,
-        vat_code: null,
-        is_debit: false,
-      },
-    ];
-
-    return {
-      voucher_number: 'PENDING',
-      tax_point_date: expense.tax_point_date,
-      lines,
-    };
+      'purchase',
+    );
   }
 
   async updateExpenseStatus(

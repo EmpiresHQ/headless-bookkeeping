@@ -18,6 +18,7 @@ import { PolicyService } from '../policy/policy.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ApprovalsService } from './approvals.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
@@ -55,6 +56,7 @@ describe('ApprovalsService (integration)', () => {
         RulesService,
         PolicyService,
         PostingPipelineService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         ApprovalsService,

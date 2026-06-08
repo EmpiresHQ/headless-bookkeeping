@@ -16,6 +16,7 @@ import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { RulesService } from '../rules/rules.service';
 import { PolicyService } from '../policy/policy.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 import { NotFoundException } from '@nestjs/common';
@@ -54,6 +55,7 @@ describe('ExpensesController (integration)', () => {
         RulesService,
         PolicyService,
         PostingPipelineService,
+        VoucherProjectionService,
         ExpensesService,
       ],
     }).compile();
