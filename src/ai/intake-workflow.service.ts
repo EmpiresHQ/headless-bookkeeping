@@ -125,7 +125,8 @@ export class IntakeWorkflowService {
     );
 
     // ── Deterministic routing — the ONE place that decides ──────
-    const threshold = this.policyService.getConfig().auto_post_min_confidence;
+    const threshold = (await this.policyService.getConfig())
+      .auto_post_min_confidence;
 
     // Capture the discriminant up front: in the exhaustive `default` branch
     // `triageResult` narrows to `never`, so the unexpected value has to be read

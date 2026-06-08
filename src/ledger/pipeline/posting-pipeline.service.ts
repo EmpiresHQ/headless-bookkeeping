@@ -164,7 +164,7 @@ export class PostingPipelineService {
     const ruleResults = [structuralResult, hardResult, semanticResult];
 
     // ── 6. Policy gate ─────────────────────────────────────────
-    const policyDecision = this.policyService.decide(draft, ruleResults, {
+    const policyDecision = await this.policyService.decide(draft, ruleResults, {
       confidence: params.confidence,
       supplierKnown: params.supplierKnown,
     });

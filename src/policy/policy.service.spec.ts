@@ -97,7 +97,7 @@ describe('PolicyService (real-DI)', () => {
   });
 
   describe('decide()', () => {
-    it('auto-posts when all rules pass and amount is within ceiling', () => {
+    it('auto-posts when all rules pass and amount is within ceiling', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -105,12 +105,12 @@ describe('PolicyService (real-DI)', () => {
         passedResult('semantic', true),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('auto-post');
       expect(decision.reason).toContain('All rules passed');
     });
 
-    it('holds for approval when a structural rule fails (defensive)', () => {
+    it('holds for approval when a structural rule fails (defensive)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         failedResult('structural', false, 'Debits do not balance'),
@@ -118,13 +118,13 @@ describe('PolicyService (real-DI)', () => {
         passedResult('semantic', true),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain('Structural/hard rule failure');
       expect(decision.reason).toContain('Debits do not balance');
     });
 
-    it('holds for approval when a hard process rule fails (defensive)', () => {
+    it('holds for approval when a hard process rule fails (defensive)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -132,12 +132,12 @@ describe('PolicyService (real-DI)', () => {
         passedResult('semantic', true),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain('Period is locked');
     });
 
-    it('holds for approval when a semantic rule fails without override', () => {
+    it('holds for approval when a semantic rule fails without override', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -145,13 +145,13 @@ describe('PolicyService (real-DI)', () => {
         failedResult('semantic', true, 'Invalid VAT code'),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain('Semantic rule failure');
       expect(decision.reason).toContain('Invalid VAT code');
     });
 
-    it('auto-posts when semantic rule was overridden (passed:true)', () => {
+    it('auto-posts when semantic rule was overridden (passed:true)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -164,11 +164,11 @@ describe('PolicyService (real-DI)', () => {
         },
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('holds for approval when amount exceeds ceiling', () => {
+    it('holds for approval when amount exceeds ceiling', async () => {
       const voucher: DraftVoucher = {
         voucher_number: 'TEST-001',
         tax_point_date: '2024-01-15',
@@ -199,13 +199,13 @@ describe('PolicyService (real-DI)', () => {
         passedResult('semantic', true),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain('exceeds ceiling');
       expect(decision.reason).toContain('200000');
     });
 
-    it('auto-posts when amount is exactly at ceiling', () => {
+    it('auto-posts when amount is exactly at ceiling', async () => {
       const voucher: DraftVoucher = {
         voucher_number: 'TEST-001',
         tax_point_date: '2024-01-15',
@@ -236,11 +236,11 @@ describe('PolicyService (real-DI)', () => {
         passedResult('semantic', true),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('holds for approval when multiple conditions are met (reports first)', () => {
+    it('holds for approval when multiple conditions are met (reports first)', async () => {
       const voucher = draftVoucher({}, [
         {
           account_code: 'EXPENSE_SOFTWARE',
@@ -266,13 +266,13 @@ describe('PolicyService (real-DI)', () => {
         failedResult('semantic', true, 'Invalid VAT'),
       ];
 
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('hold-for-approval');
       // Structural failure is checked first
       expect(decision.reason).toContain('Structural/hard rule failure');
     });
 
-    it('auto-posts when confidence is at threshold (0.8)', () => {
+    it('auto-posts when confidence is at threshold (0.8)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -281,11 +281,11 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { confidence: 0.8 };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('auto-posts when confidence is above threshold (0.95)', () => {
+    it('auto-posts when confidence is above threshold (0.95)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -294,11 +294,11 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { confidence: 0.95 };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('holds for approval when confidence is below threshold (0.79)', () => {
+    it('holds for approval when confidence is below threshold (0.79)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -307,14 +307,14 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { confidence: 0.79 };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain(
         'AI confidence 0.79 below threshold 0.8',
       );
     });
 
-    it('holds for approval when confidence is very low (0.1)', () => {
+    it('holds for approval when confidence is very low (0.1)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -323,14 +323,14 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { confidence: 0.1 };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain(
         'AI confidence 0.1 below threshold 0.8',
       );
     });
 
-    it('skips confidence check when confidence is undefined (backward compatible)', () => {
+    it('skips confidence check when confidence is undefined (backward compatible)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -340,11 +340,11 @@ describe('PolicyService (real-DI)', () => {
       // Empty context — no confidence field
       const ctx: PolicyContext = {};
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('skips confidence check when context is not provided (backward compatible)', () => {
+    it('skips confidence check when context is not provided (backward compatible)', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -353,11 +353,11 @@ describe('PolicyService (real-DI)', () => {
       ];
 
       // No context argument at all
-      const decision = service.decide(voucher, results);
+      const decision = await service.decide(voucher, results);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('holds for approval when supplier is unknown', () => {
+    it('holds for approval when supplier is unknown', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -366,12 +366,12 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { supplierKnown: false };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
       expect(decision.reason).toContain('Unknown supplier requires approval');
     });
 
-    it('auto-posts when supplier is known', () => {
+    it('auto-posts when supplier is known', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -380,11 +380,11 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { supplierKnown: true };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('skips supplier check when supplierKnown is undefined', () => {
+    it('skips supplier check when supplierKnown is undefined', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -393,11 +393,11 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = {};
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('auto-post');
     });
 
-    it('holds for approval when both confidence is low AND supplier is unknown', () => {
+    it('holds for approval when both confidence is low AND supplier is unknown', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
         passedResult('structural', false),
@@ -406,7 +406,7 @@ describe('PolicyService (real-DI)', () => {
       ];
       const ctx: PolicyContext = { confidence: 0.5, supplierKnown: false };
 
-      const decision = service.decide(voucher, results, ctx);
+      const decision = await service.decide(voucher, results, ctx);
       expect(decision.action).toBe('hold-for-approval');
       // Confidence is checked before supplier
       expect(decision.reason).toContain(
@@ -472,6 +472,141 @@ describe('PolicyService (real-DI)', () => {
     it('returns empty array when no overrides exist', async () => {
       const all = await service.getOverrides();
       expect(all).toEqual([]);
+    });
+  });
+
+  describe('getConfig() — table-backed (ADR-0005)', () => {
+    it('reads the seeded defaults from the policy_config table', async () => {
+      const config = await service.getConfig();
+      expect(config).toEqual({
+        auto_post_amount_ceiling: 100000,
+        auto_post_min_confidence: 0.8,
+        unknown_supplier_requires_approval: true,
+        always_approve_operations: ['correction', 'reversal', 'vat_lock'],
+      });
+    });
+
+    it('reflects an updated ceiling row in getConfig()', async () => {
+      await db
+        .updateTable('policy_config')
+        .set({ value: '50000', updated_at: Math.floor(Date.now() / 1000) })
+        .where('key', '=', 'auto_post_amount_ceiling')
+        .execute();
+
+      const config = await service.getConfig();
+      expect(config.auto_post_amount_ceiling).toBe(50000);
+    });
+
+    it('falls back to the in-code default for an absent row', async () => {
+      // Remove the seeded ceiling row entirely.
+      await db
+        .deleteFrom('policy_config')
+        .where('key', '=', 'auto_post_amount_ceiling')
+        .execute();
+
+      const config = await service.getConfig();
+      // DEFAULT_CONFIG fallback.
+      expect(config.auto_post_amount_ceiling).toBe(100000);
+      // Other keys still come from their (present) rows.
+      expect(config.auto_post_min_confidence).toBe(0.8);
+    });
+  });
+
+  describe('decide() — reads config from the table', () => {
+    const passingResults: RuleResult[] = [
+      passedResult('structural', false),
+      passedResult('hard_process', false),
+      passedResult('semantic', true),
+    ];
+
+    it('holds a previously auto-posting voucher once the ceiling row is lowered', async () => {
+      // Voucher of 20000 base-currency minor units: auto-posts under the
+      // seeded 100000 ceiling.
+      const voucher = draftVoucher({}, [
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: 'IE_INPUT_23',
+          is_debit: true,
+        },
+        {
+          account_code: 'BANK_EUR',
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: false,
+        },
+      ]);
+
+      const before = await service.decide(voucher, passingResults);
+      expect(before.action).toBe('auto-post');
+
+      // Lower the ceiling in the table to 50000 → the same voucher now holds.
+      await db
+        .updateTable('policy_config')
+        .set({ value: '50000', updated_at: Math.floor(Date.now() / 1000) })
+        .where('key', '=', 'auto_post_amount_ceiling')
+        .execute();
+
+      const after = await service.decide(voucher, passingResults);
+      expect(after.action).toBe('hold-for-approval');
+      expect(after.reason).toContain('exceeds ceiling 50000');
+    });
+
+    it('holds at confidence 0.85 once the threshold row is raised to 0.9', async () => {
+      const voucher = draftVoucher();
+      const ctx: PolicyContext = { confidence: 0.85 };
+
+      const before = await service.decide(voucher, passingResults, ctx);
+      expect(before.action).toBe('auto-post');
+
+      await db
+        .updateTable('policy_config')
+        .set({ value: '0.9', updated_at: Math.floor(Date.now() / 1000) })
+        .where('key', '=', 'auto_post_min_confidence')
+        .execute();
+
+      const after = await service.decide(voucher, passingResults, ctx);
+      expect(after.action).toBe('hold-for-approval');
+      expect(after.reason).toContain('below threshold 0.9');
+    });
+
+    it('falls back to the default ceiling for decide() when the row is absent', async () => {
+      await db
+        .deleteFrom('policy_config')
+        .where('key', '=', 'auto_post_amount_ceiling')
+        .execute();
+
+      // 200000 still exceeds the in-code fallback ceiling of 100000.
+      const voucher = draftVoucher({}, [
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: 100000,
+          currency: 'EUR',
+          base_amount: 100000,
+          fx_rate: 1,
+          vat_code: 'IE_INPUT_23',
+          is_debit: true,
+        },
+        {
+          account_code: 'BANK_EUR',
+          amount: 100000,
+          currency: 'EUR',
+          base_amount: 100000,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: false,
+        },
+      ]);
+
+      const decision = await service.decide(voucher, passingResults);
+      expect(decision.action).toBe('hold-for-approval');
+      expect(decision.reason).toContain('exceeds ceiling 100000');
     });
   });
 });
