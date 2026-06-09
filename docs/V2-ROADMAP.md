@@ -35,6 +35,16 @@ Capabilities deliberately **out of v1 scope**, to be added post-v1 as **domain p
 
 ## Other deferred (not domain plugins)
 
+These are **kernel-native** capabilities (ledger rules + accounts, possibly a country-plugin hook) that the domain model already names but v1 does not build. Each becomes a kernel + country-plugin wave, not a domain plugin.
+
+- **Bad debt write-off** — modeled (ADR-0008, CONTEXT.md "Bad debt write-off"); the `BAD_DEBT_EXPENSE` account is seeded, but there is no flow. Needs: an approval-required action that posts `Dr bad-debt expense / Cr AR` against an outstanding **Receivable**, plus the country-plugin rule for reclaiming already-paid output VAT (EU VAT Directive Art. 90; conditions vary). Loss recognition → **Policy** gates it. **Deferred** — not needed for the v1 happy path.
+
+- **Asset depreciation engine** — modeled, engine deferred past v1 (ADR-0007, CONTEXT.md "Asset"). v1 expenses everything immediately. Needs: an **Asset** record (capitalization threshold/method/useful-life are **country-plugin** rules), a year-end AI sweep that *proposes* which posted Expenses to reclassify (AI proposes candidates + parameters; depreciation amounts computed **deterministically**), reclassification as a **correction** (reversal + repost, approval-required), and scheduled **system-generated** depreciation Vouchers. **Deferred** — capitalization is rare for the v1 persona.
+
+- **Year-end close engine** — deferred (CONTEXT.md "Dividend", ADR-0023). v1 has **no** close: net income is never swept into Retained-earnings, so distributable profits is **computed live** by the kernel and Retained-earnings may be **interim-negative** for a profitable company. A close engine would sweep ΣRevenue − ΣExpense into Retained-earnings at period end (a **system-generated** Voucher) and remove the interim-negative artifact. **Deferred** — the live computation is correct without it; the close is a cosmetic/structural convenience until assets or multi-year reporting demand it.
+
+- **Cash-basis report view** — deferred (CONTEXT.md "Accrual basis"). The ledger is accrual-only and stays so; a cash-basis report would be a *read-path projection* (recognize revenue/expense/VAT at settlement, not at invoice), derived from settlement Vouchers + **ReconciliationMatch**es. **Deferred** — accrual is the only basis the ledger supports in v1; cash-basis is a later view, never a second ledger.
+
 - **RBAC / roles / per-route permissions** — *uncertain*. v1 ships a single table-backed owner API token (Wave-6 Task 39): `Authorization: Bearer <token>`, hash-stored, NestJS guard over `/api`+`/admin`. Multiple roles/scopes are deferred to v2 and may never be needed for a single-owner, self-hosted, single-tenant deployment (ADR-0003). Revisit only if multi-user access becomes a real requirement.
 
 ---
