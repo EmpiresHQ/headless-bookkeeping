@@ -6,6 +6,7 @@ import { DatabaseModule } from '../database/database.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { AgentConfigModule } from '../ai/agent-config.module';
 import { Database } from '../database/types';
 import { InteractionConfigService } from './config/interaction-config.service';
 import { PrincipalResolverService } from './principal/principal-resolver.service';
@@ -29,6 +30,7 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     ConversationsModule,
     DocumentsModule,
     AuditLogModule,
+    AgentConfigModule,
   ],
   controllers: [TelegramWebhookController],
   providers: [

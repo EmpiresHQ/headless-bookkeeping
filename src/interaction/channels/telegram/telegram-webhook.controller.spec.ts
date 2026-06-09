@@ -16,6 +16,7 @@ import {
 import { InteractionConfigService } from '../../config/interaction-config.service';
 import { PrincipalResolverService } from '../../principal/principal-resolver.service';
 import { IntentClassifierService } from '../../router/intent-classifier.service';
+import { AgentConfigService } from '../../../ai/agent-config.service';
 import {
   FlowDispatcher,
   RecordingFlowDispatcher,
@@ -70,6 +71,7 @@ describe('TelegramWebhookController (integration)', () => {
         DocumentsService,
         InteractionConfigService,
         PrincipalResolverService,
+        AgentConfigService,
         IntentClassifierService,
         { provide: FlowDispatcher, useClass: RecordingFlowDispatcher },
         { provide: TelegramApi, useValue: api },

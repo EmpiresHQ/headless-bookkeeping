@@ -23,6 +23,7 @@ import {
 import { InteractionTransport, OutboundMessage } from '../transport/types';
 import { AuditLogService } from '../../audit-log/audit-log.service';
 import { InteractionRouterService } from './interaction-router.service';
+import { AgentConfigService } from '../../ai/agent-config.service';
 import { UnifiedEnvelope } from '../envelope/types';
 import { promises as fs } from 'fs';
 import { join } from 'path';
@@ -81,6 +82,7 @@ describe('InteractionRouterService (integration)', () => {
         DocumentsService,
         InteractionConfigService,
         PrincipalResolverService,
+        AgentConfigService,
         IntentClassifierService,
         { provide: FlowDispatcher, useClass: RecordingFlowDispatcher },
         { provide: INTERACTION_TRANSPORTS, useValue: [transport] },
