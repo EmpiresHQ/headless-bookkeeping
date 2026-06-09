@@ -26,6 +26,7 @@ import { VatReportModule } from './vat-report/vat-report.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
+import { InteractionModule } from './interaction/interaction.module';
 import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
@@ -56,6 +57,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     ApprovalsModule,
     AuthModule,
     AiModule,
+    InteractionModule,
   ],
   providers: [
     {
