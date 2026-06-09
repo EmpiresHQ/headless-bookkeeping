@@ -4,7 +4,11 @@ import { ConversationsService } from '../../conversations/conversations.service'
 import { DocumentsService } from '../../documents/documents.service';
 import { InteractionConfigService } from '../config/interaction-config.service';
 import { PrincipalResolverService } from '../principal/principal-resolver.service';
-import { canConverse, ingestDecision } from '../principal/interaction-gate';
+import {
+  canCommit,
+  canConverse,
+  ingestDecision,
+} from '../principal/interaction-gate';
 import { IntentClassifierService } from './intent-classifier.service';
 import { FlowDispatcher } from './flow-dispatcher';
 import { TransportRegistryService } from '../transport/transport-registry.service';
@@ -13,12 +17,12 @@ import { Channel } from '../../documents/types';
 import { InteractionChannel, UnifiedEnvelope } from '../envelope/types';
 import { ActionIntent, RoutedIntent, RouterOutcome } from './types';
 
-const ACTION_INTENTS: readonly ActionIntent[] = [
+const ACTION_INTENTS = [
   'create_sales_invoice',
   'approve',
   'reject',
   'correct',
-];
+] as const satisfies readonly ActionIntent[];
 
 function asActionIntent(value: string): ActionIntent | null {
   return ACTION_INTENTS.find((intent) => intent === value) ?? null;
@@ -118,15 +122,43 @@ export class InteractionRouterService {
     // 5. Deterministic button tap → pre-classified action (no LLM).
     const callbackData = envelope.metadata.callbackData;
     if (callbackData) {
+      if (!canCommit(principal)) {
+        await this.audit.record({
+          actor: principal.senderId,
+          action: 'interaction.action_point.commit',
+          outcome: 'denied',
+          target_type: 'conversation',
+          target_id: conversation.id,
+          detail: { callbackData },
+        });
+        return {
+          conversation_id: conversation.id,
+          gated_in: false,
+          ingested,
+          intent: null,
+          dispatched: false,
+        };
+      }
       const intent = this.intentFromCallback(callbackData);
-      await this.audit.record({
-        actor: principal.senderId,
-        action: 'interaction.action_point.commit',
-        outcome: 'accepted',
-        target_type: 'conversation',
-        target_id: conversation.id,
-        detail: { callbackData },
-      });
+      if (intent.kind === 'clarify') {
+        await this.audit.record({
+          actor: principal.senderId,
+          action: 'interaction.action_point.unknown_callback',
+          outcome: 'rejected',
+          target_type: 'conversation',
+          target_id: conversation.id,
+          detail: { callbackData },
+        });
+      } else {
+        await this.audit.record({
+          actor: principal.senderId,
+          action: 'interaction.action_point.commit',
+          outcome: 'accepted',
+          target_type: 'conversation',
+          target_id: conversation.id,
+          detail: { callbackData },
+        });
+      }
       const dispatched = await this.dispatch(intent, conversation.id, envelope);
       return {
         conversation_id: conversation.id,

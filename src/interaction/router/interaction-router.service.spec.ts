@@ -256,4 +256,66 @@ describe('InteractionRouterService (integration)', () => {
       callbackData: 'approve:42',
     });
   });
+
+  it('non-approver button tap is denied', async () => {
+    const outcome = await router.handle(
+      envelope({
+        sender: '123',
+        convKey: 'tg:123',
+        message: null,
+        metadata: { callbackData: 'approve:42' },
+        auth: { senderId: '123', transportVerified: true },
+      }),
+    );
+    expect(outcome.dispatched).toBe(false);
+    expect(outcome.gated_in).toBe(false);
+    expect(dispatcher.calls).toHaveLength(0);
+    const rows = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'interaction.action_point.commit')
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe('denied');
+  });
+
+  it('approver button tap with transportVerified:false is denied', async () => {
+    const outcome = await router.handle(
+      envelope({
+        message: null,
+        metadata: { callbackData: 'approve:42' },
+        auth: { senderId: '999', transportVerified: false },
+      }),
+    );
+    expect(outcome.dispatched).toBe(false);
+    expect(outcome.gated_in).toBe(false);
+    expect(dispatcher.calls).toHaveLength(0);
+    const rows = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'interaction.action_point.commit')
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe('denied');
+  });
+
+  it('unknown callback token from an approver is audited rejected', async () => {
+    const outcome = await router.handle(
+      envelope({
+        message: null,
+        metadata: { callbackData: 'bogus:1' },
+        auth: { senderId: '999', transportVerified: true },
+      }),
+    );
+    expect(dispatcher.calls).toHaveLength(0);
+    const rows = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'interaction.action_point.unknown_callback')
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe('rejected');
+    // gated_in stays true (principal was allowed; token was stale)
+    expect(outcome.gated_in).toBe(true);
+  });
 });
