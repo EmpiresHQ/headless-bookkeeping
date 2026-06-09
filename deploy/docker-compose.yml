@@ -1,68 +1,82 @@
-# Production deploy: Caddy (TLS + reverse proxy) in front of the app.
+# Production deploy: Cloudflare (DNS/proxy) → Caddy (TLS) → app, all sharing a
+# Tailscale sidecar's network namespace so the whole stack is one tailnet node.
 #
-# Traffic path:
-#   client → Cloudflare (DNS + proxy, your domain) → Caddy (TLS) → app:3000
-# The node is a Tailscale member; Tailscale is used for private/admin access
-# (SSH, tailnet-only reach), NOT as the public ingress. Cloudflare only serves
-# the domain and proxies to this node's public 443 where Caddy terminates TLS.
+#   client → Cloudflare (your domain) → :443 (Caddy, TLS via CF DNS-01)
+#                                        → localhost:3000 (app)
 #
-# Two topologies, same files:
-#  • Single node — run BOTH services here; Caddy → app over the internal docker
-#    network (APP_UPSTREAM=app:3000, the default).
-#  • Split (private app node + public Caddy edge over the tailnet) — run ONLY
-#    `caddy` on the public edge node and set APP_UPSTREAM=<tailnet-name>:3000;
-#    run ONLY `app` on the private node (see `docker compose ... up app`).
+# The `tailscale` sidecar owns the network namespace and publishes :80/:443.
+# `caddy` and `app` join it via network_mode: service:tailscale, so:
+#   • Caddy reaches the app at localhost:3000 (single node), and
+#   • the whole stack is reachable/administered over the tailnet, and
+#   • in a SPLIT setup, Caddy can reverse_proxy to a private app node's tailnet
+#     IP (set APP_UPSTREAM=100.x.y.z:3000 and run only the app+tailscale pair
+#     on that private node).
 #
-# Usage (repo root):
-#   cp deploy/.env.example deploy/.env   # fill SITE_DOMAIN, APP_UPSTREAM
-#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Usage (repo root, after one-time setup in README):
+#   cp deploy/.env.example deploy/.env   # SITE_DOMAIN, CF_API_TOKEN, TS_AUTHKEY, DOCKER_IMAGE
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
 services:
-  app:
-    build:
-      context: ..
-      target: production
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: ${TS_HOSTNAME:-headless-bookkeeping}
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--accept-routes
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    # Public ingress for the whole stack lives here (the netns owner). Behind
+    # Cloudflare these are the origin ports; firewall them to CF IP ranges.
+    ports:
+      - '80:80'
+      - '443:443'
     restart: unless-stopped
+
+  caddy:
+    # Custom image: caddy:2 + the Cloudflare DNS plugin (see caddy/Dockerfile).
+    build:
+      context: ./caddy
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+      - app
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN}
+      # Single node: localhost:3000 (shared netns). Split: <app-node-tailnet-ip>:3000.
+      - APP_UPSTREAM=${APP_UPSTREAM:-localhost:3000}
+      - CF_API_TOKEN=${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+  app:
+    # Prebuilt image from the registry (CI builds & pushes on push to main). The
+    # VPS only pulls — never builds the app. APP_IMAGE_TAG is set by the deploy
+    # workflow to the exact commit SHA; defaults to latest for manual runs.
+    image: ${DOCKER_IMAGE}:${APP_IMAGE_TAG:-latest}
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
     environment:
       - NODE_ENV=production
     volumes:
-      # The hash-chained ledger (app.sqlite) + uploaded documents. The ONE
-      # thing to back up. Keep it on a real/persistent disk.
+      # Hash-chained ledger (app.sqlite) + uploaded documents. The ONE thing to
+      # back up. Keep it on a real/persistent disk.
       - ../data:/app/data
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - edge
-    # No public `ports:` — the app is only reachable via Caddy (same node) or
-    # over the tailnet (split topology). Never expose 3000 to the internet.
-
-  caddy:
-    # Custom image: stock caddy:2 + the Cloudflare DNS plugin (see caddy/Dockerfile).
-    build:
-      context: ./caddy
     restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
-    environment:
-      - SITE_DOMAIN=${SITE_DOMAIN}
-      # Where Caddy forwards to. Same node: app:3000. Split: <tailnet-ip>:3000.
-      - APP_UPSTREAM=${APP_UPSTREAM:-app:3000}
-      # Cloudflare API token with Zone:DNS:Edit — used for ACME DNS-01.
-      - CF_API_TOKEN=${CF_API_TOKEN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - edge
-
-networks:
-  edge:
-    driver: bridge
 
 volumes:
   caddy_data:
   caddy_config:
+  tailscale_state:
