@@ -6,6 +6,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { SupplierProposal, TriageResult } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
+import { AgentConfigService } from './agent-config.service';
 
 /**
  * Reason a 'create' supplier proposal cannot yet be resolved to a Supplier id.
@@ -90,6 +91,7 @@ export class ProposeDraftService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly expensesService: ExpensesService,
     private readonly postingPipelineService: PostingPipelineService,
+    private readonly config: AgentConfigService,
   ) {}
 
   /**
@@ -268,7 +270,7 @@ export class ProposeDraftService {
       .values({
         business_object_type: 'expense',
         business_object_id: expenseId,
-        model_id: 'openai/gpt-4o-mini',
+        model_id: await this.config.resolveModel('triage'),
         model_version: 'v1',
         raw_triage_result: JSON.stringify(triageResult),
         ocr_artifact_id: ocrArtifactId,

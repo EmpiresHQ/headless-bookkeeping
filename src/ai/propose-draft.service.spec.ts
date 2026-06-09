@@ -20,6 +20,7 @@ import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.serv
 import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
+import { AgentConfigService } from './agent-config.service';
 import {
   ProposeDraftService,
   ProposeDraftResult,
@@ -82,6 +83,7 @@ describe('ProposeDraftService (integration)', () => {
         VoucherProjectionService,
         ExpensesService,
         EntitiesService,
+        AgentConfigService,
         ProposeDraftService,
       ],
     }).compile();
@@ -271,6 +273,17 @@ describe('ProposeDraftService (integration)', () => {
     });
 
     it('writes an ai_proposal row after proposeDraft (auto-post path)', async () => {
+      // Seed a per-agent model override — this is a discriminating value that
+      // differs from the old hardcoded literal 'openai/gpt-4o-mini'.
+      await db
+        .insertInto('setting')
+        .values({
+          key: 'ai_model.triage',
+          value: 'openai/gpt-4o',
+          updated_at: 0,
+        })
+        .execute();
+
       // Create a supplier so the pipeline auto-posts.
       const entitiesService = module.get(EntitiesService);
       const supplier = await entitiesService.onboard({
@@ -292,7 +305,8 @@ describe('ProposeDraftService (integration)', () => {
 
       expect(proposals).toHaveLength(1);
       expect(proposals[0].business_object_type).toBe('expense');
-      expect(proposals[0].model_id).toBe('openai/gpt-4o-mini');
+      // model_id must reflect the resolved setting, NOT the old hardcoded literal.
+      expect(proposals[0].model_id).toBe('openai/gpt-4o');
       expect(proposals[0].model_version).toBe('v1');
       expect(proposals[0].confidence).toBe(0.94);
       expect(proposals[0].raw_triage_result).toBeDefined();
