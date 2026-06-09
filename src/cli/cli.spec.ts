@@ -160,6 +160,34 @@ describe('admin CLI (yargs)', () => {
         buildCli(deps, io).parseAsync(['period', 'open', '--name', 'X']),
       );
     });
+
+    it('delete removes an empty period', async () => {
+      const o = makeIo();
+      await buildCli(deps, o.io).parseAsync([
+        'period',
+        'open',
+        '--name',
+        'FY2026',
+        '--start',
+        '2026-01-01',
+        '--end',
+        '2026-12-31',
+      ]);
+      const id = (JSON.parse(o.out()) as { id: number }).id;
+
+      await buildCli(deps, makeIo().io).parseAsync([
+        'period',
+        'delete',
+        String(id),
+      ]);
+
+      const l = makeIo();
+      await buildCli(deps, l.io).parseAsync(['period', 'list']);
+      const names = (JSON.parse(l.out()) as Array<{ name: string }>).map(
+        (p) => p.name,
+      );
+      expect(names).not.toContain('FY2026');
+    });
   });
 
   it('unknown command fails and prints usage', async () => {
