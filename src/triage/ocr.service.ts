@@ -6,6 +6,7 @@ import { join } from 'path';
 import { Database } from '../database/types';
 import { DocumentsService } from '../documents/documents.service';
 import { TriageResult } from './types';
+import { crc32 } from '../common/crc32.util';
 
 /**
  * Why Pass 1 failed to produce markdown. Mirrors {@link Pass2FailureCategory}
@@ -63,10 +64,9 @@ export type OcrOutcome = OcrSuccess | OcrFailure;
 function fauxOcrModel(documentId: number, filename: string): string {
   const lower = filename.toLowerCase();
   // Filename takes precedence; fall back to id parity for ambiguous names.
-  // Determine document type from filename keywords.
-  // Fall back to id parity for ambiguous names that aren't clearly receipts or invoices.
   const isReceipt =
     lower.includes('receipt') ||
+    lower.includes('bolt') ||
     (!lower.includes('invoice') && documentId % 2 === 1);
 
   if (isReceipt) {
@@ -141,15 +141,42 @@ export class OcrService {
     const document = await this.documentsService.getById(documentId);
 
     try {
-      // 2. Fast path: an OCR markdown artifact already exists (idempotency).
+      // 2. Fast path: an OCR markdown artifact already exists. Use the stored
+      //    CRC32 to detect on-disk tampering — a matching CRC reuses the stored
+      //    markdown (idempotent); a mismatch re-transcribes, overwrites the
+      //    file, and updates the row. A legacy artifact with no CRC is reused.
       const existingArtifact = await this.findExistingOcrArtifact(documentId);
       if (existingArtifact) {
-        const markdown = readFileSync(existingArtifact.storage_path, 'utf-8');
-        return { ok: true, markdown };
+        const storedMarkdown = readFileSync(
+          existingArtifact.storage_path,
+          'utf-8',
+        );
+        if (existingArtifact.crc32 !== null) {
+          const currentCrc = crc32(storedMarkdown);
+          if (currentCrc === existingArtifact.crc32) {
+            return { ok: true, markdown: storedMarkdown };
+          }
+          // CRC mismatch: content changed on disk → overwrite + update row.
+          const markdown = fauxOcrModel(documentId, document.filename);
+          const computedCrc = crc32(markdown);
+          writeFileSync(existingArtifact.storage_path, markdown, 'utf-8');
+          await this.db
+            .updateTable('artifact')
+            .set({
+              crc32: computedCrc,
+              created_at: Math.floor(Date.now() / 1000),
+            })
+            .where('id', '=', existingArtifact.id)
+            .execute();
+          return { ok: true, markdown };
+        }
+        // Legacy artifact without CRC: return stored markdown but don't block.
+        return { ok: true, markdown: storedMarkdown };
       }
 
-      // 3. Call the OCR model (faux for v1).
+      // 3. Call the OCR model (faux for v1) and compute its CRC32.
       const markdown = fauxOcrModel(documentId, document.filename);
+      const computedCrc = crc32(markdown);
 
       // 4. Write markdown to filesystem. The path is deterministic per document
       //    (`{id}.md`) and the content is deterministic, so a concurrent/retried
@@ -190,6 +217,7 @@ export class OcrService {
             kind: 'ocr_markdown',
             storage_path: storagePath,
             document_id: documentId,
+            crc32: computedCrc,
             created_at: now,
           })
           .execute();
@@ -268,10 +296,12 @@ export class OcrService {
    */
   private async findExistingOcrArtifact(
     documentId: number,
-  ): Promise<{ storage_path: string } | undefined> {
+  ): Promise<
+    { id: number; storage_path: string; crc32: number | null } | undefined
+  > {
     return this.db
       .selectFrom('artifact')
-      .select('storage_path')
+      .select(['id', 'storage_path', 'crc32'])
       .where('kind', '=', 'ocr_markdown')
       .where('document_id', '=', documentId)
       .executeTakeFirst();

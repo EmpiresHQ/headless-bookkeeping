@@ -332,6 +332,8 @@ export interface ArtifactTable {
   kind: string;
   document_id: number | null;
   storage_path: string;
+  // CRC32 checksum of the artifact content (unsigned 32-bit) for change detection.
+  crc32: number | null;
   created_at: number;
 }
 
