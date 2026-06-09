@@ -30,19 +30,17 @@ config; new settings are added there explicitly.
 `SettingsService` (`src/admin/settings.service.ts`) owns all reads/writes to the
 existing `setting` table via Kysely's `onConflict` upsert idiom.
 
-### Token management — `admin/tokens`
+### Token management — `admin/tokens` (provided by PR #38, not this branch)
 
-A new `TokensController` at `admin/tokens` exposes:
-
-| Method   | Path               | Response |
-|----------|--------------------|----------|
-| `POST`   | `/admin/tokens`    | `{ id, token }` — 201; plaintext returned **once** |
-| `GET`    | `/admin/tokens`    | `{ tokens: [{id, label, created_at, revoked_at}] }` |
-| `DELETE` | `/admin/tokens/:id`| `{ id, revoked }` — 200 |
-
-`ApiTokenService.list()` returns metadata only — `id`, `label`, `created_at`,
-`revoked_at`. `token_hash` is never selected. Plaintext appears exactly once: in
-the `POST /admin/tokens` response body.
+Token provisioning over HTTP landed independently in **PR #38** (`AdminController`):
+`POST /admin/tokens` (mint, plaintext returned once), `GET /admin/tokens` (metadata
+list), `POST /admin/tokens/:id/revoke`. `ApiTokenService.list()` returns metadata
+only (`id`, `label`, `created_at`, `revoked_at`); `token_hash` is never selected;
+plaintext appears exactly once, in the create response. This branch originally added
+an equivalent `TokensController`; on merging `main` it was **dropped** to avoid a
+route collision with PR #38's `AdminController` token routes (both registered
+`POST`/`GET /admin/tokens`). The settings surface below is this branch's net-new
+contribution; together they complete the admin config API.
 
 ### Organisation config is NOT duplicated
 
@@ -83,11 +81,12 @@ and its constraints auditable.
 ## Consequences
 
 - New files: `src/admin/settings.registry.ts`, `src/admin/settings.service.ts`,
-  `src/admin/settings.controller.ts`, `src/admin/tokens.controller.ts`.
-- `AdminModule` now imports `AuthModule` so `ApiTokenService` is injectable into
-  `TokensController`.
-- `ApiTokenService` gains `list()` — metadata only, never `token_hash`.
+  `src/admin/settings.controller.ts`.
+- `AdminModule` registers `SettingsController` (+ `SettingsService`). `AuthModule`
+  is imported (by PR #38, for `AdminController`'s token routes).
+- `ApiTokenService.list()` (metadata only, never `token_hash`) is provided by PR #38;
+  this branch's duplicate was dropped on merge.
 - No migration needed: `setting`, `api_token`, and `organization` tables already
   exist.
-- E2e coverage: `test/admin-config.e2e-spec.ts` exercises all four scenarios
-  (write + read, 401 without auth, 400 on unknown key, token lifecycle).
+- E2e coverage: `test/admin-config.e2e-spec.ts` exercises the settings scenarios
+  (write + read, 401 without auth, 400 on unknown key). Token-route e2e is PR #38's.

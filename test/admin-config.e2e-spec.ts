@@ -130,62 +130,7 @@ describe('Admin Config HTTP API (e2e)', () => {
     });
   });
 
-  // ── token management ──────────────────────────────────────────────
-
-  describe('POST /admin/tokens', () => {
-    it('creates a token and returns 201 with id and plaintext token', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/admin/tokens')
-        .set('Authorization', `Bearer ${bearerToken}`)
-        .send({ label: 'x' })
-        .expect(201);
-
-      const body = res.body as { id: number; token: string };
-      expect(body.id).toBeGreaterThan(0);
-      expect(body.token).toMatch(/^[0-9a-f]{64}$/);
-    });
-  });
-
-  describe('GET /admin/tokens', () => {
-    it('lists token metadata and does not include plaintext tokens', async () => {
-      const created = await request(app.getHttpServer())
-        .post('/admin/tokens')
-        .set('Authorization', `Bearer ${bearerToken}`)
-        .send({ label: 'list-test' })
-        .expect(201)
-        .then((r) => r.body as { id: number; token: string });
-
-      const res = await request(app.getHttpServer())
-        .get('/admin/tokens')
-        .set('Authorization', `Bearer ${bearerToken}`)
-        .expect(200);
-
-      const body2 = res.body as { tokens: { id: number; label: string }[] };
-      const tokens = body2.tokens;
-      expect(
-        tokens.some((t) => t.id === created.id && t.label === 'list-test'),
-      ).toBe(true);
-
-      // Plaintext must never appear in the list response.
-      expect(JSON.stringify(tokens)).not.toContain(created.token);
-    });
-  });
-
-  describe('DELETE /admin/tokens/:id', () => {
-    it('revokes a token and returns 200', async () => {
-      const created = await request(app.getHttpServer())
-        .post('/admin/tokens')
-        .set('Authorization', `Bearer ${bearerToken}`)
-        .send({ label: 'to-revoke' })
-        .expect(201)
-        .then((r) => r.body as { id: number; token: string });
-
-      const res = await request(app.getHttpServer())
-        .delete(`/admin/tokens/${created.id}`)
-        .set('Authorization', `Bearer ${bearerToken}`)
-        .expect(200);
-
-      expect(res.body).toMatchObject({ id: created.id, revoked: true });
-    });
-  });
+  // Token management (POST/GET /admin/tokens, POST /admin/tokens/:id/revoke)
+  // lives in AdminController (PR #38) and is covered by its own tests — not
+  // re-tested here. This branch owns the settings surface only.
 });

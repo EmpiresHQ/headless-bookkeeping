@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Param,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
   HttpCode,
@@ -10,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 import { DocumentsService } from './documents.service';
 import { Document, DocumentWithSources } from './types';
 
@@ -51,5 +54,21 @@ export class DocumentsController {
   async getDocument(@Param('id') id: string): Promise<DocumentWithSources> {
     const doc = await this.documentsService.getById(Number(id));
     return this.documentsService.hydrate(doc);
+  }
+
+  /** Download the raw stored bytes of a document (D4). */
+  @Get(':id/file')
+  async getDocumentFile(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename, mimeType } = await this.documentsService.getFile(
+      Number(id),
+    );
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
   }
 }

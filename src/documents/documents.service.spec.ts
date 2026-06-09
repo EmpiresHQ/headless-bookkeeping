@@ -174,4 +174,27 @@ describe('DocumentsService (unit)', () => {
       expect(updated.status).toBe('triaged');
     });
   });
+
+  describe('getFile (D4)', () => {
+    it('returns the stored bytes with filename and mime type', async () => {
+      const buffer = Buffer.from('the original pdf bytes');
+      const { document } = await service.upload({
+        buffer,
+        filename: 'orig.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+      });
+
+      const file = await service.getFile(document.id);
+      expect(file.filename).toBe('orig.pdf');
+      expect(file.mimeType).toBe('application/pdf');
+      expect(file.buffer).toEqual(buffer);
+    });
+
+    it('throws NotFoundException for a missing id', async () => {
+      await expect(service.getFile(9999)).rejects.toThrow(
+        'Document 9999 not found',
+      );
+    });
+  });
 });

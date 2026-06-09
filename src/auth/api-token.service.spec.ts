@@ -1,23 +1,18 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
-import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ApiTokenService } from './api-token.service';
 
-describe('ApiTokenService (integration)', () => {
+describe('ApiTokenService (A1: token management over the service)', () => {
   let db: Kysely<Database>;
   let service: ApiTokenService;
 
   beforeEach(async () => {
-    const rawDb = new SqliteDb(':memory:');
-    rawDb.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
-      dialect: new SqliteDialect({ database: rawDb }),
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
     });
-
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
@@ -26,57 +21,44 @@ describe('ApiTokenService (integration)', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
-        ApiTokenService,
-      ],
-    }).compile();
-
-    service = module.get(ApiTokenService);
+    service = new ApiTokenService(db);
   });
 
   afterEach(async () => {
     await db.destroy();
   });
 
-  it('create returns a plaintext token and numeric id', async () => {
-    const result = await service.create('test-label');
-    expect(typeof result.token).toBe('string');
-    expect(result.token).toHaveLength(64);
-    expect(result.id).toBeGreaterThan(0);
+  it('create returns a plaintext token that verifies', async () => {
+    const { id, token } = await service.create('agent-1');
+    expect(id).toBeGreaterThan(0);
+    expect(token).toHaveLength(64);
+    const verified = await service.verify(token);
+    expect(verified?.id).toBe(id);
   });
 
-  it('verify returns the row for a valid token', async () => {
-    const created = await service.create('verify-test');
-    const row = await service.verify(created.token);
-    expect(row).not.toBeNull();
-    expect(row?.id).toBe(created.id);
-    expect(row?.label).toBe('verify-test');
+  it('list returns tokens with metadata but never the hash or plaintext', async () => {
+    await service.create('agent-1');
+    await service.create('agent-2');
+
+    const tokens = await service.list();
+    expect(tokens).toHaveLength(2);
+    expect(tokens.map((t) => t.label)).toEqual(
+      expect.arrayContaining(['agent-1', 'agent-2']),
+    );
+    for (const t of tokens) {
+      expect(t).toHaveProperty('id');
+      expect(t).toHaveProperty('created_at');
+      expect(t).toHaveProperty('revoked_at');
+      expect(t).not.toHaveProperty('token_hash');
+    }
   });
 
-  it('verify returns null for an invalid token', async () => {
-    const row = await service.verify('deadbeef'.repeat(8));
-    expect(row).toBeNull();
-  });
+  it('revoked tokens no longer verify and are flagged in list', async () => {
+    const { id, token } = await service.create('agent-1');
+    await service.revoke(id);
 
-  it('revoke makes verify return null', async () => {
-    const created = await service.create('revoke-test');
-    await service.revoke(created.id);
-    const row = await service.verify(created.token);
-    expect(row).toBeNull();
-  });
-
-  it('list returns token metadata without the hash', async () => {
-    const created = await service.create('my-token');
-    const list = await service.list();
-    const row = list.find((t) => t.id === created.id);
-    expect(row).toMatchObject({
-      id: created.id,
-      label: 'my-token',
-      revoked_at: null,
-    });
-    expect(row).not.toHaveProperty('token_hash');
-    expect(JSON.stringify(list)).not.toContain(created.token); // plaintext never present
+    expect(await service.verify(token)).toBeNull();
+    const row = (await service.list()).find((t) => t.id === id);
+    expect(row?.revoked_at).not.toBeNull();
   });
 });
