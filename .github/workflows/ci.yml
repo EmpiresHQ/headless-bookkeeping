@@ -98,6 +98,10 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           source: deploy/docker-compose.yml,deploy/Caddyfile,deploy/caddy/Dockerfile,deploy/README.md,deploy/.env.example
           target: ${{ secrets.DEPLOY_PATH }}
+          # Strip the leading `deploy/` so files land flat in DEPLOY_PATH
+          # (DEPLOY_PATH/docker-compose.yml, DEPLOY_PATH/caddy/Dockerfile, …),
+          # matching the remote script below.
+          strip_components: 1
 
       - name: Pull image & restart on the VPS
         uses: appleboy/ssh-action@v1.2.0
@@ -108,16 +112,18 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           envs: DOCKER_IMAGE,DOCKER_USERNAME,DOCKER_PASSWORD,APP_IMAGE_TAG,DEPLOY_PATH
           script: |
-            set -euo pipefail
+            set -eu
             cd "$DEPLOY_PATH"
             # Authenticate to the registry (registry host = part before the first "/").
             echo "$DOCKER_PASSWORD" | docker login "${DOCKER_IMAGE%%/*}" -u "$DOCKER_USERNAME" --password-stdin
             export APP_IMAGE_TAG
-            COMPOSE="docker compose -f deploy/docker-compose.yml --env-file deploy/.env"
-            $COMPOSE pull app
-            $COMPOSE up -d --build --remove-orphans
+            # A function (not a string var) so args split correctly in any login
+            # shell — the VPS uses zsh, which does NOT word-split unquoted "$VAR".
+            dc() { docker compose -f docker-compose.yml --env-file .env "$@"; }
+            dc pull app
+            dc up -d --build --remove-orphans
             # Apply any Caddyfile changes without dropping the connection.
-            $COMPOSE exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true
+            dc exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true
             docker image prune -f
         env:
           DOCKER_IMAGE: ${{ secrets.DOCKER_IMAGE }}
