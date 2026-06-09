@@ -205,6 +205,37 @@ describe('Entity aggregate (integration)', () => {
     });
   });
 
+  describe('update (C4)', () => {
+    it('updates intrinsic facts and preserves identifiers', async () => {
+      const onboarded = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Old Name ApS',
+        registrationKey: 'DK999',
+        goodsVsServices: 'unknown',
+      });
+
+      const updated = await entitiesService.update(onboarded.id, {
+        name: 'New Name ApS',
+        goodsVsServices: 'services',
+      });
+
+      expect(updated.name).toBe('New Name ApS');
+      expect(updated.goods_vs_services).toBe('services');
+      // Country left untouched; strong-key identifier preserved.
+      expect(updated.country).toBe('DK');
+      expect(
+        updated.identifiers.find((i) => i.kind === 'registration_key')?.value,
+      ).toBe('DK999');
+    });
+
+    it('throws NotFoundException for a missing id', async () => {
+      await expect(entitiesService.update(9999, { name: 'x' })).rejects.toThrow(
+        'Entity 9999 not found',
+      );
+    });
+  });
+
   describe('FK constraints (G6)', () => {
     it('rejects inserting expense with non-existent supplier_id', async () => {
       await expect(
