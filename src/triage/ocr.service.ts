@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, Transaction } from 'kysely';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -6,6 +6,49 @@ import { join } from 'path';
 import { Database } from '../database/types';
 import { DocumentsService } from '../documents/documents.service';
 import { TriageResult } from './types';
+
+/**
+ * Why Pass 1 failed to produce markdown. Mirrors {@link Pass2FailureCategory}
+ * so the intake workflow routes a transcription failure to a human through the
+ * SAME typed-outcome seam as a classification failure (ADR-0024) — instead of
+ * a Pass-1 exception escaping the workflow and leaving the Document stuck in
+ * `pending` with no AuditFinding.
+ *
+ *  - 'provider-unavailable': the OCR model/API is not configured or is down —
+ *                            no transcription could be attempted. (Reachable
+ *                            once a real vision provider replaces the faux
+ *                            model; the faux model never reports this.)
+ *  - 'unreadable':           the document was fetched but cannot be transcribed
+ *                            (corrupt, blank, or unsupported format) — a
+ *                            permanent content problem. (Real-provider case.)
+ *  - 'transient':            an IO/temporary error (a stored artifact file went
+ *                            missing, a filesystem blip, a timeout) — likely
+ *                            retryable later.
+ *
+ * A missing Document is NOT a category: it is a precondition violation (the
+ * caller handed a bad id) with no object to route, so `transcribe` throws.
+ */
+export type OcrFailureCategory =
+  | 'provider-unavailable'
+  | 'unreadable'
+  | 'transient';
+
+/** A successful Pass-1 transcription. */
+export interface OcrSuccess {
+  ok: true;
+  markdown: string;
+}
+
+/** A Pass-1 failure carrying an explicit, observable category. */
+export interface OcrFailure {
+  ok: false;
+  category: OcrFailureCategory;
+  /** Human-readable detail (the underlying error message). */
+  detail: string;
+}
+
+/** Discriminated outcome of a Pass-1 transcription attempt. */
+export type OcrOutcome = OcrSuccess | OcrFailure;
 
 /**
  * Faux OCR model output — deterministic markdown derived from document metadata.
@@ -67,6 +110,8 @@ Total: €123.00
 
 @Injectable()
 export class OcrService {
+  private readonly logger = new Logger(OcrService.name);
+
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly documentsService: DocumentsService,
@@ -81,80 +126,100 @@ export class OcrService {
    * Idempotent: if an ocr_markdown artifact already exists for the document,
    * reads and returns the stored markdown without re-calling the model.
    *
+   * Returns a discriminated {@link OcrOutcome} — symmetric with
+   * {@link Pass2Outcome} — so a transcription failure routes to a human through
+   * the SAME seam as a classification failure (ADR-0024), instead of an
+   * exception escaping the workflow. A missing Document is the one exception:
+   * it is a precondition violation (no object to route) and stays a throw.
+   *
    * @param documentId The Document to transcribe.
-   * @returns The markdown string.
+   * @returns An {@link OcrOutcome} — success with markdown, or a typed failure.
    */
-  async transcribe(documentId: number): Promise<string> {
-    // 1. Look up the document.
+  async transcribe(documentId: number): Promise<OcrOutcome> {
+    // 1. Look up the document. A missing Document is a precondition violation
+    //    (no object to route) — it throws, OUTSIDE the typed-failure boundary.
     const document = await this.documentsService.getById(documentId);
 
-    // 2. Fast path: an OCR markdown artifact already exists (idempotency).
-    const existingArtifact = await this.findExistingOcrArtifact(documentId);
-    if (existingArtifact) {
-      return readFileSync(existingArtifact.storage_path, 'utf-8');
-    }
-
-    // 3. Call the OCR model (faux for v1).
-    const markdown = fauxOcrModel(documentId, document.filename);
-
-    // 4. Write markdown to filesystem. The path is deterministic per document
-    //    (`{id}.md`) and the content is deterministic, so a concurrent/retried
-    //    write is idempotent (same bytes, same path) — no race on the file.
-    const artifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
-    if (!existsSync(artifactsDir)) {
-      mkdirSync(artifactsDir, { recursive: true });
-    }
-    const storagePath = join(artifactsDir, `${documentId}.md`);
-    writeFileSync(storagePath, markdown, 'utf-8');
-
-    // 5. Race-safe find-or-create of the artifact + conversation. Two
-    //    concurrent/retried transcribe() calls both saw no artifact at step 2;
-    //    without a guard both would attach a duplicate ocr_markdown artifact.
-    //    We re-check inside a single write transaction (better-sqlite3
-    //    serializes write transactions, so the re-check + insert is atomic):
-    //    the loser of the race sees the committed artifact and reuses it.
-    await this.db.transaction().execute(async (trx) => {
-      const racedArtifact = await trx
-        .selectFrom('artifact')
-        .select('id')
-        .where('kind', '=', 'ocr_markdown')
-        .where('document_id', '=', documentId)
-        .executeTakeFirst();
-      if (racedArtifact) {
-        // Another call won — leave its artifact untouched (no duplicate).
-        return;
+    try {
+      // 2. Fast path: an OCR markdown artifact already exists (idempotency).
+      const existingArtifact = await this.findExistingOcrArtifact(documentId);
+      if (existingArtifact) {
+        const markdown = readFileSync(existingArtifact.storage_path, 'utf-8');
+        return { ok: true, markdown };
       }
 
-      // Find or create the per-document OCR conversation inside the txn.
-      const conversation = await this.resolveConversationTx(trx, documentId);
+      // 3. Call the OCR model (faux for v1).
+      const markdown = fauxOcrModel(documentId, document.filename);
 
-      const now = Math.floor(Date.now() / 1000);
-      await trx
-        .insertInto('artifact')
-        .values({
-          conversation_id: conversation.id,
-          kind: 'ocr_markdown',
-          storage_path: storagePath,
-          document_id: documentId,
-          created_at: now,
-        })
-        .execute();
+      // 4. Write markdown to filesystem. The path is deterministic per document
+      //    (`{id}.md`) and the content is deterministic, so a concurrent/retried
+      //    write is idempotent (same bytes, same path) — no race on the file.
+      const artifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
+      if (!existsSync(artifactsDir)) {
+        mkdirSync(artifactsDir, { recursive: true });
+      }
+      const storagePath = join(artifactsDir, `${documentId}.md`);
+      writeFileSync(storagePath, markdown, 'utf-8');
 
-      // Associate the conversation with the document (idempotent insert).
-      await trx
-        .insertInto('conversation_document')
-        .values({ conversation_id: conversation.id, document_id: documentId })
-        .ignore()
-        .execute();
+      // 5. Race-safe find-or-create of the artifact + conversation. Two
+      //    concurrent/retried transcribe() calls both saw no artifact at step 2;
+      //    without a guard both would attach a duplicate ocr_markdown artifact.
+      //    We re-check inside a single write transaction (better-sqlite3
+      //    serializes write transactions, so the re-check + insert is atomic):
+      //    the loser of the race sees the committed artifact and reuses it.
+      await this.db.transaction().execute(async (trx) => {
+        const racedArtifact = await trx
+          .selectFrom('artifact')
+          .select('id')
+          .where('kind', '=', 'ocr_markdown')
+          .where('document_id', '=', documentId)
+          .executeTakeFirst();
+        if (racedArtifact) {
+          // Another call won — leave its artifact untouched (no duplicate).
+          return;
+        }
 
-      await trx
-        .updateTable('conversation')
-        .set({ updated_at: now })
-        .where('id', '=', conversation.id)
-        .execute();
-    });
+        // Find or create the per-document OCR conversation inside the txn.
+        const conversation = await this.resolveConversationTx(trx, documentId);
 
-    return markdown;
+        const now = Math.floor(Date.now() / 1000);
+        await trx
+          .insertInto('artifact')
+          .values({
+            conversation_id: conversation.id,
+            kind: 'ocr_markdown',
+            storage_path: storagePath,
+            document_id: documentId,
+            created_at: now,
+          })
+          .execute();
+
+        // Associate the conversation with the document (idempotent insert).
+        await trx
+          .insertInto('conversation_document')
+          .values({ conversation_id: conversation.id, document_id: documentId })
+          .ignore()
+          .execute();
+
+        await trx
+          .updateTable('conversation')
+          .set({ updated_at: now })
+          .where('id', '=', conversation.id)
+          .execute();
+      });
+
+      return { ok: true, markdown };
+    } catch (error) {
+      // IO/transient faults (a stored artifact file vanished, an fs blip, a
+      // write failure) become a typed transient failure rather than escaping
+      // uncaught. The faux model itself is pure and never throws; with a real
+      // OCR provider this is where its outages/garbage map to a category.
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.warn(
+        `Pass 1 transcription failed for document ${documentId}: ${err.message}`,
+      );
+      return { ok: false, category: 'transient', detail: err.message };
+    }
   }
 
   /**

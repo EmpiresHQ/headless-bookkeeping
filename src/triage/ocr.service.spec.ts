@@ -113,20 +113,24 @@ describe('OcrService', () => {
 
     it('returns markdown for a receipt-like document (odd id)', async () => {
       const docId = await seedDocument('receipt-bolt.pdf');
-      const markdown = await service.transcribe(docId);
+      const outcome = await service.transcribe(docId);
 
-      expect(markdown).toContain('# Receipt');
-      expect(markdown).toContain('Bolt');
-      expect(markdown).toContain('€15.25');
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.markdown).toContain('# Receipt');
+      expect(outcome.markdown).toContain('Bolt');
+      expect(outcome.markdown).toContain('€15.25');
     });
 
     it('returns markdown for an invoice-like document (even id)', async () => {
       const docId = await seedDocument('invoice-acme.pdf');
-      const markdown = await service.transcribe(docId);
+      const outcome = await service.transcribe(docId);
 
-      expect(markdown).toContain('# Invoice');
-      expect(markdown).toContain('Acme Ltd');
-      expect(markdown).toContain('€123.00');
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.markdown).toContain('# Invoice');
+      expect(outcome.markdown).toContain('Acme Ltd');
+      expect(outcome.markdown).toContain('€123.00');
     });
 
     it('stores markdown as an ocr_markdown artifact', async () => {
@@ -187,7 +191,10 @@ describe('OcrService', () => {
       const first = await service.transcribe(docId);
       const second = await service.transcribe(docId);
 
-      expect(first).toBe(second);
+      expect(first.ok).toBe(true);
+      expect(second.ok).toBe(true);
+      if (!first.ok || !second.ok) return;
+      expect(first.markdown).toBe(second.markdown);
 
       // Only one artifact should exist (not duplicated).
       const count = await db
@@ -201,7 +208,48 @@ describe('OcrService', () => {
     });
 
     it('throws NotFoundException for non-existent document', async () => {
+      // A missing Document is a precondition violation (the caller handed a bad
+      // id) — there is no object to route to a human, so this stays a throw,
+      // NOT a typed OcrOutcome failure.
       await expect(service.transcribe(9999)).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns an ok outcome carrying the markdown on success', async () => {
+      const docId = await seedDocument('receipt-ok.pdf');
+      const outcome = await service.transcribe(docId);
+
+      expect(outcome.ok).toBe(true);
+      if (outcome.ok) {
+        expect(outcome.markdown).toContain('# Receipt');
+      }
+    });
+
+    it('returns a transient failure (not a throw) when a stored artifact file is missing', async () => {
+      const docId = await seedDocument('receipt-gone.pdf');
+
+      // First pass writes the markdown file + artifact row.
+      const first = await service.transcribe(docId);
+      expect(first.ok).toBe(true);
+
+      // The backing file disappears (e.g. data/ cleaned) but the artifact row
+      // survives. A re-run hits the idempotent fast path, reads the missing
+      // file, and must surface a typed transient failure rather than letting an
+      // ENOENT escape uncaught.
+      const artifact = await db
+        .selectFrom('artifact')
+        .select('storage_path')
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', docId)
+        .executeTakeFirstOrThrow();
+      rmSync(artifact.storage_path, { force: true });
+
+      const outcome = await service.transcribe(docId);
+
+      expect(outcome.ok).toBe(false);
+      if (!outcome.ok) {
+        expect(outcome.category).toBe('transient');
+        expect(outcome.detail).toBeTruthy();
+      }
     });
 
     it('is race/retry-safe — concurrent transcribe() calls create exactly one artifact', async () => {
@@ -215,7 +263,10 @@ describe('OcrService', () => {
         service.transcribe(docId),
       ]);
 
-      expect(a).toBe(b);
+      expect(a.ok).toBe(true);
+      expect(b.ok).toBe(true);
+      if (!a.ok || !b.ok) return;
+      expect(a.markdown).toBe(b.markdown);
 
       const artifactCount = await db
         .selectFrom('artifact')

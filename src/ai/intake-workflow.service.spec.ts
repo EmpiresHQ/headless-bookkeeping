@@ -112,9 +112,10 @@ describe('IntakeWorkflowService', () => {
     mockProposeDraft.findExistingDraft.mockReset();
 
     // Defaults.
-    mockOcrService.transcribe.mockResolvedValue(
-      '# Receipt\nSupplier: Test\nAmount: €15.25',
-    );
+    mockOcrService.transcribe.mockResolvedValue({
+      ok: true,
+      markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
+    });
     mockProposeDraft.findExistingDraft.mockResolvedValue(undefined);
   });
 
@@ -225,8 +226,8 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain("'correction'");
         // High confidence: it is NOT a low-confidence route.
         expect(result.reason).not.toContain('below threshold');
-        // No pass2 failure category: it was a valid, confident classification.
-        expect(result.pass2FailureCategory).toBeUndefined();
+        // No failure: it was a valid, confident classification.
+        expect(result.failure).toBeUndefined();
       }
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
@@ -307,7 +308,7 @@ describe('IntakeWorkflowService', () => {
     it('calls classify with the markdown returned by OCR', async () => {
       const docId = await seedDocument();
       const markdown = '# Test Invoice\nSupplier: Acme\nAmount: €100';
-      mockOcrService.transcribe.mockResolvedValue(markdown);
+      mockOcrService.transcribe.mockResolvedValue({ ok: true, markdown });
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
         result: sampleTriageResult({ confidence: 0.9 }),
@@ -338,7 +339,10 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.pass2FailureCategory).toBe('agent-unavailable');
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'agent-unavailable',
+        });
         expect(result.reason).toContain('agent-unavailable');
         expect(result.finding.finding_type).toBe('needs_triage');
       }
@@ -357,7 +361,10 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.pass2FailureCategory).toBe('invalid-output');
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'invalid-output',
+        });
       }
     });
 
@@ -373,8 +380,39 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.pass2FailureCategory).toBe('transient');
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'transient',
+        });
       }
+      // The Document still moves to needs_triage (durable wait, ADR-0024).
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+  });
+
+  // ── (c') Pass-1 (OCR) failure routes through the SAME seam ────
+  describe('process — Pass-1 (OCR) failure', () => {
+    it('routes needs_triage with a pass=ocr failure and never calls classify', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: false,
+        category: 'transient',
+        detail: 'stored artifact file is missing',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({ pass: 'ocr', category: 'transient' });
+        expect(result.reason).toContain('transient');
+        expect(result.finding.finding_type).toBe('needs_triage');
+      }
+      // Pass 2 must NOT run when Pass 1 failed — the failure short-circuits.
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+
       // The Document still moves to needs_triage (durable wait, ADR-0024).
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('needs_triage');

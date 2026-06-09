@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OcrService } from '../triage/ocr.service';
+import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
 import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
 import {
   ProposeDraftService,
@@ -23,6 +23,17 @@ export function unimplementedKindReason(
 }
 
 /**
+ * Which pass failed, and why, when a needs_triage route was driven by a typed
+ * pass failure. The two intake passes — Pass 1 (OCR transcription) and Pass 2
+ * (agent classification) — surface failures through the SAME shape, so the
+ * workflow (and downstream observers) can tell a transcription fault from a
+ * classification fault with one discriminant (ADR-0024).
+ */
+export type IntakeFailure =
+  | { pass: 'ocr'; category: OcrFailureCategory }
+  | { pass: 'classify'; category: Pass2FailureCategory };
+
+/**
  * Outcome when the workflow routes to human triage.
  */
 export interface NeedsTriageOutcome {
@@ -30,12 +41,12 @@ export interface NeedsTriageOutcome {
   reason: string;
   finding: AuditFinding;
   /**
-   * When the route was driven by a Pass-2 failure, the explicit category
-   * (agent-unavailable | invalid-output | transient). Absent for routes driven
-   * by a valid-but-unactionable classification (low confidence, unknown,
-   * correction, duplicate).
+   * When the route was driven by a typed pass failure, which pass failed and
+   * its explicit category. Absent for routes driven by a valid-but-unactionable
+   * classification (low confidence, unknown, correction, duplicate,
+   * supplier-unresolved).
    */
-  pass2FailureCategory?: Pass2FailureCategory;
+  failure?: IntakeFailure;
 }
 
 /**
@@ -111,8 +122,25 @@ export class IntakeWorkflowService {
       // (a partially-applied legacy state). New work is still guarded below.
     }
 
-    // ── Pass 1: OCR → markdown ──────────────────────────────────
-    const markdown = await this.ocrService.transcribe(documentId);
+    // ── Pass 1: OCR → markdown | typed failure ──────────────────
+    const ocr = await this.ocrService.transcribe(documentId);
+
+    if (!ocr.ok) {
+      // Transcription failed (provider down, unreadable doc, IO blip). Route to
+      // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
+      // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
+      // short-circuited: there is no markdown to classify.
+      this.logger.warn(
+        `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
+      );
+      return this.routeNeedsTriage(
+        documentId,
+        `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
+        { pass: 'ocr', category: ocr.category },
+      );
+    }
+
+    const markdown = ocr.markdown;
     this.logger.debug(`Pass 1 complete for document ${documentId}`);
 
     // ── Pass 2: Agent → TriageResult | typed failure ────────────
@@ -127,7 +155,7 @@ export class IntakeWorkflowService {
       return this.routeNeedsTriage(
         documentId,
         `AI classification failed (${pass2.category}): ${pass2.detail}`,
-        pass2.category,
+        { pass: 'classify', category: pass2.category },
       );
     }
 
@@ -227,7 +255,7 @@ export class IntakeWorkflowService {
   private async routeNeedsTriage(
     documentId: number,
     reason: string,
-    pass2FailureCategory?: Pass2FailureCategory,
+    failure?: IntakeFailure,
   ): Promise<NeedsTriageOutcome> {
     // Deterministic idempotency guard: reuse an existing open finding.
     let finding = await this.auditFindings.findOpenByReference(
@@ -248,7 +276,7 @@ export class IntakeWorkflowService {
 
     await this.transitionDocument(documentId, 'needs_triage');
 
-    return { status: 'needs_triage', reason, finding, pass2FailureCategory };
+    return { status: 'needs_triage', reason, finding, failure };
   }
 
   /**
