@@ -11,6 +11,7 @@ import { migrations } from '../../database/migrations';
 import { OrganizationService } from '../../organization/organization.service';
 import { PluginLoader } from '../../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../../plugins/estonia-country.plugin';
 import { CurrencyService } from '../../currency/currency.service';
 import { AccountService } from '../account/account.service';
 import { LedgerValidationService } from '../validation/ledger-validation.service';
@@ -66,6 +67,7 @@ describe('Posting seam consolidation (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         OrganizationService,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
         AccountService,

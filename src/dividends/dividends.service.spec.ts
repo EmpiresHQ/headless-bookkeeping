@@ -16,6 +16,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 import {
   CountryPlugin,
@@ -73,6 +74,7 @@ describe('DividendsService (integration)', () => {
         PluginLoader,
         CurrencyService,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         { provide: COUNTRY_PLUGIN_TOKEN, useExisting: NullCountryPlugin },
         DividendsService,
       ],
@@ -376,6 +378,7 @@ describe('DividendsService (integration)', () => {
           PluginLoader,
           CurrencyService,
           NullCountryPlugin,
+          EstoniaCountryPlugin,
           MockWithholdingPlugin,
           { provide: COUNTRY_PLUGIN_TOKEN, useClass: MockWithholdingPlugin },
           DividendsService,

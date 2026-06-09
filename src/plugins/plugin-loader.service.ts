@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CountryPlugin } from './country-plugin.interface';
 import { NullCountryPlugin } from './null-country.plugin';
+import { EstoniaCountryPlugin } from './estonia-country.plugin';
 
 /**
  * PluginLoader - Resolves country-specific plugins by country code.
@@ -25,10 +26,14 @@ export class PluginLoader {
    */
   private readonly warnedUnknownCodes: Set<string> = new Set();
 
-  constructor(private readonly nullPlugin: NullCountryPlugin) {
+  constructor(
+    private readonly nullPlugin: NullCountryPlugin,
+    private readonly estoniaPlugin: EstoniaCountryPlugin,
+  ) {
     // Register the null plugin as the default fallback.
     // Real country plugins will be registered here as they are implemented.
     this.plugins.set('null', this.nullPlugin);
+    this.plugins.set('EE', this.estoniaPlugin);
   }
 
   /**
