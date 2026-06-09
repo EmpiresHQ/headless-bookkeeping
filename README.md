@@ -285,6 +285,31 @@ npm run test:e2e    # end-to-end tests in ./test
 
 The full catalog of configurable knobs (env vars, org settings, policy thresholds, LLM profiles, channels, feature flags) is documented in [`docs/CONFIG.md`](./docs/CONFIG.md). Key env vars: `PORT`, `NODE_ENV`, `DATA_DIR`, and (planned) `COUNTRY_PLUGIN`, `ORG_COUNTRY`, `ORG_VAT_REGISTERED`, `BASE_CURRENCY`, `DEV_AGENT_ENABLED`.
 
+### Admin CLI
+
+A small CLI (yargs) bootstraps a deployment without curl — mint API tokens, set
+the organization, open the first reporting period. It boots a minimal context
+(no HTTP/AI) against the same `./data/app.sqlite`. In the production image it's
+on `PATH` as `cli`; locally use `node dist/cli.js` (after `npm run build`).
+
+```bash
+# in the running container:
+docker compose exec app cli token create --label agent   # prints the token to stdout
+docker compose exec app cli token list                   # id, label, created_at, revoked_at (no secrets)
+docker compose exec app cli token revoke <id>
+
+docker compose exec app cli org show
+docker compose exec app cli org set --country DK --org-type company --vat-registered --base-currency DKK
+
+docker compose exec app cli period open --name FY2026 --start 2026-01-01 --end 2026-12-31
+docker compose exec app cli period list
+```
+
+`create` prints only the 64-char token to **stdout** (notes go to stderr), so
+`TOKEN=$(docker compose exec -T app cli token create --label agent)` captures
+just the token. `org set` changes only the flags you pass (`--base-currency ""`
+clears the override).
+
 ---
 
 ## 🧰 Tech stack
