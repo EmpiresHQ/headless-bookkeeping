@@ -3,15 +3,21 @@ import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { hideBin } from 'yargs/helpers';
 import { AuthModule } from './auth/auth.module';
+import { OrganizationModule } from './organization/organization.module';
+import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.module';
 import { ApiTokenService } from './auth/api-token.service';
-import { buildTokenCli } from './cli/token-cli';
+import { OrganizationService } from './organization/organization.service';
+import { ReportingPeriodsService } from './reporting-periods/reporting-periods.service';
+import { buildCli } from './cli/cli';
 
 /**
- * Minimal module for the CLI — just AuthModule (which pulls DatabaseModule, so
- * migrations run and the same ./data/app.sqlite is used). Avoids booting the
- * HTTP server, AI runtime and schedulers.
+ * Minimal module for the CLI — the DB-backed modules the commands need (each
+ * pulls DatabaseModule, so migrations run and the same ./data/app.sqlite is
+ * used). Avoids booting the HTTP server, AI runtime and schedulers.
  */
-@Module({ imports: [AuthModule] })
+@Module({
+  imports: [AuthModule, OrganizationModule, ReportingPeriodsModule],
+})
 class CliModule {}
 
 async function main(): Promise<void> {
@@ -24,11 +30,17 @@ async function main(): Promise<void> {
     logger: ['error'],
   });
   try {
-    const tokens = app.get(ApiTokenService);
-    await buildTokenCli(tokens, {
-      out: (s) => process.stdout.write(s),
-      err: (s) => process.stderr.write(s),
-    }).parseAsync(hideBin(process.argv));
+    await buildCli(
+      {
+        tokens: app.get(ApiTokenService),
+        organization: app.get(OrganizationService),
+        periods: app.get(ReportingPeriodsService),
+      },
+      {
+        out: (s) => process.stdout.write(s),
+        err: (s) => process.stderr.write(s),
+      },
+    ).parseAsync(hideBin(process.argv));
   } catch {
     // yargs surfaced a usage/validation error (already written to stderr).
     process.exitCode = 1;
