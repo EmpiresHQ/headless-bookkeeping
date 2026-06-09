@@ -25,6 +25,10 @@ import {
   CrossBorderResolution,
   VATCode,
 } from '../plugins/country-plugin.interface';
+import {
+  ExpenseTreatmentPreview,
+  VatComputation,
+} from '../plugins/country-plugin-retrieval.interface';
 import { DividendsService, COUNTRY_PLUGIN_TOKEN } from './dividends.service';
 
 /**
@@ -322,6 +326,38 @@ describe('DividendsService (integration)', () => {
         _orgContext: OrgContext,
       ): boolean {
         return true;
+      }
+      getVatRate(_vatCode: string): number {
+        return 0;
+      }
+      computeVat(netMinorUnits: number, _vatCode: string): VatComputation {
+        return {
+          netMinorUnits,
+          vatMinorUnits: 0,
+          grossMinorUnits: netMinorUnits,
+          rate: 0,
+        };
+      }
+      previewExpenseTreatment(
+        _category: string,
+        _supplierFacts: SupplierFacts,
+        _orgContext: OrgContext,
+      ): ExpenseTreatmentPreview {
+        return {
+          accountCode: 'EXPENSE_OTHER',
+          vatCode: NULL_VAT_CODE,
+          rate: 0,
+          treatment: 'domestic',
+        };
+      }
+      getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
+        return null;
+      }
+      resolveDistributionTax(
+        _netToOwner: number,
+        _orgContext: OrgContext,
+      ): { accountCode: string; amount: number } | null {
+        return null;
       }
     }
 

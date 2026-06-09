@@ -7,6 +7,10 @@ import {
   SupplierFacts,
   VATCode,
 } from './country-plugin.interface';
+import {
+  ExpenseTreatmentPreview,
+  VatComputation,
+} from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
 /**
@@ -153,5 +157,56 @@ export class NullCountryPlugin implements CountryPlugin {
     }
     // Always return true — soft check only.
     return true;
+  }
+
+  getVatRate(vatCode: string): number {
+    const rates: Record<string, number> = {
+      IE_INPUT_23: 0.23,
+      IE_OUTPUT_23: 0.23,
+    };
+    return rates[vatCode] ?? 0;
+  }
+
+  computeVat(netMinorUnits: number, vatCode: string): VatComputation {
+    const rate = this.getVatRate(vatCode);
+    const vatMinorUnits = Math.round(netMinorUnits * rate);
+    return {
+      netMinorUnits,
+      vatMinorUnits,
+      grossMinorUnits: netMinorUnits + vatMinorUnits,
+      rate,
+    };
+  }
+
+  previewExpenseTreatment(
+    category: string,
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+  ): ExpenseTreatmentPreview {
+    const mapping = this.resolveCategoryMapping(
+      category,
+      supplierFacts,
+      orgContext,
+    );
+    const cross = this.resolveCrossBorderTreatment(supplierFacts, orgContext, {
+      vatCharged: true,
+    });
+    return {
+      accountCode: mapping.accountCode,
+      vatCode: mapping.vatCode,
+      rate: this.getVatRate(mapping.vatCode),
+      treatment: cross.treatment,
+    };
+  }
+
+  getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
+    return null;
+  }
+
+  resolveDistributionTax(
+    _netToOwner: number,
+    _orgContext: OrgContext,
+  ): { accountCode: string; amount: number } | null {
+    return null;
   }
 }
