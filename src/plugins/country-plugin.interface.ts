@@ -1,4 +1,4 @@
-import { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
+import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
 
 export type {
   VatComputation,
