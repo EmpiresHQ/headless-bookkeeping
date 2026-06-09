@@ -49,15 +49,20 @@ Lock the node down with tailnet ACLs.
 
 ## 4. One-time setup on the VPS
 
+The deploy job scp's the config **flat into `DEPLOY_PATH`** (it strips the
+`deploy/` prefix), so on the VPS the files live directly there:
+`DEPLOY_PATH/docker-compose.yml`, `DEPLOY_PATH/Caddyfile`,
+`DEPLOY_PATH/caddy/Dockerfile`, and your `DEPLOY_PATH/.env` + `DEPLOY_PATH/data`.
+
 ```bash
-sudo mkdir -p /opt/headless-bookkeeping/deploy        # = DEPLOY_PATH
+sudo mkdir -p /opt/headless-bookkeeping        # = DEPLOY_PATH
 cd /opt/headless-bookkeeping
-# create deploy/.env from the template and fill it in:
+# create .env from the template and fill it in:
 #   SITE_DOMAIN, CF_API_TOKEN, TS_AUTHKEY, DOCKER_IMAGE  (APP_UPSTREAM=localhost:3000)
-$EDITOR deploy/.env
+$EDITOR .env
 ```
-The CI deploy job scp's the rest of `deploy/` and runs compose. `deploy/.env`,
-`data/` and named volumes persist on the box and are never overwritten.
+`.env`, `data/` and named volumes persist on the box and are never overwritten
+by deploys.
 
 ## 5. Continuous deployment (GitHub Actions)
 
@@ -74,7 +79,7 @@ Add these repo secrets (the `DOCKER_*` ones already exist):
 | `VPS_USER` | SSH user |
 | `VPS_SSH_KEY` | private SSH key (PEM) authorized on the VPS |
 | `VPS_PORT` | SSH port (optional, default 22) |
-| `DEPLOY_PATH` | dir holding `deploy/.env`, e.g. `/opt/headless-bookkeeping` |
+| `DEPLOY_PATH` | dir holding `.env` (config lands flat here), e.g. `/opt/headless-bookkeeping` |
 | `DOCKER_IMAGE` / `DOCKER_USERNAME` / `DOCKER_PASSWORD` | registry (already set) |
 
 **Self-hosted registry:** the deploy job reuses the same `DOCKER_*` secrets as
@@ -86,11 +91,11 @@ GitHub-hosted runner that pushes to it. (Only if the registry were
 tailnet/private-only would the VPS *host* need Tailscale — not the case here.)
 
 First release: push to `main` (or run the workflow via *Run workflow*). To deploy
-by hand instead:
+by hand instead (from `DEPLOY_PATH`, where the files landed flat):
 ```bash
 cd $DEPLOY_PATH
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
-docker compose -f deploy/docker-compose.yml logs -f
+docker compose -f docker-compose.yml --env-file .env up -d --build
+docker compose -f docker-compose.yml logs -f
 ```
 Health: `curl https://$SITE_DOMAIN/health` → `{"status":"ok"}`.
 
@@ -98,8 +103,8 @@ Health: `curl https://$SITE_DOMAIN/health` → `{"status":"ok"}`.
 
 Migrations run on boot (seed org + chart of accounts). Then:
 ```bash
-# one-time bootstrap token from the logs:
-docker compose -f deploy/docker-compose.yml logs app | grep "INIT API TOKEN"
+# one-time bootstrap token from the logs (run from DEPLOY_PATH):
+docker compose logs app | grep "INIT API TOKEN"
 # mint a real operator/agent token (A1), store it in your secret manager:
 curl -H "Authorization: Bearer <init-token>" -H 'Content-Type: application/json' \
   -X POST https://$SITE_DOMAIN/admin/tokens -d '{"label":"agent"}'
@@ -122,9 +127,9 @@ Use **Litestream** (continuous SQLite replication to S3/R2) or periodic
 ## 9. Ops
 
 ```bash
-docker compose -f deploy/docker-compose.yml logs -f
-docker compose -f deploy/docker-compose.yml restart app
+cd $DEPLOY_PATH
+docker compose logs -f
+docker compose restart app
 # manual update (CI does this automatically on push to main):
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env pull app && \
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+docker compose --env-file .env pull app && docker compose --env-file .env up -d
 ```

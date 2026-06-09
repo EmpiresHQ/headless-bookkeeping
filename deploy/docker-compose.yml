@@ -67,8 +67,8 @@ services:
       - NODE_ENV=production
     volumes:
       # Hash-chained ledger (app.sqlite) + uploaded documents. The ONE thing to
-      # back up. Keep it on a real/persistent disk.
-      - ../data:/app/data
+      # back up. Resolved next to this compose file → DEPLOY_PATH/data on the VPS.
+      - ./data:/app/data
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s

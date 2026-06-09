@@ -1,3 +1,4 @@
 # Secrets / local state — never commit
 .env
 certs/
+data/
