@@ -87,8 +87,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Sync the deploy/ config to the VPS so the compose/Caddyfile stay current.
-      # The persistent deploy/.env, certs and data on the VPS are NOT touched.
+      # Sync the deploy/ config to the VPS so the compose stays current.
+      # The persistent deploy/.env and data on the VPS are NOT touched.
       - name: Copy deploy config to the VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -99,8 +99,7 @@ jobs:
           source: deploy/docker-compose.yml,deploy/Caddyfile,deploy/caddy/Dockerfile,deploy/README.md,deploy/.env.example
           target: ${{ secrets.DEPLOY_PATH }}
           # Strip the leading `deploy/` so files land flat in DEPLOY_PATH
-          # (DEPLOY_PATH/docker-compose.yml, DEPLOY_PATH/caddy/Dockerfile, …),
-          # matching the remote script below.
+          # (DEPLOY_PATH/docker-compose.yml, …), matching the remote script below.
           strip_components: 1
 
       - name: Pull image & restart on the VPS
@@ -122,7 +121,7 @@ jobs:
             dc() { docker compose -f docker-compose.yml --env-file .env "$@"; }
             dc pull app
             dc up -d --build --remove-orphans
-            # Apply any Caddyfile changes without dropping the connection.
+            # Apply any Caddyfile changes without recreating the container.
             dc exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true
             docker image prune -f
         env:
