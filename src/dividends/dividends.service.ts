@@ -98,14 +98,22 @@ export class DividendsService {
     const withholdingAmount = Math.round(dto.gross_amount * withholdingRate);
     const netPayable = dto.gross_amount - withholdingAmount;
 
+    // ── Company-level distribution tax on top (plugin-driven) ────────
+    // Distinct from withholding: this is a tax paid BY the company on top of the
+    // dividend (e.g. Estonia CIT 22/78 of net). Returns null for IE/Null/DK.
+    const distTax = this.plugin.resolveDistributionTax(netPayable, orgContext);
+    const distTaxAmount = distTax?.amount ?? 0;
+    // The retained-earnings debit equals the total equity hit: gross + on-top tax.
+    const retainedDebit = dto.gross_amount + distTaxAmount;
+
     // ── Build declaration voucher lines (all in base currency) ───────
     const lines: DraftVoucher['lines'] = [
-      // Dr RETAINED_EARNINGS (gross)
+      // Dr RETAINED_EARNINGS (gross + distTax)
       {
         account_code: RETAINED_EARNINGS,
-        amount: dto.gross_amount,
+        amount: retainedDebit,
         currency: baseCurrency,
-        base_amount: dto.gross_amount,
+        base_amount: retainedDebit,
         fx_rate: 1.0,
         is_debit: true,
       },
@@ -127,6 +135,18 @@ export class DividendsService {
         amount: withholdingAmount,
         currency: baseCurrency,
         base_amount: withholdingAmount,
+        fx_rate: 1.0,
+        is_debit: false,
+      });
+    }
+
+    // If company-level distribution tax applies, add its payable line.
+    if (distTax && distTaxAmount > 0) {
+      lines.push({
+        account_code: distTax.accountCode,
+        amount: distTaxAmount,
+        currency: baseCurrency,
+        base_amount: distTaxAmount,
         fx_rate: 1.0,
         is_debit: false,
       });

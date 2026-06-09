@@ -454,4 +454,212 @@ describe('DividendsService (integration)', () => {
       expect(result.gross_amount).toBe(50000);
     });
   });
+
+  // ── Distribution tax on top (EE-style 22/78) ────────────────────────
+
+  describe('distribution tax on top', () => {
+    let module: TestingModule;
+    let eeDividendsService: DividendsService;
+
+    /**
+     * Mock plugin simulating EE distribution-tax behaviour:
+     *   - No withholding (rate = 0)
+     *   - resolveDistributionTax → DISTRIBUTION_TAX_PAYABLE, round(net*22/78)
+     *   - assertDistributable always true (cap enforced externally in real EE plugin)
+     */
+    class MockDistributionTaxPlugin implements CountryPlugin {
+      getName(): string {
+        return 'mock-dist-tax';
+      }
+      getVATCodes(): VATCode[] {
+        return [NULL_VAT_CODE];
+      }
+      resolveCategoryMapping(
+        _category: string,
+        _supplierFacts: SupplierFacts,
+        _orgContext: OrgContext,
+      ): CategoryMappingResult {
+        return { accountCode: 'EXPENSE_OTHER', vatCode: NULL_VAT_CODE };
+      }
+      getPeriodFrequencyOptions(): string[] {
+        return ['monthly'];
+      }
+      getDefaultPeriodFrequency(): string {
+        return 'monthly';
+      }
+      getDefaultBaseCurrency(): string {
+        return 'EUR';
+      }
+      getReferenceRate(
+        fromCurrency: string,
+        toCurrency: string,
+        _date: string,
+      ): number {
+        if (fromCurrency === toCurrency) return 1.0;
+        throw new Error('Cross-currency not supported');
+      }
+      roundToBaseMinorUnits(amount: number): number {
+        return Math.round(amount);
+      }
+      validateVATCode(
+        vatCode: string,
+        _context: { supplier: SupplierFacts; org: OrgContext },
+      ): boolean {
+        return vatCode === NULL_VAT_CODE;
+      }
+      resolvePersonalDispositionAccount(orgType: string): string {
+        return orgType === 'sole_proprietor'
+          ? 'OWNERS_DRAWINGS'
+          : 'SHAREHOLDER_LOAN';
+      }
+      resolveCrossBorderTreatment(
+        _supplierFacts: SupplierFacts,
+        _orgContext: OrgContext,
+        _context: { vatCharged: boolean },
+      ): CrossBorderResolution {
+        return { treatment: 'domestic', vatCode: NULL_VAT_CODE };
+      }
+      dividendWithholdingRate(_orgContext: OrgContext): number {
+        return 0.0; // EE has no withholding
+      }
+      assertDistributable(
+        _grossAmount: number,
+        _retainedEarnings: number,
+        _orgContext: OrgContext,
+      ): boolean {
+        return true; // cap always passes in mock; EE plugin adds its own logic
+      }
+      getVatRate(_vatCode: string): number {
+        return 0;
+      }
+      computeVat(netMinorUnits: number, _vatCode: string): VatComputation {
+        return {
+          netMinorUnits,
+          vatMinorUnits: 0,
+          grossMinorUnits: netMinorUnits,
+          rate: 0,
+        };
+      }
+      previewExpenseTreatment(
+        _category: string,
+        _supplierFacts: SupplierFacts,
+        _orgContext: OrgContext,
+      ): ExpenseTreatmentPreview {
+        return {
+          accountCode: 'EXPENSE_OTHER',
+          vatCode: NULL_VAT_CODE,
+          rate: 0,
+          treatment: 'domestic',
+        };
+      }
+      getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
+        return null;
+      }
+      resolveDistributionTax(
+        netToOwner: number,
+        _orgContext: OrgContext,
+      ): { accountCode: string; amount: number } | null {
+        return {
+          accountCode: 'DISTRIBUTION_TAX_PAYABLE',
+          amount: Math.round((netToOwner * 22) / 78),
+        };
+      }
+    }
+
+    beforeEach(async () => {
+      module = await Test.createTestingModule({
+        providers: [
+          { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+          AccountService,
+          LedgerBalanceService,
+          LedgerValidationService,
+          PostingService,
+          PeriodLockService,
+          BankTransactionRepository,
+          BankStatementService,
+          OrganizationService,
+          PluginLoader,
+          CurrencyService,
+          NullCountryPlugin,
+          EstoniaCountryPlugin,
+          MockDistributionTaxPlugin,
+          {
+            provide: COUNTRY_PLUGIN_TOKEN,
+            useClass: MockDistributionTaxPlugin,
+          },
+          DividendsService,
+        ],
+      }).compile();
+
+      eeDividendsService = module.get(DividendsService);
+
+      // Seed retained earnings: post a revenue entry so distributable profits
+      // comfortably exceed gross + distribution tax (128205).
+      // We post a manual voucher: Cr REVENUE / Dr AR for 200000 cents = €2000.
+      const postingService = module.get(PostingService);
+      await postingService.postVoucher({
+        tax_point_date: '2026-01-01',
+        reason: 'Seed revenue for EE distribution-tax test',
+        lines: [
+          {
+            account_code: 'AR',
+            amount: 200000,
+            currency: 'EUR',
+            base_amount: 200000,
+            fx_rate: 1.0,
+            is_debit: true,
+          },
+          {
+            account_code: 'REVENUE',
+            amount: 200000,
+            currency: 'EUR',
+            base_amount: 200000,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+        ],
+      });
+    });
+
+    it('books distribution tax on top: Dr RETAINED_EARNINGS (net+tax) / Cr DIVIDEND_PAYABLE (net) / Cr DISTRIBUTION_TAX_PAYABLE (tax)', async () => {
+      // gross 100000, withholding 0 → net 100000
+      // distTax = round(100000 * 22 / 78) = 28205
+      // retainedDebit = 100000 + 28205 = 128205
+      const result = await eeDividendsService.declare({
+        gross_amount: 100000,
+        tax_point_date: '2026-06-15',
+      });
+
+      const lines = await db
+        .selectFrom('voucher_line')
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select([
+          'account.code',
+          'voucher_line.base_amount',
+          'voucher_line.is_debit',
+        ])
+        .where('voucher_line.voucher_id', '=', result.voucher_id)
+        .execute();
+
+      const re = lines.find((l) => l.code === 'RETAINED_EARNINGS');
+      const pay = lines.find((l) => l.code === 'DIVIDEND_PAYABLE');
+      const tax = lines.find((l) => l.code === 'DISTRIBUTION_TAX_PAYABLE');
+
+      // RETAINED_EARNINGS debit = gross + distTax
+      expect(re).toBeDefined();
+      expect(re!.is_debit).toBe(1);
+      expect(re!.base_amount).toBe(128205);
+
+      // DIVIDEND_PAYABLE credit = net to owner (no withholding)
+      expect(pay).toBeDefined();
+      expect(pay!.base_amount).toBe(100000);
+
+      // DISTRIBUTION_TAX_PAYABLE credit = distTax
+      expect(tax).toBeDefined();
+      expect(tax!.base_amount).toBe(28205);
+
+      // Balance: debit === sum of credits
+      expect(re!.base_amount).toBe(pay!.base_amount + tax!.base_amount);
+    });
+  });
 });
