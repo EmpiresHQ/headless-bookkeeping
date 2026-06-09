@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -58,6 +62,24 @@ export class ExpensesService {
     }
 
     return this.mapRow(row);
+  }
+
+  /**
+   * Delete an expense — ONLY while it is a `draft` (no approval, no posted
+   * voucher). A `pending`/`posted`/`reversed` expense is never deleted: a
+   * posted voucher is immutable (correct via reversal), and a pending one must
+   * have its approval rejected first. Lets an operator clear probe/junk drafts.
+   */
+  async deleteDraft(id: number): Promise<Expense> {
+    const expense = await this.getExpenseById(id);
+    if (expense.status !== 'draft') {
+      throw new ConflictException(
+        `Expense ${id} is ${expense.status}; only a draft expense can be deleted ` +
+          `(a posted voucher is immutable — correct via reversal; reject a pending approval first).`,
+      );
+    }
+    await this.db.deleteFrom('expense').where('id', '=', id).execute();
+    return expense;
   }
 
   async generateDraftVoucher(expenseId: number): Promise<DraftVoucher> {

@@ -339,4 +339,50 @@ describe('Entity aggregate (integration)', () => {
       expect(result.customer_id).toBe(customer.id);
     });
   });
+
+  describe('delete', () => {
+    it('removes an unreferenced entity', async () => {
+      const e = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'OpenRouter',
+        registrationKey: 'US-OR-1',
+      });
+      await entitiesService.delete(e.id);
+      expect(await entitiesService.list()).toHaveLength(0);
+    });
+
+    it('refuses to delete a referenced entity', async () => {
+      const e = await entitiesService.onboard({
+        role: 'customer',
+        country: 'DK',
+        name: 'VERIFI',
+        registrationKey: 'DK45960617',
+      });
+      await db
+        .insertInto('sales_invoice')
+        .values({
+          customer_id: e.id,
+          invoice_number: 'INV-REF',
+          gross_amount: 615700,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-31',
+          due_date: null,
+          status: 'draft',
+          voucher_id: null,
+          sent_at: null,
+          created_at: 0,
+          updated_at: 0,
+        })
+        .execute();
+      await expect(entitiesService.delete(e.id)).rejects.toThrow(/referenced/i);
+    });
+
+    it('throws NotFound for a missing id', async () => {
+      await expect(entitiesService.delete(9999)).rejects.toThrow(
+        'Entity 9999 not found',
+      );
+    });
+  });
 });

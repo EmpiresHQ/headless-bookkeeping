@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -62,6 +66,23 @@ export class SalesInvoicesService {
     }
 
     return this.mapRow(row);
+  }
+
+  /**
+   * Delete a sales invoice — ONLY while it is a `draft` (no approval, no posted
+   * voucher). A posted invoice's voucher is immutable (correct via reversal);
+   * a pending one must have its approval rejected first. Clears probe/junk drafts.
+   */
+  async deleteDraft(id: number): Promise<SalesInvoice> {
+    const invoice = await this.getInvoiceById(id);
+    if (invoice.status !== 'draft') {
+      throw new ConflictException(
+        `SalesInvoice ${id} is ${invoice.status}; only a draft invoice can be deleted ` +
+          `(a posted voucher is immutable — correct via reversal; reject a pending approval first).`,
+      );
+    }
+    await this.db.deleteFrom('sales_invoice').where('id', '=', id).execute();
+    return invoice;
   }
 
   async generateDraftVoucher(id: number): Promise<DraftVoucher> {

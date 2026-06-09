@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   ParseIntPipe,
@@ -50,5 +51,11 @@ export class EntitiesController {
     @Body() dto: AddAliasDto,
   ): Promise<EntityIdentifier> {
     return this.entitiesService.addAlias(id, dto);
+  }
+
+  /** DELETE /api/entities/:id — remove an unreferenced entity (cleanup). */
+  @Delete(':id')
+  async delete(@Param('id', ParseIntPipe) id: number): Promise<Entity> {
+    return this.entitiesService.delete(id);
   }
 }

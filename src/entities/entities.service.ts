@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -163,6 +167,46 @@ export class EntitiesService {
 
     const identifiers = await this.getIdentifiers(entity.id);
     return { ...this.mapEntity(entity), identifiers };
+  }
+
+  /**
+   * Delete an entity (and its identifiers) — ONLY if nothing references it
+   * (no expense.supplier_id / sales_invoice.customer_id). Lets an operator
+   * clear probe/junk counterparties; a referenced one is refused so the books
+   * never dangle.
+   */
+  async delete(id: number): Promise<Entity> {
+    const found = await this.findById(id); // 404s if unknown
+
+    const refExpense = await this.db
+      .selectFrom('expense')
+      .select('id')
+      .where('supplier_id', '=', id)
+      .limit(1)
+      .executeTakeFirst();
+    const refInvoice = await this.db
+      .selectFrom('sales_invoice')
+      .select('id')
+      .where('customer_id', '=', id)
+      .limit(1)
+      .executeTakeFirst();
+    if (refExpense || refInvoice) {
+      throw new ConflictException(
+        `Entity ${id} (${found.name}) is referenced by an expense/invoice — cannot delete.`,
+      );
+    }
+
+    await this.db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom('entity_identifier')
+        .where('entity_id', '=', id)
+        .execute();
+      await trx.deleteFrom('entity').where('id', '=', id).execute();
+    });
+
+    const { identifiers: _ignore, ...entity } = found;
+    void _ignore;
+    return entity;
   }
 
   async list(): Promise<Entity[]> {

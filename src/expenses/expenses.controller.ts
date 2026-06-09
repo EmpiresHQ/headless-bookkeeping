@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
@@ -27,6 +27,12 @@ export class ExpensesController {
   @Get(':id')
   async getExpense(@Param('id') id: string): Promise<Expense> {
     return this.expensesService.getExpenseById(Number(id));
+  }
+
+  /** Delete a draft expense (probe/junk cleanup). Non-draft → 409. */
+  @Delete(':id')
+  async deleteExpense(@Param('id') id: string): Promise<Expense> {
+    return this.expensesService.deleteDraft(Number(id));
   }
 
   @Post(':id/generate-draft')

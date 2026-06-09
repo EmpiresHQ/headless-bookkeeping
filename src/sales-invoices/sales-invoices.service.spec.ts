@@ -172,4 +172,24 @@ describe('SalesInvoicesService (integration)', () => {
     expect(revenueLine?.account_code).toBe('REVENUE');
     expect(revenueLine?.vat_code).toBe('IE_OUTPUT_23');
   });
+
+  describe('deleteDraft', () => {
+    it('removes a draft invoice', async () => {
+      const invoice = await service.createInvoice(createDto());
+      await service.deleteDraft(invoice.id);
+      expect(await service.getInvoices()).toHaveLength(0);
+    });
+
+    it('refuses to delete a non-draft invoice', async () => {
+      const invoice = await service.createInvoice(createDto());
+      await db
+        .updateTable('sales_invoice')
+        .set({ status: 'pending' })
+        .where('id', '=', invoice.id)
+        .execute();
+      await expect(service.deleteDraft(invoice.id)).rejects.toThrow(
+        /only a draft/i,
+      );
+    });
+  });
 });
