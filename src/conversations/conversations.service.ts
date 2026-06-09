@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
@@ -23,6 +24,8 @@ import {
 
 @Injectable()
 export class ConversationsService {
+  private readonly logger = new Logger(ConversationsService.name);
+
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
 
   /**
@@ -31,7 +34,7 @@ export class ConversationsService {
    */
   async resolve(input: ResolveInput): Promise<Conversation> {
     const { channel, thread_key } = input;
-    const now = Math.floor(Date.now() / 1000);
+    const now = this.now();
 
     const existing = await this.db
       .selectFrom('conversation')
@@ -43,8 +46,8 @@ export class ConversationsService {
     if (existing) {
       // Reopen if closed — log the transition.
       if (existing.status === 'closed') {
-        console.log(
-          `[Conversation] Reopening closed conversation ${existing.id} ` +
+        this.logger.log(
+          `Reopening closed conversation ${existing.id} ` +
             `(channel=${channel}, thread_key=${thread_key})`,
         );
         const updated = await this.db
@@ -87,17 +90,9 @@ export class ConversationsService {
       threading_keys,
       dkim_spf_pass,
     } = input;
-    const now = Math.floor(Date.now() / 1000);
+    const now = this.now();
 
-    // Verify conversation exists.
-    const conv = await this.db
-      .selectFrom('conversation')
-      .select('id')
-      .where('id', '=', conversation_id)
-      .executeTakeFirst();
-    if (!conv) {
-      throw new NotFoundException(`Conversation ${conversation_id} not found`);
-    }
+    await this.assertConversationExists(conversation_id);
 
     const row = await this.db
       .insertInto('message')
@@ -129,17 +124,9 @@ export class ConversationsService {
    */
   async attachArtifact(input: AttachArtifactInput): Promise<Artifact> {
     const { conversation_id, kind, storage_path, document_id } = input;
-    const now = Math.floor(Date.now() / 1000);
+    const now = this.now();
 
-    // Verify conversation exists.
-    const conv = await this.db
-      .selectFrom('conversation')
-      .select('id')
-      .where('id', '=', conversation_id)
-      .executeTakeFirst();
-    if (!conv) {
-      throw new NotFoundException(`Conversation ${conversation_id} not found`);
-    }
+    await this.assertConversationExists(conversation_id);
 
     const row = await this.db
       .insertInto('artifact')
@@ -169,15 +156,7 @@ export class ConversationsService {
   async associate(input: AssociateInput): Promise<void> {
     const { conversation_id, object_type, object_id } = input;
 
-    // Verify conversation exists.
-    const conv = await this.db
-      .selectFrom('conversation')
-      .select('id')
-      .where('id', '=', conversation_id)
-      .executeTakeFirst();
-    if (!conv) {
-      throw new NotFoundException(`Conversation ${conversation_id} not found`);
-    }
+    await this.assertConversationExists(conversation_id);
 
     // Idempotent insert (ON CONFLICT do nothing).
     await this.db
@@ -197,15 +176,7 @@ export class ConversationsService {
   async associateDocument(input: AssociateDocumentInput): Promise<void> {
     const { conversation_id, document_id } = input;
 
-    // Verify conversation exists.
-    const conv = await this.db
-      .selectFrom('conversation')
-      .select('id')
-      .where('id', '=', conversation_id)
-      .executeTakeFirst();
-    if (!conv) {
-      throw new NotFoundException(`Conversation ${conversation_id} not found`);
-    }
+    await this.assertConversationExists(conversation_id);
 
     // Idempotent insert.
     await this.db
@@ -220,7 +191,7 @@ export class ConversationsService {
    * Allowed only when all associated in-flight business objects are terminal (posted/rejected).
    */
   async close(conversation_id: number): Promise<Conversation> {
-    const now = Math.floor(Date.now() / 1000);
+    const now = this.now();
 
     // Verify conversation exists and is open.
     const conv = await this.db
@@ -373,6 +344,27 @@ export class ConversationsService {
   }
 
   // --- Private helpers ---
+
+  /** Current Unix time in seconds — the single clock source for this module. */
+  private now(): number {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  /**
+   * Assert a Conversation exists, throwing NotFoundException if not. The shared
+   * existence guard for the append/attach/associate mutations (close() and
+   * resolve() read the full row themselves, so they do not use this).
+   */
+  private async assertConversationExists(id: number): Promise<void> {
+    const conv = await this.db
+      .selectFrom('conversation')
+      .select('id')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!conv) {
+      throw new NotFoundException(`Conversation ${id} not found`);
+    }
+  }
 
   private async checkNonTerminalObjects(
     conversation_id: number,
