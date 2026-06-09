@@ -58,6 +58,16 @@ The configurable gate deciding auto-post vs approval (ADR-0005). Rules are NOT h
 
 Per-task profile (vision): `provider, model, temperature, timeout, structured_output`. Tasks: `intent_routing`, `ocr`, `processing`, `advisory`, `audit`, `reconciliation`, `dev_agent`. Note: `intent_routing` is deliberately a strong/expensive model with rich conversational context — cost is not a concern there (ADR-0016).
 
+**Implemented today (`AgentConfigService`, `setting` rows).** Every AI agent resolves its model and its instructions through `AgentConfigService.resolve(agentKey)` — no model or prompt is hardcoded at a call site (the sole literal is the bootstrap `DEFAULT_MODEL` in `src/ai/agent-config.ts`). Agent keys: `triage` (Pass-2 document classification), `intent_classifier` (Wave-8 router intent classification).
+
+| Key | Meaning |
+|---|---|
+| `ai_model` | Global default model for all agents |
+| `ai_model.<agent>` | Per-agent model override (e.g. `ai_model.triage`, `ai_model.intent_classifier`) — wins over `ai_model` |
+| `prompt.<agent>` | Override the agent's default instructions (e.g. `prompt.intent_classifier`) — wins over the code default in `AGENT_PROMPTS` |
+
+Resolution precedence — model: `ai_model.<agent>` → `ai_model` → `DEFAULT_MODEL`; instructions: `prompt.<agent>` → `AGENT_PROMPTS[<agent>]` (code default). All keys live in the generic `setting` table; no per-agent migration. The richer per-task vision profile above (temperature, timeout, structured_output) is not yet wired — `ai_model[.<agent>]` + `prompt.<agent>` are the live knobs.
+
 ## 5. Channels
 
 | Channel | Config |
