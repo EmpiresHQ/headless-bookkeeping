@@ -1,11 +1,8 @@
 import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ReconciliationService } from './reconciliation.service';
-import type {
-  ExecuteMatchInput,
-  ExecuteMatchResult,
-  MatchProposal,
-} from './reconciliation.types';
+import { ExecuteMatchInput } from './reconciliation.types';
+import type { ExecuteMatchResult, MatchProposal } from './reconciliation.types';
 
 @ApiTags('reconciliation')
 @Controller('api/bank-statements')

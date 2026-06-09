@@ -2,7 +2,8 @@ import { Controller, Get, Post, Param, Body } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
-import type { CreateExpenseDto, Expense } from './types';
+import { CreateExpenseDto, PostOverrideDto } from './types';
+import type { Expense } from './types';
 import type { DraftVoucher } from '../ledger/voucher/types';
 
 @ApiTags('expenses')
@@ -42,7 +43,7 @@ export class ExpensesController {
   @Post(':id/post')
   async postExpense(
     @Param('id') id: string,
-    @Body() override?: { ruleType: string; reason: string },
+    @Body() override?: PostOverrideDto,
   ) {
     const expenseId = Number(id);
     const expense = await this.expensesService.getExpenseById(expenseId);
@@ -54,7 +55,10 @@ export class ExpensesController {
         this.expensesService.generateDraftVoucher(expenseId),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expenseId),
-      override,
+      override:
+        override?.ruleType && override?.reason
+          ? { ruleType: override.ruleType, reason: override.reason }
+          : undefined,
     });
 
     // Preserve original API response shape

@@ -1,3 +1,6 @@
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
 /**
  * Approval status enum — matches the CHECK constraint in the approval table.
  *
@@ -31,33 +34,41 @@ export interface Approval {
 /**
  * DTO for creating a new approval.
  */
-export interface CreateApprovalDto {
-  object_type: ApprovalObjectType;
-  object_id: number;
-  requested_by: string;
-  reason: string;
-}
+export const createApprovalSchema = z.object({
+  object_type: z.enum(['expense', 'sales_invoice']),
+  object_id: z.number().int(),
+  requested_by: z.string(),
+  reason: z.string(),
+});
+
+export class CreateApprovalDto extends createZodDto(createApprovalSchema) {}
 
 /**
  * DTO for approving an approval.
  */
-export interface ApproveDto {
-  approved_by: string;
-}
+export const approveSchema = z.object({
+  approved_by: z.string(),
+});
+
+export class ApproveDto extends createZodDto(approveSchema) {}
 
 /**
  * DTO for rejecting an approval.
  */
-export interface RejectDto {
-  rejected_reason: string;
-}
+export const rejectSchema = z.object({
+  rejected_reason: z.string(),
+});
+
+export class RejectDto extends createZodDto(rejectSchema) {}
 
 /**
  * DTO for superseding an approval.
  */
-export interface SupersedeDto {
-  superseded_by: string;
-}
+export const supersedeSchema = z.object({
+  superseded_by: z.string(),
+});
+
+export class SupersedeDto extends createZodDto(supersedeSchema) {}
 
 /**
  * Query parameters for listing approvals.

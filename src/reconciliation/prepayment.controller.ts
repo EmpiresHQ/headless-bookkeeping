@@ -7,14 +7,18 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { PrepaymentService } from './prepayment.service';
 import { PostedVoucher } from '../ledger/voucher/types';
 
 /** Input for drawing down a prepayment against an invoice. */
-interface DrawDownInput {
-  invoice_voucher_id: number;
-  amount: number;
-}
+const drawDownSchema = z.object({
+  invoice_voucher_id: z.number().int(),
+  amount: z.number().int(),
+});
+
+class DrawDownInput extends createZodDto(drawDownSchema) {}
 
 /** Outstanding prepayment record returned by the list endpoint. */
 interface PrepaymentRecord {

@@ -1,3 +1,6 @@
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
 export type PeriodStatus = 'open' | 'locked';
 
 export interface ReportingPeriod {
@@ -11,11 +14,15 @@ export interface ReportingPeriod {
   created_at: number;
 }
 
-export interface CreateReportingPeriodDto {
-  name: string;
-  start_date: string;
-  end_date: string;
-}
+export const createReportingPeriodSchema = z.object({
+  name: z.string(),
+  start_date: z.string(),
+  end_date: z.string(),
+});
+
+export class CreateReportingPeriodDto extends createZodDto(
+  createReportingPeriodSchema,
+) {}
 
 export interface PeriodWarning {
   type: 'pending_approval' | 'unposted_draft';

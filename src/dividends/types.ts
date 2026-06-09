@@ -7,15 +7,31 @@
  * - Settlement: bank outflow draws down DIVIDEND_PAYABLE via N:M reconciliation_match.
  */
 
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
 /** Input for declaring a dividend distribution. */
-export interface DividendDeclarationDto {
+export const dividendDeclarationSchema = z.object({
   /** Gross dividend amount in base-currency cents (positive). */
-  gross_amount: number;
+  gross_amount: z.number().int(),
   /** Tax-point date (YYYY-MM-DD) — determines the reporting period. */
-  tax_point_date: string;
+  tax_point_date: z.string(),
   /** Optional reason / memo for the declaration. */
-  reason?: string;
-}
+  reason: z.string().optional(),
+});
+
+export class DividendDeclarationDto extends createZodDto(
+  dividendDeclarationSchema,
+) {}
+
+/** Input for settling a dividend against a bank transaction. */
+export const dividendSettlementSchema = z.object({
+  declaration_voucher_id: z.number().int(),
+});
+
+export class DividendSettlementDto extends createZodDto(
+  dividendSettlementSchema,
+) {}
 
 /** Result of a successful dividend declaration. */
 export interface DividendDeclarationResult {

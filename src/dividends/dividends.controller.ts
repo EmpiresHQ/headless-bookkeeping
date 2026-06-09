@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DividendsService } from './dividends.service';
+import { DividendDeclarationDto, DividendSettlementDto } from './types';
 import type {
-  DividendDeclarationDto,
   DividendDeclarationResult,
   DividendSettlementResult,
 } from './types';
@@ -47,7 +47,7 @@ export class DividendsController {
   @HttpCode(HttpStatus.CREATED)
   async settle(
     @Param('id', ParseIntPipe) bankTransactionId: number,
-    @Body() body: { declaration_voucher_id: number },
+    @Body() body: DividendSettlementDto,
   ): Promise<DividendSettlementResult> {
     return this.dividendsService.settle(
       bankTransactionId,
