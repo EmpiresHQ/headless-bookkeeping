@@ -109,10 +109,19 @@ curl -H "$H" -H "$J" -X PUT $B/api/organization \
 
 ### Open a reporting period (without it, posting hits the period-lock)
 ```bash
+# A period = ONE VAT period at the org's filing frequency. For a MONTHLY filer,
+# open monthly periods — NOT a year-long one:
 curl -H "$H" -H "$J" -X POST $B/api/reporting-periods \
-  -d '{"name":"FY2026","start_date":"2026-01-01","end_date":"2026-12-31"}'   # status: open
+  -d '{"name":"2026-01","start_date":"2026-01-01","end_date":"2026-01-31"}'   # status: open
 curl -H "$H" $B/api/reporting-periods/current
 ```
+
+> ⚠️ **`reporting_period` IS the VAT period — there is no separate "annual" period.**
+> - **One frequency** (monthly | quarterly | half-yearly | annual), set by the country plugin / org. Pick ONE and tile the timeline with it.
+> - **Periods must not overlap** — a voucher belongs to exactly one period by its `tax_point_date`. Opening a **year-long** period alongside (or instead of) the monthly ones is a mistake: any overlap is rejected (`409`), and it makes period membership ambiguous.
+> - **"Annual" is an aggregate, not a period.** Want yearly numbers? Sum the ledger over the year (or sum the monthly VAT reports) — don't create a year period. The fiscal-year close (sweep net income → retained earnings) is deferred (V2); P&L / distributable profit are computed live.
+> - Only if the business **files VAT yearly** do you open one annual period — and then there are *no* monthly ones. Don't mix.
+> - **Fixing a wrong period:** there is no DELETE endpoint. An open period with **no posted vouchers** can be removed by an operator (delete the `reporting_period` row in the DB / SSH); a period that already has vouchers or is `locked` must not be deleted — correct via the normal flows.
 
 ### Add a supplier / customer
 ```bash
