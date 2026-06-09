@@ -54,6 +54,32 @@ describe('EstoniaCountryPlugin — VAT core', () => {
     });
   });
 
+  it('maps revenue to an EU B2B customer of services → 0% intra-EU käive (Art 196)', () => {
+    const dkCustomer: SupplierFacts = {
+      country: 'DK',
+      goodsVsServices: 'services',
+      classificationMemory: [],
+    };
+    expect(ee.resolveCategoryMapping('revenue', dkCustomer, org)).toEqual({
+      accountCode: 'REVENUE',
+      vatCode: 'EE_OUTPUT_0_EU',
+    });
+  });
+
+  it('keeps standard 24% revenue for a non-EU (export) customer — outside the intra-EU rule', () => {
+    const usCustomer: SupplierFacts = {
+      country: 'US',
+      goodsVsServices: 'services',
+      classificationMemory: [],
+    };
+    // Non-EU export of services is 0% too, but it is NOT the intra-EU (VD 3S)
+    // case; we keep the standard code here so the report does not raise a VD
+    // entry for it. (Refining export 0% is tracked separately.)
+    expect(ee.resolveCategoryMapping('revenue', usCustomer, org).vatCode).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
   it('validateVATCode accepts the EE set + sentinel, rejects unknown', () => {
     expect(
       ee.validateVATCode('EE_INPUT_24', { supplier: eeSupplier, org }),

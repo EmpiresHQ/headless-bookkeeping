@@ -40,6 +40,10 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     EE_INPUT_9: 0.09,
     EE_ZERO: 0,
     EE_REVERSE_CHARGE: 0.24,
+    // 0% intra-EU B2B supply of services taxable in the customer's member state
+    // (KMS §10 / VAT Directive Art. 44 & 196). Reported as 0% käive (KMD row 3)
+    // and on the VD koondaruanne with tähis 3S — the VD form is filed manually.
+    EE_OUTPUT_0_EU: 0,
     [NULL_VAT_CODE]: 0,
   };
 
@@ -104,11 +108,24 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   resolveCategoryMapping(
     category: string,
-    _supplierFacts: SupplierFacts,
-    _orgContext: OrgContext,
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
   ): CategoryMappingResult {
     if (category === 'revenue') {
-      return { accountCode: 'REVENUE', vatCode: 'EE_OUTPUT_24' };
+      // A sale of services to a VAT-registered customer in ANOTHER EU member
+      // state is taxable where the customer is established (Art. 44): we charge
+      // 0% and the customer reverse-charges (Art. 196). It is declared as 0%
+      // käive (KMD row 3) and on the VD koondaruanne with tähis 3S. Domestic
+      // and non-EU (export) sales keep the standard 24% mapping here.
+      const customer = supplierFacts.country;
+      const isIntraEuB2bService =
+        customer !== orgContext.country &&
+        EstoniaCountryPlugin.EU.has(customer) &&
+        supplierFacts.goodsVsServices === 'services';
+      return {
+        accountCode: 'REVENUE',
+        vatCode: isIntraEuB2bService ? 'EE_OUTPUT_0_EU' : 'EE_OUTPUT_24',
+      };
     }
 
     // Expense categories → seeded chart accounts + EE standard input VAT.
