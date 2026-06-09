@@ -4,6 +4,7 @@ import { ConversationsService } from '../../conversations/conversations.service'
 import { DocumentsService } from '../../documents/documents.service';
 import { InteractionConfigService } from '../config/interaction-config.service';
 import { PrincipalResolverService } from '../principal/principal-resolver.service';
+import { Principal } from '../principal/types';
 import {
   canCommit,
   canConverse,
@@ -159,7 +160,12 @@ export class InteractionRouterService {
           detail: { callbackData },
         });
       }
-      const dispatched = await this.dispatch(intent, conversation.id, envelope);
+      const dispatched = await this.dispatch(
+        intent,
+        conversation.id,
+        envelope,
+        principal,
+      );
       return {
         conversation_id: conversation.id,
         gated_in: true,
@@ -191,7 +197,12 @@ export class InteractionRouterService {
 
     // 7. Classify, then clarify-or-dispatch.
     const intent = await this.classifier.classify(envelope.message);
-    const dispatched = await this.dispatch(intent, conversation.id, envelope);
+    const dispatched = await this.dispatch(
+      intent,
+      conversation.id,
+      envelope,
+      principal,
+    );
     return {
       conversation_id: conversation.id,
       gated_in: true,
@@ -219,6 +230,7 @@ export class InteractionRouterService {
     intent: RoutedIntent,
     conversationId: number,
     envelope: UnifiedEnvelope,
+    principal: Principal,
   ): Promise<boolean> {
     if (intent.kind === 'clarify') {
       await this.sendOutbound(envelope, conversationId, intent.question);
@@ -226,6 +238,7 @@ export class InteractionRouterService {
     }
     const result = await this.dispatcher.dispatch(intent, {
       conversation_id: conversationId,
+      principal,
     });
     if (result.reply) {
       await this.sendOutbound(envelope, conversationId, result.reply);
