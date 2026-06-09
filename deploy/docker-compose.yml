@@ -1,68 +1,61 @@
-# Production deploy: Cloudflare (DNS/proxy) → Caddy (TLS) → app, all sharing a
-# Tailscale sidecar's network namespace so the whole stack is one tailnet node.
+# Private deploy, mirroring the house pattern (cf. cpu-llm on the same host):
 #
-#   client → Cloudflare (your domain) → :443 (Caddy, TLS via CF DNS-01)
-#                                        → localhost:3000 (app)
+#   Caddy (TLS via CF DNS-01) shares the Tailscale sidecar's network namespace
+#   and listens on :443 — reachable on the sidecar's TAILNET IP (100.x). `app`
+#   sits on an internal bridge; Caddy reverse-proxies to app:3000 by name.
 #
-# The `tailscale` sidecar owns the network namespace and publishes :80/:443.
-# `caddy` and `app` join it via network_mode: service:tailscale, so:
-#   • Caddy reaches the app at localhost:3000 (single node), and
-#   • the whole stack is reachable/administered over the tailnet, and
-#   • in a SPLIT setup, Caddy can reverse_proxy to a private app node's tailnet
-#     IP (set APP_UPSTREAM=100.x.y.z:3000 and run only the app+tailscale pair
-#     on that private node).
+#   NOTHING is published on the host (no clash with Traefik on 80/443). Point a
+#   Cloudflare A record at the sidecar's 100.x (DNS-only / grey cloud): the
+#   domain resolves to the tailnet IP, Caddy serves a real cert there, and only
+#   tailnet devices can route to it — public domain + valid TLS, private reach.
 #
-# Usage (repo root, after one-time setup in README):
-#   cp deploy/.env.example deploy/.env   # SITE_DOMAIN, CF_API_TOKEN, TS_AUTHKEY, DOCKER_IMAGE
-#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+# Usage (from DEPLOY_PATH, after one-time setup in README):
+#   docker compose --env-file .env up -d --build
 services:
   tailscale:
     image: tailscale/tailscale:latest
     hostname: ${TS_HOSTNAME:-headless-bookkeeping}
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_HOSTNAME=${TS_HOSTNAME:-headless-bookkeeping}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--accept-routes
+      - TS_USERSPACE=false
     volumes:
       - tailscale_state:/var/lib/tailscale
     devices:
       - /dev/net/tun:/dev/net/tun
     cap_add:
       - NET_ADMIN
-    # Public ingress for the whole stack lives here (the netns owner). Behind
-    # Cloudflare these are the origin ports; firewall them to CF IP ranges.
-    ports:
-      - '80:80'
-      - '443:443'
+      - SYS_MODULE
     restart: unless-stopped
+    networks:
+      - internal
 
   caddy:
-    # Custom image: caddy:2 + the Cloudflare DNS plugin (see caddy/Dockerfile).
+    # caddy:2 + the Cloudflare DNS plugin (see caddy/Dockerfile). Shares the
+    # tailscale netns so it serves on the tailnet IP and can resolve `app` on
+    # the internal bridge (the tailscale container is attached to it).
     build:
       context: ./caddy
-    network_mode: service:tailscale
-    depends_on:
-      - tailscale
-      - app
     environment:
+      - ACME_EMAIL=${ACME_EMAIL}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       - SITE_DOMAIN=${SITE_DOMAIN}
-      # Single node: localhost:3000 (shared netns). Split: <app-node-tailnet-ip>:3000.
-      - APP_UPSTREAM=${APP_UPSTREAM:-localhost:3000}
-      - CF_API_TOKEN=${CF_API_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    depends_on:
+      - app
+      - tailscale
+    network_mode: service:tailscale
     restart: unless-stopped
 
   app:
     # Prebuilt image from the registry (CI builds & pushes on push to main). The
-    # VPS only pulls — never builds the app. APP_IMAGE_TAG is set by the deploy
-    # workflow to the exact commit SHA; defaults to latest for manual runs.
+    # VPS only pulls. APP_IMAGE_TAG is set by the deploy workflow to the commit
+    # SHA; defaults to latest for manual runs.
     image: ${DOCKER_IMAGE}:${APP_IMAGE_TAG:-latest}
-    network_mode: service:tailscale
-    depends_on:
-      - tailscale
     environment:
       - NODE_ENV=production
     volumes:
@@ -75,8 +68,15 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    networks:
+      - internal
+
+networks:
+  internal:
+    name: headless-accounting-internal
+    driver: bridge
 
 volumes:
+  tailscale_state:
   caddy_data:
   caddy_config:
-  tailscale_state:

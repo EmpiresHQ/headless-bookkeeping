@@ -1,30 +1,17 @@
-# Caddy in front of headless-bookkeeping.
-#
-# Caddy auto-provisions a Let's Encrypt cert via the ACME DNS-01 challenge using
-# the Cloudflare DNS plugin (caddy-dns/cloudflare). DNS-01 needs no inbound :80
-# and works behind Cloudflare's proxy (orange cloud) and SSL/TLS mode
-# "Full (strict)". Requires CF_API_TOKEN (a scoped token with Zone:DNS:Edit).
-# https://caddyserver.com/docs/modules/dns.providers.cloudflare
+{
+	email {env.ACME_EMAIL}
+	# ACME DNS-01 via the Cloudflare plugin — no inbound :80, works on a tailnet
+	# IP. Needs CLOUDFLARE_API_TOKEN (Zone:DNS:Edit + Zone:Read).
+	acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+}
 
+# Served on :443 inside the tailscale netns → the sidecar's tailnet IP. Point a
+# Cloudflare A record for SITE_DOMAIN at that 100.x (DNS-only).
 {$SITE_DOMAIN} {
-	tls {
-		dns cloudflare {env.CF_API_TOKEN}
-	}
-
-	encode zstd gzip
-
-	# Forward everything to the app. AuthN/AuthZ is the app's Bearer API token
-	# (and optionally Cloudflare Access in front). APP_UPSTREAM is app:3000 on a
-	# single node, or the app node's tailnet IP (e.g. 100.x.y.z:3000) when Caddy
-	# is a separate public edge bridging to the private Tailscale node.
-	reverse_proxy {$APP_UPSTREAM} {
-		# Real client IP as seen by Cloudflare (for the app's audit log).
-		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-	}
-
-	header {
-		-Server
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
+	reverse_proxy app:3000
+	encode gzip
+	log {
+		output stdout
+		format json
 	}
 }
