@@ -45,16 +45,27 @@ export class DividendsService {
    * Declare a dividend distribution.
    *
    * Posts a declaration voucher through the full pipeline (Rules → Policy → post):
-   *   Dr RETAINED_EARNINGS              (gross amount)
+   *   Dr RETAINED_EARNINGS              (gross + distribution tax, total equity hit)
    *   Cr DIVIDEND_PAYABLE               (net to owner, after withholding)
    *   Cr DIVIDEND_WITHHOLDING_TAX_PAYABLE  (withheld portion, if any)
+   *   Cr DISTRIBUTION_TAX_PAYABLE       (company-level on-top tax, if any — e.g. EE CIT 22/78)
+   *
+   * The fourth line (DISTRIBUTION_TAX_PAYABLE) is only booked when the country
+   * plugin returns a non-null distribution tax via `resolveDistributionTax`.
+   * In that case the RETAINED_EARNINGS debit equals gross + distTaxAmount (not
+   * just gross), so the voucher balances across all four lines.
+   * For jurisdictions without a distribution tax (IE, Null) the three-line
+   * schema is unchanged.
    *
    * The country plugin resolves:
    * - Withholding rate (dividendWithholdingRate)
+   * - Company-level distribution tax on top (resolveDistributionTax)
    * - Distributable-profits check (assertDistributable)
    *
    * Per ADR-0023: dividend is an equity distribution, NOT a P&L expense.
-   * Per ADR-0002: withholding and profits-cap are country-plugin rules only.
+   * Per ADR-0002: withholding, distribution tax, and profits-cap are country-plugin rules only.
+   * Per ADR-0027: distribution tax is distinct from withholding — it is paid by the
+   *   company on top; the shareholder receives the full declared amount.
    *
    * @param dto - Declaration input (gross amount, tax-point date, optional reason)
    * @returns The posted declaration voucher + breakdown
