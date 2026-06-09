@@ -4,7 +4,7 @@
 
 **Goal:** Build the channel-agnostic interaction **core** — a unified-envelope **Channel adapter** seam, the intent **router** (deterministic Conversation resolution → `RoutedIntent` classification via a Mastra+Zod agent → `FlowDispatcher` port), the channel-agnostic **Principal** resolver + access gating — and wire **one** concrete adapter, **Telegram**, behind a mockable transport port.
 
-**Architecture:** A new `src/interaction/` module. The core (`envelope`, `principal`, `router`, `transport`) never sees a raw channel payload; each **Channel adapter** (`channels/telegram`) is a pure **mapper** + a thin injectable **transport port** (live Bot API, mocked in tests). The router resolves the **Conversation** aggregate (Wave-6/7 `ConversationsService.resolve`, by `channel + thread_key`), gates on a resolved **Principal**, runs the ingest track through `DocumentsService.upload`, classifies a message into a discriminated `RoutedIntent`, and either dispatches to the `FlowDispatcher` port (a **stub** in 8a; real flows are 8b) or emits a `clarify` question via the transport. See ADR-0025 (interaction-layer architecture), ADR-0016 (intent routing), ADR-0014 (channels/approvers).
+**Architecture:** A new `src/interaction/` module plus a new kernel `src/audit-log/` module. The core (`envelope`, `principal`, `router`, `transport`) never sees a raw channel payload; each **Channel adapter** (`channels/telegram`) is a pure **mapper** + a thin injectable **transport port** (live Bot API, mocked in tests). The router resolves the **Conversation** aggregate (Wave-6/7 `ConversationsService.resolve`, by `channel + thread_key`), gates on a resolved **Principal**, runs the ingest track through `DocumentsService.upload`, classifies a message into a discriminated `RoutedIntent`, and either dispatches to the `FlowDispatcher` port (a **stub** in 8a; real flows are 8b) or emits a `clarify` question via the transport. Every access decision and **Action point** commit is durably recorded to the append-only **Audit log** (`AuditLogService`) — the interaction layer is its first writer. See ADR-0025 (interaction-layer architecture), ADR-0026 (operational Audit log), ADR-0016 (intent routing), ADR-0014 (channels/approvers).
 
 **Tech Stack:** NestJS 11, Kysely 0.29 over better-sqlite3, Jest 30, Zod, Mastra (`@mastra/*`, stubbed in tests via `test/mastra-stub.ts` + jest `moduleNameMapper`). **Node 24** (`.nvmrc` = 24; the gate fails under Node 22 — better-sqlite3 NODE_MODULE_VERSION mismatch).
 
@@ -15,9 +15,9 @@
 - **G1 — wave gate is CI parity.** The *final commit of every task* must be preceded by all four commands green, in this exact order, **under Node 24**: `npm run build && npm run lint && npm run test && npm run test:e2e`. Run `nvm use 24` first in every shell. Never commit on red.
 - **G2 — wiring needs a real integration test.** Every behavior crossing a DI/module boundary gets a test that boots the **real DI graph against in-memory SQLite** and runs the real migrations via `Migrator.migrateToLatest()`. Harness to copy verbatim: `src/currency/currency.resolution.spec.ts`.
 - **G3 — acceptance criteria discriminate.** Assert against inputs that differ from defaults so a hardcoded stub cannot pass by coincidence (e.g. assert a specific `thread_key`/`convKey`, a specific dispatched `actionIntent`, not just "truthy").
-- **G4 — schema only in migrations.** No `createTable`/`CREATE TABLE`/`ALTER TABLE`/`db.schema.*` outside `src/database/migrations/`. 8a needs **no new table** — `telegram_allowlist`, `approvers`, `email_whitelist`, `ingest_policy`, `telegram_webhook_secret` are rows in the existing generic `setting` table. Grep gate (must be empty): `grep -rn "createTable\|CREATE TABLE" src --include=*.ts | grep -v "src/database/migrations/"`.
+- **G4 — schema only in migrations.** No `createTable`/`CREATE TABLE`/`ALTER TABLE`/`db.schema.*` outside `src/database/migrations/`. 8a adds exactly **one** new table — `audit_log` (migration `033`, Task 8). Config (`telegram_allowlist`, `approvers`, `email_whitelist`, `ingest_policy`, `telegram_webhook_secret`) stays as rows in the existing generic `setting` table — no migration for those. Grep gate (must be empty): `grep -rn "createTable\|CREATE TABLE" src --include=*.ts | grep -v "src/database/migrations/"`.
 - **G5 — no `any`, no `as`.** TypeScript strict is ON; the codebase has zero `any`/`as` casts in `src/` (migrations may use `Kysely<any>` by convention — but 8a adds no migration). `npm run lint` enforces it and is part of the gate.
-- **G6 — the core never imports a channel.** Grep gate (must be empty): `grep -rn "telegram\|Telegram" src/interaction/envelope src/interaction/principal src/interaction/router src/interaction/transport --include=*.ts`. Channel-specific code lives ONLY under `src/interaction/channels/`.
+- **G6 — the core never imports a channel.** The real invariant is "no `import` from a `channels/` adapter into the core" — the lowercase `'telegram'` value is a member of the `InteractionChannel` union (a legitimate domain value the core may compare against, e.g. `channel === 'telegram'`), and a JSDoc `e.g. TelegramTransport` is cosmetic; neither is a violation. Grep gate (must be empty): `grep -rn "from '.*channels/" src/interaction/envelope src/interaction/principal src/interaction/router src/interaction/transport --include=*.ts`. Channel-specific *code* lives ONLY under `src/interaction/channels/`.
 - **Money/time conventions.** Timestamps are unix-seconds `integer` (`Math.floor(Date.now() / 1000)`); never store ms. Booleans persist as `integer` (0/1). 8a stores no money.
 
 ## Assumed prior-wave contracts (treated as implemented — do NOT rebuild)
@@ -44,8 +44,15 @@ Verified against the merged `wave-8-interaction` branch (post PR-#36 merge):
 ## File Structure
 
 ```
+src/audit-log/
+  audit-log.module.ts                           # wires DatabaseModule; exports AuditLogService
+  audit-log.service.ts                          # AuditLogService.record(entry) — sole write path
+  audit-log.service.spec.ts                     # real-DI: records a row; immutability trigger rejects UPDATE/DELETE
+  types.ts                                      # AuditEntry input + AuditLogRow
+src/database/migrations/
+  033_create_audit_log.ts                       # audit_log table + BEFORE UPDATE/DELETE immutability triggers
 src/interaction/
-  interaction.module.ts                         # wires DatabaseModule, ConversationsModule, DocumentsModule, AiModule; registers core + telegram
+  interaction.module.ts                         # wires DatabaseModule, ConversationsModule, DocumentsModule, AuditLogModule; registers core + telegram
   config/
     interaction-config.service.ts               # typed reads of setting rows (allowlists, ingest_policy, telegram secret)
     interaction-config.service.spec.ts          # real-DI (G2)
@@ -1021,7 +1028,251 @@ git commit -m "feat(interaction): transport port + channel-keyed registry"
 
 ---
 
-## Task 8: `InteractionRouter` — the orchestrator
+## Task 8: Audit log infrastructure (`AuditLogService` + append-only `audit_log`)
+
+A general kernel **Audit log** (ADR-0026): one append-only `audit_log` table written through `AuditLogService.record()`. The interaction layer (Task 9 router, Task 12 webhook) is its first writer. Operational record — immutable via SQL triggers, **not** hash-chained (ADR-0013 is ledger-only).
+
+**Files:**
+- Create: `src/database/migrations/033_create_audit_log.ts`
+- Modify: `src/database/migrations/index.ts` (register `033`)
+- Modify: `src/database/types.ts` (add `AuditLogTable` + `audit_log` to `Database`)
+- Create: `src/audit-log/types.ts`
+- Create: `src/audit-log/audit-log.service.ts`
+- Create: `src/audit-log/audit-log.module.ts`
+- Test: `src/audit-log/audit-log.service.spec.ts`
+
+- [ ] **Step 1: Write the migration**
+
+```typescript
+// src/database/migrations/033_create_audit_log.ts
+import { Kysely, sql } from 'kysely';
+import { Database } from '../types';
+
+export async function up(db: Kysely<Database>): Promise<void> {
+  await db.schema
+    .createTable('audit_log')
+    .addColumn('id', 'integer', (col) => col.autoIncrement().primaryKey())
+    .addColumn('occurred_at', 'integer', (col) => col.notNull())
+    .addColumn('actor', 'text', (col) => col.notNull())
+    .addColumn('action', 'text', (col) => col.notNull())
+    .addColumn('target_type', 'text')
+    .addColumn('target_id', 'integer')
+    .addColumn('outcome', 'text', (col) => col.notNull())
+    .addColumn('detail', 'text')
+    .execute();
+
+  // Append-only: posted-voucher-style immutability (ADR-0026 — NOT hash-chained).
+  await sql`
+    CREATE TRIGGER audit_log_no_update
+    BEFORE UPDATE ON audit_log
+    BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+  `.execute(db);
+  await sql`
+    CREATE TRIGGER audit_log_no_delete
+    BEFORE DELETE ON audit_log
+    BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+  `.execute(db);
+}
+
+export async function down(db: Kysely<Database>): Promise<void> {
+  await sql`DROP TRIGGER IF EXISTS audit_log_no_update`.execute(db);
+  await sql`DROP TRIGGER IF EXISTS audit_log_no_delete`.execute(db);
+  await db.schema.dropTable('audit_log').execute();
+}
+```
+
+- [ ] **Step 2: Register the migration + type the table**
+
+In `src/database/migrations/index.ts`, add the import + registry entry following the existing pattern:
+```typescript
+import * as m033 from './033_create_audit_log';
+// ... in the migrations record:
+  '033_create_audit_log': m033,
+```
+
+In `src/database/types.ts`, add to the `Database` interface `audit_log: AuditLogTable;` and define:
+```typescript
+export interface AuditLogTable {
+  id: Generated<number>;
+  occurred_at: number;
+  actor: string;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  outcome: string;
+  detail: string | null;
+}
+```
+(Use the same `Generated` import the file already uses for other tables.)
+
+- [ ] **Step 3: Write the failing service test**
+
+```typescript
+// src/audit-log/audit-log.service.spec.ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { Kysely, SqliteDialect } from 'kysely';
+import { Migrator } from 'kysely/migration';
+import SqliteDb from 'better-sqlite3';
+import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
+import { Database } from '../database/types';
+import { migrations } from '../database/migrations';
+import { AuditLogService } from './audit-log.service';
+
+describe('AuditLogService (integration)', () => {
+  let db: Kysely<Database>;
+  let audit: AuditLogService;
+
+  beforeEach(async () => {
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error) throw error instanceof Error ? error : new Error('migrate failed');
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        AuditLogService,
+      ],
+    }).compile();
+    audit = module.get(AuditLogService);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('records an entry with a JSON-serialized detail', async () => {
+    await audit.record({
+      actor: '999',
+      action: 'interaction.action_point.commit',
+      outcome: 'accepted',
+      target_type: 'conversation',
+      target_id: 7,
+      detail: { actionIntent: 'approve', ref: '42' },
+    });
+    const row = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(row.actor).toBe('999');
+    expect(row.action).toBe('interaction.action_point.commit');
+    expect(row.outcome).toBe('accepted');
+    expect(row.target_id).toBe(7);
+    expect(JSON.parse(row.detail ?? '{}')).toEqual({ actionIntent: 'approve', ref: '42' });
+    expect(row.occurred_at).toBeGreaterThan(0);
+  });
+
+  it('defaults optional fields to null', async () => {
+    await audit.record({ actor: 'system', action: 'interaction.received', outcome: 'allowed' });
+    const row = await db.selectFrom('audit_log').selectAll().executeTakeFirstOrThrow();
+    expect(row.target_type).toBeNull();
+    expect(row.target_id).toBeNull();
+    expect(row.detail).toBeNull();
+  });
+
+  it('is append-only — the DB rejects UPDATE and DELETE', async () => {
+    await audit.record({ actor: 'system', action: 'x', outcome: 'allowed' });
+    await expect(
+      db.updateTable('audit_log').set({ outcome: 'tampered' }).execute(),
+    ).rejects.toThrow(/append-only/);
+    await expect(db.deleteFrom('audit_log').execute()).rejects.toThrow(/append-only/);
+  });
+});
+```
+
+- [ ] **Step 4: Run test to verify it fails**
+
+Run: `nvm use 24 && npx jest src/audit-log/audit-log.service.spec.ts`
+Expected: FAIL — `Cannot find module './audit-log.service'`.
+
+- [ ] **Step 5: Write the types + service + module**
+
+```typescript
+// src/audit-log/types.ts
+/** One action / access decision to record. `detail` is serialized to JSON. */
+export interface AuditEntry {
+  actor: string;
+  action: string;
+  outcome: string;
+  target_type?: string | null;
+  target_id?: number | null;
+  detail?: Record<string, unknown> | null;
+}
+```
+
+```typescript
+// src/audit-log/audit-log.service.ts
+import { Inject, Injectable } from '@nestjs/common';
+import { Kysely } from 'kysely';
+import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
+import { Database } from '../database/types';
+import { AuditEntry } from './types';
+
+@Injectable()
+export class AuditLogService {
+  constructor(
+    @Inject(KYSELY_MODULE_CONNECTION_TOKEN())
+    private readonly db: Kysely<Database>,
+  ) {}
+
+  private now(): number {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  /** The sole write path into the append-only audit_log (ADR-0026). */
+  async record(entry: AuditEntry): Promise<void> {
+    await this.db
+      .insertInto('audit_log')
+      .values({
+        occurred_at: this.now(),
+        actor: entry.actor,
+        action: entry.action,
+        outcome: entry.outcome,
+        target_type: entry.target_type ?? null,
+        target_id: entry.target_id ?? null,
+        detail: entry.detail ? JSON.stringify(entry.detail) : null,
+      })
+      .execute();
+  }
+}
+```
+
+```typescript
+// src/audit-log/audit-log.module.ts
+import { Module } from '@nestjs/common';
+import { DatabaseModule } from '../database/database.module';
+import { AuditLogService } from './audit-log.service';
+
+@Module({
+  imports: [DatabaseModule],
+  providers: [AuditLogService],
+  exports: [AuditLogService],
+})
+export class AuditLogModule {}
+```
+
+- [ ] **Step 6: Run test to verify it passes**
+
+Run: `nvm use 24 && npx jest src/audit-log/audit-log.service.spec.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 7: Build + lint + commit**
+
+Run: `nvm use 24 && npm run build && npm run lint && npx jest src/audit-log`
+Then:
+```bash
+git add src/audit-log src/database/migrations/033_create_audit_log.ts src/database/migrations/index.ts src/database/types.ts
+git commit -m "feat(audit-log): append-only operational audit_log + AuditLogService (ADR-0026)"
+```
+
+---
+
+## Task 9: `InteractionRouter` — the orchestrator
 
 **Files:**
 - Create: `src/interaction/router/interaction-router.service.ts`
@@ -1048,6 +1299,7 @@ import { IntentClassifierService } from './intent-classifier.service';
 import { RecordingFlowDispatcher, FlowDispatcher } from './flow-dispatcher';
 import { TransportRegistryService, INTERACTION_TRANSPORTS } from '../transport/transport-registry.service';
 import { InteractionTransport, OutboundMessage } from '../transport/types';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 import { InteractionRouterService } from './interaction-router.service';
 import { UnifiedEnvelope } from '../envelope/types';
 
@@ -1103,6 +1355,7 @@ describe('InteractionRouterService (integration)', () => {
         { provide: FlowDispatcher, useClass: RecordingFlowDispatcher },
         { provide: INTERACTION_TRANSPORTS, useValue: [transport] },
         TransportRegistryService,
+        AuditLogService,
         InteractionRouterService,
       ],
     }).compile();
@@ -1202,6 +1455,32 @@ describe('InteractionRouterService (integration)', () => {
     const arts = await db.selectFrom('artifact').selectAll().where('conversation_id', '=', outcome.conversation_id).execute();
     expect(arts.some((a) => a.kind === 'inbound_attachment' && a.document_id !== null)).toBe(true);
   });
+
+  it('audit-logs a denied converse from a non-approver', async () => {
+    await router.handle(
+      envelope({ sender: '123', convKey: 'tg:123', auth: { senderId: '123', transportVerified: true } }),
+    );
+    const rows = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'interaction.gate.converse_denied')
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe('denied');
+    expect(rows[0].actor).toBe('123');
+  });
+
+  it('audit-logs an action-point commit from a button tap', async () => {
+    await router.handle(envelope({ message: null, metadata: { callbackData: 'approve:42' } }));
+    const rows = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'interaction.action_point.commit')
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe('accepted');
+    expect(JSON.parse(rows[0].detail ?? '{}')).toEqual({ callbackData: 'approve:42' });
+  });
 });
 ```
 
@@ -1228,6 +1507,7 @@ import {
 import { IntentClassifierService } from './intent-classifier.service';
 import { FlowDispatcher } from './flow-dispatcher';
 import { TransportRegistryService } from '../transport/transport-registry.service';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 import { UnifiedEnvelope } from '../envelope/types';
 import { ActionIntent, RoutedIntent, RouterOutcome } from './types';
 
@@ -1250,6 +1530,7 @@ export class InteractionRouterService {
     private readonly classifier: IntentClassifierService,
     private readonly dispatcher: FlowDispatcher,
     private readonly transports: TransportRegistryService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async handle(envelope: UnifiedEnvelope): Promise<RouterOutcome> {
@@ -1298,18 +1579,43 @@ export class InteractionRouterService {
       } else {
         this.logger.log(`ingest ${decision} for ${principal.role} sender`);
       }
+      await this.audit.record({
+        actor: principal.senderId,
+        action: 'interaction.ingest',
+        outcome: decision,
+        target_type: 'conversation',
+        target_id: conversation.id,
+        detail: { count: envelope.attachments.length },
+      });
     }
 
     // 5. Deterministic button tap → pre-classified action (no LLM).
     const callbackData = envelope.metadata.callbackData;
     if (callbackData) {
       const intent = this.intentFromCallback(callbackData);
+      await this.audit.record({
+        actor: principal.senderId,
+        action: 'interaction.action_point.commit',
+        outcome: 'accepted',
+        target_type: 'conversation',
+        target_id: conversation.id,
+        detail: { callbackData },
+      });
       const dispatched = await this.dispatch(intent, conversation.id, envelope);
       return { conversation_id: conversation.id, gated_in: true, ingested, intent, dispatched };
     }
 
     // 6. No message, or sender may not converse → stop after ingest.
     if (!envelope.message || !canConverse(principal)) {
+      if (envelope.message && !canConverse(principal)) {
+        await this.audit.record({
+          actor: principal.senderId,
+          action: 'interaction.gate.converse_denied',
+          outcome: 'denied',
+          target_type: 'conversation',
+          target_id: conversation.id,
+        });
+      }
       return {
         conversation_id: conversation.id,
         gated_in: canConverse(principal),
@@ -1373,7 +1679,7 @@ export class InteractionRouterService {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `nvm use 24 && npx jest src/interaction/router/interaction-router.service.spec.ts`
-Expected: PASS (6 tests).
+Expected: PASS (8 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -1384,7 +1690,7 @@ git commit -m "feat(interaction): InteractionRouter orchestrator (resolve→gate
 
 ---
 
-## Task 9: Telegram mapper (pure)
+## Task 10: Telegram mapper (pure)
 
 **Files:**
 - Create: `src/interaction/channels/telegram/telegram.types.ts`
@@ -1556,7 +1862,7 @@ git commit -m "feat(interaction): pure Telegram mapper (update↔envelope, outbo
 
 ---
 
-## Task 10: Telegram transport (port impl over a mockable Bot API)
+## Task 11: Telegram transport (port impl over a mockable Bot API)
 
 **Files:**
 - Create: `src/interaction/channels/telegram/telegram-api.port.ts`
@@ -1665,7 +1971,7 @@ git commit -m "feat(interaction): Telegram transport over a mockable Bot API por
 
 ---
 
-## Task 11: Telegram webhook controller + module wiring
+## Task 12: Telegram webhook controller + module wiring
 
 **Files:**
 - Create: `src/interaction/channels/telegram/telegram-webhook.controller.ts`
@@ -1695,6 +2001,7 @@ import { TransportRegistryService, INTERACTION_TRANSPORTS } from '../../transpor
 import { InteractionRouterService } from '../../router/interaction-router.service';
 import { TelegramTransportService } from './telegram-transport.service';
 import { TelegramApi } from './telegram-api.port';
+import { AuditLogService } from '../../../audit-log/audit-log.service';
 import { TelegramWebhookController } from './telegram-webhook.controller';
 
 class FakeTelegramApi implements TelegramApi {
@@ -1727,6 +2034,7 @@ describe('TelegramWebhookController (integration)', () => {
         TelegramTransportService,
         { provide: INTERACTION_TRANSPORTS, useFactory: (t: TelegramTransportService) => [t], inject: [TelegramTransportService] },
         TransportRegistryService,
+        AuditLogService,
         InteractionRouterService,
       ],
     }).compile();
@@ -1745,8 +2053,15 @@ describe('TelegramWebhookController (integration)', () => {
 
   const update = { update_id: 1, message: { message_id: 5, chat: { id: 999 }, from: { id: 999 }, text: 'hi' } };
 
-  it('rejects a webhook with a wrong secret token', async () => {
+  it('rejects a webhook with a wrong secret token and audit-logs the failure', async () => {
     await expect(controller.handle('nope', update)).rejects.toBeInstanceOf(ForbiddenException);
+    const rows = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'interaction.webhook.auth_failed')
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe('denied');
   });
 
   it('accepts a correct secret token and routes to a persisted Conversation', async () => {
@@ -1779,6 +2094,7 @@ import {
 import { Public } from '../../../auth/api-token.guard';
 import { InteractionConfigService } from '../../config/interaction-config.service';
 import { InteractionRouterService } from '../../router/interaction-router.service';
+import { AuditLogService } from '../../../audit-log/audit-log.service';
 import { toEnvelope } from './telegram-mapper';
 import { TelegramUpdate } from './telegram.types';
 
@@ -1787,6 +2103,7 @@ export class TelegramWebhookController {
   constructor(
     private readonly config: InteractionConfigService,
     private readonly router: InteractionRouterService,
+    private readonly audit: AuditLogService,
   ) {}
 
   // Telegram has no bearer token; it authenticates via the secret-token header.
@@ -1800,6 +2117,12 @@ export class TelegramWebhookController {
     const expected = await this.config.getTelegramWebhookSecret();
     const verified = !!expected && secret === expected;
     if (!verified) {
+      await this.audit.record({
+        actor: 'unknown',
+        action: 'interaction.webhook.auth_failed',
+        outcome: 'denied',
+        detail: { channel: 'telegram' },
+      });
       throw new ForbiddenException('invalid telegram secret token');
     }
     const envelope = toEnvelope(update, verified);
@@ -1824,6 +2147,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { DatabaseModule } from '../database/database.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { Database } from '../database/types';
 import { InteractionConfigService } from './config/interaction-config.service';
 import { PrincipalResolverService } from './principal/principal-resolver.service';
@@ -1839,7 +2163,7 @@ import { TelegramApi, HttpTelegramApi } from './channels/telegram/telegram-api.p
 import { TelegramWebhookController } from './channels/telegram/telegram-webhook.controller';
 
 @Module({
-  imports: [DatabaseModule, ConversationsModule, DocumentsModule],
+  imports: [DatabaseModule, ConversationsModule, DocumentsModule, AuditLogModule],
   controllers: [TelegramWebhookController],
   providers: [
     InteractionConfigService,
@@ -1911,7 +2235,7 @@ git commit -m "feat(interaction): @Public Telegram webhook (secret-token gate) +
 
 ---
 
-## Task 12: End-to-end webhook flow + wave gate
+## Task 13: End-to-end webhook flow + wave gate
 
 **Files:**
 - Create: `test/interaction.e2e-spec.ts`
@@ -1992,8 +2316,10 @@ Expected: all green — build exit 0, lint exit 0, unit (636 + new) PASS, e2e (3
 - [ ] **Step 4: Run the G4 + G6 grep gates (must be empty)**
 
 ```bash
+# G4 — no schema DDL outside migrations (audit_log's createTable lives in 033, which is excluded):
 grep -rn "createTable\|CREATE TABLE" src --include=*.ts | grep -v "src/database/migrations/"
-grep -rn "telegram\|Telegram" src/interaction/envelope src/interaction/principal src/interaction/router src/interaction/transport --include=*.ts
+# G6 — the core imports no channel adapter (lowercase 'telegram' channel-value comparisons and JSDoc are allowed):
+grep -rn "from '.*channels/" src/interaction/envelope src/interaction/principal src/interaction/router src/interaction/transport --include=*.ts
 ```
 Expected: both produce **no output**.
 
@@ -2006,7 +2332,7 @@ git commit -m "test(interaction): e2e Telegram webhook → Conversation; full 8a
 
 ---
 
-## Task 13: Update the wave-8 stub status
+## Task 14: Update the wave-8 stub status
 
 **Files:**
 - Modify: `.omo/plans/wave-8-interaction.md`
@@ -2026,23 +2352,24 @@ git commit -m "plan: mark Wave 8a core complete; 8b (flows) is next"
 
 ## Self-Review (author checklist — completed)
 
-**1. Spec coverage** (against ADR-0025 + the wave-8 stub 8a decisions):
-- Channel-adapter boundary (mapper + transport port) → Tasks 9, 10, 11. ✅
+**1. Spec coverage** (against ADR-0025 + ADR-0026 + the wave-8 stub 8a decisions):
+- Channel-adapter boundary (mapper + transport port) → Tasks 10, 11, 12. ✅
 - Unified envelope → Task 2. ✅
-- Router (resolve → RoutedIntent classify → FlowDispatcher port; clarify branch) → Tasks 4, 5, 6, 8. ✅
+- Router (resolve → RoutedIntent classify → FlowDispatcher port; clarify branch) → Tasks 4, 5, 6, 9. ✅
 - Channel-agnostic Principal + per-track gating → Tasks 2, 3. ✅
-- Telegram concrete adapter (mapper, transport, webhook, secret-token) → Tasks 9–11. ✅
+- **Audit log (ADR-0026): append-only `audit_log` + `AuditLogService`** → Task 8; written by the router (gate-denied / action-point commit / ingest disposition) in Task 9 and the webhook (auth_failed) in Task 12, each with a test asserting the row. ✅
+- Telegram concrete adapter (mapper, transport, webhook, secret-token) → Tasks 10–12. ✅
 - Config reads (allowlists, ingest_policy, secret) → Task 1. ✅
-- Deterministic button tap (callback_data) as action-point → Task 8. ✅
-- e2e + gate → Task 12. ✅
-- **Deferred (explicitly out of 8a):** real flows (8b `FlowDispatcher`), email/Slack/Drive adapters + email confirmation-loop + `known_counterparty` resolution + SecretaryAgent (8c), Telegram **attachment** ingest download (the ingest *track* is built + tested via a synthetic envelope in Task 8; Telegram file-download lands with a later adapter pass). These are named so the cut is explicit, not silently dropped.
+- Deterministic button tap (callback_data) as action-point → Task 9. ✅
+- e2e + gate → Task 13. ✅
+- **Deferred (explicitly out of 8a):** real flows (8b `FlowDispatcher`), email/Slack/Drive adapters + email confirmation-loop + `known_counterparty` resolution + SecretaryAgent (8c), Telegram **attachment** ingest download (the ingest *track* is built + tested via a synthetic envelope in Task 9; Telegram file-download lands with a later adapter pass), and the per-subsystem audit-log rollout to Approval/period-lock/corrections (ADR-0026 — follow-up, not retrofitted in 8a). Named so the cut is explicit, not silently dropped.
 
-**2. Placeholder scan:** no TBD/TODO; every code step shows full code. One callout in Task 11 Step 5 flags the repo's Kysely-injection token form to copy verbatim — that is a real existing-pattern reference, not a placeholder.
+**2. Placeholder scan:** no TBD/TODO; every code step shows full code. One callout in Task 12 Step 5 flags the repo's Kysely-injection token form to copy verbatim — that is a real existing-pattern reference, not a placeholder.
 
-**3. Type consistency:** `UnifiedEnvelope`/`EnvelopeAuth`/`Principal`/`RoutedIntent`/`OutboundMessage`/`InteractionTransport`/`TelegramUpdate`/`TelegramSendPayload` names and fields are identical across Tasks 2–12. `convKey` ↔ `thread_key` mapping is consistent (`tg:<chatId>`). `FlowDispatcher` abstract + `RecordingFlowDispatcher` binding consistent across Tasks 6, 8, 11.
+**3. Type consistency:** `UnifiedEnvelope`/`EnvelopeAuth`/`Principal`/`RoutedIntent`/`OutboundMessage`/`InteractionTransport`/`TelegramUpdate`/`TelegramSendPayload`/`AuditEntry` names and fields are identical across all tasks. `convKey` ↔ `thread_key` mapping is consistent (`tg:<chatId>`). `FlowDispatcher` abstract + `RecordingFlowDispatcher` binding consistent across Tasks 6, 9, 12. `AuditLogService.record(entry: AuditEntry)` injected consistently into the router (Task 9) and webhook (Task 12).
 
 ---
 
 ## Execution Handoff
 
-Wave 8a is 13 tasks, each red→green→commit, gated under Node 24. Recommended execution: **subagent-driven** (fresh subagent per task, review between). Tasks 1–7 are independent leaves; Task 8 depends on 1–7; Tasks 9–11 depend on 2/4/7; Task 12 depends on 11.
+Wave 8a is 14 tasks, each red→green→commit, gated under Node 24. Recommended execution: **subagent-driven** (fresh subagent per task, review between). Tasks 1–8 are independent leaves (Task 8 = the append-only audit log, depends only on the DB layer); Task 9 (router) depends on 1–8; Tasks 10–12 (Telegram) depend on 2/4/7/8; Task 13 (e2e) depends on 12; Task 14 updates the wave-8 stub.

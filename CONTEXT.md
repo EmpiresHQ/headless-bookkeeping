@@ -150,6 +150,10 @@ _Avoid_: Notifier, reminder bot
 The append-only ledger is tamper-evident: each posted **Voucher** commits to the hash of the previous ledger state (git-commit style). Orthogonal to double-entry — double-entry proves *what* is recorded is correct, the hash chain proves the records *were not altered* after the fact. A **Merkle root** over each locked period's vouchers is stored in its **VAT report**.
 _Avoid_: Blockchain, ledger hash (when ambiguous)
 
+**Audit log**:
+The single append-only record of *actions and access decisions* across the system — who did what, who was allowed to, and the outcome (`actor`, `action`, `target`, `outcome`, `detail`, time). Made immutable by SQL triggers, but it is an **operational** record (like the **Conversation** aggregate) and is **NOT** part of the **hash-chained voucher log** — ADR-0013's chain proves the *ledger* was not altered; the Audit log records operational events that are not accounting postings. The interaction layer is its first writer (gating decisions, **Action point** commits, channel auth failures); Approval/period-lock/corrections adopt it incrementally. Distinct from an **AuditFinding** (a forward-looking attention item the **SecretaryAgent** nags about) — the Audit log is the backward-looking record of what happened. See ADR-0026.
+_Avoid_: Audit trail (when ambiguous with the ledger hash chain), AuditFinding, event log
+
 ### VAT
 
 **VAT code**:

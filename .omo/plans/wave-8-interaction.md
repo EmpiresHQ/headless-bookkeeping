@@ -8,7 +8,7 @@ Wave 8 is the **interaction layer**: the channels (email/Telegram/Slack/Drive) a
 ## Decomposition (2026-06-09 grill)
 Too large for one executable plan; split into three sequential sub-waves, each its own grill → `make-plan` → TDD execution:
 
-- **8a — Core**: the **Channel adapter** boundary (pure mapper + injectable transport port), the **unified envelope**, the intent **router** (deterministic Conversation resolution → `RoutedIntent` classification via a Mastra+Zod agent → `FlowDispatcher` port), the channel-agnostic **Principal** resolver + access gating, and **one** concrete adapter — **Telegram** (buttons = the cleanest **Action point**). Flows are stubbed behind `FlowDispatcher`.
+- **8a — Core**: the **Channel adapter** boundary (pure mapper + injectable transport port), the **unified envelope**, the intent **router** (deterministic Conversation resolution → `RoutedIntent` classification via a Mastra+Zod agent → `FlowDispatcher` port), the channel-agnostic **Principal** resolver + access gating, a general append-only **Audit log** (`AuditLogService`, ADR-0026 — the interaction layer is its first writer: gate decisions, **Action point** commits, channel auth failures), and **one** concrete adapter — **Telegram** (buttons = the cleanest **Action point**). Flows are stubbed behind `FlowDispatcher`.
 - **8b — Flows**: the real `FlowDispatcher` implementations on the Wave-7 Mastra runtime — **sales-invoice issuance interview** (register only, no send) and **advisory chat** (read-only Q&A).
 - **8c — HITL + outreach + email**: findings-as-outreach delivery, **SecretaryAgent** nagging, and the **email** adapter with its **confirmation-loop** Action point (the second concrete channel).
 
