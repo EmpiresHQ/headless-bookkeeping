@@ -1,3 +1,11 @@
+import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
+
+export type {
+  VatComputation,
+  ExpenseTreatmentPreview,
+  CountryPluginRetrieval,
+} from './country-plugin-retrieval.interface';
+
 /**
  * VATCode - A country-specific classification of a line's VAT treatment.
  * Owned and defined by a country plugin (e.g. "DK_INPUT_25").
@@ -81,7 +89,7 @@ export interface CrossBorderResolution {
  *   (Concrete method deferred — see Wave-5 Task 34; supplierFacts.country is
  *   already the input channel.)
  */
-export interface CountryPlugin {
+export interface CountryPlugin extends CountryPluginRetrieval {
   /**
    * Returns the country code identifier for this plugin (e.g. "DK", "DE", "null").
    */
@@ -268,4 +276,19 @@ export interface CountryPlugin {
     retainedEarnings: number,
     orgContext: OrgContext,
   ): boolean;
+
+  /**
+   * Company-level tax due ON TOP of a dividend distribution, distinct from
+   * `dividendWithholdingRate` (which is withheld FROM the shareholder).
+   * Estonia taxes distributed profit at the company: CIT = 22/78 of the net
+   * distribution, paid additionally; the shareholder receives the full amount.
+   * Returns the tax account + amount (minor units), or null when the
+   * jurisdiction has no such tax (IE/Null → null).
+   *
+   * @param netToOwner - the net amount the owner receives (base-currency minor units)
+   */
+  resolveDistributionTax(
+    netToOwner: number,
+    orgContext: OrgContext,
+  ): { accountCode: string; amount: number } | null;
 }

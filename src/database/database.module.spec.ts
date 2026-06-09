@@ -83,4 +83,13 @@ describe('DatabaseModule', () => {
     `.execute(db);
     expect(ddl.rows[0].sql).toContain('id = 1');
   });
+
+  it('seeds DISTRIBUTION_TAX_PAYABLE (liability) after migration 034', async () => {
+    const row = await db
+      .selectFrom('account')
+      .selectAll()
+      .where('code', '=', 'DISTRIBUTION_TAX_PAYABLE')
+      .executeTakeFirstOrThrow();
+    expect(row.type).toBe('liability');
+  });
 });

@@ -14,6 +14,7 @@ import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
@@ -57,6 +58,7 @@ describe('PersonalDispositionService (integration)', () => {
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
         PersonalDispositionService,
@@ -275,6 +277,7 @@ describe('PersonalDispositionService — cross-currency bank account', () => {
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
         PersonalDispositionService,
