@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { SqliteConstraintFilter } from './common/filters/sqlite-constraint.filter';
 import { DatabaseModule } from './database/database.module';
 import { OrganizationModule } from './organization/organization.module';
 import { CurrencyModule } from './currency/currency.module';
@@ -63,6 +64,12 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     {
       provide: APP_GUARD,
       useClass: ApiTokenGuard,
+    },
+    {
+      // Map SQLite constraint violations (e.g. a non-existent FK) to clean 4xx
+      // instead of an opaque 500. Applies app-wide (and in e2e).
+      provide: APP_FILTER,
+      useClass: SqliteConstraintFilter,
     },
   ],
 })
