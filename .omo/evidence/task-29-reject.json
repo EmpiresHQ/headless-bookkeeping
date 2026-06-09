@@ -1,0 +1,1 @@
+{"approval":{"id":4,"object_type":"expense","object_id":4,"status":"rejected","requested_by":"test-user","approved_by":null,"rejected_reason":"Missing receipt","superseded_by":null,"created_at":1780570471,"resolved_at":1780570471}}

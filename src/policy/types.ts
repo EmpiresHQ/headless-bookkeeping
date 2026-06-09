@@ -30,6 +30,17 @@ export interface PolicyConfig {
 }
 
 /**
+ * Contextual information fed to Policy.decide() alongside the voucher and
+ * rule results. These are Policy inputs only — never fed to Rules.
+ */
+export interface PolicyContext {
+  /** AI confidence score (0–1). Undefined → skip confidence check. */
+  confidence?: number;
+  /** Whether the supplier is known (matched to an Entity). */
+  supplierKnown?: boolean;
+}
+
+/**
  * A persisted override record — an explicit, logged, human-authored exception
  * to a semantic rule, stored atomically with the post (AC-6).
  */

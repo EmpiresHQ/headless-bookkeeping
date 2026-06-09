@@ -11,6 +11,7 @@ import { migrations } from './../src/database/migrations';
 import { AccountService } from './../src/ledger/account/account.service';
 import { LedgerValidationService } from './../src/ledger/validation/ledger-validation.service';
 import { PostingService } from './../src/ledger/posting/posting.service';
+import { PeriodLockService } from './../src/reporting-periods/period-lock.service';
 import { VoucherRepository } from './../src/ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from './../src/ledger/voucher/voucher-line.repository';
 import { VoucherController } from './../src/ledger/voucher/voucher.controller';
@@ -41,6 +42,7 @@ describe('Voucher (e2e)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        PeriodLockService,
         VoucherRepository,
         VoucherLineRepository,
       ],

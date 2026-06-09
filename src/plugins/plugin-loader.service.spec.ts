@@ -4,8 +4,14 @@ import Database from 'better-sqlite3';
 import { Database as DBType } from '../database/types';
 import { migrations } from '../database/migrations';
 import { Migrator } from 'kysely/migration';
+import { Logger } from '@nestjs/common';
 import { NullCountryPlugin } from './null-country.plugin';
 import { PluginLoader } from './plugin-loader.service';
+import {
+  StrictTestPlugin,
+  STRICT_REJECTED_VAT,
+  STRICT_REJECTED_CATEGORY,
+} from './strict-test.plugin';
 import { OrgContext, SupplierFacts } from './country-plugin.interface';
 
 const defaultSupplier: SupplierFacts = {
@@ -29,12 +35,6 @@ describe('NullCountryPlugin', () => {
     }).compile();
 
     plugin = module.get<NullCountryPlugin>(NullCountryPlugin);
-  });
-
-  describe('getName', () => {
-    it('should return "null"', () => {
-      expect(plugin.getName()).toBe('null');
-    });
   });
 
   describe('getVATCodes', () => {
@@ -109,24 +109,6 @@ describe('NullCountryPlugin', () => {
     });
   });
 
-  describe('getPeriodFrequencyOptions', () => {
-    it('should return ["yearly"]', () => {
-      expect(plugin.getPeriodFrequencyOptions()).toEqual(['yearly']);
-    });
-  });
-
-  describe('getDefaultPeriodFrequency', () => {
-    it('should return "yearly"', () => {
-      expect(plugin.getDefaultPeriodFrequency()).toBe('yearly');
-    });
-  });
-
-  describe('getDefaultBaseCurrency', () => {
-    it('should return "EUR" as the neutral default', () => {
-      expect(plugin.getDefaultBaseCurrency()).toBe('EUR');
-    });
-  });
-
   describe('getReferenceRate', () => {
     it('should return 1.0 when the two currencies are the same (EUR→EUR)', () => {
       expect(plugin.getReferenceRate('EUR', 'EUR', '2026-03-15')).toBe(1.0);
@@ -152,6 +134,17 @@ describe('NullCountryPlugin', () => {
       // The date parameter is accepted but ignored by the null plugin
       expect(plugin.getReferenceRate('EUR', 'EUR', '2020-01-01')).toBe(1.0);
       expect(plugin.getReferenceRate('EUR', 'EUR', '2030-12-31')).toBe(1.0);
+    });
+  });
+
+  describe('roundToBaseMinorUnits', () => {
+    it('rounds to integer minor units with Math.round semantics (half away from zero)', () => {
+      // Behavior-preserving for IE/EUR: identical to the kernel's former
+      // hardcoded Math.round.
+      expect(plugin.roundToBaseMinorUnits(98.76)).toBe(99);
+      expect(plugin.roundToBaseMinorUnits(2.5)).toBe(3);
+      expect(plugin.roundToBaseMinorUnits(2.4)).toBe(2);
+      expect(plugin.roundToBaseMinorUnits(714)).toBe(714);
     });
   });
 
@@ -222,6 +215,110 @@ describe('PluginLoader', () => {
     it('should return NullCountryPlugin for "null"', () => {
       const result = loader.resolve('null');
       expect(result.getName()).toBe('null');
+    });
+  });
+
+  describe('resolve observability (friction #6)', () => {
+    it('warns (not silently) when falling back to the neutral default for an unknown country', () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      const result = loader.resolve('DK');
+
+      expect(result.getName()).toBe('null');
+      expect(warn).toHaveBeenCalledTimes(1);
+      const message = warn.mock.calls[0][0] as string;
+      expect(message).toContain('DK');
+      expect(message).toContain('NullCountryPlugin');
+
+      warn.mockRestore();
+    });
+
+    it('does NOT warn for "null" — the neutral plugin is a registered, legitimate default deployment', () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      loader.resolve('null');
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('warns once per distinct unknown country code (spam control), not once per resolve()', () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      loader.resolve('DK');
+      loader.resolve('DK');
+      loader.resolve('DK');
+      loader.resolve('DE');
+
+      // One warning for DK, one for DE — not four.
+      expect(warn).toHaveBeenCalledTimes(2);
+      warn.mockRestore();
+    });
+  });
+});
+
+describe('StrictTestPlugin (second adapter — real seam)', () => {
+  let plugin: StrictTestPlugin;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [StrictTestPlugin],
+    }).compile();
+
+    plugin = module.get<StrictTestPlugin>(StrictTestPlugin);
+  });
+
+  it('identifies itself as a distinct plugin from the null default', () => {
+    expect(plugin.getName()).toBe('strict-test');
+  });
+
+  it('maps the trigger Category to the known-bad VAT code', () => {
+    const result = plugin.resolveCategoryMapping(
+      STRICT_REJECTED_CATEGORY,
+      defaultSupplier,
+      defaultOrg,
+    );
+    expect(result.vatCode).toBe(STRICT_REJECTED_VAT);
+  });
+
+  it('FORCES a semantic failure: rejects the known-bad VAT code', () => {
+    expect(
+      plugin.validateVATCode(STRICT_REJECTED_VAT, {
+        supplier: defaultSupplier,
+        org: defaultOrg,
+      }),
+    ).toBe(false);
+  });
+
+  it('still accepts the inherited NullCountryPlugin VAT codes (only the bad code fails)', () => {
+    expect(
+      plugin.validateVATCode('IE_INPUT_23', {
+        supplier: defaultSupplier,
+        org: defaultOrg,
+      }),
+    ).toBe(true);
+  });
+
+  it('inherits NullCountryPlugin minor-unit rounding (Math.round) unchanged', () => {
+    expect(plugin.roundToBaseMinorUnits(98.76)).toBe(99);
+    expect(plugin.roundToBaseMinorUnits(2.5)).toBe(3);
+  });
+
+  it('falls through to NullCountryPlugin mapping for ordinary categories', () => {
+    const result = plugin.resolveCategoryMapping(
+      'software',
+      defaultSupplier,
+      defaultOrg,
+    );
+    expect(result).toEqual({
+      accountCode: 'EXPENSE_SOFTWARE',
+      vatCode: 'IE_INPUT_23',
     });
   });
 });

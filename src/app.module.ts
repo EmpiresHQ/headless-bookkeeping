@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './database/database.module';
 import { OrganizationModule } from './organization/organization.module';
 import { CurrencyModule } from './currency/currency.module';
@@ -13,6 +14,19 @@ import { DocumentsModule } from './documents/documents.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { TriageModule } from './triage/triage.module';
 import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.module';
+import { EntitiesModule } from './entities/entities.module';
+import { BankModule } from './bank/bank.module';
+import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { AuditFindingsModule } from './audit-findings/audit-findings.module';
+import { AgentsModule } from './agents/agents.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { DividendsModule } from './dividends/dividends.module';
+import { AdminModule } from './admin/admin.module';
+import { VatReportModule } from './vat-report/vat-report.module';
+import { ApprovalsModule } from './approvals/approvals.module';
+import { AuthModule } from './auth/auth.module';
+import { AiModule } from './ai/ai.module';
+import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
   imports: [
@@ -30,6 +44,24 @@ import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.mo
     CorrectionsModule,
     TriageModule,
     ReportingPeriodsModule,
+    EntitiesModule,
+    BankModule,
+    ReconciliationModule,
+    AuditFindingsModule,
+    AgentsModule,
+    ConversationsModule,
+    DividendsModule,
+    AdminModule,
+    VatReportModule,
+    ApprovalsModule,
+    AuthModule,
+    AiModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ApiTokenGuard,
+    },
   ],
 })
 export class AppModule {}

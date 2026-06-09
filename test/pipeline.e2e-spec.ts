@@ -11,6 +11,8 @@ import { migrations } from './../src/database/migrations';
 import { AccountService } from './../src/ledger/account/account.service';
 import { LedgerValidationService } from './../src/ledger/validation/ledger-validation.service';
 import { PostingService } from './../src/ledger/posting/posting.service';
+import { StatusTransitionService } from './../src/ledger/status/status-transition.service';
+import { PeriodLockService } from './../src/reporting-periods/period-lock.service';
 import { RulesService } from './../src/rules/rules.service';
 import { PolicyService } from './../src/policy/policy.service';
 import { PostingPipelineService } from './../src/ledger/pipeline/posting-pipeline.service';
@@ -22,6 +24,7 @@ import { OrganizationService } from './../src/organization/organization.service'
 import { PluginLoader } from './../src/plugins/plugin-loader.service';
 import { NullCountryPlugin } from './../src/plugins/null-country.plugin';
 import { CurrencyService } from './../src/currency/currency.service';
+import { VoucherProjectionService } from './../src/ledger/projection/voucher-projection.service';
 import { ZodValidationPipe } from './../src/common/pipes/zod-validation.pipe';
 
 describe('Pipeline (e2e)', () => {
@@ -49,9 +52,12 @@ describe('Pipeline (e2e)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        StatusTransitionService,
+        PeriodLockService,
         RulesService,
         PolicyService,
         PostingPipelineService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         OrganizationService,

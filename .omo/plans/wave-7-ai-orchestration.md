@@ -33,7 +33,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
 ## TODOs
 
-- [ ] 40. Mastra runtime + tool layer (embed + invariant)
+- [x] 40. Mastra runtime + tool layer (embed + invariant)
 
   **What to do**:
   - **ESM strategy (researched — Codex W7 P2):** keep Nest **CommonJS** (do NOT add `"type":"module"`); keep tsconfig **`module: nodenext`** (Node 22.22 — and nodenext *preserves* dynamic `import()` in emitted CJS, whereas `module:commonjs` downlevels it to `require()` and throws `ERR_REQUIRE_ESM`). **Do NOT use SWC** (it emits ESM under nodenext — breaks; Nest's SWC recipe needs `commonjs`); use `tsc`/`nest build`. Full ESM migration is deferred to Nest v12 — not now.
@@ -58,7 +58,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): embed Mastra runtime + tool layer (pipeline-gated, no post tool)`
 
-- [ ] 41. Pass 1 — OCR → markdown (+ audit artifact)
+- [x] 41. Pass 1 — OCR → markdown (+ audit artifact)
 
   **What to do**:
   - `OcrService.transcribe(documentId): string` — vision/OCR model (per the `ocr` profile) → **markdown** of the document. Transcribe, do NOT structure.
@@ -77,7 +77,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): Pass 1 OCR→markdown + audit artifact`
 
-- [ ] 42. Pass 2 — Mastra agent + tools → structured TriageResult
+- [x] 42. Pass 2 — Mastra agent + tools → structured TriageResult
 
   **What to do**:
   - **Replace the Wave-4 TS-interface `TriageResult` with a Zod schema (Codex W7 P0)** — the validated AI-output contract. The current `src/triage/types.ts` interface still has a `vat_code` field; **remove it**. Fields: **`kind`** (discriminant — `new_expense | correction | duplicate | unknown`, the Wave-5 Task-38 outcome union; NF-2), `gross_amount`, `vat_amount`, **`currency`** (`z.string().length(3)`; if the document omits it, fall back to the org base currency — NF-4, `createExpense` requires it), **`tax_point_date` (document/invoice date — ADR-0009, not arrival)**, supplier-identity proposal (match by reg-key/IBAN/descriptor or create), `category`, `document_vat_marking`, `confidence`. **No `vat_code`, no account** — the plugin resolves account+VAT (ADR-0002); the marking is evidence, never authority.
@@ -99,7 +99,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): Pass 2 agentic extract+classify → validated TriageResult`
 
-- [ ] 43. Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)
+- [x] 43. Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)
 
   > **Design (Codex W7 NF-1/NF-3 + grilling):** the agent is **read-only** and produces ONE complete validated `TriageResult` (no "create draft" tool → no half-baked/abandoned drafts). A draft is created **once, deterministically, only when the result is confident and `kind='new_expense'`**. There is **no Mastra `suspend()` in v1** — durable human-in-the-loop is carried by our own Wave-6 aggregates (Approval for a held draft; AuditFinding for an uncertain no-draft case), both on-disk and reboot-safe. (Mastra's suspend/resume stays available for future flows; v1 doesn't need it.)
 
@@ -125,7 +125,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): intake workflow — draft-or-triage routing, read-only agent`
 
-- [ ] 44. Confidence → Policy + AI-provenance audit
+- [x] 44. Confidence → Policy + AI-provenance audit
 
   **What to do**:
   - **Confidence input contract (Codex W7 P1):** `PolicyService.decide()` today takes only `(DraftVoucher, RuleResult[])` — there is no confidence channel. Add a **`PolicyContext { confidence?, supplierKnown?, … }`** parameter threaded from the pipeline, and **un-stub** the `auto_post_min_confidence` gate to read `context.confidence`: below threshold → **hold → Approval** (on the existing draft Expense, Wave-6); at/above → auto-post-eligible (still subject to other Policy/Rules). Confidence is a **Policy** input, never Rules / never a voucher field (CONTEXT.md, ADR-0024).
@@ -144,7 +144,7 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 
   **Commit**: `feat(ai): confidence→Policy gate + AI provenance audit`
 
-- [ ] 45. Wire triage to the real pipeline + intake e2e
+- [x] 45. Wire triage to the real pipeline + intake e2e
 
   **What to do**:
   - Replace the Wave-4 `OcrService.extract()` stub usage in `TriageService` with the real Workflow (Tasks 41-43); triage now produces real drafts with real confidence + document tax-point date.
@@ -165,11 +165,11 @@ Replaces the Wave-4 AI **stubs** with the real "AI proposes" layer (CONTEXT.md),
 ---
 
 ## Wave Acceptance Criteria
-- [ ] All 6 tasks complete
-- [ ] `docker compose up` starts and health responds 200
-- [ ] `npm run build` / `lint` / `test` / `test:e2e` all green
-- [ ] Evidence files in `.omo/evidence/` for each task
-- [ ] Git commit records Wave 7
+- [x] All 6 tasks complete
+- [x] `docker compose up` starts and health responds 200
+- [x] `npm run build` / `lint` / `test` / `test:e2e` all green
+- [x] Evidence files in `.omo/evidence/` for each task
+- [x] Git commit records Wave 7
 
 ## Commit
 - Message: `feat(ai): Mastra 2-pass intake — real OCR + agentic classify + durable HITL`

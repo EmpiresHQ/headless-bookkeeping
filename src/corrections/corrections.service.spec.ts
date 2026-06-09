@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CorrectionsService } from './corrections.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { AccountService } from '../ledger/account/account.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { CorrectionRequest } from './types';
@@ -13,7 +15,16 @@ describe('CorrectionsService (unit)', () => {
   let service: CorrectionsService;
 
   const mockPostingService = {
-    postVoucher: jest.fn(),
+    postVouchersAtomic: jest.fn(),
+  };
+
+  const mockStatusTransition = {
+    transition: jest.fn(),
+  };
+
+  const mockPeriodLock = {
+    findLockedPeriod: jest.fn(),
+    getCurrentOpenPeriod: jest.fn(),
   };
 
   const mockVoucherRepository = {
@@ -31,17 +42,17 @@ describe('CorrectionsService (unit)', () => {
   const mockExpensesService = {
     getExpenseById: jest.fn(),
     updateDraft: jest.fn(),
-    patchAmounts: jest.fn(),
     generateDraftVoucher: jest.fn(),
-    markReversed: jest.fn(),
+    previewPatchedDraft: jest.fn(),
+    patchAmountsTx: jest.fn(),
   };
 
   const mockSalesInvoicesService = {
     getInvoiceById: jest.fn(),
     updateDraft: jest.fn(),
-    patchAmounts: jest.fn(),
     generateDraftVoucher: jest.fn(),
-    markReversed: jest.fn(),
+    previewPatchedDraft: jest.fn(),
+    patchAmountsTx: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -51,9 +62,14 @@ describe('CorrectionsService (unit)', () => {
       providers: [
         CorrectionsService,
         { provide: PostingService, useValue: mockPostingService },
+        {
+          provide: StatusTransitionService,
+          useValue: mockStatusTransition,
+        },
         { provide: VoucherRepository, useValue: mockVoucherRepository },
         { provide: VoucherLineRepository, useValue: mockVoucherLineRepository },
         { provide: AccountService, useValue: mockAccountService },
+        { provide: PeriodLockService, useValue: mockPeriodLock },
         { provide: ExpensesService, useValue: mockExpensesService },
         { provide: SalesInvoicesService, useValue: mockSalesInvoicesService },
       ],
@@ -238,9 +254,10 @@ describe('CorrectionsService (unit)', () => {
         lines: [],
       };
 
-      mockPostingService.postVoucher
-        .mockResolvedValueOnce(reversalVoucher)
-        .mockResolvedValueOnce(correctedVoucher);
+      mockPostingService.postVouchersAtomic.mockResolvedValue([
+        reversalVoucher,
+        correctedVoucher,
+      ]);
 
       const correctedDraft: DraftVoucher = {
         voucher_number: 'DRAFT-EXP-1-456',
@@ -264,9 +281,7 @@ describe('CorrectionsService (unit)', () => {
           },
         ],
       };
-      mockExpensesService.generateDraftVoucher.mockResolvedValue(
-        correctedDraft,
-      );
+      mockExpensesService.previewPatchedDraft.mockResolvedValue(correctedDraft);
 
       const request: CorrectionRequest = {
         kind: 'financial',
@@ -279,43 +294,46 @@ describe('CorrectionsService (unit)', () => {
       expect(result.reversalVoucherId).toBe(20);
       expect(result.correctedVoucherId).toBe(21);
 
-      // Verify reversal draft was built correctly
-      const reversalCall = (
-        mockPostingService.postVoucher.mock.calls as unknown as Array<
+      // Both vouchers are posted atomically in a single call: [reversal, corrected].
+      const atomicCall = (
+        mockPostingService.postVouchersAtomic.mock.calls as unknown as Array<
           [
-            {
-              voucher_number: string;
-              reverses_id: number;
-              reason: string;
-              lines: Array<{ is_debit: boolean }>;
-            },
+            [
+              {
+                voucher_number: string;
+                reverses_id?: number;
+                corrects_object_type?: string;
+                corrects_object_id?: number;
+                reason: string;
+                lines: Array<{ is_debit: boolean }>;
+              },
+              {
+                voucher_number: string;
+                corrects_object_type?: string;
+                corrects_object_id?: number;
+                reason: string;
+              },
+            ],
           ]
         >
       )[0][0];
-      expect(reversalCall.reverses_id).toBe(10);
-      expect(reversalCall.reason).toBe('Wrong amount');
-      expect(reversalCall.lines).toHaveLength(2);
-      expect(reversalCall.lines[0].is_debit).toBe(false); // flipped
-      expect(reversalCall.lines[1].is_debit).toBe(true); // flipped
+      const [reversalArg, correctedArg] = atomicCall;
+
+      // Verify reversal draft was built correctly
+      expect(reversalArg.reverses_id).toBe(10);
+      expect(reversalArg.reason).toBe('Wrong amount');
+      expect(reversalArg.lines).toHaveLength(2);
+      expect(reversalArg.lines[0].is_debit).toBe(false); // flipped
+      expect(reversalArg.lines[1].is_debit).toBe(true); // flipped
 
       // Verify corrected draft
-      const correctedCall = (
-        mockPostingService.postVoucher.mock.calls as unknown as Array<
-          [
-            {
-              voucher_number: string;
-              corrects_object_type: string;
-              corrects_object_id: number;
-              reason: string;
-            },
-          ]
-        >
-      )[1][0];
-      expect(correctedCall.corrects_object_type).toBe('expense');
-      expect(correctedCall.corrects_object_id).toBe(1);
-      expect(correctedCall.reason).toBe('Wrong amount');
+      expect(correctedArg.corrects_object_type).toBe('expense');
+      expect(correctedArg.corrects_object_id).toBe(1);
+      expect(correctedArg.reason).toBe('Wrong amount');
 
-      expect(mockExpensesService.markReversed).toHaveBeenCalledWith(1, 21);
+      // The patch + status flip ride inside the posting transaction via hooks
+      // (exercised end-to-end in the integration spec, where the real
+      // postVouchersAtomic runs them).
     });
 
     it('reversed status → unsupported_status', async () => {
@@ -332,6 +350,174 @@ describe('CorrectionsService (unit)', () => {
 
       const result = await service.correctExpense(1, request);
       expect(result.outcome).toBe('unsupported_status');
+    });
+  });
+
+  describe('corrected voucher identified by ROLE, not position', () => {
+    // Shared posted-correction fixture: a posted expense whose original voucher
+    // has two mirrored lines.
+    function arrangePostedExpense(): void {
+      mockExpensesService.getExpenseById.mockResolvedValue({
+        id: 1,
+        status: 'posted',
+        voucher_id: 10,
+      });
+      mockVoucherRepository.getVoucherById.mockResolvedValue({
+        id: 10,
+        voucher_number: 'V-2026-001',
+        tax_point_date: '2026-03-15',
+        posted_at: 1710000000,
+        previous_hash: 'abc',
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      });
+      mockVoucherLineRepository.getLinesByVoucherId.mockResolvedValue([
+        {
+          id: 100,
+          voucher_id: 10,
+          account_id: 1,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: 'IE_INPUT_23',
+          is_debit: true,
+        },
+        {
+          id: 101,
+          voucher_id: 10,
+          account_id: 2,
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: false,
+        },
+      ]);
+      mockAccountService.getAccountsByIds.mockResolvedValue([
+        { id: 1, code: 'EXPENSE_SOFTWARE', currency: null },
+        { id: 2, code: 'CASH', currency: null },
+      ]);
+      mockPeriodLock.findLockedPeriod.mockResolvedValue(null);
+      mockExpensesService.previewPatchedDraft.mockResolvedValue({
+        voucher_number: 'DRAFT',
+        tax_point_date: '2026-03-15',
+        lines: [],
+      });
+    }
+
+    it('re-points the object at the CORRECTED voucher even when the posted pair is returned in swapped (corrected-first) order', async () => {
+      arrangePostedExpense();
+
+      // The REVERSAL carries reverses_id; the CORRECTED carries corrects_object_id.
+      const reversalVoucher: PostedVoucher = {
+        id: 20,
+        voucher_number: 'V-2026-001-REV',
+        tax_point_date: '2026-03-15',
+        posted_at: 1710000001,
+        previous_hash: 'def',
+        reverses_id: 10,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: 'Wrong amount',
+        lines: [],
+      };
+      const correctedVoucher: PostedVoucher = {
+        id: 21,
+        voucher_number: 'V-2026-001-COR',
+        tax_point_date: '2026-03-15',
+        posted_at: 1710000002,
+        previous_hash: 'ghi',
+        reverses_id: null,
+        corrects_object_type: 'expense',
+        corrects_object_id: 1,
+        reason: 'Wrong amount',
+        lines: [],
+      };
+
+      // Posting returns the pair SWAPPED: corrected first, reversal second. A
+      // positional `posted[1]` would now re-point the object at the REVERSAL
+      // (id 20). Role-based resolution must still pick the corrected (id 21).
+      const swapped = [correctedVoucher, reversalVoucher];
+      const fakeTrx = {} as unknown;
+      mockPostingService.postVouchersAtomic.mockImplementation(
+        async (
+          _drafts: unknown,
+          hooks: {
+            beforePost?: (trx: unknown) => Promise<void>;
+            afterPost?: (
+              trx: unknown,
+              posted: PostedVoucher[],
+            ) => Promise<void>;
+          },
+        ) => {
+          if (hooks.beforePost) await hooks.beforePost(fakeTrx);
+          if (hooks.afterPost) await hooks.afterPost(fakeTrx, swapped);
+          return swapped;
+        },
+      );
+
+      const result = await service.correctExpense(1, {
+        kind: 'financial',
+        reason: 'Wrong amount',
+        patch: { gross_amount: 15000 },
+      });
+
+      expect(result.outcome).toBe('posted_reversal_and_correction');
+      // Result fields resolved by role, not position.
+      expect(result.reversalVoucherId).toBe(20);
+      expect(result.correctedVoucherId).toBe(21);
+
+      // The status flip re-points the object at the CORRECTED voucher (21),
+      // NOT at posted[1] (which is the reversal, 20, in this swapped pair).
+      expect(mockStatusTransition.transition).toHaveBeenCalledTimes(1);
+      const transitionCall = mockStatusTransition.transition.mock
+        .calls[0] as unknown as [
+        unknown,
+        string,
+        number,
+        string,
+        string,
+        { extras: { voucher_id: number } },
+      ];
+      expect(transitionCall[1]).toBe('expense');
+      expect(transitionCall[2]).toBe(1);
+      expect(transitionCall[3]).toBe('posted');
+      expect(transitionCall[4]).toBe('reversed');
+      expect(transitionCall[5].extras.voucher_id).toBe(21);
+    });
+
+    it('rejects correcting a correction: a posted object whose live voucher is itself a reversal/correction artifact', async () => {
+      mockExpensesService.getExpenseById.mockResolvedValue({
+        id: 1,
+        status: 'posted',
+        voucher_id: 10,
+      });
+      // The live voucher is itself a corrected voucher (carries corrects_object).
+      mockVoucherRepository.getVoucherById.mockResolvedValue({
+        id: 10,
+        voucher_number: 'V-2026-001-COR',
+        tax_point_date: '2026-03-15',
+        posted_at: 1710000000,
+        previous_hash: 'abc',
+        reverses_id: null,
+        corrects_object_type: 'expense',
+        corrects_object_id: 1,
+        reason: 'Earlier correction',
+      });
+
+      await expect(
+        service.correctExpense(1, {
+          kind: 'financial',
+          reason: 'Correct the correction',
+          patch: { gross_amount: 20000 },
+        }),
+      ).rejects.toThrow(/reversal\/correction and cannot be corrected again/i);
+
+      expect(mockPostingService.postVouchersAtomic).not.toHaveBeenCalled();
     });
   });
 });

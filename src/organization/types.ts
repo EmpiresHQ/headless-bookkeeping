@@ -5,6 +5,8 @@ export interface Organization {
   // plugin" (ADR-0004).
   base_currency: string | null;
   vat_registered: boolean;
+  // Legal form: 'company' | 'sole_proprietor' (ADR-0017/ADR-0023).
+  org_type: string;
   created_at: number;
 }
 
@@ -13,4 +15,5 @@ export interface UpdateOrganizationDto {
   // Pass null to clear the override and fall back to the country plugin default.
   base_currency?: string | null;
   vat_registered?: boolean;
+  org_type?: 'company' | 'sole_proprietor';
 }

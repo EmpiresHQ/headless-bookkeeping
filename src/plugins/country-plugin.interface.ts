@@ -40,6 +40,28 @@ export interface CategoryMappingResult {
 }
 
 /**
+ * CrossBorderTreatment - The resolved VAT treatment for a cross-border transaction.
+ *
+ * Per ADR-0002, each country plugin encodes its own jurisdiction's view of cross-border
+ * VAT treatment from the supplier's VAT territory.
+ */
+export type CrossBorderTreatment =
+  | 'domestic'
+  | 'reverse_charge'
+  | 'import'
+  | 'foreign_cost'
+  | 'unresolvable';
+
+/**
+ * CrossBorderResolution - The result of resolveCrossBorderTreatment.
+ * Provides the treatment classification and the applicable VAT code (if any).
+ */
+export interface CrossBorderResolution {
+  treatment: CrossBorderTreatment;
+  vatCode: VATCode | null;
+}
+
+/**
  * CountryPlugin - The sole resolver of country-specific accounting rules.
  *
  * Per ADR-0002: "The country plugin is the sole resolver of a VAT code."
@@ -140,6 +162,25 @@ export interface CountryPlugin {
   ): number;
 
   /**
+   * Rounds a fractional base-currency amount to integer minor units (cents).
+   *
+   * Rounding a converted base amount to the base currency's minor units is a
+   * JURISDICTION rule, not a kernel constant: some VAT regimes mandate a
+   * specific rounding (e.g. round-half-up, round-half-even, or truncation) for
+   * the prescribed VAT-base conversion (EU VAT Directive Art. 91). The kernel
+   * therefore never hardcodes a rounding rule — it asks the active plugin
+   * (ADR-0002: rounding is explicitly a country-plugin concern).
+   *
+   * The neutral default (NullCountryPlugin) returns `Math.round(amount)` —
+   * round-half-away-from-zero — which is behavior-preserving for the IE/EUR
+   * deployment. A real country plugin overrides this with its own rule.
+   *
+   * @param amount - The fractional base-currency amount (e.g. 98.76 cents).
+   * @returns The amount rounded to integer minor units (cents).
+   */
+  roundToBaseMinorUnits(amount: number): number;
+
+  /**
    * Validates whether a VAT code is applicable in a given context.
    *
    * @param vatCode - The VAT code to validate
@@ -149,5 +190,82 @@ export interface CountryPlugin {
   validateVATCode(
     vatCode: string,
     context: { supplier: SupplierFacts; org: OrgContext },
+  ): boolean;
+
+  /**
+   * Resolves the account code for a personal (non-business) disposition
+   * based on the organization's legal form.
+   *
+   * Per ADR-0017:
+   * - sole_proprietor → OWNERS_DRAWINGS (equity contra)
+   * - company → SHAREHOLDER_LOAN (receivable-from-owner, asset)
+   *
+   * The kernel must NEVER hardcode the disposition account; it asks the
+   * plugin so that country-specific variations can be introduced later.
+   *
+   * @param orgType - The organization's legal form ('company' | 'sole_proprietor')
+   * @returns The account code for the personal disposition
+   */
+  resolvePersonalDispositionAccount(orgType: string): string;
+
+  /**
+   * Resolves the cross-border VAT treatment for a transaction with a supplier
+   * from a different VAT territory.
+   *
+   * The country plugin maps the supplier's country to a VAT territory and
+   * decides the treatment from:
+   * - Our VAT territory + the supplier's VAT territory
+   * - Whether the supplier provides goods or services
+   * - Whether VAT was charged on the document
+   *
+   * A foreign document_vat_marking is never silently reclaimed as input VAT.
+   * When the treatment cannot be resolved, it returns 'unresolvable' and
+   * the transaction is held for Approval (conservative default: book gross).
+   *
+   * @param supplierFacts - Intrinsic facts about the supplier
+   * @param orgContext - The Organization's context
+   * @param context - Additional context (whether VAT was charged on the document)
+   * @returns The resolved cross-border treatment + applicable VAT code
+   */
+  resolveCrossBorderTreatment(
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+    context: { vatCharged: boolean },
+  ): CrossBorderResolution;
+
+  /**
+   * Returns the dividend withholding tax rate for the Organization's country.
+   *
+   * The rate is a fraction (0.0 – 1.0) applied to the gross dividend amount.
+   * E.g. 0.27 for Denmark's 27% udbytteskat, 0.0 for Ireland (no DWT on
+   * resident distributions).
+   *
+   * When the rate is > 0, the declaration voucher splits the payable:
+   *   Dr RETAINED_EARNINGS            (gross)
+   *   Cr DIVIDEND_PAYABLE             (net to owner)
+   *   Cr DIVIDEND_WITHHOLDING_TAX_PAYABLE  (withheld portion)
+   *
+   * @param orgContext - The Organization's context
+   * @returns Withholding rate as a fraction (0.0 = none)
+   */
+  dividendWithholdingRate(orgContext: OrgContext): number;
+
+  /**
+   * Checks whether a dividend of the given gross amount can be distributed
+   * from the available retained earnings.
+   *
+   * Per ADR-0023: dividends are constrained by distributable profits — they
+   * may not exceed retained earnings (a legal cap). The country plugin decides
+   * whether this is a hard block (throws / returns false) or a soft warning.
+   *
+   * @param grossAmount - The proposed gross dividend in base-currency cents
+   * @param retainedEarnings - Current retained-earnings balance in base-currency cents
+   * @param orgContext - The Organization's context
+   * @returns true if the distribution is permitted; false if it must be blocked
+   */
+  assertDistributable(
+    grossAmount: number,
+    retainedEarnings: number,
+    orgContext: OrgContext,
   ): boolean;
 }

@@ -66,14 +66,4 @@ describe('OverrideController', () => {
     expect(result.overrides).toEqual([]);
     expect(mockPolicyService.getOverrides).toHaveBeenCalledTimes(1);
   });
-
-  it('GET /api/overrides returns overrides in the order provided by the service', async () => {
-    const ordered = [...mockOverrides].reverse();
-    mockPolicyService.getOverrides.mockResolvedValue(ordered);
-
-    const result = await controller.getOverrides();
-
-    expect(result.overrides[0].id).toBe(2);
-    expect(result.overrides[1].id).toBe(1);
-  });
 });

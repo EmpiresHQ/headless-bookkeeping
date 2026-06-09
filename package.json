@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -13,16 +16,19 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "find src -name '*.spec.ts' -print0 | xargs -0 -I{} npx jest {} --runInBand --no-cache --silent",
+    "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@mastra/core": "^1.41.0",
+    "@mastra/libsql": "^1.12.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^6.1.3",
     "better-sqlite3": "^12.10.0",
     "kysely": "^0.29.2",
     "nestjs-kysely": "^3.1.2",
@@ -59,8 +65,8 @@
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
-    "maxWorkers": 1,
-    "workerIdleMemoryLimit": "100MB",
+    "maxWorkers": "50%",
+    "workerIdleMemoryLimit": "50MB",
     "resetModules": true,
     "moduleFileExtensions": [
       "js",
@@ -75,6 +81,11 @@
     "transformIgnorePatterns": [
       "node_modules/(?!(kysely|nestjs-kysely)/)"
     ],
+    "moduleNameMapper": {
+      "^@mastra/core$": "<rootDir>/../test/mastra-stub.ts",
+      "^@mastra/core/agent$": "<rootDir>/../test/mastra-stub.ts",
+      "^@mastra/libsql$": "<rootDir>/../test/mastra-stub.ts"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

@@ -1,35 +1,216 @@
 {
   "schema_version": 2,
-  "active_work_id": "wave-4-intake-ca20f7a0",
+  "active_work_id": "wave-7-ai-orchestration",
   "works": {
-    "wave-4-intake-ca20f7a0": {
-      "work_id": "wave-4-intake-ca20f7a0",
-      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
-      "plan_name": "wave-4-intake",
-      "status": "active",
-      "started_at": "2026-05-31T08:41:21.827Z",
-      "updated_at": "2026-05-31T08:41:21.827Z",
+    "wave-6-agents-admin": {
+      "work_id": "wave-6-agents-admin",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-6-agents-admin.md",
+      "plan_name": "wave-6-agents-admin",
+      "status": "completed",
+      "started_at": "2026-05-31T20:46:48.010Z",
+      "updated_at": "2026-06-08T19:38:14.624Z",
       "session_ids": [
-        "ses_189dd88bdffe62f9e25yMGW0DY"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq",
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf",
+        "opencode:ses_15741fb5affemhvdJ1Cu04Q70m",
+        "opencode:ses_15741ef2bffe8afEYaOt1q7AZj",
+        "opencode:ses_15741e33fffe0AJGvK5FPtqNbW",
+        "opencode:ses_15741da19ffeOkBSQqCl7lFFUI"
       ],
       "session_origins": {
-        "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
+        "opencode:ses_18035f62fffepbex2WYoi1iIAq": "direct",
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf": "direct",
+        "opencode:ses_15741fb5affemhvdJ1Cu04Q70m": "appended",
+        "opencode:ses_15741ef2bffe8afEYaOt1q7AZj": "appended",
+        "opencode:ses_15741e33fffe0AJGvK5FPtqNbW": "appended",
+        "opencode:ses_15741da19ffeOkBSQqCl7lFFUI": "appended"
       },
       "agent": "atlas",
-      "task_sessions": {}
+      "worktree_path": null,
+      "elapsed_ms": 682039404,
+      "task_sessions": {},
+      "ended_at": "2026-06-08T18:14:07.414Z"
+    },
+    "wave-7-ai-orchestration": {
+      "work_id": "wave-7-ai-orchestration",
+      "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-7-ai-orchestration.md",
+      "plan_name": "wave-7-ai-orchestration",
+      "status": "completed",
+      "started_at": "2026-06-08T17:43:51.433Z",
+      "updated_at": "2026-06-08T19:30:00.000Z",
+      "session_ids": [
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
+      ],
+      "session_origins": {
+        "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf": "direct"
+      },
+      "agent": "atlas",
+      "worktree_path": null,
+      "elapsed_ms": 0,
+      "task_sessions": {
+        "todo:40": {
+          "task_key": "todo:40",
+          "task_label": "40",
+          "task_title": "Mastra runtime + tool layer (embed + invariant)",
+          "session_id": "opencode:ses_157a68408ffeprwsAhIb2pxTXj",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "started_at": "2026-06-08T17:46:45.433Z",
+          "status": "completed",
+          "updated_at": "2026-06-08T18:02:00.000Z",
+          "ended_at": "2026-06-08T18:02:00.000Z"
+        },
+        "todo:41": {
+          "task_key": "todo:41",
+          "task_label": "41",
+          "task_title": "Pass 1 — OCR → markdown (+ audit artifact)",
+          "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-06-08T18:18:34.128Z",
+          "status": "completed",
+          "updated_at": "2026-06-08T18:27:00.000Z",
+          "ended_at": "2026-06-08T18:27:00.000Z"
+        },
+        "todo:42": {
+          "task_key": "todo:42",
+          "task_label": "42",
+          "task_title": "Pass 2 — Mastra agent + tools → structured TriageResult",
+          "session_id": "opencode:ses_15792c56bffe1NN07c2lwME7ms",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-06-08T18:18:34.128Z",
+          "status": "completed",
+          "updated_at": "2026-06-08T18:24:00.000Z",
+          "ended_at": "2026-06-08T18:24:00.000Z"
+        },
+        "todo:43": {
+          "task_key": "todo:43",
+          "task_label": "43",
+          "task_title": "Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)",
+          "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-06-08T18:18:34.128Z",
+          "status": "completed",
+          "updated_at": "2026-06-08T18:27:00.000Z",
+          "ended_at": "2026-06-08T18:27:00.000Z"
+        },
+        "todo:44": {
+          "task_key": "todo:44",
+          "task_label": "44",
+          "task_title": "Confidence → Policy + AI-provenance audit",
+          "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-06-08T18:18:34.128Z",
+          "status": "completed",
+          "updated_at": "2026-06-08T18:27:00.000Z",
+          "ended_at": "2026-06-08T18:27:00.000Z"
+        },
+        "todo:45": {
+          "task_key": "todo:45",
+          "task_label": "45",
+          "task_title": "Wire triage to the real pipeline + intake e2e",
+          "session_id": "opencode:ses_1578804afffeEV4586YzoeyrVw",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-06-08T18:55:19.302Z",
+          "status": "completed",
+          "updated_at": "2026-06-08T19:30:00.000Z",
+          "ended_at": "2026-06-08T19:30:00.000Z"
+        }
+      },
+      "ended_at": "2026-06-08T19:30:00.000Z"
     }
   },
-  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-4-intake.md",
-  "started_at": "2026-05-31T08:41:21.827Z",
-  "status": "active",
-  "updated_at": "2026-05-31T08:41:21.827Z",
+  "active_plan": "/projects/workspace/headless-bookkeeping/.omo/plans/wave-7-ai-orchestration.md",
+  "started_at": "2026-06-08T17:43:51.433Z",
+  "status": "completed",
+  "updated_at": "2026-06-08T19:30:00.000Z",
   "session_ids": [
-    "ses_189dd88bdffe62f9e25yMGW0DY"
+    "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf"
   ],
   "session_origins": {
-    "ses_189dd88bdffe62f9e25yMGW0DY": "direct"
+    "opencode:ses_157aa92c5ffe4XdUp8T4nKTjHf": "direct"
   },
-  "plan_name": "wave-4-intake",
-  "task_sessions": {},
-  "agent": "atlas"
+  "plan_name": "wave-7-ai-orchestration",
+  "task_sessions": {
+    "todo:40": {
+      "task_key": "todo:40",
+      "task_label": "40",
+      "task_title": "Mastra runtime + tool layer (embed + invariant)",
+      "session_id": "opencode:ses_157a68408ffeprwsAhIb2pxTXj",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "started_at": "2026-06-08T17:46:45.433Z",
+      "status": "completed",
+      "updated_at": "2026-06-08T18:02:00.000Z",
+      "ended_at": "2026-06-08T18:02:00.000Z"
+    },
+    "todo:41": {
+      "task_key": "todo:41",
+      "task_label": "41",
+      "task_title": "Pass 1 — OCR → markdown (+ audit artifact)",
+      "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "started_at": "2026-06-08T18:18:34.128Z",
+      "status": "completed",
+      "updated_at": "2026-06-08T18:27:00.000Z",
+      "ended_at": "2026-06-08T18:27:00.000Z"
+    },
+    "todo:42": {
+      "task_key": "todo:42",
+      "task_label": "42",
+      "task_title": "Pass 2 — Mastra agent + tools → structured TriageResult",
+      "session_id": "opencode:ses_15792c56bffe1NN07c2lwME7ms",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "started_at": "2026-06-08T18:18:34.128Z",
+      "status": "completed",
+      "updated_at": "2026-06-08T18:24:00.000Z",
+      "ended_at": "2026-06-08T18:24:00.000Z"
+    },
+    "todo:43": {
+      "task_key": "todo:43",
+      "task_label": "43",
+      "task_title": "Intake Workflow — draft-or-triage routing (no garbage drafts; no mid-extraction suspend)",
+      "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "started_at": "2026-06-08T18:18:34.128Z",
+      "status": "completed",
+      "updated_at": "2026-06-08T18:27:00.000Z",
+      "ended_at": "2026-06-08T18:27:00.000Z"
+    },
+    "todo:44": {
+      "task_key": "todo:44",
+      "task_label": "44",
+      "task_title": "Confidence → Policy + AI-provenance audit",
+      "session_id": "opencode:ses_157930768ffeSC956U7vCZ7VNe",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "started_at": "2026-06-08T18:18:34.128Z",
+      "status": "completed",
+      "updated_at": "2026-06-08T18:27:00.000Z",
+      "ended_at": "2026-06-08T18:27:00.000Z"
+    },
+    "todo:45": {
+      "task_key": "todo:45",
+      "task_label": "45",
+      "task_title": "Wire triage to the real pipeline + intake e2e",
+      "session_id": "opencode:ses_1578804afffeEV4586YzoeyrVw",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "started_at": "2026-06-08T18:55:19.302Z",
+      "status": "completed",
+      "updated_at": "2026-06-08T19:30:00.000Z",
+      "ended_at": "2026-06-08T19:30:00.000Z"
+    }
+  },
+  "agent": "atlas",
+  "worktree_path": null,
+  "elapsed_ms": 0,
+  "ended_at": "2026-06-08T19:30:00.000Z"
 }

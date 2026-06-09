@@ -11,26 +11,35 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
-import { OcrService } from './ocr.service';
+import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { TriageService } from './triage.service';
 
 /**
  * Integration test for the triage pipeline:
- *   TriageService -> OcrService (stub) -> DocumentsService ->
- *   ExpensesService | SalesInvoicesService + CurrencyService
+ *   TriageService -> IntakeWorkflowService (mock) -> DocumentsService
  *
- * Exercises the REAL DI graph against an in-memory SQLite DB seeded by the
- * real migration. Proves odd document ids route to Expense and even ids
- * route to SalesInvoice.
+ * The AI pipeline (OCR + agent + proposeDraft) has its own comprehensive
+ * tests in src/ai/*.spec.ts. This test verifies TriageService's routing
+ * logic against mocked workflow outcomes.
+ *
+ * NOTE: the Document status transition is now owned by the IntakeWorkflowService
+ * (the single deep owner of "Document -> outcome"), NOT by TriageService. The
+ * mock therefore performs the status move to model the real workflow, and the
+ * assertions confirm TriageService no longer touches the status itself.
  */
 describe('TriageService (integration)', () => {
   let db: Kysely<Database>;
   let triage: TriageService;
   let documents: DocumentsService;
-  let expenses: ExpensesService;
-  let salesInvoices: SalesInvoicesService;
+  let _expenses: ExpensesService;
+  let _salesInvoices: SalesInvoicesService;
+
+  const mockWorkflow = {
+    process: jest.fn(),
+  };
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -54,26 +63,28 @@ describe('TriageService (integration)', () => {
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         DocumentsService,
         DocumentStorageService,
-        OcrService,
+        { provide: IntakeWorkflowService, useValue: mockWorkflow },
         TriageService,
       ],
     }).compile();
 
     triage = module.get(TriageService);
     documents = module.get(DocumentsService);
-    expenses = module.get(ExpensesService);
-    salesInvoices = module.get(SalesInvoicesService);
+    _expenses = module.get(ExpensesService);
+    _salesInvoices = module.get(SalesInvoicesService);
   });
 
   afterEach(async () => {
     await db.destroy();
+    mockWorkflow.process.mockReset();
   });
 
-  it('routes odd document id to Expense (transport, 1525, EUR, draft)', async () => {
+  it('routes draft_proposed workflow result to Expense outcome', async () => {
     const uploadResult = await documents.upload({
       filename: 'receipt-1.pdf',
       buffer: Buffer.from('fake-receipt'),
@@ -81,58 +92,93 @@ describe('TriageService (integration)', () => {
       channel: 'upload',
     });
     const doc = uploadResult.document;
-    expect(doc.id).toBe(1); // odd
+
+    // Seed an expense so we have a real expense_id to return.
+    const expense = await db
+      .insertInto('expense')
+      .values({
+        document_id: doc.id,
+        supplier_id: null,
+        category: 'transport',
+        gross_amount: 1525,
+        vat_amount: 285,
+        currency: 'EUR',
+        tax_point_date: '2025-01-15',
+        status: 'draft',
+        document_vat_marking: 'IE_INPUT_23',
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    // The workflow owns the status transition; the mock models that ownership.
+    mockWorkflow.process.mockImplementation(async (id: number) => {
+      await documents.setStatus(id, 'triaged');
+      return {
+        status: 'draft_proposed',
+        draft: {
+          expenseId: expense.id,
+          pipelineResult: {
+            businessObject: expense,
+            voucher: null,
+            policy: { action: 'hold-for-approval', reason: 'test' },
+          },
+        },
+      };
+    });
 
     const outcome = await triage.route(doc.id);
     expect(outcome.kind).toBe('expense');
     if (outcome.kind !== 'expense') throw new Error('unreachable');
     expect(outcome.document_id).toBe(doc.id);
-    expect(outcome.expense_id).toBeDefined();
-
-    const expense = await expenses.getExpenseById(outcome.expense_id);
-    expect(expense.category).toBe('transport');
-    expect(expense.gross_amount).toBe(1525);
-    expect(expense.vat_amount).toBe(285);
-    expect(expense.currency).toBe('EUR');
-    expect(expense.status).toBe('draft');
-    expect(expense.document_id).toBe(doc.id);
+    expect(outcome.expense_id).toBe(expense.id);
 
     const updatedDoc = await documents.getById(doc.id);
     expect(updatedDoc.status).toBe('triaged');
   });
 
-  it('routes even document id to SalesInvoice (12300, EUR, draft)', async () => {
-    // Upload two documents so the second gets id 2 (even)
-    await documents.upload({
-      filename: 'dummy.pdf',
-      buffer: Buffer.from('dummy'),
+  it('routes needs_triage workflow result to Unknown outcome', async () => {
+    const uploadResult = await documents.upload({
+      filename: 'unclear.pdf',
+      buffer: Buffer.from('fake'),
       mimeType: 'application/pdf',
       channel: 'upload',
     });
-    const uploadResult2 = await documents.upload({
-      filename: 'invoice-2.pdf',
-      buffer: Buffer.from('fake-invoice'),
-      mimeType: 'application/pdf',
-      channel: 'upload',
+    const doc = uploadResult.document;
+
+    // The workflow owns the status transition to needs_triage.
+    mockWorkflow.process.mockImplementation(async (id: number) => {
+      await documents.setStatus(id, 'needs_triage');
+      return {
+        status: 'needs_triage',
+        reason: 'AI confidence too low',
+        finding: {
+          id: 1,
+          severity: 'medium',
+          finding_type: 'needs_triage',
+          description: 'AI confidence too low',
+          referenced_object_type: 'document',
+          referenced_object_id: doc.id,
+          status: 'open',
+          created_at: Math.floor(Date.now() / 1000),
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
+        },
+      };
     });
-    const doc = uploadResult2.document;
-    expect(doc.id % 2).toBe(0); // even
 
     const outcome = await triage.route(doc.id);
-    expect(outcome.kind).toBe('invoice');
-    if (outcome.kind !== 'invoice') throw new Error('unreachable');
+    expect(outcome.kind).toBe('unknown');
+    if (outcome.kind !== 'unknown') throw new Error('unreachable');
     expect(outcome.document_id).toBe(doc.id);
-    expect(outcome.invoice_id).toBeDefined();
+    expect(outcome.reason).toBe('AI confidence too low');
 
-    const invoice = await salesInvoices.getInvoiceById(outcome.invoice_id);
-    expect(invoice.gross_amount).toBe(12300);
-    expect(invoice.vat_amount).toBe(2300);
-    expect(invoice.currency).toBe('EUR');
-    expect(invoice.status).toBe('draft');
-    expect(invoice.invoice_number).toBe(`INV-${doc.id}`);
-
+    // The workflow (not TriageService) moved the Document to needs_triage.
     const updatedDoc = await documents.getById(doc.id);
-    expect(updatedDoc.status).toBe('triaged');
+    expect(updatedDoc.status).toBe('needs_triage');
   });
 
   it('throws NotFoundException for unknown document id', async () => {

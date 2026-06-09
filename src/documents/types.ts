@@ -1,4 +1,23 @@
-export type DocumentStatus = 'pending' | 'triaged' | 'processed' | 'error';
+/**
+ * Document lifecycle status — the kernel-owned state machine for an intake
+ * Document (ADR-0010, ADR-0024).
+ *
+ *   pending ─┬─▶ triaged       (a confident draft was proposed)
+ *            └─▶ needs_triage  (routed to a human via AuditFinding)
+ *   triaged       ──▶ processed (operator marked the intake complete)
+ *   needs_triage  ──▶ triaged   (a human re-triaged into a draft)
+ *
+ * The transition is owned by the single deep owner of "Document -> outcome"
+ * (IntakeWorkflowService); see ADR-0024. `needs_triage` is a first-class
+ * Document status (a human resolves it by re-running the workflow), distinct
+ * from the AuditFinding's own `needs_triage` finding_type.
+ */
+export type DocumentStatus =
+  | 'pending'
+  | 'triaged'
+  | 'needs_triage'
+  | 'processed'
+  | 'error';
 
 export type Channel = 'upload' | 'telegram' | 'email' | 'drive';
 

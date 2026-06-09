@@ -1,13 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CategoryMappingResult,
   CountryPlugin,
+  CrossBorderResolution,
   OrgContext,
   SupplierFacts,
   VATCode,
 } from './country-plugin.interface';
+import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
-export const NULL_VAT_CODE = 'NULL_STANDARD';
+/**
+ * Re-exported for backward compatibility with existing importers. The SOURCE
+ * OF TRUTH is now the kernel (`src/ledger/posting/vat-constants.ts`):
+ * `NULL_VAT_CODE` is a kernel POSTING convention (a line not subject to VAT
+ * reporting), NOT a jurisdiction VAT code this plugin owns. The plugin merely
+ * REFERENCES it as one of the codes it recognizes.
+ */
+export { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
 /**
  * NullCountryPlugin - A stub implementation of CountryPlugin that returns safe defaults.
@@ -22,12 +31,14 @@ export const NULL_VAT_CODE = 'NULL_STANDARD';
  */
 @Injectable()
 export class NullCountryPlugin implements CountryPlugin {
+  private readonly logger = new Logger(NullCountryPlugin.name);
+
   getName(): string {
     return 'null';
   }
 
   getVATCodes(): VATCode[] {
-    return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'];
+    return [NULL_VAT_CODE, 'IE_INPUT_23', 'IE_OUTPUT_23'];
   }
 
   resolveCategoryMapping(
@@ -87,10 +98,60 @@ export class NullCountryPlugin implements CountryPlugin {
     );
   }
 
+  roundToBaseMinorUnits(amount: number): number {
+    // Neutral default: round-half-away-from-zero. Behavior-preserving for the
+    // IE/EUR deployment (matches the kernel's former hardcoded Math.round).
+    // A real country plugin overrides this with its jurisdiction's rule.
+    return Math.round(amount);
+  }
+
   validateVATCode(
     vatCode: string,
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
-    return ['NULL_STANDARD', 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+    return [NULL_VAT_CODE, 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+  }
+
+  resolvePersonalDispositionAccount(orgType: string): string {
+    if (orgType === 'sole_proprietor') {
+      return 'OWNERS_DRAWINGS';
+    }
+    // Default to 'company' → SHAREHOLDER_LOAN (ADR-0017/ADR-0023).
+    return 'SHAREHOLDER_LOAN';
+  }
+
+  resolveCrossBorderTreatment(
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+    _context: { vatCharged: boolean },
+  ): CrossBorderResolution {
+    // Same country → domestic with default VAT code.
+    if (supplierFacts.country === orgContext.country) {
+      return { treatment: 'domestic', vatCode: NULL_VAT_CODE };
+    }
+    // Different country → unresolvable (hold for Approval).
+    return { treatment: 'unresolvable', vatCode: null };
+  }
+
+  dividendWithholdingRate(_orgContext: OrgContext): number {
+    // Null plugin: no withholding tax (0%).
+    return 0.0;
+  }
+
+  assertDistributable(
+    grossAmount: number,
+    retainedEarnings: number,
+    _orgContext: OrgContext,
+  ): boolean {
+    // Soft check: warn but don't block.
+    // Real country plugins may hard-block (throw) when dividends exceed
+    // retained earnings (a legal cap in most jurisdictions).
+    if (grossAmount > retainedEarnings) {
+      this.logger.warn(
+        `Dividend of ${grossAmount} cents exceeds retained earnings of ${retainedEarnings} cents — soft warning, not blocked`,
+      );
+    }
+    // Always return true — soft check only.
+    return true;
   }
 }

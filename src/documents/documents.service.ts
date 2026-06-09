@@ -184,6 +184,7 @@ export class DocumentsService {
     if (
       status === 'pending' ||
       status === 'triaged' ||
+      status === 'needs_triage' ||
       status === 'processed' ||
       status === 'error'
     ) {
