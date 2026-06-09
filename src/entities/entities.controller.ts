@@ -2,12 +2,20 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   ParseIntPipe,
 } from '@nestjs/common';
 import { EntitiesService } from './entities.service';
-import type { OnboardEntityDto, EntityWithIdentifiers, Entity } from './types';
+import type {
+  OnboardEntityDto,
+  EntityWithIdentifiers,
+  Entity,
+  EntityIdentifier,
+  AddAliasDto,
+  UpdateEntityDto,
+} from './types';
 
 @Controller('api/entities')
 export class EntitiesController {
@@ -28,5 +36,23 @@ export class EntitiesController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<EntityWithIdentifiers> {
     return this.entitiesService.findById(id);
+  }
+
+  /** PATCH /api/entities/:id — update mutable intrinsic facts (C4). */
+  @Patch(':id')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateEntityDto,
+  ): Promise<EntityWithIdentifiers> {
+    return this.entitiesService.update(id, dto);
+  }
+
+  /** POST /api/entities/:id/aliases — add an identifier/alias (C4). */
+  @Post(':id/aliases')
+  async addAlias(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AddAliasDto,
+  ): Promise<EntityIdentifier> {
+    return this.entitiesService.addAlias(id, dto);
   }
 }

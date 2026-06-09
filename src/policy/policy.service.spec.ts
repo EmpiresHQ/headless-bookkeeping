@@ -512,6 +512,30 @@ describe('PolicyService (real-DI)', () => {
     });
   });
 
+  describe('updateConfig() — operator edits over the table (A3)', () => {
+    it('updates only the provided keys and leaves the rest intact', async () => {
+      const updated = await service.updateConfig({
+        auto_post_amount_ceiling: 250000,
+      });
+      expect(updated.auto_post_amount_ceiling).toBe(250000);
+      // Untouched keys keep their seeded values.
+      expect(updated.auto_post_min_confidence).toBe(0.8);
+      expect(updated.unknown_supplier_requires_approval).toBe(true);
+
+      // Persisted: a fresh read reflects the change.
+      expect((await service.getConfig()).auto_post_amount_ceiling).toBe(250000);
+    });
+
+    it('round-trips boolean and string-array values', async () => {
+      const updated = await service.updateConfig({
+        unknown_supplier_requires_approval: false,
+        always_approve_operations: ['reversal'],
+      });
+      expect(updated.unknown_supplier_requires_approval).toBe(false);
+      expect(updated.always_approve_operations).toEqual(['reversal']);
+    });
+  });
+
   describe('decide() — reads config from the table', () => {
     const passingResults: RuleResult[] = [
       passedResult('structural', false),

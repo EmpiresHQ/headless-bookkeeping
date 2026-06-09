@@ -61,6 +61,24 @@ export class ReportingPeriodsService {
 
   async create(dto: CreateReportingPeriodDto): Promise<ReportingPeriod> {
     const now = Math.floor(Date.now() / 1000);
+
+    // Reject a period that overlaps any existing one (D3). Two periods overlap
+    // when each starts on or before the other ends; ISO date strings compare
+    // lexicographically. Overlapping periods make `getCurrent` ambiguous and
+    // let a single tax_point_date fall into two periods (double-counted in VAT
+    // reports), so a date must belong to at most one reporting period.
+    const overlap = await this.db
+      .selectFrom('reporting_period')
+      .select(['id', 'name'])
+      .where('start_date', '<=', dto.end_date)
+      .where('end_date', '>=', dto.start_date)
+      .executeTakeFirst();
+    if (overlap) {
+      throw new ConflictException(
+        `Reporting period ${dto.start_date}..${dto.end_date} overlaps existing period "${overlap.name}" (${overlap.id})`,
+      );
+    }
+
     const row = await this.db
       .insertInto('reporting_period')
       .values({

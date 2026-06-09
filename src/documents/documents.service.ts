@@ -121,6 +121,22 @@ export class DocumentsService {
     return this.mapDocumentRow(row);
   }
 
+  /**
+   * Read back the raw stored bytes of a document along with the metadata
+   * needed to serve them (filename + MIME type). Throws NotFoundException if
+   * the document is unknown or its bytes were never persisted.
+   */
+  async getFile(
+    id: number,
+  ): Promise<{ buffer: Buffer; filename: string; mimeType: string }> {
+    const doc = await this.getById(id);
+    if (!doc.storage_path) {
+      throw new NotFoundException(`Document ${id} has no stored file`);
+    }
+    const buffer = await this.storage.readFile(doc.storage_path);
+    return { buffer, filename: doc.filename, mimeType: doc.mime_type };
+  }
+
   async setStatus(id: number, status: DocumentStatus): Promise<void> {
     await this.db
       .updateTable('document')
