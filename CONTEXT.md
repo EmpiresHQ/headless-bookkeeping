@@ -58,6 +58,18 @@ _Avoid_: Email, chat (when referring to the persisted turn)
 A file bound to a **Conversation** — an inbound attachment (→ **Document**) or an outbound generated output (a sent invoice PDF, a report). Retained for audit.
 _Avoid_: Attachment (when referring to outbound or deduped artifacts), file
 
+**Channel adapter**:
+The **only** channel-specific code in the interaction layer (Wave 8). Inbound, it maps a raw channel payload (Telegram update, parsed email, Slack event, Drive notification) into a **unified envelope**; outbound, it renders an abstract **Action point** / dialogue reply into that channel's wire form (TG inline button, email body, Slack block). It splits into a pure **mapper** (payload ↔ envelope — testable in isolation) and a thin **transport port** (the live Bot API / SMTP / webhook edge — mocked in tests). It carries **no** routing, gating, or business logic; the core (router / flows / **Conversation** / pipeline) is channel-agnostic and never sees a raw payload.
+_Avoid_: Connector, integration, transport (for the whole adapter — "transport" is only the port half)
+
+**Unified envelope**:
+The channel-agnostic representation of one inbound interaction that a **Channel adapter** produces and the core consumes: `{ channel, sender, conv-key, message, attachments, metadata, auth }`. The `conv-key` drives deterministic **Conversation** resolution; `auth` carries the channel's normalized authenticity signals (email DKIM/SPF + address; Telegram chat-id + secret-token result) from which the core resolves a **Principal**. The seam that keeps every channel's quirks out of the core.
+_Avoid_: Payload, event, request (when referring to the normalized form)
+
+**Principal**:
+Who the core decides an inbound interaction is *from*, resolved channel-agnostically from the **unified envelope**'s `auth` signals: a role (`approver/owner | known-counterparty | unknown`) plus an `authVerified` flag (email: DKIM/SPF pass; Telegram: secret-token-verified webhook + allowlisted chat-id). Access gating lives **once in the core** over the Principal, never duplicated per adapter: converse/command requires an approver; ingest admits a known-counterparty per `ingest_policy`; an **Action point** commit requires an approver **and** `authVerified`. Not a security boundary in the routing sense (a misroute only yields a draft, ADR-0016) — it is the access gate that decides *whether we engage at all*.
+_Avoid_: User, identity, role (when ambiguous), sender (the sender is raw; the Principal is resolved)
+
 ### Dispositions
 
 **Personal (non-business) disposition**:
