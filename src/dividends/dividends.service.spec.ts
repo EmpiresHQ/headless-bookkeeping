@@ -780,7 +780,7 @@ describe('DividendsService (integration)', () => {
       // Voucher balances: debit === sum of credits
       expect(re!.base_amount).toBe(pay!.base_amount + tax!.base_amount);
 
-      // 4 lines total (including the DISTRIBUTION_TAX_PAYABLE)
+      // 3 lines total: RE + DIVIDEND_PAYABLE + DISTRIBUTION_TAX_PAYABLE (EE has no withholding)
       expect(lines).toHaveLength(3);
     });
   });
