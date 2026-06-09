@@ -1,4 +1,5 @@
 import { Controller, Get, Put, Body } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { PolicyService } from './policy.service';
 import { PolicyConfig } from './types';
 
@@ -7,6 +8,7 @@ import { PolicyConfig } from './types';
  * policy_config table had no HTTP route, so auto-post thresholds could only be
  * read/changed at deploy time. Guarded by the global Bearer guard.
  */
+@ApiTags('policy-config')
 @Controller('api/policy-config')
 export class PolicyConfigController {
   constructor(private readonly policyService: PolicyService) {}

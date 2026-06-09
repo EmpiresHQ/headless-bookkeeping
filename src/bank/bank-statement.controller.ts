@@ -6,9 +6,11 @@ import {
   Param,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { BankStatementService } from './bank-statement.service';
 import type { CreateStatementInput } from './bank-statement.types';
 
+@ApiTags('bank')
 @Controller('api/bank-statements')
 export class BankStatementController {
   constructor(private readonly service: BankStatementService) {}

@@ -1,7 +1,9 @@
 import { Controller, Post, Param, Body } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CorrectionsService } from './corrections.service';
 import type { CorrectionRequest, CorrectionResult } from './types';
 
+@ApiTags('corrections')
 @Controller()
 export class CorrectionsController {
   constructor(private readonly correctionsService: CorrectionsService) {}

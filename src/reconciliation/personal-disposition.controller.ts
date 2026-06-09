@@ -1,7 +1,9 @@
 import { Controller, Post, Param, ParseIntPipe } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { PersonalDispositionService } from './personal-disposition.service';
 import { PostedVoucher } from '../ledger/voucher/types';
 
+@ApiTags('reconciliation')
 @Controller('api')
 export class PersonalDispositionController {
   constructor(private readonly service: PersonalDispositionService) {}

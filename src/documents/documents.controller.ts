@@ -10,12 +10,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { DocumentsService } from './documents.service';
 import { Document, DocumentWithSources } from './types';
 
+@ApiTags('documents')
 @Controller('api/documents')
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}

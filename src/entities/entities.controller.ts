@@ -7,6 +7,7 @@ import {
   Body,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { EntitiesService } from './entities.service';
 import type {
   OnboardEntityDto,
@@ -17,6 +18,7 @@ import type {
   UpdateEntityDto,
 } from './types';
 
+@ApiTags('entities')
 @Controller('api/entities')
 export class EntitiesController {
   constructor(private readonly entitiesService: EntitiesService) {}

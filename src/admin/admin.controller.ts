@@ -10,10 +10,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/api-token.guard';
 import { ApiTokenService } from '../auth/api-token.service';
 import { AdminService } from './admin.service';
 
+@ApiTags('admin')
 @Controller('admin')
 export class AdminController {
   constructor(

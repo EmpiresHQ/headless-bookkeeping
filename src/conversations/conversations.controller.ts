@@ -9,6 +9,7 @@ import {
   HttpStatus,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ConversationsService } from './conversations.service';
 import type {
   Conversation,
@@ -23,6 +24,7 @@ import type {
   BusinessObjectType,
 } from './types';
 
+@ApiTags('conversations')
 @Controller('api/conversations')
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}

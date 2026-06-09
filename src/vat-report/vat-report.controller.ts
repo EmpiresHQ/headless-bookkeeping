@@ -9,9 +9,11 @@ import {
   ParseIntPipe,
   MethodNotAllowedException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { VatReportService } from './vat-report.service';
 import type { VatReport } from './types';
 
+@ApiTags('vat-report')
 @Controller('api')
 export class VatReportController {
   constructor(private readonly service: VatReportService) {}
