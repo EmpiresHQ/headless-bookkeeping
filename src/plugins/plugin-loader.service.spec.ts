@@ -6,6 +6,7 @@ import { migrations } from '../database/migrations';
 import { Migrator } from 'kysely/migration';
 import { Logger } from '@nestjs/common';
 import { NullCountryPlugin } from './null-country.plugin';
+import { EstoniaCountryPlugin } from './estonia-country.plugin';
 import { PluginLoader } from './plugin-loader.service';
 import {
   StrictTestPlugin,
@@ -192,7 +193,7 @@ describe('PluginLoader', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [NullCountryPlugin, PluginLoader],
+      providers: [NullCountryPlugin, EstoniaCountryPlugin, PluginLoader],
     }).compile();
 
     loader = module.get<PluginLoader>(PluginLoader);
@@ -215,6 +216,10 @@ describe('PluginLoader', () => {
     it('should return NullCountryPlugin for "null"', () => {
       const result = loader.resolve('null');
       expect(result.getName()).toBe('null');
+    });
+
+    it('resolves the Estonia plugin for EE', () => {
+      expect(loader.resolve('EE').getName()).toBe('EE');
     });
   });
 

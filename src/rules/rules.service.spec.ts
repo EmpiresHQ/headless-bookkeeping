@@ -9,6 +9,7 @@ import { LedgerValidationService } from '../ledger/validation/ledger-validation.
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrgContext, SupplierFacts } from '../plugins/country-plugin.interface';
 import { ResolvedLine, Override, SemanticValidationContext } from './types';
 import { isUnresolvedSemanticFailure, mustReject } from './rules.guards';
@@ -62,6 +63,7 @@ describe('RulesService (unit)', () => {
         LedgerValidationService,
         PluginLoader,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         { provide: PeriodLockService, useValue: mockPeriodLock },
       ],
     }).compile();
@@ -443,6 +445,7 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
         LedgerValidationService,
         PluginLoader,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         { provide: PeriodLockService, useValue: mockPeriodLock },
       ],
     }).compile();

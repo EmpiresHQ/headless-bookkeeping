@@ -10,6 +10,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
 import { AgentConfigService } from './agent-config.service';
@@ -39,6 +40,7 @@ describe('MastraService', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         OrganizationService,
         NullCountryPlugin,
+        EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
         VoucherProjectionService,

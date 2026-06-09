@@ -6,8 +6,7 @@ import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { CurrencyModule } from '../currency/currency.module';
 import { BankModule } from '../bank/bank.module';
-import { NullCountryPlugin } from '../plugins/null-country.plugin';
-import { DividendsService, COUNTRY_PLUGIN_TOKEN } from './dividends.service';
+import { DividendsService } from './dividends.service';
 import { DividendsController } from './dividends.controller';
 
 @Module({
@@ -20,10 +19,7 @@ import { DividendsController } from './dividends.controller';
     CurrencyModule,
     BankModule,
   ],
-  providers: [
-    DividendsService,
-    { provide: COUNTRY_PLUGIN_TOKEN, useClass: NullCountryPlugin },
-  ],
+  providers: [DividendsService],
   controllers: [DividendsController],
 })
 export class DividendsModule {}

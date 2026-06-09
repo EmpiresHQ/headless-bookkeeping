@@ -2,14 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  Inject,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
-import type { CountryPlugin } from '../plugins/country-plugin.interface';
+import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
 import { CurrencyService } from '../currency/currency.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
@@ -19,9 +18,6 @@ import {
   DividendDeclarationResult,
   DividendSettlementResult,
 } from './types';
-
-/** Injection token for the country plugin (allows test overrides). */
-export const COUNTRY_PLUGIN_TOKEN = 'COUNTRY_PLUGIN';
 
 /** Account codes for dividend distribution. */
 const RETAINED_EARNINGS = 'RETAINED_EARNINGS';
@@ -33,8 +29,7 @@ export class DividendsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly postingService: PostingService,
-    @Inject(COUNTRY_PLUGIN_TOKEN)
-    private readonly plugin: CountryPlugin,
+    private readonly pluginLoader: PluginLoader,
     private readonly orgService: OrganizationService,
     private readonly currencyService: CurrencyService,
     private readonly transactionRepo: BankTransactionRepository,
@@ -45,16 +40,27 @@ export class DividendsService {
    * Declare a dividend distribution.
    *
    * Posts a declaration voucher through the full pipeline (Rules → Policy → post):
-   *   Dr RETAINED_EARNINGS              (gross amount)
+   *   Dr RETAINED_EARNINGS              (gross + distribution tax, total equity hit)
    *   Cr DIVIDEND_PAYABLE               (net to owner, after withholding)
    *   Cr DIVIDEND_WITHHOLDING_TAX_PAYABLE  (withheld portion, if any)
+   *   Cr DISTRIBUTION_TAX_PAYABLE       (company-level on-top tax, if any — e.g. EE CIT 22/78)
+   *
+   * The fourth line (DISTRIBUTION_TAX_PAYABLE) is only booked when the country
+   * plugin returns a non-null distribution tax via `resolveDistributionTax`.
+   * In that case the RETAINED_EARNINGS debit equals gross + distTaxAmount (not
+   * just gross), so the voucher balances across all four lines.
+   * For jurisdictions without a distribution tax (IE, Null) the three-line
+   * schema is unchanged.
    *
    * The country plugin resolves:
    * - Withholding rate (dividendWithholdingRate)
+   * - Company-level distribution tax on top (resolveDistributionTax)
    * - Distributable-profits check (assertDistributable)
    *
    * Per ADR-0023: dividend is an equity distribution, NOT a P&L expense.
-   * Per ADR-0002: withholding and profits-cap are country-plugin rules only.
+   * Per ADR-0002: withholding, distribution tax, and profits-cap are country-plugin rules only.
+   * Per ADR-0027: distribution tax is distinct from withholding — it is paid by the
+   *   company on top; the shareholder receives the full declared amount.
    *
    * @param dto - Declaration input (gross amount, tax-point date, optional reason)
    * @returns The posted declaration voucher + breakdown
@@ -76,12 +82,15 @@ export class DividendsService {
       baseCurrency,
     };
 
+    // Resolve the country plugin for this org (e.g. EE → EstoniaCountryPlugin).
+    const plugin = this.pluginLoader.resolve(org.country);
+
     // ── Distributable-profits check (plugin-driven) ──────────────────
     // The kernel computes the *live* distributable figure (RETAINED_EARNINGS +
     // current net income − prior distributions); the plugin owns only the cap
     // rule. v1 has no year-end close, so the bare RE balance is meaningless.
     const distributableProfits = await this.getDistributableProfits();
-    const distributable = this.plugin.assertDistributable(
+    const distributable = plugin.assertDistributable(
       dto.gross_amount,
       distributableProfits,
       orgContext,
@@ -94,18 +103,26 @@ export class DividendsService {
     }
 
     // ── Withholding rate (plugin-driven) ─────────────────────────────
-    const withholdingRate = this.plugin.dividendWithholdingRate(orgContext);
+    const withholdingRate = plugin.dividendWithholdingRate(orgContext);
     const withholdingAmount = Math.round(dto.gross_amount * withholdingRate);
     const netPayable = dto.gross_amount - withholdingAmount;
 
+    // ── Company-level distribution tax on top (plugin-driven) ────────
+    // Distinct from withholding: this is a tax paid BY the company on top of the
+    // dividend (e.g. Estonia CIT 22/78 of net). Returns null for IE/Null/DK.
+    const distTax = plugin.resolveDistributionTax(netPayable, orgContext);
+    const distTaxAmount = distTax?.amount ?? 0;
+    // The retained-earnings debit equals the total equity hit: gross + on-top tax.
+    const retainedDebit = dto.gross_amount + distTaxAmount;
+
     // ── Build declaration voucher lines (all in base currency) ───────
     const lines: DraftVoucher['lines'] = [
-      // Dr RETAINED_EARNINGS (gross)
+      // Dr RETAINED_EARNINGS (gross + distTax)
       {
         account_code: RETAINED_EARNINGS,
-        amount: dto.gross_amount,
+        amount: retainedDebit,
         currency: baseCurrency,
-        base_amount: dto.gross_amount,
+        base_amount: retainedDebit,
         fx_rate: 1.0,
         is_debit: true,
       },
@@ -127,6 +144,18 @@ export class DividendsService {
         amount: withholdingAmount,
         currency: baseCurrency,
         base_amount: withholdingAmount,
+        fx_rate: 1.0,
+        is_debit: false,
+      });
+    }
+
+    // If company-level distribution tax applies, add its payable line.
+    if (distTax && distTaxAmount > 0) {
+      lines.push({
+        account_code: distTax.accountCode,
+        amount: distTaxAmount,
+        currency: baseCurrency,
+        base_amount: distTaxAmount,
         fx_rate: 1.0,
         is_debit: false,
       });
