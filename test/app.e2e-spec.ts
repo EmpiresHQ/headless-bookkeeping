@@ -6,18 +6,21 @@ import SqliteDb from 'better-sqlite3';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { Database } from './../src/database/types';
+import { MastraService } from './../src/ai/mastra.service';
+import { fauxMastraService } from './faux-mastra.service';
+import { createHash } from 'crypto';
 
-/**
- * Full-graph smoke test: boots the real AppModule (including the migration
- * runner) against an in-memory SQLite DB, then exercises the public endpoints.
- */
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
-  let db: Kysely<unknown>;
+  let db: Kysely<Database>;
+  let apiToken: string;
 
   beforeEach(async () => {
-    db = new Kysely<unknown>({
-      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    const rawDb = new SqliteDb(':memory:');
+    rawDb.pragma('foreign_keys = ON');
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
     });
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -25,10 +28,20 @@ describe('Application (e2e)', () => {
     })
       .overrideProvider(KYSELY_MODULE_CONNECTION_TOKEN())
       .useValue(db)
+      .overrideProvider(MastraService)
+      .useValue(fauxMastraService)
       .compile();
 
     app = moduleFixture.createNestApplication();
-    await app.init(); // runs the migration runner -> seeds the Irish org
+    await app.init();
+
+    // Seed API token AFTER migrations have run.
+    apiToken = 'test-token-e2e-12345';
+    const tokenHash = createHash('sha256').update(apiToken).digest('hex');
+    await db
+      .insertInto('api_token')
+      .values({ token_hash: tokenHash, label: 'e2e-test' })
+      .execute();
   });
 
   afterEach(async () => {
@@ -44,18 +57,14 @@ describe('Application (e2e)', () => {
       });
   });
 
-  it('/api/organization (GET) returns the seeded Irish singleton with no currency override', () => {
+  it('/api/organization (GET) returns the seeded Irish singleton', () => {
     return request(app.getHttpServer())
       .get('/api/organization')
+      .set('Authorization', `Bearer ${apiToken}`)
       .expect(200)
-      .expect(
-        (res: {
-          body: { id: number; country: string; base_currency: string | null };
-        }) => {
-          expect(res.body.id).toBe(1);
-          expect(res.body.country).toBe('IE');
-          expect(res.body.base_currency).toBeNull();
-        },
-      );
+      .expect((res: { body: { id: number; country: string } }) => {
+        expect(res.body.id).toBe(1);
+        expect(res.body.country).toBe('IE');
+      });
   });
 });

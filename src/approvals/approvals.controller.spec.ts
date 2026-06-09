@@ -12,12 +12,14 @@ import { CurrencyService } from '../currency/currency.service';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { RulesService } from '../rules/rules.service';
 import { PolicyService } from '../policy/policy.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ApprovalsController } from './approvals.controller';
 import { ApprovalsService } from './approvals.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
@@ -53,10 +55,12 @@ describe('ApprovalsController (integration)', () => {
         AccountService,
         LedgerValidationService,
         PostingService,
+        StatusTransitionService,
         PeriodLockService,
         RulesService,
         PolicyService,
         PostingPipelineService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         ApprovalsService,

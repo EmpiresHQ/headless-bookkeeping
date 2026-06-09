@@ -6,6 +6,7 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
@@ -14,10 +15,8 @@ import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
-import {
-  NullCountryPlugin,
-  NULL_VAT_CODE,
-} from '../plugins/null-country.plugin';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 import {
   CountryPlugin,
   OrgContext,
@@ -60,6 +59,7 @@ describe('DividendsService (integration)', () => {
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
+        LedgerBalanceService,
         LedgerValidationService,
         PostingService,
         PeriodLockService,
@@ -292,6 +292,9 @@ describe('DividendsService (integration)', () => {
         if (fromCurrency === toCurrency) return 1.0;
         throw new Error('Cross-currency not supported');
       }
+      roundToBaseMinorUnits(amount: number): number {
+        return Math.round(amount);
+      }
       validateVATCode(
         vatCode: string,
         _context: { supplier: SupplierFacts; org: OrgContext },
@@ -327,6 +330,7 @@ describe('DividendsService (integration)', () => {
         providers: [
           { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
           AccountService,
+          LedgerBalanceService,
           LedgerValidationService,
           PostingService,
           PeriodLockService,

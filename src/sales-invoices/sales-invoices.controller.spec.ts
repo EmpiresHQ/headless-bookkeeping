@@ -21,6 +21,7 @@ describe('SalesInvoicesController', () => {
     status: 'draft',
     sent_at: null,
     voucher_id: null,
+    document_vat_marking: null,
     created_at: 1740000000,
     updated_at: 1740000000,
   };
@@ -161,7 +162,11 @@ describe('SalesInvoicesController', () => {
         policy: { action: 'auto-post', reason: 'All rules passed' },
       });
 
-      const result = await controller.postInvoice('1');
+      const result = (await controller.postInvoice('1')) as unknown as {
+        invoice: SalesInvoice;
+        voucher: PostedVoucher;
+        policy: { action: string; reason: string };
+      };
 
       expect(mockPipeline.runPipeline).toHaveBeenCalledWith({
         businessObjectId: 1,

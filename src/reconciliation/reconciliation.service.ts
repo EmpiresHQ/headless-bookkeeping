@@ -2,17 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, Transaction } from 'kysely';
 import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankTransactionRecord } from '../bank/bank-statement.types';
 import { EntitiesService } from '../entities/entities.service';
 import { CurrencyService } from '../currency/currency.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { OrganizationService } from '../organization/organization.service';
-import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
   MatchProposal,
@@ -36,9 +35,6 @@ const INVOICE_NUMBER_PATTERNS = [
 /** IBAN pattern: 2-letter country code + 2 check digits + up to 30 alphanumeric. */
 const IBAN_PATTERN = /[A-Z]{2}\d{2}[A-Z0-9]{4,30}/gi;
 
-/** Date window for amount+date matching (±7 days). */
-const DATE_WINDOW_DAYS = 7;
-
 @Injectable()
 export class ReconciliationService {
   constructor(
@@ -46,9 +42,7 @@ export class ReconciliationService {
     private readonly transactionRepo: BankTransactionRepository,
     private readonly entitiesService: EntitiesService,
     private readonly currencyService: CurrencyService,
-    private readonly pluginLoader: PluginLoader,
-    private readonly orgService: OrganizationService,
-    private readonly ledgerBalance: LedgerBalanceService,
+    private readonly outstandingVouchers: OutstandingVoucherService,
     private readonly fxRealizedService: FXRealizedService,
   ) {}
 
@@ -150,24 +144,15 @@ export class ReconciliationService {
     // ── Normalise the bank amount to BASE currency ONCE (D7) ────────
     // Voucher remaining balances are `voucher_line.base_amount` in BASE
     // currency, so the bank amount (in the txn's OWN currency) must be
-    // converted to base before any signal compares the two. Same-currency
-    // reduces to identity and must NOT hit the plugin — NullCountryPlugin
-    // throws on real cross-currency pairs.
+    // converted to base before any signal compares the two. CurrencyService
+    // owns base-currency resolution, the same-currency short-circuit, the
+    // plugin reference-rate fetch, and the cents rounding (ADR-0004).
     const absRaw = Math.abs(txn.amount);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
-    let absBaseAmount: number;
-    if (txn.currency === baseCurrency) {
-      absBaseAmount = absRaw;
-    } else {
-      const org = await this.orgService.getOrganization();
-      const plugin = this.pluginLoader.resolve(org.country);
-      const refRate = plugin.getReferenceRate(
-        txn.currency,
-        baseCurrency,
-        txn.transaction_date,
-      );
-      absBaseAmount = Math.round(absRaw * refRate);
-    }
+    const { baseAmount: absBaseAmount } = await this.currencyService.toBase(
+      absRaw,
+      txn.currency,
+      txn.transaction_date,
+    );
 
     // ── Signal 1: Invoice number match (strongest) ──────────────────
     if (tokens.invoiceNumbers.length > 0) {
@@ -250,9 +235,10 @@ export class ReconciliationService {
           .executeTakeFirst();
 
         if (salesInvoice && salesInvoice.voucher_id) {
-          const remaining = await this.getRemainingVoucherBalance(
-            salesInvoice.voucher_id,
-          );
+          const remaining =
+            await this.outstandingVouchers.getRemainingVoucherBalance(
+              salesInvoice.voucher_id,
+            );
           if (remaining > 0) {
             const amountMatched = Math.min(absBaseAmount, remaining);
             const matchType: MatchType =
@@ -380,7 +366,9 @@ export class ReconciliationService {
   }
 
   /**
-   * Get candidate vouchers for a given entity.
+   * Get candidate vouchers for a given entity, delegating the join chain,
+   * account-code/polarity, and remaining-balance maths to
+   * {@link OutstandingVoucherService}.
    * For incoming: AR vouchers (via sales_invoice) + CustomerPrepayment vouchers.
    * For outgoing: AP vouchers (via expense).
    */
@@ -388,273 +376,84 @@ export class ReconciliationService {
     entityId: number,
     isIncoming: boolean,
   ): Promise<CandidateVoucher[]> {
-    const candidates: CandidateVoucher[] = [];
-
     if (isIncoming) {
-      // AR vouchers from posted sales_invoices linked to this customer.
-      const arVouchers = await this.db
-        .selectFrom('sales_invoice')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'sales_invoice.voucher_id',
-        )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'sales_invoice.voucher_id')
-        .select('sales_invoice.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('sales_invoice.customer_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('sales_invoice.customer_id', '=', entityId)
-        .where('sales_invoice.status', '=', 'posted')
-        .where('sales_invoice.voucher_id', 'is not', null)
-        .where('account.code', '=', 'AR')
-        .where('voucher_line.is_debit', '=', 1)
-        .execute();
-
-      for (const v of arVouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: v.base_amount - alreadyMatched,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
-
-      // Customer prepayment vouchers.
-      const prepayVouchers = await this.db
-        .selectFrom('voucher_line')
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'voucher_line.voucher_id')
-        .select('voucher_line.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('voucher.tax_point_date')
-        .where('account.code', '=', 'CUSTOMER_PREPAYMENTS')
-        .where('voucher_line.is_debit', '=', 0) // credit = liability increase
-        .execute();
-
-      for (const v of prepayVouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: v.base_amount - alreadyMatched,
+      const arCandidates =
+        await this.outstandingVouchers.findArCandidatesByCounterparty(entityId);
+      const prepaymentCandidates =
+        await this.outstandingVouchers.findCustomerPrepaymentCandidates(
           entityId,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: true,
-        });
-      }
-    } else {
-      // AP vouchers from posted expenses linked to this supplier.
-      const apVouchers = await this.db
-        .selectFrom('expense')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'expense.voucher_id',
-        )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'expense.voucher_id')
-        .select('expense.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('expense.supplier_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('expense.supplier_id', '=', entityId)
-        .where('expense.status', '=', 'posted')
-        .where('expense.voucher_id', 'is not', null)
-        .where('account.code', '=', 'AP')
-        .where('voucher_line.is_debit', '=', 0) // AP is a credit (liability)
-        .execute();
-
-      for (const v of apVouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: v.base_amount - alreadyMatched,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
+        );
+      return [...arCandidates, ...prepaymentCandidates];
     }
-
-    return candidates;
+    return this.outstandingVouchers.findApCandidatesByCounterparty(entityId);
   }
 
   /**
    * Get candidate vouchers by amount and date window (no entity filter).
-   * Fallback when no invoice number or counterparty match is found.
+   * Fallback when no invoice number or counterparty match is found. The
+   * ±7-day window, join chain, and single remaining-balance path all live in
+   * {@link OutstandingVoucherService}; the `remaining <= 0` skip stays here so
+   * the proposal-building loops below see only positive-balance candidates.
    */
   private async getCandidateVouchersByAmountAndDate(
     _absAmount: number,
     transactionDate: string,
     isIncoming: boolean,
   ): Promise<CandidateVoucher[]> {
-    const candidates: CandidateVoucher[] = [];
-    const txDate = new Date(transactionDate);
-    const windowStart = new Date(txDate);
-    windowStart.setDate(windowStart.getDate() - DATE_WINDOW_DAYS);
-    const windowEnd = new Date(txDate);
-    windowEnd.setDate(windowEnd.getDate() + DATE_WINDOW_DAYS);
-
-    const accountCode = isIncoming ? 'AR' : 'AP';
-    const windowStartStr = windowStart.toISOString().slice(0, 10);
-    const windowEndStr = windowEnd.toISOString().slice(0, 10);
-
-    if (isIncoming) {
-      const vouchers = await this.db
-        .selectFrom('sales_invoice')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'sales_invoice.voucher_id',
+    const candidates = isIncoming
+      ? await this.outstandingVouchers.findArCandidatesByAmountAndDate(
+          transactionDate,
         )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'sales_invoice.voucher_id')
-        .select('sales_invoice.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('sales_invoice.customer_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('sales_invoice.status', '=', 'posted')
-        .where('sales_invoice.voucher_id', 'is not', null)
-        .where('account.code', '=', accountCode)
-        .where('voucher_line.is_debit', '=', 1)
-        .where('voucher.tax_point_date', '>=', windowStartStr)
-        .where('voucher.tax_point_date', '<=', windowEndStr)
-        .execute();
-
-      for (const v of vouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        const remaining = v.base_amount - alreadyMatched;
-        if (remaining <= 0) continue;
-
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: remaining,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
-    } else {
-      const vouchers = await this.db
-        .selectFrom('expense')
-        .innerJoin(
-          'voucher_line',
-          'voucher_line.voucher_id',
-          'expense.voucher_id',
-        )
-        .innerJoin('account', 'account.id', 'voucher_line.account_id')
-        .innerJoin('voucher', 'voucher.id', 'expense.voucher_id')
-        .select('expense.voucher_id as voucher_id')
-        .select('account.code as account_code')
-        .select('voucher_line.base_amount')
-        .select('expense.supplier_id as entity_id')
-        .select('voucher.tax_point_date')
-        .where('expense.status', '=', 'posted')
-        .where('expense.voucher_id', 'is not', null)
-        .where('account.code', '=', accountCode)
-        .where('voucher_line.is_debit', '=', 0) // AP is a credit (liability)
-        .where('voucher.tax_point_date', '>=', windowStartStr)
-        .where('voucher.tax_point_date', '<=', windowEndStr)
-        .execute();
-
-      for (const v of vouchers) {
-        const voucherId = v.voucher_id;
-        if (!voucherId) continue;
-        const alreadyMatched = await this.getAlreadyMatched(voucherId);
-        const remaining = v.base_amount - alreadyMatched;
-        if (remaining <= 0) continue;
-
-        candidates.push({
-          voucherId,
-          accountCode: v.account_code,
-          lineBaseAmount: v.base_amount,
-          alreadyMatched,
-          remainingBalance: remaining,
-          entityId: v.entity_id,
-          taxPointDate: v.tax_point_date,
-          isPrepayment: false,
-        });
-      }
-    }
-
-    return candidates;
+      : await this.outstandingVouchers.findApCandidatesByAmountAndDate(
+          transactionDate,
+        );
+    return candidates.filter((c) => c.remainingBalance > 0);
   }
 
   /**
-   * Get the total already-matched amount for a voucher from reconciliation_match.
-   */
-  private async getAlreadyMatched(voucherId: number): Promise<number> {
-    const result = await this.db
-      .selectFrom('reconciliation_match')
-      .select((eb) => eb.fn.sum<number>('amount_matched').as('total'))
-      .where('voucher_id', '=', voucherId)
-      .executeTakeFirst();
-
-    return result?.total ?? 0;
-  }
-
-  /**
-   * Test-only public wrapper around {@link getRemainingVoucherBalance}.
+   * Test-only public wrapper around the consolidated remaining-balance path.
    */
   getRemainingVoucherBalanceForTest(voucherId: number): Promise<number> {
-    return this.getRemainingVoucherBalance(voucherId);
+    return this.outstandingVouchers.getRemainingVoucherBalance(voucherId);
   }
 
   /**
-   * Get the remaining unmatched balance for a voucher.
-   */
-  private async getRemainingVoucherBalance(voucherId: number): Promise<number> {
-    // Total AR/AP base of the voucher, netted by debit/credit sign (canonical
-    // maths in LedgerBalanceService), minus what's already matched.
-    const totalBase = await this.ledgerBalance.getVoucherNetBase(voucherId, [
-      'AR',
-      'AP',
-    ]);
-    if (totalBase === 0) return 0;
-
-    const alreadyMatched = await this.getAlreadyMatched(voucherId);
-    return Math.max(0, totalBase - alreadyMatched);
-  }
-
-  /**
-   * Execute proposed matches by inserting reconciliation_match records.
-   * For foreign-currency settlements, auto-posts realized-FX vouchers.
+   * Record one or more **ReconciliationMatch**es — the deep operation that
+   * enforces the "no over-match / no duplicate pair" invariant ATOMICALLY.
+   *
+   * ── Why this is a transaction, not a loop of inserts ──────────────────────
+   * The invariant — a match must never push a Voucher's matched total past its
+   * outstanding **Receivable** / **Payable** (or undrawn prepayment), and the
+   * SAME `(bank line, Voucher)` pair must never be recorded twice — used to
+   * live only in the proposal phase's `min(amount, remaining)`. Execution
+   * trusted the proposal and inserted blind, so two concurrent or repeated
+   * executes could over-match (1500 against a 1000 invoice) and a stale
+   * proposal could duplicate a pair. We now re-read the outstanding balance and
+   * INSERT inside ONE transaction, so the check the INSERT relies on cannot go
+   * stale between read and write. N:M stays legitimate: many Vouchers per bank
+   * line and many bank lines per Voucher are all distinct pairs the
+   * UNIQUE(bank_transaction_id, voucher_id) index (migration 031) admits — only
+   * the same pair and over-matching are rejected.
+   *
+   * Realized-FX posting happens AFTER the matching transaction commits: it
+   * posts its own balanced **Voucher** through PostingService and is not part
+   * of the match-recording invariant.
    */
   async executeMatch(proposals: MatchProposal[]): Promise<ExecuteMatchResult> {
     if (proposals.length === 0) {
       throw new BadRequestException('No match proposals provided');
     }
 
+    for (const proposal of proposals) {
+      if (proposal.amountMatched <= 0) {
+        throw new BadRequestException(
+          `amount_matched must be positive, got ${proposal.amountMatched}`,
+        );
+      }
+    }
+
     // Validate all proposals reference existing transactions and vouchers.
     const txnIds = [...new Set(proposals.map((p) => p.bankTransactionId))];
-    const voucherIds = [...new Set(proposals.map((p) => p.voucherId))];
 
     const txnMap = new Map<number, BankTransactionRecord>();
     for (const txnId of txnIds) {
@@ -665,50 +464,68 @@ export class ReconciliationService {
       txnMap.set(txnId, txn);
     }
 
-    for (const vid of voucherIds) {
-      const voucher = await this.db
-        .selectFrom('voucher')
-        .select('id')
-        .where('id', '=', vid)
-        .executeTakeFirst();
-      if (!voucher) {
-        throw new NotFoundException(`Voucher ${vid} not found`);
-      }
-    }
-
     const now = Math.floor(Date.now() / 1000);
-    const records: ReconciliationMatchRecord[] = [];
-    const fxResults: FXRealizedResult[] = [];
 
-    for (const proposal of proposals) {
-      if (proposal.amountMatched <= 0) {
-        throw new BadRequestException(
-          `amount_matched must be positive, got ${proposal.amountMatched}`,
+    // ── Atomic check-then-insert ──────────────────────────────────────────
+    // The remaining-balance read and the INSERT run on the SAME transaction
+    // connection, so the outstanding balance the rejection relies on cannot
+    // change between read and write. Proposals in this batch that target the
+    // same Voucher accumulate against ONE outstanding figure, so a batch can no
+    // more over-match than two separate executes can.
+    const records = await this.db.transaction().execute(async (trx) => {
+      const batchMatchedByVoucher = new Map<number, number>();
+      const inserted: ReconciliationMatchRecord[] = [];
+
+      for (const proposal of proposals) {
+        const voucher = await trx
+          .selectFrom('voucher')
+          .select('id')
+          .where('id', '=', proposal.voucherId)
+          .executeTakeFirst();
+        if (!voucher) {
+          throw new NotFoundException(
+            `Voucher ${proposal.voucherId} not found`,
+          );
+        }
+
+        // Re-read the outstanding AR/AP (or prepayment) balance INSIDE the
+        // transaction, then subtract anything already matched earlier in THIS
+        // batch against the same Voucher.
+        const persistedRemaining =
+          proposal.matchType === 'prepayment'
+            ? await this.outstandingVouchers.getRemainingPrepaymentBalance(
+                proposal.voucherId,
+                trx,
+              )
+            : await this.outstandingVouchers.getRemainingVoucherBalance(
+                proposal.voucherId,
+                trx,
+              );
+        const alreadyInBatch =
+          batchMatchedByVoucher.get(proposal.voucherId) ?? 0;
+        const available = persistedRemaining - alreadyInBatch;
+
+        if (proposal.amountMatched > available) {
+          throw new ConflictException(
+            `Match of ${proposal.amountMatched} would over-match voucher ` +
+              `${proposal.voucherId}: only ${available} outstanding remains`,
+          );
+        }
+
+        const row = await this.insertMatchRow(trx, proposal, now);
+        batchMatchedByVoucher.set(
+          proposal.voucherId,
+          alreadyInBatch + proposal.amountMatched,
         );
+        inserted.push(row);
       }
 
-      const [inserted] = await this.db
-        .insertInto('reconciliation_match')
-        .values({
-          bank_transaction_id: proposal.bankTransactionId,
-          voucher_id: proposal.voucherId,
-          match_type: proposal.matchType,
-          amount_matched: proposal.amountMatched,
-          created_at: now,
-        })
-        .returningAll()
-        .execute();
+      return inserted;
+    });
 
-      records.push({
-        id: inserted.id,
-        bankTransactionId: inserted.bank_transaction_id,
-        voucherId: inserted.voucher_id,
-        matchType: inserted.match_type as MatchType,
-        amountMatched: inserted.amount_matched,
-        createdAt: inserted.created_at,
-      });
-
-      // Compute realized FX for foreign-currency settlements.
+    // ── Realized FX (post-commit; posts its own Voucher) ──────────────────
+    const fxResults: FXRealizedResult[] = [];
+    for (const proposal of proposals) {
       const txn = txnMap.get(proposal.bankTransactionId);
       if (
         txn &&
@@ -730,5 +547,71 @@ export class ReconciliationService {
     }
 
     return { records, fxResults };
+  }
+
+  /**
+   * Insert one reconciliation_match row on the given transaction, translating a
+   * UNIQUE(bank_transaction_id, voucher_id) violation (migration 031) into a
+   * clear duplicate-pair rejection. The constraint is the backstop behind the
+   * outstanding-balance re-check; a duplicate pair from a stale proposal that
+   * slips past the balance check (e.g. a zero-outstanding re-match) still cannot
+   * be recorded twice.
+   */
+  private async insertMatchRow(
+    trx: Transaction<Database>,
+    proposal: MatchProposal,
+    now: number,
+  ): Promise<ReconciliationMatchRecord> {
+    let inserted: {
+      id: number;
+      bank_transaction_id: number;
+      voucher_id: number;
+      match_type: string;
+      amount_matched: number;
+      created_at: number;
+    };
+    try {
+      [inserted] = await trx
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: proposal.bankTransactionId,
+          voucher_id: proposal.voucherId,
+          match_type: proposal.matchType,
+          amount_matched: proposal.amountMatched,
+          created_at: now,
+        })
+        .returningAll()
+        .execute();
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        throw new ConflictException(
+          `Duplicate reconciliation match: bank transaction ` +
+            `${proposal.bankTransactionId} is already matched to voucher ` +
+            `${proposal.voucherId}`,
+        );
+      }
+      throw err;
+    }
+
+    return {
+      id: inserted.id,
+      bankTransactionId: inserted.bank_transaction_id,
+      voucherId: inserted.voucher_id,
+      matchType: inserted.match_type as MatchType,
+      amountMatched: inserted.amount_matched,
+      createdAt: inserted.created_at,
+    };
+  }
+
+  /** Whether an unknown error is a SQLite UNIQUE-constraint violation. */
+  private isUniqueViolation(err: unknown): boolean {
+    if (typeof err !== 'object' || err === null) return false;
+    const code = (err as { code?: unknown }).code;
+    const message = (err as { message?: unknown }).message;
+    return (
+      code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+      code === 'SQLITE_CONSTRAINT' ||
+      (typeof message === 'string' && message.includes('UNIQUE constraint'))
+    );
   }
 }

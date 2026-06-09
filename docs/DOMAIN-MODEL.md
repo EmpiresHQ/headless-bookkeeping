@@ -93,6 +93,28 @@ Inbound message arrives (channel adapter)
 - **Retrieval for modification:** a **correction** of a posted object (reversal + repost, ADR-0010/ADR-0006) fetches the associated Conversation(s) — open *or* closed — via the M:N association, to recover the original dialogue and **Artifact**s as context. A correction arriving on a *different* thread/channel starts a **new** Conversation associated to the same object (which can then pull the prior closed one for context).
 - The closed Conversation is never mutated to rewrite history; reopen/append and new-linked-Conversation are both append-only, audit-preserving.
 
+## AI ingestion (Mastra, Wave 7)
+
+The "AI proposes" layer — real OCR + agentic classification — embedded in-process on **Mastra** (ledger stays SoR). Replaces the Wave-4 stub. See ADR-0024.
+
+```
+[Pass 1: OCR → markdown]            vision model; transcribe, don't structure;
+        │                          markdown stored as Conversation Artifact (audit + replay anchor)
+[Pass 2: read-only agent + tools]  read-tools (searchSuppliers/listCategories/memory) →
+        │                          ONE complete Zod-validated TriageResult (kind, amounts, currency,
+        │                          document tax-point date, supplier proposal, category, marking, confidence)
+[route by confidence + kind]
+   ├─ confident & kind=new_expense → proposeDraft (deterministic step) creates ONE draft Expense
+   │        → generateDraftVoucher → Rules → Policy → (auto-post | hold→Approval(draft))   [the only ledger path]
+   └─ uncertain / unknown / supplier unresolved → NO draft → AuditFinding(needs_triage) → human → re-run
+```
+
+- **No garbage drafts:** the agent is **read-only** (no create-draft tool); a draft is created once, deterministically, only from a complete confident `new_expense` result. Uncertain → no draft, a `needs_triage` AuditFinding instead.
+- **HITL is durable on our aggregates, not Mastra suspend (v1):** a held draft → `Approval` (Wave-6); an uncertain no-draft → `AuditFinding` (Wave-6). Both on-disk, reboot-safe. Mastra `suspend()` unused in v1 (reserved for future).
+- **Boundary invariant:** only schema-validated structured output crosses into the kernel (no free text). Confidence → **Policy** (not Rules). Classification proposes **category + supplier**, never account/VAT (plugin sole resolver, ADR-0002). Tools wrap services: read-only agent / draft created by deterministic step / **no `post()` tool** (ADR-0018/0012/0019).
+- **Non-determinism outside the chain:** the AI proposal + model id/version + markdown persisted for audit (`ai_proposal`); the hash-chained ledger only sees the deterministic posted voucher.
+- **Runtime:** Mastra (Zod structured output, workflow). `pi-agent-core` evaluated, rejected (no first-class structured output / durable suspend) — ADR-0024.
+
 ## State machines
 
 Several aggregates are **FSM-governed** — status is only ever changed via a defined transition, never an arbitrary write (the service rejects illegal transitions). Consistent posture across the system:

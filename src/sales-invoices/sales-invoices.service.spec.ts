@@ -9,6 +9,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { CreateSalesInvoiceDto } from './types';
 
@@ -38,6 +39,7 @@ describe('SalesInvoicesService (integration)', () => {
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
+        VoucherProjectionService,
         SalesInvoicesService,
       ],
     }).compile();

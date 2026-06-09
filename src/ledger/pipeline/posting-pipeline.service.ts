@@ -1,22 +1,14 @@
-import {
-  Injectable,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../../database/types';
-import { AccountService } from '../account/account.service';
 import { RulesService } from '../../rules/rules.service';
 import { PolicyService } from '../../policy/policy.service';
 import { PostingService } from '../posting/posting.service';
+import { StatusTransitionService } from '../status/status-transition.service';
 import { OrganizationService } from '../../organization/organization.service';
 import { mustReject } from '../../rules/rules.guards';
-import {
-  ResolvedLine,
-  SemanticValidationContext,
-  RuleResult,
-} from '../../rules/types';
+import { ResolvedLine, SemanticValidationContext } from '../../rules/types';
 import {
   SupplierFacts,
   OrgContext,
@@ -24,6 +16,7 @@ import {
 import { DraftVoucher, PostedVoucher } from '../voucher/types';
 import { PolicyDecision } from '../../policy/types';
 import { ValidationError } from '../posting/types';
+import { NULL_VAT_CODE } from '../posting/vat-constants';
 
 /**
  * Parameters for the posting pipeline.
@@ -45,6 +38,10 @@ export interface PostingPipelineParams {
   refetch: () => Promise<unknown>;
   /** Optional semantic rule override (ruleType + reason). */
   override?: { ruleType: string; reason: string };
+  /** AI confidence score (0–1). Passed to Policy; undefined → skip check. */
+  confidence?: number;
+  /** Whether the supplier is known (matched to an Entity). */
+  supplierKnown?: boolean;
 }
 
 export interface PostingPipelineResult {
@@ -67,10 +64,10 @@ export interface PostingPipelineResult {
 export class PostingPipelineService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly accountService: AccountService,
     private readonly rulesService: RulesService,
     private readonly policyService: PolicyService,
     private readonly postingService: PostingService,
+    private readonly statusTransition: StatusTransitionService,
     private readonly organizationService: OrganizationService,
   ) {}
 
@@ -80,27 +77,18 @@ export class PostingPipelineService {
     // ── 1. Generate transient draft voucher ────────────────────
     const draft = await params.draftGenerator();
 
-    // ── 2. Resolve account codes and build ResolvedLine[] ───────────────────────────────
-    const codes = [...new Set(draft.lines.map((l) => l.account_code))];
-    const accounts = await this.accountService.getAccountsByCodes(codes);
-    const byCode = new Map(accounts.map((a) => [a.code, a]));
+    // ── 2. Resolve account codes (THE single resolver, ADR-0019) and enrich
+    // with the vat_code + category the Rules/Policy tiers need. Account
+    // resolution itself lives only in PostingService.resolveLines.
+    const { resolved, accounts } =
+      await this.postingService.resolveLines(draft);
     const validAccountIds = new Set(accounts.map((a) => a.id));
 
-    const resolvedLines: ResolvedLine[] = draft.lines.map((l) => {
-      const account = byCode.get(l.account_code) || { id: -1, currency: null };
-      const { id: account_id, currency: account_currency } = account;
-      return {
-        account_id,
-        amount: l.amount,
-        currency: l.currency,
-        base_amount: l.base_amount,
-        fx_rate: l.fx_rate,
-        is_debit: l.is_debit,
-        account_currency: account_currency,
-        vat_code: l.vat_code ?? 'NULL_STANDARD',
-        category: params.category,
-      };
-    });
+    const resolvedLines: ResolvedLine[] = resolved.map((l, i) => ({
+      ...l,
+      vat_code: draft.lines[i].vat_code ?? NULL_VAT_CODE,
+      category: params.category,
+    }));
 
     // ── 4. Build semantic validation context ───────────────────
     const org = await this.organizationService.getOrganization();
@@ -122,58 +110,55 @@ export class PostingPipelineService {
       category: params.category,
     };
 
-    // ── 5. Run Rules validation ────────────────────────────────
-    const structuralResult = this.rulesService.validate(
-      resolvedLines,
-      validAccountIds,
-      'structural',
-    );
-    if (mustReject(structuralResult)) {
-      throw new BadRequestException({
-        message: 'Structural validation failed',
-        errors: [structuralResult.message],
-      });
-    }
-
-    const hardResult = await this.rulesService.validateHardProcess(
-      draft.tax_point_date,
-    );
-    if (mustReject(hardResult)) {
-      throw new BadRequestException({
-        message: 'Hard process validation failed',
-        errors: [hardResult.message],
-      });
-    }
-
-    // Semantic validation: only on lines with a real VAT code
-    const semanticLines = resolvedLines.filter(
-      (l) => l.vat_code !== 'NULL_STANDARD',
-    );
-    let semanticResult: RuleResult = {
-      passed: true,
-      ruleType: 'semantic',
-      message: 'Semantic validation skipped (no lines with VAT code)',
-      overrideable: true,
-    };
-    if (semanticLines.length > 0) {
-      semanticResult = this.rulesService.validate(
-        semanticLines,
+    // ── 5. Run Rules validation (ONE unified call across all three tiers) ──
+    // The unified tier interface (ADR-0005): one async validateAll runs
+    // structural + hard-process + semantic and returns them in one shape, so
+    // this caller no longer orchestrates a sync `validate` plus a separate
+    // async `validateHardProcess`. The semantic tier evaluates only the lines
+    // carrying a real VAT code (a NULL_STANDARD placeholder is not semantically
+    // meaningful) — including the cross-border treatment check (ADR-0002),
+    // which surfaces an unresolvable foreign-supplier treatment as an
+    // overrideable semantic failure so Policy HOLDS it for Approval.
+    const { structural, hardProcess, semantic } =
+      await this.rulesService.validateAll({
+        resolvedLines,
         validAccountIds,
-        'semantic',
-        semanticContext,
-        params.override?.ruleType
+        taxPointDate: draft.tax_point_date,
+        context: semanticContext,
+        semanticLines: resolvedLines.filter(
+          (l) => l.vat_code !== NULL_VAT_CODE,
+        ),
+        override: params.override?.ruleType
           ? {
               ruleType: params.override.ruleType,
               reason: params.override.reason,
             }
           : undefined,
-      );
+      });
+
+    // Defense-in-depth: the inviolable tiers (structural + hard-process) reject
+    // here with a tier-specific 400 before any write is attempted. The
+    // authoritative throws still live in PostingService (ADR-0019).
+    if (mustReject(structural)) {
+      throw new BadRequestException({
+        message: 'Structural validation failed',
+        errors: [structural.message],
+      });
+    }
+    if (mustReject(hardProcess)) {
+      throw new BadRequestException({
+        message: 'Hard process validation failed',
+        errors: [hardProcess.message],
+      });
     }
 
-    const ruleResults = [structuralResult, hardResult, semanticResult];
+    const ruleResults = [structural, hardProcess, semantic];
 
     // ── 6. Policy gate ─────────────────────────────────────────
-    const policyDecision = this.policyService.decide(draft, ruleResults);
+    const policyDecision = await this.policyService.decide(draft, ruleResults, {
+      confidence: params.confidence,
+      supplierKnown: params.supplierKnown,
+    });
 
     if (policyDecision.action === 'auto-post') {
       // ── 7a. Atomic post + status update ──────────────────────
@@ -205,28 +190,17 @@ export class PostingPipelineService {
   ): Promise<PostingPipelineResult> {
     try {
       const result = await this.db.transaction().execute(async (trx) => {
-        // ── Atomic idempotency claim (ADR-0021) ──────────────────
-        // Conditional UPDATE: only transition from 'draft' succeeds.
-        // Zero rows affected → already claimed/posted → ConflictException.
-        const now = Math.floor(Date.now() / 1000);
-        const claimed = await trx
-          .updateTable(params.businessObjectType)
-          .set({ status: 'posted', updated_at: now })
-          .where('id', '=', params.businessObjectId)
-          .where('status', '=', 'draft')
-          .returning('id')
-          .executeTakeFirst();
-
-        if (!claimed) {
-          const current = await trx
-            .selectFrom(params.businessObjectType)
-            .select('status')
-            .where('id', '=', params.businessObjectId)
-            .executeTakeFirst();
-          throw new ConflictException(
-            `${this.label(params.businessObjectType)} ${params.businessObjectId} is already ${current?.status ?? 'unknown'}`,
-          );
-        }
+        // ── Guarded atomic transition (ADR-0006 / ADR-0021) ──────
+        // THE single seam: rejects an illegal transition, then claims the
+        // object only from `draft`. Zero rows → already claimed/posted →
+        // Conflict.
+        await this.statusTransition.transition(
+          trx,
+          params.businessObjectType,
+          params.businessObjectId,
+          'draft',
+          'posted',
+        );
 
         const voucher = await this.postingService.postVoucherTx(
           trx,
@@ -235,6 +209,7 @@ export class PostingPipelineService {
         );
 
         // Update voucher_id on the already-claimed object
+        const now = Math.floor(Date.now() / 1000);
         await trx
           .updateTable(params.businessObjectType)
           .set({ voucher_id: voucher.id, updated_at: now })
@@ -275,36 +250,21 @@ export class PostingPipelineService {
   }
 
   /**
-   * Atomic conditional claim for the hold-for-approval path.
-   * Transitions status from 'draft' to 'pending' only if the object
-   * is still in 'draft'. Throws ConflictException if already claimed.
+   * Atomic conditional claim for the hold-for-approval path. Transitions
+   * status from 'draft' to 'pending' via the single status-transition seam
+   * (ADR-0006 / ADR-0021) — an illegal transition is rejected, and a
+   * ConflictException is thrown if the object was already claimed.
    */
   private async claimForApproval(
     type: 'expense' | 'sales_invoice',
     id: number,
   ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    const claimed = await this.db
-      .updateTable(type)
-      .set({ status: 'pending', updated_at: now })
-      .where('id', '=', id)
-      .where('status', '=', 'draft')
-      .returning('id')
-      .executeTakeFirst();
-
-    if (!claimed) {
-      const current = await this.db
-        .selectFrom(type)
-        .select('status')
-        .where('id', '=', id)
-        .executeTakeFirst();
-      throw new ConflictException(
-        `${this.label(type)} ${id} is already ${current?.status ?? 'unknown'}`,
-      );
-    }
-  }
-
-  private label(type: 'expense' | 'sales_invoice'): string {
-    return type === 'expense' ? 'Expense' : 'SalesInvoice';
+    await this.statusTransition.transition(
+      this.db,
+      type,
+      id,
+      'draft',
+      'pending',
+    );
   }
 }

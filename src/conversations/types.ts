@@ -4,8 +4,11 @@ export type ConversationStatus = 'open' | 'closed';
 // Message direction within a Conversation.
 export type MessageDirection = 'inbound' | 'outbound';
 
-// Artifact kind: inbound attachment (→ Document) or outbound output.
-export type ArtifactKind = 'inbound_attachment' | 'outbound_output';
+// Artifact kind: inbound attachment (→ Document), outbound output, or OCR markdown.
+export type ArtifactKind =
+  | 'inbound_attachment'
+  | 'outbound_output'
+  | 'ocr_markdown';
 
 // Channel for Conversation resolution.
 export type ConversationChannel = 'telegram' | 'email' | 'slack' | 'api';
@@ -43,6 +46,7 @@ export interface Artifact {
   kind: ArtifactKind;
   document_id: number | null;
   storage_path: string;
+  crc32: number | null;
   created_at: number;
 }
 
@@ -75,6 +79,7 @@ export interface AttachArtifactInput {
   kind: ArtifactKind;
   storage_path: string;
   document_id?: number | null;
+  crc32?: number | null;
 }
 
 // Input for associate(): M:N link to a business object.

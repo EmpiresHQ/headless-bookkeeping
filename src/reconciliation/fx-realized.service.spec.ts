@@ -19,6 +19,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
 
 /**
@@ -71,6 +72,7 @@ describe('FXRealizedService (integration)', () => {
         CurrencyService,
         FXRealizedService,
         LedgerBalanceService,
+        OutstandingVoucherService,
         ReconciliationService,
       ],
     }).compile();
@@ -839,7 +841,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
   /** Fake plugin: USD→EUR = 0.9; same-currency = 1.0; base currency EUR. */
   const fakePlugin: Pick<
     CountryPlugin,
-    'getReferenceRate' | 'getDefaultBaseCurrency'
+    'getReferenceRate' | 'getDefaultBaseCurrency' | 'roundToBaseMinorUnits'
   > = {
     getReferenceRate(from: string, to: string): number {
       if (from === to) return 1.0;
@@ -847,6 +849,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
       throw new Error(`Unexpected pair ${from} → ${to}`);
     },
     getDefaultBaseCurrency: () => 'EUR',
+    roundToBaseMinorUnits: (amount: number) => Math.round(amount),
   };
 
   const fakeLoader = {
@@ -887,6 +890,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         CurrencyService,
         FXRealizedService,
         LedgerBalanceService,
+        OutstandingVoucherService,
         ReconciliationService,
       ],
     })

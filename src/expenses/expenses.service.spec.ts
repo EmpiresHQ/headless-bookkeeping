@@ -9,6 +9,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ExpensesService } from './expenses.service';
 import { EntitiesService } from '../entities/entities.service';
 import { NotFoundException } from '@nestjs/common';
@@ -40,6 +41,7 @@ describe('ExpensesService (integration)', () => {
         NullCountryPlugin,
         PluginLoader,
         CurrencyService,
+        VoucherProjectionService,
         EntitiesService,
         ExpensesService,
       ],

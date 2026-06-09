@@ -14,9 +14,11 @@ import { VoucherRepository } from '../ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from '../ledger/voucher/voucher-line.repository';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
 import { PostingService } from '../ledger/posting/posting.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { CorrectionsService } from './corrections.service';
 import { CorrectionRequest } from './types';
 
@@ -56,7 +58,9 @@ describe('Corrections (integration)', () => {
         VoucherLineRepository,
         LedgerValidationService,
         PostingService,
+        StatusTransitionService,
         PeriodLockService,
+        VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
         CorrectionsService,
@@ -346,6 +350,50 @@ describe('Corrections (integration)', () => {
           patch: { gross_amount: 15000 },
         }),
       ).rejects.toThrow(/no open period/i);
+    });
+  });
+
+  describe('correct-a-correction policy (ADR-0006)', () => {
+    it('refuses to correct an already-corrected object: it is left terminal (reversed), not re-correctable', async () => {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 12300,
+        vat_amount: 2300,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
+
+      // First correction: posted → reversed, re-pointed at the corrected voucher.
+      const first = await correctionsService.correctExpense(expense.id, {
+        kind: 'financial',
+        reason: 'Wrong amount',
+        patch: { gross_amount: 15000, vat_amount: 3000 },
+      });
+      expect(first.outcome).toBe('posted_reversal_and_correction');
+
+      const afterFirst = await expensesService.getExpenseById(expense.id);
+      expect(afterFirst.status).toBe('reversed');
+
+      // Second correction on the same object: the object is terminal
+      // (`reversed`), so the kernel reports it as unsupported rather than
+      // stacking a correction on a correction — and posts NO further vouchers.
+      const before = await voucherRepo.getVouchers();
+      const second = await correctionsService.correctExpense(expense.id, {
+        kind: 'financial',
+        reason: 'Correct the correction',
+        patch: { gross_amount: 20000 },
+      });
+      expect(second.outcome).toBe('unsupported_status');
+
+      const after = await voucherRepo.getVouchers();
+      expect(after).toHaveLength(before.length);
     });
   });
 

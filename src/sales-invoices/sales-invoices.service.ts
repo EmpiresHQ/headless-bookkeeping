@@ -2,11 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { OrganizationService } from '../organization/organization.service';
-import { CurrencyService } from '../currency/currency.service';
-import { SupplierFacts, OrgContext } from '../plugins/country-plugin.interface';
 import { DraftVoucher } from '../ledger/voucher/types';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -17,9 +14,7 @@ import {
 export class SalesInvoicesService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly pluginLoader: PluginLoader,
-    private readonly organizationService: OrganizationService,
-    private readonly currencyService: CurrencyService,
+    private readonly projection: VoucherProjectionService,
   ) {}
 
   async createInvoice(dto: CreateSalesInvoiceDto): Promise<SalesInvoice> {
@@ -95,74 +90,25 @@ export class SalesInvoicesService {
     return this.buildDraftVoucher(patched);
   }
 
+  /**
+   * Thin adapter over the deep projection module (ADR-0006): a SalesInvoice
+   * supplies its economic facts (fixed 'revenue' Category) and the `sale`
+   * direction; the projection produces the balanced draft Voucher
+   * (Dr AR / Cr revenue / Cr VAT_PAYABLE).
+   */
   private async buildDraftVoucher(
     invoice: SalesInvoice,
   ): Promise<DraftVoucher> {
-    const org = await this.organizationService.getOrganization();
-    const plugin = this.pluginLoader.resolve(org.country);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
-
-    const supplierFacts: SupplierFacts = {
-      country: org.country,
-      goodsVsServices: 'unknown',
-      classificationMemory: [],
-    };
-
-    const orgContext: OrgContext = {
-      country: org.country,
-      vatRegistered: org.vat_registered,
-      baseCurrency: org.base_currency,
-    };
-
-    const mapping = plugin.resolveCategoryMapping(
-      'revenue',
-      supplierFacts,
-      orgContext,
+    return this.projection.project(
+      {
+        category: 'revenue',
+        grossAmount: invoice.gross_amount,
+        vatAmount: invoice.vat_amount,
+        currency: invoice.currency,
+        taxPointDate: invoice.tax_point_date,
+      },
+      'sale',
     );
-
-    const fxRate = plugin.getReferenceRate(
-      invoice.currency,
-      baseCurrency,
-      invoice.tax_point_date,
-    );
-    const baseAmount = (amount: number) => Math.round(amount * fxRate);
-    const netAmount = invoice.gross_amount - invoice.vat_amount;
-
-    const draft: DraftVoucher = {
-      voucher_number: 'PENDING',
-      tax_point_date: invoice.tax_point_date,
-      lines: [
-        {
-          account_code: 'AR',
-          amount: invoice.gross_amount,
-          currency: invoice.currency,
-          base_amount: baseAmount(invoice.gross_amount),
-          fx_rate: fxRate,
-          vat_code: null,
-          is_debit: true,
-        },
-        {
-          account_code: mapping.accountCode,
-          amount: netAmount,
-          currency: invoice.currency,
-          base_amount: baseAmount(netAmount),
-          fx_rate: fxRate,
-          vat_code: mapping.vatCode,
-          is_debit: false,
-        },
-        {
-          account_code: 'VAT_PAYABLE',
-          amount: invoice.vat_amount,
-          currency: invoice.currency,
-          base_amount: baseAmount(invoice.vat_amount),
-          fx_rate: fxRate,
-          vat_code: mapping.vatCode,
-          is_debit: false,
-        },
-      ],
-    };
-
-    return draft;
   }
 
   async sendInvoice(id: number): Promise<SalesInvoice> {
@@ -241,10 +187,6 @@ export class SalesInvoicesService {
     return this.mapRow(row);
   }
 
-  async markReversed(id: number, newVoucherId: number): Promise<void> {
-    await this.updateInvoiceStatus(id, 'reversed', newVoucherId);
-  }
-
   /**
    * Apply an amount patch inside an existing transaction (trx) — transactional
    * twin of {@link patchAmounts} for the atomic correction flow.
@@ -266,23 +208,6 @@ export class SalesInvoicesService {
         }),
         updated_at: now,
       })
-      .where('id', '=', id)
-      .execute();
-  }
-
-  /**
-   * Mark the invoice reversed and re-point it at the corrected voucher inside an
-   * existing transaction (trx) — transactional twin of {@link markReversed}.
-   */
-  async markReversedTx(
-    trx: Kysely<Database>,
-    id: number,
-    newVoucherId: number,
-  ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    await trx
-      .updateTable('sales_invoice')
-      .set({ status: 'reversed', voucher_id: newVoucherId, updated_at: now })
       .where('id', '=', id)
       .execute();
   }

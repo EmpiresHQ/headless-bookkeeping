@@ -5,9 +5,10 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely, sql } from 'kysely';
+import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import type { CountryPlugin } from '../plugins/country-plugin.interface';
 import { OrganizationService } from '../organization/organization.service';
 import { CurrencyService } from '../currency/currency.service';
@@ -37,6 +38,7 @@ export class DividendsService {
     private readonly orgService: OrganizationService,
     private readonly currencyService: CurrencyService,
     private readonly transactionRepo: BankTransactionRepository,
+    private readonly ledgerBalance: LedgerBalanceService,
   ) {}
 
   /**
@@ -223,16 +225,18 @@ export class DividendsService {
     const resolvedBankCode = bankAccount.account_code;
 
     const absAmount = Math.abs(txn.amount);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
-    const fxRate =
-      txn.currency === baseCurrency
-        ? 1.0
-        : this.plugin.getReferenceRate(
-            txn.currency,
-            baseCurrency,
-            txn.transaction_date,
-          );
-    const baseAmount = Math.round(absAmount * fxRate);
+    // CurrencyService owns base-currency resolution, the same-currency
+    // short-circuit, the plugin reference-rate fetch, and the cents rounding
+    // (ADR-0004). We book the bank leg at the same rate it returns.
+    const {
+      baseCurrency,
+      rate: fxRate,
+      baseAmount,
+    } = await this.currencyService.toBase(
+      absAmount,
+      txn.currency,
+      txn.transaction_date,
+    );
 
     // 6. Post settlement voucher: Dr DIVIDEND_PAYABLE (base) / Cr {bank} (txn ccy).
     const draft: DraftVoucher = {
@@ -291,20 +295,14 @@ export class DividendsService {
    * (ΣRevenue − ΣExpense), all measured credit-positive. Prior dividend
    * declarations already debited RETAINED_EARNINGS, so they are reflected.
    */
-  private async getDistributableProfits(): Promise<number> {
-    const result = await this.db
-      .selectFrom('voucher_line as vl')
-      .innerJoin('account as a', 'a.id', 'vl.account_id')
-      .select(
-        sql<number>`COALESCE(SUM(CASE WHEN vl.is_debit = 1 THEN -vl.base_amount ELSE vl.base_amount END), 0)`.as(
-          'net',
-        ),
-      )
-      .where(
-        sql<boolean>`a.code = ${RETAINED_EARNINGS} OR a.type IN ('revenue', 'expense')`,
-      )
-      .executeTakeFirst();
-
-    return Number(result?.net ?? 0);
+  private getDistributableProfits(): Promise<number> {
+    // RETAINED_EARNINGS (equity, by code) + current net income across all
+    // revenue/expense accounts (by type), measured credit-positive — equity and
+    // revenue are credit-normal, so a profit is positive and a loss negative.
+    // The signed-sum convention is owned by LedgerBalanceService.
+    return this.ledgerBalance.getLedgerNet(
+      { codes: [RETAINED_EARNINGS], types: ['revenue', 'expense'] },
+      { creditPositive: true },
+    );
   }
 }

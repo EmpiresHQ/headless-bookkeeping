@@ -26,6 +26,9 @@ export interface Database {
   artifact: ArtifactTable;
   conversation_document: ConversationDocumentTable;
   conversation_business_object: ConversationBusinessObjectTable;
+  api_token: ApiTokenTable;
+  ai_proposal: AiProposalTable;
+  setting: SettingTable;
 }
 
 export interface OrganizationTable {
@@ -161,6 +164,8 @@ export interface DocumentTable {
   mime_type: string;
   size_bytes: number;
   storage_path: string | null;
+  // enum: 'pending' | 'triaged' | 'needs_triage' | 'processed' | 'error'
+  // (CHECK widened in migration 030; owned by IntakeWorkflowService, ADR-0024)
   status: string;
   created_at: number;
 }
@@ -272,16 +277,22 @@ export interface ApprovalTable {
 // with dynamic severity that drives nag cadence (ADR-0018).
 export interface AuditFindingTable {
   id: Generated<number>;
-  // 'low' | 'medium' | 'high' | 'critical'
+  // 'low' | 'medium' | 'high' | 'critical' — validated by AuditFindingsService
   severity: string;
+  // one of the known FindingType kinds — validated by AuditFindingsService
   finding_type: string;
   description: string;
+  // one of the known ReferencedObjectType kinds — validated on create
   referenced_object_type: string | null;
   referenced_object_id: number | null;
-  // 'open' | 'resolved' | 'snoozed'
+  // 'open' | 'resolved' | 'snoozed' — moved only via guarded transitions
   status: string;
   created_at: number;
   resolved_at: number | null;
+  // lifecycle-transition audit trail (migration 029)
+  snoozed_at: number | null;
+  transitioned_by: string | null;
+  transition_reason: string | null;
 }
 
 // Conversation: the durable, auditable thread of Messages on a single channel
@@ -313,14 +324,16 @@ export interface MessageTable {
   created_at: number;
 }
 
-// Artifact: a file bound to a Conversation — inbound attachment or outbound output.
+// Artifact: a file bound to a Conversation — inbound attachment, outbound output, or OCR markdown.
 export interface ArtifactTable {
   id: Generated<number>;
   conversation_id: number;
-  // 'inbound_attachment' | 'outbound_output'
+  // 'inbound_attachment' | 'outbound_output' | 'ocr_markdown'
   kind: string;
   document_id: number | null;
   storage_path: string;
+  // CRC32 checksum of the artifact content (unsigned 32-bit) for change detection.
+  crc32: number | null;
   created_at: number;
 }
 
@@ -361,4 +374,41 @@ export interface VatReportTable {
   // Merkle root over included vouchers (NULL until computed).
   merkle_root: string | null;
   generated_at: number;
+}
+
+// ApiToken: table-backed API tokens for authenticating /api and /admin routes.
+// token_hash is the SHA-256 hash of the plaintext token; no plaintext is stored.
+export interface ApiTokenTable {
+  id: Generated<number>;
+  // SHA-256 hash of the plaintext token.
+  token_hash: string;
+  // Human-readable label (e.g. "init-token").
+  label: string | null;
+  created_at: Generated<number>;
+  // Unix seconds when revoked; NULL = active.
+  revoked_at: number | null;
+}
+
+// AiProposal: operational audit trail for AI-driven posting attempts.
+// NOT part of the hash-chained ledger — stores model metadata, confidence,
+// and the raw triage result for reproducibility.
+export interface AiProposalTable {
+  id: Generated<number>;
+  business_object_type: string;
+  business_object_id: number;
+  model_id: string | null;
+  model_version: string | null;
+  raw_triage_result: string | null;
+  ocr_artifact_id: number | null;
+  confidence: number | null;
+  created_at: number;
+}
+
+// Setting: generic key-value store for application configuration.
+// Used for LLM model profiles and other tunable parameters.
+export interface SettingTable {
+  id: Generated<number>;
+  key: string;
+  value: string;
+  updated_at: number;
 }

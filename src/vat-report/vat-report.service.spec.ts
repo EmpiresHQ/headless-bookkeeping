@@ -8,6 +8,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { VatReportService } from './vat-report.service';
 import { VatReportController } from './vat-report.controller';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 
 /**
  * Integration test for Task 28: VAT report snapshot generation.
@@ -46,6 +47,7 @@ describe('VAT report snapshot generation (integration)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        LedgerBalanceService,
         VatReportService,
         VatReportController,
       ],
@@ -280,11 +282,213 @@ describe('VAT report snapshot generation (integration)', () => {
     expect(report.total_receivable).toBe(5000 - 4000); // 1000
   });
 
-  // ── (c) merkle_root is NULL ────────────────────────────────────────────
+  // ── (c) Merkle root over covered Vouchers ──────────────────────────────
 
-  it('(c) merkle_root is NULL on generation', async () => {
+  it('(c) computes a non-null deterministic Merkle root, stable across regeneration', async () => {
+    await seedPostedVoucher('2024-02-15', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'VAT_RECEIVABLE',
+        amount: 2500,
+        currency: 'EUR',
+        base_amount: 2500,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 12500,
+        currency: 'EUR',
+        base_amount: 12500,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+
+    const first = await vatReportService.generate(1);
+    expect(first.merkle_root).not.toBeNull();
+    expect(first.merkle_root).toMatch(/^[0-9a-f]{64}$/);
+
+    // Idempotent: re-generating returns the SAME frozen root (never recomputed).
+    const second = await vatReportService.generate(1);
+    expect(second.merkle_root).toBe(first.merkle_root);
+  });
+
+  it('(c) empty period yields a null Merkle root', async () => {
     const report = await vatReportService.generate(1);
     expect(report.merkle_root).toBeNull();
+  });
+
+  it('(c) single-voucher period yields a non-null root equal to that voucher leaf hash', async () => {
+    await seedPostedVoucher('2024-01-10', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 8000,
+        currency: 'EUR',
+        base_amount: 8000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 8000,
+        currency: 'EUR',
+        base_amount: 8000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+
+    const report = await vatReportService.generate(1);
+    expect(report.merkle_root).toMatch(/^[0-9a-f]{64}$/);
+    expect(report.voucher_ids).toHaveLength(1);
+  });
+
+  it('(c) Merkle root differs when the covered voucher set differs (different period)', async () => {
+    // Seed a second reporting period (2024-Q2) — only Q1 is seeded by migration.
+    await db
+      .insertInto('reporting_period')
+      .values({
+        name: '2024-Q2',
+        start_date: '2024-04-01',
+        end_date: '2024-06-30',
+        status: 'open',
+        created_at: Math.floor(Date.now() / 1000),
+      })
+      .execute();
+
+    // Q1 voucher
+    await seedPostedVoucher('2024-02-15', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+    // Q2 voucher
+    await seedPostedVoucher('2024-05-15', [
+      {
+        account_code: 'EXPENSE_RENT',
+        amount: 20000,
+        currency: 'EUR',
+        base_amount: 20000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 20000,
+        currency: 'EUR',
+        base_amount: 20000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+
+    const q1 = await vatReportService.generate(1); // 2024-Q1
+    const q2 = await vatReportService.generate(2); // 2024-Q2
+    expect(q1.merkle_root).not.toBeNull();
+    expect(q2.merkle_root).not.toBeNull();
+    expect(q1.merkle_root).not.toBe(q2.merkle_root);
+  });
+
+  // ── (c2) Coverage: a VAT-less Voucher is covered but ignored by boxes ───
+
+  it('(c2) a VAT-less Voucher in the period is covered (Merkle leaf) yet excluded from box amounts', async () => {
+    // Voucher WITH a VAT-control line.
+    const withVat = await seedPostedVoucher('2024-02-15', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'VAT_RECEIVABLE',
+        amount: 2500,
+        currency: 'EUR',
+        base_amount: 2500,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 12500,
+        currency: 'EUR',
+        base_amount: 12500,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+
+    // Voucher with NO VAT-control line (pure cash transfer, no VAT_* account).
+    const noVat = await seedPostedVoucher('2024-03-01', [
+      {
+        account_code: 'CASH',
+        amount: 5000,
+        currency: 'EUR',
+        base_amount: 5000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: true,
+      },
+      {
+        account_code: 'BANK_EUR',
+        amount: 5000,
+        currency: 'EUR',
+        base_amount: 5000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+
+    const report = await vatReportService.generate(1);
+
+    // COVERAGE: both vouchers are covered (Merkle leaves + voucher_ids).
+    expect(report.voucher_ids).toContain(withVat);
+    expect(report.voucher_ids).toContain(noVat);
+    expect(report.voucher_ids).toHaveLength(2);
+    expect(report.merkle_root).toMatch(/^[0-9a-f]{64}$/);
+
+    // BOX AMOUNTS: only the VAT-control line contributes — the VAT-less
+    // voucher adds nothing to input/output VAT.
+    expect(report.total_input_vat).toBe(2500);
+    expect(report.total_output_vat).toBe(0);
+    expect(report.vat_summary).toHaveLength(1);
+    expect(report.vat_summary[0].vat_code).toBe('INPUT_25');
   });
 
   // ── (d) Immutability via triggers ──────────────────────────────────────

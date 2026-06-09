@@ -1,0 +1,8 @@
+Wave 7: AI Orchestration — Git Commit Evidence
+==============================================
+Date: 2026-06-08
+Commits:
+1. b1cad6e feat(ai): embed Mastra runtime + tool layer (pipeline-gated, no post tool)
+2. d957aa8 feat(ai): Pass 2 agent + OCR wiring + artifact migration
+3. b578050 feat(ai): intake workflow + policy confidence gate + AI provenance
+4. b00ffac feat(ai): wire real 2-pass intake + e2e

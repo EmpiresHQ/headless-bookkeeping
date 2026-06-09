@@ -61,12 +61,12 @@ describe('AuditFindingsController (real-DI)', () => {
   describe('GET /api/audit-findings', () => {
     it('lists all findings', async () => {
       await controller.create({
-        finding_type: 'type_a',
+        finding_type: 'missing_receipt',
         severity: 'low',
         description: 'Finding A',
       });
       await controller.create({
-        finding_type: 'type_b',
+        finding_type: 'deadline_approaching',
         severity: 'high',
         description: 'Finding B',
       });
@@ -77,12 +77,12 @@ describe('AuditFindingsController (real-DI)', () => {
 
     it('filters by severity', async () => {
       await controller.create({
-        finding_type: 'type_a',
+        finding_type: 'missing_receipt',
         severity: 'low',
         description: 'Finding A',
       });
       await controller.create({
-        finding_type: 'type_b',
+        finding_type: 'deadline_approaching',
         severity: 'high',
         description: 'Finding B',
       });
@@ -96,7 +96,7 @@ describe('AuditFindingsController (real-DI)', () => {
   describe('POST /api/audit-findings/:id/resolve', () => {
     it('resolves a finding', async () => {
       const created = await controller.create({
-        finding_type: 'test',
+        finding_type: 'anomaly',
         severity: 'low',
         description: 'To resolve',
       });
@@ -110,7 +110,7 @@ describe('AuditFindingsController (real-DI)', () => {
   describe('POST /api/audit-findings/:id/snooze', () => {
     it('snoozes a finding', async () => {
       const created = await controller.create({
-        finding_type: 'test',
+        finding_type: 'anomaly',
         severity: 'low',
         description: 'To snooze',
       });

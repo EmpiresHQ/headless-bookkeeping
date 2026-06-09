@@ -4,6 +4,8 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from './reporting-periods.service';
+import { VatReportService } from '../vat-report/vat-report.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 
 /**
  * Integration test for ReportingPeriodsService against a real in-memory
@@ -46,7 +48,11 @@ describe('ReportingPeriodsService (integration)', () => {
     // with manual token override, but here we inject the Kysely instance
     // directly via the constructor to avoid DI resolution issues with the
     // nestjs-kysely token in a minimal module.
-    service = new ReportingPeriodsService(db);
+    const vatReportService = new VatReportService(
+      db,
+      new LedgerBalanceService(db),
+    );
+    service = new ReportingPeriodsService(db, vatReportService);
   });
 
   afterEach(async () => {

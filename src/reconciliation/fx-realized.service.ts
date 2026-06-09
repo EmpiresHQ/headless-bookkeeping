@@ -4,8 +4,6 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { OrganizationService } from '../organization/organization.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 
@@ -27,8 +25,6 @@ export class FXRealizedService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly postingService: PostingService,
     private readonly currencyService: CurrencyService,
-    private readonly pluginLoader: PluginLoader,
-    private readonly orgService: OrganizationService,
     private readonly ledgerBalance: LedgerBalanceService,
   ) {}
 
@@ -121,23 +117,16 @@ export class FXRealizedService {
     }
 
     // ── Convert the full-line actual cash to BASE currency (Bug B) ────
-    // When the bank account is denominated in the base currency (the common
-    // case) the cash IS the base amount — and we must NOT call the plugin,
-    // since NullCountryPlugin throws on real cross-currency pairs.
-    const baseCurrency = await this.currencyService.getBaseCurrency();
-    let actualBaseFull: number;
-    if (txn.currency === baseCurrency) {
-      actualBaseFull = actualInTxnCcy;
-    } else {
-      const org = await this.orgService.getOrganization();
-      const plugin = this.pluginLoader.resolve(org.country);
-      const refRate = plugin.getReferenceRate(
+    // CurrencyService owns base-currency resolution, the same-currency
+    // short-circuit (when the bank account is base-denominated the cash IS the
+    // base amount and the plugin is never touched), the plugin reference-rate
+    // fetch, and the cents rounding (ADR-0004).
+    const { baseCurrency, baseAmount: actualBaseFull } =
+      await this.currencyService.toBase(
+        actualInTxnCcy,
         txn.currency,
-        baseCurrency,
         txn.transaction_date,
       );
-      actualBaseFull = Math.round(actualInTxnCcy * refRate);
-    }
 
     // ── Scale to the matched proportion of the voucher (Bug A) ───────
     // matchedAmount is only PART of the voucher's full booked AR/AP base on a

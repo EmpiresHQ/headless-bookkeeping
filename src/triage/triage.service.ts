@@ -1,19 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { OcrService } from './ocr.service';
+import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
-import { ExpensesService } from '../expenses/expenses.service';
-import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
-import { CurrencyService } from '../currency/currency.service';
 import { TriageOutcome } from './types';
 
+/**
+ * TriageService — the thin HTTP-facing entry into the intake spine.
+ *
+ * It validates the Document exists, then delegates the whole "Document ->
+ * outcome" decision (including the Document's own status transition and
+ * idempotency) to the IntakeWorkflowService, which is the single deep owner of
+ * that transition (ADR-0024). TriageService no longer sets the Document status
+ * after the fact — that previously left a crash window between routing and the
+ * status move, and no single owner of the transition.
+ */
 @Injectable()
 export class TriageService {
   constructor(
-    private readonly ocr: OcrService,
+    private readonly workflow: IntakeWorkflowService,
     private readonly documents: DocumentsService,
-    private readonly expenses: ExpensesService,
-    private readonly salesInvoices: SalesInvoicesService,
-    private readonly currencyService: CurrencyService,
   ) {}
 
   async route(documentId: number): Promise<TriageOutcome> {
@@ -22,55 +26,24 @@ export class TriageService {
       throw new NotFoundException(`Document ${documentId} not found`);
     }
 
-    const ocrResult = this.ocr.extract(documentId);
-    const currency = await this.currencyService.getBaseCurrency();
-    const taxPointDate = new Date(doc.created_at * 1000)
-      .toISOString()
-      .slice(0, 10);
+    // The workflow owns routing AND the Document status transition; it is also
+    // idempotent (a re-run reuses the existing finding/draft).
+    const result = await this.workflow.process(documentId);
 
-    if (ocrResult.document_type === 'receipt') {
-      const expense = await this.expenses.createExpense({
-        document_id: documentId,
-        category: ocrResult.category,
-        gross_amount: ocrResult.gross_amount,
-        vat_amount: ocrResult.vat_amount,
-        currency,
-        tax_point_date: taxPointDate,
-        document_vat_marking: ocrResult.document_vat_marking,
-      });
-
-      await this.documents.setStatus(documentId, 'triaged');
-
+    if (result.status === 'draft_proposed') {
       return {
         kind: 'expense',
         document_id: documentId,
-        expense_id: expense.id,
+        expense_id: result.draft.expenseId,
       };
     }
 
-    if (ocrResult.document_type === 'invoice') {
-      const invoice = await this.salesInvoices.createInvoice({
-        invoice_number: `INV-${doc.id}`,
-        gross_amount: ocrResult.gross_amount,
-        vat_amount: ocrResult.vat_amount,
-        currency,
-        tax_point_date: taxPointDate,
-        document_vat_marking: ocrResult.document_vat_marking,
-      });
-
-      await this.documents.setStatus(documentId, 'triaged');
-
-      return {
-        kind: 'invoice',
-        document_id: documentId,
-        invoice_id: invoice.id,
-      };
-    }
-
+    // needs_triage — the workflow created (or reused) the AuditFinding and
+    // moved the Document to 'needs_triage'.
     return {
       kind: 'unknown',
       document_id: documentId,
-      reason: `Unrecognized document type: ${ocrResult.document_type}`,
+      reason: result.reason,
     };
   }
 }
