@@ -9,6 +9,7 @@ import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.modul
 import { OcrModule } from '../triage/ocr.module';
 import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { PolicyModule } from '../policy/policy.module';
+import { AgentConfigModule } from './agent-config.module';
 import { MastraService } from './mastra.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
@@ -37,6 +38,7 @@ import { IntakeWorkflowService } from './intake-workflow.service';
 @Module({
   imports: [
     DatabaseModule,
+    AgentConfigModule,
     DocumentsModule,
     EntitiesModule,
     ExpensesModule,

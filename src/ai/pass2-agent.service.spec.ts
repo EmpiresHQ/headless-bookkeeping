@@ -13,6 +13,7 @@ import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
 import type { Agent } from '@mastra/core/agent';
+import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { TriageResult } from '../triage/types';
@@ -61,6 +62,7 @@ describe('Pass2AgentService', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
+        AgentConfigService,
         MastraService,
         Pass2AgentService,
       ],
@@ -138,6 +140,7 @@ describe('Pass2AgentService', () => {
           VoucherProjectionService,
           EntitiesService,
           ExpensesService,
+          AgentConfigService,
           MastraService,
           Pass2AgentService,
         ],

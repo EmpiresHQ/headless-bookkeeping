@@ -1,15 +1,13 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
 import { Mastra } from '@mastra/core';
 import { Agent } from '@mastra/core/agent';
 import type { ToolsInput } from '@mastra/core/agent';
 import { LibSQLStore } from '@mastra/libsql';
-import { Database } from '../database/types';
 import { EntitiesService } from '../entities/entities.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
+import { AgentConfigService } from './agent-config.service';
 import {
   createSearchSuppliersTool,
   createListCategoriesTool,
@@ -43,7 +41,7 @@ export class MastraService implements OnModuleInit {
     private readonly expensesService: ExpensesService,
     private readonly pluginLoader: PluginLoader,
     private readonly organizationService: OrganizationService,
-    @InjectKysely() private readonly db: Kysely<Database>,
+    private readonly config: AgentConfigService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -99,42 +97,15 @@ export class MastraService implements OnModuleInit {
       url: 'file:./data/mastra.sqlite',
     });
 
-    // Resolve model from settings table (propagated via NestJS Kysely module).
-    const settingRow = await this.db
-      .selectFrom('setting')
-      .select('value')
-      .where('key', '=', 'ai_model')
-      .executeTakeFirst();
-    const model = settingRow?.value ?? 'openai/gpt-4o-mini';
+    // Resolve model and instructions from AgentConfigService (settings-backed).
+    const triage = await this.config.resolve('triage');
 
     // Create the triage agent with read-only tools.
     const triageAgent = new Agent({
       id: 'triage-agent',
       name: 'Triage Agent',
-      instructions:
-        'You are a document triage agent for an accounting system. ' +
-        'Analyze incoming documents (receipts, invoices) and classify them. ' +
-        'Call listCategories to see the available categories, then call ' +
-        'getClassificationContext ONCE with the supplier evidence and your ' +
-        'candidate category — it resolves or proposes the supplier, gathers its ' +
-        'classification memory (an advisory prior, not a rule), and previews the ' +
-        'account + VAT code mapping in a single read. Prefer it over chaining ' +
-        'searchSuppliers, getClassificationMemory, and previewCategoryMapping ' +
-        '(those remain available as fallbacks). ' +
-        'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
-        'Always return structured output with kind, document_type, gross_amount, ' +
-        'vat_amount, currency, tax_point_date, category, document_vat_marking, ' +
-        'confidence, and optionally supplier_proposal. ' +
-        'When you include supplier_proposal it MUST set a "mode" discriminant ' +
-        'and carry EXACTLY the fields for that mode: ' +
-        'either { mode: "match", match_entity_id } when getClassificationContext ' +
-        "resolved the document to an existing supplier (use that supplier's id), " +
-        'or { mode: "create", create_name, create_country } when no existing ' +
-        'supplier matched and you propose creating one (provide BOTH the name and ' +
-        'the ISO country code). Never mix the two modes, never half-fill a ' +
-        'create proposal, and omit supplier_proposal entirely if you cannot ' +
-        'determine the supplier.',
-      model,
+      instructions: triage.instructions,
+      model: triage.model,
       tools,
     });
 
