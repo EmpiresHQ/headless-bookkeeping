@@ -113,6 +113,24 @@ export class ApiTokenService implements OnModuleInit {
   }
 
   /**
+   * List all tokens — metadata only. Never returns token_hash or any plaintext.
+   */
+  async list(): Promise<
+    {
+      id: number;
+      label: string | null;
+      created_at: number;
+      revoked_at: number | null;
+    }[]
+  > {
+    return this.db
+      .selectFrom('api_token')
+      .select(['id', 'label', 'created_at', 'revoked_at'])
+      .orderBy('id')
+      .execute();
+  }
+
+  /**
    * Revoke a token by id.
    */
   async revoke(id: number): Promise<void> {
