@@ -30,6 +30,7 @@ import * as m030 from './030_add_document_needs_triage_status';
 import * as m031 from './031_unique_reconciliation_match_pair';
 import * as m032 from './032_add_artifact_crc32';
 import * as m033 from './033_create_audit_log';
+import * as m034 from './034_add_distribution_tax_account';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -63,4 +64,5 @@ export const migrations: Record<string, Migration> = {
   '031_unique_reconciliation_match_pair': m031,
   '032_add_artifact_crc32': m032,
   '033_create_audit_log': m033,
+  '034_add_distribution_tax_account': m034,
 };
