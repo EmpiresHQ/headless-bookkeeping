@@ -161,6 +161,25 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
             (y) => y,
             async () => io.out(json(await periods.list())),
           )
+          .command(
+            'delete <id>',
+            'Delete an EMPTY period (open, no vouchers) — undo a mistake',
+            (y) =>
+              y
+                .positional('id', { type: 'number', describe: 'Period id' })
+                .check((argv) => {
+                  if (!Number.isInteger(argv.id)) {
+                    throw new Error('period delete requires a numeric <id>');
+                  }
+                  return true;
+                }),
+            async (argv) => {
+              const deleted = await periods.deleteEmptyPeriod(
+                argv.id as number,
+              );
+              io.err(`deleted period id=${deleted.id} (${deleted.name})\n`);
+            },
+          )
           .demandCommand(1, 'Specify a period subcommand')
           .strict(),
       )
