@@ -26,6 +26,10 @@ RUN apk add --no-cache python3 make g++ curl && \
 
 COPY --from=builder /app/dist ./dist
 
+# Expose the admin CLI on PATH so `docker compose exec app cli token create` works.
+RUN printf '#!/bin/sh\nexec node /app/dist/cli.js "$@"\n' > /usr/local/bin/cli && \
+    chmod +x /usr/local/bin/cli
+
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
