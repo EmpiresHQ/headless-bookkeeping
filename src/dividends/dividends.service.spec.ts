@@ -30,7 +30,7 @@ import {
   ExpenseTreatmentPreview,
   VatComputation,
 } from '../plugins/country-plugin-retrieval.interface';
-import { DividendsService, COUNTRY_PLUGIN_TOKEN } from './dividends.service';
+import { DividendsService } from './dividends.service';
 
 /**
  * Integration test for dividend distribution (declaration + settlement).
@@ -41,6 +41,7 @@ import { DividendsService, COUNTRY_PLUGIN_TOKEN } from './dividends.service';
  * 2. Settle → bank txn reconciled against declaration voucher
  * 3. Withholding split when plugin rate > 0
  * 4. Profits-check path (soft warning in null plugin)
+ * 5. Real-resolution: EE org resolves EstoniaCountryPlugin → DISTRIBUTION_TAX_PAYABLE booked
  */
 describe('DividendsService (integration)', () => {
   let db: Kysely<Database>;
@@ -60,6 +61,8 @@ describe('DividendsService (integration)', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
+    const nullPlugin = new NullCountryPlugin();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
@@ -71,11 +74,11 @@ describe('DividendsService (integration)', () => {
         BankTransactionRepository,
         BankStatementService,
         OrganizationService,
-        PluginLoader,
+        {
+          provide: PluginLoader,
+          useValue: { resolve: () => nullPlugin },
+        },
         CurrencyService,
-        NullCountryPlugin,
-        EstoniaCountryPlugin,
-        { provide: COUNTRY_PLUGIN_TOKEN, useExisting: NullCountryPlugin },
         DividendsService,
       ],
     }).compile();
@@ -364,6 +367,8 @@ describe('DividendsService (integration)', () => {
     }
 
     beforeEach(async () => {
+      const mockPlugin = new MockWithholdingPlugin();
+
       module = await Test.createTestingModule({
         providers: [
           { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
@@ -375,12 +380,11 @@ describe('DividendsService (integration)', () => {
           BankTransactionRepository,
           BankStatementService,
           OrganizationService,
-          PluginLoader,
+          {
+            provide: PluginLoader,
+            useValue: { resolve: () => mockPlugin },
+          },
           CurrencyService,
-          NullCountryPlugin,
-          EstoniaCountryPlugin,
-          MockWithholdingPlugin,
-          { provide: COUNTRY_PLUGIN_TOKEN, useClass: MockWithholdingPlugin },
           DividendsService,
         ],
       }).compile();
@@ -567,6 +571,8 @@ describe('DividendsService (integration)', () => {
     }
 
     beforeEach(async () => {
+      const mockPlugin = new MockDistributionTaxPlugin();
+
       module = await Test.createTestingModule({
         providers: [
           { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
@@ -578,15 +584,11 @@ describe('DividendsService (integration)', () => {
           BankTransactionRepository,
           BankStatementService,
           OrganizationService,
-          PluginLoader,
-          CurrencyService,
-          NullCountryPlugin,
-          EstoniaCountryPlugin,
-          MockDistributionTaxPlugin,
           {
-            provide: COUNTRY_PLUGIN_TOKEN,
-            useClass: MockDistributionTaxPlugin,
+            provide: PluginLoader,
+            useValue: { resolve: () => mockPlugin },
           },
+          CurrencyService,
           DividendsService,
         ],
       }).compile();
@@ -660,6 +662,126 @@ describe('DividendsService (integration)', () => {
 
       // Balance: debit === sum of credits
       expect(re!.base_amount).toBe(pay!.base_amount + tax!.base_amount);
+    });
+  });
+
+  // ── Real-resolution: EE org → EstoniaCountryPlugin fires in prod path ─
+
+  describe('real plugin resolution (regression guard)', () => {
+    /**
+     * This test uses the REAL PluginLoader (not a stub) to prove that when
+     * organization.country = 'EE', PluginLoader.resolve('EE') returns
+     * EstoniaCountryPlugin and DISTRIBUTION_TAX_PAYABLE is booked.
+     *
+     * This is the regression guard for the original bug where DividendsService
+     * injected a hardcoded NullCountryPlugin via COUNTRY_PLUGIN_TOKEN, causing
+     * EE distribution tax to never fire in production.
+     */
+    let module: TestingModule;
+    let eeService: DividendsService;
+
+    beforeEach(async () => {
+      module = await Test.createTestingModule({
+        providers: [
+          { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+          AccountService,
+          LedgerBalanceService,
+          LedgerValidationService,
+          PostingService,
+          PeriodLockService,
+          BankTransactionRepository,
+          BankStatementService,
+          OrganizationService,
+          // Real PluginLoader with real plugins — no stubs.
+          NullCountryPlugin,
+          EstoniaCountryPlugin,
+          PluginLoader,
+          CurrencyService,
+          DividendsService,
+        ],
+      }).compile();
+
+      eeService = module.get(DividendsService);
+
+      // Set org country to 'EE' so PluginLoader.resolve('EE') returns
+      // EstoniaCountryPlugin (not the null fallback).
+      await db
+        .updateTable('organization')
+        .set({ country: 'EE' })
+        .where('id', '=', 1)
+        .execute();
+
+      // Seed enough distributable profits for the declare to pass the EE cap check.
+      // EE assertDistributable requires retainedEarnings >= gross + round(gross*22/78).
+      // For gross=100000: totalHit = 100000 + 28205 = 128205. Seed 200000 to be safe.
+      const postingService = module.get(PostingService);
+      await postingService.postVoucher({
+        tax_point_date: '2026-01-01',
+        reason: 'Seed revenue — real EE plugin resolution regression guard',
+        lines: [
+          {
+            account_code: 'AR',
+            amount: 200000,
+            currency: 'EUR',
+            base_amount: 200000,
+            fx_rate: 1.0,
+            is_debit: true,
+          },
+          {
+            account_code: 'REVENUE',
+            amount: 200000,
+            currency: 'EUR',
+            base_amount: 200000,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+        ],
+      });
+    });
+
+    it('routes EE org through real EstoniaCountryPlugin: DISTRIBUTION_TAX_PAYABLE line IS booked', async () => {
+      // gross 100000, EE withholding 0 → net 100000
+      // EE distTax = round(100000 * 22 / 78) = 28205
+      // retainedDebit = 128205
+      const result = await eeService.declare({
+        gross_amount: 100000,
+        tax_point_date: '2026-06-15',
+        reason: 'EE real-resolution test',
+      });
+
+      const lines = await db
+        .selectFrom('voucher_line')
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select([
+          'account.code',
+          'voucher_line.base_amount',
+          'voucher_line.is_debit',
+        ])
+        .where('voucher_line.voucher_id', '=', result.voucher_id)
+        .execute();
+
+      const re = lines.find((l) => l.code === 'RETAINED_EARNINGS');
+      const pay = lines.find((l) => l.code === 'DIVIDEND_PAYABLE');
+      const tax = lines.find((l) => l.code === 'DISTRIBUTION_TAX_PAYABLE');
+
+      // The EE plugin MUST have fired: DISTRIBUTION_TAX_PAYABLE line is present.
+      expect(tax).toBeDefined();
+      expect(tax!.base_amount).toBe(28205); // round(100000 * 22 / 78)
+
+      // RETAINED_EARNINGS debit = gross + distTax (total equity hit)
+      expect(re).toBeDefined();
+      expect(re!.is_debit).toBe(1);
+      expect(re!.base_amount).toBe(128205); // 100000 + 28205
+
+      // DIVIDEND_PAYABLE credit = net to owner (no withholding in EE)
+      expect(pay).toBeDefined();
+      expect(pay!.base_amount).toBe(100000);
+
+      // Voucher balances: debit === sum of credits
+      expect(re!.base_amount).toBe(pay!.base_amount + tax!.base_amount);
+
+      // 4 lines total (including the DISTRIBUTION_TAX_PAYABLE)
+      expect(lines).toHaveLength(3);
     });
   });
 });
