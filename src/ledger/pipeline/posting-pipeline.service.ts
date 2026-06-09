@@ -42,6 +42,8 @@ export interface PostingPipelineParams {
   confidence?: number;
   /** Whether the supplier is known (matched to an Entity). */
   supplierKnown?: boolean;
+  /** Who/what requested the post; recorded on the Approval if Policy holds. */
+  requestedBy?: string;
 }
 
 export interface PostingPipelineResult {
@@ -169,6 +171,7 @@ export class PostingPipelineService {
     await this.claimForApproval(
       params.businessObjectType,
       params.businessObjectId,
+      params.requestedBy ?? 'system',
     );
     const businessObject = await params.refetch();
     return { businessObject, voucher: null, policy: policyDecision };
@@ -250,21 +253,38 @@ export class PostingPipelineService {
   }
 
   /**
-   * Atomic conditional claim for the hold-for-approval path. Transitions
-   * status from 'draft' to 'pending' via the single status-transition seam
-   * (ADR-0006 / ADR-0021) — an illegal transition is rejected, and a
-   * ConflictException is thrown if the object was already claimed.
+   * Atomic conditional claim for the hold-for-approval path. Within a single
+   * transaction: transitions status from 'draft' to 'pending' via the single
+   * status-transition seam (ADR-0006 / ADR-0021) AND creates the pending
+   * Approval record the hold is for (ADR-0015). Doing both atomically means a
+   * held object is never stranded in 'pending' with nothing to approve — the
+   * `/post` path is self-sufficient and no separate POST /api/approvals call is
+   * required. An illegal transition is rejected and a ConflictException is
+   * thrown if the object was already claimed (re-running /post on a held
+   * object), so the approval row is never duplicated.
    */
   private async claimForApproval(
     type: 'expense' | 'sales_invoice',
     id: number,
+    requestedBy: string,
   ): Promise<void> {
-    await this.statusTransition.transition(
-      this.db,
-      type,
-      id,
-      'draft',
-      'pending',
-    );
+    await this.db.transaction().execute(async (trx) => {
+      await this.statusTransition.transition(trx, type, id, 'draft', 'pending');
+
+      await trx
+        .insertInto('approval')
+        .values({
+          object_type: type,
+          object_id: id,
+          status: 'pending',
+          requested_by: requestedBy,
+          approved_by: null,
+          rejected_reason: null,
+          superseded_by: null,
+          created_at: Math.floor(Date.now() / 1000),
+          resolved_at: null,
+        })
+        .execute();
+    });
   }
 }

@@ -96,4 +96,28 @@ describe('ReportingPeriodsService (integration)', () => {
       'No open reporting period found',
     );
   });
+
+  it('(d) rejects a period overlapping an existing one (D3)', async () => {
+    // 2024-03-01..2024-05-31 overlaps the seeded 2024-Q1 (..2024-03-31).
+    await expect(
+      service.create({
+        name: 'OVERLAP',
+        start_date: '2024-03-01',
+        end_date: '2024-05-31',
+      }),
+    ).rejects.toThrow(/overlap/i);
+
+    // The overlapping period must NOT have been persisted.
+    const all = await service.list();
+    expect(all.map((p) => p.name)).not.toContain('OVERLAP');
+  });
+
+  it('(d2) allows a contiguous, non-overlapping period', async () => {
+    const created = await service.create({
+      name: '2024-Q2',
+      start_date: '2024-04-01',
+      end_date: '2024-06-30',
+    });
+    expect(created.name).toBe('2024-Q2');
+  });
 });

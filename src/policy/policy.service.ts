@@ -163,6 +163,53 @@ export class PolicyService {
     };
   }
 
+  /**
+   * Upsert the provided policy-config keys (A3). Only keys present in `patch`
+   * are written; absent keys are left untouched. Values are serialised to the
+   * text shape getConfig() parses back. Returns the fully-resolved config.
+   */
+  async updateConfig(patch: Partial<PolicyConfig>): Promise<PolicyConfig> {
+    const now = Math.floor(Date.now() / 1000);
+    const entries: Array<{ key: string; value: string }> = [];
+
+    if (patch.auto_post_amount_ceiling !== undefined) {
+      entries.push({
+        key: 'auto_post_amount_ceiling',
+        value: String(patch.auto_post_amount_ceiling),
+      });
+    }
+    if (patch.auto_post_min_confidence !== undefined) {
+      entries.push({
+        key: 'auto_post_min_confidence',
+        value: String(patch.auto_post_min_confidence),
+      });
+    }
+    if (patch.unknown_supplier_requires_approval !== undefined) {
+      entries.push({
+        key: 'unknown_supplier_requires_approval',
+        value: patch.unknown_supplier_requires_approval ? 'true' : 'false',
+      });
+    }
+    if (patch.always_approve_operations !== undefined) {
+      entries.push({
+        key: 'always_approve_operations',
+        value: JSON.stringify(patch.always_approve_operations),
+      });
+    }
+
+    for (const e of entries) {
+      await this.db
+        .insertInto('policy_config')
+        .values({ key: e.key, value: e.value, updated_at: now })
+        .onConflict((oc) =>
+          oc.column('key').doUpdateSet({ value: e.value, updated_at: now }),
+        )
+        .execute();
+    }
+
+    return this.getConfig();
+  }
+
   private parseInteger(raw: string | undefined, fallback: number): number {
     if (raw === undefined) return fallback;
     const parsed = Number.parseInt(raw, 10);

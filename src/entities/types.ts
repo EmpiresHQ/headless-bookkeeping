@@ -41,3 +41,13 @@ export interface AddAliasDto {
   value: string;
   confirmed?: boolean;
 }
+
+/**
+ * Mutable intrinsic facts of an entity. The strong registration key (identity)
+ * is NOT updatable here — manage identifiers via addAlias.
+ */
+export interface UpdateEntityDto {
+  name?: string;
+  country?: string;
+  goodsVsServices?: GoodsVsServices;
+}

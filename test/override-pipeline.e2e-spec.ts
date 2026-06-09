@@ -220,4 +220,57 @@ describe('Override Pipeline E2E', () => {
       .execute();
     expect(overrideRows).toHaveLength(1);
   });
+
+  it('hold-for-approval creates a pending approval that can be approved to post (B1: no stranding)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/expenses')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({
+        category: 'strict-test-category',
+        gross_amount: 10000,
+        vat_amount: 2000,
+        currency: 'EUR',
+        tax_point_date: '2025-06-01',
+      })
+      .expect(201)
+      .then((r) => r.body as { id: number });
+    const expenseId = created.id;
+
+    const posted = await request(app.getHttpServer())
+      .post(`/api/expenses/${expenseId}/post`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({})
+      .expect(201)
+      .then((r) => r.body as PostResponse);
+    expect(posted.policy.action).toBe('hold-for-approval');
+    expect(posted.expense.status).toBe('pending');
+
+    // The hold MUST have created a pending approval for the held object —
+    // otherwise the object is stranded in `pending` with nothing to approve.
+    const approvals = await db
+      .selectFrom('approval')
+      .selectAll()
+      .where('object_type', '=', 'expense')
+      .where('object_id', '=', expenseId)
+      .where('status', '=', 'pending')
+      .execute();
+    expect(approvals).toHaveLength(1);
+
+    // And approving it must post the voucher (HITL completion).
+    const approveRes = await request(app.getHttpServer())
+      .post(`/api/approvals/${approvals[0].id}/approve`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({ approved_by: 'owner@e2e' })
+      .expect(201)
+      .then((r) => r.body as { voucher: { id: number } | null });
+    expect(approveRes.voucher).not.toBeNull();
+
+    const exp = await request(app.getHttpServer())
+      .get(`/api/expenses/${expenseId}`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200)
+      .then((r) => r.body as { status: string; voucher_id: number });
+    expect(exp.status).toBe('posted');
+    expect(exp.voucher_id).toBe(approveRes.voucher!.id);
+  });
 });

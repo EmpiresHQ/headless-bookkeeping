@@ -8,6 +8,7 @@ import {
   EntityWithIdentifiers,
   OnboardEntityDto,
   AddAliasDto,
+  UpdateEntityDto,
 } from './types';
 
 @Injectable()
@@ -85,6 +86,32 @@ export class EntitiesService {
 
     const identifiers = await this.getIdentifiers(entity.id);
     return { ...this.mapEntity(entity), identifiers };
+  }
+
+  /**
+   * Update an entity's mutable intrinsic facts (C4). The strong registration
+   * key is identity and is not touched here. Only provided fields change.
+   */
+  async update(
+    id: number,
+    dto: UpdateEntityDto,
+  ): Promise<EntityWithIdentifiers> {
+    await this.findById(id); // 404s if unknown
+
+    const set: {
+      name?: string;
+      country?: string;
+      goods_vs_services?: string;
+      updated_at: number;
+    } = { updated_at: Math.floor(Date.now() / 1000) };
+    if (dto.name !== undefined) set.name = dto.name;
+    if (dto.country !== undefined) set.country = dto.country;
+    if (dto.goodsVsServices !== undefined)
+      set.goods_vs_services = dto.goodsVsServices;
+
+    await this.db.updateTable('entity').set(set).where('id', '=', id).execute();
+
+    return this.findById(id);
   }
 
   async addAlias(
