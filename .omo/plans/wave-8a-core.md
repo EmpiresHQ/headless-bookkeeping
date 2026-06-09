@@ -857,9 +857,14 @@ Expected: FAIL — `Cannot find module './flow-dispatcher'`.
 // src/interaction/router/flow-dispatcher.ts
 import { Injectable } from '@nestjs/common';
 import { RoutedIntent } from './types';
+import { Principal } from '../principal/types';
 
 export interface DispatchContext {
   conversation_id: number;
+  /** The resolved sender. 8b flows MUST canCommit-gate any actual Action-point commit using this
+   * (the router only canConverse-gates flow *initiation*, per ADR-0016 — free chat leads to the
+   * action point; the action point commits). Threaded in by the router (commit `4415ccc`). */
+  principal: Principal;
 }
 
 export interface DispatchResult {
