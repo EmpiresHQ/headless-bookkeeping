@@ -19,6 +19,7 @@ describe('ExpensesService (integration)', () => {
   let db: Kysely<Database>;
   let service: ExpensesService;
   let entitiesService: EntitiesService;
+  let organizationService: OrganizationService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -51,6 +52,7 @@ describe('ExpensesService (integration)', () => {
 
     service = module.get(ExpensesService);
     entitiesService = module.get(EntitiesService);
+    organizationService = module.get(OrganizationService);
   });
 
   afterEach(async () => {
@@ -243,6 +245,58 @@ describe('ExpensesService (integration)', () => {
         .reduce((sum, l) => sum + l.base_amount, 0);
       expect(debitTotal).toBe(creditTotal);
       expect(debitTotal).toBe(10000);
+    });
+  });
+
+  describe('reverse charge on imported services (EE org)', () => {
+    it('books self-assessed output + input VAT for a US service supplier', async () => {
+      // Switch the org to Estonia so the EstoniaCountryPlugin is active.
+      await organizationService.updateOrganization({ country: 'EE' });
+
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'OpenRouter',
+        registrationKey: 'US-OR-1',
+        goodsVsServices: 'services',
+      });
+
+      // $16 imported service, no VAT on the document.
+      const expense = await service.createExpense({
+        category: 'software',
+        gross_amount: 1600,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-05-31',
+        supplier_id: supplier.id,
+      });
+
+      const draft = await service.generateDraftVoucher(expense.id);
+
+      // Dr expense / Dr VAT_RECEIVABLE / Cr AP / Cr VAT_PAYABLE
+      expect(draft.lines).toHaveLength(4);
+
+      const output = draft.lines.find(
+        (l) => l.account_code === 'VAT_PAYABLE' && !l.is_debit,
+      );
+      const input = draft.lines.find(
+        (l) => l.account_code === 'VAT_RECEIVABLE' && l.is_debit,
+      );
+      expect(output).toBeDefined();
+      expect(input).toBeDefined();
+      expect(output!.amount).toBe(384); // 24% of 1600
+      expect(input!.amount).toBe(384);
+      expect(output!.vat_code).toBe('EE_REVERSE_CHARGE');
+      expect(input!.vat_code).toBe('EE_REVERSE_CHARGE');
+
+      // Balanced; the VAT legs cancel so only the gross is owed.
+      const debit = draft.lines
+        .filter((l) => l.is_debit)
+        .reduce((s, l) => s + l.base_amount, 0);
+      const credit = draft.lines
+        .filter((l) => !l.is_debit)
+        .reduce((s, l) => s + l.base_amount, 0);
+      expect(debit).toBe(credit);
     });
   });
 });

@@ -19,6 +19,18 @@ export interface EconomicFacts {
   currency: string;
   /** Tax-point date (YYYY-MM-DD) — drives the FX rate as-of and period membership. */
   taxPointDate: string;
+  /**
+   * Counterparty (supplier) ISO country code, when known. Drives the plugin's
+   * cross-border treatment for purchases (e.g. an imported service → reverse
+   * charge). Absent ⇒ the projection assumes a domestic counterparty and books
+   * the standard legs (behavior-preserving for objects with no supplier).
+   */
+  supplierCountry?: string;
+  /**
+   * Whether the counterparty supplies goods or services — the other input the
+   * plugin needs to resolve cross-border treatment. Absent ⇒ 'unknown'.
+   */
+  goodsVsServices?: 'goods' | 'services' | 'unknown';
 }
 
 /**

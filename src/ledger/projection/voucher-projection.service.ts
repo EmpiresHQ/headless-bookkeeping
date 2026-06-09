@@ -51,8 +51,10 @@ export class VoucherProjectionService {
     const plugin = this.pluginLoader.resolve(org.country);
 
     const supplierFacts: SupplierFacts = {
-      country: org.country,
-      goodsVsServices: 'unknown',
+      // The counterparty's real country drives cross-border treatment; absent a
+      // supplier we fall back to the org's own country (a domestic transaction).
+      country: facts.supplierCountry ?? org.country,
+      goodsVsServices: facts.goodsVsServices ?? 'unknown',
       classificationMemory: [],
     };
 
@@ -85,6 +87,32 @@ export class VoucherProjectionService {
         this.currencyService.convertToBase(amount, facts.currency, fxRate),
       );
 
+    // Cross-border treatment is a purchase-side concern (the supplier's VAT
+    // territory). A reverse-charge acquisition (intra-EU service, or an imported
+    // non-EU service under KMS §10) is self-assessed: we owe the supplier only
+    // the net, and book equal-and-opposite output/input VAT legs at OUR rate.
+    if (direction === 'purchase') {
+      const cross = plugin.resolveCrossBorderTreatment(
+        supplierFacts,
+        orgContext,
+        { vatCharged: facts.vatAmount > 0 },
+      );
+      if (cross.treatment === 'reverse_charge') {
+        return {
+          voucher_number: 'PENDING',
+          tax_point_date: facts.taxPointDate,
+          lines: this.reverseChargeLines(
+            facts,
+            mapping,
+            cross.vatCode ?? mapping.vatCode,
+            plugin.getVatRate(cross.vatCode ?? mapping.vatCode),
+            fxRate,
+            baseAmount,
+          ),
+        };
+      }
+    }
+
     const lines: DraftVoucherLine[] =
       direction === 'purchase'
         ? this.purchaseLines(facts, netAmount, mapping, fxRate, baseAmount)
@@ -95,6 +123,70 @@ export class VoucherProjectionService {
       tax_point_date: facts.taxPointDate,
       lines,
     };
+  }
+
+  /**
+   * Reverse-charge purchase legs (pöördmaksustamine). The foreign document
+   * carries no reclaimable domestic VAT, so the whole gross is the taxable base
+   * and the amount owed to the supplier. We self-assess VAT at OUR rate on that
+   * base, booking it on BOTH sides — Cr VAT_PAYABLE (output, declared) and
+   * Dr VAT_RECEIVABLE (input, deducted) — so the net cash effect is zero while
+   * the supply still reaches the VAT return. The base + VAT legs all carry the
+   * reverse-charge code so the VAT report can bucket the acquisition correctly.
+   *
+   *   Dr category(gross)        EE_REVERSE_CHARGE
+   *   Dr VAT_RECEIVABLE(rcVat)  EE_REVERSE_CHARGE   (input — deducted)
+   *   Cr AP(gross)              —
+   *   Cr VAT_PAYABLE(rcVat)     EE_REVERSE_CHARGE   (output — self-assessed)
+   */
+  private reverseChargeLines(
+    facts: EconomicFacts,
+    mapping: { accountCode: string; vatCode: string },
+    reverseChargeCode: string,
+    rate: number,
+    fxRate: number,
+    baseAmount: (amount: number) => number,
+  ): DraftVoucherLine[] {
+    const base = facts.grossAmount;
+    const rcVat = Math.round(base * rate);
+    return [
+      {
+        account_code: mapping.accountCode,
+        amount: base,
+        currency: facts.currency,
+        base_amount: baseAmount(base),
+        fx_rate: fxRate,
+        vat_code: reverseChargeCode,
+        is_debit: true,
+      },
+      {
+        account_code: 'VAT_RECEIVABLE',
+        amount: rcVat,
+        currency: facts.currency,
+        base_amount: baseAmount(rcVat),
+        fx_rate: fxRate,
+        vat_code: reverseChargeCode,
+        is_debit: true,
+      },
+      {
+        account_code: 'AP',
+        amount: base,
+        currency: facts.currency,
+        base_amount: baseAmount(base),
+        fx_rate: fxRate,
+        vat_code: null,
+        is_debit: false,
+      },
+      {
+        account_code: 'VAT_PAYABLE',
+        amount: rcVat,
+        currency: facts.currency,
+        base_amount: baseAmount(rcVat),
+        fx_rate: fxRate,
+        vat_code: reverseChargeCode,
+        is_debit: false,
+      },
+    ];
   }
 
   /**
