@@ -77,6 +77,14 @@ Add these repo secrets (the `DOCKER_*` ones already exist):
 | `DEPLOY_PATH` | dir holding `deploy/.env`, e.g. `/opt/headless-bookkeeping` |
 | `DOCKER_IMAGE` / `DOCKER_USERNAME` / `DOCKER_PASSWORD` | registry (already set) |
 
+**Self-hosted registry:** the deploy job reuses the same `DOCKER_*` secrets as
+`build-and-push` to `docker login` + pull on the VPS — no extra creds. The
+registry host is derived from `DOCKER_IMAGE` (`registry.host[:port]` before the
+first `/`). The VPS must reach the registry and trust its TLS — which it does,
+since the same registry is already reachable (with a valid cert) from the
+GitHub-hosted runner that pushes to it. (Only if the registry were
+tailnet/private-only would the VPS *host* need Tailscale — not the case here.)
+
 First release: push to `main` (or run the workflow via *Run workflow*). To deploy
 by hand instead:
 ```bash
