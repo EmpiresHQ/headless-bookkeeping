@@ -117,12 +117,22 @@ describe('EstoniaCountryPlugin — cross-border', () => {
       }).treatment,
     ).toBe('import');
   });
-  it('non-EU services (US) with foreign VAT charged → foreign_cost (no reclaim), vatCode null', () => {
+  // Imported B2B services: place of supply is Estonia (KMS §10), so the buyer
+  // self-assesses regardless of whether the supplier sits inside or outside the
+  // EU. Non-EU service imports are reverse_charge just like intra-EU ones.
+  it('non-EU services (US, no VAT) → reverse_charge, EE_REVERSE_CHARGE', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('US', 'services'), org, {
+        vatCharged: false,
+      }),
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
+  });
+  it('non-EU services (US) with foreign tax charged → still reverse_charge (foreign tax is not reclaimable EE VAT)', () => {
     expect(
       ee.resolveCrossBorderTreatment(mk('US', 'services'), org, {
         vatCharged: true,
       }),
-    ).toEqual({ treatment: 'foreign_cost', vatCode: null });
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
   });
 });
 

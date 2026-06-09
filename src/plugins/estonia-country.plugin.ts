@@ -191,7 +191,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   resolveCrossBorderTreatment(
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
-    context: { vatCharged: boolean },
+    _context: { vatCharged: boolean },
   ): CrossBorderResolution {
     const supplier = supplierFacts.country;
 
@@ -204,18 +204,21 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' };
     }
 
-    // Non-EU: goods are an import (customs VAT); services with foreign VAT charged
-    // are a foreign cost (no EE input VAT to reclaim).
+    // Non-EU goods are an import (customs VAT at the border via EE_INPUT_24).
     if (supplierFacts.goodsVsServices === 'goods') {
       return { treatment: 'import', vatCode: 'EE_INPUT_24' };
     }
 
-    if (context.vatCharged) {
-      return { treatment: 'foreign_cost', vatCode: null };
-    }
-
-    // Non-EU services, no VAT charged — treat as foreign cost (conservative).
-    return { treatment: 'foreign_cost', vatCode: null };
+    // Non-EU services: under KMS §10 the place of supply of B2B general-rule
+    // services is where the BUYER is established (Estonia), so the Estonian
+    // company self-assesses (pöördmaksustamine) exactly as for an intra-EU
+    // acquisition — output 24% and an immediate input 24% deduction, net cash
+    // zero. This holds whether or not the foreign supplier put some tax on the
+    // invoice: that foreign tax is never reclaimable EE input VAT (it folds
+    // into the cost base), but it does not remove the reverse-charge duty.
+    // 'unknown' goods/services is treated as a service import — the
+    // conservative EE position for imported supplies that reach the buyer here.
+    return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' };
   }
 
   // ── Dividends / withholding ───────────────────────────────────────────────
