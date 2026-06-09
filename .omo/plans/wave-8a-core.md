@@ -1502,6 +1502,7 @@ import { InteractionConfigService } from '../config/interaction-config.service';
 import { PrincipalResolverService } from '../principal/principal-resolver.service';
 import {
   canConverse,
+  canCommit,
   ingestDecision,
 } from '../principal/interaction-gate';
 import { IntentClassifierService } from './intent-classifier.service';
@@ -1590,13 +1591,28 @@ export class InteractionRouterService {
     }
 
     // 5. Deterministic button tap → pre-classified action (no LLM).
+    //    An Action point commit requires an authVerified approver (ADR-0025).
     const callbackData = envelope.metadata.callbackData;
     if (callbackData) {
+      if (!canCommit(principal)) {
+        await this.audit.record({
+          actor: principal.senderId,
+          action: 'interaction.action_point.commit',
+          outcome: 'denied',
+          target_type: 'conversation',
+          target_id: conversation.id,
+          detail: { callbackData },
+        });
+        return { conversation_id: conversation.id, gated_in: false, ingested, intent: null, dispatched: false };
+      }
       const intent = this.intentFromCallback(callbackData);
+      // A stale/unknown token degrades to a clarify — audit it as rejected, not an accepted commit.
       await this.audit.record({
         actor: principal.senderId,
-        action: 'interaction.action_point.commit',
-        outcome: 'accepted',
+        action: intent.kind === 'clarify'
+          ? 'interaction.action_point.unknown_callback'
+          : 'interaction.action_point.commit',
+        outcome: intent.kind === 'clarify' ? 'rejected' : 'accepted',
         target_type: 'conversation',
         target_id: conversation.id,
         detail: { callbackData },
@@ -1689,6 +1705,8 @@ git commit -m "feat(interaction): InteractionRouter orchestrator (resolve→gate
 ```
 
 ---
+
+> **Implementation note (what actually landed — commits `3cd6a6e`, `183691d`):** the router spec must also provide `DocumentStorageService` + a `DOCUMENT_STORAGE_ROOT` temp dir (real DI deps of `DocumentsService`, torn down in `afterEach` — copy `src/documents/document-intake.integration.spec.ts`). The upload-channel map is an exhaustive `uploadChannelFor()` (the upload `Channel` union excludes `'slack'`, so `slack`/`api` → `'upload'`), `Document.storage_path` (`string | null`) is null-guarded before `attachArtifact`, `intentFromCallback` uses a typed `asActionIntent()` (no `as` cast), and `ACTION_INTENTS` is `as const satisfies readonly ActionIntent[]`. The `canCommit` gate + unknown-callback audit shown above were added in the review (3 extra denied/rejected tests → 11 spec tests).
 
 ## Task 10: Telegram mapper (pure)
 
