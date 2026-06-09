@@ -42,6 +42,7 @@ export class TelegramWebhookController {
       });
       throw new ForbiddenException('invalid telegram secret token');
     }
+    // reached only when verified === true (we 403'd above); the envelope is thus transport-verified.
     const envelope = toEnvelope(update, verified);
     await this.router.handle(envelope);
     return { ok: true };

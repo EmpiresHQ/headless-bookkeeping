@@ -10,10 +10,7 @@ import { Database } from '../database/types';
 import { InteractionConfigService } from './config/interaction-config.service';
 import { PrincipalResolverService } from './principal/principal-resolver.service';
 import { IntentClassifierService } from './router/intent-classifier.service';
-import {
-  FlowDispatcher,
-  RecordingFlowDispatcher,
-} from './router/flow-dispatcher';
+import { FlowDispatcher, NoopFlowDispatcher } from './router/flow-dispatcher';
 import { InteractionRouterService } from './router/interaction-router.service';
 import {
   TransportRegistryService,
@@ -40,8 +37,8 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     IntentClassifierService,
     InteractionRouterService,
     TransportRegistryService,
-    // 8a: the FlowDispatcher seam is stubbed; 8b binds the real flows here.
-    { provide: FlowDispatcher, useClass: RecordingFlowDispatcher },
+    // 8a: non-recording production stub; 8b binds the real flows here.
+    { provide: FlowDispatcher, useClass: NoopFlowDispatcher },
     // Live Bot API edge — reads the bot token lazily from settings.
     {
       provide: TelegramApi,
