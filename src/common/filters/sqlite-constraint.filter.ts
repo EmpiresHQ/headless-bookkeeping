@@ -2,25 +2,30 @@ import {
   ArgumentsHost,
   Catch,
   ExceptionFilter,
+  HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import Database from 'better-sqlite3';
 
 /**
- * Catches ONLY raw better-sqlite3 `SqliteError`s (which Kysely surfaces, e.g.
+ * Global exception filter that maps SQLite constraint violations — which
+ * Kysely/better-sqlite3 surface as a raw `SqliteError` (e.g.
  * `SQLITE_CONSTRAINT_FOREIGNKEY` when a request references a non-existent
- * supplier/document) and maps constraint violations to clean 4xx instead of an
- * opaque 500. Every other exception — including HttpExceptions like
- * ConflictException — is untouched and uses Nest's default handling.
+ * supplier/document) — to clean 4xx instead of an opaque 500.
+ *
+ * It is a catch-all (`@Catch()`) and matches the constraint error by its `code`
+ * string, NOT by `instanceof SqliteError` — under jest/CI the native module can
+ * resolve to a different class instance, so identity matching is unreliable.
+ * Non-constraint exceptions are handled exactly like Nest's default filter:
+ * HttpExceptions keep their status + body; anything else is a 500.
  */
-@Catch(Database.SqliteError)
+@Catch()
 export class SqliteConstraintFilter implements ExceptionFilter {
-  catch(exception: Error & { code?: string }, host: ArgumentsHost): void {
+  catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
-    const code = exception.code ?? '';
 
-    if (code.startsWith('SQLITE_CONSTRAINT')) {
+    const code = (exception as { code?: unknown }).code;
+    if (typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT')) {
       const { status, message } = classify(code);
       res
         .status(status)
@@ -28,7 +33,20 @@ export class SqliteConstraintFilter implements ExceptionFilter {
       return;
     }
 
-    // A non-constraint SQLite error is a genuine server fault.
+    // Default-equivalent handling for everything else.
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const body = exception.getResponse();
+      res
+        .status(status)
+        .json(
+          typeof body === 'string'
+            ? { statusCode: status, message: body }
+            : body,
+        );
+      return;
+    }
+
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'Internal server error',
