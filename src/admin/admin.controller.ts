@@ -11,9 +11,20 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { Public } from '../auth/api-token.guard';
 import { ApiTokenService } from '../auth/api-token.service';
 import { AdminService } from './admin.service';
+
+// An absent body (undefined/null) is treated as an empty object so a plain
+// POST /admin/tokens with no JSON body still validates.
+const createTokenSchema = z.preprocess(
+  (v) => v ?? {},
+  z.object({ label: z.string().optional() }),
+);
+
+export class CreateTokenDto extends createZodDto(createTokenSchema) {}
 
 @ApiTags('admin')
 @Controller('admin')
@@ -31,7 +42,7 @@ export class AdminController {
   /** POST /admin/tokens — mint a new API token. Plaintext returned ONCE. */
   @Post('tokens')
   @HttpCode(HttpStatus.CREATED)
-  async createToken(@Body() body: { label?: string }) {
+  async createToken(@Body() body?: CreateTokenDto) {
     return this.apiTokenService.create(body?.label ?? 'api');
   }
 

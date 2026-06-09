@@ -11,16 +11,18 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ConversationsService } from './conversations.service';
-import type {
-  Conversation,
-  ConversationWithDetails,
-  Message,
-  Artifact,
+import {
   ResolveInput,
   AppendMessageInput,
   AttachArtifactInput,
   AssociateInput,
   AssociateDocumentInput,
+} from './types';
+import type {
+  Conversation,
+  ConversationWithDetails,
+  Message,
+  Artifact,
   BusinessObjectType,
 } from './types';
 

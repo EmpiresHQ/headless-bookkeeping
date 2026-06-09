@@ -1,3 +1,6 @@
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
 // Conversation status: open → closed (ADR-0016/ADR-0018).
 export type ConversationStatus = 'open' | 'closed';
 
@@ -57,40 +60,52 @@ export interface ConversationWithDetails extends Conversation {
 }
 
 // Input for resolve(): deterministic lookup by channel + thread keys.
-export interface ResolveInput {
-  channel: ConversationChannel;
-  thread_key: string;
-  threading_keys?: string | null;
-}
+export const resolveSchema = z.object({
+  channel: z.enum(['telegram', 'email', 'slack', 'api']),
+  thread_key: z.string(),
+  threading_keys: z.string().nullable().optional(),
+});
+
+export class ResolveInput extends createZodDto(resolveSchema) {}
 
 // Input for appendMessage().
-export interface AppendMessageInput {
-  conversation_id: number;
-  direction: MessageDirection;
-  sender: string;
-  body: string;
-  threading_keys?: string | null;
-  dkim_spf_pass?: boolean | null;
-}
+export const appendMessageSchema = z.object({
+  conversation_id: z.number().int(),
+  direction: z.enum(['inbound', 'outbound']),
+  sender: z.string(),
+  body: z.string(),
+  threading_keys: z.string().nullable().optional(),
+  dkim_spf_pass: z.boolean().nullable().optional(),
+});
+
+export class AppendMessageInput extends createZodDto(appendMessageSchema) {}
 
 // Input for attachArtifact().
-export interface AttachArtifactInput {
-  conversation_id: number;
-  kind: ArtifactKind;
-  storage_path: string;
-  document_id?: number | null;
-  crc32?: number | null;
-}
+export const attachArtifactSchema = z.object({
+  conversation_id: z.number().int(),
+  kind: z.enum(['inbound_attachment', 'outbound_output', 'ocr_markdown']),
+  storage_path: z.string(),
+  document_id: z.number().int().nullable().optional(),
+  crc32: z.number().nullable().optional(),
+});
+
+export class AttachArtifactInput extends createZodDto(attachArtifactSchema) {}
 
 // Input for associate(): M:N link to a business object.
-export interface AssociateInput {
-  conversation_id: number;
-  object_type: BusinessObjectType;
-  object_id: number;
-}
+export const associateSchema = z.object({
+  conversation_id: z.number().int(),
+  object_type: z.enum(['expense', 'sales_invoice']),
+  object_id: z.number().int(),
+});
+
+export class AssociateInput extends createZodDto(associateSchema) {}
 
 // Input for associateDocument(): M:N link to a Document.
-export interface AssociateDocumentInput {
-  conversation_id: number;
-  document_id: number;
-}
+export const associateDocumentSchema = z.object({
+  conversation_id: z.number().int(),
+  document_id: z.number().int(),
+});
+
+export class AssociateDocumentInput extends createZodDto(
+  associateDocumentSchema,
+) {}

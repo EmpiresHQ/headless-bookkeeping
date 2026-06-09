@@ -1,12 +1,16 @@
 import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 
 /** Request body for manual FX-realized computation. */
-export interface FXRealizedRequest {
-  voucherId: number;
-  matchedAmount: number;
-}
+export const fxRealizedRequestSchema = z.object({
+  voucherId: z.number().int(),
+  matchedAmount: z.number().int(),
+});
+
+export class FXRealizedRequest extends createZodDto(fxRealizedRequestSchema) {}
 
 @ApiTags('reconciliation')
 @Controller('api/reconciliation')

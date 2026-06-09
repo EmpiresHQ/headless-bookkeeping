@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { BankStatementService } from './bank-statement.service';
-import type { CreateStatementInput } from './bank-statement.types';
+import { CreateStatementInput } from './bank-statement.types';
 
 @ApiTags('bank')
 @Controller('api/bank-statements')

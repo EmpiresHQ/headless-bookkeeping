@@ -1,3 +1,6 @@
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
 export type EntityRole = 'supplier' | 'customer';
 export type GoodsVsServices = 'goods' | 'services' | 'unknown';
 export type IdentifierKind =
@@ -28,26 +31,32 @@ export interface EntityWithIdentifiers extends Entity {
   identifiers: EntityIdentifier[];
 }
 
-export interface OnboardEntityDto {
-  role: EntityRole;
-  country: string;
-  name: string;
-  registrationKey: string;
-  goodsVsServices?: GoodsVsServices;
-}
+export const onboardEntitySchema = z.object({
+  role: z.enum(['supplier', 'customer']),
+  country: z.string(),
+  name: z.string(),
+  registrationKey: z.string(),
+  goodsVsServices: z.enum(['goods', 'services', 'unknown']).optional(),
+});
 
-export interface AddAliasDto {
-  kind: Exclude<IdentifierKind, 'registration_key'>;
-  value: string;
-  confirmed?: boolean;
-}
+export class OnboardEntityDto extends createZodDto(onboardEntitySchema) {}
+
+export const addAliasSchema = z.object({
+  kind: z.enum(['iban', 'merchant_descriptor', 'name_alias']),
+  value: z.string(),
+  confirmed: z.boolean().optional(),
+});
+
+export class AddAliasDto extends createZodDto(addAliasSchema) {}
 
 /**
  * Mutable intrinsic facts of an entity. The strong registration key (identity)
  * is NOT updatable here — manage identifiers via addAlias.
  */
-export interface UpdateEntityDto {
-  name?: string;
-  country?: string;
-  goodsVsServices?: GoodsVsServices;
-}
+export const updateEntitySchema = z.object({
+  name: z.string().optional(),
+  country: z.string().optional(),
+  goodsVsServices: z.enum(['goods', 'services', 'unknown']).optional(),
+});
+
+export class UpdateEntityDto extends createZodDto(updateEntitySchema) {}

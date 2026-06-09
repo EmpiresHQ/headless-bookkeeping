@@ -9,14 +9,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { EntitiesService } from './entities.service';
-import type {
-  OnboardEntityDto,
-  EntityWithIdentifiers,
-  Entity,
-  EntityIdentifier,
-  AddAliasDto,
-  UpdateEntityDto,
-} from './types';
+import { OnboardEntityDto, AddAliasDto, UpdateEntityDto } from './types';
+import type { EntityWithIdentifiers, Entity, EntityIdentifier } from './types';
 
 @ApiTags('entities')
 @Controller('api/entities')

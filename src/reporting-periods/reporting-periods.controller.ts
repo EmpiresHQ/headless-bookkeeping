@@ -8,11 +8,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ReportingPeriodsService } from './reporting-periods.service';
-import type {
-  ReportingPeriod,
-  CreateReportingPeriodDto,
-  PeriodWarning,
-} from './types';
+import { CreateReportingPeriodDto } from './types';
+import type { ReportingPeriod, PeriodWarning } from './types';
 
 @ApiTags('reporting-periods')
 @Controller('api/reporting-periods')

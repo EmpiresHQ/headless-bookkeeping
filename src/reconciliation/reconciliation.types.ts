@@ -1,3 +1,5 @@
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { FXRealizedResult } from './fx-realized.service';
 
 /**
@@ -49,10 +51,22 @@ export interface ReconciliationMatchRecord {
   createdAt: number;
 }
 
+/** Zod schema mirroring MatchProposal for request-body validation. */
+export const matchProposalSchema = z.object({
+  bankTransactionId: z.number().int(),
+  voucherId: z.number().int(),
+  matchType: z.enum(['exact', 'partial', 'prepayment']),
+  amountMatched: z.number().int(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  signal: z.enum(['invoice_number', 'counterparty', 'amount_date']),
+});
+
 /** Input for executing matches. */
-export interface ExecuteMatchInput {
-  matches: MatchProposal[];
-}
+export const executeMatchSchema = z.object({
+  matches: z.array(matchProposalSchema),
+});
+
+export class ExecuteMatchInput extends createZodDto(executeMatchSchema) {}
 
 /**
  * Parsed tokens extracted deterministically from a bank transaction's

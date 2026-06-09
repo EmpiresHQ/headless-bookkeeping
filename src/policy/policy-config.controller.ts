@@ -1,7 +1,7 @@
 import { Controller, Get, Put, Body } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { PolicyService } from './policy.service';
-import { PolicyConfig } from './types';
+import { PolicyConfig, UpdatePolicyConfigDto } from './types';
 
 /**
  * Operator surface for the risk-gate configuration (A3). Previously the
@@ -22,7 +22,7 @@ export class PolicyConfigController {
   /** PUT /api/policy-config — update one or more config keys; returns the result. */
   @Put()
   async updateConfig(
-    @Body() patch: Partial<PolicyConfig>,
+    @Body() patch: UpdatePolicyConfigDto,
   ): Promise<PolicyConfig> {
     return this.policyService.updateConfig(patch);
   }

@@ -1,3 +1,6 @@
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
 /**
  * The two possible actions a Policy decision can produce.
  * There is NO 'reject' — structural/hard rule failures are rejected by
@@ -28,6 +31,23 @@ export interface PolicyConfig {
   /** Operations that always bypass amount/confidence gates (stub list). */
   always_approve_operations: string[];
 }
+
+/**
+ * Partial PolicyConfig PUT body — every key optional so an operator can patch
+ * one or more config values at a time.
+ */
+export const updatePolicyConfigSchema = z
+  .object({
+    auto_post_amount_ceiling: z.number().int(),
+    auto_post_min_confidence: z.number(),
+    unknown_supplier_requires_approval: z.boolean(),
+    always_approve_operations: z.array(z.string()),
+  })
+  .partial();
+
+export class UpdatePolicyConfigDto extends createZodDto(
+  updatePolicyConfigSchema,
+) {}
 
 /**
  * Contextual information fed to Policy.decide() alongside the voucher and

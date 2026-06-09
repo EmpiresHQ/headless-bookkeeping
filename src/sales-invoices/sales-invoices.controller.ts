@@ -9,7 +9,8 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
-import type { SalesInvoice, CreateSalesInvoiceDto } from './types';
+import { CreateSalesInvoiceDto, SalesInvoicePostOverrideDto } from './types';
+import type { SalesInvoice } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
 
 @ApiTags('sales-invoices')
@@ -65,7 +66,7 @@ export class SalesInvoicesController {
   @Post(':id/post')
   async postInvoice(
     @Param('id') id: string,
-    @Body() override?: { ruleType: string; reason: string },
+    @Body() override?: SalesInvoicePostOverrideDto,
   ) {
     const invoiceId = Number(id);
 
@@ -76,7 +77,10 @@ export class SalesInvoicesController {
         this.salesInvoicesService.generateDraftVoucher(invoiceId),
       category: 'revenue',
       refetch: () => this.salesInvoicesService.getInvoiceById(invoiceId),
-      override,
+      override:
+        override?.ruleType && override?.reason
+          ? { ruleType: override.ruleType, reason: override.reason }
+          : undefined,
     });
 
     // Preserve original API response shape

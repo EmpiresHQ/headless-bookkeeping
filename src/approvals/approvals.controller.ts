@@ -1,14 +1,13 @@
 import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ApprovalsService } from './approvals.service';
-import type {
+import {
   CreateApprovalDto,
   ApproveDto,
   RejectDto,
   SupersedeDto,
-  ListApprovalsQuery,
-  Approval,
 } from './types';
+import type { ListApprovalsQuery, Approval } from './types';
 import type { PostedVoucher } from '../ledger/voucher/types';
 
 /**
