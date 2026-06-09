@@ -1,0 +1,68 @@
+# Production deploy: Caddy (TLS + reverse proxy) in front of the app.
+#
+# Traffic path:
+#   client → Cloudflare (DNS + proxy, your domain) → Caddy (TLS) → app:3000
+# The node is a Tailscale member; Tailscale is used for private/admin access
+# (SSH, tailnet-only reach), NOT as the public ingress. Cloudflare only serves
+# the domain and proxies to this node's public 443 where Caddy terminates TLS.
+#
+# Two topologies, same files:
+#  • Single node — run BOTH services here; Caddy → app over the internal docker
+#    network (APP_UPSTREAM=app:3000, the default).
+#  • Split (private app node + public Caddy edge over the tailnet) — run ONLY
+#    `caddy` on the public edge node and set APP_UPSTREAM=<tailnet-name>:3000;
+#    run ONLY `app` on the private node (see `docker compose ... up app`).
+#
+# Usage (repo root):
+#   cp deploy/.env.example deploy/.env   # fill SITE_DOMAIN, APP_UPSTREAM
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+services:
+  app:
+    build:
+      context: ..
+      target: production
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # The hash-chained ledger (app.sqlite) + uploaded documents. The ONE
+      # thing to back up. Keep it on a real/persistent disk.
+      - ../data:/app/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - edge
+    # No public `ports:` — the app is only reachable via Caddy (same node) or
+    # over the tailnet (split topology). Never expose 3000 to the internet.
+
+  caddy:
+    # Custom image: stock caddy:2 + the Cloudflare DNS plugin (see caddy/Dockerfile).
+    build:
+      context: ./caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN}
+      # Where Caddy forwards to. Same node: app:3000. Split: <tailnet-ip>:3000.
+      - APP_UPSTREAM=${APP_UPSTREAM:-app:3000}
+      # Cloudflare API token with Zone:DNS:Edit — used for ACME DNS-01.
+      - CF_API_TOKEN=${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+
+networks:
+  edge:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
