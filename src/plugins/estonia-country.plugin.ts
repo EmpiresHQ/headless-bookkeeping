@@ -9,6 +9,7 @@ import {
 } from './country-plugin.interface';
 import {
   ExpenseTreatmentPreview,
+  KmdBaseClassification,
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
@@ -313,5 +314,59 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
     // €40,000 registration threshold in EUR cents (minor units).
     return 4000000;
+  }
+
+  // ── KMD (käibedeklaratsioon) row classification ───────────────────────────
+
+  /**
+   * Map a taxable-base VAT code onto the Estonian KMD rows. The VAT report reads
+   * this to build the declaration; the VAT *amount* rows (4 output, 5 input) are
+   * derived by the report from the VAT-control accounts, so this only places the
+   * taxable base.
+   *
+   * EE KMD rows used here:
+   *   1  — 24% taxable supply (and self-assessed reverse-charge received supply)
+   *   2  — 9% taxable supply
+   *   3  — 0% supply (intra-EU services, exports); intra-EU services also go on
+   *        the VD koondaruanne with tähis 3S
+   *   6/7 — acquisition base for reverse charge (6 = from another member state,
+   *        7 = other, e.g. an imported non-EU service)
+   *
+   * EE_REVERSE_CHARGE covers BOTH intra-EU and non-EU service imports (the
+   * resolver does not record which), so the acquisition lands in row 7 with a
+   * review note to move it to row 6 when the supplier is in another member
+   * state. KMD-INF row numbers should be confirmed by the accountant.
+   */
+  classifyKmd(vatCode: string): KmdBaseClassification {
+    const none: KmdBaseClassification = {
+      outputBaseRow: null,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    };
+    switch (vatCode) {
+      case 'EE_OUTPUT_24':
+        return { ...none, outputBaseRow: 1 };
+      case 'EE_OUTPUT_13':
+      case 'EE_OUTPUT_9':
+        return { ...none, outputBaseRow: 2 };
+      case 'EE_OUTPUT_0_EU':
+        return { ...none, outputBaseRow: 3, vdCode: '3S' };
+      case 'EE_ZERO':
+        return { ...none, outputBaseRow: 3 };
+      case 'EE_REVERSE_CHARGE':
+        return {
+          outputBaseRow: 1,
+          acquisitionRow: 7,
+          vdCode: null,
+          review:
+            'Reverse charge: verify KMD acquisition row 6 (intra-EU) vs 7 ' +
+            '(non-EU import) by supplier country; confirm KMD-INF row numbers.',
+        };
+      default:
+        // Domestic input codes and the NULL sentinel carry no base row — their
+        // only return effect is the input-VAT total (KMD row 5).
+        return none;
+    }
   }
 }

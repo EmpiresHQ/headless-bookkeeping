@@ -9,6 +9,10 @@ import { migrations } from '../database/migrations';
 import { VatReportService } from './vat-report.service';
 import { VatReportController } from './vat-report.controller';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { OrganizationService } from '../organization/organization.service';
 
 /**
  * Integration test for Task 28: VAT report snapshot generation.
@@ -28,6 +32,7 @@ describe('VAT report snapshot generation (integration)', () => {
   let db: Kysely<Database>;
   let vatReportService: VatReportService;
   let vatReportController: VatReportController;
+  let organizationService: OrganizationService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -48,6 +53,10 @@ describe('VAT report snapshot generation (integration)', () => {
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         LedgerBalanceService,
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
+        PluginLoader,
+        OrganizationService,
         VatReportService,
         VatReportController,
       ],
@@ -56,6 +65,7 @@ describe('VAT report snapshot generation (integration)', () => {
 
     vatReportService = module.get(VatReportService);
     vatReportController = module.get(VatReportController);
+    organizationService = module.get(OrganizationService);
   });
 
   afterEach(async () => {
@@ -734,5 +744,142 @@ describe('VAT report snapshot generation (integration)', () => {
       (l) => l.vat_code === 'SHOULD_NOT_APPEAR',
     );
     expect(badLine).toBeUndefined();
+  });
+
+  // ── (l) KMD declaration view (derived, EE) ─────────────────────────────
+
+  describe('(l) buildDeclaration — Estonian KMD rows', () => {
+    beforeEach(async () => {
+      await organizationService.updateOrganization({ country: 'EE' });
+    });
+
+    it('maps reverse charge to rows 1/4/5/7 with a 6-vs-7 review flag', async () => {
+      // Imported service self-assessed at 24% of 1600 = 384, net cash zero.
+      await seedPostedVoucher('2024-02-15', [
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: 1600,
+          currency: 'EUR',
+          base_amount: 1600,
+          fx_rate: 1,
+          vat_code: 'EE_REVERSE_CHARGE',
+          is_debit: true,
+        },
+        {
+          account_code: 'VAT_RECEIVABLE',
+          amount: 384,
+          currency: 'EUR',
+          base_amount: 384,
+          fx_rate: 1,
+          vat_code: 'EE_REVERSE_CHARGE',
+          is_debit: true,
+        },
+        {
+          account_code: 'AP',
+          amount: 1600,
+          currency: 'EUR',
+          base_amount: 1600,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: false,
+        },
+        {
+          account_code: 'VAT_PAYABLE',
+          amount: 384,
+          currency: 'EUR',
+          base_amount: 384,
+          fx_rate: 1,
+          vat_code: 'EE_REVERSE_CHARGE',
+          is_debit: false,
+        },
+      ]);
+
+      const d = await vatReportService.buildDeclaration(1);
+
+      expect(d.row1_base_24).toBe(1600); // self-assessed received supply
+      expect(d.row7_other_acquisition).toBe(1600); // default acquisition row
+      expect(d.row4_output_vat).toBe(384);
+      expect(d.row5_input_vat).toBe(384);
+      expect(d.net_vat_due).toBe(0); // output == input, cash neutral
+      expect(d.review_flags.some((f) => /row 6.*7/i.test(f))).toBe(true);
+    });
+
+    it('maps a 0% intra-EU service sale to row 3 + VD 3S reminder', async () => {
+      // A 0% supply books no VAT leg (amount > 0 CHECK forbids a zero line), so
+      // the posted voucher is just Dr AR / Cr REVENUE(0%-rated base).
+      await seedPostedVoucher('2024-03-01', [
+        {
+          account_code: 'AR',
+          amount: 615700,
+          currency: 'EUR',
+          base_amount: 615700,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: true,
+        },
+        {
+          account_code: 'REVENUE',
+          amount: 615700,
+          currency: 'EUR',
+          base_amount: 615700,
+          fx_rate: 1,
+          vat_code: 'EE_OUTPUT_0_EU',
+          is_debit: false,
+        },
+      ]);
+
+      const d = await vatReportService.buildDeclaration(1);
+
+      expect(d.row3_base_zero).toBe(615700);
+      expect(d.row1_base_24).toBe(0); // NOT standard-rate output
+      expect(d.vd_intra_eu_services).toBe(615700);
+      expect(d.review_flags.some((f) => /VD koondaruanne.*3S/i.test(f))).toBe(
+        true,
+      );
+    });
+
+    it('maps a standard 24% domestic sale to row 1 + row 4', async () => {
+      await seedPostedVoucher('2024-01-20', [
+        {
+          account_code: 'AR',
+          amount: 12400,
+          currency: 'EUR',
+          base_amount: 12400,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: true,
+        },
+        {
+          account_code: 'REVENUE',
+          amount: 10000,
+          currency: 'EUR',
+          base_amount: 10000,
+          fx_rate: 1,
+          vat_code: 'EE_OUTPUT_24',
+          is_debit: false,
+        },
+        {
+          account_code: 'VAT_PAYABLE',
+          amount: 2400,
+          currency: 'EUR',
+          base_amount: 2400,
+          fx_rate: 1,
+          vat_code: 'EE_OUTPUT_24',
+          is_debit: false,
+        },
+      ]);
+
+      const d = await vatReportService.buildDeclaration(1);
+      expect(d.row1_base_24).toBe(10000);
+      expect(d.row4_output_vat).toBe(2400);
+      expect(d.net_vat_due).toBe(2400);
+      expect(d.review_flags).toEqual([]);
+    });
+
+    it('throws NotFoundException for an unknown period', async () => {
+      await expect(vatReportService.buildDeclaration(999)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 });

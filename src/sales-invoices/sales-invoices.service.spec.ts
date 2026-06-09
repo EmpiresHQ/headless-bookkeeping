@@ -205,9 +205,10 @@ describe('SalesInvoicesService (integration)', () => {
       expect(revenue?.vat_code).toBe('EE_OUTPUT_0_EU');
       expect(revenue?.amount).toBe(615700); // whole gross is 0%-rated käive
 
-      // No output VAT is charged on a 0% supply.
+      // No output VAT on a 0% supply — the VAT leg is dropped (a 0-amount line
+      // cannot post).
       const vatLine = draft.lines.find((l) => l.account_code === 'VAT_PAYABLE');
-      expect(vatLine?.amount).toBe(0);
+      expect(vatLine).toBeUndefined();
     });
   });
 });

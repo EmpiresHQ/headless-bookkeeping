@@ -236,8 +236,11 @@ export class VoucherProjectionService {
   }
 
   /**
-   * Sale legs (SalesInvoice): Dr AR(gross), Cr category(net), Cr VAT_PAYABLE(vat).
-   * The VAT_PAYABLE leg is always present (the invoice draft never elides it).
+   * Sale legs (SalesInvoice): Dr AR(gross), Cr category(net) [, Cr VAT_PAYABLE(vat)].
+   * The VAT_PAYABLE leg is omitted when there is no VAT — a 0% / exempt supply
+   * (e.g. an intra-EU B2B service) books just Dr AR / Cr REVENUE, because the
+   * voucher_line CHECK (amount > 0) forbids a zero-amount leg. Symmetric to the
+   * purchase side, which already elides a zero VAT_RECEIVABLE.
    */
   private saleLines(
     facts: EconomicFacts,
@@ -265,15 +268,19 @@ export class VoucherProjectionService {
         vat_code: mapping.vatCode,
         is_debit: false,
       },
-      {
-        account_code: 'VAT_PAYABLE',
-        amount: facts.vatAmount,
-        currency: facts.currency,
-        base_amount: baseAmount(facts.vatAmount),
-        fx_rate: fxRate,
-        vat_code: mapping.vatCode,
-        is_debit: false,
-      },
+      ...(facts.vatAmount > 0
+        ? [
+            {
+              account_code: 'VAT_PAYABLE',
+              amount: facts.vatAmount,
+              currency: facts.currency,
+              base_amount: baseAmount(facts.vatAmount),
+              fx_rate: fxRate,
+              vat_code: mapping.vatCode,
+              is_debit: false,
+            },
+          ]
+        : []),
     ];
   }
 }

@@ -205,14 +205,18 @@ describe('VoucherProjectionService', () => {
       expect(debitTotal(draft.lines)).toBe(creditTotal(draft.lines));
     });
 
-    it('always keeps the VAT_PAYABLE line, even at zero VAT', async () => {
+    it('omits the VAT_PAYABLE line at zero VAT (a 0-amount line cannot post)', async () => {
       const draft = await service.project(
         saleFacts({ vatAmount: 0, grossAmount: 10000 }),
         'sale',
       );
-      expect(draft.lines).toHaveLength(3);
-      const vat = draft.lines.find((l) => l.account_code === 'VAT_PAYABLE')!;
-      expect(vat.amount).toBe(0);
+      // A 0% / exempt sale books just Dr AR / Cr REVENUE — the voucher_line
+      // CHECK (amount > 0) forbids a zero VAT leg, so we drop it (symmetric to
+      // the purchase side).
+      expect(draft.lines).toHaveLength(2);
+      expect(
+        draft.lines.find((l) => l.account_code === 'VAT_PAYABLE'),
+      ).toBeUndefined();
       expect(debitTotal(draft.lines)).toBe(creditTotal(draft.lines));
     });
   });

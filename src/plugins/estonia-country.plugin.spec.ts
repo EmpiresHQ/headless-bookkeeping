@@ -233,3 +233,54 @@ describe('EstoniaCountryPlugin — retrieval + distribution tax', () => {
     expect(ee.assertDistributable(100000, 128204, org)).toBe(false);
   });
 });
+
+describe('EstoniaCountryPlugin — KMD row classification', () => {
+  const ee = new EstoniaCountryPlugin();
+
+  it('standard 24% output → row 1', () => {
+    expect(ee.classifyKmd('EE_OUTPUT_24')).toEqual({
+      outputBaseRow: 1,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    });
+  });
+
+  it('9% output → row 2', () => {
+    expect(ee.classifyKmd('EE_OUTPUT_9').outputBaseRow).toBe(2);
+  });
+
+  it('0% intra-EU service → row 3 + VD tähis 3S', () => {
+    expect(ee.classifyKmd('EE_OUTPUT_0_EU')).toEqual({
+      outputBaseRow: 3,
+      acquisitionRow: null,
+      vdCode: '3S',
+      review: null,
+    });
+  });
+
+  it('plain 0% (export/other) → row 3, no VD', () => {
+    expect(ee.classifyKmd('EE_ZERO')).toEqual({
+      outputBaseRow: 3,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    });
+  });
+
+  it('reverse charge → self-assessed supply (row 1) + acquisition (row 7), flagged for 6-vs-7 review', () => {
+    const c = ee.classifyKmd('EE_REVERSE_CHARGE');
+    expect(c.outputBaseRow).toBe(1);
+    expect(c.acquisitionRow).toBe(7);
+    expect(c.review).toMatch(/row 6.*7|intra-EU/i);
+  });
+
+  it('domestic input 24% feeds only the input-VAT total (no base row)', () => {
+    expect(ee.classifyKmd('EE_INPUT_24')).toEqual({
+      outputBaseRow: null,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    });
+  });
+});
