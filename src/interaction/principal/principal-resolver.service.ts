@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InteractionConfigService } from '../config/interaction-config.service';
-import { UnifiedEnvelope } from '../envelope/types';
+import { InteractionChannel, UnifiedEnvelope } from '../envelope/types';
 import { Principal, PrincipalRole } from './types';
 
 @Injectable()
@@ -19,7 +19,9 @@ export class PrincipalResolverService {
     return { role, authVerified, senderId };
   }
 
-  private async approverSetFor(channel: string): Promise<Set<string>> {
+  private async approverSetFor(
+    channel: InteractionChannel,
+  ): Promise<Set<string>> {
     const approvers = await this.config.getApprovers();
     if (channel === 'telegram') {
       const allowlist = await this.config.getTelegramAllowlist();
