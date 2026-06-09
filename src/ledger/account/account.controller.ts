@@ -1,7 +1,9 @@
 import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { AccountService } from './account.service';
 import { Account } from './types';
 
+@ApiTags('accounts')
 @Controller('api/accounts')
 export class AccountController {
   constructor(private readonly accountService: AccountService) {}

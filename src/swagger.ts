@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { cleanupOpenApiDoc } from 'nestjs-zod';
 
 /**
  * Mounts Swagger UI at `/api` and the OpenAPI JSON at `/api-json`.
@@ -28,5 +29,6 @@ export function setupSwagger(app: INestApplication): void {
   // token on "Try it out" requests (the global guard requires it anyway).
   document.security = [{ bearer: [] }];
 
-  SwaggerModule.setup('api', app, document);
+  // Inline the Zod-derived schemas (createZodDto bodies) into the document.
+  SwaggerModule.setup('api', app, cleanupOpenApiDoc(document));
 }

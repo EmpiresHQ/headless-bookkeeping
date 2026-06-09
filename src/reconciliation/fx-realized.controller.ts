@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 
 /** Request body for manual FX-realized computation. */
@@ -7,6 +8,7 @@ export interface FXRealizedRequest {
   matchedAmount: number;
 }
 
+@ApiTags('reconciliation')
 @Controller('api/reconciliation')
 export class FXRealizedController {
   constructor(private readonly fxRealizedService: FXRealizedService) {}

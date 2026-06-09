@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { PrepaymentService } from './prepayment.service';
 import { PostedVoucher } from '../ledger/voucher/types';
 
@@ -26,6 +27,7 @@ interface PrepaymentRecord {
   tax_point_date: string;
 }
 
+@ApiTags('prepayments')
 @Controller('api')
 export class PrepaymentController {
   constructor(private readonly service: PrepaymentService) {}

@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ReconciliationService } from './reconciliation.service';
 import type {
   ExecuteMatchInput,
@@ -6,6 +7,7 @@ import type {
   MatchProposal,
 } from './reconciliation.types';
 
+@ApiTags('reconciliation')
 @Controller('api/bank-statements')
 export class ReconciliationController {
   constructor(private readonly service: ReconciliationService) {}

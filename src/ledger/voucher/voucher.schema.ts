@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 export const DraftVoucherLineSchema = z.object({
@@ -23,6 +24,6 @@ export const DraftVoucherSchema = z.object({
     .min(2, 'at least 2 lines required for double-entry'),
 });
 
-export class DraftVoucherDto {
-  static schema = DraftVoucherSchema;
-}
+// createZodDto carries the Zod schema (static `schema`, validated by the global
+// pipe) AND the OpenAPI metadata Swagger reads — one source of truth.
+export class DraftVoucherDto extends createZodDto(DraftVoucherSchema) {}

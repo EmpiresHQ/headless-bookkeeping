@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../../../auth/api-token.guard';
 import { InteractionConfigService } from '../../config/interaction-config.service';
 import { InteractionRouterService } from '../../router/interaction-router.service';
@@ -15,6 +16,7 @@ import { AuditLogService } from '../../../audit-log/audit-log.service';
 import { toEnvelope } from './telegram-mapper';
 import type { TelegramUpdate } from './telegram.types';
 
+@ApiTags('interaction')
 @Controller('api/channels/telegram')
 export class TelegramWebhookController {
   constructor(

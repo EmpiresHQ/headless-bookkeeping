@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { AuditFindingsService } from './audit-findings.service';
 import type {
   AuditFinding,
@@ -14,6 +15,7 @@ import type {
   FindingSeverity,
 } from './types';
 
+@ApiTags('audit-findings')
 @Controller('api/audit-findings')
 export class AuditFindingsController {
   constructor(private readonly auditFindingsService: AuditFindingsService) {}

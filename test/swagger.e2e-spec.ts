@@ -71,6 +71,22 @@ describe('Swagger (e2e)', () => {
     expect(doc.security).toEqual([{ bearer: [] }]);
   });
 
+  it('groups endpoints by @ApiTags and inlines Zod (createZodDto) schemas', async () => {
+    const res = await request(app.getHttpServer()).get('/api-json').expect(200);
+    const doc = res.body as {
+      paths: Record<string, { post?: { tags?: string[] } }>;
+      components: {
+        schemas?: Record<string, { properties?: Record<string, unknown> }>;
+      };
+    };
+    // @ApiTags grouping shows up on operations.
+    expect(doc.paths['/api/expenses'].post?.tags).toContain('expenses');
+    // A createZodDto body produced a real component schema with its fields.
+    expect(
+      doc.components.schemas?.SetSettingDto?.properties?.value,
+    ).toBeDefined();
+  });
+
   it('does NOT shadow business routes under /api (e.g. /api/organization)', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/organization')

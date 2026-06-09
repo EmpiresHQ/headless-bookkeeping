@@ -6,6 +6,7 @@ import {
   Body,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ReportingPeriodsService } from './reporting-periods.service';
 import type {
   ReportingPeriod,
@@ -13,6 +14,7 @@ import type {
   PeriodWarning,
 } from './types';
 
+@ApiTags('reporting-periods')
 @Controller('api/reporting-periods')
 export class ReportingPeriodsController {
   constructor(private readonly service: ReportingPeriodsService) {}

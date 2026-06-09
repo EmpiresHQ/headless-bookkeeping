@@ -6,10 +6,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { TriageService } from './triage.service';
 import { DocumentsService } from '../documents/documents.service';
 import { TriageOutcome } from './types';
 
+@ApiTags('triage')
 @Controller()
 export class TriageController {
   constructor(

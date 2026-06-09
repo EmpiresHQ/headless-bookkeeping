@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ApprovalsService } from './approvals.service';
 import type {
   CreateApprovalDto,
@@ -20,6 +21,7 @@ import type { PostedVoucher } from '../ledger/voucher/types';
  * GET  /api/approvals              — list with filters
  * GET  /api/approvals/pending      — list pending
  */
+@ApiTags('approvals')
 @Controller('api/approvals')
 export class ApprovalsController {
   constructor(private readonly approvalsService: ApprovalsService) {}

@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { DividendsService } from './dividends.service';
 import type {
   DividendDeclarationDto,
@@ -14,6 +15,7 @@ import type {
   DividendSettlementResult,
 } from './types';
 
+@ApiTags('dividends')
 @Controller('api')
 export class DividendsController {
   constructor(private readonly dividendsService: DividendsService) {}

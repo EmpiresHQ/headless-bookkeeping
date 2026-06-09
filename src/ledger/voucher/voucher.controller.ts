@@ -12,6 +12,7 @@ import {
   ConflictException,
   MethodNotAllowedException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { PostingService } from '../posting/posting.service';
 import { ValidationError } from '../posting/types';
 import { VoucherRepository } from './voucher.repository';
@@ -19,6 +20,7 @@ import { VoucherLineRepository } from './voucher-line.repository';
 import type { DraftVoucher, PostedVoucher, Voucher } from './types';
 import { DraftVoucherDto } from './voucher.schema';
 
+@ApiTags('vouchers')
 @Controller('api/vouchers')
 export class VoucherController {
   constructor(
@@ -45,7 +47,7 @@ export class VoucherController {
   @Post()
   async postVoucher(@Body() draft: DraftVoucherDto): Promise<PostedVoucher> {
     try {
-      return await this.postingService.postVoucher(draft as DraftVoucher);
+      return await this.postingService.postVoucher(draft);
     } catch (err) {
       if (err instanceof ValidationError) {
         throw new BadRequestException(err.errors);

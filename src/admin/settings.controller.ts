@@ -8,16 +8,18 @@ import {
   Param,
   Put,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { SettingsService } from './settings.service';
 
 const setSettingSchema = z.object({ value: z.string() });
 
-export class SetSettingDto {
-  static schema = setSettingSchema;
-  value!: string;
-}
+// createZodDto carries the Zod schema (static `schema`, validated by the global
+// pipe) AND the OpenAPI metadata Swagger reads — one source of truth.
+export class SetSettingDto extends createZodDto(setSettingSchema) {}
 
+@ApiTags('settings')
 @Controller('admin/settings')
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}

@@ -1,9 +1,11 @@
 import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import type { CreateExpenseDto, Expense } from './types';
 import type { DraftVoucher } from '../ledger/voucher/types';
 
+@ApiTags('expenses')
 @Controller('api/expenses')
 export class ExpensesController {
   constructor(

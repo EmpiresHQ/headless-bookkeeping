@@ -6,11 +6,13 @@ import {
   Body,
   ConflictException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import type { SalesInvoice, CreateSalesInvoiceDto } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
 
+@ApiTags('sales-invoices')
 @Controller('api/sales-invoices')
 export class SalesInvoicesController {
   constructor(
