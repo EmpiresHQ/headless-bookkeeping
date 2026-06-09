@@ -58,6 +58,18 @@ _Avoid_: Email, chat (when referring to the persisted turn)
 A file bound to a **Conversation** — an inbound attachment (→ **Document**) or an outbound generated output (a sent invoice PDF, a report). Retained for audit.
 _Avoid_: Attachment (when referring to outbound or deduped artifacts), file
 
+**Channel adapter**:
+The **only** channel-specific code in the interaction layer (Wave 8). Inbound, it maps a raw channel payload (Telegram update, parsed email, Slack event, Drive notification) into a **unified envelope**; outbound, it renders an abstract **Action point** / dialogue reply into that channel's wire form (TG inline button, email body, Slack block). It splits into a pure **mapper** (payload ↔ envelope — testable in isolation) and a thin **transport port** (the live Bot API / SMTP / webhook edge — mocked in tests). It carries **no** routing, gating, or business logic; the core (router / flows / **Conversation** / pipeline) is channel-agnostic and never sees a raw payload.
+_Avoid_: Connector, integration, transport (for the whole adapter — "transport" is only the port half)
+
+**Unified envelope**:
+The channel-agnostic representation of one inbound interaction that a **Channel adapter** produces and the core consumes: `{ channel, sender, conv-key, message, attachments, metadata, auth }`. The `conv-key` drives deterministic **Conversation** resolution; `auth` carries the channel's normalized authenticity signals (email DKIM/SPF + address; Telegram chat-id + secret-token result) from which the core resolves a **Principal**. The seam that keeps every channel's quirks out of the core.
+_Avoid_: Payload, event, request (when referring to the normalized form)
+
+**Principal**:
+Who the core decides an inbound interaction is *from*, resolved channel-agnostically from the **unified envelope**'s `auth` signals: a role (`approver/owner | known-counterparty | unknown`) plus an `authVerified` flag (email: DKIM/SPF pass; Telegram: secret-token-verified webhook + allowlisted chat-id). Access gating lives **once in the core** over the Principal, never duplicated per adapter: converse/command requires an approver; ingest admits a known-counterparty per `ingest_policy`; an **Action point** commit requires an approver **and** `authVerified`. Not a security boundary in the routing sense (a misroute only yields a draft, ADR-0016) — it is the access gate that decides *whether we engage at all*.
+_Avoid_: User, identity, role (when ambiguous), sender (the sender is raw; the Principal is resolved)
+
 ### Dispositions
 
 **Personal (non-business) disposition**:
@@ -138,6 +150,10 @@ _Avoid_: Notifier, reminder bot
 The append-only ledger is tamper-evident: each posted **Voucher** commits to the hash of the previous ledger state (git-commit style). Orthogonal to double-entry — double-entry proves *what* is recorded is correct, the hash chain proves the records *were not altered* after the fact. A **Merkle root** over each locked period's vouchers is stored in its **VAT report**.
 _Avoid_: Blockchain, ledger hash (when ambiguous)
 
+**Audit log**:
+The single append-only record of *actions and access decisions* across the system — who did what, who was allowed to, and the outcome (`actor`, `action`, `target`, `outcome`, `detail`, time). Made immutable by SQL triggers, but it is an **operational** record (like the **Conversation** aggregate) and is **NOT** part of the **hash-chained voucher log** — ADR-0013's chain proves the *ledger* was not altered; the Audit log records operational events that are not accounting postings. The interaction layer is its first writer (gating decisions, **Action point** commits, channel auth failures); Approval/period-lock/corrections adopt it incrementally. Distinct from an **AuditFinding** (a forward-looking attention item the **SecretaryAgent** nags about) — the Audit log is the backward-looking record of what happened. See ADR-0026.
+_Avoid_: Audit trail (when ambiguous with the ledger hash chain), AuditFinding, event log
+
 ### VAT
 
 **VAT code**:
@@ -214,7 +230,7 @@ _Avoid_: Functional plugin, microservice, satellite service, module
 - A **VoucherLine** debits or credits exactly one **Account** and carries one **VAT code** (the code lives on the line, not the Voucher). VAT amounts are split into one line per `account × VAT code` so reports can aggregate by code across all lines.
 - One deployment has exactly one **Organization**, in one country, with one active country plugin
 - All channels carry the full intent set (advisory, action, report, reconciliation, approval). They differ only in how an **Action point** commits: Telegram/Slack by button tap; email by a confirmation loop + DKIM/SPF
-- **Email whitelist** gates conversation/commands/approval (approver ⊆ whitelist); **ingest is open to any sender** (suppliers email from arbitrary addresses) — a non-whitelisted sender's document is ingested but never conversed with
+- **Email whitelist** gates conversation/commands/approval (approver ⊆ whitelist) **and ingest** (Wave-8 amendment, ADR-0016): a deterministic sender allowlist (configured at setup) — unknown senders rejected by default (`ingest_policy: known-only`; `quarantine`/`open` are options). The kernel never auto-books an unknown-supplier doc regardless (Wave-7 → `needs_triage`)
 - A **Category** maps (via a country plugin) to one **Account** + **VAT code**, but the mapping may depend on the **Supplier**'s intrinsic facts and the **Organization**'s context
 - A **VAT code** belongs to exactly one country plugin
 - The country plugin is the **sole resolver** of a **VAT code** from `(Supplier intrinsic facts + Organization country/registration)`. No abstract cross-country VAT layer exists.

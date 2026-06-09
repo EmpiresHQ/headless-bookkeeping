@@ -33,7 +33,9 @@ Tiers, from least to most runtime-mutable:
 |---|---|---|
 | `vat_period_frequency` | monthly \| quarterly \| half-yearly — chosen from plugin's allowed set (DK depends on turnover) | 0009 |
 | `approvers` | Authorized approver identities (TG chat IDs / Slack user IDs / email addresses); email approver ⊆ `email_whitelist` | 0014, 0016 |
-| `email_whitelist` | Addresses the system will converse with / take commands from; ingest is exempt (open to any sender) | 0016 |
+| `email_whitelist` | Addresses the system will converse with / take commands from; also the ingest allowlist under the default `known-only` `ingest_policy` (ingest is **sender-gated**, not open — Wave-8 amendment to ADR-0016) | 0016 |
+| `ingest_policy` | `known-only` (default) \| `quarantine` \| `open` — gates inbound document ingest by sender allowlist; unknown → reject (known-only) / hold-for-onboarding (quarantine) / accept (open) | 0016 |
+| `telegram_allowlist` | Telegram chat/user IDs the system will converse with and take commands from (the channel-agnostic **principal** allowlist for Telegram, mirroring `email_whitelist`); approvers ⊆ this set | 0014, 0016 |
 | `approval_reminder_interval` | How often to nudge a pending approval (never auto-resolves) | 0014, 0015 |
 | filing guard | warn-and-confirm on locking a period with unresolved in-period items (fixed behavior, not tunable) | 0015 |
 | `secretary_working_hours` | Hours the SecretaryAgent may message the user (silent otherwise) | 0018 |
@@ -56,13 +58,23 @@ The configurable gate deciding auto-post vs approval (ADR-0005). Rules are NOT h
 
 Per-task profile (vision): `provider, model, temperature, timeout, structured_output`. Tasks: `intent_routing`, `ocr`, `processing`, `advisory`, `audit`, `reconciliation`, `dev_agent`. Note: `intent_routing` is deliberately a strong/expensive model with rich conversational context — cost is not a concern there (ADR-0016).
 
+**Implemented today (`AgentConfigService`, `setting` rows).** Every AI agent resolves its model and its instructions through `AgentConfigService.resolve(agentKey)` — no model or prompt is hardcoded at a call site (the sole literal is the bootstrap `DEFAULT_MODEL` in `src/ai/agent-config.ts`). Agent keys: `triage` (Pass-2 document classification), `intent_classifier` (Wave-8 router intent classification).
+
+| Key | Meaning |
+|---|---|
+| `ai_model` | Global default model for all agents |
+| `ai_model.<agent>` | Per-agent model override (e.g. `ai_model.triage`, `ai_model.intent_classifier`) — wins over `ai_model` |
+| `prompt.<agent>` | Override the agent's default instructions (e.g. `prompt.intent_classifier`) — wins over the code default in `AGENT_PROMPTS` |
+
+Resolution precedence — model: `ai_model.<agent>` → `ai_model` → `DEFAULT_MODEL`; instructions: `prompt.<agent>` → `AGENT_PROMPTS[<agent>]` (code default). All keys live in the generic `setting` table; no per-agent migration. The richer per-task vision profile above (temperature, timeout, structured_output) is not yet wired — `ai_model[.<agent>]` + `prompt.<agent>` are the live knobs.
+
 ## 5. Channels
 
 | Channel | Config |
 |---|---|
 | Telegram | bot token, webhook; approver chat IDs (ADR-0014); supports action-point buttons → approval channel (ADR-0016) |
 | Slack | app/bot token; approver user IDs (ADR-0014); supports action-point buttons → approval channel (ADR-0016) |
-| Email | Ingest open to any sender (suppliers); conversation/commands whitelist-only (`email_whitelist`); action/approval = approver ⊆ whitelist via confirmation loop (explicit "YES" / re-ask) + DKIM/SPF; SMTP outbound = system-sent invoices/replies/reports (ADR-0016) |
+| Email | Ingest **sender-gated** by `email_whitelist` (deterministic; `ingest_policy: known-only [default] | quarantine | open`, ADR-0016 Wave-8 amendment); conversation/commands whitelist-only; action/approval = approver ⊆ whitelist via confirmation loop (explicit "YES" / re-ask) + DKIM/SPF; SMTP outbound = dialogue only (replies/re-asks/reports) — invoice rendering/delivery is a v2 plugin, not v1 (ADR-0016) |
 | Google Drive | watcher folder/credentials (passive intake) |
 | HTTP/webhooks | n8n / automation endpoints |
 

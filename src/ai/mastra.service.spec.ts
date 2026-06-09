@@ -12,6 +12,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
+import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
 
 describe('MastraService', () => {
@@ -43,6 +44,7 @@ describe('MastraService', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
+        AgentConfigService,
         MastraService,
       ],
     }).compile();
@@ -116,6 +118,27 @@ describe('MastraService', () => {
       const agent = service.getAgent();
       expect(agent).not.toBeNull();
       expect(agent?.model).toBe('openai/gpt-4o');
+    });
+
+    it('resolves model and instructions from AgentConfigService (per-agent override)', async () => {
+      await db
+        .insertInto('setting')
+        .values([
+          { key: 'ai_model.triage', value: 'openai/gpt-4o', updated_at: 0 },
+          {
+            key: 'prompt.triage',
+            value: 'SEEDED TRIAGE PROMPT',
+            updated_at: 0,
+          },
+        ])
+        .execute();
+
+      await service.initialize();
+
+      const agent = service.getAgent();
+      expect(agent).not.toBeNull();
+      expect(agent?.model).toBe('openai/gpt-4o');
+      expect(agent?.instructions).toBe('SEEDED TRIAGE PROMPT');
     });
   });
 });

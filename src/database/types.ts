@@ -29,6 +29,7 @@ export interface Database {
   api_token: ApiTokenTable;
   ai_proposal: AiProposalTable;
   setting: SettingTable;
+  audit_log: AuditLogTable;
 }
 
 export interface OrganizationTable {
@@ -411,4 +412,18 @@ export interface SettingTable {
   key: string;
   value: string;
   updated_at: number;
+}
+
+// AuditLog: append-only operational audit trail for access decisions and
+// action points (ADR-0026). Immutable via SQL triggers — NOT hash-chained
+// (ADR-0013 is ledger-only).
+export interface AuditLogTable {
+  id: Generated<number>;
+  occurred_at: number;
+  actor: string;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  outcome: string;
+  detail: string | null;
 }
