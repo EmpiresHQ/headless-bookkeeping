@@ -17,6 +17,7 @@ export interface Database {
   entity_identifier: EntityIdentifierTable;
   bank_statement: BankStatementTable;
   bank_transaction: BankTransactionTable;
+  bank_import_job: BankImportJobTable;
   reconciliation_match: ReconciliationMatchTable;
   approval: ApprovalTable;
   audit_finding: AuditFindingTable;
@@ -221,6 +222,19 @@ export interface BankStatementTable {
   end_date: string;
   uploaded_at: number;
   file_path: string | null;
+}
+
+// BankImportJob: tracks an async bank-statement import job (UI polls status).
+// States: 'running' → 'done' | 'failed'.
+export interface BankImportJobTable {
+  id: Generated<number>;
+  // 'running' | 'done' | 'failed'
+  status: string;
+  account_code: string;
+  statement_id: number | null;
+  error: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
 // Bank transaction: a single line from a bank statement. Amount is signed
