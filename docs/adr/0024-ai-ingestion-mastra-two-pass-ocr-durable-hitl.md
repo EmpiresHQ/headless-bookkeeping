@@ -4,7 +4,7 @@ The "AI proposes" layer (real OCR + agentic classification) — replacing the Wa
 
 ## 2-pass extraction
 
-- **Pass 1 — OCR → markdown.** The document is transcribed to markdown by a vision/OCR model (per the `ocr` LLM profile, CONFIG); the model is told to *transcribe, not structure*. The markdown is stored as a **Conversation Artifact** — an audit record ("what we read") and a reproducibility anchor (Pass 2 can be re-run on the stored markdown without re-calling vision).
+- **Pass 1 — OCR → markdown.** The document is transcribed to markdown via the **`DocumentTranscriber` port**, whose real adapter calls a **Docling `docling-serve` sidecar** (ADR-0032) — born-digital text-layer extraction, OCR of scanned/image content, and table reconstruction in one HTTP call; the engine is told to *transcribe, not structure*. The markdown is stored as a **Conversation Artifact** — an audit record ("what we read") and a reproducibility anchor (Pass 2 can be re-run on the stored markdown without re-calling the transcriber).
 - **Pass 2 — extract + classify.** A Mastra **agent** reasons over the markdown with read-tools (`searchSuppliers`, `listCategories`, `getClassificationMemory`) and emits a **schema-validated (Zod) structured `TriageResult`**: amounts, the document/invoice **tax-point date** (ADR-0009 — not the arrival timestamp), a supplier-identity proposal (match or create), category, `document_vat_marking`, and confidence.
 - Rationale: vision models transcribe far better than they emit strict structure; a text LLM reasons better over text. 2-pass is both simpler and more accurate than forcing structured output straight from the vision call.
 
