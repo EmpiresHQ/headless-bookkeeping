@@ -307,3 +307,76 @@ export const deleteBankStatement = (statementId: number) =>
   apiFetch<{ deleted: number }>(`/api/bank-statements/${statementId}`, {
     method: 'DELETE',
   });
+
+// ── Reconciliation ────────────────────────────────────────────────────────
+// Proposals describe vouchers in BUSINESS-OBJECT terms (ADR-0030); voucherId is
+// carried for the /match round-trip only and is never rendered.
+export interface MatchProposalView {
+  bankTransactionId: number;
+  voucherId: number;
+  matchType: 'exact' | 'partial' | 'prepayment';
+  amountMatched: number; // BASE cents
+  confidence: 'high' | 'medium' | 'low';
+  signal: 'invoice_number' | 'counterparty' | 'amount_date';
+  objectType: 'sales_invoice' | 'expense' | 'prepayment';
+  objectId: number | null;
+  objectLabel: string;
+  counterpartyName: string | null;
+  voucherRemaining: number;
+}
+
+export interface ReconciliationStatusRow {
+  bankTransactionId: number;
+  amountBase: number;
+  matchedSum: number;
+  remaining: number;
+  reconStatus: 'matched' | 'partial' | 'open';
+}
+
+export const proposeMatches = (statementId: number) =>
+  apiFetch<MatchProposalView[]>(
+    `/api/bank-statements/${statementId}/propose-matches`,
+    { method: 'POST' },
+  );
+
+export const getReconciliationStatus = (statementId: number) =>
+  apiFetch<ReconciliationStatusRow[]>(
+    `/api/bank-statements/${statementId}/reconciliation`,
+  );
+
+// The execute endpoint accepts the base MatchProposal fields. Strip the display
+// extras before sending; the server also returns ledger data we deliberately
+// ignore (ADR-0030) — typed as the match count only.
+export const executeMatches = (
+  statementId: number,
+  proposals: MatchProposalView[],
+) =>
+  apiFetch<{ records: { id: number }[] }>(
+    `/api/bank-statements/${statementId}/match`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        matches: proposals.map((p) => ({
+          bankTransactionId: p.bankTransactionId,
+          voucherId: p.voucherId,
+          matchType: p.matchType,
+          amountMatched: p.amountMatched,
+          confidence: p.confidence,
+          signal: p.signal,
+        })),
+      }),
+    },
+  );
+
+// Prepayment / Personal post ledger vouchers; the UI ignores the returned
+// voucher (ADR-0030) and only needs success/failure.
+export const createPrepayment = (bankTransactionId: number) =>
+  apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/prepayment`, {
+    method: 'POST',
+  });
+
+export const markPersonal = (bankTransactionId: number) =>
+  apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/personal`, {
+    method: 'POST',
+  });
