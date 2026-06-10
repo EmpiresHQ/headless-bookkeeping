@@ -185,3 +185,46 @@ export const rejectApproval = (id: number, reason: string) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ rejected_reason: reason }),
   });
+
+// ── Settings (admin/settings key/value) ───────────────────────────────────
+export interface Setting {
+  key: string;
+  value: string;
+}
+
+export const getSettings = () =>
+  apiFetch<{ settings: Setting[] }>('/admin/settings').then((r) => r.settings);
+
+export const setSetting = (key: string, value: string) =>
+  apiFetch<{ key: string; value: string }>(
+    `/admin/settings/${encodeURIComponent(key)}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ value }),
+    },
+  );
+
+export const deleteSetting = (key: string) =>
+  apiFetch<{ key: string; deleted: true }>(
+    `/admin/settings/${encodeURIComponent(key)}`,
+    { method: 'DELETE' },
+  );
+
+// ── Policy / risk gate (GET|PUT /api/policy-config) ───────────────────────
+export interface PolicyConfig {
+  auto_post_amount_ceiling: number;
+  auto_post_min_confidence: number;
+  unknown_supplier_requires_approval: boolean;
+  always_approve_operations: string[];
+}
+
+export const getPolicyConfig = () =>
+  apiFetch<PolicyConfig>('/api/policy-config');
+
+export const updatePolicyConfig = (patch: Partial<PolicyConfig>) =>
+  apiFetch<PolicyConfig>('/api/policy-config', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
