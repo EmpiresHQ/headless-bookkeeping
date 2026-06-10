@@ -24,7 +24,9 @@ FROM node:24-alpine AS production
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN apk add --no-cache python3 make g++ curl && \
+# poppler-utils (pdftoppm) stays — it rasterises scanned PDFs for OCR (ADR-0032).
+# python3/make/g++ are build-only (native modules) and removed after npm ci.
+RUN apk add --no-cache python3 make g++ curl poppler-utils && \
     npm ci --production && \
     npm cache clean --force && \
     apk del python3 make g++
