@@ -18,16 +18,16 @@ export class BankIngestionService {
     csvText: string,
     accountHint: string,
   ): Promise<CreateStatementInput> {
-    const agent = this.mastra.getBankMappingAgent();
-    if (!agent)
-      throw new Error('Bank mapping agent unavailable (AI not configured)');
+    // Build the agent on demand so the current settings-backed model + inference
+    // endpoint apply to this import (no restart needed after changing Settings).
+    const agent = await this.mastra.buildBankMappingAgent();
     const wf = buildBankIngestionWorkflow(agent);
     const run = await wf.createRun();
     const res = await run.start({ inputData: { csvText, accountHint } });
     if (res.status !== 'success') {
       throw new Error(`Ingestion workflow failed: ${res.status}`);
     }
-    return res.result as CreateStatementInput;
+    return res.result;
   }
 
   async startImport(

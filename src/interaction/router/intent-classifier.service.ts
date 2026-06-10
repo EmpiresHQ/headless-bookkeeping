@@ -9,14 +9,18 @@ const CLARIFY_FALLBACK = 'Could you rephrase what you need?';
 
 @Injectable()
 export class IntentClassifierService {
-  private agent: Agent | null = null;
-
   constructor(private readonly config: AgentConfigService) {}
 
-  async initialize(): Promise<void> {
+  /**
+   * Build the intent-classifier agent fresh from current settings, so operator
+   * changes to the model / prompt / inference endpoint apply on the next
+   * message without a restart. Also the test seam: specs spy on this to return
+   * an agent whose `generate` is mocked.
+   */
+  async buildAgent(): Promise<Agent> {
     const { instructions } = await this.config.resolve('intent_classifier');
     const model = await this.config.resolveModelConfig('intent_classifier');
-    this.agent = new Agent({
+    return new Agent({
       id: 'intent-classifier',
       name: 'Intent Classifier',
       instructions,
@@ -25,15 +29,9 @@ export class IntentClassifierService {
     });
   }
 
-  /** Test seam — lets a spec spy on agent.generate (mirrors Pass2AgentService). */
-  agentForTest(): Agent {
-    if (!this.agent) throw new Error('IntentClassifierService not initialized');
-    return this.agent;
-  }
-
   async classify(message: string): Promise<RoutedIntent> {
-    if (!this.agent) throw new Error('IntentClassifierService not initialized');
-    const result = await this.agent.generate(message, {
+    const agent = await this.buildAgent();
+    const result = await agent.generate(message, {
       structuredOutput: { schema: routedIntentSchema },
     });
     const parsed = routedIntentSchema.safeParse(result.object);

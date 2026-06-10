@@ -20,7 +20,8 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
     validate: nonEmpty,
   },
   ai_base_url: {
-    description: 'OpenAI-compatible inference base URL (blank = provider default)',
+    description:
+      'OpenAI-compatible inference base URL (blank = provider default)',
     validate: nonEmpty,
   },
   ai_api_key: {

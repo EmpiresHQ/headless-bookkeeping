@@ -97,7 +97,6 @@ describe('InteractionRouterService (integration)', () => {
     router = module.get(InteractionRouterService);
     classifier = module.get(IntentClassifierService);
     dispatcher = module.get(FlowDispatcher);
-    await classifier.initialize();
 
     // approver 999 on both allowlists
     await db
