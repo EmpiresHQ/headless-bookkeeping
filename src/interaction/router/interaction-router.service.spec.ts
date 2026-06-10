@@ -22,6 +22,7 @@ import {
 } from '../transport/transport-registry.service';
 import { InteractionTransport, OutboundMessage } from '../transport/types';
 import { AuditLogService } from '../../audit-log/audit-log.service';
+import { InteractionGateService } from './interaction-gate.service';
 import { InteractionRouterService } from './interaction-router.service';
 import { AgentConfigService } from '../../ai/agent-config.service';
 import { UnifiedEnvelope } from '../envelope/types';
@@ -88,6 +89,7 @@ describe('InteractionRouterService (integration)', () => {
         { provide: INTERACTION_TRANSPORTS, useValue: [transport] },
         TransportRegistryService,
         AuditLogService,
+        InteractionGateService,
         InteractionRouterService,
       ],
     }).compile();
