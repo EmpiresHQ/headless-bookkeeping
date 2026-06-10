@@ -5,9 +5,9 @@ import { setToken } from '../auth';
 export function TokenGate({ onSaved }: { onSaved: () => void }) {
   const [value, setValue] = useState('');
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       <form
-        className="bg-white p-6 rounded shadow w-96 space-y-4"
+        className="bg-white p-6 rounded shadow w-full max-w-sm space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (value.trim().length === 0) return;

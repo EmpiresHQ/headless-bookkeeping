@@ -101,6 +101,7 @@ export function IntakeView() {
         {pending.length === 0 ? (
           <p className="text-sm text-gray-500">Nothing pending.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-gray-50 text-left">
@@ -145,6 +146,7 @@ export function IntakeView() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

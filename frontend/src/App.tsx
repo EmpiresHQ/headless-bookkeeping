@@ -70,15 +70,26 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <header className="bg-white border-b px-4 py-3 flex items-center gap-4">
-        <h1 className="font-semibold">books</h1>
-        <nav className="flex gap-1">
+      <header className="bg-white border-b">
+        <div className="px-4 py-3 flex items-center justify-between gap-4">
+          <h1 className="font-semibold">books</h1>
+          <button
+            onClick={() => {
+              clearToken();
+              setHasToken(false);
+            }}
+            className="text-sm text-gray-500 hover:text-black"
+          >
+            Sign out
+          </button>
+        </div>
+        <nav className="flex gap-1 px-2 pb-2 overflow-x-auto">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setActive(t.key)}
               aria-current={t.key === active ? 'page' : undefined}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-3 py-1 rounded text-sm whitespace-nowrap ${
                 t.key === active ? 'bg-black text-white' : 'hover:bg-gray-100'
               }`}
             >
@@ -86,15 +97,6 @@ export function App() {
             </button>
           ))}
         </nav>
-        <button
-          onClick={() => {
-            clearToken();
-            setHasToken(false);
-          }}
-          className="ml-auto text-sm text-gray-500 hover:text-black"
-        >
-          Sign out
-        </button>
       </header>
 
       <main className="p-4">
