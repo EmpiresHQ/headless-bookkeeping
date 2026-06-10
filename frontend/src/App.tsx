@@ -51,6 +51,9 @@ export function App() {
     if (!window.confirm(`Delete #${id ?? ''}? This cannot be undone.`)) return;
     try {
       await tab.remove(row);
+      // Drop the now-stale rows immediately so the just-deleted row can't be
+      // clicked again before the refetch lands (and the loading state shows).
+      setRows([]);
       setReloadKey((k) => k + 1);
     } catch (e) {
       if (getToken() === null) {
@@ -110,6 +113,7 @@ export function App() {
                     tab.remove
                       ? (row) => (
                           <button
+                            type="button"
                             onClick={() => void onDelete(row)}
                             className="text-red-600 text-sm hover:underline"
                           >
