@@ -5,7 +5,12 @@ const lhvLike: MappingRuleset = {
   account_code: 'BANK_EUR',
   date_column: 'Date',
   date_format: 'YYYY-MM-DD',
-  amount: { mode: 'debit_credit', amount_column: 'Amount', indicator_column: 'D/C', debit_value: 'D' },
+  amount: {
+    mode: 'debit_credit',
+    amount_column: 'Amount',
+    indicator_column: 'D/C',
+    debit_value: 'D',
+  },
   currency_column: 'Currency',
   default_currency: 'EUR',
   description_column: 'Explanation',
@@ -45,6 +50,11 @@ describe('applyRules', () => {
   });
 
   it('throws when the produced statement fails the kernel schema (e.g. empty)', () => {
-    expect(() => applyRules(lhvLike, 'Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference\n')).toThrow();
+    expect(() =>
+      applyRules(
+        lhvLike,
+        'Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference\n',
+      ),
+    ).toThrow();
   });
 });
