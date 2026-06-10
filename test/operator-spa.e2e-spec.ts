@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+// Internal paths (no public API for this) — revisit if @nestjs/serve-static bumps a major.
 import { AbstractLoader } from '@nestjs/serve-static/dist/loaders/abstract.loader';
 import { ExpressLoader } from '@nestjs/serve-static/dist/loaders/express.loader';
 import * as fs from 'node:fs';
@@ -44,7 +45,7 @@ describe('Operator SPA serving (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
     if (createdIndex) fs.rmSync(indexFile, { force: true });
   });
 
@@ -59,8 +60,8 @@ describe('Operator SPA serving (e2e)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('does not let static serving shadow the API path prefix', async () => {
-    const res = await request(app.getHttpServer()).get('/api/expenses');
-    expect(res.status).toBe(401);
+  it('does not let static serving shadow the /admin path prefix', async () => {
+    const res = await request(app.getHttpServer()).get('/admin/settings');
+    expect(res.status).toBe(401); // reaches the guard, not the static index
   });
 });
