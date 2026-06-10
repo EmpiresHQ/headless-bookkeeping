@@ -6,14 +6,12 @@ import {
   SalesInvoice,
   DocumentRow,
   ReportingPeriod,
-  Organization,
   fmtCents,
   getEntities,
   getExpenses,
   getInvoices,
   getDocuments,
   getReportingPeriods,
-  getOrganization,
   deleteExpense,
   deleteInvoice,
   deleteEntity,
@@ -23,6 +21,7 @@ import { IntakeView } from './components/IntakeView';
 import { BankView } from './components/BankView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
+import { OrgView } from './components/OrgView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -47,16 +46,12 @@ function Reconciled({ value }: { value: boolean }) {
   );
 }
 
-const orgTab: TabDef<Organization> = {
+const orgTab: TabDef = {
   key: 'org',
   label: 'Organization',
-  load: () => getOrganization().then((o) => [o]),
-  columns: [
-    { header: 'Country', cell: (o) => o.country },
-    { header: 'Org type', cell: (o) => o.org_type },
-    { header: 'VAT registered', cell: (o) => (o.vat_registered ? 'yes' : 'no') },
-    { header: 'Base currency', cell: (o) => o.base_currency ?? '(plugin default)' },
-  ],
+  load: async () => [],
+  columns: [],
+  Custom: OrgView,
 };
 
 const entitiesTab: TabDef<Entity> = {
