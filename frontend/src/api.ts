@@ -41,6 +41,8 @@ export interface Expense {
   currency: string;
   tax_point_date: string;
   status: string;
+  // True when the posted voucher is matched to a bank transaction.
+  reconciled: boolean;
 }
 
 export interface SalesInvoice {
@@ -53,6 +55,8 @@ export interface SalesInvoice {
   tax_point_date: string;
   status: string;
   sent_at: number | null;
+  // True when the posted voucher is matched to a bank transaction.
+  reconciled: boolean;
 }
 
 export interface DocumentRow {

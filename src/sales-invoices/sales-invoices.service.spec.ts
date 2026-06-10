@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
@@ -85,6 +85,49 @@ describe('SalesInvoicesService (integration)', () => {
     await service.createInvoice(createDto({ invoice_number: 'INV-002' }));
     const invoices = await service.getInvoices();
     expect(invoices).toHaveLength(2);
+  });
+
+  it('flags an invoice whose voucher is matched to a bank transaction as reconciled', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    // Relax FKs so we can stage a posted invoice + a match against its voucher
+    // without the whole voucher/bank chain — getInvoices joins on voucher_id.
+    await sql`PRAGMA foreign_keys = OFF`.execute(db);
+    const posted = await db
+      .insertInto('sales_invoice')
+      .values({
+        invoice_number: 'INV-RECON',
+        gross_amount: 1000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-05-01',
+        status: 'posted',
+        voucher_id: 4242,
+        customer_id: null,
+        due_date: null,
+        sent_at: null,
+        document_vat_marking: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: 1,
+        voucher_id: 4242,
+        match_type: 'exact',
+        amount_matched: 1000,
+        created_at: now,
+      })
+      .execute();
+    await sql`PRAGMA foreign_keys = ON`.execute(db);
+
+    const draft = await service.createInvoice(createDto());
+
+    const list = await service.getInvoices();
+    expect(list.find((i) => i.id === posted.id)?.reconciled).toBe(true);
+    expect(list.find((i) => i.id === draft.id)?.reconciled).toBe(false);
   });
 
   it('finds an invoice by id', async () => {
