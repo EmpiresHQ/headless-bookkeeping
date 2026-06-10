@@ -6,8 +6,9 @@ import {
 } from './document-transcriber.port';
 
 /** Path of the docling-serve convert endpoint, relative to DOCLING_BASE_URL.
- *  Verified against the pinned docling-serve image tag (see docker-compose). */
-const CONVERT_PATH = '/v1alpha/convert/file';
+ *  Verified by probing the pinned docling-serve-cpu image (see docker-compose):
+ *  `/v1/convert/file` returns 200; the older `/v1alpha/...` path is gone. */
+const CONVERT_PATH = '/v1/convert/file';
 
 /** Per-request ceiling. OCR of a scanned multi-page PDF on CPU is slow; give it
  *  room but cap it so a hung sidecar surfaces as a transient failure. */

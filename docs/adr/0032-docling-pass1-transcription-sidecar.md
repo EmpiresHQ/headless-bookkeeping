@@ -36,8 +36,9 @@ needs_triage routing are all engine-agnostic and unchanged.
   it never strands in `pending`.
 - CPU OCR of large scanned PDFs is slow; the adapter caps each request (120s) and
   maps a timeout to `transient`.
-- The convert endpoint path (`/v1alpha/convert/file`) is pinned to the image tag
-  and must be re-verified when the tag is bumped.
+- The convert endpoint path (`/v1/convert/file`, verified by probing the pinned
+  `docling-serve-cpu` image) is tied to the image tag and must be re-verified when
+  the tag is bumped.
 
 ## Alternatives rejected
 - **dots.ocr / bare VLM**: OCR-only, no table semantics, GPU-bound — more cost for

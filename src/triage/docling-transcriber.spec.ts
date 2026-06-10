@@ -45,7 +45,7 @@ describe('DoclingTranscriber', () => {
     expect(out.markdown).toBe('# Invoice\nAcme Ltd');
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('http://docling:5001/v1alpha/convert/file');
+    expect(url).toBe('http://docling:5001/v1/convert/file');
     expect(init.method).toBe('POST');
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body as FormData;
