@@ -270,7 +270,9 @@ export class ReconciliationService {
   }
 
   /** Entity name by id, null when unset/unknown (never throws into the UI path). */
-  private async safeEntityName(entityId: number | null): Promise<string | null> {
+  private async safeEntityName(
+    entityId: number | null,
+  ): Promise<string | null> {
     if (entityId === null) return null;
     try {
       const entity = await this.entitiesService.findById(entityId);
