@@ -21,6 +21,7 @@ import {
 import { KmdView } from './components/KmdView';
 import { IntakeView } from './components/IntakeView';
 import { ApprovalsView } from './components/ApprovalsView';
+import { SettingsView } from './components/SettingsView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -136,6 +137,14 @@ const approvalsTab: TabDef = {
   Custom: ApprovalsView,
 };
 
+const settingsTab: TabDef = {
+  key: 'settings',
+  label: 'Settings',
+  load: async () => [],
+  columns: [],
+  Custom: SettingsView,
+};
+
 const kmdTab: TabDef = {
   key: 'kmd',
   label: 'VAT / KMD',
@@ -157,4 +166,5 @@ export const TABS: TabDef[] = [
   approvalsTab,
   periodsTab,
   kmdTab,
+  settingsTab,
 ] as unknown as TabDef[];
