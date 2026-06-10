@@ -20,6 +20,7 @@ import {
 } from './api';
 import { KmdView } from './components/KmdView';
 import { IntakeView } from './components/IntakeView';
+import { BankView } from './components/BankView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
 
@@ -121,6 +122,14 @@ const periodsTab: TabDef<ReportingPeriod> = {
   ],
 };
 
+const bankTab: TabDef = {
+  key: 'bank',
+  label: 'Bank import',
+  load: async () => [],
+  columns: [],
+  Custom: BankView,
+};
+
 const intakeTab: TabDef = {
   key: 'intake',
   label: 'Intake',
@@ -162,6 +171,7 @@ export const TABS: TabDef[] = [
   expensesTab,
   invoicesTab,
   documentsTab,
+  bankTab,
   intakeTab,
   approvalsTab,
   periodsTab,

@@ -233,3 +233,25 @@ export const updatePolicyConfig = (patch: Partial<PolicyConfig>) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(patch),
   });
+
+// ── Bank statement import (async) ─────────────────────────────────────────
+export interface BankImportJob {
+  id: number;
+  status: string;
+  account_code: string;
+  statement_id: number | null;
+  error: string | null;
+}
+
+export const importBankStatement = (file: File, accountCode: string) => {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('account_code', accountCode);
+  return apiFetch<{ jobId: number }>('/api/bank-statements/import', {
+    method: 'POST',
+    body,
+  });
+};
+
+export const getBankImportStatus = (jobId: number) =>
+  apiFetch<BankImportJob>(`/api/bank-statements/import/${jobId}`);
