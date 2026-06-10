@@ -4,6 +4,7 @@ import {
   getBankImportStatus,
   listBankStatements,
   listBankTransactions,
+  deleteBankStatement,
   fmtCents,
   type BankImportJob,
   type BankStatement,
@@ -43,6 +44,22 @@ export function BankView() {
       const list = await listBankStatements();
       if (!mountedRef.current) return;
       setStatements(list);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const onDelete = async (id: number) => {
+    if (!window.confirm(`Delete statement #${id} and its transactions?`)) return;
+    try {
+      await deleteBankStatement(id);
+      if (!mountedRef.current) return;
+      if (selected === id) {
+        setSelected(null);
+        setTxns([]);
+      }
+      await loadStatements();
     } catch (e) {
       if (!mountedRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
@@ -196,13 +213,20 @@ export function BankView() {
                     {s.start_date} → {s.end_date}
                   </td>
                   <td className="px-3 py-2">{fmtDate(s.uploaded_at)}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 space-x-3 whitespace-nowrap">
                     <button
                       type="button"
                       onClick={() => void viewTransactions(s.id)}
                       className="text-blue-600 hover:underline"
                     >
                       View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void onDelete(s.id)}
+                      className="text-red-600 hover:underline"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>

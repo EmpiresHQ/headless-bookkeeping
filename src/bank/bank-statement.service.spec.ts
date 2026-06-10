@@ -197,4 +197,28 @@ describe('BankStatementService (integration)', () => {
     expect(txns[0].source_amount).toBe(-1400);
     expect(txns[0].fx_rate).toBeCloseTo(1.089, 3);
   });
+
+  it('deleteStatement removes the statement and its transactions', async () => {
+    const { statement } = await service.createStatement({
+      account_code: 'BANK_EUR',
+      start_date: '2025-07-01',
+      end_date: '2025-07-31',
+      transactions: [
+        { transaction_date: '2025-07-05', amount: 1000, currency: 'EUR' },
+        { transaction_date: '2025-07-06', amount: -500, currency: 'EUR' },
+      ],
+    });
+
+    await service.deleteStatement(statement.id);
+
+    const statements = await service.listStatements();
+    expect(statements.find((s) => s.id === statement.id)).toBeUndefined();
+    expect(await service.listTransactions(statement.id)).toHaveLength(0);
+  });
+
+  it('deleteStatement throws NotFound for a missing statement', async () => {
+    await expect(service.deleteStatement(99999)).rejects.toThrow(
+      'Bank statement 99999 not found',
+    );
+  });
 });
