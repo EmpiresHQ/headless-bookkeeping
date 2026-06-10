@@ -19,7 +19,7 @@ const approval = {
 describe('ApprovalsView', () => {
   beforeEach(() => {
     vi.spyOn(api, 'getPendingApprovals').mockResolvedValue([approval]);
-    vi.spyOn(api, 'approveApproval').mockResolvedValue({});
+    vi.spyOn(api, 'approveApproval').mockResolvedValue({ approval });
     vi.spyOn(window, 'prompt').mockReturnValue('operator');
   });
   afterEach(() => vi.restoreAllMocks());
