@@ -74,7 +74,12 @@ export function IntakeView() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center gap-2">
-        <input ref={fileRef} type="file" className="text-sm" />
+        <input
+          ref={fileRef}
+          type="file"
+          aria-label="Upload document"
+          className="text-sm"
+        />
         <button
           type="button"
           disabled={busy}
