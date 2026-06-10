@@ -268,6 +268,25 @@ describe('ExpensesService (integration)', () => {
     });
   });
 
+  describe('supplier_invoice_number', () => {
+    it('persists supplier_invoice_number on create', async () => {
+      const e = await service.createExpense({
+        category: 'software', gross_amount: 12000, vat_amount: 2000, currency: 'EUR',
+        tax_point_date: '2026-05-10', supplier_invoice_number: 'SUP-77',
+      });
+      const fetched = await service.getExpenseById(e.id);
+      expect(fetched.supplier_invoice_number).toBe('SUP-77');
+    });
+
+    it('defaults supplier_invoice_number to null when omitted', async () => {
+      const e = await service.createExpense({
+        category: 'software', gross_amount: 12000, vat_amount: 2000, currency: 'EUR',
+        tax_point_date: '2026-05-10',
+      });
+      expect(e.supplier_invoice_number).toBeNull();
+    });
+  });
+
   describe('reverse charge on imported services (EE org)', () => {
     it('books self-assessed output + input VAT for a US service supplier', async () => {
       // Switch the org to Estonia so the EstoniaCountryPlugin is active.

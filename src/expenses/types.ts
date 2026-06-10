@@ -16,6 +16,7 @@ export interface Expense {
   status: ExpenseStatus;
   voucher_id: number | null;
   document_vat_marking: string | null;
+  supplier_invoice_number: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -29,6 +30,7 @@ export const createExpenseSchema = z.object({
   currency: z.string(),
   tax_point_date: z.string(),
   document_vat_marking: z.string().nullable().optional(),
+  supplier_invoice_number: z.string().nullable().optional(),
 });
 
 export class CreateExpenseDto extends createZodDto(createExpenseSchema) {}

@@ -30,6 +30,7 @@ export class ExpensesService {
         currency: dto.currency,
         tax_point_date: dto.tax_point_date,
         document_vat_marking: dto.document_vat_marking ?? null,
+        supplier_invoice_number: dto.supplier_invoice_number ?? null,
         status: 'draft',
         voucher_id: null,
         created_at: now,
@@ -268,6 +269,7 @@ export class ExpensesService {
     status: string;
     voucher_id: number | null;
     document_vat_marking: string | null;
+    supplier_invoice_number: string | null;
     created_at: number;
     updated_at: number;
   }): Expense {
@@ -283,6 +285,7 @@ export class ExpensesService {
       status: this.validateStatus(row.status),
       voucher_id: row.voucher_id,
       document_vat_marking: row.document_vat_marking,
+      supplier_invoice_number: row.supplier_invoice_number,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
