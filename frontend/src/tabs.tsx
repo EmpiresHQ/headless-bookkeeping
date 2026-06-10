@@ -37,6 +37,16 @@ export interface TabDef<T = unknown> {
   Custom?: ComponentType;
 }
 
+/** Bank-reconciliation badge: shows whether a posted entry is matched to a
+ *  bank transaction. */
+function Reconciled({ value }: { value: boolean }) {
+  return value ? (
+    <span className="text-green-700">reconciled</span>
+  ) : (
+    <span className="text-gray-400">—</span>
+  );
+}
+
 const orgTab: TabDef<Organization> = {
   key: 'org',
   label: 'Organization',
@@ -75,6 +85,7 @@ const expensesTab: TabDef<Expense> = {
     { header: 'VAT', cell: (e) => fmtCents(e.vat_amount) },
     { header: 'Tax point', cell: (e) => e.tax_point_date },
     { header: 'Status', cell: (e) => e.status },
+    { header: 'Bank', cell: (e) => <Reconciled value={e.reconciled} /> },
   ],
   remove: (e) => deleteExpense(e.id),
   rowId: (e) => e.id,
@@ -91,6 +102,7 @@ const invoicesTab: TabDef<SalesInvoice> = {
     { header: 'Tax point', cell: (i) => i.tax_point_date },
     { header: 'Status', cell: (i) => i.status },
     { header: 'Sent', cell: (i) => (i.sent_at ? 'yes' : 'no') },
+    { header: 'Bank', cell: (i) => <Reconciled value={i.reconciled} /> },
   ],
   remove: (i) => deleteInvoice(i.id),
   rowId: (i) => i.id,
