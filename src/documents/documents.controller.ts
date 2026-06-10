@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Res,
   StreamableFile,
@@ -72,5 +73,11 @@ export class DocumentsController {
       'Content-Disposition': `attachment; filename="${filename}"`,
     });
     return new StreamableFile(buffer);
+  }
+
+  @Delete(':id')
+  async deleteDocument(@Param('id') id: string): Promise<{ deleted: number }> {
+    await this.documentsService.deleteDocument(Number(id));
+    return { deleted: Number(id) };
   }
 }

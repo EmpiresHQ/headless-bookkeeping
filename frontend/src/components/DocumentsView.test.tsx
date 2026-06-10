@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DocumentsView } from './DocumentsView';
 import * as api from '../api';
 
 vi.mock('../api', () => ({
   getDocuments: vi.fn(),
   getDocumentDebug: vi.fn(),
+  deleteDocument: vi.fn(),
 }));
 
 describe('DocumentsView', () => {
@@ -53,5 +54,34 @@ describe('DocumentsView', () => {
       screen.getByText(/Refund for invoice 100/),
     ).toBeInTheDocument();
     expect(api.getDocumentDebug).toHaveBeenCalledWith(1);
+  });
+
+  it('deletes a document after confirmation and reloads', async () => {
+    vi.mocked(api.getDocuments)
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          filename: 'creditnote.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 2048,
+          status: 'needs_triage',
+          created_at: 0,
+        },
+      ])
+      .mockResolvedValue([]); // after delete: empty
+    vi.mocked(api.deleteDocument).mockResolvedValue({ deleted: 1 });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<DocumentsView />);
+    await screen.findByText('creditnote.pdf');
+
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    await waitFor(() => expect(api.deleteDocument).toHaveBeenCalledWith(1));
+    // The row is gone after the reload.
+    await waitFor(() =>
+      expect(screen.queryByText('creditnote.pdf')).not.toBeInTheDocument(),
+    );
+    confirmSpy.mockRestore();
   });
 });

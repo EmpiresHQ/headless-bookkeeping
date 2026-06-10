@@ -132,6 +132,9 @@ export interface DocumentDebug {
 
 export const getDocumentDebug = (id: number) =>
   apiFetch<DocumentDebug>(`/api/documents/${id}/debug`);
+
+export const deleteDocument = (id: number) =>
+  apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });
 export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
     '/api/reporting-periods',
