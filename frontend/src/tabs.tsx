@@ -122,7 +122,7 @@ const periodsTab: TabDef<ReportingPeriod> = {
 
 const bankTab: TabDef = {
   key: 'bank',
-  label: 'Bank import',
+  label: 'Bank',
   load: async () => [],
   columns: [],
   Custom: BankView,
