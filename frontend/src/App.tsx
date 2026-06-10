@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { getToken, clearToken } from './auth';
 import { TokenGate } from './components/TokenGate';
 import { Table } from './components/Table';
@@ -13,26 +13,35 @@ export function App() {
 
   const tab = TABS.find((t) => t.key === active)!;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setRows(await tab.load());
-    } catch (e) {
-      // apiFetch clears the token on 401; reflect that in the gate.
-      if (getToken() === null) {
-        setHasToken(false);
-        return;
-      }
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [tab]);
-
+  // Load the active tab's data. The `cancelled` flag discards a stale response
+  // from a previously-active tab so a slow fetch can't overwrite the rows of
+  // the tab the user has since switched to.
   useEffect(() => {
-    if (hasToken) void load();
-  }, [hasToken, load]);
+    if (!hasToken) return;
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await tab.load();
+        if (!cancelled) setRows(data);
+      } catch (e) {
+        if (cancelled) return;
+        // apiFetch clears the token on 401; reflect that in the gate.
+        if (getToken() === null) {
+          setHasToken(false);
+          return;
+        }
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasToken, tab]);
 
   if (!hasToken) return <TokenGate onSaved={() => setHasToken(true)} />;
 
@@ -45,6 +54,7 @@ export function App() {
             <button
               key={t.key}
               onClick={() => setActive(t.key)}
+              aria-current={t.key === active ? 'page' : undefined}
               className={`px-3 py-1 rounded text-sm ${
                 t.key === active ? 'bg-black text-white' : 'hover:bg-gray-100'
               }`}
@@ -68,9 +78,7 @@ export function App() {
         <div className="bg-white rounded shadow">
           {loading && <p className="p-4 text-gray-500">Loading…</p>}
           {error && <p className="p-4 text-red-600">{error}</p>}
-          {!loading && !error && (
-            <Table columns={tab.columns} rows={rows} />
-          )}
+          {!loading && !error && <Table columns={tab.columns} rows={rows} />}
         </div>
       </main>
     </div>
