@@ -620,6 +620,25 @@ export class ReconciliationService {
       txnMap.set(txnId, txn);
     }
 
+    // Precompute each bank line's matchable BASE amount BEFORE the atomic
+    // block. The line amount is immutable, and currency conversion cannot run
+    // inside the better-sqlite3 sync transaction. amount_matched is BASE cents,
+    // so the per-line cap must be base too (bank_transaction.amount is the
+    // txn's OWN currency).
+    const txnBaseAmount = new Map<number, number>();
+    for (const txnId of txnIds) {
+      const txn = txnMap.get(txnId);
+      if (!txn) {
+        throw new NotFoundException(`Bank transaction ${txnId} not found`);
+      }
+      const { baseAmount } = await this.currencyService.toBase(
+        Math.abs(txn.amount),
+        txn.currency,
+        txn.transaction_date,
+      );
+      txnBaseAmount.set(txnId, baseAmount);
+    }
+
     const now = Math.floor(Date.now() / 1000);
 
     // ── Atomic check-then-insert ──────────────────────────────────────────
@@ -665,6 +684,29 @@ export class ReconciliationService {
           throw new ConflictException(
             `Match of ${proposal.amountMatched} would over-match voucher ` +
               `${proposal.voucherId}: only ${available} outstanding remains`,
+          );
+        }
+
+        // ── Bank-line over-allocation guard (symmetric to the voucher guard) ──
+        // SUM(amount_matched) for this bank line — everything matched so far
+        // (persisted + this batch's own inserts, both visible to this re-read on
+        // the SAME transaction connection) plus the current proposal — must not
+        // exceed the line's BASE amount. The re-read already accounts for prior
+        // batch inserts, so no separate batch tally is added here (that would
+        // double-count). batchMatchedByTxn is kept purely diagnostic of this
+        // batch's own contribution.
+        const persistedTxnMatched = await trx
+          .selectFrom('reconciliation_match')
+          .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+          .where('bank_transaction_id', '=', proposal.bankTransactionId)
+          .executeTakeFirst();
+        const txnMatchedSoFar = Number(persistedTxnMatched?.sum ?? 0);
+        const lineCap = txnBaseAmount.get(proposal.bankTransactionId) ?? 0;
+        if (txnMatchedSoFar + proposal.amountMatched > lineCap) {
+          throw new ConflictException(
+            `Match of ${proposal.amountMatched} would over-allocate bank line ` +
+              `${proposal.bankTransactionId}: only ` +
+              `${lineCap - txnMatchedSoFar} of the line remains`,
           );
         }
 

@@ -949,6 +949,73 @@ describe('ReconciliationService (integration)', () => {
       expect(rows).toHaveLength(0);
     });
 
+    it('rejects matches that over-allocate the bank line beyond its amount', async () => {
+      // One EUR bank txn of 100.00 and TWO independent open invoices of 100.00
+      // each. A full 100.00 match against invoice A fully allocates the bank
+      // line; a second 100.00 match of the SAME txn against the DIFFERENT,
+      // fully-open invoice B must be rejected specifically by the BANK-LINE cap
+      // (the voucher guard cannot fire — invoice B has 100000 outstanding).
+      const customer = await seedCustomer();
+      const voucherA = await seedSalesInvoiceVoucher(
+        customer.id,
+        100000,
+        'INV-BANKCAP-A',
+        '2025-01-10',
+      );
+      const voucherB = await seedSalesInvoiceVoucher(
+        customer.id,
+        100000,
+        'INV-BANKCAP-B',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Single 100.00 receipt',
+          amount: 100000,
+        },
+      ]);
+      const txnId = stmt.transactions[0].id;
+
+      // First match: fully allocates the bank line against invoice A.
+      await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txnId,
+          voucherId: voucherA,
+          matchType: 'exact',
+          amountMatched: 100000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      // Second match: SAME txn, DIFFERENT fully-open voucher B → the bank line
+      // is already fully allocated, so this over-allocates the line and must be
+      // rejected with the bank-line reason (not the voucher reason).
+      await expect(
+        reconciliationService.executeMatch([
+          {
+            bankTransactionId: txnId,
+            voucherId: voucherB,
+            matchType: 'exact',
+            amountMatched: 100000,
+            confidence: 'high',
+            signal: 'invoice_number',
+          },
+        ]),
+      ).rejects.toThrow(/over-allocate|bank line|exceeds/i);
+
+      // Only the first match against voucher A persisted; voucher B untouched.
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('bank_transaction_id', '=', txnId)
+        .execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].voucher_id).toBe(voucherA);
+    });
+
     it('still records a legitimate N:M batch (two distinct vouchers) with identical amounts', async () => {
       const customer = await seedCustomer();
       const voucherId1 = await seedSalesInvoiceVoucher(
