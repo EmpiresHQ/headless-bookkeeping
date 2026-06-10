@@ -13,9 +13,12 @@ interface LlmKey {
   label: string;
   placeholder: string;
   multiline: boolean;
+  secret?: boolean;
 }
 
 const LLM_KEYS: LlmKey[] = [
+  { key: 'ai_base_url', label: 'Inference base URL', placeholder: '(provider default)', multiline: false },
+  { key: 'ai_api_key', label: 'API key', placeholder: '(provider default / env)', multiline: false, secret: true },
   { key: 'ai_model', label: 'Global model', placeholder: 'openai/gpt-4o-mini', multiline: false },
   { key: 'ai_model.triage', label: 'Model — triage', placeholder: '(inherits global)', multiline: false },
   { key: 'ai_model.intent_classifier', label: 'Model — intent classifier', placeholder: '(inherits global)', multiline: false },
@@ -72,6 +75,7 @@ function SettingRow({
         ) : (
           <input
             id={id}
+            type={def.secret ? 'password' : 'text'}
             placeholder={def.placeholder}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
