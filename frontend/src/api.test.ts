@@ -101,6 +101,26 @@ describe('api delete + kmd', () => {
     expect(JSON.parse(init?.body as string)).toEqual({ value: 'openai/gpt-4o' });
   });
 
+  it('importBankStatement POSTs multipart FormData (no JSON content-type)', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"jobId":3}', {
+          status: 202,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    const { importBankStatement } = await import('./api');
+    const file = new File(['Date,Amount\n'], 's.csv', { type: 'text/csv' });
+    await importBankStatement(file, 'BANK_EUR');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/bank-statements/import');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBeInstanceOf(FormData);
+    const headers = new Headers(init?.headers);
+    expect(headers.get('content-type')).toBeNull();
+  });
+
   it('getPolicyConfig GETs /api/policy-config', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('{"auto_post_amount_ceiling":50000}', {
