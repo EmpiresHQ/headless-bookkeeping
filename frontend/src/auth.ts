@@ -39,10 +39,31 @@ export async function apiFetch<T = unknown>(
     throw new UnauthorizedError();
   }
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+    throw new Error(`${res.status} ${res.statusText}: ${await errorDetail(res)}`);
   }
   // P1 only calls JSON GET endpoints, so we always parse. When P2 adds
   // mutations that may return 204 No Content, this must grow an empty-body
   // guard (and a test) before such a call is made.
   return (await res.json()) as T;
+}
+
+/**
+ * Extract a human-readable detail from an error response. NestJS errors return
+ * `{ statusCode, message, error }` where `message` is a string (or string[] for
+ * validation errors); prefer that over the raw JSON blob. Falls back to the raw
+ * body when it is not the expected JSON shape.
+ */
+async function errorDetail(res: Response): Promise<string> {
+  const body = await res.text();
+  try {
+    const parsed = JSON.parse(body) as { message?: string | string[] };
+    if (parsed.message) {
+      return Array.isArray(parsed.message)
+        ? parsed.message.join('; ')
+        : parsed.message;
+    }
+  } catch {
+    // Not JSON — fall through to the raw body.
+  }
+  return body;
 }

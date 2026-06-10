@@ -8,9 +8,12 @@ export interface Column<T> {
 export function Table<T>({
   columns,
   rows,
+  actions,
 }: {
   columns: Column<T>[];
   rows: T[];
+  /** Optional trailing per-row controls (e.g. a delete button). */
+  actions?: (row: T) => ReactNode;
 }) {
   if (rows.length === 0) {
     return <p className="text-gray-500 p-4">Nothing here yet.</p>;
@@ -25,6 +28,9 @@ export function Table<T>({
                 {c.header}
               </th>
             ))}
+            {actions && (
+              <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -35,6 +41,9 @@ export function Table<T>({
                   {c.cell(row)}
                 </td>
               ))}
+              {actions && (
+                <td className="px-3 py-2 align-top">{actions(row)}</td>
+              )}
             </tr>
           ))}
         </tbody>

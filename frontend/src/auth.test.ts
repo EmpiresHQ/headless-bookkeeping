@@ -53,4 +53,22 @@ describe('apiFetch', () => {
     const body = await apiFetch<{ country: string }>('/api/organization');
     expect(body.country).toBe('EE');
   });
+
+  it('surfaces the NestJS message from an error body (not the raw JSON)', async () => {
+    setToken('tok');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          statusCode: 409,
+          message: 'Expense 7 is posted; only a draft can be deleted',
+          error: 'Conflict',
+        }),
+        { status: 409, statusText: 'Conflict' },
+      ),
+    );
+
+    await expect(
+      apiFetch('/api/expenses/7', { method: 'DELETE' }),
+    ).rejects.toThrow(/only a draft can be deleted/);
+  });
 });

@@ -10,14 +10,15 @@ export function App() {
   const [rows, setRows] = useState<unknown[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Bumped after a successful delete to re-run the active tab's load.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const tab = TABS.find((t) => t.key === active)!;
 
-  // Load the active tab's data. The `cancelled` flag discards a stale response
-  // from a previously-active tab so a slow fetch can't overwrite the rows of
-  // the tab the user has since switched to.
+  // Load the active tab's data (skipped for Custom tabs, which fetch their own).
+  // The `cancelled` flag discards a stale response from a previously-active tab.
   useEffect(() => {
-    if (!hasToken) return;
+    if (!hasToken || tab.Custom) return;
     let cancelled = false;
     const run = async () => {
       setLoading(true);
@@ -26,9 +27,8 @@ export function App() {
         const data = await tab.load();
         if (!cancelled) setRows(data);
       } catch (e) {
-        // apiFetch clears the token on 401; reflect that in the gate. This runs
-        // even for a cancelled (stale-tab) effect so a 401 redirects to the gate
-        // immediately, without waiting for the new tab's request to 401 too.
+        // apiFetch clears the token on 401; reflect that in the gate even for a
+        // cancelled effect so a 401 redirects immediately.
         if (getToken() === null) {
           setHasToken(false);
           return;
@@ -43,9 +43,30 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [hasToken, tab]);
+  }, [hasToken, tab, reloadKey]);
+
+  const onDelete = async (row: unknown) => {
+    if (!tab.remove) return;
+    const id = tab.rowId ? tab.rowId(row) : undefined;
+    if (!window.confirm(`Delete #${id ?? ''}? This cannot be undone.`)) return;
+    try {
+      await tab.remove(row);
+      // Drop the now-stale rows immediately so the just-deleted row can't be
+      // clicked again before the refetch lands (and the loading state shows).
+      setRows([]);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      if (getToken() === null) {
+        setHasToken(false);
+        return;
+      }
+      window.alert(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   if (!hasToken) return <TokenGate onSaved={() => setHasToken(true)} />;
+
+  const Custom = tab.Custom;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -78,9 +99,33 @@ export function App() {
 
       <main className="p-4">
         <div className="bg-white rounded shadow">
-          {loading && <p className="p-4 text-gray-500">Loading…</p>}
-          {error && <p className="p-4 text-red-600">{error}</p>}
-          {!loading && !error && <Table columns={tab.columns} rows={rows} />}
+          {Custom ? (
+            <Custom />
+          ) : (
+            <>
+              {loading && <p className="p-4 text-gray-500">Loading…</p>}
+              {error && <p className="p-4 text-red-600">{error}</p>}
+              {!loading && !error && (
+                <Table
+                  columns={tab.columns}
+                  rows={rows}
+                  actions={
+                    tab.remove
+                      ? (row) => (
+                          <button
+                            type="button"
+                            onClick={() => void onDelete(row)}
+                            className="text-red-600 text-sm hover:underline"
+                          >
+                            Delete
+                          </button>
+                        )
+                      : undefined
+                  }
+                />
+              )}
+            </>
+          )}
         </div>
       </main>
     </div>
