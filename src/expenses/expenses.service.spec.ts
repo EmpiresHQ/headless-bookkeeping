@@ -14,6 +14,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ExpensesService } from './expenses.service';
 import { EntitiesService } from '../entities/entities.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { NotFoundException } from '@nestjs/common';
 
 describe('ExpensesService (integration)', () => {
@@ -48,6 +49,7 @@ describe('ExpensesService (integration)', () => {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        PeriodLockService,
         ExpensesService,
       ],
     }).compile();

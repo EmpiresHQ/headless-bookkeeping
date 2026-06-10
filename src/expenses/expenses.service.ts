@@ -8,6 +8,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { Expense, CreateExpenseDto, ExpenseStatus } from './types';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class ExpensesService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly projection: VoucherProjectionService,
+    private readonly periodLock: PeriodLockService,
   ) {}
 
   async createExpense(dto: CreateExpenseDto): Promise<Expense> {
@@ -153,6 +155,29 @@ export class ExpensesService {
     value: string | null,
   ): 'goods' | 'services' | 'unknown' {
     return value === 'goods' || value === 'services' ? value : 'unknown';
+  }
+
+  /**
+   * Set opaque document metadata (supplier_invoice_number) on a posted expense.
+   * No ledger impact — pure administrative annotation. The period must be open
+   * (not locked) so audit trails remain consistent with the filed snapshot.
+   */
+  async setDocumentMetadata(
+    id: number,
+    patch: { supplier_invoice_number?: string | null },
+  ): Promise<Expense> {
+    const expense = await this.getExpenseById(id);
+    await this.periodLock.assertPeriodOpen(expense.tax_point_date);
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .updateTable('expense')
+      .set({
+        supplier_invoice_number: patch.supplier_invoice_number ?? null,
+        updated_at: now,
+      })
+      .where('id', '=', id)
+      .execute();
+    return this.getExpenseById(id);
   }
 
   async updateExpenseStatus(
