@@ -91,7 +91,6 @@ describe('TelegramWebhookController (integration)', () => {
 
     controller = module.get(TelegramWebhookController);
     classifier = module.get(IntentClassifierService);
-    await classifier.initialize();
     jest.spyOn(classifier, 'classify').mockResolvedValue({ kind: 'advisory' });
 
     await db

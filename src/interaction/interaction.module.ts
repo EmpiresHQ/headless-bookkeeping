@@ -65,10 +65,6 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     },
   ],
 })
-export class InteractionModule {
-  // IntentClassifierService must be initialized at boot; do it in onModuleInit.
-  constructor(private readonly classifier: IntentClassifierService) {}
-  async onModuleInit(): Promise<void> {
-    await this.classifier.initialize();
-  }
-}
+// The intent-classifier agent is built on demand per message (settings-backed),
+// so there is no boot-time initialization to perform here.
+export class InteractionModule {}

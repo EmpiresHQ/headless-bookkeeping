@@ -27,7 +27,7 @@ describe('BankIngestionService (integration)', () => {
     start_date: '2026-01-01',
     end_date: '2026-01-31',
     transactions: [],
-  } as CreateStatementInput;
+  };
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -51,7 +51,7 @@ describe('BankIngestionService (integration)', () => {
     } as unknown as BankStatementService;
 
     mastra = {
-      getBankMappingAgent: () => ({}),
+      buildBankMappingAgent: () => Promise.resolve({}),
     } as unknown as MastraService;
 
     service = new BankIngestionService(mastra, statements, jobs);
