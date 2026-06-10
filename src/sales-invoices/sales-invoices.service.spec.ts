@@ -6,17 +6,21 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
+import { EntitiesService } from '../entities/entities.service';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { CreateSalesInvoiceDto } from './types';
 
 describe('SalesInvoicesService (integration)', () => {
   let db: Kysely<Database>;
   let service: SalesInvoicesService;
+  let entitiesService: EntitiesService;
+  let organizationService: OrganizationService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -40,13 +44,17 @@ describe('SalesInvoicesService (integration)', () => {
         NullCountryPlugin,
         EstoniaCountryPlugin,
         PluginLoader,
+        OrgContextResolver,
         CurrencyService,
         VoucherProjectionService,
+        EntitiesService,
         SalesInvoicesService,
       ],
     }).compile();
 
     service = module.get(SalesInvoicesService);
+    entitiesService = module.get(EntitiesService);
+    organizationService = module.get(OrganizationService);
   });
 
   afterEach(async () => {
@@ -190,6 +198,39 @@ describe('SalesInvoicesService (integration)', () => {
       await expect(service.deleteDraft(invoice.id)).rejects.toThrow(
         /only a draft/i,
       );
+    });
+  });
+
+  describe('intra-EU B2B service sale (EE org)', () => {
+    it('tags revenue 0% intra-EU (EE_OUTPUT_0_EU) for an EU customer of services', async () => {
+      await organizationService.updateOrganization({ country: 'EE' });
+
+      const customer = await entitiesService.onboard({
+        role: 'customer',
+        country: 'DK',
+        name: 'VERIFI',
+        registrationKey: 'DK45960617',
+        goodsVsServices: 'services',
+      });
+
+      const invoice = await service.createInvoice({
+        invoice_number: 'INV-EU-1',
+        gross_amount: 615700,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-05-31',
+        customer_id: customer.id,
+      });
+
+      const draft = await service.generateDraftVoucher(invoice.id);
+      const revenue = draft.lines.find((l) => l.account_code === 'REVENUE');
+      expect(revenue?.vat_code).toBe('EE_OUTPUT_0_EU');
+      expect(revenue?.amount).toBe(615700); // whole gross is 0%-rated käive
+
+      // No output VAT on a 0% supply — the VAT leg is dropped (a 0-amount line
+      // cannot post).
+      const vatLine = draft.lines.find((l) => l.account_code === 'VAT_PAYABLE');
+      expect(vatLine).toBeUndefined();
     });
   });
 });

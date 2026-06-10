@@ -9,6 +9,7 @@ import {
 } from './country-plugin.interface';
 import {
   ExpenseTreatmentPreview,
+  KmdBaseClassification,
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
@@ -40,6 +41,10 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     EE_INPUT_9: 0.09,
     EE_ZERO: 0,
     EE_REVERSE_CHARGE: 0.24,
+    // 0% intra-EU B2B supply of services taxable in the customer's member state
+    // (KMS §10 / VAT Directive Art. 44 & 196). Reported as 0% käive (KMD row 3)
+    // and on the VD koondaruanne with tähis 3S — the VD form is filed manually.
+    EE_OUTPUT_0_EU: 0,
     [NULL_VAT_CODE]: 0,
   };
 
@@ -104,11 +109,24 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   resolveCategoryMapping(
     category: string,
-    _supplierFacts: SupplierFacts,
-    _orgContext: OrgContext,
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
   ): CategoryMappingResult {
     if (category === 'revenue') {
-      return { accountCode: 'REVENUE', vatCode: 'EE_OUTPUT_24' };
+      // A sale of services to a VAT-registered customer in ANOTHER EU member
+      // state is taxable where the customer is established (Art. 44): we charge
+      // 0% and the customer reverse-charges (Art. 196). It is declared as 0%
+      // käive (KMD row 3) and on the VD koondaruanne with tähis 3S. Domestic
+      // and non-EU (export) sales keep the standard 24% mapping here.
+      const customer = supplierFacts.country;
+      const isIntraEuB2bService =
+        customer !== orgContext.country &&
+        EstoniaCountryPlugin.EU.has(customer) &&
+        supplierFacts.goodsVsServices === 'services';
+      return {
+        accountCode: 'REVENUE',
+        vatCode: isIntraEuB2bService ? 'EE_OUTPUT_0_EU' : 'EE_OUTPUT_24',
+      };
     }
 
     // Expense categories → seeded chart accounts + EE standard input VAT.
@@ -191,7 +209,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   resolveCrossBorderTreatment(
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
-    context: { vatCharged: boolean },
+    _context: { vatCharged: boolean },
   ): CrossBorderResolution {
     const supplier = supplierFacts.country;
 
@@ -204,18 +222,21 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' };
     }
 
-    // Non-EU: goods are an import (customs VAT); services with foreign VAT charged
-    // are a foreign cost (no EE input VAT to reclaim).
+    // Non-EU goods are an import (customs VAT at the border via EE_INPUT_24).
     if (supplierFacts.goodsVsServices === 'goods') {
       return { treatment: 'import', vatCode: 'EE_INPUT_24' };
     }
 
-    if (context.vatCharged) {
-      return { treatment: 'foreign_cost', vatCode: null };
-    }
-
-    // Non-EU services, no VAT charged — treat as foreign cost (conservative).
-    return { treatment: 'foreign_cost', vatCode: null };
+    // Non-EU services: under KMS §10 the place of supply of B2B general-rule
+    // services is where the BUYER is established (Estonia), so the Estonian
+    // company self-assesses (pöördmaksustamine) exactly as for an intra-EU
+    // acquisition — output 24% and an immediate input 24% deduction, net cash
+    // zero. This holds whether or not the foreign supplier put some tax on the
+    // invoice: that foreign tax is never reclaimable EE input VAT (it folds
+    // into the cost base), but it does not remove the reverse-charge duty.
+    // 'unknown' goods/services is treated as a service import — the
+    // conservative EE position for imported supplies that reach the buyer here.
+    return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' };
   }
 
   // ── Dividends / withholding ───────────────────────────────────────────────
@@ -293,5 +314,59 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
     // €40,000 registration threshold in EUR cents (minor units).
     return 4000000;
+  }
+
+  // ── KMD (käibedeklaratsioon) row classification ───────────────────────────
+
+  /**
+   * Map a taxable-base VAT code onto the Estonian KMD rows. The VAT report reads
+   * this to build the declaration; the VAT *amount* rows (4 output, 5 input) are
+   * derived by the report from the VAT-control accounts, so this only places the
+   * taxable base.
+   *
+   * EE KMD rows used here:
+   *   1  — 24% taxable supply (and self-assessed reverse-charge received supply)
+   *   2  — 9% taxable supply
+   *   3  — 0% supply (intra-EU services, exports); intra-EU services also go on
+   *        the VD koondaruanne with tähis 3S
+   *   6/7 — acquisition base for reverse charge (6 = from another member state,
+   *        7 = other, e.g. an imported non-EU service)
+   *
+   * EE_REVERSE_CHARGE covers BOTH intra-EU and non-EU service imports (the
+   * resolver does not record which), so the acquisition lands in row 7 with a
+   * review note to move it to row 6 when the supplier is in another member
+   * state. KMD-INF row numbers should be confirmed by the accountant.
+   */
+  classifyKmd(vatCode: string): KmdBaseClassification {
+    const none: KmdBaseClassification = {
+      outputBaseRow: null,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    };
+    switch (vatCode) {
+      case 'EE_OUTPUT_24':
+        return { ...none, outputBaseRow: 1 };
+      case 'EE_OUTPUT_13':
+      case 'EE_OUTPUT_9':
+        return { ...none, outputBaseRow: 2 };
+      case 'EE_OUTPUT_0_EU':
+        return { ...none, outputBaseRow: 3, vdCode: '3S' };
+      case 'EE_ZERO':
+        return { ...none, outputBaseRow: 3 };
+      case 'EE_REVERSE_CHARGE':
+        return {
+          outputBaseRow: 1,
+          acquisitionRow: 7,
+          vdCode: null,
+          review:
+            'Reverse charge: verify KMD acquisition row 6 (intra-EU) vs 7 ' +
+            '(non-EU import) by supplier country; confirm KMD-INF row numbers.',
+        };
+      default:
+        // Domestic input codes and the NULL sentinel carry no base row — their
+        // only return effect is the input-VAT total (KMD row 5).
+        return none;
+    }
   }
 }

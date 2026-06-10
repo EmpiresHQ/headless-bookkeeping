@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'node:path';
 import { SqliteConstraintFilter } from './common/filters/sqlite-constraint.filter';
 import { DatabaseModule } from './database/database.module';
 import { OrganizationModule } from './organization/organization.module';
@@ -32,6 +34,15 @@ import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      // Built Vite output; produced by `cd frontend && npm run build`.
+      rootPath: join(process.cwd(), 'frontend', 'dist'),
+      // Never let static serving intercept the API / admin / health surfaces —
+      // those must reach the global ApiTokenGuard (or the health route).
+      // Note: @nestjs/serve-static v5 uses path-to-regexp v8 which no longer
+      // supports bare `*` glob syntax; use `{/*any}` instead.
+      exclude: ['/api{/*any}', '/admin{/*any}', '/health{/*any}'],
+    }),
     DatabaseModule,
     OrganizationModule,
     CurrencyModule,

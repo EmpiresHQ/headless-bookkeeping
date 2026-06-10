@@ -3,6 +3,7 @@ import type { CountryPluginRetrieval } from './country-plugin-retrieval.interfac
 export type {
   VatComputation,
   ExpenseTreatmentPreview,
+  KmdBaseClassification,
   CountryPluginRetrieval,
 } from './country-plugin-retrieval.interface';
 

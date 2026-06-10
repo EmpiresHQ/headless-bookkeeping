@@ -12,6 +12,9 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { EntitiesService } from '../entities/entities.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { buildCli, CliDeps } from './cli';
 
 // deleteDraft / delete only touch the DB (never the projection), so a null
@@ -59,7 +62,12 @@ describe('admin CLI (yargs)', () => {
       organization: new OrganizationService(db),
       periods: new ReportingPeriodsService(
         db,
-        new VatReportService(db, new LedgerBalanceService(db)),
+        new VatReportService(
+          db,
+          new LedgerBalanceService(db),
+          new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
+          new OrganizationService(db),
+        ),
       ),
       expenses: new ExpensesService(db, noProjection),
       salesInvoices: new SalesInvoicesService(db, noProjection),

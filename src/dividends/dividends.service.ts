@@ -8,8 +8,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
-import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { CurrencyService } from '../currency/currency.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { DraftVoucher } from '../ledger/voucher/types';
@@ -29,8 +28,7 @@ export class DividendsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly postingService: PostingService,
-    private readonly pluginLoader: PluginLoader,
-    private readonly orgService: OrganizationService,
+    private readonly orgContextResolver: OrgContextResolver,
     private readonly currencyService: CurrencyService,
     private readonly transactionRepo: BankTransactionRepository,
     private readonly ledgerBalance: LedgerBalanceService,
@@ -72,18 +70,22 @@ export class DividendsService {
       throw new BadRequestException('gross_amount must be positive');
     }
 
-    // Get org context for plugin resolution. The declaration voucher books
-    // equity accounts entirely in base currency (amounts are base-currency cents).
-    const org = await this.orgService.getOrganization();
+    // Resolve the country plugin + org for this org (e.g. EE → EstoniaCountryPlugin).
+    const { organization: org, plugin } =
+      await this.orgContextResolver.resolve();
+
+    // The declaration voucher books equity accounts entirely in base currency
+    // (amounts are base-currency cents), so the OrgContext here carries the
+    // *effective* base currency (override ?? plugin default) the voucher lines
+    // are denominated in — not the raw nullable org.base_currency override. The
+    // country plugin only reads orgContext.country here, so this value is inert
+    // for its decisions but kept consistent with the voucher's currency.
     const baseCurrency = await this.currencyService.getBaseCurrency();
     const orgContext = {
       country: org.country,
       vatRegistered: !!org.vat_registered,
       baseCurrency,
     };
-
-    // Resolve the country plugin for this org (e.g. EE → EstoniaCountryPlugin).
-    const plugin = this.pluginLoader.resolve(org.country);
 
     // ── Distributable-profits check (plugin-driven) ──────────────────
     // The kernel computes the *live* distributable figure (RETAINED_EARNINGS +

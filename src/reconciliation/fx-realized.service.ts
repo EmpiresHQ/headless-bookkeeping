@@ -6,6 +6,7 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
+import { determineFXDirection } from './fx-direction';
 
 /**
  * Result of a realized-FX computation attempt.
@@ -151,10 +152,11 @@ export class FXRealizedService {
     // ── Build & post system-generated FX voucher ─────────────────────
     const absRealized = Math.abs(realized);
     // Direction (D1): incoming (AR) settlements have a non-negative bank
-    // amount; outgoing (AP) settlements are negative. The sign of `realized`
-    // means opposite things in each direction.
+    // amount; outgoing (AP) settlements are negative. The gain-vs-loss meaning
+    // of `realized`'s sign is direction-dependent and owned by the extracted,
+    // unit-tested invariant determineFXDirection (ADR-0004).
     const isIncoming = txn.amount >= 0;
-    const isGain = isIncoming ? realized < 0 : realized > 0;
+    const isGain = determineFXDirection(realized, isIncoming) === 'gain';
 
     // Realized FX is booked entirely in BASE currency (D3): FX_GAIN_LOSS vs the
     // BASE bank account (seed convention 'BANK_' + baseCurrency). When the txn

@@ -120,6 +120,19 @@ export class SalesInvoicesService {
   private async buildDraftVoucher(
     invoice: SalesInvoice,
   ): Promise<DraftVoucher> {
+    // Hand the projection the customer's country + goods/services nature so the
+    // plugin can classify the sale (e.g. a service sold to an EU-VAT customer →
+    // 0% intra-EU käive, Art. 196). Without a customer the facts are omitted and
+    // the plugin maps the standard domestic rate.
+    const customer =
+      invoice.customer_id !== null
+        ? await this.db
+            .selectFrom('entity')
+            .select(['country', 'goods_vs_services'])
+            .where('id', '=', invoice.customer_id)
+            .executeTakeFirst()
+        : undefined;
+
     return this.projection.project(
       {
         category: 'revenue',
@@ -127,9 +140,22 @@ export class SalesInvoicesService {
         vatAmount: invoice.vat_amount,
         currency: invoice.currency,
         taxPointDate: invoice.tax_point_date,
+        ...(customer && {
+          supplierCountry: customer.country,
+          goodsVsServices: this.normalizeGoodsVsServices(
+            customer.goods_vs_services,
+          ),
+        }),
       },
       'sale',
     );
+  }
+
+  /** Map the entity's free-form goods/services column onto the projection enum. */
+  private normalizeGoodsVsServices(
+    value: string | null,
+  ): 'goods' | 'services' | 'unknown' {
+    return value === 'goods' || value === 'services' ? value : 'unknown';
   }
 
   async sendInvoice(id: number): Promise<SalesInvoice> {
