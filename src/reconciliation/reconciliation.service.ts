@@ -15,6 +15,8 @@ import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
   MatchProposal,
+  MatchProposalView,
+  MatchObjectType,
   MatchType,
   MatchConfidence,
   ReconciliationMatchRecord,
@@ -105,7 +107,7 @@ export class ReconciliationService {
    * For incoming (amount > 0): candidate unpaid AR vouchers + CustomerPrepayment
    * For outgoing (amount < 0): candidate unpaid AP vouchers
    */
-  async proposeMatches(statementId: number): Promise<MatchProposal[]> {
+  async proposeMatches(statementId: number): Promise<MatchProposalView[]> {
     const transactions =
       await this.transactionRepo.findByStatementId(statementId);
     const openTxns = transactions.filter((t) => t.status === 'open');
@@ -121,7 +123,119 @@ export class ReconciliationService {
       allProposals.push(...proposals);
     }
 
-    return allProposals;
+    return this.enrichProposals(allProposals);
+  }
+
+  /**
+   * Enrich raw proposals into operator-facing views: resolve each distinct
+   * voucherId to its business object (sales_invoice / expense / prepayment),
+   * counterparty name, and remaining balance. voucherId is retained for the
+   * execute round-trip but never rendered (ADR-0030).
+   */
+  private async enrichProposals(
+    proposals: MatchProposal[],
+  ): Promise<MatchProposalView[]> {
+    const views: MatchProposalView[] = [];
+    // Small per-voucher resolution (proposal sets are small); memoise by voucherId.
+    const cache = new Map<
+      number,
+      {
+        objectType: MatchObjectType;
+        objectId: number | null;
+        objectLabel: string;
+        counterpartyName: string | null;
+        voucherRemaining: number;
+      }
+    >();
+
+    for (const p of proposals) {
+      let info = cache.get(p.voucherId);
+      if (!info) {
+        info = await this.resolveVoucherDisplay(p.voucherId, p.matchType);
+        cache.set(p.voucherId, info);
+      }
+      views.push({ ...p, ...info });
+    }
+    return views;
+  }
+
+  private async resolveVoucherDisplay(
+    voucherId: number,
+    matchType: MatchType,
+  ): Promise<{
+    objectType: MatchObjectType;
+    objectId: number | null;
+    objectLabel: string;
+    counterpartyName: string | null;
+    voucherRemaining: number;
+  }> {
+    // Prepayment vouchers carry no business object.
+    if (matchType === 'prepayment') {
+      const voucherRemaining =
+        await this.outstandingVouchers.getRemainingPrepaymentBalance(voucherId);
+      return {
+        objectType: 'prepayment',
+        objectId: null,
+        objectLabel: 'Prepayment',
+        counterpartyName: null,
+        voucherRemaining,
+      };
+    }
+
+    const voucherRemaining =
+      await this.outstandingVouchers.getRemainingVoucherBalance(voucherId);
+
+    const invoice = await this.db
+      .selectFrom('sales_invoice')
+      .select(['id', 'invoice_number', 'customer_id'])
+      .where('voucher_id', '=', voucherId)
+      .executeTakeFirst();
+    if (invoice) {
+      const name = await this.safeEntityName(invoice.customer_id);
+      return {
+        objectType: 'sales_invoice',
+        objectId: invoice.id,
+        objectLabel: invoice.invoice_number,
+        counterpartyName: name,
+        voucherRemaining,
+      };
+    }
+
+    const expense = await this.db
+      .selectFrom('expense')
+      .select(['id', 'supplier_id'])
+      .where('voucher_id', '=', voucherId)
+      .executeTakeFirst();
+    if (expense) {
+      const name = await this.safeEntityName(expense.supplier_id);
+      return {
+        objectType: 'expense',
+        objectId: expense.id,
+        objectLabel: `Expense #${expense.id}`,
+        counterpartyName: name,
+        voucherRemaining,
+      };
+    }
+
+    // Voucher with no recognised business object — degrade gracefully.
+    return {
+      objectType: 'prepayment',
+      objectId: null,
+      objectLabel: `Voucher settlement`,
+      counterpartyName: null,
+      voucherRemaining,
+    };
+  }
+
+  /** Entity name by id, null when unset/unknown (never throws into the UI path). */
+  private async safeEntityName(entityId: number | null): Promise<string | null> {
+    if (entityId === null) return null;
+    try {
+      const entity = await this.entitiesService.findById(entityId);
+      return entity.name;
+    } catch {
+      return null;
+    }
   }
 
   /**

@@ -443,6 +443,62 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('proposeMatches — business-object enrichment (MatchProposalView)', () => {
+    it('enriches an invoice-number proposal with sales_invoice label + customer name', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-12001',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Customer payment',
+          amount: 50000,
+          reference: 'INV-12001',
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+      const p = proposals.find((x) => x.signal === 'invoice_number');
+      expect(p).toBeDefined();
+      expect(p!.voucherId).toBe(voucherId);
+      expect(p!.objectType).toBe('sales_invoice');
+      expect(p!.objectLabel).toContain('INV');
+      expect(p!.counterpartyName).toBe('Test Customer Ltd');
+      expect(p!.voucherRemaining).toBeGreaterThan(0);
+      // voucherId still present (round-trips to /match) though never displayed.
+      expect(typeof p!.voucherId).toBe('number');
+    });
+
+    it('enriches an AP (expense) counterparty proposal with supplier name', async () => {
+      const supplier = await seedSupplier('DE89370400440532013000');
+      await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -42000,
+          counterparty_iban: 'DE89370400440532013000',
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+      const p = proposals.find((x) => x.objectType === 'expense');
+      expect(p).toBeDefined();
+      expect(p!.counterpartyName).toBe('Test Supplier Co');
+      expect(p!.objectLabel).toContain('Expense');
+    });
+  });
+
   describe('proposeMatches — counterparty signal', () => {
     it('matches incoming transaction to AR voucher by counterparty IBAN', async () => {
       const customer = await seedCustomer('IE29AIBK93115212345678');
