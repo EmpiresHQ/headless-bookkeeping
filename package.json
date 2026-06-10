@@ -94,6 +94,7 @@
     "moduleNameMapper": {
       "^@mastra/core$": "<rootDir>/../test/mastra-stub.ts",
       "^@mastra/core/agent$": "<rootDir>/../test/mastra-stub.ts",
+      "^@mastra/core/workflows$": "<rootDir>/../test/mastra-stub.ts",
       "^@mastra/libsql$": "<rootDir>/../test/mastra-stub.ts"
     },
     "collectCoverageFrom": [

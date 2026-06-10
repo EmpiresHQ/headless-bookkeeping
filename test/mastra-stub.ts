@@ -88,3 +88,22 @@ export class LibSQLStore {
     this.url = config.url;
   }
 }
+
+export class Run {
+  readonly runId = 'stub-run';
+  async start(_args: { inputData?: unknown }): Promise<{ status: string; result: unknown }> {
+    return { status: 'success', result: undefined };
+  }
+}
+export class Workflow {
+  constructor(public config: { id?: unknown } = {}) {}
+  then(): this { return this; }
+  commit(): this { return this; }
+  async createRun(): Promise<Run> { return new Run(); }
+}
+export function createWorkflow(config: { id?: unknown } = {}): Workflow {
+  return new Workflow(config);
+}
+export function createStep(params: unknown): unknown {
+  return params;
+}
