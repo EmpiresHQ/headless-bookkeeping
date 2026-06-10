@@ -1,5 +1,15 @@
 import { apiFetch } from './auth';
 
+/**
+ * These interfaces are intentional DISPLAY SUBSETS of the backend response
+ * objects — they declare only the fields the read tabs render, not every field
+ * the server returns. TypeScript structural typing makes a subset a valid view
+ * over the richer payload. Two deliberate exclusions:
+ *  - audit/linkage fields we don't show (created_at/updated_at, document_id, …);
+ *  - the ledger linkage `voucher_id` is omitted ON PURPOSE — ADR-0001/ADR-0029
+ *    keep the double-entry ledger hidden from the operator UI.
+ * Add a field here only when a tab actually displays it.
+ */
 export interface Organization {
   id: number;
   country: string;
