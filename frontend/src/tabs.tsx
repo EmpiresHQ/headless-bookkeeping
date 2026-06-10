@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { Column } from './components/Table';
 import {
   Entity,
@@ -13,6 +14,9 @@ import {
   getDocuments,
   getReportingPeriods,
   getOrganization,
+  deleteExpense,
+  deleteInvoice,
+  deleteEntity,
 } from './api';
 
 export interface TabDef<T = unknown> {
@@ -20,6 +24,12 @@ export interface TabDef<T = unknown> {
   label: string;
   load: () => Promise<T[]>;
   columns: Column<T>[];
+  /** Optional row delete; when set, the tab shows a Delete action per row. */
+  remove?: (row: T) => Promise<unknown>;
+  /** Row id for the delete confirm prompt (required when `remove` is set). */
+  rowId?: (row: T) => number;
+  /** When set, the tab renders this component instead of the data table. */
+  Custom?: ComponentType;
 }
 
 const orgTab: TabDef<Organization> = {
@@ -45,6 +55,8 @@ const entitiesTab: TabDef<Entity> = {
     { header: 'Country', cell: (e) => e.country },
     { header: 'Goods/Services', cell: (e) => e.goods_vs_services ?? '—' },
   ],
+  remove: (e) => deleteEntity(e.id),
+  rowId: (e) => e.id,
 };
 
 const expensesTab: TabDef<Expense> = {
@@ -59,6 +71,8 @@ const expensesTab: TabDef<Expense> = {
     { header: 'Tax point', cell: (e) => e.tax_point_date },
     { header: 'Status', cell: (e) => e.status },
   ],
+  remove: (e) => deleteExpense(e.id),
+  rowId: (e) => e.id,
 };
 
 const invoicesTab: TabDef<SalesInvoice> = {
@@ -73,6 +87,8 @@ const invoicesTab: TabDef<SalesInvoice> = {
     { header: 'Status', cell: (i) => i.status },
     { header: 'Sent', cell: (i) => (i.sent_at ? 'yes' : 'no') },
   ],
+  remove: (i) => deleteInvoice(i.id),
+  rowId: (i) => i.id,
 };
 
 const documentsTab: TabDef<DocumentRow> = {
