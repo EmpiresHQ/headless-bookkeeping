@@ -1,0 +1,30 @@
+{
+  "name": "triage_result",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "kind": { "type": "string", "enum": ["new_expense", "correction", "duplicate", "unknown"] },
+      "document_type": { "type": "string", "enum": ["receipt", "invoice", "unknown"] },
+      "gross_amount": { "type": "integer", "description": "Total gross in MINOR units (cents)" },
+      "vat_amount": { "type": "integer", "description": "VAT in MINOR units (cents)" },
+      "currency": { "type": "string", "description": "ISO 4217, 3 letters" },
+      "tax_point_date": { "type": "string", "description": "ISO date YYYY-MM-DD" },
+      "category": { "type": "string" },
+      "document_vat_marking": { "type": ["string", "null"] },
+      "confidence": { "type": "number" }
+    },
+    "required": [
+      "kind",
+      "document_type",
+      "gross_amount",
+      "vat_amount",
+      "currency",
+      "tax_point_date",
+      "category",
+      "document_vat_marking",
+      "confidence"
+    ]
+  }
+}
