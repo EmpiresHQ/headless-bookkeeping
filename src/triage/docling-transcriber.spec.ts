@@ -13,7 +13,7 @@ describe('DoclingTranscriber', () => {
   beforeEach(() => {
     process.env.DOCLING_BASE_URL = 'http://docling:5001';
     fetchMock = jest.fn();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
   });
 
   afterEach(() => {
