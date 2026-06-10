@@ -49,6 +49,15 @@ describe('applyRules', () => {
     expect(out.transactions[1].amount).toBe(-2759);
   });
 
+  it('strips a leading UTF-8 BOM (bank exports often include one)', () => {
+    const out = applyRules(lhvLike, '\uFEFF' + csv);
+    expect(out.transactions).toHaveLength(2);
+    // Without BOM stripping the first header column would be prefixed by the
+    // BOM and the Date column would be missing; this asserts it parsed cleanly.
+    expect(out.start_date).toBe('2026-05-08');
+    expect(out.transactions[0].amount).toBe(615700);
+  });
+
   it('throws when the produced statement fails the kernel schema (e.g. empty)', () => {
     expect(() =>
       applyRules(
