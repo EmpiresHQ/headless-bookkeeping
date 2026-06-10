@@ -3,12 +3,10 @@ import { Column } from './components/Table';
 import {
   Expense,
   SalesInvoice,
-  DocumentRow,
   ReportingPeriod,
   fmtCents,
   getExpenses,
   getInvoices,
-  getDocuments,
   getReportingPeriods,
   deleteExpense,
   deleteInvoice,
@@ -20,6 +18,7 @@ import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
 import { OrgView } from './components/OrgView';
 import { EntitiesView } from './components/EntitiesView';
+import { DocumentsView } from './components/DocumentsView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -94,17 +93,12 @@ const invoicesTab: TabDef<SalesInvoice> = {
   rowId: (i) => i.id,
 };
 
-const documentsTab: TabDef<DocumentRow> = {
+const documentsTab: TabDef = {
   key: 'documents',
   label: 'Documents',
-  load: getDocuments,
-  columns: [
-    { header: 'ID', cell: (d) => d.id },
-    { header: 'Filename', cell: (d) => d.filename },
-    { header: 'Type', cell: (d) => d.mime_type },
-    { header: 'Size', cell: (d) => `${(d.size_bytes / 1024).toFixed(1)} KB` },
-    { header: 'Status', cell: (d) => d.status },
-  ],
+  load: async () => [],
+  columns: [],
+  Custom: DocumentsView,
 };
 
 const periodsTab: TabDef<ReportingPeriod> = {

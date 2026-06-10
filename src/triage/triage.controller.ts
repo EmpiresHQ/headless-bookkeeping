@@ -9,7 +9,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { TriageService } from './triage.service';
 import { DocumentsService } from '../documents/documents.service';
-import { TriageOutcome } from './types';
+import { TriageOutcome, DocumentDebug } from './types';
 
 @ApiTags('triage')
 @Controller()
@@ -22,6 +22,11 @@ export class TriageController {
   @Post('api/documents/:id/triage')
   async triageDocument(@Param('id') id: string): Promise<TriageOutcome> {
     return this.triageService.route(Number(id));
+  }
+
+  @Get('api/documents/:id/debug')
+  async debugDocument(@Param('id') id: string): Promise<DocumentDebug> {
+    return this.triageService.debug(Number(id));
   }
 
   @Get('api/triage/pending')

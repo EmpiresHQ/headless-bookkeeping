@@ -9,6 +9,7 @@ import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AuditFinding } from '../audit-findings/types';
+import { DocumentDebug } from '../triage/types';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -97,6 +98,31 @@ export class IntakeWorkflowService {
     private readonly policyService: PolicyService,
     private readonly documents: DocumentsService,
   ) {}
+
+  /**
+   * Read-only debug: return what Pass-1 transcribed and what Pass-2 (the LLM)
+   * classifies the document as, WITHOUT routing or changing the document's
+   * status. OCR is idempotent (returns the stored markdown); Pass-2 is re-run
+   * so the operator can see the raw classification (e.g. why kind='correction').
+   */
+  async debug(documentId: number): Promise<DocumentDebug> {
+    const ocr = await this.ocrService.transcribe(documentId);
+    if (!ocr.ok) {
+      return {
+        document_id: documentId,
+        ocr: { ok: false, category: ocr.category, detail: ocr.detail },
+        classification: null,
+      };
+    }
+    const pass2 = await this.pass2Agent.classify(ocr.markdown);
+    return {
+      document_id: documentId,
+      ocr: { ok: true, markdown: ocr.markdown },
+      classification: pass2.ok
+        ? { ok: true, result: pass2.result }
+        : { ok: false, category: pass2.category, detail: pass2.detail },
+    };
+  }
 
   /**
    * Process a document through the full intake workflow.

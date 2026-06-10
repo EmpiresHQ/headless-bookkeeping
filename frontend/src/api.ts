@@ -105,6 +105,33 @@ export const getDocuments = () =>
   apiFetch<{ documents: DocumentRow[] }>('/api/documents').then(
     (r) => r.documents,
   );
+
+// ── Document debug (OCR + LLM classification) ─────────────────────────────
+export interface DebugTriageResult {
+  kind: string;
+  document_type: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  category: string;
+  document_vat_marking: string | null;
+  confidence: number;
+}
+
+export interface DocumentDebug {
+  document_id: number;
+  ocr:
+    | { ok: true; markdown: string }
+    | { ok: false; category: string; detail: string };
+  classification:
+    | { ok: true; result: DebugTriageResult }
+    | { ok: false; category: string; detail: string }
+    | null;
+}
+
+export const getDocumentDebug = (id: number) =>
+  apiFetch<DocumentDebug>(`/api/documents/${id}/debug`);
 export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
     '/api/reporting-periods',
