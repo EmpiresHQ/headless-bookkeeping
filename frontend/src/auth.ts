@@ -48,6 +48,30 @@ export async function apiFetch<T = unknown>(
 }
 
 /**
+ * Like apiFetch but returns the raw Response instead of parsed JSON.
+ * Used for binary/blob downloads (e.g. statutory-report XML/ZIP).
+ */
+export async function apiFetchRaw(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const res = await fetch(path, { ...init, headers });
+
+  if (res.status === 401) {
+    clearToken();
+    throw new UnauthorizedError();
+  }
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}: ${await errorDetail(res)}`);
+  }
+  return res;
+}
+
+/**
  * Extract a human-readable detail from an error response. NestJS errors return
  * `{ statusCode, message, error }` where `message` is a string (or string[] for
  * validation errors); prefer that over the raw JSON blob. Falls back to the raw

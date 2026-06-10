@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setToken } from './auth';
-import { deleteExpense, getKmd } from './api';
+import { deleteExpense, getKmd, downloadStatutoryReport } from './api';
 
 describe('api delete + kmd', () => {
   beforeEach(() => {
@@ -150,5 +150,35 @@ describe('api delete + kmd', () => {
     expect(JSON.parse(init?.body as string)).toEqual({
       auto_post_amount_ceiling: 10000,
     });
+  });
+
+  it('downloadStatutoryReport requests the period endpoint with the format', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Blob(['<vatDeclaration/>']), {
+        status: 200,
+        headers: {
+          'content-type': 'application/xml',
+          'content-disposition': 'attachment; filename="kmd-2026-05.xml"',
+        },
+      }),
+    );
+    // stub DOM bits that jsdom doesn't support
+    URL.createObjectURL = vi.fn().mockReturnValue('blob:stub');
+    URL.revokeObjectURL = vi.fn();
+    const createObjUrl = URL.createObjectURL as ReturnType<typeof vi.fn>;
+    const revokeObjUrl = URL.revokeObjectURL as ReturnType<typeof vi.fn>;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockReturnValue(undefined);
+
+    await downloadStatutoryReport(5, 'xml');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/reporting-periods/5/statutory-report?format=xml'),
+      expect.any(Object),
+    );
+    expect(createObjUrl).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjUrl).toHaveBeenCalledWith('blob:stub');
   });
 });
