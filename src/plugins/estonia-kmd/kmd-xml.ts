@@ -23,7 +23,7 @@ function eur(cents: number): string {
 }
 
 /** Net taxable base per rate, derived from output VAT amounts on the boxes. */
-function transactionsNetByRate(input: StatutoryReportInput): Map<number, number> {
+export function transactionsNetByRate(input: StatutoryReportInput): Map<number, number> {
   const net = new Map<number, number>();
   for (const box of input.boxes) {
     const code = box.vat_code;
