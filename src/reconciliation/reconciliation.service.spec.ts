@@ -1006,6 +1006,51 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('getStatementReconciliation', () => {
+    it('reports per-transaction matched/remaining and a derived status', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-RECON-001',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Partial payment',
+          amount: 50000,
+          reference: 'INV-RECON-001',
+        },
+      ]);
+      const txnId = stmt.transactions[0].id;
+
+      // Book a PARTIAL match of 20000 against the 50000 invoice.
+      const partialAmount = 20000;
+      await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txnId,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: partialAmount,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      const rows = await reconciliationService.getStatementReconciliation(
+        stmt.statement.id,
+      );
+      const row = rows.find((r) => r.bankTransactionId === txnId);
+      expect(row).toBeDefined();
+      expect(row!.amountBase).toBe(50000);
+      expect(row!.matchedSum).toBe(partialAmount);
+      expect(row!.remaining).toBe(row!.amountBase - partialAmount);
+      expect(row!.reconStatus).toBe('partial');
+    });
+  });
+
   describe('incoming vs outgoing direction', () => {
     it('incoming (positive amount) finds AR candidates', async () => {
       const customer = await seedCustomer();

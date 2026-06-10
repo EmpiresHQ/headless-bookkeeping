@@ -1,10 +1,18 @@
-import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ReconciliationService } from './reconciliation.service';
 import { ExecuteMatchInput } from './reconciliation.types';
 import type {
   ExecuteMatchResult,
   MatchProposalView,
+  ReconciliationStatusRow,
 } from './reconciliation.types';
 
 @ApiTags('reconciliation')
@@ -33,5 +41,13 @@ export class ReconciliationController {
     @Body() input: ExecuteMatchInput,
   ): Promise<ExecuteMatchResult> {
     return this.service.executeMatch(input.matches);
+  }
+
+  /** Per-transaction reconciliation state for a statement (UI badges + caps). */
+  @Get(':id/reconciliation')
+  async getStatementReconciliation(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<ReconciliationStatusRow[]> {
+    return this.service.getStatementReconciliation(id);
   }
 }

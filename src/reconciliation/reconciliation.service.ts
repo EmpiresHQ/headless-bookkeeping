@@ -20,6 +20,7 @@ import {
   MatchType,
   MatchConfidence,
   ReconciliationMatchRecord,
+  ReconciliationStatusRow,
   ExecuteMatchResult,
   ParsedTransactionTokens,
   CandidateVoucher,
@@ -124,6 +125,47 @@ export class ReconciliationService {
     }
 
     return this.enrichProposals(allProposals);
+  }
+
+  /**
+   * Per-transaction reconciliation state for a statement: the matchable base
+   * amount, how much is already matched, and the remaining. Drives the operator
+   * UI's badges and over-allocation cap. matched sums are BASE cents (matching
+   * amount_matched), so the bank line's own amount is converted to base too.
+   */
+  async getStatementReconciliation(
+    statementId: number,
+  ): Promise<ReconciliationStatusRow[]> {
+    const transactions =
+      await this.transactionRepo.findByStatementId(statementId);
+
+    const rows: ReconciliationStatusRow[] = [];
+    for (const txn of transactions) {
+      const { baseAmount: amountBase } = await this.currencyService.toBase(
+        Math.abs(txn.amount),
+        txn.currency,
+        txn.transaction_date,
+      );
+
+      const matched = await this.db
+        .selectFrom('reconciliation_match')
+        .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+        .where('bank_transaction_id', '=', txn.id)
+        .executeTakeFirst();
+      const matchedSum = Number(matched?.sum ?? 0);
+      const remaining = Math.max(0, amountBase - matchedSum);
+      const reconStatus: ReconciliationStatusRow['reconStatus'] =
+        matchedSum <= 0 ? 'open' : remaining <= 0 ? 'matched' : 'partial';
+
+      rows.push({
+        bankTransactionId: txn.id,
+        amountBase,
+        matchedSum,
+        remaining,
+        reconStatus,
+      });
+    }
+    return rows;
   }
 
   /**

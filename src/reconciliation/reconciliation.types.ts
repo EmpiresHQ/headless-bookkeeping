@@ -61,6 +61,19 @@ export interface MatchProposalView extends MatchProposal {
   voucherRemaining: number;
 }
 
+/** Per-transaction reconciliation state for the operator UI. */
+export interface ReconciliationStatusRow {
+  bankTransactionId: number;
+  /** |amount| converted to BASE currency cents (the matchable total). */
+  amountBase: number;
+  /** SUM(reconciliation_match.amount_matched) for this txn, BASE cents. */
+  matchedSum: number;
+  /** amountBase - matchedSum (>= 0). */
+  remaining: number;
+  /** Derived: 'matched' (remaining 0 & matched>0) | 'partial' | 'open'. */
+  reconStatus: 'matched' | 'partial' | 'open';
+}
+
 /**
  * A persisted reconciliation match record.
  */
