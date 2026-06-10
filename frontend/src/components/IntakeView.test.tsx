@@ -15,10 +15,15 @@ const doc = {
 describe('IntakeView', () => {
   beforeEach(() => {
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([doc]);
+    vi.spyOn(api, 'getDocuments').mockResolvedValue([doc]);
     vi.spyOn(api, 'triageDocument').mockResolvedValue({
       kind: 'expense',
       document_id: 5,
       expense_id: 42,
+    });
+    vi.spyOn(api, 'completeDocument').mockResolvedValue({
+      id: 6,
+      status: 'processed',
     });
   });
   afterEach(() => vi.restoreAllMocks());
@@ -31,5 +36,17 @@ describe('IntakeView', () => {
 
     await waitFor(() => expect(api.triageDocument).toHaveBeenCalledWith(5));
     expect(await screen.findByText(/expense #42/i)).toBeInTheDocument();
+  });
+
+  it('shows a Needs triage section with parked documents and dismisses them', async () => {
+    const parked = { ...doc, id: 6, filename: 'creditnote.pdf', status: 'needs_triage' };
+    vi.spyOn(api, 'getDocuments').mockResolvedValue([doc, parked]);
+
+    render(<IntakeView />);
+    expect(await screen.findByText('creditnote.pdf')).toBeInTheDocument();
+
+    // Dismiss the parked document → completeDocument is called.
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
+    await waitFor(() => expect(api.completeDocument).toHaveBeenCalledWith(6));
   });
 });

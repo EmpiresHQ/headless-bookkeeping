@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   uploadDocument,
   getTriagePending,
+  getDocuments,
   triageDocument,
   completeDocument,
   type DocumentRow,
@@ -16,6 +17,8 @@ function outcomeLabel(o: TriageOutcome): string {
 
 export function IntakeView() {
   const [pending, setPending] = useState<DocumentRow[]>([]);
+  // Documents the workflow parked for a human (status 'needs_triage').
+  const [needsTriage, setNeedsTriage] = useState<DocumentRow[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,8 +27,11 @@ export function IntakeView() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = () =>
-    getTriagePending()
-      .then(setPending)
+    Promise.all([getTriagePending(), getDocuments()])
+      .then(([p, all]) => {
+        setPending(p);
+        setNeedsTriage(all.filter((d) => d.status === 'needs_triage'));
+      })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
   useEffect(() => {
@@ -146,6 +152,68 @@ export function IntakeView() {
               ))}
             </tbody>
           </table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="text-sm font-medium text-gray-700 mb-1">
+          Needs triage
+          <span className="ml-2 text-xs font-normal text-gray-400">
+            parked for a human — the kernel could not act on it automatically
+          </span>
+        </h2>
+        {needsTriage.length === 0 ? (
+          <p className="text-sm text-gray-500">Nothing to triage.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left">
+                  <th className="px-3 py-2 font-medium text-gray-700">ID</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Filename
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Reason</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {needsTriage.map((d) => (
+                  <tr key={d.id} className="border-b align-top">
+                    <td className="px-3 py-2">{d.id}</td>
+                    <td className="px-3 py-2">{d.filename}</td>
+                    <td className="px-3 py-2 text-gray-500">
+                      {outcomes[d.id] ?? (
+                        <span className="text-gray-400">
+                          (click Why? to load)
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 space-x-2 whitespace-nowrap">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void onTriage(d.id)}
+                        className="text-blue-600 hover:underline disabled:opacity-50"
+                      >
+                        Why?
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void onComplete(d.id)}
+                        className="text-gray-600 hover:underline disabled:opacity-50"
+                      >
+                        Dismiss
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

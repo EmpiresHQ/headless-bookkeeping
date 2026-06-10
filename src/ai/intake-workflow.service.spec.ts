@@ -123,6 +123,55 @@ describe('IntakeWorkflowService', () => {
     await db.destroy();
   });
 
+  describe('debug', () => {
+    it('returns the OCR markdown + the LLM classification, leaving status untouched', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: '# Credit note\nRefund for invoice 100',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ kind: 'correction', confidence: 0.88 }),
+      });
+
+      const debug = await service.debug(docId);
+
+      expect(debug.document_id).toBe(docId);
+      expect(debug.ocr).toEqual({
+        ok: true,
+        markdown: '# Credit note\nRefund for invoice 100',
+      });
+      expect(debug.classification?.ok).toBe(true);
+      if (debug.classification?.ok) {
+        expect(debug.classification.result.kind).toBe('correction');
+        expect(debug.classification.result.confidence).toBe(0.88);
+      }
+      // Read-only: the document is not routed.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('pending');
+    });
+
+    it('reports an OCR failure and skips classification', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: false,
+        category: 'unreadable',
+        detail: 'bad scan',
+      });
+
+      const debug = await service.debug(docId);
+
+      expect(debug.ocr).toEqual({
+        ok: false,
+        category: 'unreadable',
+        detail: 'bad scan',
+      });
+      expect(debug.classification).toBeNull();
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+    });
+  });
+
   describe('process — routing', () => {
     it('creates a draft for confident new_expense (confidence >= threshold)', async () => {
       const docId = await seedDocument();

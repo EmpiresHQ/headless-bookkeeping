@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
-import { TriageOutcome } from './types';
+import { TriageOutcome, DocumentDebug } from './types';
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.
@@ -45,5 +45,14 @@ export class TriageService {
       document_id: documentId,
       reason: result.reason,
     };
+  }
+
+  /** Read-only OCR + LLM-classification snapshot for debugging a document. */
+  async debug(documentId: number): Promise<DocumentDebug> {
+    const doc = await this.documents.getById(documentId);
+    if (!doc) {
+      throw new NotFoundException(`Document ${documentId} not found`);
+    }
+    return this.workflow.debug(documentId);
   }
 }

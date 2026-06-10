@@ -82,3 +82,21 @@ export type TriageOutcome =
   | TriageOutcomeExpense
   | TriageOutcomeInvoice
   | TriageOutcomeUnknown;
+
+/**
+ * Read-only debug snapshot for a document: what Pass-1 OCR transcribed and what
+ * Pass-2 (the LLM) classified it as — for understanding a routing decision
+ * (e.g. why a document was tagged 'correction'). Re-runs Pass-2 on the (cached)
+ * OCR markdown; it never changes the document's status or routing.
+ */
+export interface DocumentDebug {
+  document_id: number;
+  ocr:
+    | { ok: true; markdown: string }
+    | { ok: false; category: string; detail: string };
+  // null when OCR failed — there is nothing to classify.
+  classification:
+    | { ok: true; result: TriageResult }
+    | { ok: false; category: string; detail: string }
+    | null;
+}
