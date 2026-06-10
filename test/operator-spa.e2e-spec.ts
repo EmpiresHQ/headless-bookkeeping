@@ -20,9 +20,13 @@ describe('Operator SPA serving (e2e)', () => {
   const distDir = path.join(process.cwd(), 'frontend', 'dist');
   const indexFile = path.join(distDir, 'index.html');
   let createdIndex = false;
+  let createdDir = false;
 
   beforeAll(async () => {
     if (!fs.existsSync(indexFile)) {
+      // Remember whether we had to create the dir so we can remove it cleanly
+      // (a real Vite build owns frontend/dist; the test must not litter it).
+      createdDir = !fs.existsSync(distDir);
       fs.mkdirSync(distDir, { recursive: true });
       fs.writeFileSync(indexFile, '<!doctype html><div id="root">spa</div>');
       createdIndex = true;
@@ -47,6 +51,7 @@ describe('Operator SPA serving (e2e)', () => {
   afterAll(async () => {
     await app?.close();
     if (createdIndex) fs.rmSync(indexFile, { force: true });
+    if (createdDir) fs.rmSync(distDir, { recursive: true, force: true });
   });
 
   it('serves the SPA index at "/" without a token (not guarded)', async () => {
@@ -63,5 +68,12 @@ describe('Operator SPA serving (e2e)', () => {
   it('does not let static serving shadow the /admin path prefix', async () => {
     const res = await request(app.getHttpServer()).get('/admin/settings');
     expect(res.status).toBe(401); // reaches the guard, not the static index
+  });
+
+  it('does not let static serving shadow /health (stays a real route, not the SPA)', async () => {
+    const res = await request(app.getHttpServer()).get('/health');
+    expect(res.status).toBe(200);
+    // The real HealthController returns JSON, not the SPA index HTML.
+    expect(res.text).not.toContain('id="root"');
   });
 });

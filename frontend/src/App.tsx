@@ -26,12 +26,14 @@ export function App() {
         const data = await tab.load();
         if (!cancelled) setRows(data);
       } catch (e) {
-        if (cancelled) return;
-        // apiFetch clears the token on 401; reflect that in the gate.
+        // apiFetch clears the token on 401; reflect that in the gate. This runs
+        // even for a cancelled (stale-tab) effect so a 401 redirects to the gate
+        // immediately, without waiting for the new tab's request to 401 too.
         if (getToken() === null) {
           setHasToken(false);
           return;
         }
+        if (cancelled) return;
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setLoading(false);
