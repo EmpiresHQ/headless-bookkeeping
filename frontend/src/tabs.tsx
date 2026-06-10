@@ -18,6 +18,7 @@ import {
   deleteInvoice,
   deleteEntity,
 } from './api';
+import { KmdView } from './components/KmdView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -117,6 +118,16 @@ const periodsTab: TabDef<ReportingPeriod> = {
   ],
 };
 
+const kmdTab: TabDef = {
+  key: 'kmd',
+  label: 'VAT / KMD',
+  // Custom tabs render their own component; load/columns are unused here but
+  // the TabDef shape requires them.
+  load: async () => [],
+  columns: [],
+  Custom: KmdView,
+};
+
 // Cast to a uniform TabDef<unknown> list — each tab is internally typed.
 export const TABS: TabDef[] = [
   orgTab,
@@ -125,4 +136,5 @@ export const TABS: TabDef[] = [
   invoicesTab,
   documentsTab,
   periodsTab,
+  kmdTab,
 ] as unknown as TabDef[];
