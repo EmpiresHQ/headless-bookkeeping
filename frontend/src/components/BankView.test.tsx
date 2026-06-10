@@ -6,6 +6,9 @@ import * as api from '../api';
 vi.mock('../api', () => ({
   importBankStatement: vi.fn(),
   getBankImportStatus: vi.fn(),
+  listBankStatements: vi.fn(),
+  listBankTransactions: vi.fn(),
+  fmtCents: (cents: number) => (cents / 100).toFixed(2),
 }));
 
 describe('BankView', () => {
@@ -20,6 +23,8 @@ describe('BankView', () => {
       statement_id: 5,
       error: null,
     });
+    vi.mocked(api.listBankStatements).mockResolvedValue([]);
+    vi.mocked(api.listBankTransactions).mockResolvedValue([]);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -41,5 +46,38 @@ describe('BankView', () => {
       await screen.findByText('Created statement #5'),
     ).toBeInTheDocument();
     expect(api.importBankStatement).toHaveBeenCalledWith(file, 'BANK_EUR');
+  });
+
+  it('lists statements and shows transactions on View', async () => {
+    vi.mocked(api.listBankStatements).mockResolvedValue([
+      { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+    ]);
+    vi.mocked(api.listBankTransactions).mockResolvedValue([
+      {
+        id: 1,
+        transaction_date: '2026-05-08',
+        description: 'Invoice 1000',
+        amount: 615700,
+        currency: 'EUR',
+        counterparty_iban: 'DK7430000014041346',
+        counterparty_descriptor: null,
+        reference: 'REF1',
+        status: 'unreconciled',
+      },
+    ]);
+
+    render(<BankView />);
+
+    // The statement row renders its period from the loaded list.
+    expect(
+      await screen.findByText('2026-05-01 → 2026-05-31'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /view/i }));
+
+    // The transaction's amount + counterparty render after the drill-down load.
+    expect(await screen.findByText('6157.00')).toBeInTheDocument();
+    expect(screen.getByText('DK7430000014041346')).toBeInTheDocument();
+    expect(api.listBankTransactions).toHaveBeenCalledWith(5);
   });
 });

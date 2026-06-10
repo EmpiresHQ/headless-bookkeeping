@@ -255,3 +255,31 @@ export const importBankStatement = (file: File, accountCode: string) => {
 
 export const getBankImportStatus = (jobId: number) =>
   apiFetch<BankImportJob>(`/api/bank-statements/import/${jobId}`);
+
+// ── Bank statements + transactions (read) ─────────────────────────────────
+// Display subsets — account_id (a ledger-internal FK) is intentionally omitted
+// per ADR-0001 (the UI shows business objects, never ledger internals).
+export interface BankStatement {
+  id: number;
+  start_date: string;
+  end_date: string;
+  uploaded_at: number; // unix seconds
+}
+
+export interface BankTransaction {
+  id: number;
+  transaction_date: string;
+  description: string | null;
+  amount: number; // signed integer cents
+  currency: string;
+  counterparty_iban: string | null;
+  counterparty_descriptor: string | null;
+  reference: string | null;
+  status: string;
+}
+
+export const listBankStatements = () =>
+  apiFetch<BankStatement[]>('/api/bank-statements');
+
+export const listBankTransactions = (statementId: number) =>
+  apiFetch<BankTransaction[]>(`/api/bank-statements/${statementId}/transactions`);

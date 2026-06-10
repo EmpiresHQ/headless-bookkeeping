@@ -2,10 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import {
   importBankStatement,
   getBankImportStatus,
+  listBankStatements,
+  listBankTransactions,
+  fmtCents,
   type BankImportJob,
+  type BankStatement,
+  type BankTransaction,
 } from '../api';
 
 const POLL_INTERVAL_MS = 1500;
+
+const fmtDate = (unixSeconds: number): string =>
+  new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 
 export function BankView() {
   const [job, setJob] = useState<BankImportJob | null>(null);
@@ -18,10 +26,39 @@ export function BankView() {
   // Guards against state updates from an in-flight poll resolving after unmount.
   const mountedRef = useRef(true);
 
+  // Statements list + the selected statement's transactions.
+  const [statements, setStatements] = useState<BankStatement[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [txns, setTxns] = useState<BankTransaction[]>([]);
+
   const stopPolling = () => {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+  };
+
+  const loadStatements = async () => {
+    try {
+      const list = await listBankStatements();
+      if (!mountedRef.current) return;
+      setStatements(list);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const viewTransactions = async (id: number) => {
+    setSelected(id);
+    setTxns([]);
+    try {
+      const list = await listBankTransactions(id);
+      if (!mountedRef.current) return;
+      setTxns(list);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -31,6 +68,11 @@ export function BankView() {
       mountedRef.current = false;
       stopPolling();
     };
+  }, []);
+
+  // Load the existing statements once on mount.
+  useEffect(() => {
+    void loadStatements();
   }, []);
 
   // Fetches the job once. Returns true while the job is still running, false
@@ -44,6 +86,8 @@ export function BankView() {
       if (j.status === 'running') return true;
       stopPolling();
       setBusy(false);
+      // A finished import adds a statement — refresh the list.
+      if (j.status === 'done') void loadStatements();
       return false;
     } catch (e) {
       stopPolling();
@@ -82,7 +126,7 @@ export function BankView() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-6">
       <div className="flex items-center gap-2">
         <input
           ref={fileRef}
@@ -128,6 +172,100 @@ export function BankView() {
               <span className="text-gray-600">Status: {job.status}</span>
             )}
         </div>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium text-gray-700">Statements</h2>
+        {statements.length === 0 ? (
+          <p className="text-sm text-gray-500">No statements yet.</p>
+        ) : (
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b bg-gray-50 text-left">
+                <th className="px-3 py-2 font-medium text-gray-700">ID</th>
+                <th className="px-3 py-2 font-medium text-gray-700">Period</th>
+                <th className="px-3 py-2 font-medium text-gray-700">Uploaded</th>
+                <th className="px-3 py-2 font-medium text-gray-700"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {statements.map((s) => (
+                <tr key={s.id} className="border-b">
+                  <td className="px-3 py-2">{s.id}</td>
+                  <td className="px-3 py-2">
+                    {s.start_date} → {s.end_date}
+                  </td>
+                  <td className="px-3 py-2">{fmtDate(s.uploaded_at)}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => void viewTransactions(s.id)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {selected !== null && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-gray-700">
+            Transactions — statement #{selected}
+          </h2>
+          {txns.length === 0 ? (
+            <p className="text-sm text-gray-500">No transactions.</p>
+          ) : (
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left">
+                  <th className="px-3 py-2 font-medium text-gray-700">Date</th>
+                  <th className="px-3 py-2 font-medium text-gray-700 text-right">
+                    Amount
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Cur</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Description
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Counterparty
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Ref</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {txns.map((t) => (
+                  <tr key={t.id} className="border-b align-top">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {t.transaction_date}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right tabular-nums ${
+                        t.amount < 0 ? 'text-red-600' : 'text-green-700'
+                      }`}
+                    >
+                      {fmtCents(t.amount)}
+                    </td>
+                    <td className="px-3 py-2">{t.currency}</td>
+                    <td className="px-3 py-2">{t.description ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      {t.counterparty_iban ??
+                        t.counterparty_descriptor ??
+                        '—'}
+                    </td>
+                    <td className="px-3 py-2">{t.reference ?? '—'}</td>
+                    <td className="px-3 py-2">{t.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       )}
     </div>
   );
