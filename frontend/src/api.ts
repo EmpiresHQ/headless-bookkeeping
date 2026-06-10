@@ -145,6 +145,36 @@ export const deleteInvoice = (id: number) =>
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
 
+export interface OnboardEntityInput {
+  role: 'supplier' | 'customer';
+  country: string;
+  name: string;
+  // The strong identity key (e.g. VAT / registry no.) used to match the entity.
+  registrationKey: string;
+  goodsVsServices?: 'goods' | 'services' | 'unknown';
+}
+
+export const onboardEntity = (input: OnboardEntityInput) =>
+  apiFetch<Entity>('/api/entities', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+// Update only the mutable facts; role + registration key are immutable identity.
+export interface UpdateEntityInput {
+  name?: string;
+  country?: string;
+  goodsVsServices?: 'goods' | 'services' | 'unknown';
+}
+
+export const updateEntity = (id: number, input: UpdateEntityInput) =>
+  apiFetch<Entity>(`/api/entities/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
 // ── Intake / triage (POST /api/documents, /triage, /complete) ─────────────
 export type TriageOutcome =
   | { kind: 'expense'; document_id: number; expense_id: number }
