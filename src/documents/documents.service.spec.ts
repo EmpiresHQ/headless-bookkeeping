@@ -1,3 +1,4 @@
+import { NotFoundException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -194,6 +195,70 @@ describe('DocumentsService (unit)', () => {
     it('throws NotFoundException for a missing id', async () => {
       await expect(service.getFile(9999)).rejects.toThrow(
         'Document 9999 not found',
+      );
+    });
+  });
+
+  describe('deleteDocument', () => {
+    const upload = () =>
+      service.upload({
+        buffer: Buffer.from('junk upload'),
+        filename: 'junk.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+    it('deletes the document, its sources and its file', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+      await expect(fs.readFile(join(storageRoot, path))).resolves.toBeTruthy();
+
+      await service.deleteDocument(document.id);
+
+      await expect(service.getById(document.id)).rejects.toThrow(
+        `Document ${document.id} not found`,
+      );
+      const sources = await db
+        .selectFrom('document_source')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(sources).toHaveLength(0);
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
+    });
+
+    it('refuses (409) to delete a document attached to an expense', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'draft',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Still present.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+    });
+
+    it('throws NotFoundException for a missing document', async () => {
+      await expect(service.deleteDocument(9999)).rejects.toBeInstanceOf(
+        NotFoundException,
       );
     });
   });

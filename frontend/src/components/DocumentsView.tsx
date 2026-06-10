@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getDocuments,
   getDocumentDebug,
+  deleteDocument,
   type DocumentRow,
   type DocumentDebug,
 } from '../api';
@@ -59,12 +60,34 @@ export function DocumentsView() {
   const [selected, setSelected] = useState<number | null>(null);
   const [debug, setDebug] = useState<DocumentDebug | null>(null);
   const [debugBusy, setDebugBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  const load = () =>
     getDocuments()
       .then(setDocs)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+
+  useEffect(() => {
+    void load();
   }, []);
+
+  const onDelete = async (d: DocumentRow) => {
+    if (!window.confirm(`Delete document #${d.id} "${d.filename}"?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteDocument(d.id);
+      if (selected === d.id) {
+        setSelected(null);
+        setDebug(null);
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const runDebug = async (id: number) => {
     setSelected(id);
@@ -103,7 +126,7 @@ export function DocumentsView() {
               <td className="px-3 py-2">{d.mime_type}</td>
               <td className="px-3 py-2">{(d.size_bytes / 1024).toFixed(1)} KB</td>
               <td className="px-3 py-2">{d.status}</td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2 space-x-3 whitespace-nowrap">
                 <button
                   type="button"
                   disabled={debugBusy && selected === d.id}
@@ -111,6 +134,14 @@ export function DocumentsView() {
                   className="text-blue-600 hover:underline disabled:opacity-50"
                 >
                   Debug
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onDelete(d)}
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Delete
                 </button>
               </td>
             </tr>

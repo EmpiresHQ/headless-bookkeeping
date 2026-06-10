@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { createHash } from 'crypto';
@@ -143,6 +147,68 @@ export class DocumentsService {
       .set({ status })
       .where('id', '=', id)
       .execute();
+  }
+
+  /**
+   * Delete a document and its owned dependents (sources, OCR/artifact rows, and
+   * the stored files). Atomic. Refuses (409) to delete a document that is
+   * evidence for an expense or linked to a conversation — those references make
+   * it part of a booked/threaded record, not a stray upload. Throws 404 if the
+   * document does not exist.
+   */
+  async deleteDocument(id: number): Promise<void> {
+    const filePaths = await this.db.transaction().execute(async (trx) => {
+      const doc = await trx
+        .selectFrom('document')
+        .select(['id', 'storage_path'])
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!doc) throw new NotFoundException(`Document ${id} not found`);
+
+      const expense = await trx
+        .selectFrom('expense')
+        .select('id')
+        .where('document_id', '=', id)
+        .executeTakeFirst();
+      if (expense) {
+        throw new ConflictException(
+          `Document ${id} is attached to expense #${expense.id} and cannot be deleted`,
+        );
+      }
+      const conv = await trx
+        .selectFrom('conversation_document')
+        .select('document_id')
+        .where('document_id', '=', id)
+        .executeTakeFirst();
+      if (conv) {
+        throw new ConflictException(
+          `Document ${id} is linked to a conversation and cannot be deleted`,
+        );
+      }
+
+      const artifacts = await trx
+        .selectFrom('artifact')
+        .select('storage_path')
+        .where('document_id', '=', id)
+        .execute();
+      const paths = [
+        doc.storage_path,
+        ...artifacts.map((a) => a.storage_path),
+      ].filter((p): p is string => p !== null);
+
+      await trx.deleteFrom('artifact').where('document_id', '=', id).execute();
+      await trx
+        .deleteFrom('document_source')
+        .where('document_id', '=', id)
+        .execute();
+      await trx.deleteFrom('document').where('id', '=', id).execute();
+      return paths;
+    });
+
+    // Best-effort file cleanup once the rows are committed.
+    for (const p of filePaths) {
+      await this.storage.deleteFile(p);
+    }
   }
 
   async hydrate(document: Document): Promise<DocumentWithSources> {
