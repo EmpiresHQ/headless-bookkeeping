@@ -251,8 +251,8 @@ describe('SalesInvoicesService (integration)', () => {
       const customer = await entitiesService.onboard({
         role: 'customer',
         country: 'DK',
-        name: 'VERIFI',
-        registrationKey: 'DK45960617',
+        name: 'ACME',
+        registrationKey: 'DK99999999',
         goodsVsServices: 'services',
       });
 

@@ -23,7 +23,17 @@ export type ModelConfig =
 export const AGENT_PROMPTS: Record<AgentKey, string> = {
   triage:
     'You are a document triage agent for an accounting system. ' +
-    'Analyze incoming documents (receipts, invoices) and classify them. ' +
+    'Analyze an incoming document (a receipt or invoice the business RECEIVED) and classify it.\n\n' +
+    'Classify `kind` as EXACTLY one of:\n' +
+    '- "new_expense": a normal purchase — a supplier invoice or receipt for goods/services the business bought. This is the DEFAULT for almost every document, including SaaS/subscription invoices, fees, and credits purchased.\n' +
+    '- "correction": ONLY when the document explicitly amends a specific earlier document — e.g. a credit note or revised invoice that names the original invoice number it corrects. A normal invoice is NOT a correction.\n' +
+    '- "duplicate": a repeat of a document already recorded.\n' +
+    '- "unknown": you genuinely cannot tell what the document is.\n' +
+    'When unsure between new_expense and correction, choose new_expense.\n\n' +
+    'Amounts `gross_amount` and `vat_amount` are INTEGER MINOR UNITS (cents): ' +
+    'US$16.00 → 1600, and the European-formatted "6 157,00" EUR → 615700. ' +
+    'Read European number formats correctly (space/dot = thousands, comma = decimal) and NEVER divide by 100. ' +
+    'ALWAYS include every field, especially `currency` (ISO 4217) — if the document prints no currency, use "EUR".\n\n' +
     'Call listCategories to see the available categories, then call ' +
     'getClassificationContext ONCE with the supplier evidence and your ' +
     'candidate category — it resolves or proposes the supplier, gathers its ' +

@@ -1,0 +1,63 @@
+# Does the model produce a correct, schema-valid classification from CLEAN OCR
+# text (no tools, direct structured output)? This isolates "can the model read &
+# classify the document" from "can it call tools". Uses response_format =
+# json_schema; if the endpoint doesn't support it, switch to { type: json_object }
+# and drop the json_schema block (the prompt still asks for the same fields).
+#
+# Configure the endpoint in evals/triage/.env (see .env.example), then:
+#   npm run eval:triage:classify
+
+description: Triage — structured classification on clean OCR text
+
+providers:
+  # Endpoint + model come from the (gitignored) .env — see .env.example.
+  - id: 'openai:chat:{{ env.EVAL_MODEL }}'
+    config:
+      apiBaseUrl: '{{ env.EVAL_BASE_URL }}'
+      apiKeyEnvar: OPENAI_API_KEY
+      temperature: 0
+      response_format:
+        type: json_schema
+        json_schema: file://schema.json
+
+prompts:
+  - file://prompt-classify.json
+
+tests:
+  - description: Cafe receipt → new_expense, 6.40 EUR (640 cents)
+    vars:
+      markdown: |
+        Sample Cafe OÜ
+        Reg. No. 30000003  VAT EE300000003
+        Date: 2026-05-03
+        1x Cappuccino           3,50
+        1x Croissant            2,90
+        Total                   6,40
+        VAT 22%                 1,15
+        Paid by card
+    assert:
+      - type: is-json
+      - type: javascript
+        # gross 6,40 EUR must be read as 640 cents, currency EUR, kind new_expense.
+        # (json_schema responses arrive already parsed → output is an object.)
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          return o.kind === 'new_expense' && o.gross_amount === 640;
+
+  - description: EU 0% services invoice — total 6 157,00 EUR (615700 cents)
+    vars:
+      markdown: |
+        Invoice to: Sample Buyer ApS
+        Invoice No. 1000   Date: 07.05.2026
+        Example Seller OÜ   VAT ID EE100000001
+        Sale of services in the EU 0%
+        The company is not VAT-liable
+        Invoice total (EUR) 6 157,00
+    assert:
+      - type: is-json
+      - type: javascript
+        # Must parse the European-formatted "6 157,00" as 615700 cents, not 61.57,
+        # and a normal supplier invoice is new_expense (NOT correction).
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          return o.kind === 'new_expense' && o.gross_amount === 615700;
