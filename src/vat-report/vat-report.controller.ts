@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { VatReportService } from './vat-report.service';
-import type { VatReport } from './types';
+import type { VatReport, KmdDeclaration } from './types';
 
 @ApiTags('vat-report')
 @Controller('api')
@@ -27,6 +27,15 @@ export class VatReportController {
     @Param('id', ParseIntPipe) periodId: number,
   ): Promise<VatReport> {
     return this.service.generate(periodId);
+  }
+
+  /**
+   * List all VAT report snapshots.
+   * GET /api/vat-reports
+   */
+  @Get('vat-reports')
+  async list(): Promise<{ vat_reports: VatReport[] }> {
+    return { vat_reports: await this.service.list() };
   }
 
   /**
@@ -48,6 +57,20 @@ export class VatReportController {
   ): Promise<{ voucher_ids: number[] }> {
     const voucherIds = await this.service.getVoucherIds(id);
     return { voucher_ids: voucherIds };
+  }
+
+  /**
+   * Build the jurisdiction VAT-return (KMD) declaration for a reporting period —
+   * a derived, read-only view (the country plugin maps each base VAT code to its
+   * return rows). `review_flags` lists what the accountant must confirm before
+   * filing, and `vd_intra_eu_services` is the 3S total for the manual VD form.
+   * GET /api/reporting-periods/:id/kmd
+   */
+  @Get('reporting-periods/:id/kmd')
+  async kmd(
+    @Param('id', ParseIntPipe) periodId: number,
+  ): Promise<KmdDeclaration> {
+    return this.service.buildDeclaration(periodId);
   }
 
   // ── Immutability: VAT reports can never be modified ──────────────────

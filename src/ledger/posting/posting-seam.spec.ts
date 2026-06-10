@@ -9,6 +9,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Database } from '../../database/types';
 import { migrations } from '../../database/migrations';
 import { OrganizationService } from '../../organization/organization.service';
+import { OrgContextResolver } from '../../organization/org-context.resolver';
 import { PluginLoader } from '../../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../../plugins/estonia-country.plugin';
@@ -69,6 +70,7 @@ describe('Posting seam consolidation (integration)', () => {
         NullCountryPlugin,
         EstoniaCountryPlugin,
         PluginLoader,
+        OrgContextResolver,
         CurrencyService,
         AccountService,
         LedgerValidationService,

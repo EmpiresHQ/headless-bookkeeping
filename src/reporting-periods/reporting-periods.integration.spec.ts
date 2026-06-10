@@ -6,6 +6,10 @@ import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from './reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { OrganizationService } from '../organization/organization.service';
 
 /**
  * Integration test for ReportingPeriodsService against a real in-memory
@@ -51,6 +55,8 @@ describe('ReportingPeriodsService (integration)', () => {
     const vatReportService = new VatReportService(
       db,
       new LedgerBalanceService(db),
+      new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
+      new OrganizationService(db),
     );
     service = new ReportingPeriodsService(db, vatReportService);
   });
@@ -119,5 +125,46 @@ describe('ReportingPeriodsService (integration)', () => {
       end_date: '2024-06-30',
     });
     expect(created.name).toBe('2024-Q2');
+  });
+
+  it('(e) deleteEmptyPeriod removes an empty open period', async () => {
+    const p = await service.create({
+      name: '2024-Q2',
+      start_date: '2024-04-01',
+      end_date: '2024-06-30',
+    });
+    const deleted = await service.deleteEmptyPeriod(p.id);
+    expect(deleted.id).toBe(p.id);
+    const names = (await service.list()).map((x) => x.name);
+    expect(names).not.toContain('2024-Q2');
+  });
+
+  it('(f) refuses to delete a period that has vouchers', async () => {
+    const p = await service.create({
+      name: '2026',
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+    });
+    await db
+      .insertInto('voucher')
+      .values({ voucher_number: 'V-IN-2026', tax_point_date: '2026-06-15' })
+      .execute();
+    await expect(service.deleteEmptyPeriod(p.id)).rejects.toThrow(/vouchers/i);
+  });
+
+  it('(g) refuses to delete a locked period', async () => {
+    await db
+      .updateTable('reporting_period')
+      .set({ status: 'locked' })
+      .where('name', '=', '2024-Q1')
+      .execute();
+    const q1 = (await service.list()).find((x) => x.name === '2024-Q1')!;
+    await expect(service.deleteEmptyPeriod(q1.id)).rejects.toThrow(/locked/i);
+  });
+
+  it('(h) throws NotFound for a missing id', async () => {
+    await expect(service.deleteEmptyPeriod(9999)).rejects.toThrow(
+      'Reporting period 9999 not found',
+    );
   });
 });

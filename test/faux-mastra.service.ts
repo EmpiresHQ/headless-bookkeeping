@@ -2,11 +2,12 @@ import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { MastraService } from '../src/ai/mastra.service';
 
 export const fauxMastraService: MastraService = {
-  onModuleInit: async () => {},
-  initialize: async () => {},
-  getMastra: () => null,
-  getAgent: () => null,
-  isInitialized: () => false,
+  // The agent builders reject so any path that reaches the real LLM in an e2e
+  // (where there is no inference endpoint) fails fast and visibly rather than
+  // hanging. Suites that exercise classification override Pass2AgentService too.
+  buildTriageAgent: () => Promise.reject(new Error('faux: no agent in e2e')),
+  buildBankMappingAgent: () =>
+    Promise.reject(new Error('faux: no agent in e2e')),
 } as unknown as MastraService;
 
 /**

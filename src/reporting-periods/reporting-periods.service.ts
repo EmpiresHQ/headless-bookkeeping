@@ -44,6 +44,40 @@ export class ReportingPeriodsService {
     return this.mapRow(row);
   }
 
+  /**
+   * Delete a reporting period — ONLY if it is empty (open, never filed, with no
+   * vouchers tax-point-dated inside it). Lets an operator undo a mistakenly
+   * created period (there is no other removal path). A `locked` period or one
+   * that already has vouchers is never deletable — those are corrected via the
+   * normal reversal/correction flows.
+   */
+  async deleteEmptyPeriod(id: number): Promise<ReportingPeriod> {
+    const period = await this.getById(id); // 404s if unknown
+
+    if (period.status === 'locked') {
+      throw new ConflictException(
+        `Reporting period ${id} (${period.name}) is locked — cannot delete a filed period.`,
+      );
+    }
+
+    const voucher = await this.db
+      .selectFrom('voucher')
+      .select('id')
+      .where('tax_point_date', '>=', period.start_date)
+      .where('tax_point_date', '<=', period.end_date)
+      .limit(1)
+      .executeTakeFirst();
+    if (voucher) {
+      throw new ConflictException(
+        `Reporting period ${id} (${period.name}) has vouchers — only an empty period can be deleted.`,
+      );
+    }
+
+    await this.db.deleteFrom('reporting_period').where('id', '=', id).execute();
+
+    return period;
+  }
+
   async getCurrent(): Promise<ReportingPeriod> {
     const row = await this.db
       .selectFrom('reporting_period')

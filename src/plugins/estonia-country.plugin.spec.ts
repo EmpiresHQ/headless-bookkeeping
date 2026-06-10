@@ -54,6 +54,32 @@ describe('EstoniaCountryPlugin — VAT core', () => {
     });
   });
 
+  it('maps revenue to an EU B2B customer of services → 0% intra-EU käive (Art 196)', () => {
+    const dkCustomer: SupplierFacts = {
+      country: 'DK',
+      goodsVsServices: 'services',
+      classificationMemory: [],
+    };
+    expect(ee.resolveCategoryMapping('revenue', dkCustomer, org)).toEqual({
+      accountCode: 'REVENUE',
+      vatCode: 'EE_OUTPUT_0_EU',
+    });
+  });
+
+  it('keeps standard 24% revenue for a non-EU (export) customer — outside the intra-EU rule', () => {
+    const usCustomer: SupplierFacts = {
+      country: 'US',
+      goodsVsServices: 'services',
+      classificationMemory: [],
+    };
+    // Non-EU export of services is 0% too, but it is NOT the intra-EU (VD 3S)
+    // case; we keep the standard code here so the report does not raise a VD
+    // entry for it. (Refining export 0% is tracked separately.)
+    expect(ee.resolveCategoryMapping('revenue', usCustomer, org).vatCode).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
   it('validateVATCode accepts the EE set + sentinel, rejects unknown', () => {
     expect(
       ee.validateVATCode('EE_INPUT_24', { supplier: eeSupplier, org }),
@@ -117,12 +143,22 @@ describe('EstoniaCountryPlugin — cross-border', () => {
       }).treatment,
     ).toBe('import');
   });
-  it('non-EU services (US) with foreign VAT charged → foreign_cost (no reclaim), vatCode null', () => {
+  // Imported B2B services: place of supply is Estonia (KMS §10), so the buyer
+  // self-assesses regardless of whether the supplier sits inside or outside the
+  // EU. Non-EU service imports are reverse_charge just like intra-EU ones.
+  it('non-EU services (US, no VAT) → reverse_charge, EE_REVERSE_CHARGE', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('US', 'services'), org, {
+        vatCharged: false,
+      }),
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
+  });
+  it('non-EU services (US) with foreign tax charged → still reverse_charge (foreign tax is not reclaimable EE VAT)', () => {
     expect(
       ee.resolveCrossBorderTreatment(mk('US', 'services'), org, {
         vatCharged: true,
       }),
-    ).toEqual({ treatment: 'foreign_cost', vatCode: null });
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
   });
 });
 
@@ -195,5 +231,56 @@ describe('EstoniaCountryPlugin — retrieval + distribution tax', () => {
     // net 100000 + tax 28205 = 128205 total equity hit
     expect(ee.assertDistributable(100000, 128205, org)).toBe(true);
     expect(ee.assertDistributable(100000, 128204, org)).toBe(false);
+  });
+});
+
+describe('EstoniaCountryPlugin — KMD row classification', () => {
+  const ee = new EstoniaCountryPlugin();
+
+  it('standard 24% output → row 1', () => {
+    expect(ee.classifyKmd('EE_OUTPUT_24')).toEqual({
+      outputBaseRow: 1,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    });
+  });
+
+  it('9% output → row 2', () => {
+    expect(ee.classifyKmd('EE_OUTPUT_9').outputBaseRow).toBe(2);
+  });
+
+  it('0% intra-EU service → row 3 + VD tähis 3S', () => {
+    expect(ee.classifyKmd('EE_OUTPUT_0_EU')).toEqual({
+      outputBaseRow: 3,
+      acquisitionRow: null,
+      vdCode: '3S',
+      review: null,
+    });
+  });
+
+  it('plain 0% (export/other) → row 3, no VD', () => {
+    expect(ee.classifyKmd('EE_ZERO')).toEqual({
+      outputBaseRow: 3,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    });
+  });
+
+  it('reverse charge → self-assessed supply (row 1) + acquisition (row 7), flagged for 6-vs-7 review', () => {
+    const c = ee.classifyKmd('EE_REVERSE_CHARGE');
+    expect(c.outputBaseRow).toBe(1);
+    expect(c.acquisitionRow).toBe(7);
+    expect(c.review).toMatch(/row 6.*7|intra-EU/i);
+  });
+
+  it('domestic input 24% feeds only the input-VAT total (no base row)', () => {
+    expect(ee.classifyKmd('EE_INPUT_24')).toEqual({
+      outputBaseRow: null,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    });
   });
 });

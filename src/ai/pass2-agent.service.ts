@@ -77,14 +77,17 @@ export class Pass2AgentService {
    *          or failure with an explicit category.
    */
   async classify(markdown: string): Promise<Pass2Outcome> {
-    const agent = this.mastraService.getAgent();
-    if (!agent) {
-      this.logger.error('Mastra agent not initialized');
-      return {
-        ok: false,
-        category: 'agent-unavailable',
-        detail: 'Mastra agent not initialized',
-      };
+    // Build the triage agent on demand so the current settings-backed model /
+    // prompt / inference endpoint apply to this classification. A build failure
+    // (missing model credentials, @mastra runtime unavailable) is the
+    // `agent-unavailable` case.
+    let agent: Awaited<ReturnType<MastraService['buildTriageAgent']>>;
+    try {
+      agent = await this.mastraService.buildTriageAgent();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Mastra triage agent unavailable: ${detail}`);
+      return { ok: false, category: 'agent-unavailable', detail };
     }
 
     // Track whether any attempt produced parseable-but-invalid output (vs.

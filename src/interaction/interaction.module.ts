@@ -12,6 +12,7 @@ import { InteractionConfigService } from './config/interaction-config.service';
 import { PrincipalResolverService } from './principal/principal-resolver.service';
 import { IntentClassifierService } from './router/intent-classifier.service';
 import { FlowDispatcher, NoopFlowDispatcher } from './router/flow-dispatcher';
+import { InteractionGateService } from './router/interaction-gate.service';
 import { InteractionRouterService } from './router/interaction-router.service';
 import {
   TransportRegistryService,
@@ -37,6 +38,7 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     InteractionConfigService,
     PrincipalResolverService,
     IntentClassifierService,
+    InteractionGateService,
     InteractionRouterService,
     TransportRegistryService,
     // 8a: non-recording production stub; 8b binds the real flows here.
@@ -63,10 +65,6 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     },
   ],
 })
-export class InteractionModule {
-  // IntentClassifierService must be initialized at boot; do it in onModuleInit.
-  constructor(private readonly classifier: IntentClassifierService) {}
-  async onModuleInit(): Promise<void> {
-    await this.classifier.initialize();
-  }
-}
+// The intent-classifier agent is built on demand per message (settings-backed),
+// so there is no boot-time initialization to perform here.
+export class InteractionModule {}

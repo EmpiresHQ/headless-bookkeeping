@@ -13,6 +13,7 @@ import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import type { Agent } from '@mastra/core/agent';
 import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
@@ -60,6 +61,7 @@ describe('Pass2AgentService', () => {
         NullCountryPlugin,
         EstoniaCountryPlugin,
         PluginLoader,
+        OrgContextResolver,
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
@@ -72,11 +74,6 @@ describe('Pass2AgentService', () => {
 
     service = module.get(Pass2AgentService);
     mastraService = module.get(MastraService);
-
-    // initialize() statically imports @mastra/*; under Jest those specifiers
-    // map to test/mastra-stub.ts (moduleNameMapper), whose Agent exposes a
-    // jest-spyable generate() returning a FullOutput-shaped object.
-    await mastraService.initialize();
   });
 
   afterEach(async () => {
@@ -84,14 +81,13 @@ describe('Pass2AgentService', () => {
   });
 
   /**
-   * Resolve the initialized triage Agent, asserting it is non-null so the spy
-   * has a concrete target (the stub Agent, via moduleNameMapper).
+   * Build a triage Agent (the stub Agent, via moduleNameMapper) and pin
+   * buildTriageAgent() to return it, so classify()'s on-demand build resolves to
+   * this same instance — giving the spy a concrete generate() target.
    */
-  const requireAgent = (): NonNullable<
-    ReturnType<MastraService['getAgent']>
-  > => {
-    const agent = mastraService.getAgent();
-    if (!agent) throw new Error('agent not initialized');
+  const requireAgent = async (): Promise<Agent> => {
+    const agent = await mastraService.buildTriageAgent();
+    jest.spyOn(mastraService, 'buildTriageAgent').mockResolvedValue(agent);
     return agent;
   };
 
@@ -104,7 +100,7 @@ describe('Pass2AgentService', () => {
 
   describe('classify', () => {
     it('returns a valid TriageResult for well-formed markdown', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const mockResult = sampleTriageResult();
       jest
         .spyOn(agent, 'generate')
@@ -129,30 +125,14 @@ describe('Pass2AgentService', () => {
       }
     });
 
-    it('returns agent-unavailable when agent is not initialized', async () => {
-      // A MastraService whose initialize() was never called leaves getAgent()
-      // null — no DI graph needed to exercise the unavailable path.
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
-          OrganizationService,
-          NullCountryPlugin,
-          EstoniaCountryPlugin,
-          PluginLoader,
-          CurrencyService,
-          VoucherProjectionService,
-          EntitiesService,
-          ExpensesService,
-          AgentConfigService,
-          MastraService,
-          Pass2AgentService,
-        ],
-      }).compile();
+    it('returns agent-unavailable when the agent cannot be built', async () => {
+      // The @mastra runtime / model credentials are unavailable: buildTriageAgent
+      // rejects, and classify() maps that to the agent-unavailable category.
+      jest
+        .spyOn(mastraService, 'buildTriageAgent')
+        .mockRejectedValue(new Error('Mastra runtime unavailable'));
 
-      const uninitializedMastra = module.get(MastraService);
-      const freshService = new Pass2AgentService(uninitializedMastra);
-
-      const result = await freshService.classify('some markdown');
+      const result = await service.classify('some markdown');
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -161,7 +141,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('retries on invalid output and reports invalid-output after max attempts', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       // generate() resolves with an object that fails Zod validation
       // (missing required fields).
       const invalidOutput = {
@@ -185,7 +165,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('retries on generate() error and succeeds on second attempt', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const mockResult = sampleTriageResult();
 
       const generateSpy = jest
@@ -205,7 +185,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('output never contains vat_code or account (grep clean)', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const mockResult = sampleTriageResult();
       jest
         .spyOn(agent, 'generate')
@@ -225,7 +205,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('agent uses the correct read-only tool set', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const toolNames = Object.keys((await agent.listTools()) ?? {});
 
       expect(toolNames).toContain('searchSuppliers');
@@ -246,7 +226,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('reports transient when generate() throws every time', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const generateSpy = jest
         .spyOn(agent, 'generate')
         .mockRejectedValue(new Error('persistent failure'));
@@ -261,7 +241,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('validates currency is 3 characters', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const invalidResult = {
         ...sampleTriageResult(),
         currency: 'EURO', // 4 chars, should fail z.string().length(3)
@@ -279,7 +259,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('validates confidence is between 0 and 1', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const invalidResult = {
         ...sampleTriageResult(),
         confidence: 1.5, // > 1, should fail z.number().min(0).max(1)
@@ -297,7 +277,7 @@ describe('Pass2AgentService', () => {
     });
 
     it('validates kind is a valid enum value', async () => {
-      const agent = requireAgent();
+      const agent = await requireAgent();
       const invalidResult = {
         ...sampleTriageResult(),
         kind: 'invalid_kind',

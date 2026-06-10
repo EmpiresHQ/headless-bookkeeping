@@ -1,4 +1,4 @@
-export type AgentKey = 'triage' | 'intent_classifier';
+export type AgentKey = 'triage' | 'intent_classifier' | 'ocr' | 'bank_mapping';
 
 /** The SOLE hardcoded model literal in the codebase — the bootstrap default used
  * only when neither a per-agent nor a global `ai_model` setting exists. */
@@ -8,6 +8,15 @@ export interface ResolvedAgentConfig {
   model: string;
   instructions: string;
 }
+
+/**
+ * What an Agent's `model` is given. A bare provider/model id (resolved by
+ * Mastra's gateway against provider defaults) when no custom endpoint is set,
+ * or an OpenAI-compatible config aiming inference at a chosen base URL + key.
+ */
+export type ModelConfig =
+  | string
+  | { id: `${string}/${string}`; url: string; apiKey?: string };
 
 /** Default instructions per agent. Overridable at runtime by a `prompt.<key>` setting row.
  * These were moved verbatim from mastra.service.ts / intent-classifier.service.ts. */
@@ -41,4 +50,18 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
 - report: the user wants a report; set reportKind.
 - reconciliation: the user is resolving a bank line.
 - clarify: you are NOT confident. Set a short question. Prefer clarify over guessing.`,
+  // dots.ocr (served via LiteLLM) ignores the prompt — it transcribes layout
+  // regardless. This text is sent only to satisfy the chat/completions content
+  // shape (a vision message needs a text part); it is not operator-overridable.
+  ocr: 'Transcribe this document to markdown.',
+  bank_mapping:
+    'You map a bank-statement CSV onto a fixed ruleset. You are given the ' +
+    'CSV header row and a few sample data rows. Return ONLY the structured ' +
+    'mapping: which header holds the date (with its format), how the signed ' +
+    'amount is derived (a single signed column, or a magnitude column plus a ' +
+    'debit/credit indicator column and which value means debit), the currency ' +
+    'column or a default currency, and the columns for description, ' +
+    'counterparty IBAN, counterparty descriptor, and reference (null when ' +
+    'absent). Also choose the BANK_* account_code for this statement. Do NOT ' +
+    'output transaction data — only the rules for reading it.',
 };

@@ -12,6 +12,10 @@ class FakeAgentConfig {
       instructions: AGENT_PROMPTS.intent_classifier,
     });
   }
+
+  resolveModelConfig(): Promise<string> {
+    return Promise.resolve(DEFAULT_MODEL);
+  }
 }
 
 describe('IntentClassifierService', () => {
@@ -25,11 +29,20 @@ describe('IntentClassifierService', () => {
       ],
     }).compile();
     service = module.get(IntentClassifierService);
-    await service.initialize();
   });
 
+  /**
+   * Build the (stub) agent and pin buildAgent() to return it, so classify()'s
+   * on-demand build resolves to this instance and the generate() spy applies.
+   */
+  const pinAgent = async (): Promise<Agent> => {
+    const agent = await service.buildAgent();
+    jest.spyOn(service, 'buildAgent').mockResolvedValue(agent);
+    return agent;
+  };
+
   it('returns the agent-classified action intent', async () => {
-    const agent: Agent = service.agentForTest();
+    const agent: Agent = await pinAgent();
     jest.spyOn(agent, 'generate').mockResolvedValue({
       object: {
         kind: 'action',
@@ -48,7 +61,7 @@ describe('IntentClassifierService', () => {
   });
 
   it('degrades an unparseable agent output to a clarify (never throws)', async () => {
-    const agent: Agent = service.agentForTest();
+    const agent: Agent = await pinAgent();
     jest
       .spyOn(agent, 'generate')
       .mockResolvedValue({ object: { kind: 'banana' }, text: '' });

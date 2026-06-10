@@ -10,6 +10,7 @@ import { DOCUMENT_STORAGE_ROOT } from '../src/documents/document-storage.service
 import { AppModule } from '../src/app.module';
 import { MastraService } from '../src/ai/mastra.service';
 import { Pass2AgentService, Pass2Outcome } from '../src/ai/pass2-agent.service';
+import { DocumentTranscriber } from '../src/triage/document-transcriber.port';
 import { fauxMastraService } from './faux-mastra.service';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -20,11 +21,16 @@ import { createHash } from 'crypto';
 
 /**
  * End-to-end test for the full intake pipeline:
- *   Document upload → dedup → triage (OCR stub) → posting pipeline → completion.
+ *   Document upload → dedup → triage → posting pipeline → completion.
  *
  * Boots the full AppModule against an in-memory SQLite DB seeded by the real
  * migrations, with a temp directory for document storage.  Exercises the HTTP
  * layer via supertest.
+ *
+ * Pass-1 (OCR) is faked with a {@link DocumentTranscriber} stub that always
+ * returns ok markdown — there is no OCR engine in the test env. The intake
+ * DECISION is driven by the faux Pass-2 agent below, which classifies by the
+ * document filename, so the markdown content itself is irrelevant here.
  */
 describe('Intake E2E (document → draft → pipeline)', () => {
   let app: INestApplication<App>;
@@ -135,6 +141,13 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .useValue(fauxMastraService)
       .overrideProvider(Pass2AgentService)
       .useValue(fauxPass2)
+      // Pass-1: no OCR engine in the test env — return ok markdown so the
+      // workflow reaches the (filename-driven) faux Pass-2 instead of routing to
+      // needs_triage on a provider-unavailable transcription.
+      .overrideProvider(DocumentTranscriber)
+      .useValue({
+        transcribe: () => Promise.resolve({ ok: true, markdown: '# Stub OCR' }),
+      })
       .compile();
 
     app = module.createNestApplication();
@@ -160,7 +173,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
   // ── scenario 1: full intake flow (odd id → Expense) ───────────
 
   it('scenario 1: full intake flow (odd id → Expense)', async () => {
-    // 1. Upload — odd id → OCR stub returns receipt
+    // 1. Upload a receipt — faux Pass-2 classifies 'receipt.pdf' as a new_expense
     const doc = await request(app.getHttpServer())
       .post('/api/documents')
       .set('Authorization', `Bearer ${apiToken}`)
@@ -302,7 +315,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .attach('file', buf('dummy'), 'dummy.pdf')
       .expect(201);
 
-    // 2. Upload → even id 2 → OCR stub returns invoice
+    // 2. Upload an invoice — faux Pass-2 classifies 'invoice.pdf' as unknown
     const upload = await request(app.getHttpServer())
       .post('/api/documents')
       .set('Authorization', `Bearer ${apiToken}`)

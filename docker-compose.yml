@@ -15,6 +15,12 @@ services:
       timeout: 10s
       retries: 3
 
+  # Pass-1 OCR has no sidecar (ADR-0032): born-digital PDFs are text-extracted
+  # in-process (pdf-parse); images & scanned PDFs are OCR'd by an external
+  # OpenAI-compatible vision endpoint (LiteLLM/dots.ocr) configured via admin
+  # settings (ai_base_url / ai_api_key / ai_model.ocr). Scanned PDFs are
+  # rasterised with poppler (pdftoppm), installed in the app image.
+
   test:
     build:
       context: .

@@ -25,6 +25,7 @@ import {
   TransportRegistryService,
   INTERACTION_TRANSPORTS,
 } from '../../transport/transport-registry.service';
+import { InteractionGateService } from '../../router/interaction-gate.service';
 import { InteractionRouterService } from '../../router/interaction-router.service';
 import { TelegramTransportService } from './telegram-transport.service';
 import { TelegramApi } from './telegram-api.port';
@@ -83,13 +84,13 @@ describe('TelegramWebhookController (integration)', () => {
         },
         TransportRegistryService,
         AuditLogService,
+        InteractionGateService,
         InteractionRouterService,
       ],
     }).compile();
 
     controller = module.get(TelegramWebhookController);
     classifier = module.get(IntentClassifierService);
-    await classifier.initialize();
     jest.spyOn(classifier, 'classify').mockResolvedValue({ kind: 'advisory' });
 
     await db

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   ParseIntPipe,
@@ -29,5 +30,11 @@ export class BankStatementController {
   @Get(':id/transactions')
   async listTransactions(@Param('id', ParseIntPipe) id: number) {
     return this.service.listTransactions(id);
+  }
+
+  @Delete(':id')
+  async deleteStatement(@Param('id', ParseIntPipe) id: number) {
+    await this.service.deleteStatement(id);
+    return { deleted: id };
   }
 }

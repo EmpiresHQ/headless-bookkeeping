@@ -79,4 +79,44 @@ describe('AgentConfigService (integration)', () => {
       instructions: AGENT_PROMPTS.triage,
     });
   });
+
+  describe('resolveModelConfig', () => {
+    it('returns the bare model string when no ai_base_url is set', async () => {
+      await expect(config.resolveModelConfig('triage')).resolves.toBe(
+        DEFAULT_MODEL,
+      );
+    });
+
+    it('returns an OpenAI-compatible config object when ai_base_url + ai_api_key + ai_model are set', async () => {
+      await set('ai_base_url', 'https://openrouter.ai/api/v1');
+      await set('ai_api_key', 'sk-test');
+      await set('ai_model', 'anthropic/claude-3-5');
+      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+        id: 'anthropic/claude-3-5',
+        url: 'https://openrouter.ai/api/v1',
+        apiKey: 'sk-test',
+      });
+    });
+
+    it('returns a config object without apiKey when only ai_base_url is set', async () => {
+      await set('ai_base_url', 'http://localhost:1234/v1');
+      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+        id: DEFAULT_MODEL,
+        url: 'http://localhost:1234/v1',
+      });
+    });
+
+    it('passes the model id through verbatim (the operator owns the provider/ prefix)', async () => {
+      // No defaulting/guessing: a bare name is forwarded as-is and Mastra will
+      // reject it — the Settings UI tells the operator to include the prefix.
+      await set('ai_base_url', 'https://llm.example.com/v1');
+      await set('ai_api_key', 'sk-test');
+      await set('ai_model', 'anthropic/claude-3-5');
+      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+        id: 'anthropic/claude-3-5',
+        url: 'https://llm.example.com/v1',
+        apiKey: 'sk-test',
+      });
+    });
+  });
 });

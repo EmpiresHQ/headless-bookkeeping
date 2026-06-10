@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -64,6 +68,23 @@ export class SalesInvoicesService {
     return this.mapRow(row);
   }
 
+  /**
+   * Delete a sales invoice — ONLY while it is a `draft` (no approval, no posted
+   * voucher). A posted invoice's voucher is immutable (correct via reversal);
+   * a pending one must have its approval rejected first. Clears probe/junk drafts.
+   */
+  async deleteDraft(id: number): Promise<SalesInvoice> {
+    const invoice = await this.getInvoiceById(id);
+    if (invoice.status !== 'draft') {
+      throw new ConflictException(
+        `SalesInvoice ${id} is ${invoice.status}; only a draft invoice can be deleted ` +
+          `(a posted voucher is immutable — correct via reversal; reject a pending approval first).`,
+      );
+    }
+    await this.db.deleteFrom('sales_invoice').where('id', '=', id).execute();
+    return invoice;
+  }
+
   async generateDraftVoucher(id: number): Promise<DraftVoucher> {
     const invoice = await this.getInvoiceById(id);
     return this.buildDraftVoucher(invoice);
@@ -99,6 +120,19 @@ export class SalesInvoicesService {
   private async buildDraftVoucher(
     invoice: SalesInvoice,
   ): Promise<DraftVoucher> {
+    // Hand the projection the customer's country + goods/services nature so the
+    // plugin can classify the sale (e.g. a service sold to an EU-VAT customer →
+    // 0% intra-EU käive, Art. 196). Without a customer the facts are omitted and
+    // the plugin maps the standard domestic rate.
+    const customer =
+      invoice.customer_id !== null
+        ? await this.db
+            .selectFrom('entity')
+            .select(['country', 'goods_vs_services'])
+            .where('id', '=', invoice.customer_id)
+            .executeTakeFirst()
+        : undefined;
+
     return this.projection.project(
       {
         category: 'revenue',
@@ -106,9 +140,22 @@ export class SalesInvoicesService {
         vatAmount: invoice.vat_amount,
         currency: invoice.currency,
         taxPointDate: invoice.tax_point_date,
+        ...(customer && {
+          supplierCountry: customer.country,
+          goodsVsServices: this.normalizeGoodsVsServices(
+            customer.goods_vs_services,
+          ),
+        }),
       },
       'sale',
     );
+  }
+
+  /** Map the entity's free-form goods/services column onto the projection enum. */
+  private normalizeGoodsVsServices(
+    value: string | null,
+  ): 'goods' | 'services' | 'unknown' {
+    return value === 'goods' || value === 'services' ? value : 'unknown';
   }
 
   async sendInvoice(id: number): Promise<SalesInvoice> {

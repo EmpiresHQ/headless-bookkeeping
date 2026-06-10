@@ -1,8 +1,6 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Mastra } from '@mastra/core';
+import { Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
 import type { ToolsInput } from '@mastra/core/agent';
-import { LibSQLStore } from '@mastra/libsql';
 import { EntitiesService } from '../entities/entities.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -17,25 +15,27 @@ import {
 } from './tools';
 
 /**
- * MastraService — NestJS provider that wires @mastra/core into the kernel and
- * creates an embedded triage agent with read-only tools.
+ * MastraService — factory for the kernel's @mastra/core agents.
  *
- * The agent has NO write tools (no post, createDraft, proposeDraft).
- * All tools are read-only wrappers over kernel services.
+ * Agents are built ON DEMAND (one per call), NOT cached at boot. Every build
+ * re-resolves the model + instructions from AgentConfigService (the settings
+ * table), so operator changes to the inference endpoint / model / prompt in
+ * Settings take effect on the very next classification or import — no process
+ * restart required. (A boot-time singleton froze the config at startup, which
+ * meant settings saved after boot were silently ignored.)
  *
- * Mastra storage uses SQLite (LibSQL) at ./data/mastra.sqlite.
+ * The triage agent has NO write tools (no post, createDraft, proposeDraft) —
+ * all tools are read-only wrappers over kernel services. The bank-mapping agent
+ * has no tools at all.
  *
- * The @mastra/* packages are real ESM dependencies; they are statically
- * imported here and resolved via `require(esm)` at runtime on Node 24. Jest's
- * CJS runtime cannot load them, so the test suite maps the package specifiers
- * to a stub module (see `test/mastra-stub.ts` + the `moduleNameMapper` entries
- * in `package.json` and `test/jest-e2e.json`).
+ * The @mastra/* packages are real ESM dependencies, statically imported here and
+ * resolved via `require(esm)` at runtime on Node 24. Jest's CJS runtime cannot
+ * load them, so the test suite maps the package specifiers to a stub module (see
+ * `test/mastra-stub.ts` + the `moduleNameMapper` entries in `package.json` and
+ * `test/jest-e2e.json`).
  */
 @Injectable()
-export class MastraService implements OnModuleInit {
-  private mastra: Mastra | null = null;
-  private agent: Agent | null = null;
-
+export class MastraService {
   constructor(
     private readonly entitiesService: EntitiesService,
     private readonly expensesService: ExpensesService,
@@ -44,26 +44,12 @@ export class MastraService implements OnModuleInit {
     private readonly config: AgentConfigService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.initialize();
-    } catch (err) {
-      // Graceful degradation: if the Mastra runtime cannot be constructed
-      // (missing model credentials, storage failure, etc.) the agent stays
-      // null and Pass2AgentService reports `agent-unavailable` rather than the
-      // process failing to boot.
-      const msg = `Mastra initialization skipped: ${err instanceof Error ? err.message : String(err)}`;
-
-      console.debug(msg);
-    }
-  }
-
   /**
-   * Initialize Mastra: build the read-only tools, the LibSQL storage, and the
-   * triage agent, then register the agent on a Mastra orchestrator.
+   * The read-only tool set for the triage agent. Config-independent, so it is
+   * rebuilt cheaply on each agent build (the tools are thin wrappers over
+   * already-injected services).
    */
-  async initialize(): Promise<void> {
-    // Create read-only tools.
+  private buildTools(): ToolsInput {
     const searchSuppliers = createSearchSuppliersTool(this.entitiesService);
     const listCategories = createListCategoriesTool();
     const getClassificationMemory = createGetClassificationMemoryTool(
@@ -83,63 +69,45 @@ export class MastraService implements OnModuleInit {
       this.organizationService,
     );
 
-    const tools: ToolsInput = {
+    return {
       searchSuppliers,
       listCategories,
       getClassificationMemory,
       previewCategoryMapping,
       getClassificationContext,
     };
+  }
 
-    // Configure LibSQL storage for Mastra's operational tables (memory, threads).
-    const storage = new LibSQLStore({
-      id: 'bookkeeping-mastra-storage',
-      url: 'file:./data/mastra.sqlite',
-    });
-
-    // Resolve model and instructions from AgentConfigService (settings-backed).
-    const triage = await this.config.resolve('triage');
-
-    // Create the triage agent with read-only tools.
-    const triageAgent = new Agent({
+  /**
+   * Build the Pass-2 triage agent fresh from current settings. Read-only tools,
+   * endpoint-aware model config. Throws if the @mastra runtime cannot construct
+   * the agent (missing model credentials, ESM load failure) — callers map that
+   * to an `agent-unavailable` outcome.
+   */
+  async buildTriageAgent(): Promise<Agent> {
+    const { instructions } = await this.config.resolve('triage');
+    const model = await this.config.resolveModelConfig('triage');
+    return new Agent({
       id: 'triage-agent',
       name: 'Triage Agent',
-      instructions: triage.instructions,
-      model: triage.model,
-      tools,
+      instructions,
+      model,
+      tools: this.buildTools(),
     });
+  }
 
-    // Create the Mastra orchestrator.
-    this.mastra = new Mastra({
-      agents: {
-        triageAgent,
-      },
-      storage,
+  /**
+   * Build the bank-statement CSV-mapping agent fresh from current settings.
+   * Tool-less and standalone (it only emits a structured mapping ruleset).
+   */
+  async buildBankMappingAgent(): Promise<Agent> {
+    const instructions = await this.config.resolveInstructions('bank_mapping');
+    const model = await this.config.resolveModelConfig('bank_mapping');
+    return new Agent({
+      id: 'bank-mapping-agent',
+      name: 'Bank Mapping Agent',
+      instructions,
+      model,
     });
-
-    this.agent = triageAgent;
-  }
-
-  /**
-   * Get the Mastra instance.
-   * Returns null if not yet initialized.
-   */
-  getMastra(): Mastra | null {
-    return this.mastra;
-  }
-
-  /**
-   * Get the triage agent.
-   * Returns null if not yet initialized.
-   */
-  getAgent(): Agent | null {
-    return this.agent;
-  }
-
-  /**
-   * Check if Mastra is initialized.
-   */
-  isInitialized(): boolean {
-    return this.mastra !== null && this.agent !== null;
   }
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -60,6 +64,24 @@ export class ExpensesService {
     return this.mapRow(row);
   }
 
+  /**
+   * Delete an expense — ONLY while it is a `draft` (no approval, no posted
+   * voucher). A `pending`/`posted`/`reversed` expense is never deleted: a
+   * posted voucher is immutable (correct via reversal), and a pending one must
+   * have its approval rejected first. Lets an operator clear probe/junk drafts.
+   */
+  async deleteDraft(id: number): Promise<Expense> {
+    const expense = await this.getExpenseById(id);
+    if (expense.status !== 'draft') {
+      throw new ConflictException(
+        `Expense ${id} is ${expense.status}; only a draft expense can be deleted ` +
+          `(a posted voucher is immutable — correct via reversal; reject a pending approval first).`,
+      );
+    }
+    await this.db.deleteFrom('expense').where('id', '=', id).execute();
+    return expense;
+  }
+
   async generateDraftVoucher(expenseId: number): Promise<DraftVoucher> {
     const expense = await this.getExpenseById(expenseId);
     return this.buildDraftVoucher(expense);
@@ -91,8 +113,22 @@ export class ExpensesService {
    * Thin adapter over the deep projection module (ADR-0006): an Expense supplies
    * its economic facts and the `purchase` direction; the projection produces the
    * balanced draft Voucher (Dr category / Dr VAT_RECEIVABLE / Cr AP).
+   *
+   * When the expense names a supplier we also hand the projection the supplier's
+   * country + goods/services nature so the plugin can resolve cross-border
+   * treatment (e.g. an imported service → reverse charge). Without a supplier the
+   * facts are omitted and the projection assumes a domestic counterparty.
    */
   private async buildDraftVoucher(expense: Expense): Promise<DraftVoucher> {
+    const supplier =
+      expense.supplier_id !== null
+        ? await this.db
+            .selectFrom('entity')
+            .select(['country', 'goods_vs_services'])
+            .where('id', '=', expense.supplier_id)
+            .executeTakeFirst()
+        : undefined;
+
     return this.projection.project(
       {
         category: expense.category,
@@ -100,9 +136,22 @@ export class ExpensesService {
         vatAmount: expense.vat_amount,
         currency: expense.currency,
         taxPointDate: expense.tax_point_date,
+        ...(supplier && {
+          supplierCountry: supplier.country,
+          goodsVsServices: this.normalizeGoodsVsServices(
+            supplier.goods_vs_services,
+          ),
+        }),
       },
       'purchase',
     );
+  }
+
+  /** Map the entity's free-form goods/services column onto the projection enum. */
+  private normalizeGoodsVsServices(
+    value: string | null,
+  ): 'goods' | 'services' | 'unknown' {
+    return value === 'goods' || value === 'services' ? value : 'unknown';
   }
 
   async updateExpenseStatus(

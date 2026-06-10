@@ -51,3 +51,7 @@ lerna-debug.log*
 
 # CodeGraph local tooling
 .codegraph/
+
+# Operator SPA build artifacts
+frontend/node_modules
+frontend/dist

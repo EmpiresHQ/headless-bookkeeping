@@ -9,6 +9,7 @@ import {
 } from './country-plugin.interface';
 import {
   ExpenseTreatmentPreview,
+  KmdBaseClassification,
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
@@ -201,6 +202,20 @@ export class NullCountryPlugin implements CountryPlugin {
 
   getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
     return null;
+  }
+
+  /**
+   * The neutral default has no formal VAT return, so a base line maps to no
+   * declaration row. (A real jurisdiction — see EstoniaCountryPlugin — overrides
+   * this with its KMD row mapping.)
+   */
+  classifyKmd(_vatCode: VATCode): KmdBaseClassification {
+    return {
+      outputBaseRow: null,
+      acquisitionRow: null,
+      vdCode: null,
+      review: null,
+    };
   }
 
   resolveDistributionTax(

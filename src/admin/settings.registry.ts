@@ -10,13 +10,36 @@ const ingestPolicy = (v: string): boolean =>
   v === 'known-only' || v === 'quarantine' || v === 'open';
 
 export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
-  ai_model: { description: 'Global default AI model id', validate: nonEmpty },
+  ai_model: {
+    description:
+      'Global default AI model id. Must include a provider prefix, e.g. ' +
+      'openai/gpt-4o-mini or openai/<model> for a custom OpenAI-compatible ' +
+      'endpoint (the prefix selects the request adapter; the base URL comes ' +
+      'from ai_base_url).',
+    validate: nonEmpty,
+  },
   'ai_model.triage': {
-    description: 'Model override for the triage agent',
+    description:
+      'Model override for the triage agent (provider/model, e.g. openai/<model>)',
     validate: nonEmpty,
   },
   'ai_model.intent_classifier': {
-    description: 'Model override for the intent classifier',
+    description:
+      'Model override for the intent classifier (provider/model, e.g. openai/<model>)',
+    validate: nonEmpty,
+  },
+  'ai_model.ocr': {
+    description:
+      'Model id for the OCR vision endpoint (e.g. a dots.ocr model on LiteLLM)',
+    validate: nonEmpty,
+  },
+  ai_base_url: {
+    description:
+      'OpenAI-compatible inference base URL (blank = provider default)',
+    validate: nonEmpty,
+  },
+  ai_api_key: {
+    description: 'Inference API key (used with ai_base_url)',
     validate: nonEmpty,
   },
   'prompt.triage': {

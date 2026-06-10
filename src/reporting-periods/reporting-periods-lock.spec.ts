@@ -14,6 +14,10 @@ import { PeriodLockService } from './period-lock.service';
 import { AccountService } from '../ledger/account/account.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { OrganizationService } from '../organization/organization.service';
 // ValidationError not used in these tests
 // import { ValidationError } from '../ledger/posting/types';
 import { DraftVoucher } from '../ledger/voucher/types';
@@ -85,6 +89,10 @@ describe('ReportingPeriod lock + filing guard (integration)', () => {
         LedgerValidationService,
         PostingService,
         PeriodLockService,
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
+        PluginLoader,
+        OrganizationService,
       ],
       controllers: [ReportingPeriodsController],
     }).compile();

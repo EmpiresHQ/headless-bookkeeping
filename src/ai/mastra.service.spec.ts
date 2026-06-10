@@ -13,6 +13,7 @@ import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
 
@@ -42,6 +43,7 @@ describe('MastraService', () => {
         NullCountryPlugin,
         EstoniaCountryPlugin,
         PluginLoader,
+        OrgContextResolver,
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
@@ -53,29 +55,26 @@ describe('MastraService', () => {
 
     service = module.get(MastraService);
 
-    // initialize() statically imports @mastra/*; under Jest those specifiers
-    // are mapped to test/mastra-stub.ts (see moduleNameMapper), so the real
-    // API is exercised against the stub classes.
-    await service.initialize();
+    // Agents are built on demand via buildTriageAgent()/buildBankMappingAgent().
+    // Those statically import @mastra/*; under Jest the specifiers map to
+    // test/mastra-stub.ts (see moduleNameMapper), so the real Agent API is
+    // exercised against the stub classes. Each build re-reads the settings table.
   });
 
   afterEach(async () => {
     await db.destroy();
   });
 
-  describe('initialization', () => {
-    it('resolves in DI and initializes Mastra + agent', () => {
+  describe('buildTriageAgent', () => {
+    it('resolves in DI and builds a triage agent on demand', async () => {
       expect(service).toBeDefined();
-      expect(service.isInitialized()).toBe(true);
-      expect(service.getMastra()).not.toBeNull();
-      expect(service.getAgent()).not.toBeNull();
+      expect(await service.buildTriageAgent()).not.toBeNull();
     });
 
     it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', async () => {
-      const agent = service.getAgent();
-      expect(agent).not.toBeNull();
+      const agent = await service.buildTriageAgent();
 
-      const toolNames = Object.keys((await agent?.listTools()) ?? {});
+      const toolNames = Object.keys((await agent.listTools()) ?? {});
       const writeKeywords = ['post', 'createDraft', 'proposeDraft'];
 
       for (const name of toolNames) {
@@ -86,9 +85,9 @@ describe('MastraService', () => {
     });
 
     it('agent has the expected read-only tools', async () => {
-      const agent = service.getAgent();
+      const agent = await service.buildTriageAgent();
 
-      const toolNames = Object.keys((await agent?.listTools()) ?? {});
+      const toolNames = Object.keys((await agent.listTools()) ?? {});
 
       expect(toolNames).toContain('searchSuppliers');
       expect(toolNames).toContain('listCategories');
@@ -99,13 +98,12 @@ describe('MastraService', () => {
       expect(toolNames).toHaveLength(5);
     });
 
-    it('falls back to the default model when no setting row exists', () => {
-      const agent = service.getAgent();
-      expect(agent).not.toBeNull();
-      expect(agent?.model).toBe('openai/gpt-4o-mini');
+    it('falls back to the default model when no setting row exists', async () => {
+      const agent = await service.buildTriageAgent();
+      expect(agent.model).toBe('openai/gpt-4o-mini');
     });
 
-    it('reads the model from the settings table', async () => {
+    it('reads the model from the settings table on each build', async () => {
       await db
         .insertInto('setting')
         .values({
@@ -115,11 +113,9 @@ describe('MastraService', () => {
         })
         .execute();
 
-      await service.initialize();
-
-      const agent = service.getAgent();
-      expect(agent).not.toBeNull();
-      expect(agent?.model).toBe('openai/gpt-4o');
+      // No re-initialization step: the next build simply re-reads settings.
+      const agent = await service.buildTriageAgent();
+      expect(agent.model).toBe('openai/gpt-4o');
     });
 
     it('resolves model and instructions from AgentConfigService (per-agent override)', async () => {
@@ -135,12 +131,15 @@ describe('MastraService', () => {
         ])
         .execute();
 
-      await service.initialize();
+      const agent = await service.buildTriageAgent();
+      expect(agent.model).toBe('openai/gpt-4o');
+      expect(agent.instructions).toBe('SEEDED TRIAGE PROMPT');
+    });
 
-      const agent = service.getAgent();
-      expect(agent).not.toBeNull();
-      expect(agent?.model).toBe('openai/gpt-4o');
-      expect(agent?.instructions).toBe('SEEDED TRIAGE PROMPT');
+    it('builds a tool-less bank-mapping agent from settings', async () => {
+      const agent = await service.buildBankMappingAgent();
+      expect(agent.model).toBe('openai/gpt-4o-mini');
+      expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
     });
   });
 });

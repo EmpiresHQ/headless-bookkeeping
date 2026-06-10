@@ -12,6 +12,10 @@ import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { OrganizationService } from '../organization/organization.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { ApiTokenService } from '../auth/api-token.service';
@@ -50,6 +54,10 @@ describe('AdminController (integration)', () => {
         ReportingPeriodsService,
         VatReportService,
         LedgerBalanceService,
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
+        PluginLoader,
+        OrganizationService,
         AdminService,
         ApiTokenService,
         {
