@@ -35,6 +35,7 @@ export function IntakeView() {
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
+    setNote(null);
     try {
       await fn();
     } catch (e) {

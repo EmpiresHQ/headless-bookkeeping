@@ -169,15 +169,18 @@ export const getPendingApprovals = () =>
     (r) => r.approvals,
   );
 
+// Typed to `{ approval }` only — the approve endpoint also returns the posted
+// voucher, but the operator UI deliberately never consumes ledger data
+// (ADR-0001/ADR-0030), so it stays off the client's typed surface.
 export const approveApproval = (id: number, approvedBy: string) =>
-  apiFetch(`/api/approvals/${id}/approve`, {
+  apiFetch<{ approval: Approval }>(`/api/approvals/${id}/approve`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ approved_by: approvedBy }),
   });
 
 export const rejectApproval = (id: number, reason: string) =>
-  apiFetch(`/api/approvals/${id}/reject`, {
+  apiFetch<{ approval: Approval }>(`/api/approvals/${id}/reject`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ rejected_reason: reason }),
