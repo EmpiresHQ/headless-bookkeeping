@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
@@ -118,6 +118,50 @@ describe('ExpensesService (integration)', () => {
     it('returns an empty array when no expenses exist', async () => {
       const expenses = await service.getExpenses();
       expect(expenses).toEqual([]);
+    });
+
+    it('flags an expense whose voucher is matched to a bank transaction as reconciled', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      // Relax FKs so we can stage a posted expense + a match against its
+      // voucher without building the whole voucher/bank chain — getExpenses
+      // joins on voucher_id only.
+      await sql`PRAGMA foreign_keys = OFF`.execute(db);
+      const posted = await db
+        .insertInto('expense')
+        .values({
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'posted',
+          voucher_id: 4242,
+          document_id: null,
+          supplier_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: 1,
+          voucher_id: 4242,
+          match_type: 'exact',
+          amount_matched: 1000,
+          created_at: now,
+        })
+        .execute();
+      await sql`PRAGMA foreign_keys = ON`.execute(db);
+
+      // A plain draft (no voucher) is not reconciled.
+      const draft = await service.createExpense(sampleDto());
+
+      const list = await service.getExpenses();
+      expect(list.find((e) => e.id === posted.id)?.reconciled).toBe(true);
+      expect(list.find((e) => e.id === draft.id)?.reconciled).toBe(false);
     });
   });
 

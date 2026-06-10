@@ -39,6 +39,41 @@ export interface MatchProposal {
   signal: MatchSignal;
 }
 
+/** The business object a matched voucher belongs to (operator-facing, ADR-0030). */
+export type MatchObjectType = 'sales_invoice' | 'expense' | 'prepayment';
+
+/**
+ * A MatchProposal enriched for the operator UI: the underlying voucher is
+ * described in BUSINESS-OBJECT terms (invoice / expense / prepayment) plus the
+ * counterparty and the voucher's remaining balance. `voucherId` is retained for
+ * the execute round-trip but is NEVER displayed (ADR-0001/0030).
+ */
+export interface MatchProposalView extends MatchProposal {
+  /** What the matched voucher represents to an operator. */
+  objectType: MatchObjectType;
+  /** The business object's id (sales_invoice.id / expense.id), null for prepayment. */
+  objectId: number | null;
+  /** Human label: invoice number, "Expense #<id>", or "Prepayment". */
+  objectLabel: string;
+  /** Counterparty (customer/supplier) name, null when unresolved (e.g. prepayment). */
+  counterpartyName: string | null;
+  /** The voucher's remaining unmatched balance in BASE currency cents. */
+  voucherRemaining: number;
+}
+
+/** Per-transaction reconciliation state for the operator UI. */
+export interface ReconciliationStatusRow {
+  bankTransactionId: number;
+  /** |amount| converted to BASE currency cents (the matchable total). */
+  amountBase: number;
+  /** SUM(reconciliation_match.amount_matched) for this txn, BASE cents. */
+  matchedSum: number;
+  /** amountBase - matchedSum (>= 0). */
+  remaining: number;
+  /** Derived: 'matched' (remaining 0 & matched>0) | 'partial' | 'open'. */
+  reconStatus: 'matched' | 'partial' | 'open';
+}
+
 /**
  * A persisted reconciliation match record.
  */

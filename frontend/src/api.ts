@@ -41,6 +41,8 @@ export interface Expense {
   currency: string;
   tax_point_date: string;
   status: string;
+  // True when the posted voucher is matched to a bank transaction.
+  reconciled: boolean;
 }
 
 export interface SalesInvoice {
@@ -53,6 +55,8 @@ export interface SalesInvoice {
   tax_point_date: string;
   status: string;
   sent_at: number | null;
+  // True when the posted voucher is matched to a bank transaction.
+  reconciled: boolean;
 }
 
 export interface DocumentRow {
@@ -74,6 +78,21 @@ export interface ReportingPeriod {
 }
 
 export const getOrganization = () => apiFetch<Organization>('/api/organization');
+
+export interface UpdateOrganizationDto {
+  country?: string;
+  // null clears the override → inherit the country plugin's base currency.
+  base_currency?: string | null;
+  vat_registered?: boolean;
+  org_type?: 'company' | 'sole_proprietor';
+}
+
+export const updateOrganization = (dto: UpdateOrganizationDto) =>
+  apiFetch<Organization>('/api/organization', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
 export const getEntities = () =>
   apiFetch<{ entities: Entity[] }>('/api/entities').then((r) => r.entities);
 export const getExpenses = () =>
@@ -86,6 +105,33 @@ export const getDocuments = () =>
   apiFetch<{ documents: DocumentRow[] }>('/api/documents').then(
     (r) => r.documents,
   );
+
+// ── Document debug (OCR + LLM classification) ─────────────────────────────
+export interface DebugTriageResult {
+  kind: string;
+  document_type: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  category: string;
+  document_vat_marking: string | null;
+  confidence: number;
+}
+
+export interface DocumentDebug {
+  document_id: number;
+  ocr:
+    | { ok: true; markdown: string }
+    | { ok: false; category: string; detail: string };
+  classification:
+    | { ok: true; result: DebugTriageResult }
+    | { ok: false; category: string; detail: string }
+    | null;
+}
+
+export const getDocumentDebug = (id: number) =>
+  apiFetch<DocumentDebug>(`/api/documents/${id}/debug`);
 export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
     '/api/reporting-periods',
@@ -123,8 +169,95 @@ export const deleteExpense = (id: number) =>
   apiFetch<Expense>(`/api/expenses/${id}`, { method: 'DELETE' });
 export const deleteInvoice = (id: number) =>
   apiFetch<SalesInvoice>(`/api/sales-invoices/${id}`, { method: 'DELETE' });
+
+// ── Manual create (amounts are integer cents) ─────────────────────────────
+export interface CreateExpenseInput {
+  category: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  supplier_id?: number | null;
+  document_vat_marking?: string | null;
+}
+
+export const createExpense = (input: CreateExpenseInput) =>
+  apiFetch<Expense>('/api/expenses', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export interface CreateInvoiceInput {
+  invoice_number: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  customer_id?: number | null;
+  due_date?: string | null;
+  document_vat_marking?: string | null;
+}
+
+export const createInvoice = (input: CreateInvoiceInput) =>
+  apiFetch<SalesInvoice>('/api/sales-invoices', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+// ── Corrections (reversal + corrected voucher of a POSTED object) ──────────
+export interface CorrectionRequest {
+  kind: 'cosmetic' | 'financial' | 'credit_note';
+  reason: string;
+  patch?: { gross_amount?: number; vat_amount?: number; category?: string };
+}
+
+export const correctExpense = (id: number, req: CorrectionRequest) =>
+  apiFetch<{ outcome: string }>(`/api/expenses/${id}/correct`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+
+export const correctInvoice = (id: number, req: CorrectionRequest) =>
+  apiFetch<{ outcome: string }>(`/api/sales-invoices/${id}/correct`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(req),
+  });
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
+
+export interface OnboardEntityInput {
+  role: 'supplier' | 'customer';
+  country: string;
+  name: string;
+  // The strong identity key (e.g. VAT / registry no.) used to match the entity.
+  registrationKey: string;
+  goodsVsServices?: 'goods' | 'services' | 'unknown';
+}
+
+export const onboardEntity = (input: OnboardEntityInput) =>
+  apiFetch<Entity>('/api/entities', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+// Update only the mutable facts; role + registration key are immutable identity.
+export interface UpdateEntityInput {
+  name?: string;
+  country?: string;
+  goodsVsServices?: 'goods' | 'services' | 'unknown';
+}
+
+export const updateEntity = (id: number, input: UpdateEntityInput) =>
+  apiFetch<Entity>(`/api/entities/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 
 // ── Intake / triage (POST /api/documents, /triage, /complete) ─────────────
 export type TriageOutcome =
@@ -314,3 +447,109 @@ export async function downloadStatutoryReport(
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// ── Bank statements + transactions (read) ─────────────────────────────────
+// Display subsets — account_id (a ledger-internal FK) is intentionally omitted
+// per ADR-0001 (the UI shows business objects, never ledger internals).
+export interface BankStatement {
+  id: number;
+  start_date: string;
+  end_date: string;
+  uploaded_at: number; // unix seconds
+}
+
+export interface BankTransaction {
+  id: number;
+  transaction_date: string;
+  description: string | null;
+  amount: number; // signed integer cents
+  currency: string;
+  counterparty_iban: string | null;
+  counterparty_descriptor: string | null;
+  reference: string | null;
+  status: string;
+}
+
+export const listBankStatements = () =>
+  apiFetch<BankStatement[]>('/api/bank-statements');
+
+export const listBankTransactions = (statementId: number) =>
+  apiFetch<BankTransaction[]>(`/api/bank-statements/${statementId}/transactions`);
+
+export const deleteBankStatement = (statementId: number) =>
+  apiFetch<{ deleted: number }>(`/api/bank-statements/${statementId}`, {
+    method: 'DELETE',
+  });
+
+// ── Reconciliation ────────────────────────────────────────────────────────
+// Proposals describe vouchers in BUSINESS-OBJECT terms (ADR-0030); voucherId is
+// carried for the /match round-trip only and is never rendered.
+export interface MatchProposalView {
+  bankTransactionId: number;
+  voucherId: number;
+  matchType: 'exact' | 'partial' | 'prepayment';
+  amountMatched: number; // BASE cents
+  confidence: 'high' | 'medium' | 'low';
+  signal: 'invoice_number' | 'counterparty' | 'amount_date';
+  objectType: 'sales_invoice' | 'expense' | 'prepayment';
+  objectId: number | null;
+  objectLabel: string;
+  counterpartyName: string | null;
+  voucherRemaining: number;
+}
+
+export interface ReconciliationStatusRow {
+  bankTransactionId: number;
+  amountBase: number;
+  matchedSum: number;
+  remaining: number;
+  reconStatus: 'matched' | 'partial' | 'open';
+}
+
+export const proposeMatches = (statementId: number) =>
+  apiFetch<MatchProposalView[]>(
+    `/api/bank-statements/${statementId}/propose-matches`,
+    { method: 'POST' },
+  );
+
+export const getReconciliationStatus = (statementId: number) =>
+  apiFetch<ReconciliationStatusRow[]>(
+    `/api/bank-statements/${statementId}/reconciliation`,
+  );
+
+// The execute endpoint accepts the base MatchProposal fields. Strip the display
+// extras before sending; the server also returns ledger data we deliberately
+// ignore (ADR-0030) — typed as the match count only.
+export const executeMatches = (
+  statementId: number,
+  proposals: MatchProposalView[],
+) =>
+  apiFetch<{ records: { id: number }[] }>(
+    `/api/bank-statements/${statementId}/match`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        matches: proposals.map((p) => ({
+          bankTransactionId: p.bankTransactionId,
+          voucherId: p.voucherId,
+          matchType: p.matchType,
+          amountMatched: p.amountMatched,
+          confidence: p.confidence,
+          signal: p.signal,
+        })),
+      }),
+    },
+  );
+
+// Prepayment / Personal post ledger vouchers; the UI ignores the returned
+// voucher (ADR-0030) and only needs success/failure.
+export const createPrepayment = (bankTransactionId: number) =>
+  apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/prepayment`, {
+    method: 'POST',
+  });
+
+export const markPersonal = (bankTransactionId: number) =>
+  apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/personal`, {
+    method: 'POST',
+  });

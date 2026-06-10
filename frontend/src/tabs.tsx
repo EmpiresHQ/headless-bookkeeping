@@ -1,29 +1,17 @@
 import type { ComponentType } from 'react';
 import { Column } from './components/Table';
-import {
-  Entity,
-  Expense,
-  SalesInvoice,
-  DocumentRow,
-  ReportingPeriod,
-  Organization,
-  fmtCents,
-  getEntities,
-  getExpenses,
-  getInvoices,
-  getDocuments,
-  getReportingPeriods,
-  getOrganization,
-  deleteExpense,
-  deleteInvoice,
-  deleteEntity,
-} from './api';
+import { ReportingPeriod, getReportingPeriods } from './api';
 import { KmdView } from './components/KmdView';
 import { IntakeView } from './components/IntakeView';
 import { BankView } from './components/BankView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
 import { CreditNotesView } from './components/CreditNotesView';
+import { OrgView } from './components/OrgView';
+import { EntitiesView } from './components/EntitiesView';
+import { DocumentsView } from './components/DocumentsView';
+import { ExpensesView } from './components/ExpensesView';
+import { InvoicesView } from './components/InvoicesView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -38,76 +26,44 @@ export interface TabDef<T = unknown> {
   Custom?: ComponentType;
 }
 
-const orgTab: TabDef<Organization> = {
+const orgTab: TabDef = {
   key: 'org',
   label: 'Organization',
-  load: () => getOrganization().then((o) => [o]),
-  columns: [
-    { header: 'Country', cell: (o) => o.country },
-    { header: 'Org type', cell: (o) => o.org_type },
-    { header: 'VAT registered', cell: (o) => (o.vat_registered ? 'yes' : 'no') },
-    { header: 'Base currency', cell: (o) => o.base_currency ?? '(plugin default)' },
-  ],
+  load: async () => [],
+  columns: [],
+  Custom: OrgView,
 };
 
-const entitiesTab: TabDef<Entity> = {
+const entitiesTab: TabDef = {
   key: 'entities',
   label: 'Entities',
-  load: getEntities,
-  columns: [
-    { header: 'ID', cell: (e) => e.id },
-    { header: 'Name', cell: (e) => e.name },
-    { header: 'Role', cell: (e) => e.role },
-    { header: 'Country', cell: (e) => e.country },
-    { header: 'Goods/Services', cell: (e) => e.goods_vs_services ?? '—' },
-  ],
-  remove: (e) => deleteEntity(e.id),
-  rowId: (e) => e.id,
+  load: async () => [],
+  columns: [],
+  Custom: EntitiesView,
 };
 
-const expensesTab: TabDef<Expense> = {
+const expensesTab: TabDef = {
   key: 'expenses',
   label: 'Expenses',
-  load: getExpenses,
-  columns: [
-    { header: 'ID', cell: (e) => e.id },
-    { header: 'Category', cell: (e) => e.category },
-    { header: 'Gross', cell: (e) => `${fmtCents(e.gross_amount)} ${e.currency}` },
-    { header: 'VAT', cell: (e) => fmtCents(e.vat_amount) },
-    { header: 'Tax point', cell: (e) => e.tax_point_date },
-    { header: 'Status', cell: (e) => e.status },
-  ],
-  remove: (e) => deleteExpense(e.id),
-  rowId: (e) => e.id,
+  load: async () => [],
+  columns: [],
+  Custom: ExpensesView,
 };
 
-const invoicesTab: TabDef<SalesInvoice> = {
+const invoicesTab: TabDef = {
   key: 'invoices',
   label: 'Sales invoices',
-  load: getInvoices,
-  columns: [
-    { header: 'No.', cell: (i) => i.invoice_number },
-    { header: 'Gross', cell: (i) => `${fmtCents(i.gross_amount)} ${i.currency}` },
-    { header: 'VAT', cell: (i) => fmtCents(i.vat_amount) },
-    { header: 'Tax point', cell: (i) => i.tax_point_date },
-    { header: 'Status', cell: (i) => i.status },
-    { header: 'Sent', cell: (i) => (i.sent_at ? 'yes' : 'no') },
-  ],
-  remove: (i) => deleteInvoice(i.id),
-  rowId: (i) => i.id,
+  load: async () => [],
+  columns: [],
+  Custom: InvoicesView,
 };
 
-const documentsTab: TabDef<DocumentRow> = {
+const documentsTab: TabDef = {
   key: 'documents',
   label: 'Documents',
-  load: getDocuments,
-  columns: [
-    { header: 'ID', cell: (d) => d.id },
-    { header: 'Filename', cell: (d) => d.filename },
-    { header: 'Type', cell: (d) => d.mime_type },
-    { header: 'Size', cell: (d) => `${(d.size_bytes / 1024).toFixed(1)} KB` },
-    { header: 'Status', cell: (d) => d.status },
-  ],
+  load: async () => [],
+  columns: [],
+  Custom: DocumentsView,
 };
 
 const periodsTab: TabDef<ReportingPeriod> = {
@@ -125,7 +81,7 @@ const periodsTab: TabDef<ReportingPeriod> = {
 
 const bankTab: TabDef = {
   key: 'bank',
-  label: 'Bank import',
+  label: 'Bank',
   load: async () => [],
   columns: [],
   Custom: BankView,

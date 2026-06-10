@@ -15,9 +15,12 @@ import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
 import {
   MatchProposal,
+  MatchProposalView,
+  MatchObjectType,
   MatchType,
   MatchConfidence,
   ReconciliationMatchRecord,
+  ReconciliationStatusRow,
   ExecuteMatchResult,
   ParsedTransactionTokens,
   CandidateVoucher,
@@ -105,7 +108,7 @@ export class ReconciliationService {
    * For incoming (amount > 0): candidate unpaid AR vouchers + CustomerPrepayment
    * For outgoing (amount < 0): candidate unpaid AP vouchers
    */
-  async proposeMatches(statementId: number): Promise<MatchProposal[]> {
+  async proposeMatches(statementId: number): Promise<MatchProposalView[]> {
     const transactions =
       await this.transactionRepo.findByStatementId(statementId);
     const openTxns = transactions.filter((t) => t.status === 'open');
@@ -121,7 +124,162 @@ export class ReconciliationService {
       allProposals.push(...proposals);
     }
 
-    return allProposals;
+    return this.enrichProposals(allProposals);
+  }
+
+  /**
+   * Per-transaction reconciliation state for a statement: the matchable base
+   * amount, how much is already matched, and the remaining. Drives the operator
+   * UI's badges and over-allocation cap. matched sums are BASE cents (matching
+   * amount_matched), so the bank line's own amount is converted to base too.
+   */
+  async getStatementReconciliation(
+    statementId: number,
+  ): Promise<ReconciliationStatusRow[]> {
+    const transactions =
+      await this.transactionRepo.findByStatementId(statementId);
+
+    const rows: ReconciliationStatusRow[] = [];
+    for (const txn of transactions) {
+      const { baseAmount: amountBase } = await this.currencyService.toBase(
+        Math.abs(txn.amount),
+        txn.currency,
+        txn.transaction_date,
+      );
+
+      const matched = await this.db
+        .selectFrom('reconciliation_match')
+        .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+        .where('bank_transaction_id', '=', txn.id)
+        .executeTakeFirst();
+      const matchedSum = Number(matched?.sum ?? 0);
+      const remaining = Math.max(0, amountBase - matchedSum);
+      const reconStatus: ReconciliationStatusRow['reconStatus'] =
+        matchedSum <= 0 ? 'open' : remaining <= 0 ? 'matched' : 'partial';
+
+      rows.push({
+        bankTransactionId: txn.id,
+        amountBase,
+        matchedSum,
+        remaining,
+        reconStatus,
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Enrich raw proposals into operator-facing views: resolve each distinct
+   * voucherId to its business object (sales_invoice / expense / prepayment),
+   * counterparty name, and remaining balance. voucherId is retained for the
+   * execute round-trip but never rendered (ADR-0030).
+   */
+  private async enrichProposals(
+    proposals: MatchProposal[],
+  ): Promise<MatchProposalView[]> {
+    const views: MatchProposalView[] = [];
+    // Small per-voucher resolution (proposal sets are small); memoise by voucherId.
+    const cache = new Map<
+      number,
+      {
+        objectType: MatchObjectType;
+        objectId: number | null;
+        objectLabel: string;
+        counterpartyName: string | null;
+        voucherRemaining: number;
+      }
+    >();
+
+    for (const p of proposals) {
+      let info = cache.get(p.voucherId);
+      if (!info) {
+        info = await this.resolveVoucherDisplay(p.voucherId, p.matchType);
+        cache.set(p.voucherId, info);
+      }
+      views.push({ ...p, ...info });
+    }
+    return views;
+  }
+
+  private async resolveVoucherDisplay(
+    voucherId: number,
+    matchType: MatchType,
+  ): Promise<{
+    objectType: MatchObjectType;
+    objectId: number | null;
+    objectLabel: string;
+    counterpartyName: string | null;
+    voucherRemaining: number;
+  }> {
+    // Prepayment vouchers carry no business object.
+    if (matchType === 'prepayment') {
+      const voucherRemaining =
+        await this.outstandingVouchers.getRemainingPrepaymentBalance(voucherId);
+      return {
+        objectType: 'prepayment',
+        objectId: null,
+        objectLabel: 'Prepayment',
+        counterpartyName: null,
+        voucherRemaining,
+      };
+    }
+
+    const voucherRemaining =
+      await this.outstandingVouchers.getRemainingVoucherBalance(voucherId);
+
+    const invoice = await this.db
+      .selectFrom('sales_invoice')
+      .select(['id', 'invoice_number', 'customer_id'])
+      .where('voucher_id', '=', voucherId)
+      .executeTakeFirst();
+    if (invoice) {
+      const name = await this.safeEntityName(invoice.customer_id);
+      return {
+        objectType: 'sales_invoice',
+        objectId: invoice.id,
+        objectLabel: invoice.invoice_number,
+        counterpartyName: name,
+        voucherRemaining,
+      };
+    }
+
+    const expense = await this.db
+      .selectFrom('expense')
+      .select(['id', 'supplier_id'])
+      .where('voucher_id', '=', voucherId)
+      .executeTakeFirst();
+    if (expense) {
+      const name = await this.safeEntityName(expense.supplier_id);
+      return {
+        objectType: 'expense',
+        objectId: expense.id,
+        objectLabel: `Expense #${expense.id}`,
+        counterpartyName: name,
+        voucherRemaining,
+      };
+    }
+
+    // Voucher with no recognised business object — degrade gracefully.
+    return {
+      objectType: 'prepayment',
+      objectId: null,
+      objectLabel: `Voucher settlement`,
+      counterpartyName: null,
+      voucherRemaining,
+    };
+  }
+
+  /** Entity name by id, null when unset/unknown (never throws into the UI path). */
+  private async safeEntityName(
+    entityId: number | null,
+  ): Promise<string | null> {
+    if (entityId === null) return null;
+    try {
+      const entity = await this.entitiesService.findById(entityId);
+      return entity.name;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -464,6 +622,25 @@ export class ReconciliationService {
       txnMap.set(txnId, txn);
     }
 
+    // Precompute each bank line's matchable BASE amount BEFORE the atomic
+    // block. The line amount is immutable, and currency conversion cannot run
+    // inside the better-sqlite3 sync transaction. amount_matched is BASE cents,
+    // so the per-line cap must be base too (bank_transaction.amount is the
+    // txn's OWN currency).
+    const txnBaseAmount = new Map<number, number>();
+    for (const txnId of txnIds) {
+      const txn = txnMap.get(txnId);
+      if (!txn) {
+        throw new NotFoundException(`Bank transaction ${txnId} not found`);
+      }
+      const { baseAmount } = await this.currencyService.toBase(
+        Math.abs(txn.amount),
+        txn.currency,
+        txn.transaction_date,
+      );
+      txnBaseAmount.set(txnId, baseAmount);
+    }
+
     const now = Math.floor(Date.now() / 1000);
 
     // ── Atomic check-then-insert ──────────────────────────────────────────
@@ -509,6 +686,29 @@ export class ReconciliationService {
           throw new ConflictException(
             `Match of ${proposal.amountMatched} would over-match voucher ` +
               `${proposal.voucherId}: only ${available} outstanding remains`,
+          );
+        }
+
+        // ── Bank-line over-allocation guard (symmetric to the voucher guard) ──
+        // SUM(amount_matched) for this bank line — everything matched so far
+        // (persisted + this batch's own inserts, both visible to this re-read on
+        // the SAME transaction connection) plus the current proposal — must not
+        // exceed the line's BASE amount. The re-read already accounts for prior
+        // batch inserts, so no separate batch tally is added here (that would
+        // double-count). batchMatchedByTxn is kept purely diagnostic of this
+        // batch's own contribution.
+        const persistedTxnMatched = await trx
+          .selectFrom('reconciliation_match')
+          .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+          .where('bank_transaction_id', '=', proposal.bankTransactionId)
+          .executeTakeFirst();
+        const txnMatchedSoFar = Number(persistedTxnMatched?.sum ?? 0);
+        const lineCap = txnBaseAmount.get(proposal.bankTransactionId) ?? 0;
+        if (txnMatchedSoFar + proposal.amountMatched > lineCap) {
+          throw new ConflictException(
+            `Match of ${proposal.amountMatched} would over-allocate bank line ` +
+              `${proposal.bankTransactionId}: only ` +
+              `${lineCap - txnMatchedSoFar} of the line remains`,
           );
         }
 

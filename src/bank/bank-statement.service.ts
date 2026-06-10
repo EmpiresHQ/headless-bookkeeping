@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -101,5 +105,30 @@ export class BankStatementService {
     statementId: number,
   ): Promise<BankTransactionRecord[]> {
     return this.transactionRepo.findByStatementId(statementId);
+  }
+
+  /**
+   * Delete a statement and its transactions. Atomic: the transactions are
+   * removed first (the bank_transaction.statement_id FK has no ON DELETE
+   * CASCADE and foreign_keys is ON), then the statement. Throws 404 if the
+   * statement does not exist. Note: this only removes the ingested bank record;
+   * it never touches the ledger (ADR-0001).
+   */
+  async deleteStatement(id: number): Promise<void> {
+    await this.db.transaction().execute(async (trx) => {
+      const existing = await trx
+        .selectFrom('bank_statement')
+        .select('id')
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!existing) {
+        throw new NotFoundException(`Bank statement ${id} not found`);
+      }
+      await trx
+        .deleteFrom('bank_transaction')
+        .where('statement_id', '=', id)
+        .execute();
+      await trx.deleteFrom('bank_statement').where('id', '=', id).execute();
+    });
   }
 }

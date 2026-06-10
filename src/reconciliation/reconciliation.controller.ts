@@ -1,8 +1,19 @@
-import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ReconciliationService } from './reconciliation.service';
 import { ExecuteMatchInput } from './reconciliation.types';
-import type { ExecuteMatchResult, MatchProposal } from './reconciliation.types';
+import type {
+  ExecuteMatchResult,
+  MatchProposalView,
+  ReconciliationStatusRow,
+} from './reconciliation.types';
 
 @ApiTags('reconciliation')
 @Controller('api/bank-statements')
@@ -11,12 +22,12 @@ export class ReconciliationController {
 
   /**
    * Propose matches for all open transactions in a bank statement.
-   * Returns ranked MatchProposal[] by signal hierarchy.
+   * Returns ranked MatchProposalView[] by signal hierarchy.
    */
   @Post(':id/propose-matches')
   async proposeMatches(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<MatchProposal[]> {
+  ): Promise<MatchProposalView[]> {
     return this.service.proposeMatches(id);
   }
 
@@ -30,5 +41,13 @@ export class ReconciliationController {
     @Body() input: ExecuteMatchInput,
   ): Promise<ExecuteMatchResult> {
     return this.service.executeMatch(input.matches);
+  }
+
+  /** Per-transaction reconciliation state for a statement (UI badges + caps). */
+  @Get(':id/reconciliation')
+  async getStatementReconciliation(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<ReconciliationStatusRow[]> {
+    return this.service.getStatementReconciliation(id);
   }
 }
