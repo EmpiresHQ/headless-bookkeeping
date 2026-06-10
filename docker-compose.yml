@@ -7,6 +7,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - DOCLING_BASE_URL=http://docling:5001
+    depends_on:
+      - docling
     volumes:
       - ./data:/app/data
     healthcheck:
@@ -14,6 +17,19 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # Pass-1 OCR engine (ADR-0032): born-digital text-layer extraction + OCR of
+  # scanned/image documents + table reconstruction → markdown, over HTTP. CPU
+  # image (models pre-baked). Swap to a docling-serve-cu* tag for GPU.
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:latest
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   test:
     build:
