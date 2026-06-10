@@ -1,14 +1,19 @@
 import { apiFetch } from './auth';
 
 /**
- * These interfaces are intentional DISPLAY SUBSETS of the backend response
- * objects — they declare only the fields the read tabs render, not every field
- * the server returns. TypeScript structural typing makes a subset a valid view
- * over the richer payload. Two deliberate exclusions:
+ * The business-object interfaces below (Organization, Entity, Expense,
+ * SalesInvoice, DocumentRow, ReportingPeriod) are intentional DISPLAY SUBSETS
+ * of the backend response objects — they declare only the fields the read tabs
+ * render, not every field the server returns. TypeScript structural typing
+ * makes a subset a valid view over the richer payload. Two deliberate
+ * exclusions:
  *  - audit/linkage fields we don't show (created_at/updated_at, document_id, …);
  *  - the ledger linkage `voucher_id` is omitted ON PURPOSE — ADR-0001/ADR-0030
  *    keep the double-entry ledger hidden from the operator UI.
- * Add a field here only when a tab actually displays it.
+ * Add a field to those only when a tab actually displays it.
+ *
+ * The config interfaces (Setting, PolicyConfig) are full mirrors of their
+ * backend schemas — the Settings page edits every field.
  */
 export interface Organization {
   id: number;
