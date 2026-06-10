@@ -78,6 +78,21 @@ export interface ReportingPeriod {
 }
 
 export const getOrganization = () => apiFetch<Organization>('/api/organization');
+
+export interface UpdateOrganizationDto {
+  country?: string;
+  // null clears the override → inherit the country plugin's base currency.
+  base_currency?: string | null;
+  vat_registered?: boolean;
+  org_type?: 'company' | 'sole_proprietor';
+}
+
+export const updateOrganization = (dto: UpdateOrganizationDto) =>
+  apiFetch<Organization>('/api/organization', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
 export const getEntities = () =>
   apiFetch<{ entities: Entity[] }>('/api/entities').then((r) => r.entities);
 export const getExpenses = () =>
