@@ -3,21 +3,48 @@ import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
-import { existsSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { NotFoundException } from '@nestjs/common';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { OcrService } from './ocr.service';
 import { DocumentsService } from '../documents/documents.service';
-import { DocumentStorageService } from '../documents/document-storage.service';
+import {
+  DocumentStorageService,
+  DOCUMENT_STORAGE_ROOT,
+} from '../documents/document-storage.service';
 import { ConversationsService } from '../conversations/conversations.service';
+import {
+  DocumentTranscriber,
+  type OcrOutcome,
+  type TranscribableFile,
+} from './document-transcriber.port';
+
+/** Canned markdown the stub transcriber returns by default. */
+const STUB_MARKDOWN = '# Transcribed\n\nSupplier: Acme Ltd\nTotal: €123.00';
+
+/** A controllable in-process DocumentTranscriber: records the files it was
+ *  handed and lets a test swap its result via `impl`. */
+class StubTranscriber extends DocumentTranscriber {
+  calls: TranscribableFile[] = [];
+  impl: (file: TranscribableFile) => OcrOutcome = () => ({
+    ok: true,
+    markdown: STUB_MARKDOWN,
+  });
+  transcribe(file: TranscribableFile): Promise<OcrOutcome> {
+    this.calls.push(file);
+    return Promise.resolve(this.impl(file));
+  }
+}
 
 describe('OcrService', () => {
   let db: Kysely<Database>;
+  let module: TestingModule;
   let service: OcrService;
-  let _documentsService: DocumentsService;
-  let _conversationsService: ConversationsService;
+  let transcriber: StubTranscriber;
+  let storageRoot: string;
   const testArtifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
 
   beforeEach(async () => {
@@ -35,61 +62,31 @@ describe('OcrService', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
-    const module: TestingModule = await Test.createTestingModule({
+    storageRoot = mkdtempSync(join(tmpdir(), 'ocr-spec-'));
+    transcriber = new StubTranscriber();
+
+    module = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        { provide: DOCUMENT_STORAGE_ROOT, useValue: storageRoot },
         DocumentStorageService,
         DocumentsService,
         ConversationsService,
         OcrService,
+        { provide: DocumentTranscriber, useValue: transcriber },
       ],
     }).compile();
 
     service = module.get(OcrService);
-    _documentsService = module.get(DocumentsService);
-    _conversationsService = module.get(ConversationsService);
   });
 
   afterEach(async () => {
     await db.destroy();
+    rmSync(storageRoot, { recursive: true, force: true });
     // Clean up test artifacts.
     if (existsSync(testArtifactsDir)) {
       rmSync(testArtifactsDir, { recursive: true, force: true });
     }
-  });
-
-  describe('extract', () => {
-    it('returns receipt for odd document ids', () => {
-      const result = service.extract(1);
-      expect(result.kind).toBe('new_expense');
-      expect(result.document_type).toBe('receipt');
-      expect(result.gross_amount).toBe(1525);
-      expect(result.vat_amount).toBe(285);
-      expect(result.currency).toBe('EUR');
-      expect(result.tax_point_date).toBe('2025-01-15');
-      expect(result.category).toBe('transport');
-      expect(result.document_vat_marking).toBe('IE_INPUT_23');
-      expect(result.confidence).toBe(0.94);
-    });
-
-    it('returns invoice for even document ids', () => {
-      const result = service.extract(2);
-      expect(result.kind).toBe('new_expense');
-      expect(result.document_type).toBe('invoice');
-      expect(result.gross_amount).toBe(12300);
-      expect(result.vat_amount).toBe(2300);
-      expect(result.currency).toBe('EUR');
-      expect(result.tax_point_date).toBe('2025-01-20');
-      expect(result.category).toBe('revenue');
-      expect(result.document_vat_marking).toBe('IE_OUTPUT_23');
-      expect(result.confidence).toBe(0.98);
-    });
-
-    it('is deterministic for the same id', () => {
-      const r1 = service.extract(3);
-      const r2 = service.extract(3);
-      expect(r1).toEqual(r2);
-    });
   });
 
   describe('transcribe', () => {
@@ -102,35 +99,62 @@ describe('OcrService', () => {
           filename,
           mime_type: 'application/pdf',
           size_bytes: 1000,
-          storage_path: `/tmp/${filename}`,
+          storage_path: null,
           status: 'pending',
           created_at: now,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
+      // Persist real bytes so OcrService.getFile can read them before transcribe.
+      const storage = module.get(DocumentStorageService);
+      const relPath = await storage.saveFile(
+        doc.id,
+        filename,
+        Buffer.from(`%PDF-1.4 ${filename}`),
+      );
+      await db
+        .updateTable('document')
+        .set({ storage_path: relPath })
+        .where('id', '=', doc.id)
+        .execute();
       return doc.id;
     }
 
-    it('returns markdown for a receipt-like document (odd id)', async () => {
-      const docId = await seedDocument('receipt-bolt.pdf');
-      const outcome = await service.transcribe(docId);
-
-      expect(outcome.ok).toBe(true);
-      if (!outcome.ok) return;
-      expect(outcome.markdown).toContain('# Receipt');
-      expect(outcome.markdown).toContain('Bolt');
-      expect(outcome.markdown).toContain('€15.25');
-    });
-
-    it('returns markdown for an invoice-like document (even id)', async () => {
+    it('returns the transcriber markdown for a document', async () => {
       const docId = await seedDocument('invoice-acme.pdf');
       const outcome = await service.transcribe(docId);
 
       expect(outcome.ok).toBe(true);
       if (!outcome.ok) return;
-      expect(outcome.markdown).toContain('# Invoice');
-      expect(outcome.markdown).toContain('Acme Ltd');
-      expect(outcome.markdown).toContain('€123.00');
+      expect(outcome.markdown).toBe(STUB_MARKDOWN);
+      // The transcriber received the seeded bytes + metadata.
+      expect(transcriber.calls).toHaveLength(1);
+      expect(transcriber.calls[0].filename).toBe('invoice-acme.pdf');
+      expect(transcriber.calls[0].mimeType).toBe('application/pdf');
+    });
+
+    it('routes a typed transcriber failure straight through (no persistence)', async () => {
+      const docId = await seedDocument('broken.pdf');
+      transcriber.impl = () => ({
+        ok: false,
+        category: 'unreadable',
+        detail: 'docling-serve produced no markdown',
+      });
+
+      const outcome = await service.transcribe(docId);
+
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) return;
+      expect(outcome.category).toBe('unreadable');
+
+      // No artifact was written for a failed transcription.
+      const count = await db
+        .selectFrom('artifact')
+        .select(db.fn.count('id').as('cnt'))
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', docId)
+        .executeTakeFirst();
+      expect(Number(count!.cnt)).toBe(0);
     });
 
     it('stores markdown as an ocr_markdown artifact with crc32', async () => {
@@ -198,6 +222,9 @@ describe('OcrService', () => {
       if (!first.ok || !second.ok) return;
       expect(first.markdown).toBe(second.markdown);
 
+      // The engine was hit once; the second call served from the stored artifact.
+      expect(transcriber.calls).toHaveLength(1);
+
       // Only one artifact should exist (not duplicated).
       const count = await db
         .selectFrom('artifact')
@@ -231,6 +258,9 @@ describe('OcrService', () => {
       expect(second.markdown).not.toBe('tampered content');
       expect(second.markdown).toBe(first.markdown);
 
+      // The mismatch re-hit the engine (initial + after tamper).
+      expect(transcriber.calls).toHaveLength(2);
+
       // Still only one artifact row.
       const count = await db
         .selectFrom('artifact')
@@ -254,7 +284,7 @@ describe('OcrService', () => {
 
       expect(outcome.ok).toBe(true);
       if (outcome.ok) {
-        expect(outcome.markdown).toContain('# Receipt');
+        expect(outcome.markdown).toBe(STUB_MARKDOWN);
       }
     });
 
