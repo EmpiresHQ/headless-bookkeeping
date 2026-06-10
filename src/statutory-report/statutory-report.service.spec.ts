@@ -195,8 +195,11 @@ describe('StatutoryReportService.generate (integration)', () => {
     });
 
     const result = await service.generate(PERIOD_ID, { formats: ['xml'] });
+    const xml = result.artifacts[0].content;
     // The credit note number surfaces as an invoiceNumber on its INF line.
-    expect(result.artifacts[0].content).toContain('CN-');
+    expect(xml).toContain('CN-');
+    // A sales credit note must carry a NEGATIVE invoiceSum (mirror voucher, net < 0).
+    expect(xml).toMatch(/<invoiceSum>-/);
   });
 
   it('hard-blocks final generation when the declarant reg number is missing', async () => {

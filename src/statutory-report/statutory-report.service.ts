@@ -335,13 +335,23 @@ export class StatutoryReportService {
     let netAmount = 0;
     let vatCodeFromBase: string | null = null;
 
+    // Exclude BOTH VAT-control accounts (VAT_PAYABLE and VAT_RECEIVABLE) and the
+    // counterparty settlement account (AR/AP) from the taxable net base.  This
+    // prevents a stray reverse-charge VAT-control line (opposite side) from ever
+    // leaking into the net calculation.
+    const vatControlCodes = new Set(['VAT_PAYABLE', 'VAT_RECEIVABLE']);
+
     for (const line of lines) {
       if (line.account_code === opts.vatControlCode) {
         vatAmount += this.ledgerBalance.signedBaseAmount(line, sign);
         if (line.vat_code) vatCodeFromControl = line.vat_code;
         continue;
       }
-      if (line.account_code === opts.counterpartyCode) continue;
+      if (
+        vatControlCodes.has(line.account_code) ||
+        line.account_code === opts.counterpartyCode
+      )
+        continue;
       // Taxable-base line.
       netAmount += this.ledgerBalance.signedBaseAmount(line, sign);
       if (line.vat_code) vatCodeFromBase = line.vat_code;

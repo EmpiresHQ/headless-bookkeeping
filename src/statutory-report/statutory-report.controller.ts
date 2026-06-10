@@ -1,8 +1,17 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import JSZip = require('jszip');
 import { StatutoryReportService } from './statutory-report.service';
 import { StatutoryFormat } from '../plugins/statutory-report.types';
+
+const VALID_FORMATS = new Set<string>(['xml', 'csv', 'all']);
 
 @Controller('api/reporting-periods')
 export class StatutoryReportController {
@@ -14,9 +23,15 @@ export class StatutoryReportController {
     @Query('format') format = 'xml',
     @Res() res: Response,
   ): Promise<void> {
+    if (!VALID_FORMATS.has(format)) {
+      throw new BadRequestException(`Unsupported format: ${format}`);
+    }
     const formats: StatutoryFormat[] =
       format === 'all' ? ['xml', 'csv'] : [format as StatutoryFormat];
     const { artifacts } = await this.service.generate(Number(id), { formats });
+    if (artifacts.length === 0) {
+      throw new BadRequestException('No statutory report artifacts produced');
+    }
     if (artifacts.length === 1) {
       res.setHeader('Content-Type', artifacts[0].mimeType);
       res.setHeader(
