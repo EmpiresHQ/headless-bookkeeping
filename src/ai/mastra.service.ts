@@ -35,6 +35,7 @@ import {
 export class MastraService implements OnModuleInit {
   private mastra: Mastra | null = null;
   private agent: Agent | null = null;
+  private bankMappingAgent: Agent | null = null;
 
   constructor(
     private readonly entitiesService: EntitiesService,
@@ -118,6 +119,14 @@ export class MastraService implements OnModuleInit {
     });
 
     this.agent = triageAgent;
+
+    const bankMapping = await this.config.resolve('bank_mapping');
+    this.bankMappingAgent = new Agent({
+      id: 'bank-mapping-agent',
+      name: 'Bank Mapping Agent',
+      instructions: bankMapping.instructions,
+      model: bankMapping.model,
+    });
   }
 
   /**
@@ -134,6 +143,11 @@ export class MastraService implements OnModuleInit {
    */
   getAgent(): Agent | null {
     return this.agent;
+  }
+
+  /** The bank-statement CSV-mapping agent (null until initialized). */
+  getBankMappingAgent(): Agent | null {
+    return this.bankMappingAgent;
   }
 
   /**

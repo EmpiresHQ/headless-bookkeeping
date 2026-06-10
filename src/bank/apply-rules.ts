@@ -15,13 +15,15 @@ function toCents(raw: string): number {
 function toIso(raw: string, format: string): string {
   const v = raw.trim();
   if (format === 'YYYY-MM-DD') return v;
-  const m = /^(\d{2})[.\/](\d{2})[.\/](\d{4})$/.exec(v);
+  const m = /^(\d{2})[./](\d{2})[./](\d{4})$/.exec(v);
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   return v;
 }
 
-const cell = (row: Record<string, string>, col: string | null): string | null =>
-  col ? (row[col] ?? '').trim() || null : null;
+const cell = (
+  row: Record<string, string>,
+  col: string | null,
+): string | null => (col ? (row[col] ?? '').trim() || null : null);
 
 /**
  * Deterministically apply a mapping ruleset to a bank CSV, producing a
@@ -57,7 +59,10 @@ export function applyRules(
       currency: cell(row, ruleset.currency_column) ?? ruleset.default_currency,
       description: cell(row, ruleset.description_column),
       counterparty_iban: cell(row, ruleset.counterparty_iban_column),
-      counterparty_descriptor: cell(row, ruleset.counterparty_descriptor_column),
+      counterparty_descriptor: cell(
+        row,
+        ruleset.counterparty_descriptor_column,
+      ),
       reference: cell(row, ruleset.reference_column),
     };
   });
