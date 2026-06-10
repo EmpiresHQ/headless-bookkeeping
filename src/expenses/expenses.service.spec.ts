@@ -250,6 +250,24 @@ describe('ExpensesService (integration)', () => {
     });
   });
 
+  describe('deleteDraft', () => {
+    it('removes a draft expense', async () => {
+      const e = await service.createExpense(sampleDto());
+      await service.deleteDraft(e.id);
+      expect(await service.getExpenses()).toHaveLength(0);
+    });
+
+    it('refuses to delete a non-draft expense', async () => {
+      const e = await service.createExpense(sampleDto());
+      await db
+        .updateTable('expense')
+        .set({ status: 'pending' })
+        .where('id', '=', e.id)
+        .execute();
+      await expect(service.deleteDraft(e.id)).rejects.toThrow(/only a draft/i);
+    });
+  });
+
   describe('reverse charge on imported services (EE org)', () => {
     it('books self-assessed output + input VAT for a US service supplier', async () => {
       // Switch the org to Estonia so the EstoniaCountryPlugin is active.

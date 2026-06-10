@@ -8,10 +8,18 @@ import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { ExpensesService } from '../expenses/expenses.service';
+import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { EntitiesService } from '../entities/entities.service';
+import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { buildCli, CliDeps } from './cli';
+
+// deleteDraft / delete only touch the DB (never the projection), so a null
+// projection is safe for these unit tests.
+const noProjection = null as unknown as VoucherProjectionService;
 
 function makeIo() {
   const out: string[] = [];
@@ -61,6 +69,9 @@ describe('admin CLI (yargs)', () => {
           new OrganizationService(db),
         ),
       ),
+      expenses: new ExpensesService(db, noProjection),
+      salesInvoices: new SalesInvoicesService(db, noProjection),
+      entities: new EntitiesService(db),
     };
   });
 
@@ -195,6 +206,46 @@ describe('admin CLI (yargs)', () => {
         (p) => p.name,
       );
       expect(names).not.toContain('FY2026');
+    });
+  });
+
+  describe('cleanup deletes', () => {
+    it('expense delete removes a draft expense', async () => {
+      const e = await deps.expenses.createExpense({
+        category: 'software',
+        gross_amount: 1391,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-05-31',
+      });
+      await buildCli(deps, makeIo().io).parseAsync([
+        'expense',
+        'delete',
+        String(e.id),
+      ]);
+      expect(await deps.expenses.getExpenses()).toHaveLength(0);
+    });
+
+    it('entity delete removes an unreferenced entity', async () => {
+      const ent = await deps.entities.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'OpenRouter',
+        registrationKey: 'US-OR-1',
+      });
+      await buildCli(deps, makeIo().io).parseAsync([
+        'entity',
+        'delete',
+        String(ent.id),
+      ]);
+      expect(await deps.entities.list()).toHaveLength(0);
+    });
+
+    it('delete with a non-numeric id fails', async () => {
+      const { io } = makeIo();
+      await expectFailure(() =>
+        buildCli(deps, io).parseAsync(['expense', 'delete', 'nope']),
+      );
     });
   });
 

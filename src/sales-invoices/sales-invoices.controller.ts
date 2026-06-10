@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Body,
   ConflictException,
@@ -24,6 +25,12 @@ export class SalesInvoicesController {
   @Get()
   async getInvoices(): Promise<{ invoices: SalesInvoice[] }> {
     return { invoices: await this.salesInvoicesService.getInvoices() };
+  }
+
+  /** Delete a draft invoice (probe/junk cleanup). Non-draft → 409. */
+  @Delete(':id')
+  async deleteInvoice(@Param('id') id: string): Promise<SalesInvoice> {
+    return this.salesInvoicesService.deleteDraft(Number(id));
   }
 
   @Post()

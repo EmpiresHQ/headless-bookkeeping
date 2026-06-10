@@ -2,6 +2,9 @@ import yargs, { Argv } from 'yargs';
 import { ApiTokenService } from '../auth/api-token.service';
 import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { ExpensesService } from '../expenses/expenses.service';
+import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { EntitiesService } from '../entities/entities.service';
 import { UpdateOrganizationDto } from '../organization/types';
 
 export interface CliIo {
@@ -15,6 +18,9 @@ export interface CliDeps {
   tokens: ApiTokenService;
   organization: OrganizationService;
   periods: ReportingPeriodsService;
+  expenses: ExpensesService;
+  salesInvoices: SalesInvoicesService;
+  entities: EntitiesService;
 }
 
 const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
@@ -27,7 +33,17 @@ const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
  * `parseAsync` surfaces the error.
  */
 export function buildCli(deps: CliDeps, io: CliIo): Argv {
-  const { tokens, organization, periods } = deps;
+  const { tokens, organization, periods, expenses, salesInvoices, entities } =
+    deps;
+
+  // Numeric-positional guard reused by the delete subcommands.
+  const numericId = (label: string) => (y: Argv) =>
+    y.positional('id', { type: 'number', describe: 'id' }).check((argv) => {
+      if (!Number.isInteger(argv.id)) {
+        throw new Error(`${label} requires a numeric <id>`);
+      }
+      return true;
+    });
 
   return (
     yargs()
@@ -183,7 +199,53 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
           .demandCommand(1, 'Specify a period subcommand')
           .strict(),
       )
-      .demandCommand(1, 'Specify a command (token | org | period)')
+      // ── cleanup: delete draft business objects / unreferenced entities ────
+      .command('expense', 'Manage expenses', (e) =>
+        e
+          .command(
+            'delete <id>',
+            'Delete a DRAFT expense (junk cleanup)',
+            numericId('expense delete'),
+            async (argv) => {
+              const d = await expenses.deleteDraft(argv.id as number);
+              io.err(`deleted expense id=${d.id}\n`);
+            },
+          )
+          .demandCommand(1, 'Specify an expense subcommand')
+          .strict(),
+      )
+      .command('invoice', 'Manage sales invoices', (i) =>
+        i
+          .command(
+            'delete <id>',
+            'Delete a DRAFT sales invoice (junk cleanup)',
+            numericId('invoice delete'),
+            async (argv) => {
+              const d = await salesInvoices.deleteDraft(argv.id as number);
+              io.err(`deleted invoice id=${d.id} (${d.invoice_number})\n`);
+            },
+          )
+          .demandCommand(1, 'Specify an invoice subcommand')
+          .strict(),
+      )
+      .command('entity', 'Manage counterparties', (en) =>
+        en
+          .command(
+            'delete <id>',
+            'Delete an UNREFERENCED entity (junk cleanup)',
+            numericId('entity delete'),
+            async (argv) => {
+              const d = await entities.delete(argv.id as number);
+              io.err(`deleted entity id=${d.id} (${d.name})\n`);
+            },
+          )
+          .demandCommand(1, 'Specify an entity subcommand')
+          .strict(),
+      )
+      .demandCommand(
+        1,
+        'Specify a command (token | org | period | expense | invoice | entity)',
+      )
       .strict()
       .exitProcess(false)
       .fail((msg, err) => {
