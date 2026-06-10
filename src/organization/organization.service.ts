@@ -49,6 +49,9 @@ export class OrganizationService {
     if (dto.vat_registered !== undefined)
       updates.vat_registered = dto.vat_registered ? 1 : 0;
     if (dto.org_type !== undefined) updates.org_type = dto.org_type;
+    if (dto.vat_registration_number !== undefined)
+      updates.vat_registration_number = dto.vat_registration_number;
+    if (dto.name !== undefined) updates.name = dto.name;
 
     if (Object.keys(updates).length === 0) {
       return this.getOrganization();
@@ -70,6 +73,8 @@ export class OrganizationService {
     vat_registered,
     org_type,
     created_at,
+    vat_registration_number,
+    name,
   }: {
     id: number;
     country: string;
@@ -77,6 +82,8 @@ export class OrganizationService {
     vat_registered: number;
     org_type: string;
     created_at: number;
+    vat_registration_number: string | null;
+    name: string | null;
   }): Organization {
     return {
       id,
@@ -85,6 +92,8 @@ export class OrganizationService {
       vat_registered: toBool(vat_registered),
       org_type,
       created_at,
+      vat_registration_number,
+      name,
     };
   }
 }

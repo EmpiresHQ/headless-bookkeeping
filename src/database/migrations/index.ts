@@ -33,6 +33,7 @@ import * as m033 from './033_create_audit_log';
 import * as m034 from './034_add_distribution_tax_account';
 import * as m035 from './035_create_bank_import_job';
 import * as m036 from './036_add_supplier_invoice_number';
+import * as m037 from './037_add_org_declarant_identity';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -69,4 +70,5 @@ export const migrations: Record<string, Migration> = {
   '034_add_distribution_tax_account': m034,
   '035_create_bank_import_job': m035,
   '036_add_supplier_invoice_number': m036,
+  '037_add_org_declarant_identity': m037,
 };

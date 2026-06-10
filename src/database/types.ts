@@ -44,6 +44,9 @@ export interface OrganizationTable {
   // Generated because migration 017 adds DEFAULT 'company'.
   org_type: Generated<string>;
   created_at: number;
+  // Declarant identity for statutory reports (migration 037).
+  vat_registration_number: string | null;
+  name: string | null;
 }
 
 export interface AccountTable {
