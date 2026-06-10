@@ -7,49 +7,16 @@ import { Database } from '../database/types';
 import { DocumentsService } from '../documents/documents.service';
 import { TriageResult } from './types';
 import { crc32 } from '../common/crc32.util';
+import type { OcrOutcome } from './document-transcriber.port';
 
-/**
- * Why Pass 1 failed to produce markdown. Mirrors {@link Pass2FailureCategory}
- * so the intake workflow routes a transcription failure to a human through the
- * SAME typed-outcome seam as a classification failure (ADR-0024) — instead of
- * a Pass-1 exception escaping the workflow and leaving the Document stuck in
- * `pending` with no AuditFinding.
- *
- *  - 'provider-unavailable': the OCR model/API is not configured or is down —
- *                            no transcription could be attempted. (Reachable
- *                            once a real vision provider replaces the faux
- *                            model; the faux model never reports this.)
- *  - 'unreadable':           the document was fetched but cannot be transcribed
- *                            (corrupt, blank, or unsupported format) — a
- *                            permanent content problem. (Real-provider case.)
- *  - 'transient':            an IO/temporary error (a stored artifact file went
- *                            missing, a filesystem blip, a timeout) — likely
- *                            retryable later.
- *
- * A missing Document is NOT a category: it is a precondition violation (the
- * caller handed a bad id) with no object to route, so `transcribe` throws.
- */
-export type OcrFailureCategory =
-  | 'provider-unavailable'
-  | 'unreadable'
-  | 'transient';
-
-/** A successful Pass-1 transcription. */
-export interface OcrSuccess {
-  ok: true;
-  markdown: string;
-}
-
-/** A Pass-1 failure carrying an explicit, observable category. */
-export interface OcrFailure {
-  ok: false;
-  category: OcrFailureCategory;
-  /** Human-readable detail (the underlying error message). */
-  detail: string;
-}
-
-/** Discriminated outcome of a Pass-1 transcription attempt. */
-export type OcrOutcome = OcrSuccess | OcrFailure;
+// Pass-1 transcription vocabulary now lives with the port that produces it.
+// Re-exported so existing importers (IntakeWorkflowService) need no change.
+export type {
+  OcrFailureCategory,
+  OcrSuccess,
+  OcrFailure,
+  OcrOutcome,
+} from './document-transcriber.port';
 
 /**
  * Faux OCR model output — deterministic markdown derived from document metadata.
