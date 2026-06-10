@@ -36,4 +36,13 @@ export class DocumentStorageService {
     const filePath = join(this.root, storagePath);
     return fs.readFile(filePath);
   }
+
+  /** Best-effort delete of a stored file; ignores a missing file. */
+  async deleteFile(storagePath: string): Promise<void> {
+    try {
+      await fs.unlink(join(this.root, storagePath));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+  }
 }
