@@ -41,5 +41,8 @@ export async function apiFetch<T = unknown>(
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
   }
+  // P1 only calls JSON GET endpoints, so we always parse. When P2 adds
+  // mutations that may return 204 No Content, this must grow an empty-body
+  // guard (and a test) before such a call is made.
   return (await res.json()) as T;
 }
