@@ -50,7 +50,10 @@ describe('DoclingTranscriber', () => {
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body as FormData;
     expect(form.get('to_formats')).toBe('md');
-    expect(form.get('files')).toBeInstanceOf(Blob);
+    const uploaded = form.get('files');
+    expect(uploaded).toBeInstanceOf(File);
+    expect((uploaded as File).name).toBe('invoice.pdf');
+    expect(await (uploaded as File).text()).toBe('%PDF-1.4 fake');
   });
 
   it('accepts partial_success', async () => {
@@ -103,6 +106,18 @@ describe('DoclingTranscriber', () => {
 
   it('maps HTTP 5xx to transient', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}, 503));
+    const out = await new DoclingTranscriber().transcribe(file);
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.category).toBe('transient');
+  });
+
+  it('maps a non-JSON 2xx body to transient (never throws)', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
+    });
     const out = await new DoclingTranscriber().transcribe(file);
     expect(out.ok).toBe(false);
     if (out.ok) return;

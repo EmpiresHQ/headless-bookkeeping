@@ -77,7 +77,17 @@ export class DoclingTranscriber extends DocumentTranscriber {
       return { ok: false, category, detail };
     }
 
-    const body = (await response.json()) as DoclingConvertResponse;
+    let body: DoclingConvertResponse;
+    try {
+      body = (await response.json()) as DoclingConvertResponse;
+    } catch (error) {
+      // A 2xx with a non-JSON body is a server-side anomaly — treat as retryable
+      // rather than letting the rejection escape the never-throws guarantee.
+      const err = error instanceof Error ? error : new Error(String(error));
+      const detail = `docling-serve returned a non-JSON body: ${err.message}`;
+      this.logger.warn(detail);
+      return { ok: false, category: 'transient', detail };
+    }
     const markdown = body.document?.md_content ?? '';
     const failed = body.status === 'failure' || body.status === 'skipped';
 

@@ -20,9 +20,10 @@ services:
 
   # Pass-1 OCR engine (ADR-0032): born-digital text-layer extraction + OCR of
   # scanned/image documents + table reconstruction → markdown, over HTTP. CPU
-  # image (models pre-baked). Swap to a docling-serve-cu* tag for GPU.
+  # image (models pre-baked), pinned to the version the adapter's /v1/convert
+  # path was verified against. Swap to a docling-serve-cu*:<ver> tag for GPU.
   docling:
-    image: quay.io/docling-project/docling-serve-cpu:latest
+    image: quay.io/docling-project/docling-serve-cpu:v1.22.0
     ports:
       - "5001:5001"
     healthcheck:
