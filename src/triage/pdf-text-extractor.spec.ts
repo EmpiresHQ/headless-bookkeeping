@@ -1,5 +1,5 @@
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
-import { PdfTextExtractor } from './pdf-text-extractor';
+import { PdfTextExtractor, reconstructPageText } from './pdf-text-extractor';
 
 // The extractor is a thin wrapper: call pdf-parse, trim, swallow errors → ''.
 // We unit-test THAT logic with pdf-parse mocked; real pdf-parse parsing is its
@@ -24,5 +24,40 @@ describe('PdfTextExtractor', () => {
     mockParse.mockRejectedValue(new Error('bad XRef entry'));
     const text = await new PdfTextExtractor().extract(Buffer.from('not a pdf'));
     expect(text).toBe('');
+  });
+});
+
+describe('reconstructPageText', () => {
+  const item = (str: string, x: number, y: number, width: number) => ({
+    str,
+    transform: [1, 0, 0, 1, x, y],
+    width,
+  });
+
+  it('inserts a space between same-line fragments separated by a gap', () => {
+    // pdf.js emits "Invoice" and "to" as separate fragments with no space;
+    // the gap (44 - 40 = 4 > 2) must become a single space.
+    const text = reconstructPageText([
+      item('Invoice', 0, 100, 40),
+      item('to', 44, 100, 10),
+    ]);
+    expect(text).toBe('Invoice to');
+  });
+
+  it('does NOT split tightly-kerned fragments of one word', () => {
+    // Gap 0.5 < 2 → no space: "Fin" + "ance" stays "Finance".
+    const text = reconstructPageText([
+      item('Fin', 0, 100, 20),
+      item('ance', 20.5, 100, 25),
+    ]);
+    expect(text).toBe('Finance');
+  });
+
+  it('breaks a line when the baseline drops', () => {
+    const text = reconstructPageText([
+      item('Invoice', 0, 100, 40),
+      item('Acme', 0, 88, 30),
+    ]);
+    expect(text).toBe('Invoice\nAcme');
   });
 });
