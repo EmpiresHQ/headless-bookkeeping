@@ -19,6 +19,8 @@ import {
   deleteEntity,
 } from './api';
 import { KmdView } from './components/KmdView';
+import { IntakeView } from './components/IntakeView';
+import { ApprovalsView } from './components/ApprovalsView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -118,6 +120,22 @@ const periodsTab: TabDef<ReportingPeriod> = {
   ],
 };
 
+const intakeTab: TabDef = {
+  key: 'intake',
+  label: 'Intake',
+  load: async () => [],
+  columns: [],
+  Custom: IntakeView,
+};
+
+const approvalsTab: TabDef = {
+  key: 'approvals',
+  label: 'Approvals',
+  load: async () => [],
+  columns: [],
+  Custom: ApprovalsView,
+};
+
 const kmdTab: TabDef = {
   key: 'kmd',
   label: 'VAT / KMD',
@@ -135,6 +153,8 @@ export const TABS: TabDef[] = [
   expensesTab,
   invoicesTab,
   documentsTab,
+  intakeTab,
+  approvalsTab,
   periodsTab,
   kmdTab,
 ] as unknown as TabDef[];

@@ -120,3 +120,68 @@ export const deleteInvoice = (id: number) =>
   apiFetch<SalesInvoice>(`/api/sales-invoices/${id}`, { method: 'DELETE' });
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
+
+// ── Intake / triage (POST /api/documents, /triage, /complete) ─────────────
+export type TriageOutcome =
+  | { kind: 'expense'; document_id: number; expense_id: number }
+  | { kind: 'invoice'; document_id: number; invoice_id: number }
+  | { kind: 'unknown'; document_id: number; reason: string };
+
+export const uploadDocument = (file: File) => {
+  // Multipart: set NO content-type so the browser adds the boundary.
+  const body = new FormData();
+  body.append('file', file);
+  return apiFetch<{ document: DocumentRow; deduplicated: boolean }>(
+    '/api/documents',
+    { method: 'POST', body },
+  );
+};
+
+export const getTriagePending = () =>
+  apiFetch<{ pending: DocumentRow[] }>('/api/triage/pending').then(
+    (r) => r.pending,
+  );
+
+export const triageDocument = (id: number) =>
+  apiFetch<TriageOutcome>(`/api/documents/${id}/triage`, { method: 'POST' });
+
+export const completeDocument = (id: number) =>
+  apiFetch<{ id: number; status: string }>(`/api/documents/${id}/complete`, {
+    method: 'POST',
+  });
+
+// ── Approvals (HITL) ──────────────────────────────────────────────────────
+export interface Approval {
+  id: number;
+  object_type: string;
+  object_id: number;
+  status: string;
+  requested_by: string;
+  approved_by: string | null;
+  rejected_reason: string | null;
+  superseded_by: number | null;
+  created_at: number;
+  resolved_at: number | null;
+}
+
+export const getPendingApprovals = () =>
+  apiFetch<{ approvals: Approval[] }>('/api/approvals/pending').then(
+    (r) => r.approvals,
+  );
+
+// Typed to `{ approval }` only — the approve endpoint also returns the posted
+// voucher, but the operator UI deliberately never consumes ledger data
+// (ADR-0001/ADR-0030), so it stays off the client's typed surface.
+export const approveApproval = (id: number, approvedBy: string) =>
+  apiFetch<{ approval: Approval }>(`/api/approvals/${id}/approve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ approved_by: approvedBy }),
+  });
+
+export const rejectApproval = (id: number, reason: string) =>
+  apiFetch<{ approval: Approval }>(`/api/approvals/${id}/reject`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ rejected_reason: reason }),
+  });
