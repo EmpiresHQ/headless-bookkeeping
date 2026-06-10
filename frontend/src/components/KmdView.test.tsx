@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { KmdView } from './KmdView';
 import * as api from '../api';
 
@@ -38,7 +38,18 @@ describe('KmdView', () => {
   it('loads the first period KMD and shows row 3 + VD + flags', async () => {
     render(<KmdView />);
     await waitFor(() => expect(api.getKmd).toHaveBeenCalledWith(3));
-    expect(await screen.findByText(/11740\.00/)).toBeInTheDocument(); // row3 cents → €
+
+    // Row 3 (0% käive) and the VD 3S total legitimately share the same value —
+    // the 0% käive IS the intra-EU services — so assert each within its own row
+    // rather than with a global text query (which would match both).
+    const row3 = (
+      await screen.findByText('Row 3 — 0% käive (base)')
+    ).closest('tr')!;
+    expect(within(row3).getByText(/11740\.00/)).toBeInTheDocument(); // cents → €
+
+    const vd = screen.getByText(/VD koondaruanne — 3S/).closest('tr')!;
+    expect(within(vd).getByText(/11740\.00/)).toBeInTheDocument();
+
     expect(screen.getByText(/Verify KMD row 6 vs 7\./)).toBeInTheDocument();
   });
 });

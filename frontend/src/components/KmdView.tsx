@@ -89,22 +89,23 @@ export function KmdView() {
                   {fmtCents(decl.net_vat_due)} €
                 </td>
               </tr>
+              <tr>
+                <td className="px-3 py-1 text-gray-700">
+                  VD koondaruanne — 3S (intra-EU services)
+                </td>
+                <td className="px-3 py-1 text-right tabular-nums">
+                  {fmtCents(decl.vd_intra_eu_services)} €
+                </td>
+              </tr>
             </tbody>
           </table>
 
-          {decl.vd_intra_eu_services > 0 && (() => {
-            const [whole, dec] = fmtCents(decl.vd_intra_eu_services).split('.');
-            return (
-              <p className="text-sm text-amber-700">
-                VD koondaruanne (tähis 3S) — file manually in e-MTA, the system does not
-                submit it. 3S total:{' '}
-                <span className="tabular-nums">
-                  <span>{whole}</span>
-                  <span>.{dec}</span>
-                </span>{' '}€
-              </p>
-            );
-          })()}
+          {decl.vd_intra_eu_services > 0 && (
+            <p className="text-sm text-amber-700">
+              File the VD koondaruanne (tähis 3S) manually in e-MTA — the system
+              does not submit it.
+            </p>
+          )}
 
           {decl.review_flags.length > 0 && (
             <div className="text-sm">
