@@ -45,6 +45,11 @@ lerna-debug.log*
 .env
 .env.local
 .env.*.local
+evals/**/.env
+
+# promptfoo eval outputs/cache
+.promptfoo/
+evals/**/output.*
 
 # Lock files
 # package-lock.json is kept for reproducible Docker builds

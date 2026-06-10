@@ -1,0 +1,86 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "searchSuppliers",
+      "description": "Search for existing suppliers by name or registration key. Returns matching entities with their IDs, names, and countries.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query to match against supplier names or registration keys"
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "listCategories",
+      "description": "List all available expense categories. These are user-facing labels that map to accounting accounts and VAT codes.",
+      "parameters": { "type": "object", "properties": {} }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "getClassificationMemory",
+      "description": "Get historical category usage for a specific supplier. Shows what categories this supplier's expenses have been classified as in the past.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "supplierId": { "type": "number", "description": "The supplier entity ID" }
+        },
+        "required": ["supplierId"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "previewCategoryMapping",
+      "description": "Preview what accounting account and VAT code would be used for a given category and supplier context.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "description": "The user-facing category label" },
+          "supplierContext": {
+            "type": "object",
+            "properties": {
+              "country": { "type": "string" },
+              "goodsVsServices": { "type": "string", "enum": ["goods", "services", "unknown"] }
+            }
+          }
+        },
+        "required": ["category"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "getClassificationContext",
+      "description": "Deep read for triage: from document evidence (supplier registration key, name, country, goods-vs-services) and a candidate category, resolve or propose the supplier, gather its classification memory, and preview the resulting account + VAT code mapping. Call this ONCE instead of chaining searchSuppliers, getClassificationMemory, and previewCategoryMapping.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "description": "The user-facing category label to preview" },
+          "evidence": {
+            "type": "object",
+            "description": "Document evidence about the supplier extracted from the markdown",
+            "properties": {
+              "registrationKey": { "type": "string", "description": "Supplier strong registration key (e.g. VAT number / DK CVR) read from the document." },
+              "name": { "type": "string", "description": "Supplier name as printed on the document." },
+              "country": { "type": "string", "description": "Supplier ISO country code read from the document." },
+              "goodsVsServices": { "type": "string", "enum": ["goods", "services", "unknown"] }
+            }
+          }
+        },
+        "required": ["category", "evidence"]
+      }
+    }
+  }
+]
