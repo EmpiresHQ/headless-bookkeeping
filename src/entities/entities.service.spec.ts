@@ -356,8 +356,8 @@ describe('Entity aggregate (integration)', () => {
       const e = await entitiesService.onboard({
         role: 'customer',
         country: 'DK',
-        name: 'VERIFI',
-        registrationKey: 'DK45960617',
+        name: 'ACME',
+        registrationKey: 'DK99999999',
       });
       await db
         .insertInto('sales_invoice')
