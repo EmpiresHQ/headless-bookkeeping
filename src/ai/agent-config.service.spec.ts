@@ -105,5 +105,18 @@ describe('AgentConfigService (integration)', () => {
         url: 'http://localhost:1234/v1',
       });
     });
+
+    it('passes the model id through verbatim (the operator owns the provider/ prefix)', async () => {
+      // No defaulting/guessing: a bare name is forwarded as-is and Mastra will
+      // reject it — the Settings UI tells the operator to include the prefix.
+      await set('ai_base_url', 'https://llm.example.com/v1');
+      await set('ai_api_key', 'sk-test');
+      await set('ai_model', 'anthropic/claude-3-5');
+      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+        id: 'anthropic/claude-3-5',
+        url: 'https://llm.example.com/v1',
+        apiKey: 'sk-test',
+      });
+    });
   });
 });

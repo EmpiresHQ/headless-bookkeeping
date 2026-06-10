@@ -47,7 +47,12 @@ export class AgentConfigService {
     if (!url) return id;
     const apiKey = await this.read('ai_api_key');
     return {
-      // model ids are `provider/model`; the compat layer needs the slash.
+      // Mastra's model router requires a `provider/model` id even for a custom
+      // OpenAI-compatible endpoint (the provider picks the request adapter; the
+      // base URL still comes from `url`). The operator must include the prefix
+      // (e.g. `openai/qwen3.6-coder-fast`) — see the Settings UI hint. We do NOT
+      // default a bare name to `openai/`, which would silently misroute a
+      // non-OpenAI model through the OpenAI adapter.
       id: id as `${string}/${string}`,
       url,
       ...(apiKey ? { apiKey } : {}),
