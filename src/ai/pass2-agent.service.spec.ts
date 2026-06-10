@@ -13,6 +13,7 @@ import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import type { Agent } from '@mastra/core/agent';
 import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
@@ -60,6 +61,7 @@ describe('Pass2AgentService', () => {
         NullCountryPlugin,
         EstoniaCountryPlugin,
         PluginLoader,
+        OrgContextResolver,
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
@@ -139,6 +141,7 @@ describe('Pass2AgentService', () => {
           NullCountryPlugin,
           EstoniaCountryPlugin,
           PluginLoader,
+          OrgContextResolver,
           CurrencyService,
           VoucherProjectionService,
           EntitiesService,

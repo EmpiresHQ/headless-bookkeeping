@@ -12,6 +12,7 @@ import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -57,6 +58,7 @@ describe('PrepaymentService (integration)', () => {
         EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
+        OrgContextResolver,
         PrepaymentService,
       ],
     }).compile();
@@ -958,6 +960,7 @@ describe('PrepaymentService — cross-currency bank account', () => {
         EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
+        OrgContextResolver,
         PrepaymentService,
       ],
     })

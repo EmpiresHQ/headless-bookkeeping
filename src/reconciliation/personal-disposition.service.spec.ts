@@ -18,6 +18,7 @@ import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PersonalDispositionService } from './personal-disposition.service';
 
 /**
@@ -61,6 +62,7 @@ describe('PersonalDispositionService (integration)', () => {
         EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
+        OrgContextResolver,
         PersonalDispositionService,
       ],
     }).compile();
@@ -280,6 +282,7 @@ describe('PersonalDispositionService — cross-currency bank account', () => {
         EstoniaCountryPlugin,
         PluginLoader,
         CurrencyService,
+        OrgContextResolver,
         PersonalDispositionService,
       ],
     })
