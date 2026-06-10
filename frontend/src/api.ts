@@ -88,3 +88,35 @@ export const getReportingPeriods = () =>
 
 /** Integer cents → display string, e.g. 615700 -> "6157.00". */
 export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
+
+// ── KMD declaration (GET /api/reporting-periods/:id/kmd) ──────────────────
+export interface KmdDeclaration {
+  reporting_period_id: number;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  row1_base_24: number;
+  row2_base_reduced: number;
+  row3_base_zero: number;
+  row4_output_vat: number;
+  row5_input_vat: number;
+  row6_intra_eu_acquisition: number;
+  row7_other_acquisition: number;
+  net_vat_due: number;
+  vd_intra_eu_services: number;
+  review_flags: string[];
+}
+
+export const getKmd = (periodId: number) =>
+  apiFetch<KmdDeclaration>(`/api/reporting-periods/${periodId}/kmd`);
+
+// ── Deletes (probe-garbage cleanup) ───────────────────────────────────────
+// The endpoints return the deleted object (200) or 409 when the object cannot
+// be deleted (a non-draft expense/invoice, or a referenced entity); apiFetch
+// turns the 409 into a thrown Error carrying the server's message.
+export const deleteExpense = (id: number) =>
+  apiFetch<Expense>(`/api/expenses/${id}`, { method: 'DELETE' });
+export const deleteInvoice = (id: number) =>
+  apiFetch<SalesInvoice>(`/api/sales-invoices/${id}`, { method: 'DELETE' });
+export const deleteEntity = (id: number) =>
+  apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
