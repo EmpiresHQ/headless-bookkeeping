@@ -9,6 +9,15 @@ export interface ResolvedAgentConfig {
   instructions: string;
 }
 
+/**
+ * What an Agent's `model` is given. A bare provider/model id (resolved by
+ * Mastra's gateway against provider defaults) when no custom endpoint is set,
+ * or an OpenAI-compatible config aiming inference at a chosen base URL + key.
+ */
+export type ModelConfig =
+  | string
+  | { id: `${string}/${string}`; url: string; apiKey?: string };
+
 /** Default instructions per agent. Overridable at runtime by a `prompt.<key>` setting row.
  * These were moved verbatim from mastra.service.ts / intent-classifier.service.ts. */
 export const AGENT_PROMPTS: Record<AgentKey, string> = {
