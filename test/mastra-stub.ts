@@ -91,15 +91,23 @@ export class LibSQLStore {
 
 export class Run {
   readonly runId = 'stub-run';
-  async start(_args: { inputData?: unknown }): Promise<{ status: string; result: unknown }> {
-    return { status: 'success', result: undefined };
+  start(_args: {
+    inputData?: unknown;
+  }): Promise<{ status: string; result: unknown }> {
+    return Promise.resolve({ status: 'success', result: undefined });
   }
 }
 export class Workflow {
   constructor(public config: { id?: unknown } = {}) {}
-  then(): this { return this; }
-  commit(): this { return this; }
-  async createRun(): Promise<Run> { return new Run(); }
+  then(): this {
+    return this;
+  }
+  commit(): this {
+    return this;
+  }
+  createRun(): Promise<Run> {
+    return Promise.resolve(new Run());
+  }
 }
 export function createWorkflow(config: { id?: unknown } = {}): Workflow {
   return new Workflow(config);
