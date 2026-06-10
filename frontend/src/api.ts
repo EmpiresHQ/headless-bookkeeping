@@ -169,6 +169,63 @@ export const deleteExpense = (id: number) =>
   apiFetch<Expense>(`/api/expenses/${id}`, { method: 'DELETE' });
 export const deleteInvoice = (id: number) =>
   apiFetch<SalesInvoice>(`/api/sales-invoices/${id}`, { method: 'DELETE' });
+
+// ── Manual create (amounts are integer cents) ─────────────────────────────
+export interface CreateExpenseInput {
+  category: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  supplier_id?: number | null;
+  document_vat_marking?: string | null;
+}
+
+export const createExpense = (input: CreateExpenseInput) =>
+  apiFetch<Expense>('/api/expenses', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export interface CreateInvoiceInput {
+  invoice_number: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  customer_id?: number | null;
+  due_date?: string | null;
+  document_vat_marking?: string | null;
+}
+
+export const createInvoice = (input: CreateInvoiceInput) =>
+  apiFetch<SalesInvoice>('/api/sales-invoices', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+// ── Corrections (reversal + corrected voucher of a POSTED object) ──────────
+export interface CorrectionRequest {
+  kind: 'cosmetic' | 'financial' | 'credit_note';
+  reason: string;
+  patch?: { gross_amount?: number; vat_amount?: number; category?: string };
+}
+
+export const correctExpense = (id: number, req: CorrectionRequest) =>
+  apiFetch<{ outcome: string }>(`/api/expenses/${id}/correct`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+
+export const correctInvoice = (id: number, req: CorrectionRequest) =>
+  apiFetch<{ outcome: string }>(`/api/sales-invoices/${id}/correct`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(req),
+  });
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
 

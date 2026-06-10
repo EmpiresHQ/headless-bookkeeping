@@ -1,16 +1,6 @@
 import type { ComponentType } from 'react';
 import { Column } from './components/Table';
-import {
-  Expense,
-  SalesInvoice,
-  ReportingPeriod,
-  fmtCents,
-  getExpenses,
-  getInvoices,
-  getReportingPeriods,
-  deleteExpense,
-  deleteInvoice,
-} from './api';
+import { ReportingPeriod, getReportingPeriods } from './api';
 import { KmdView } from './components/KmdView';
 import { IntakeView } from './components/IntakeView';
 import { BankView } from './components/BankView';
@@ -19,6 +9,8 @@ import { SettingsView } from './components/SettingsView';
 import { OrgView } from './components/OrgView';
 import { EntitiesView } from './components/EntitiesView';
 import { DocumentsView } from './components/DocumentsView';
+import { ExpensesView } from './components/ExpensesView';
+import { InvoicesView } from './components/InvoicesView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -31,16 +23,6 @@ export interface TabDef<T = unknown> {
   rowId?: (row: T) => number;
   /** When set, the tab renders this component instead of the data table. */
   Custom?: ComponentType;
-}
-
-/** Bank-reconciliation badge: shows whether a posted entry is matched to a
- *  bank transaction. */
-function Reconciled({ value }: { value: boolean }) {
-  return value ? (
-    <span className="text-green-700">reconciled</span>
-  ) : (
-    <span className="text-gray-400">—</span>
-  );
 }
 
 const orgTab: TabDef = {
@@ -59,38 +41,20 @@ const entitiesTab: TabDef = {
   Custom: EntitiesView,
 };
 
-const expensesTab: TabDef<Expense> = {
+const expensesTab: TabDef = {
   key: 'expenses',
   label: 'Expenses',
-  load: getExpenses,
-  columns: [
-    { header: 'ID', cell: (e) => e.id },
-    { header: 'Category', cell: (e) => e.category },
-    { header: 'Gross', cell: (e) => `${fmtCents(e.gross_amount)} ${e.currency}` },
-    { header: 'VAT', cell: (e) => fmtCents(e.vat_amount) },
-    { header: 'Tax point', cell: (e) => e.tax_point_date },
-    { header: 'Status', cell: (e) => e.status },
-    { header: 'Bank', cell: (e) => <Reconciled value={e.reconciled} /> },
-  ],
-  remove: (e) => deleteExpense(e.id),
-  rowId: (e) => e.id,
+  load: async () => [],
+  columns: [],
+  Custom: ExpensesView,
 };
 
-const invoicesTab: TabDef<SalesInvoice> = {
+const invoicesTab: TabDef = {
   key: 'invoices',
   label: 'Sales invoices',
-  load: getInvoices,
-  columns: [
-    { header: 'No.', cell: (i) => i.invoice_number },
-    { header: 'Gross', cell: (i) => `${fmtCents(i.gross_amount)} ${i.currency}` },
-    { header: 'VAT', cell: (i) => fmtCents(i.vat_amount) },
-    { header: 'Tax point', cell: (i) => i.tax_point_date },
-    { header: 'Status', cell: (i) => i.status },
-    { header: 'Sent', cell: (i) => (i.sent_at ? 'yes' : 'no') },
-    { header: 'Bank', cell: (i) => <Reconciled value={i.reconciled} /> },
-  ],
-  remove: (i) => deleteInvoice(i.id),
-  rowId: (i) => i.id,
+  load: async () => [],
+  columns: [],
+  Custom: InvoicesView,
 };
 
 const documentsTab: TabDef = {
