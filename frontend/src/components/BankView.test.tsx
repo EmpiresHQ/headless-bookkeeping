@@ -8,6 +8,7 @@ vi.mock('../api', () => ({
   getBankImportStatus: vi.fn(),
   listBankStatements: vi.fn(),
   listBankTransactions: vi.fn(),
+  deleteBankStatement: vi.fn(),
   fmtCents: (cents: number) => (cents / 100).toFixed(2),
 }));
 
@@ -79,5 +80,24 @@ describe('BankView', () => {
     expect(await screen.findByText('6157.00')).toBeInTheDocument();
     expect(screen.getByText('DK7430000014041346')).toBeInTheDocument();
     expect(api.listBankTransactions).toHaveBeenCalledWith(5);
+  });
+
+  it('deletes a statement after confirmation and reloads the list', async () => {
+    vi.mocked(api.listBankStatements)
+      .mockResolvedValueOnce([
+        { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+      ])
+      .mockResolvedValue([]); // after delete: empty
+    vi.mocked(api.deleteBankStatement).mockResolvedValue({ deleted: 5 });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<BankView />);
+    await screen.findByText('2026-05-01 → 2026-05-31');
+
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    expect(await screen.findByText('No statements yet.')).toBeInTheDocument();
+    expect(api.deleteBankStatement).toHaveBeenCalledWith(5);
+    confirmSpy.mockRestore();
   });
 });

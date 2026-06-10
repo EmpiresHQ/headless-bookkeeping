@@ -283,3 +283,8 @@ export const listBankStatements = () =>
 
 export const listBankTransactions = (statementId: number) =>
   apiFetch<BankTransaction[]>(`/api/bank-statements/${statementId}/transactions`);
+
+export const deleteBankStatement = (statementId: number) =>
+  apiFetch<{ deleted: number }>(`/api/bank-statements/${statementId}`, {
+    method: 'DELETE',
+  });
