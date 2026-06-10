@@ -1,4 +1,4 @@
-export type AgentKey = 'triage' | 'intent_classifier';
+export type AgentKey = 'triage' | 'intent_classifier' | 'ocr';
 
 /** The SOLE hardcoded model literal in the codebase — the bootstrap default used
  * only when neither a per-agent nor a global `ai_model` setting exists. */
@@ -50,4 +50,8 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
 - report: the user wants a report; set reportKind.
 - reconciliation: the user is resolving a bank line.
 - clarify: you are NOT confident. Set a short question. Prefer clarify over guessing.`,
+  // dots.ocr (served via LiteLLM) ignores the prompt — it transcribes layout
+  // regardless. This text is sent only to satisfy the chat/completions content
+  // shape (a vision message needs a text part); it is not operator-overridable.
+  ocr: 'Transcribe this document to markdown.',
 };
