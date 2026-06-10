@@ -126,6 +126,7 @@ export interface ExpenseTable {
   // Raw VAT code/rate as printed on the counterparty's source document
   // (opaque evidence, never used for booking — ADR-0002).
   document_vat_marking: string | null;
+  supplier_invoice_number: string | null;
   created_at: number;
   updated_at: number;
 }
