@@ -13,6 +13,7 @@ import { AccountService } from '../ledger/account/account.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { CreditNotesService } from '../credit-notes/credit-notes.service';
 import {
   DraftVoucher,
   DraftVoucherLine,
@@ -77,6 +78,7 @@ export class CorrectionsService {
     private readonly periodLock: PeriodLockService,
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
+    private readonly creditNotes: CreditNotesService,
   ) {}
 
   async correctExpense(
@@ -130,9 +132,14 @@ export class CorrectionsService {
       return { outcome: 'cosmetic_attachment_replaced' };
     }
 
-    // 5. Credit note
+    // 5. Credit note — delegate to CreditNotesService
     if (request.kind === 'credit_note') {
-      return { outcome: 'credit_note_not_implemented' };
+      const cn = await this.creditNotes.create({
+        credits_object_type: params.objectType as 'sales_invoice' | 'expense',
+        credits_object_id: params.objectId,
+        ...request.creditNote!,
+      });
+      return { outcome: 'credit_note_created', creditNoteId: cn.id };
     }
 
     // 2. Financial + draft/pending

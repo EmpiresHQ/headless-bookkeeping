@@ -44,6 +44,8 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
     'Always return structured output with kind, document_type, gross_amount, ' +
     'vat_amount, currency, tax_point_date, category, document_vat_marking, ' +
+    'supplier_invoice_number (the supplier\'s own invoice or receipt number ' +
+    'printed on the document — null if absent), ' +
     'confidence, and optionally supplier_proposal. ' +
     'When you include supplier_proposal it MUST set a "mode" discriminant ' +
     'and carry EXACTLY the fields for that mode: ' +

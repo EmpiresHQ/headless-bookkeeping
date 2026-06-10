@@ -4,9 +4,9 @@
  */
 export interface VatSummaryLine {
   vat_code: string | null;
-  /** Sum of base_amount for lines where is_debit=1 (purchases → input VAT). */
+  /** Input VAT amount aggregated from VAT_RECEIVABLE control lines (purchases). */
   input_vat: number;
-  /** Sum of base_amount for lines where is_debit=0 (sales → output VAT). */
+  /** Output VAT amount aggregated from VAT_PAYABLE control lines (sales). */
   output_vat: number;
   /** Number of voucher lines contributing to this row. */
   line_count: number;

@@ -31,6 +31,7 @@ export interface Database {
   ai_proposal: AiProposalTable;
   setting: SettingTable;
   audit_log: AuditLogTable;
+  credit_note: CreditNoteTable;
 }
 
 export interface OrganizationTable {
@@ -44,6 +45,9 @@ export interface OrganizationTable {
   // Generated because migration 017 adds DEFAULT 'company'.
   org_type: Generated<string>;
   created_at: number;
+  // Declarant identity for statutory reports (migration 037).
+  vat_registration_number: string | null;
+  name: string | null;
 }
 
 export interface AccountTable {
@@ -126,6 +130,7 @@ export interface ExpenseTable {
   // Raw VAT code/rate as printed on the counterparty's source document
   // (opaque evidence, never used for booking — ADR-0002).
   document_vat_marking: string | null;
+  supplier_invoice_number: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -425,6 +430,28 @@ export interface SettingTable {
   id: Generated<number>;
   key: string;
   value: string;
+  updated_at: number;
+}
+
+// CreditNote: a "negative invoice" referencing an original sales_invoice or
+// expense. kind: 'sales' | 'purchase'. status: 'draft' | 'posted' | 'reversed'.
+export interface CreditNoteTable {
+  id: Generated<number>;
+  // 'sales' | 'purchase'
+  kind: string;
+  credits_object_type: string;
+  credits_object_id: number;
+  credit_note_number: string;
+  // Gross amount in cents (original currency).
+  gross_amount: number;
+  // VAT portion in cents (original currency).
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  // 'draft' | 'posted' | 'reversed'
+  status: string;
+  voucher_id: number | null;
+  created_at: number;
   updated_at: number;
 }
 

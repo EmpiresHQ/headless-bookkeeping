@@ -8,6 +8,11 @@ import {
   VATCode,
 } from './country-plugin.interface';
 import {
+  StatutoryFormat,
+  StatutoryReportInput,
+  StatutoryReportResult,
+} from './statutory-report.types';
+import {
   ExpenseTreatmentPreview,
   KmdBaseClassification,
   VatComputation,
@@ -223,5 +228,12 @@ export class NullCountryPlugin implements CountryPlugin {
     _orgContext: OrgContext,
   ): { accountCode: string; amount: number } | null {
     return null;
+  }
+
+  generateStatutoryReports(
+    _input: StatutoryReportInput,
+    _opts: { formats: StatutoryFormat[] },
+  ): StatutoryReportResult {
+    return { artifacts: [], warnings: [] };
   }
 }

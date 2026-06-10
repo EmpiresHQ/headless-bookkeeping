@@ -44,4 +44,20 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
   it('resolveDistributionTax is null (no distribution tax in IE/Null)', () => {
     expect(plugin.resolveDistributionTax(10000, org)).toBeNull();
   });
+
+  it('returns no statutory artifacts (jurisdiction has no filing format)', () => {
+    const result = plugin.generateStatutoryReports(
+      {
+        declarant: { regNumber: null, name: null },
+        period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
+        mode: 'final',
+        boxes: [],
+        totals: { totalInputVat: 0, totalOutputVat: 0, totalPayable: 0 },
+        salesLines: [],
+        purchaseLines: [],
+      },
+      { formats: ['xml'] },
+    );
+    expect(result).toEqual({ artifacts: [], warnings: [] });
+  });
 });

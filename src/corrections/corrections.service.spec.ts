@@ -8,6 +8,7 @@ import { AccountService } from '../ledger/account/account.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { CreditNotesService } from '../credit-notes/credit-notes.service';
 import { CorrectionRequest } from './types';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 
@@ -55,6 +56,12 @@ describe('CorrectionsService (unit)', () => {
     patchAmountsTx: jest.fn(),
   };
 
+  const mockCreditNotesService = {
+    create: jest.fn(),
+  };
+
+  let creditNotesService: { create: jest.Mock };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -72,10 +79,12 @@ describe('CorrectionsService (unit)', () => {
         { provide: PeriodLockService, useValue: mockPeriodLock },
         { provide: ExpensesService, useValue: mockExpensesService },
         { provide: SalesInvoicesService, useValue: mockSalesInvoicesService },
+        { provide: CreditNotesService, useValue: mockCreditNotesService },
       ],
     }).compile();
 
     service = module.get(CorrectionsService);
+    creditNotesService = module.get(CreditNotesService);
   });
 
   describe('branch selection', () => {
@@ -95,20 +104,37 @@ describe('CorrectionsService (unit)', () => {
       expect(result.outcome).toBe('cosmetic_attachment_replaced');
     });
 
-    it('credit_note → credit_note_not_implemented', async () => {
-      mockExpensesService.getExpenseById.mockResolvedValue({
-        id: 1,
+    it('delegates a credit_note correction request to CreditNotesService', async () => {
+      mockSalesInvoicesService.getInvoiceById.mockResolvedValue({
+        id: 123,
         status: 'posted',
         voucher_id: 10,
       });
 
-      const request: CorrectionRequest = {
-        kind: 'credit_note',
-        reason: 'Supplier sent credit note',
-      };
+      const spy = jest
+        .spyOn(creditNotesService, 'create')
+        .mockResolvedValue({ id: 7 } as any);
 
-      const result = await service.correctExpense(1, request);
-      expect(result.outcome).toBe('credit_note_not_implemented');
+      const res = await service.correctSalesInvoice(123, {
+        kind: 'credit_note',
+        reason: 'customer returned goods',
+        creditNote: {
+          credit_note_number: 'CN-9',
+          gross_amount: 10000,
+          vat_amount: 2400,
+          tax_point_date: '2026-05-20',
+        },
+      } as any);
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credits_object_type: 'sales_invoice',
+          credits_object_id: 123,
+          credit_note_number: 'CN-9',
+          gross_amount: 10000,
+        }),
+      );
+      expect(res).toEqual({ outcome: 'credit_note_created', creditNoteId: 7 });
     });
 
     it('financial + draft → draft_edited', async () => {

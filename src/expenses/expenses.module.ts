@@ -9,6 +9,7 @@ import { PostingModule } from '../ledger/posting/posting.module';
 import { RulesModule } from '../rules/rules.module';
 import { PolicyModule } from '../policy/policy.module';
 import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
+import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 
@@ -24,6 +25,7 @@ import { ExpensesService } from './expenses.service';
     RulesModule,
     PolicyModule,
     PostingPipelineModule,
+    PeriodLockModule,
   ],
   controllers: [ExpensesController],
   providers: [ExpensesService],

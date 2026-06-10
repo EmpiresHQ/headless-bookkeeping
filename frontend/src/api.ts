@@ -1,4 +1,4 @@
-import { apiFetch } from './auth';
+import { apiFetch, apiFetchRaw } from './auth';
 
 /**
  * The business-object interfaces below (Organization, Entity, Expense,
@@ -388,6 +388,65 @@ export const importBankStatement = (file: File, accountCode: string) => {
 
 export const getBankImportStatus = (jobId: number) =>
   apiFetch<BankImportJob>(`/api/bank-statements/import/${jobId}`);
+
+// ── Credit notes ─────────────────────────────────────────────────────────
+export interface CreditNote {
+  id: number;
+  credit_note_number: string;
+  status: string;
+  gross_amount: number;
+  vat_amount: number;
+  credits_object_type: string;
+  credits_object_id: number;
+}
+
+export async function createCreditNote(body: {
+  credits_object_type: 'sales_invoice' | 'expense';
+  credits_object_id: number;
+  credit_note_number: string;
+  gross_amount: number;
+  vat_amount: number;
+  tax_point_date: string;
+}): Promise<CreditNote> {
+  return apiFetch('/api/credit-notes', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listCreditNotes(): Promise<CreditNote[]> {
+  return apiFetch<{ credit_notes: CreditNote[] }>('/api/credit-notes').then(
+    (r) => r.credit_notes,
+  );
+}
+
+// ── Statutory report download (binary blob) ───────────────────────────────
+// GET /api/reporting-periods/:id/statutory-report?format=xml|csv|all
+// The server responds with the file as a binary body and a content-disposition
+// header carrying the filename.  We use apiFetchRaw (not apiFetch) so that we
+// receive the raw Response and can call .blob() on it instead of .json().
+export async function downloadStatutoryReport(
+  periodId: number,
+  format: 'xml' | 'csv' | 'all',
+): Promise<void> {
+  const res = await apiFetchRaw(
+    `/api/reporting-periods/${periodId}/statutory-report?format=${format}`,
+    { method: 'GET' },
+  );
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const cd = res.headers.get('content-disposition') ?? '';
+  a.download =
+    cd.match(/filename="(.+?)"/)?.[1] ??
+    `kmd-${periodId}.${format === 'all' ? 'zip' : format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // ── Bank statements + transactions (read) ─────────────────────────────────
 // Display subsets — account_id (a ledger-internal FK) is intentionally omitted

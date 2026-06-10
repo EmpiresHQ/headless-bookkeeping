@@ -25,7 +25,8 @@ export type FindingType =
   | 'unmatched_bank_line' // a bank statement line with no ReconciliationMatch
   | 'aging_invoice' // an unpaid Receivable past due
   | 'personal_repayment' // an outstanding personal-disposition repayment
-  | 'anomaly'; // a generic ledger anomaly the AuditAgent flagged
+  | 'anomaly' // a generic ledger anomaly the AuditAgent flagged
+  | 'statutory_report_incomplete'; // a statutory report (KMD/INF) is missing required data
 
 /** The canonical set of known finding kinds. */
 export const FINDING_TYPES: readonly FindingType[] = [
@@ -38,6 +39,7 @@ export const FINDING_TYPES: readonly FindingType[] = [
   'aging_invoice',
   'personal_repayment',
   'anomaly',
+  'statutory_report_incomplete',
 ] as const;
 
 /**

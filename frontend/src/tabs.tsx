@@ -6,6 +6,7 @@ import { IntakeView } from './components/IntakeView';
 import { BankView } from './components/BankView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
+import { CreditNotesView } from './components/CreditNotesView';
 import { OrgView } from './components/OrgView';
 import { EntitiesView } from './components/EntitiesView';
 import { DocumentsView } from './components/DocumentsView';
@@ -120,6 +121,14 @@ const kmdTab: TabDef = {
   Custom: KmdView,
 };
 
+const creditNotesTab: TabDef = {
+  key: 'credit-notes',
+  label: 'Credit Notes',
+  load: async () => [],
+  columns: [],
+  Custom: CreditNotesView,
+};
+
 // Cast to a uniform TabDef<unknown> list — each tab is internally typed.
 export const TABS: TabDef[] = [
   orgTab,
@@ -132,5 +141,6 @@ export const TABS: TabDef[] = [
   approvalsTab,
   periodsTab,
   kmdTab,
+  creditNotesTab,
   settingsTab,
 ] as unknown as TabDef[];

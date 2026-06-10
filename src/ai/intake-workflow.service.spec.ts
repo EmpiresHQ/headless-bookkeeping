@@ -49,6 +49,7 @@ describe('IntakeWorkflowService', () => {
     tax_point_date: '2026-03-15',
     category: 'transport',
     document_vat_marking: '23%',
+    supplier_invoice_number: null,
     confidence: 0.94,
     ...overrides,
   });

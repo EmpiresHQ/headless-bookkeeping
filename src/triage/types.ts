@@ -62,6 +62,9 @@ export const triageResultSchema = z.object({
   document_type: z.enum(['receipt', 'invoice', 'unknown']).default('unknown'),
   currency: z.string().length(3).default('EUR'),
   document_vat_marking: z.string().nullable().default(null),
+  // Supplier's own invoice/receipt number (opaque, for KMD INF Part B). Same
+  // safely-defaultable treatment as document_vat_marking.
+  supplier_invoice_number: z.string().nullable().default(null),
   confidence: z.number().min(0).max(1).default(0),
 });
 

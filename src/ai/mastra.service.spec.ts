@@ -16,6 +16,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
 describe('MastraService', () => {
   let db: Kysely<Database>;
@@ -48,6 +49,7 @@ describe('MastraService', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
+        { provide: PeriodLockService, useValue: { assertPeriodOpen: jest.fn().mockResolvedValue(undefined), findLockedPeriod: jest.fn().mockResolvedValue(undefined), getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined) } },
         AgentConfigService,
         MastraService,
       ],
