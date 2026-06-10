@@ -9,24 +9,26 @@ function make(opts: {
   pdfText?: string;
   pages?: Buffer[];
 }) {
-  const vision = {
-    transcribeImage: jest.fn((img: { mimeType: string }) =>
-      Promise.resolve(
-        opts.vision ? opts.vision(img.mimeType) : { ok: true, markdown: 'IMG-OCR' },
-      ),
+  // Standalone jest.fns so assertions reference the fn directly (avoids the
+  // unbound-method lint on `obj.method`).
+  const transcribeImage = jest.fn((img: { mimeType: string }) =>
+    Promise.resolve(
+      opts.vision
+        ? opts.vision(img.mimeType)
+        : { ok: true, markdown: 'IMG-OCR' },
     ),
-  } as unknown as LlmVisionTranscriber;
-  const pdfText = {
-    extract: jest.fn(() => Promise.resolve(opts.pdfText ?? '')),
-  } as unknown as PdfTextExtractor;
-  const raster = {
-    toPngPages: jest.fn(() => Promise.resolve(opts.pages ?? [])),
-  } as unknown as PdfRasterizer;
+  );
+  const extract = jest.fn(() => Promise.resolve(opts.pdfText ?? ''));
+  const toPngPages = jest.fn(() => Promise.resolve(opts.pages ?? []));
+
+  const vision = { transcribeImage } as unknown as LlmVisionTranscriber;
+  const pdfText = { extract } as unknown as PdfTextExtractor;
+  const raster = { toPngPages } as unknown as PdfRasterizer;
   return {
     t: new MimeRoutingTranscriber(vision, pdfText, raster),
-    vision,
-    pdfText,
-    raster,
+    transcribeImage,
+    extract,
+    toPngPages,
   };
 }
 
@@ -38,23 +40,25 @@ const file = (mimeType: string) => ({
 
 describe('MimeRoutingTranscriber', () => {
   it('routes image/* straight to the vision OCR', async () => {
-    const { t, vision, pdfText } = make({});
+    const { t, transcribeImage, extract } = make({});
     const out = await t.transcribe(file('image/jpeg'));
     expect(out).toEqual({ ok: true, markdown: 'IMG-OCR' });
-    expect(vision.transcribeImage).toHaveBeenCalledTimes(1);
-    expect(pdfText.extract).not.toHaveBeenCalled();
+    expect(transcribeImage).toHaveBeenCalledTimes(1);
+    expect(extract).not.toHaveBeenCalled();
   });
 
   it('uses the embedded text layer for a born-digital PDF (no OCR, no raster)', async () => {
-    const { t, vision, raster } = make({ pdfText: '# Invoice\nAcme Ltd' });
+    const { t, transcribeImage, toPngPages } = make({
+      pdfText: '# Invoice\nAcme Ltd',
+    });
     const out = await t.transcribe(file('application/pdf'));
     expect(out).toEqual({ ok: true, markdown: '# Invoice\nAcme Ltd' });
-    expect(raster.toPngPages).not.toHaveBeenCalled();
-    expect(vision.transcribeImage).not.toHaveBeenCalled();
+    expect(toPngPages).not.toHaveBeenCalled();
+    expect(transcribeImage).not.toHaveBeenCalled();
   });
 
   it('falls back to raster + per-page OCR for a scanned PDF (empty text layer)', async () => {
-    const { t, vision, raster } = make({
+    const { t, transcribeImage, toPngPages } = make({
       pdfText: '   ',
       pages: [Buffer.from('p1'), Buffer.from('p2')],
     });
@@ -62,8 +66,8 @@ describe('MimeRoutingTranscriber', () => {
     expect(out.ok).toBe(true);
     if (!out.ok) return;
     expect(out.markdown).toBe('IMG-OCR\n\n---\n\nIMG-OCR');
-    expect(raster.toPngPages).toHaveBeenCalledTimes(1);
-    expect(vision.transcribeImage).toHaveBeenCalledTimes(2);
+    expect(toPngPages).toHaveBeenCalledTimes(1);
+    expect(transcribeImage).toHaveBeenCalledTimes(2);
   });
 
   it('maps a scanned PDF that will not rasterise to unreadable', async () => {

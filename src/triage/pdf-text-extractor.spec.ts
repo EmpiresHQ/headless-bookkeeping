@@ -11,7 +11,10 @@ describe('PdfTextExtractor', () => {
   afterEach(() => jest.resetAllMocks());
 
   it('returns the trimmed extracted text on success', async () => {
-    mockParse.mockResolvedValue({ text: '  # Invoice\nAcme Ltd  \n', numpages: 1 });
+    mockParse.mockResolvedValue({
+      text: '  # Invoice\nAcme Ltd  \n',
+      numpages: 1,
+    });
     const text = await new PdfTextExtractor().extract(Buffer.from('%PDF'));
     expect(text).toBe('# Invoice\nAcme Ltd');
     expect(mockParse).toHaveBeenCalledTimes(1);

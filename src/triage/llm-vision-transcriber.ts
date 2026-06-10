@@ -31,7 +31,9 @@ export class LlmVisionTranscriber {
     const model = await this.config.resolveModelConfig('ocr');
     if (typeof model === 'string') {
       // No ai_base_url configured → no endpoint to reach.
-      this.logger.warn('ai_base_url unset — OCR vision endpoint not configured');
+      this.logger.warn(
+        'ai_base_url unset — OCR vision endpoint not configured',
+      );
       return {
         ok: false,
         category: 'provider-unavailable',
@@ -72,7 +74,9 @@ export class LlmVisionTranscriber {
       const err = error instanceof Error ? error : new Error(String(error));
       const timedOut = err.name === 'AbortError' || err.name === 'TimeoutError';
       const category = timedOut ? 'transient' : 'provider-unavailable';
-      this.logger.warn(`OCR endpoint unreachable (${category}): ${err.message}`);
+      this.logger.warn(
+        `OCR endpoint unreachable (${category}): ${err.message}`,
+      );
       return { ok: false, category, detail: err.message };
     }
 

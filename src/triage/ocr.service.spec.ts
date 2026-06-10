@@ -138,7 +138,7 @@ describe('OcrService', () => {
       transcriber.impl = () => ({
         ok: false,
         category: 'unreadable',
-        detail: 'docling-serve produced no markdown',
+        detail: 'OCR engine produced no markdown',
       });
 
       const outcome = await service.transcribe(docId);
