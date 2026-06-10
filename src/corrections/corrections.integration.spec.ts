@@ -20,6 +20,7 @@ import { StatusTransitionService } from '../ledger/status/status-transition.serv
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { CreditNotesService } from '../credit-notes/credit-notes.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { CorrectionsService } from './corrections.service';
 import { CorrectionRequest } from './types';
@@ -67,6 +68,7 @@ describe('Corrections (integration)', () => {
         VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
+        CreditNotesService,
         CorrectionsService,
       ],
     }).compile();
