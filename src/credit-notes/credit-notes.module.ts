@@ -5,6 +5,7 @@ import { VoucherModule } from '../ledger/voucher/voucher.module';
 import { AccountModule } from '../ledger/account/account.module';
 import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { CreditNotesService } from './credit-notes.service';
+import { CreditNotesController } from './credit-notes.controller';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { CreditNotesService } from './credit-notes.service';
     AccountModule,
     PeriodLockModule,
   ],
+  controllers: [CreditNotesController],
   providers: [CreditNotesService],
   exports: [CreditNotesService],
 })

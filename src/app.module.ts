@@ -27,6 +27,7 @@ import { DividendsModule } from './dividends/dividends.module';
 import { AdminModule } from './admin/admin.module';
 import { VatReportModule } from './vat-report/vat-report.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { CreditNotesModule } from './credit-notes/credit-notes.module';
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
 import { InteractionModule } from './interaction/interaction.module';
@@ -67,6 +68,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     AdminModule,
     VatReportModule,
     ApprovalsModule,
+    CreditNotesModule,
     AuthModule,
     AiModule,
     InteractionModule,
