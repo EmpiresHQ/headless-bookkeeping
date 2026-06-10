@@ -41,13 +41,39 @@ export class ExpensesService {
     return this.mapRow(result);
   }
 
-  async getExpenses(): Promise<Expense[]> {
+  async getExpenses(): Promise<(Expense & { reconciled: boolean })[]> {
     const rows = await this.db
       .selectFrom('expense')
       .selectAll()
       .orderBy('id')
       .execute();
-    return rows.map((r) => this.mapRow(r));
+    const reconciled = await this.reconciledVoucherIds(
+      rows.map((r) => r.voucher_id),
+    );
+    return rows.map((r) => ({
+      ...this.mapRow(r),
+      reconciled: r.voucher_id != null && reconciled.has(r.voucher_id),
+    }));
+  }
+
+  /**
+   * The subset of the given voucher ids that carry at least one
+   * reconciliation_match — i.e. the expense's posted voucher is matched to a
+   * bank transaction. Surfaced as a business-level `reconciled` flag; the
+   * voucher itself stays hidden (ADR-0001). One query, no cross-module dep.
+   */
+  private async reconciledVoucherIds(
+    voucherIds: (number | null)[],
+  ): Promise<Set<number>> {
+    const ids = voucherIds.filter((v): v is number => v != null);
+    if (ids.length === 0) return new Set();
+    const rows = await this.db
+      .selectFrom('reconciliation_match')
+      .select('voucher_id')
+      .distinct()
+      .where('voucher_id', 'in', ids)
+      .execute();
+    return new Set(rows.map((r) => r.voucher_id));
   }
 
   async getExpenseById(id: number): Promise<Expense> {
