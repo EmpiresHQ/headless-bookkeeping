@@ -1,0 +1,63 @@
+# Does the configured model actually CALL TOOLS through the OpenAI-compatible
+# endpoint? The triage agent's prompt tells it to call listCategories +
+# getClassificationContext. If the endpoint/model can't do function-calling, the
+# agent never gets categories/supplier context and falls back to `unknown`.
+#
+# Configure the endpoint in evals/triage/.env (see .env.example), then:
+#   npm run eval:triage:tools
+#   npm run eval:view
+
+description: Triage — function-calling capability against the inference endpoint
+
+providers:
+  # Endpoint + model come from the (gitignored) .env — nothing about the
+  # inference deployment is committed. See .env.example.
+  - id: 'openai:chat:{{ env.EVAL_MODEL }}'
+    config:
+      apiBaseUrl: '{{ env.EVAL_BASE_URL }}'
+      apiKeyEnvar: OPENAI_API_KEY
+      temperature: 0
+      tools: file://tools.json
+      tool_choice: auto
+
+prompts:
+  - file://prompt.json
+
+# Every case must yield a syntactically valid tool call matching tools.json.
+# A FAIL here means the model answered in plain text instead of calling a tool —
+# i.e. function-calling does not work through this endpoint/model.
+defaultTest:
+  assert:
+    - type: is-valid-openai-tools-call
+
+tests:
+  - description: EU 0% services invoice (Example Seller → Sample Buyer) — clean OCR
+    vars:
+      markdown: |
+        Invoice to:
+        Sample Buyer ApS
+        Invoice No. 1000
+        Date: 07.05.2026
+        Due date: 14.05.2026
+        Reference No. 10003
+        Sample Vej 1, 1000 Copenhagen, Denmark
+        Reg. No. 20000002  VAT ID DK20000002
+        Example Seller OÜ
+        Test tn 1, Tallinn, 10101 Harju maakond, Estonia
+        Reg. No. 10000001  VAT ID EE100000001
+        Description: Sale of services in the EU 0%   Qty 1   Unit Price 6157,00   Amount 6 157,00
+        The company is not VAT-liable
+        Invoice total (EUR) 6 157,00
+        IBAN EE001122334455667788  SWIFT XXXXEE00
+
+  - description: Simple cafe receipt (clearly an expense)
+    vars:
+      markdown: |
+        Sample Cafe OÜ
+        Reg. No. 30000003  VAT EE300000003
+        Date: 2026-05-03
+        1x Cappuccino           3,50
+        1x Croissant            2,90
+        Total                   6,40
+        VAT 22%                 1,15
+        Paid by card

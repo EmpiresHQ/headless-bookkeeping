@@ -240,6 +240,25 @@ describe('Pass2AgentService', () => {
       expect(generateSpy).toHaveBeenCalledTimes(3);
     });
 
+    it('defaults a dropped currency to EUR instead of failing the parse', async () => {
+      // Some OpenAI-compatible endpoints do not enforce json_schema `required`,
+      // so the model can omit a field. A dropped currency must NOT lose the whole
+      // extraction to invalid-output — it defaults to the EUR base.
+      const agent = await requireAgent();
+      const noCurrency: Record<string, unknown> = { ...sampleTriageResult() };
+      delete noCurrency.currency;
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(noCurrency));
+
+      const result = await service.classify('test');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.result.currency).toBe('EUR');
+      }
+    });
+
     it('validates currency is 3 characters', async () => {
       const agent = await requireAgent();
       const invalidResult = {

@@ -46,16 +46,23 @@ export type SupplierProposal = z.infer<typeof supplierProposalSchema>;
  * - 'unknown': cannot classify — hold for human review.
  */
 export const triageResultSchema = z.object({
+  // Booking-critical fields stay REQUIRED — if the model omits them the document
+  // genuinely cannot be booked and must go to a human.
   kind: z.enum(['new_expense', 'correction', 'duplicate', 'unknown']),
-  document_type: z.enum(['receipt', 'invoice', 'unknown']),
   gross_amount: z.number().int(),
   vat_amount: z.number().int(),
-  currency: z.string().length(3),
   tax_point_date: z.string(), // ISO date string (YYYY-MM-DD)
-  supplier_proposal: supplierProposalSchema.optional(),
   category: z.string(),
-  document_vat_marking: z.string().nullable(),
-  confidence: z.number().min(0).max(1),
+  supplier_proposal: supplierProposalSchema.optional(),
+  // Safely-defaultable metadata. Some OpenAI-compatible endpoints do NOT enforce
+  // `required` in json_schema, so the model occasionally drops a field; defaults
+  // keep a good extraction from failing the parse (which would lose ALL the
+  // data to needs_triage). currency defaults to the EUR base; a dropped
+  // confidence is treated as 0 (conservative — never auto-posts on a guess).
+  document_type: z.enum(['receipt', 'invoice', 'unknown']).default('unknown'),
+  currency: z.string().length(3).default('EUR'),
+  document_vat_marking: z.string().nullable().default(null),
+  confidence: z.number().min(0).max(1).default(0),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;
