@@ -83,4 +83,52 @@ describe('api delete + kmd', () => {
     expect(url).toBe('/api/approvals/9/approve');
     expect(JSON.parse(init?.body as string)).toEqual({ approved_by: 'operator' });
   });
+
+  it('setSetting PUTs the value as JSON to the key path', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"key":"ai_model","value":"openai/gpt-4o"}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    const { setSetting } = await import('./api');
+    await setSetting('ai_model', 'openai/gpt-4o');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/admin/settings/ai_model');
+    expect(init?.method).toBe('PUT');
+    expect(JSON.parse(init?.body as string)).toEqual({ value: 'openai/gpt-4o' });
+  });
+
+  it('getPolicyConfig GETs /api/policy-config', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"auto_post_amount_ceiling":50000}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const { getPolicyConfig } = await import('./api');
+    const cfg = await getPolicyConfig();
+    expect(cfg.auto_post_amount_ceiling).toBe(50000);
+  });
+
+  it('updatePolicyConfig PUTs a partial patch as JSON', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"auto_post_amount_ceiling":10000}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    const { updatePolicyConfig } = await import('./api');
+    await updatePolicyConfig({ auto_post_amount_ceiling: 10000 });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/policy-config');
+    expect(init?.method).toBe('PUT');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      auto_post_amount_ceiling: 10000,
+    });
+  });
 });

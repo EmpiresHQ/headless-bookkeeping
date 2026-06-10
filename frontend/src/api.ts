@@ -1,14 +1,19 @@
 import { apiFetch } from './auth';
 
 /**
- * These interfaces are intentional DISPLAY SUBSETS of the backend response
- * objects — they declare only the fields the read tabs render, not every field
- * the server returns. TypeScript structural typing makes a subset a valid view
- * over the richer payload. Two deliberate exclusions:
+ * The business-object interfaces below (Organization, Entity, Expense,
+ * SalesInvoice, DocumentRow, ReportingPeriod) are intentional DISPLAY SUBSETS
+ * of the backend response objects — they declare only the fields the read tabs
+ * render, not every field the server returns. TypeScript structural typing
+ * makes a subset a valid view over the richer payload. Two deliberate
+ * exclusions:
  *  - audit/linkage fields we don't show (created_at/updated_at, document_id, …);
  *  - the ledger linkage `voucher_id` is omitted ON PURPOSE — ADR-0001/ADR-0030
  *    keep the double-entry ledger hidden from the operator UI.
- * Add a field here only when a tab actually displays it.
+ * Add a field to those only when a tab actually displays it.
+ *
+ * The config interfaces (Setting, PolicyConfig) are full mirrors of their
+ * backend schemas — the Settings page edits every field.
  */
 export interface Organization {
   id: number;
@@ -184,4 +189,47 @@ export const rejectApproval = (id: number, reason: string) =>
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ rejected_reason: reason }),
+  });
+
+// ── Settings (admin/settings key/value) ───────────────────────────────────
+export interface Setting {
+  key: string;
+  value: string;
+}
+
+export const getSettings = () =>
+  apiFetch<{ settings: Setting[] }>('/admin/settings').then((r) => r.settings);
+
+export const setSetting = (key: string, value: string) =>
+  apiFetch<{ key: string; value: string }>(
+    `/admin/settings/${encodeURIComponent(key)}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ value }),
+    },
+  );
+
+export const deleteSetting = (key: string) =>
+  apiFetch<{ key: string; deleted: true }>(
+    `/admin/settings/${encodeURIComponent(key)}`,
+    { method: 'DELETE' },
+  );
+
+// ── Policy / risk gate (GET|PUT /api/policy-config) ───────────────────────
+export interface PolicyConfig {
+  auto_post_amount_ceiling: number;
+  auto_post_min_confidence: number;
+  unknown_supplier_requires_approval: boolean;
+  always_approve_operations: string[];
+}
+
+export const getPolicyConfig = () =>
+  apiFetch<PolicyConfig>('/api/policy-config');
+
+export const updatePolicyConfig = (patch: Partial<PolicyConfig>) =>
+  apiFetch<PolicyConfig>('/api/policy-config', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
   });
