@@ -18,6 +18,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { TriageService } from './triage.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
 /**
  * Integration test for the triage pipeline:
@@ -69,6 +70,7 @@ describe('TriageService (integration)', () => {
         CurrencyService,
         VoucherProjectionService,
         ExpensesService,
+        { provide: PeriodLockService, useValue: { assertPeriodOpen: jest.fn().mockResolvedValue(undefined), findLockedPeriod: jest.fn().mockResolvedValue(undefined), getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined) } },
         SalesInvoicesService,
         DocumentsService,
         DocumentStorageService,

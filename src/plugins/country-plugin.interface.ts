@@ -1,4 +1,5 @@
 import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
+import type { StatutoryReportInput, StatutoryReportResult, StatutoryFormat } from './statutory-report.types';
 
 export type {
   VatComputation,
@@ -6,6 +7,12 @@ export type {
   KmdBaseClassification,
   CountryPluginRetrieval,
 } from './country-plugin-retrieval.interface';
+
+export type {
+  StatutoryReportInput,
+  StatutoryReportResult,
+  StatutoryFormat,
+} from './statutory-report.types';
 
 /**
  * VATCode - A country-specific classification of a line's VAT treatment.
@@ -292,4 +299,16 @@ export interface CountryPlugin extends CountryPluginRetrieval {
     netToOwner: number,
     orgContext: OrgContext,
   ): { accountCode: string; amount: number } | null;
+
+  /**
+   * Render the jurisdiction's statutory VAT filing artifact(s) from a
+   * neutral, pre-assembled input. The plugin owns ALL jurisdiction rules
+   * (reportable-rate filter, B2C exclusion, thresholds, rate→box mapping,
+   * declarant-id format) and stays pure — no DB access. Unsupported
+   * jurisdictions return empty artifacts.
+   */
+  generateStatutoryReports(
+    input: StatutoryReportInput,
+    opts: { formats: StatutoryFormat[] },
+  ): StatutoryReportResult;
 }

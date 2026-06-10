@@ -234,6 +234,52 @@ describe('EstoniaCountryPlugin — retrieval + distribution tax', () => {
   });
 });
 
+describe('generateStatutoryReports', () => {
+  const plugin = new EstoniaCountryPlugin();
+  const input = {
+    declarant: { regNumber: 'EE100000001', name: 'Test OÜ' },
+    period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
+    mode: 'final' as const,
+    boxes: [{ vat_code: 'EE_OUTPUT_24', input_vat: 0, output_vat: 48000, line_count: 1 }],
+    totals: { totalInputVat: 0, totalOutputVat: 48000, totalPayable: 48000 },
+    salesLines: [
+      { documentKind: 'invoice' as const, counterpartyName: 'Acme OÜ', counterpartyRegNumber: 'EE100000002', invoiceNumber: 'INV-1', creditsInvoiceNumber: null, date: '2026-05-10', vatCode: 'EE_OUTPUT_24', netAmount: 200000, vatAmount: 48000 },
+    ],
+    purchaseLines: [],
+  };
+
+  it('returns xml + csv artifacts when both formats requested', () => {
+    const { artifacts } = plugin.generateStatutoryReports(input, { formats: ['xml', 'csv'] });
+    expect(artifacts.map((a) => a.mimeType).sort()).toEqual(['application/xml', 'text/csv']);
+    expect(artifacts.find((a) => a.filename.endsWith('.xml'))).toBeDefined();
+    expect(artifacts.find((a) => a.filename.endsWith('.csv'))).toBeDefined();
+  });
+
+  it('returns only the requested format', () => {
+    const { artifacts } = plugin.generateStatutoryReports(input, { formats: ['xml'] });
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].mimeType).toBe('application/xml');
+  });
+
+  it('warns when the declarant reg number is missing', () => {
+    const bad = { ...input, declarant: { regNumber: null, name: 'X' } };
+    const { warnings } = plugin.generateStatutoryReports(bad, { formats: ['xml'] });
+    expect(warnings.some((w) => w.code === 'missing_declarant_reg_number')).toBe(true);
+  });
+
+  it('warns when the declarant reg number format is invalid (not EE + 9 digits)', () => {
+    const bad = { ...input, declarant: { regNumber: 'XX1', name: 'X' } };
+    const { warnings } = plugin.generateStatutoryReports(bad, { formats: ['xml'] });
+    expect(warnings.some((w) => w.code === 'invalid_declarant_reg_number')).toBe(true);
+  });
+
+  it('surfaces INF missing-invoice-number warnings from buildInfPart', () => {
+    const noInv = { ...input, salesLines: [{ ...input.salesLines[0], invoiceNumber: null, netAmount: 500000 }] };
+    const { warnings } = plugin.generateStatutoryReports(noInv, { formats: ['xml'] });
+    expect(warnings.some((w) => w.code === 'inf_missing_invoice_number')).toBe(true);
+  });
+});
+
 describe('EstoniaCountryPlugin — KMD row classification', () => {
   const ee = new EstoniaCountryPlugin();
 

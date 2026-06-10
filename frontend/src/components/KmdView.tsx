@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getReportingPeriods,
   getKmd,
+  downloadStatutoryReport,
   fmtCents,
   type ReportingPeriod,
   type KmdDeclaration,
@@ -22,6 +23,15 @@ export function KmdView() {
   const [selected, setSelected] = useState<number | null>(null);
   const [decl, setDecl] = useState<KmdDeclaration | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  function handleDownload() {
+    if (selected === null) return;
+    setDownloading(true);
+    downloadStatutoryReport(selected, 'all')
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setDownloading(false));
+  }
 
   // Load the period list once; default to the first period.
   useEffect(() => {
@@ -53,21 +63,30 @@ export function KmdView() {
 
   return (
     <div className="p-4 space-y-4">
-      <label className="text-sm flex items-center gap-2">
-        <span className="text-gray-600">Period</span>
-        <select
-          className="border rounded px-2 py-1 text-sm"
-          value={selected ?? ''}
-          onChange={(e) => setSelected(Number(e.target.value))}
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="text-sm flex items-center gap-2">
+          <span className="text-gray-600">Period</span>
+          <select
+            className="border rounded px-2 py-1 text-sm"
+            value={selected ?? ''}
+            onChange={(e) => setSelected(Number(e.target.value))}
+          >
+            {periods.length === 0 && <option value="">(no periods)</option>}
+            {periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.start_date} → {p.end_date})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="text-sm border rounded px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50"
+          disabled={selected === null || downloading}
+          onClick={handleDownload}
         >
-          {periods.length === 0 && <option value="">(no periods)</option>}
-          {periods.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} ({p.start_date} → {p.end_date})
-            </option>
-          ))}
-        </select>
-      </label>
+          {downloading ? 'Downloading…' : 'Download KMD'}
+        </button>
+      </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 

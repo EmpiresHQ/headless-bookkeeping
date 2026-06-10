@@ -19,6 +19,7 @@ import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { TriageResult } from '../triage/types';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
 type GenerateResult = Awaited<ReturnType<Agent['generate']>>;
 
@@ -36,6 +37,7 @@ describe('Pass2AgentService', () => {
     tax_point_date: '2026-03-15',
     category: 'transport',
     document_vat_marking: '23%',
+    supplier_invoice_number: null,
     confidence: 0.94,
   });
 
@@ -66,6 +68,7 @@ describe('Pass2AgentService', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
+        { provide: PeriodLockService, useValue: { assertPeriodOpen: jest.fn().mockResolvedValue(undefined), findLockedPeriod: jest.fn().mockResolvedValue(undefined), getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined) } },
         AgentConfigService,
         MastraService,
         Pass2AgentService,

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Param, Body } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
@@ -33,6 +33,18 @@ export class ExpensesController {
   @Delete(':id')
   async deleteExpense(@Param('id') id: string): Promise<Expense> {
     return this.expensesService.deleteDraft(Number(id));
+  }
+
+  /**
+   * Set opaque document metadata on a posted expense. No ledger impact.
+   * Rejected (400) when the expense's reporting period is locked.
+   */
+  @Patch(':id/document-metadata')
+  setDocumentMetadata(
+    @Param('id') id: string,
+    @Body() body: { supplier_invoice_number?: string | null },
+  ) {
+    return this.expensesService.setDocumentMetadata(Number(id), body);
   }
 
   @Post(':id/generate-draft')

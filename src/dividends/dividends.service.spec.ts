@@ -366,6 +366,10 @@ describe('DividendsService (integration)', () => {
       ): { accountCode: string; amount: number } | null {
         return null;
       }
+
+      generateStatutoryReports() {
+        return { artifacts: [], warnings: [] };
+      }
     }
 
     beforeEach(async () => {
@@ -570,6 +574,10 @@ describe('DividendsService (integration)', () => {
           accountCode: 'DISTRIBUTION_TAX_PAYABLE',
           amount: Math.round((netToOwner * 22) / 78),
         };
+      }
+
+      generateStatutoryReports() {
+        return { artifacts: [], warnings: [] };
       }
     }
 

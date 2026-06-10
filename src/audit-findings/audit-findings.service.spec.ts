@@ -116,6 +116,15 @@ describe('AuditFindingsService (real-DI)', () => {
       }
     });
 
+    it('accepts the statutory_report_incomplete finding type', async () => {
+      const f = await service.create({
+        finding_type: 'statutory_report_incomplete',
+        severity: 'medium',
+        description: 'Statutory report is missing required data',
+      });
+      expect(f.finding_type).toBe('statutory_report_incomplete');
+    });
+
     it('throws on an unknown referenced_object_type', async () => {
       const dto = createFindingDto({
         // @ts-expect-error testing an unknown reference type

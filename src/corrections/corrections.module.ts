@@ -7,6 +7,7 @@ import { AccountModule } from '../ledger/account/account.module';
 import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { ExpensesModule } from '../expenses/expenses.module';
 import { SalesInvoicesModule } from '../sales-invoices/sales-invoices.module';
+import { CreditNotesModule } from '../credit-notes/credit-notes.module';
 import { CorrectionsService } from './corrections.service';
 import { CorrectionsController } from './corrections.controller';
 
@@ -20,6 +21,7 @@ import { CorrectionsController } from './corrections.controller';
     PeriodLockModule,
     ExpensesModule,
     SalesInvoicesModule,
+    CreditNotesModule,
   ],
   controllers: [CorrectionsController],
   providers: [CorrectionsService],

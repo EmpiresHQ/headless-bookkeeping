@@ -14,6 +14,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ExpensesService } from './expenses.service';
 import { EntitiesService } from '../entities/entities.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { NotFoundException } from '@nestjs/common';
 
 describe('ExpensesService (integration)', () => {
@@ -48,6 +49,7 @@ describe('ExpensesService (integration)', () => {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        PeriodLockService,
         ExpensesService,
       ],
     }).compile();
@@ -309,6 +311,25 @@ describe('ExpensesService (integration)', () => {
         .where('id', '=', e.id)
         .execute();
       await expect(service.deleteDraft(e.id)).rejects.toThrow(/only a draft/i);
+    });
+  });
+
+  describe('supplier_invoice_number', () => {
+    it('persists supplier_invoice_number on create', async () => {
+      const e = await service.createExpense({
+        category: 'software', gross_amount: 12000, vat_amount: 2000, currency: 'EUR',
+        tax_point_date: '2026-05-10', supplier_invoice_number: 'SUP-77',
+      });
+      const fetched = await service.getExpenseById(e.id);
+      expect(fetched.supplier_invoice_number).toBe('SUP-77');
+    });
+
+    it('defaults supplier_invoice_number to null when omitted', async () => {
+      const e = await service.createExpense({
+        category: 'software', gross_amount: 12000, vat_amount: 2000, currency: 'EUR',
+        tax_point_date: '2026-05-10',
+      });
+      expect(e.supplier_invoice_number).toBeNull();
     });
   });
 

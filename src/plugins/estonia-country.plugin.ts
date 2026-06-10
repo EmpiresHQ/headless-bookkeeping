@@ -13,6 +13,15 @@ import {
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
+import {
+  StatutoryFormat,
+  StatutoryReportInput,
+  StatutoryReportResult,
+  StatutoryWarning,
+} from './statutory-report.types';
+import { renderKmdXml } from './estonia-kmd/kmd-xml';
+import { renderKmdCsv } from './estonia-kmd/kmd-csv';
+import { buildInfPart } from './estonia-kmd/kmd-inf';
 
 /**
  * EstoniaCountryPlugin — the first real-jurisdiction CountryPlugin adapter.
@@ -82,6 +91,9 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     'ES',
     'SE',
   ]);
+
+  /** Estonian VAT registration number: prefix EE followed by exactly 9 digits. */
+  private static readonly REG_RE = /^EE\d{9}$/;
 
   /**
    * v1 PLACEHOLDER rates (deterministic for tests). Live ECB integration is
@@ -337,6 +349,44 @@ export class EstoniaCountryPlugin implements CountryPlugin {
    * review note to move it to row 6 when the supplier is in another member
    * state. KMD-INF row numbers should be confirmed by the accountant.
    */
+  // ── Statutory reports (KMD XML + CSV) ────────────────────────────────────
+
+  generateStatutoryReports(
+    input: StatutoryReportInput,
+    opts: { formats: StatutoryFormat[] },
+  ): StatutoryReportResult {
+    const warnings: StatutoryWarning[] = [];
+    const reg = input.declarant.regNumber;
+    if (!reg) {
+      warnings.push({
+        code: 'missing_declarant_reg_number',
+        message: 'KMD declarant has no VAT registration number',
+      });
+    } else if (!EstoniaCountryPlugin.REG_RE.test(reg)) {
+      warnings.push({
+        code: 'invalid_declarant_reg_number',
+        message: `Declarant reg number ${reg} is not EE + 9 digits`,
+      });
+    }
+
+    // INF warnings (missing invoice numbers on qualifying rows).
+    warnings.push(...buildInfPart(input.salesLines).warnings);
+    warnings.push(...buildInfPart(input.purchaseLines).warnings);
+
+    const base = input.period.name.replace(/[^\w-]/g, '_');
+    const artifacts = [];
+    for (const fmt of opts.formats) {
+      if (fmt === 'xml') {
+        artifacts.push({ filename: `kmd-${base}.xml`, mimeType: 'application/xml', content: renderKmdXml(input) });
+      } else if (fmt === 'csv') {
+        artifacts.push({ filename: `kmd-${base}.csv`, mimeType: 'text/csv', content: renderKmdCsv(input) });
+      }
+    }
+    return { artifacts, warnings };
+  }
+
+  // ── KMD (käibedeklaratsioon) row classification ───────────────────────────
+
   classifyKmd(vatCode: string): KmdBaseClassification {
     const none: KmdBaseClassification = {
       outputBaseRow: null,

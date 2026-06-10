@@ -92,6 +92,7 @@ describe('triageResultSchema supplier_proposal integration', () => {
     tax_point_date: '2026-03-15',
     category: 'transport',
     document_vat_marking: 'IE_INPUT_23',
+    supplier_invoice_number: null,
     confidence: 0.94,
   };
 

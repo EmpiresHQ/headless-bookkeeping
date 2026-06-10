@@ -8,6 +8,9 @@ export interface Organization {
   // Legal form: 'company' | 'sole_proprietor' (ADR-0017/ADR-0023).
   org_type: string;
   created_at: number;
+  // Declarant identity for statutory reports (migration 037).
+  vat_registration_number: string | null;
+  name: string | null;
 }
 
 export interface UpdateOrganizationDto {
@@ -16,4 +19,6 @@ export interface UpdateOrganizationDto {
   base_currency?: string | null;
   vat_registered?: boolean;
   org_type?: 'company' | 'sole_proprietor';
+  vat_registration_number?: string | null;
+  name?: string | null;
 }
