@@ -8,6 +8,9 @@ import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { buildCli, CliDeps } from './cli';
 
 function makeIo() {
@@ -51,7 +54,12 @@ describe('admin CLI (yargs)', () => {
       organization: new OrganizationService(db),
       periods: new ReportingPeriodsService(
         db,
-        new VatReportService(db, new LedgerBalanceService(db)),
+        new VatReportService(
+          db,
+          new LedgerBalanceService(db),
+          new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
+          new OrganizationService(db),
+        ),
       ),
     };
   });

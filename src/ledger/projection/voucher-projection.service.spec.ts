@@ -28,8 +28,18 @@ describe('VoucherProjectionService', () => {
 
   const resolveCategoryMapping = jest.fn();
 
+  // Cross-border resolution defaults to `domestic` so existing purchase/sale
+  // tests keep the standard legs; individual tests override it for reverse
+  // charge. getVatRate returns the EE standard 24% for the reverse-charge code.
+  const resolveCrossBorderTreatment = jest.fn();
+  const getVatRate = jest.fn((vatCode: string) =>
+    vatCode === 'EE_REVERSE_CHARGE' ? 0.24 : 0,
+  );
+
   const mockPlugin = {
     resolveCategoryMapping,
+    resolveCrossBorderTreatment,
+    getVatRate,
     // Rounding to base-currency minor units is a plugin rule (ADR-0002); the
     // projection rounds each leg through it. Neutral Math.round matches the
     // null-plugin default and keeps base_amounts byte-identical.
@@ -78,6 +88,11 @@ describe('VoucherProjectionService', () => {
     resolveCategoryMapping.mockImplementation((category: string) =>
       category === 'revenue' ? revenueMapping : mapping,
     );
+    resolveCrossBorderTreatment.mockReset();
+    resolveCrossBorderTreatment.mockReturnValue({
+      treatment: 'domestic',
+      vatCode: 'IE_INPUT_23',
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -195,15 +210,86 @@ describe('VoucherProjectionService', () => {
       expect(debitTotal(draft.lines)).toBe(creditTotal(draft.lines));
     });
 
-    it('always keeps the VAT_PAYABLE line, even at zero VAT', async () => {
+    it('omits the VAT_PAYABLE line at zero VAT (a 0-amount line cannot post)', async () => {
       const draft = await service.project(
         saleFacts({ vatAmount: 0, grossAmount: 10000 }),
         'sale',
       );
-      expect(draft.lines).toHaveLength(3);
-      const vat = draft.lines.find((l) => l.account_code === 'VAT_PAYABLE')!;
-      expect(vat.amount).toBe(0);
+      // A 0% / exempt sale books just Dr AR / Cr REVENUE — the voucher_line
+      // CHECK (amount > 0) forbids a zero VAT leg, so we drop it (symmetric to
+      // the purchase side).
+      expect(draft.lines).toHaveLength(2);
+      expect(
+        draft.lines.find((l) => l.account_code === 'VAT_PAYABLE'),
+      ).toBeUndefined();
       expect(debitTotal(draft.lines)).toBe(creditTotal(draft.lines));
+    });
+  });
+
+  describe('reverse charge (purchase, imported services)', () => {
+    beforeEach(() => {
+      // Imported B2B service: the plugin resolves reverse charge with OUR code.
+      resolveCrossBorderTreatment.mockReturnValue({
+        treatment: 'reverse_charge',
+        vatCode: 'EE_REVERSE_CHARGE',
+      });
+    });
+
+    it('self-assesses output + input VAT at the EE rate, net cash zero', async () => {
+      // $16 imported service, no VAT on the document (vatAmount 0, gross 1600).
+      const draft = await service.project(
+        purchaseFacts({
+          grossAmount: 1600,
+          vatAmount: 0,
+          supplierCountry: 'US',
+          goodsVsServices: 'services',
+        }),
+        'purchase',
+      );
+
+      // Dr expense(gross) / Dr VAT_RECEIVABLE / Cr AP(gross) / Cr VAT_PAYABLE
+      expect(draft.lines).toHaveLength(4);
+
+      const cat = draft.lines.find(
+        (l) => l.account_code === 'EXPENSE_SOFTWARE',
+      )!;
+      expect(cat.is_debit).toBe(true);
+      expect(cat.amount).toBe(1600);
+      expect(cat.vat_code).toBe('EE_REVERSE_CHARGE');
+
+      const ap = draft.lines.find((l) => l.account_code === 'AP')!;
+      expect(ap.is_debit).toBe(false);
+      expect(ap.amount).toBe(1600); // payable is the net cost — no VAT to supplier
+      expect(ap.vat_code).toBeNull();
+
+      const inputVat = draft.lines.find(
+        (l) => l.account_code === 'VAT_RECEIVABLE',
+      )!;
+      const outputVat = draft.lines.find(
+        (l) => l.account_code === 'VAT_PAYABLE',
+      )!;
+      expect(inputVat.is_debit).toBe(true);
+      expect(outputVat.is_debit).toBe(false);
+      // 24% of 1600 = 384, self-assessed on both sides
+      expect(inputVat.amount).toBe(384);
+      expect(outputVat.amount).toBe(384);
+      expect(inputVat.vat_code).toBe('EE_REVERSE_CHARGE');
+      expect(outputVat.vat_code).toBe('EE_REVERSE_CHARGE');
+    });
+
+    it('balances in base currency (the two VAT legs cancel)', async () => {
+      const draft = await service.project(
+        purchaseFacts({
+          grossAmount: 1600,
+          vatAmount: 0,
+          supplierCountry: 'US',
+          goodsVsServices: 'services',
+        }),
+        'purchase',
+      );
+      expect(debitTotal(draft.lines)).toBe(creditTotal(draft.lines));
+      // net cash effect of the VAT is zero: payable equals the gross only
+      expect(creditTotal(draft.lines)).toBe(1600 + 384);
     });
   });
 

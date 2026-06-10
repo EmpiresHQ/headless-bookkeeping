@@ -3,7 +3,9 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
-import { VatReport, VatSummaryLine } from './types';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { OrganizationService } from '../organization/organization.service';
+import { VatReport, VatSummaryLine, KmdDeclaration } from './types';
 import { computeVoucherHash } from '../ledger/posting/voucher-hash';
 import { computeMerkleRoot } from './merkle';
 
@@ -12,6 +14,8 @@ export class VatReportService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly ledgerBalance: LedgerBalanceService,
+    private readonly pluginLoader: PluginLoader,
+    private readonly organization: OrganizationService,
   ) {}
 
   /**
@@ -250,6 +254,118 @@ export class VatReportService {
   async getVoucherIds(id: number): Promise<number[]> {
     const report = await this.getById(id);
     return report.voucher_ids;
+  }
+
+  /**
+   * Build the jurisdiction VAT-return (KMD) declaration for a period — a
+   * DERIVED, read-only view over the period's posted vouchers (not the stored
+   * snapshot, which only carries VAT amounts; the declaration also needs the
+   * taxable BASE per line).
+   *
+   * Division of labour (ADR-0002): the country plugin classifies each taxable
+   * base VAT code onto its return rows ({@link CountryPluginRetrieval.classifyKmd});
+   * this method stays jurisdiction-agnostic — it routes the VAT-control lines to
+   * the output/input VAT totals by account code and the base lines to the rows
+   * the plugin names, then collects the plugin's review notes.
+   */
+  async buildDeclaration(
+    periodId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<KmdDeclaration> {
+    const period = await executor
+      .selectFrom('reporting_period')
+      .select(['id', 'name', 'start_date', 'end_date'])
+      .where('id', '=', periodId)
+      .executeTakeFirst();
+    if (!period) {
+      throw new NotFoundException(`Reporting period ${periodId} not found`);
+    }
+
+    const org = await this.organization.getOrganization();
+    const plugin = this.pluginLoader.resolve(org.country);
+
+    const lines = await executor
+      .selectFrom('voucher_line as vl')
+      .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select([
+        'vl.vat_code',
+        'vl.base_amount',
+        'vl.is_debit',
+        'a.code as account_code',
+      ])
+      .where('v.tax_point_date', '>=', period.start_date)
+      .where('v.tax_point_date', '<=', period.end_date)
+      .where('v.posted_at', 'is not', null)
+      .execute();
+
+    const d: KmdDeclaration = {
+      reporting_period_id: period.id,
+      period_name: period.name,
+      start_date: period.start_date,
+      end_date: period.end_date,
+      row1_base_24: 0,
+      row2_base_reduced: 0,
+      row3_base_zero: 0,
+      row4_output_vat: 0,
+      row5_input_vat: 0,
+      row6_intra_eu_acquisition: 0,
+      row7_other_acquisition: 0,
+      net_vat_due: 0,
+      vd_intra_eu_services: 0,
+      review_flags: [],
+    };
+    const flags = new Set<string>();
+
+    for (const line of lines) {
+      // VAT-control lines feed the VAT-amount totals (rows 4 / 5), keyed on
+      // account code — independent of jurisdiction.
+      if (line.account_code === 'VAT_PAYABLE') {
+        d.row4_output_vat += this.ledgerBalance.signedBaseAmount(line, {
+          creditPositive: true,
+        });
+        continue;
+      }
+      if (line.account_code === 'VAT_RECEIVABLE') {
+        d.row5_input_vat += this.ledgerBalance.signedBaseAmount(line);
+        continue;
+      }
+
+      // Everything else with a VAT code is a taxable-base line. Its magnitude is
+      // signed by its own normal side, so a reversal subtracts.
+      if (!line.vat_code) continue;
+      const base = line.is_debit
+        ? this.ledgerBalance.signedBaseAmount(line)
+        : this.ledgerBalance.signedBaseAmount(line, { creditPositive: true });
+
+      const k = plugin.classifyKmd(line.vat_code);
+      if (k.review) flags.add(k.review);
+
+      switch (k.outputBaseRow) {
+        case 1:
+          d.row1_base_24 += base;
+          break;
+        case 2:
+          d.row2_base_reduced += base;
+          break;
+        case 3:
+          d.row3_base_zero += base;
+          break;
+      }
+      if (k.acquisitionRow === 6) d.row6_intra_eu_acquisition += base;
+      if (k.acquisitionRow === 7) d.row7_other_acquisition += base;
+      if (k.vdCode === '3S') d.vd_intra_eu_services += base;
+    }
+
+    d.net_vat_due = d.row4_output_vat - d.row5_input_vat;
+    if (d.vd_intra_eu_services > 0) {
+      flags.add(
+        `File the VD koondaruanne manually (tähis 3S) for ${d.vd_intra_eu_services} ` +
+          `cents of 0% intra-EU services — the system does not submit it.`,
+      );
+    }
+    d.review_flags = [...flags];
+    return d;
   }
 
   private mapRow(row: {

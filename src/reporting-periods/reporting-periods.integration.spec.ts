@@ -6,6 +6,10 @@ import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from './reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { OrganizationService } from '../organization/organization.service';
 
 /**
  * Integration test for ReportingPeriodsService against a real in-memory
@@ -51,6 +55,8 @@ describe('ReportingPeriodsService (integration)', () => {
     const vatReportService = new VatReportService(
       db,
       new LedgerBalanceService(db),
+      new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
+      new OrganizationService(db),
     );
     service = new ReportingPeriodsService(db, vatReportService);
   });
