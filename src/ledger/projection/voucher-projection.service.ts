@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { OrganizationService } from '../../organization/organization.service';
-import { PluginLoader } from '../../plugins/plugin-loader.service';
+import { OrgContextResolver } from '../../organization/org-context.resolver';
 import { CurrencyService } from '../../currency/currency.service';
-import {
-  OrgContext,
-  SupplierFacts,
-} from '../../plugins/country-plugin.interface';
+import { SupplierFacts } from '../../plugins/country-plugin.interface';
 import { DraftVoucher, DraftVoucherLine } from '../voucher/types';
 import { EconomicFacts, Direction } from './types';
 
@@ -31,8 +27,7 @@ import { EconomicFacts, Direction } from './types';
 @Injectable()
 export class VoucherProjectionService {
   constructor(
-    private readonly organizationService: OrganizationService,
-    private readonly pluginLoader: PluginLoader,
+    private readonly orgContextResolver: OrgContextResolver,
     private readonly currencyService: CurrencyService,
   ) {}
 
@@ -47,19 +42,16 @@ export class VoucherProjectionService {
     facts: EconomicFacts,
     direction: Direction,
   ): Promise<DraftVoucher> {
-    const org = await this.organizationService.getOrganization();
-    const plugin = this.pluginLoader.resolve(org.country);
+    const {
+      organization: org,
+      plugin,
+      orgContext,
+    } = await this.orgContextResolver.resolve();
 
     const supplierFacts: SupplierFacts = {
       country: org.country,
       goodsVsServices: 'unknown',
       classificationMemory: [],
-    };
-
-    const orgContext: OrgContext = {
-      country: org.country,
-      vatRegistered: org.vat_registered,
-      baseCurrency: org.base_currency,
     };
 
     const mapping = plugin.resolveCategoryMapping(

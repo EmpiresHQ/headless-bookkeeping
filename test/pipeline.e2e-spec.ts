@@ -21,6 +21,7 @@ import { ExpensesController } from './../src/expenses/expenses.controller';
 import { SalesInvoicesService } from './../src/sales-invoices/sales-invoices.service';
 import { SalesInvoicesController } from './../src/sales-invoices/sales-invoices.controller';
 import { OrganizationService } from './../src/organization/organization.service';
+import { OrgContextResolver } from './../src/organization/org-context.resolver';
 import { PluginLoader } from './../src/plugins/plugin-loader.service';
 import { NullCountryPlugin } from './../src/plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from './../src/plugins/estonia-country.plugin';
@@ -62,6 +63,7 @@ describe('Pipeline (e2e)', () => {
         ExpensesService,
         SalesInvoicesService,
         OrganizationService,
+        OrgContextResolver,
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,

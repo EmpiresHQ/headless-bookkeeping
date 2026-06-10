@@ -8,9 +8,8 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { PostingService } from '../ledger/posting/posting.service';
-import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
-import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import {
   DraftVoucher,
   DraftVoucherLine,
@@ -40,9 +39,8 @@ export class PrepaymentService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly transactionRepo: BankTransactionRepository,
     private readonly postingService: PostingService,
-    private readonly pluginLoader: PluginLoader,
     private readonly currencyService: CurrencyService,
-    private readonly orgService: OrganizationService,
+    private readonly orgContextResolver: OrgContextResolver,
   ) {}
 
   /**
@@ -82,8 +80,7 @@ export class PrepaymentService {
       .executeTakeFirstOrThrow();
     const resolvedBankCode = bankAccount.account_code;
 
-    const org = await this.orgService.getOrganization();
-    const plugin = this.pluginLoader.resolve(org.country);
+    const { plugin } = await this.orgContextResolver.resolve();
     const baseCurrency = await this.currencyService.getBaseCurrency();
     const fxRate = plugin.getReferenceRate(
       txn.currency,

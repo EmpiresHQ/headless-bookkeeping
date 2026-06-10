@@ -12,6 +12,7 @@ import { InteractionConfigService } from './config/interaction-config.service';
 import { PrincipalResolverService } from './principal/principal-resolver.service';
 import { IntentClassifierService } from './router/intent-classifier.service';
 import { FlowDispatcher, NoopFlowDispatcher } from './router/flow-dispatcher';
+import { InteractionGateService } from './router/interaction-gate.service';
 import { InteractionRouterService } from './router/interaction-router.service';
 import {
   TransportRegistryService,
@@ -37,6 +38,7 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     InteractionConfigService,
     PrincipalResolverService,
     IntentClassifierService,
+    InteractionGateService,
     InteractionRouterService,
     TransportRegistryService,
     // 8a: non-recording production stub; 8b binds the real flows here.
