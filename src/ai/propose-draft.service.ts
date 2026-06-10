@@ -147,6 +147,7 @@ export class ProposeDraftService {
       currency: triageResult.currency,
       tax_point_date: triageResult.tax_point_date,
       document_vat_marking: triageResult.document_vat_marking,
+      supplier_invoice_number: triageResult.supplier_invoice_number,
     };
 
     const expense = await this.expensesService.createExpense(createExpenseDto);

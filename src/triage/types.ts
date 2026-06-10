@@ -55,6 +55,7 @@ export const triageResultSchema = z.object({
   supplier_proposal: supplierProposalSchema.optional(),
   category: z.string(),
   document_vat_marking: z.string().nullable(),
+  supplier_invoice_number: z.string().nullable(),
   confidence: z.number().min(0).max(1),
 });
 

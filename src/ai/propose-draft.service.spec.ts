@@ -110,6 +110,7 @@ describe('ProposeDraftService (integration)', () => {
     tax_point_date: '2026-03-15',
     category: 'transport',
     document_vat_marking: 'IE_INPUT_23',
+    supplier_invoice_number: null,
     confidence: 0.94,
   });
 
@@ -342,6 +343,18 @@ describe('ProposeDraftService (integration)', () => {
       expect(proposals).toHaveLength(1);
       expect(proposals[0].confidence).toBe(0.3);
       expect(proposals[0].business_object_type).toBe('expense');
+    });
+
+    it('passes supplier_invoice_number from triage into the created expense', async () => {
+      const createExpenseSpy = jest.spyOn(expensesService, 'createExpense');
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_invoice_number: 'SUP-55',
+      };
+      await service.proposeDraft(triageResult, undefined);
+      expect(createExpenseSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ supplier_invoice_number: 'SUP-55' }),
+      );
     });
 
     it('sets ocr_artifact_id to null when no ocr_markdown artifact exists', async () => {
