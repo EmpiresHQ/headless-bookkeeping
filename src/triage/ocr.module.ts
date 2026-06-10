@@ -2,25 +2,36 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { ConversationsModule } from '../conversations/conversations.module';
+import { AgentConfigModule } from '../ai/agent-config.module';
 import { OcrService } from './ocr.service';
 import { DocumentTranscriber } from './document-transcriber.port';
-import { DoclingTranscriber } from './docling-transcriber';
+import { MimeRoutingTranscriber } from './mime-routing-transcriber';
+import { LlmVisionTranscriber } from './llm-vision-transcriber';
+import { PdfTextExtractor } from './pdf-text-extractor';
+import { PdfRasterizer } from './pdf-rasterizer';
 
 /**
- * OcrModule — provides OcrService (Pass 1 OCR transcription) and binds the
- * DocumentTranscriber port to its real adapter (DoclingTranscriber → docling-serve).
+ * OcrModule — provides OcrService (Pass 1) and binds the DocumentTranscriber
+ * port to the mime-routing engine (ADR-0032): in-process pdf-parse text
+ * extraction for born-digital PDFs, external vision OCR (LiteLLM/dots.ocr) for
+ * images and scanned PDFs (rasterised via poppler).
  *
  * Extracted from TriageModule to break the circular dependency:
  * AiModule → TriageModule → AiModule.
- *
- * AiModule imports OcrModule (for IntakeWorkflowService → OcrService).
- * TriageModule imports AiModule (for IntakeWorkflowService) + OcrModule.
  */
 @Module({
-  imports: [DatabaseModule, DocumentsModule, ConversationsModule],
+  imports: [
+    DatabaseModule,
+    DocumentsModule,
+    ConversationsModule,
+    AgentConfigModule,
+  ],
   providers: [
     OcrService,
-    { provide: DocumentTranscriber, useClass: DoclingTranscriber },
+    LlmVisionTranscriber,
+    PdfTextExtractor,
+    PdfRasterizer,
+    { provide: DocumentTranscriber, useClass: MimeRoutingTranscriber },
   ],
   exports: [OcrService],
 })

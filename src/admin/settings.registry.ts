@@ -28,6 +28,11 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
       'Model override for the intent classifier (provider/model, e.g. openai/<model>)',
     validate: nonEmpty,
   },
+  'ai_model.ocr': {
+    description:
+      'Model id for the OCR vision endpoint (e.g. a dots.ocr model on LiteLLM)',
+    validate: nonEmpty,
+  },
   ai_base_url: {
     description:
       'OpenAI-compatible inference base URL (blank = provider default)',

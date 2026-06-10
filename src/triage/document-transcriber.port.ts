@@ -6,9 +6,9 @@
  * classification failure (ADR-0024) — instead of an exception escaping and
  * leaving the Document stuck in `pending` with no AuditFinding.
  *
- *  - 'provider-unavailable': the transcription service (docling-serve) is not
- *                            configured (no DOCLING_BASE_URL) or is unreachable
- *                            (connection refused) — no transcription attempted.
+ *  - 'provider-unavailable': the OCR engine is not configured (no inference
+ *                            endpoint set) or is unreachable (connection
+ *                            refused) — no transcription attempted.
  *  - 'unreadable':           the document was sent but cannot be transcribed
  *                            (corrupt, blank, unsupported format, empty result)
  *                            — a permanent content problem.
@@ -54,8 +54,8 @@ export interface TranscribableFile {
 /**
  * The Pass-1 transcription edge: document bytes → markdown | typed failure.
  *
- * Mocked in every OcrService test; only the real adapter (DoclingTranscriber)
- * does network I/O. This is the single seam where the OCR engine is chosen —
+ * Mocked in every OcrService test; only the real adapter (MimeRoutingTranscriber)
+ * does I/O. This is the single seam where the OCR engine is chosen —
  * OcrService's persistence/CRC/idempotency/race-safety machinery sits ENTIRELY
  * on the OcrOutcome contract and is engine-agnostic.
  */

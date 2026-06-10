@@ -28,9 +28,9 @@ import { createHash } from 'crypto';
  * layer via supertest.
  *
  * Pass-1 (OCR) is faked with a {@link DocumentTranscriber} stub that always
- * returns ok markdown — there is no docling-serve sidecar in the test env. The
- * intake DECISION is driven by the faux Pass-2 agent below, which classifies by
- * the document filename, so the markdown content itself is irrelevant here.
+ * returns ok markdown — there is no OCR engine in the test env. The intake
+ * DECISION is driven by the faux Pass-2 agent below, which classifies by the
+ * document filename, so the markdown content itself is irrelevant here.
  */
 describe('Intake E2E (document → draft → pipeline)', () => {
   let app: INestApplication<App>;
@@ -141,7 +141,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .useValue(fauxMastraService)
       .overrideProvider(Pass2AgentService)
       .useValue(fauxPass2)
-      // Pass-1: no docling-serve in the test env — return ok markdown so the
+      // Pass-1: no OCR engine in the test env — return ok markdown so the
       // workflow reaches the (filename-driven) faux Pass-2 instead of routing to
       // needs_triage on a provider-unavailable transcription.
       .overrideProvider(DocumentTranscriber)
