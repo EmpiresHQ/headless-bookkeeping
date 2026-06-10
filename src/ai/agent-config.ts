@@ -32,7 +32,8 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'When unsure between new_expense and correction, choose new_expense.\n\n' +
     'Amounts `gross_amount` and `vat_amount` are INTEGER MINOR UNITS (cents): ' +
     'US$16.00 → 1600, and the European-formatted "6 157,00" EUR → 615700. ' +
-    'Read European number formats correctly (space/dot = thousands, comma = decimal) and NEVER divide by 100.\n\n' +
+    'Read European number formats correctly (space/dot = thousands, comma = decimal) and NEVER divide by 100. ' +
+    'ALWAYS include every field, especially `currency` (ISO 4217) — if the document prints no currency, use "EUR".\n\n' +
     'Call listCategories to see the available categories, then call ' +
     'getClassificationContext ONCE with the supplier evidence and your ' +
     'candidate category — it resolves or proposes the supplier, gathers its ' +
