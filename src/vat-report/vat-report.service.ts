@@ -229,6 +229,22 @@ export class VatReportService {
   }
 
   /**
+   * List all VAT report snapshots, ordered by reporting period (then id for
+   * a stable order when a period has more than one snapshot, e.g. an amended
+   * return).
+   */
+  async list(): Promise<VatReport[]> {
+    const rows = await this.db
+      .selectFrom('vat_report')
+      .selectAll()
+      .orderBy('reporting_period_id')
+      .orderBy('id')
+      .execute();
+
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  /**
    * Fetch the list of voucher IDs included in a VAT report.
    */
   async getVoucherIds(id: number): Promise<number[]> {

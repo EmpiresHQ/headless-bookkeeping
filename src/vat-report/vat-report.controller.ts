@@ -30,6 +30,15 @@ export class VatReportController {
   }
 
   /**
+   * List all VAT report snapshots.
+   * GET /api/vat-reports
+   */
+  @Get('vat-reports')
+  async list(): Promise<{ vat_reports: VatReport[] }> {
+    return { vat_reports: await this.service.list() };
+  }
+
+  /**
    * Fetch a VAT report by ID.
    * GET /api/vat-reports/:id
    */

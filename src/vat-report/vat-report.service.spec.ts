@@ -539,6 +539,106 @@ describe('VAT report snapshot generation (integration)', () => {
     );
   });
 
+  // ── (i) List all VAT reports ───────────────────────────────────────────
+
+  it('(i) list() returns an empty array when no reports exist', async () => {
+    await expect(vatReportService.list()).resolves.toEqual([]);
+  });
+
+  it('(i) list() returns every generated VAT report, mapped, period order', async () => {
+    // Only Q1 is seeded by migration — add Q2.
+    await db
+      .insertInto('reporting_period')
+      .values({
+        name: '2024-Q2',
+        start_date: '2024-04-01',
+        end_date: '2024-06-30',
+        status: 'open',
+        created_at: Math.floor(Date.now() / 1000),
+      })
+      .execute();
+    await seedPostedVoucher('2024-02-15', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+    await seedPostedVoucher('2024-05-15', [
+      {
+        account_code: 'EXPENSE_RENT',
+        amount: 20000,
+        currency: 'EUR',
+        base_amount: 20000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 20000,
+        currency: 'EUR',
+        base_amount: 20000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+    const q1 = await vatReportService.generate(1);
+    const q2 = await vatReportService.generate(2);
+
+    const all = await vatReportService.list();
+    expect(all).toHaveLength(2);
+    // Ordered by reporting_period_id: Q1 (period 1) before Q2 (period 2).
+    expect(all.map((r) => r.id)).toEqual([q1.id, q2.id]);
+    expect(all[0].period_name).toBe('2024-Q1');
+    expect(all[1].period_name).toBe('2024-Q2');
+    // Mapped shape preserved (JSON columns parsed to arrays).
+    expect(Array.isArray(all[0].vat_summary)).toBe(true);
+    expect(Array.isArray(all[0].voucher_ids)).toBe(true);
+  });
+
+  it('(i) GET /api/vat-reports lists reports via the controller', async () => {
+    await seedPostedVoucher('2024-02-15', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: 'INPUT_25',
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
+    ]);
+    await vatReportService.generate(1);
+
+    const res = await vatReportController.list();
+    expect(res.vat_reports).toHaveLength(1);
+    expect(res.vat_reports[0].period_name).toBe('2024-Q1');
+  });
+
   // ── (g) Controller 405 on PUT/PATCH/DELETE ─────────────────────────────
 
   it('(g) PUT /api/vat-reports/:id returns 405', () => {
