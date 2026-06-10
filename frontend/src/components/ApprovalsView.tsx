@@ -51,6 +51,7 @@ export function ApprovalsView() {
       {approvals.length === 0 ? (
         <p className="text-sm text-gray-500">No pending approvals.</p>
       ) : (
+        <div className="overflow-x-auto">
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr className="border-b bg-gray-50 text-left">
@@ -90,6 +91,7 @@ export function ApprovalsView() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
