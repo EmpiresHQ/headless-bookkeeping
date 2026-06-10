@@ -205,6 +205,7 @@ export function SettingsView() {
               <input
                 aria-label="Amount ceiling"
                 type="number"
+                min={0}
                 value={policy.auto_post_amount_ceiling}
                 onChange={(e) =>
                   setPolicy({
@@ -221,6 +222,8 @@ export function SettingsView() {
                 aria-label="Min confidence"
                 type="number"
                 step="0.01"
+                min={0}
+                max={1}
                 value={policy.auto_post_min_confidence}
                 onChange={(e) =>
                   setPolicy({
