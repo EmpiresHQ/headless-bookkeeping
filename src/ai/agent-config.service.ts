@@ -42,16 +42,28 @@ export class AgentConfigService {
    * that base URL with the optional `ai_api_key`.
    */
   async resolveModelConfig(key: AgentKey): Promise<ModelConfig> {
-    const id = await this.resolveModel(key);
+    const id = this.withProvider(await this.resolveModel(key));
     const url = await this.read('ai_base_url');
     if (!url) return id;
     const apiKey = await this.read('ai_api_key');
     return {
-      // model ids are `provider/model`; the compat layer needs the slash.
-      id: id as `${string}/${string}`,
+      id,
       url,
       ...(apiKey ? { apiKey } : {}),
     };
+  }
+
+  /**
+   * Mastra's model router requires a `provider/model` id even for a custom
+   * OpenAI-compatible endpoint — the provider selects the request adapter while
+   * the base URL still comes from `url`. Operators set the bare model name their
+   * endpoint expects (e.g. `qwen3.6-coder-fast`), so default the provider to
+   * `openai` (the OpenAI-compatible adapter) when the id carries none. An id
+   * that already names a provider (e.g. `openai/gpt-4o`, `anthropic/...`) is
+   * left untouched.
+   */
+  private withProvider(id: string): `${string}/${string}` {
+    return (id.includes('/') ? id : `openai/${id}`) as `${string}/${string}`;
   }
 
   /** `prompt.<key>` → AGENT_PROMPTS[key]. */
