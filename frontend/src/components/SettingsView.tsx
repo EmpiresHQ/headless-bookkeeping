@@ -161,6 +161,15 @@ export function SettingsView() {
           Blank = use the built-in default. Per-agent model overrides the global
           model; the agents are triage and the intent classifier.
         </p>
+        <p className="text-xs text-amber-700">
+          Model ids must include a provider prefix, e.g.{' '}
+          <code className="font-mono">openai/gpt-4o-mini</code>. For a custom
+          OpenAI-compatible endpoint, set the base URL/key below and prefix the
+          model with <code className="font-mono">openai/</code> (e.g.{' '}
+          <code className="font-mono">openai/qwen3.6-coder-fast</code>) — the
+          prefix only selects the request format; requests still go to your base
+          URL.
+        </p>
         {settings !== null && LLM_KEYS.map((def) => (
           <SettingRow
             key={def.key}

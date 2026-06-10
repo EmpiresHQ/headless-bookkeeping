@@ -35,6 +35,7 @@ export function applyRules(
   csvText: string,
 ): CreateStatementInput {
   const rows = parse(csvText, {
+    bom: true, // bank exports are often UTF-8 with a leading BOM
     columns: true,
     skip_empty_lines: true,
     trim: true,

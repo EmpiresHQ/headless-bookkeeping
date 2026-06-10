@@ -106,32 +106,16 @@ describe('AgentConfigService (integration)', () => {
       });
     });
 
-    it('prefixes a bare model name (no provider) with openai/ for a custom endpoint', async () => {
-      // Mastra's model router needs a provider/model id; operators set the bare
-      // name their OpenAI-compatible endpoint expects (e.g. qwen3.6-coder-fast).
+    it('passes the model id through verbatim (the operator owns the provider/ prefix)', async () => {
+      // No defaulting/guessing: a bare name is forwarded as-is and Mastra will
+      // reject it — the Settings UI tells the operator to include the prefix.
       await set('ai_base_url', 'https://llm.example.com/v1');
       await set('ai_api_key', 'sk-test');
-      await set('ai_model', 'qwen3.6-coder-fast');
-      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
-        id: 'openai/qwen3.6-coder-fast',
-        url: 'https://llm.example.com/v1',
-        apiKey: 'sk-test',
-      });
-    });
-
-    it('prefixes a bare model name even without a custom endpoint (bare string)', async () => {
-      await set('ai_model', 'qwen3.6-coder-fast');
-      await expect(config.resolveModelConfig('triage')).resolves.toBe(
-        'openai/qwen3.6-coder-fast',
-      );
-    });
-
-    it('leaves an id that already names a provider untouched', async () => {
-      await set('ai_base_url', 'https://openrouter.ai/api/v1');
       await set('ai_model', 'anthropic/claude-3-5');
       await expect(config.resolveModelConfig('triage')).resolves.toEqual({
         id: 'anthropic/claude-3-5',
-        url: 'https://openrouter.ai/api/v1',
+        url: 'https://llm.example.com/v1',
+        apiKey: 'sk-test',
       });
     });
   });
