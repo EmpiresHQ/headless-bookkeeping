@@ -122,12 +122,14 @@ export class MastraService implements OnModuleInit {
 
     this.agent = triageAgent;
 
-    const bankMapping = await this.config.resolve('bank_mapping');
+    // Endpoint-aware model config, mirroring the triage agent above.
+    const bankInstructions = await this.config.resolveInstructions('bank_mapping');
+    const bankModel = await this.config.resolveModelConfig('bank_mapping');
     this.bankMappingAgent = new Agent({
       id: 'bank-mapping-agent',
       name: 'Bank Mapping Agent',
-      instructions: bankMapping.instructions,
-      model: bankMapping.model,
+      instructions: bankInstructions,
+      model: bankModel,
     });
   }
 
