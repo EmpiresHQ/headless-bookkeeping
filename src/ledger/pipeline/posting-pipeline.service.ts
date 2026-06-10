@@ -6,13 +6,10 @@ import { RulesService } from '../../rules/rules.service';
 import { PolicyService } from '../../policy/policy.service';
 import { PostingService } from '../posting/posting.service';
 import { StatusTransitionService } from '../status/status-transition.service';
-import { OrganizationService } from '../../organization/organization.service';
+import { OrgContextResolver } from '../../organization/org-context.resolver';
 import { mustReject } from '../../rules/rules.guards';
 import { ResolvedLine, SemanticValidationContext } from '../../rules/types';
-import {
-  SupplierFacts,
-  OrgContext,
-} from '../../plugins/country-plugin.interface';
+import { SupplierFacts } from '../../plugins/country-plugin.interface';
 import { DraftVoucher, PostedVoucher } from '../voucher/types';
 import { PolicyDecision } from '../../policy/types';
 import { ValidationError } from '../posting/types';
@@ -70,7 +67,7 @@ export class PostingPipelineService {
     private readonly policyService: PolicyService,
     private readonly postingService: PostingService,
     private readonly statusTransition: StatusTransitionService,
-    private readonly organizationService: OrganizationService,
+    private readonly orgContextResolver: OrgContextResolver,
   ) {}
 
   async runPipeline(
@@ -93,17 +90,12 @@ export class PostingPipelineService {
     }));
 
     // ── 4. Build semantic validation context ───────────────────
-    const org = await this.organizationService.getOrganization();
-    const { country, vat_registered, base_currency } = org;
+    const { organization: org, orgContext } =
+      await this.orgContextResolver.resolve();
     const supplierFacts: SupplierFacts = {
-      country,
+      country: org.country,
       goodsVsServices: 'unknown',
       classificationMemory: [],
-    };
-    const orgContext: OrgContext = {
-      country,
-      vatRegistered: vat_registered,
-      baseCurrency: base_currency,
     };
     const semanticContext: SemanticValidationContext = {
       countryCode: org.country,

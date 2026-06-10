@@ -13,6 +13,7 @@ import { NullCountryPlugin } from '../../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../../plugins/estonia-country.plugin';
 import { CurrencyService } from '../../currency/currency.service';
 import { OrganizationService } from '../../organization/organization.service';
+import { OrgContextResolver } from '../../organization/org-context.resolver';
 import {
   SupplierFacts,
   OrgContext,
@@ -57,6 +58,7 @@ describe('getClassificationContext (composed deep read)', () => {
         NullCountryPlugin,
         EstoniaCountryPlugin,
         PluginLoader,
+        OrgContextResolver,
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,

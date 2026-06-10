@@ -13,6 +13,7 @@ import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
 import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
@@ -79,6 +80,7 @@ describe('DividendsService (integration)', () => {
           useValue: { resolve: () => nullPlugin },
         },
         CurrencyService,
+        OrgContextResolver,
         DividendsService,
       ],
     }).compile();
@@ -385,6 +387,7 @@ describe('DividendsService (integration)', () => {
             useValue: { resolve: () => mockPlugin },
           },
           CurrencyService,
+          OrgContextResolver,
           DividendsService,
         ],
       }).compile();
@@ -589,6 +592,7 @@ describe('DividendsService (integration)', () => {
             useValue: { resolve: () => mockPlugin },
           },
           CurrencyService,
+          OrgContextResolver,
           DividendsService,
         ],
       }).compile();
@@ -697,6 +701,7 @@ describe('DividendsService (integration)', () => {
           EstoniaCountryPlugin,
           PluginLoader,
           CurrencyService,
+          OrgContextResolver,
           DividendsService,
         ],
       }).compile();

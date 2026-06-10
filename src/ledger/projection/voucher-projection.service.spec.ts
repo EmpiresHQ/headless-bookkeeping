@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrganizationService } from '../../organization/organization.service';
-import { PluginLoader } from '../../plugins/plugin-loader.service';
+import { OrgContextResolver } from '../../organization/org-context.resolver';
 import { CurrencyService } from '../../currency/currency.service';
 import {
   CategoryMappingResult,
@@ -37,16 +36,23 @@ describe('VoucherProjectionService', () => {
     roundToBaseMinorUnits: jest.fn((amount: number) => Math.round(amount)),
   } as unknown as CountryPlugin;
 
-  const mockOrg = {
-    getOrganization: jest.fn().mockResolvedValue({
-      country: 'IE',
-      vat_registered: true,
-      base_currency: null,
+  // The projection now resolves the org + plugin + OrgContext through the
+  // OrgContextResolver (the single owner of that ceremony). The stub returns the
+  // same org / plugin / OrgContext shape the inline ceremony used to build.
+  const mockResolver = {
+    resolve: jest.fn().mockResolvedValue({
+      organization: {
+        country: 'IE',
+        vat_registered: true,
+        base_currency: null,
+      },
+      plugin: mockPlugin,
+      orgContext: {
+        country: 'IE',
+        vatRegistered: true,
+        baseCurrency: null,
+      },
     }),
-  };
-
-  const mockPluginLoader = {
-    resolve: jest.fn().mockReturnValue(mockPlugin),
   };
 
   // A currency stub that books EUR at 1.0 (identity) and any other currency at
@@ -76,8 +82,7 @@ describe('VoucherProjectionService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VoucherProjectionService,
-        { provide: OrganizationService, useValue: mockOrg },
-        { provide: PluginLoader, useValue: mockPluginLoader },
+        { provide: OrgContextResolver, useValue: mockResolver },
         { provide: CurrencyService, useValue: mockCurrency },
       ],
     }).compile();

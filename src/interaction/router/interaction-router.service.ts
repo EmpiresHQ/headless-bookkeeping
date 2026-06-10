@@ -5,13 +5,10 @@ import { DocumentsService } from '../../documents/documents.service';
 import { InteractionConfigService } from '../config/interaction-config.service';
 import { PrincipalResolverService } from '../principal/principal-resolver.service';
 import { Principal } from '../principal/types';
-import {
-  canCommit,
-  canConverse,
-  ingestDecision,
-} from '../principal/interaction-gate';
+import { canConverse, ingestDecision } from '../principal/interaction-gate';
 import { IntentClassifierService } from './intent-classifier.service';
 import { FlowDispatcher } from './flow-dispatcher';
+import { InteractionGateService } from './interaction-gate.service';
 import { TransportRegistryService } from '../transport/transport-registry.service';
 import { AuditLogService } from '../../audit-log/audit-log.service';
 import { Channel } from '../../documents/types';
@@ -55,6 +52,7 @@ export class InteractionRouterService {
     private readonly dispatcher: FlowDispatcher,
     private readonly transports: TransportRegistryService,
     private readonly audit: AuditLogService,
+    private readonly gate: InteractionGateService,
   ) {}
 
   async handle(envelope: UnifiedEnvelope): Promise<RouterOutcome> {
@@ -123,15 +121,15 @@ export class InteractionRouterService {
     // 5. Deterministic button tap → pre-classified action (no LLM).
     const callbackData = envelope.metadata.callbackData;
     if (callbackData) {
-      if (!canCommit(principal)) {
-        await this.audit.record({
-          actor: principal.senderId,
-          action: 'interaction.action_point.commit',
-          outcome: 'denied',
-          target_type: 'conversation',
-          target_id: conversation.id,
-          detail: { callbackData },
-        });
+      const intent = this.intentFromCallback(callbackData);
+      const callbackIsKnown = intent.kind !== 'clarify';
+      const allowed = await this.gate.gateCommit(
+        principal,
+        conversation.id,
+        { callbackData },
+        callbackIsKnown,
+      );
+      if (!allowed) {
         return {
           conversation_id: conversation.id,
           gated_in: false,
@@ -139,26 +137,6 @@ export class InteractionRouterService {
           intent: null,
           dispatched: false,
         };
-      }
-      const intent = this.intentFromCallback(callbackData);
-      if (intent.kind === 'clarify') {
-        await this.audit.record({
-          actor: principal.senderId,
-          action: 'interaction.action_point.unknown_callback',
-          outcome: 'rejected',
-          target_type: 'conversation',
-          target_id: conversation.id,
-          detail: { callbackData },
-        });
-      } else {
-        await this.audit.record({
-          actor: principal.senderId,
-          action: 'interaction.action_point.commit',
-          outcome: 'accepted',
-          target_type: 'conversation',
-          target_id: conversation.id,
-          detail: { callbackData },
-        });
       }
       const dispatched = await this.dispatch(
         intent,
@@ -175,20 +153,25 @@ export class InteractionRouterService {
       };
     }
 
-    // 6. No message, or sender may not converse → stop after ingest.
-    if (!envelope.message || !canConverse(principal)) {
-      if (envelope.message && !canConverse(principal)) {
-        await this.audit.record({
-          actor: principal.senderId,
-          action: 'interaction.gate.converse_denied',
-          outcome: 'denied',
-          target_type: 'conversation',
-          target_id: conversation.id,
-        });
-      }
+    // 6. No message → stop after ingest.
+    //    gated_in reflects whether the principal could have conversed (no audit
+    //    is written for the message-less case — matches original behaviour).
+    if (!envelope.message) {
       return {
         conversation_id: conversation.id,
         gated_in: canConverse(principal),
+        ingested,
+        intent: null,
+        dispatched: false,
+      };
+    }
+
+    // 6b. Has a message but sender may not converse → audit denied and stop.
+    const canConv = await this.gate.gateConverse(principal, conversation.id);
+    if (!canConv) {
+      return {
+        conversation_id: conversation.id,
+        gated_in: false,
         ingested,
         intent: null,
         dispatched: false,
