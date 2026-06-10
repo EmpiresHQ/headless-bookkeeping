@@ -14,8 +14,8 @@ export class IntentClassifierService {
   constructor(private readonly config: AgentConfigService) {}
 
   async initialize(): Promise<void> {
-    const { model, instructions } =
-      await this.config.resolve('intent_classifier');
+    const { instructions } = await this.config.resolve('intent_classifier');
+    const model = await this.config.resolveModelConfig('intent_classifier');
     this.agent = new Agent({
       id: 'intent-classifier',
       name: 'Intent Classifier',
