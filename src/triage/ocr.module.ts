@@ -3,9 +3,12 @@ import { DatabaseModule } from '../database/database.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { OcrService } from './ocr.service';
+import { DocumentTranscriber } from './document-transcriber.port';
+import { DoclingTranscriber } from './docling-transcriber';
 
 /**
- * OcrModule — provides OcrService (Pass 1 OCR transcription).
+ * OcrModule — provides OcrService (Pass 1 OCR transcription) and binds the
+ * DocumentTranscriber port to its real adapter (DoclingTranscriber → docling-serve).
  *
  * Extracted from TriageModule to break the circular dependency:
  * AiModule → TriageModule → AiModule.
@@ -15,7 +18,10 @@ import { OcrService } from './ocr.service';
  */
 @Module({
   imports: [DatabaseModule, DocumentsModule, ConversationsModule],
-  providers: [OcrService],
+  providers: [
+    OcrService,
+    { provide: DocumentTranscriber, useClass: DoclingTranscriber },
+  ],
   exports: [OcrService],
 })
 export class OcrModule {}

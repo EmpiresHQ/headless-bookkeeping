@@ -7,6 +7,7 @@ import {
   AgentKey,
   AGENT_PROMPTS,
   DEFAULT_MODEL,
+  ModelConfig,
   ResolvedAgentConfig,
 } from './agent-config';
 
@@ -33,6 +34,24 @@ export class AgentConfigService {
     const global = await this.read('ai_model');
     if (global) return global;
     return DEFAULT_MODEL;
+  }
+
+  /**
+   * The full model config for an Agent: a bare id string (gateway default) when
+   * no `ai_base_url` is set, else an OpenAI-compatible object aiming inference at
+   * that base URL with the optional `ai_api_key`.
+   */
+  async resolveModelConfig(key: AgentKey): Promise<ModelConfig> {
+    const id = await this.resolveModel(key);
+    const url = await this.read('ai_base_url');
+    if (!url) return id;
+    const apiKey = await this.read('ai_api_key');
+    return {
+      // model ids are `provider/model`; the compat layer needs the slash.
+      id: id as `${string}/${string}`,
+      url,
+      ...(apiKey ? { apiKey } : {}),
+    };
   }
 
   /** `prompt.<key>` → AGENT_PROMPTS[key]. */

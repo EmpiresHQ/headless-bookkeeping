@@ -12,6 +12,10 @@ class FakeAgentConfig {
       instructions: AGENT_PROMPTS.intent_classifier,
     });
   }
+
+  resolveModelConfig(): Promise<string> {
+    return Promise.resolve(DEFAULT_MODEL);
+  }
 }
 
 describe('IntentClassifierService', () => {

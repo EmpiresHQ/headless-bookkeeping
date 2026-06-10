@@ -19,6 +19,14 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
     description: 'Model override for the intent classifier',
     validate: nonEmpty,
   },
+  ai_base_url: {
+    description: 'OpenAI-compatible inference base URL (blank = provider default)',
+    validate: nonEmpty,
+  },
+  ai_api_key: {
+    description: 'Inference API key (used with ai_base_url)',
+    validate: nonEmpty,
+  },
   'prompt.triage': {
     description: 'Instruction override for the triage agent',
     validate: nonEmpty,

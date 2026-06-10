@@ -13,9 +13,12 @@ interface LlmKey {
   label: string;
   placeholder: string;
   multiline: boolean;
+  secret?: boolean;
 }
 
 const LLM_KEYS: LlmKey[] = [
+  { key: 'ai_base_url', label: 'Inference base URL', placeholder: '(provider default)', multiline: false },
+  { key: 'ai_api_key', label: 'API key', placeholder: '(provider default / env)', multiline: false, secret: true },
   { key: 'ai_model', label: 'Global model', placeholder: 'openai/gpt-4o-mini', multiline: false },
   { key: 'ai_model.triage', label: 'Model — triage', placeholder: '(inherits global)', multiline: false },
   { key: 'ai_model.intent_classifier', label: 'Model — intent classifier', placeholder: '(inherits global)', multiline: false },
@@ -59,7 +62,7 @@ function SettingRow({
       <label htmlFor={id} className="text-sm font-medium text-gray-700">
         {def.label}
       </label>
-      <div className="flex items-start gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         {def.multiline ? (
           <textarea
             id={id}
@@ -72,6 +75,7 @@ function SettingRow({
         ) : (
           <input
             id={id}
+            type={def.secret ? 'password' : 'text'}
             placeholder={def.placeholder}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -198,8 +202,8 @@ export function SettingsView() {
         <h2 className="font-semibold">Risk gate</h2>
         {policy && (
           <div className="space-y-3 text-sm">
-            <label className="flex items-center gap-2">
-              <span className="w-56 text-gray-700">
+            <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <span className="sm:w-56 text-gray-700">
                 Auto-post amount ceiling (cents)
               </span>
               <input
@@ -216,8 +220,8 @@ export function SettingsView() {
                 className="border rounded px-2 py-1 w-40 tabular-nums"
               />
             </label>
-            <label className="flex items-center gap-2">
-              <span className="w-56 text-gray-700">Min confidence (0–1)</span>
+            <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <span className="sm:w-56 text-gray-700">Min confidence (0–1)</span>
               <input
                 aria-label="Min confidence"
                 type="number"
@@ -249,8 +253,8 @@ export function SettingsView() {
                 Unknown supplier requires approval
               </span>
             </label>
-            <label className="flex items-center gap-2">
-              <span className="w-56 text-gray-700">
+            <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <span className="sm:w-56 text-gray-700">
                 Always-approve operations
               </span>
               <input

@@ -73,6 +73,7 @@ export function KmdView() {
 
       {decl && (
         <div className="space-y-4">
+          <div className="overflow-x-auto">
           <table className="text-sm border-collapse">
             <tbody>
               {ROWS.map((r) => (
@@ -99,6 +100,7 @@ export function KmdView() {
               </tr>
             </tbody>
           </table>
+          </div>
 
           {decl.vd_intra_eu_services > 0 && (
             <p className="text-sm text-amber-700">
