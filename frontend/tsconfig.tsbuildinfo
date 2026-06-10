@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/auth.test.ts","./src/auth.ts","./src/main.tsx","./src/tabs.tsx","./src/test-setup.ts","./src/components/table.tsx","./src/components/tokengate.tsx"],"version":"5.9.3"}

@@ -85,4 +85,4 @@ Alternatives rejected:
 - Explicit failure mode: a bad or ambiguous mapping → schema validation fails →
   the run errors in the UI; the operator re-uploads. Per-upload inference is what
   makes the expected format-drift case a non-event.
-- Delivered as **P3** of the operator-SPA work (ADR-0029).
+- Delivered as **P3** of the operator-SPA work (ADR-0030).

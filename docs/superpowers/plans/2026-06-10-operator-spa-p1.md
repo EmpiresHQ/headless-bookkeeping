@@ -4,7 +4,7 @@
 
 **Goal:** Serve a minimal React SPA at `/` from the NestJS kernel that authenticates with a pasted API token (localStorage → Bearer) and shows what is entered in the system across six read-only tabs.
 
-**Architecture:** A standalone `frontend/` Vite+React+TS+Tailwind app builds to `frontend/dist`, copied into the Docker image and served by `@nestjs/serve-static` at `/` (static middleware runs ahead of the global `ApiTokenGuard`, so the page loads tokenless while `/api*`, `/admin*`, `/health*` stay guarded). The SPA is a single page with in-memory tab state (no client router). Every data request carries `Authorization: Bearer <token>`; a 401 clears the token and re-prompts. Implements ADR-0029 (scope: business objects only — no raw ledger).
+**Architecture:** A standalone `frontend/` Vite+React+TS+Tailwind app builds to `frontend/dist`, copied into the Docker image and served by `@nestjs/serve-static` at `/` (static middleware runs ahead of the global `ApiTokenGuard`, so the page loads tokenless while `/api*`, `/admin*`, `/health*` stay guarded). The SPA is a single page with in-memory tab state (no client router). Every data request carries `Authorization: Bearer <token>`; a 401 clears the token and re-prompts. Implements ADR-0030 (scope: business objects only — no raw ledger).
 
 **Tech Stack:** NestJS 11 / Express, `@nestjs/serve-static`; Vite 5, React 18, TypeScript, TailwindCSS 3, Vitest + @testing-library/react.
 
@@ -14,7 +14,7 @@
 
 In scope (P1): serve-static wiring + e2e; `frontend/` scaffold; token gate + Bearer fetch wrapper; read tabs Organization, Entities, Expenses, Sales invoices, Documents, Reporting periods; Dockerfile frontend build stage; dev proxy.
 
-Out of scope (later phases / other branches): delete-garbage buttons (need `cli-delete-garbage` DELETE routes deployed — P1.x follow-up); document upload + triage/approvals (P2); bank-statement Mastra workflow (P3, ADR-0030); the VAT/KMD tab (needs `ee-vat-reverse-charge-kmd`'s `GET /api/reporting-periods/:id/kmd` merged — add after that lands).
+Out of scope (later phases / other branches): delete-garbage buttons (need `cli-delete-garbage` DELETE routes deployed — P1.x follow-up); document upload + triage/approvals (P2); bank-statement Mastra workflow (P3, ADR-0031); the VAT/KMD tab (needs `ee-vat-reverse-charge-kmd`'s `GET /api/reporting-periods/:id/kmd` merged — add after that lands).
 
 ## Endpoint contract (already on `main`, used by this plan)
 
@@ -81,7 +81,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
 /**
- * Operator SPA serve-static wiring (ADR-0029): the page is served at "/" by
+ * Operator SPA serve-static wiring (ADR-0030): the page is served at "/" by
  * static middleware that runs ahead of the global ApiTokenGuard, while the API
  * stays guarded. We don't run a real Vite build here — we drop a placeholder
  * frontend/dist/index.html so ServeStaticModule has a file to serve.
@@ -1103,7 +1103,7 @@ Then STOP — `main` is protected; open the PR for `operator-spa` manually. Note
 
 ## Self-Review
 
-**Spec coverage (ADR-0029, P1 slice):**
+**Spec coverage (ADR-0030, P1 slice):**
 - SPA served at `/` by serve-static, page tokenless, API guarded → Task 1. ✓
 - Token in localStorage → Bearer; 401 → re-prompt → Task 3 (`auth.ts`) + Task 7 (gate switch on token clear). ✓
 - Business-objects-only scope, six tabs, no raw ledger → Tasks 4/6/7 (only Organization/Entities/Expenses/Invoices/Documents/Periods; no vouchers/accounts). ✓

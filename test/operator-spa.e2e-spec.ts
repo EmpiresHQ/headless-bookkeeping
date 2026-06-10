@@ -10,7 +10,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 
 /**
- * Operator SPA serve-static wiring (ADR-0029): the page is served at "/" by
+ * Operator SPA serve-static wiring (ADR-0030): the page is served at "/" by
  * static middleware that runs ahead of the global ApiTokenGuard, while the API
  * stays guarded. We don't run a real Vite build here — we drop a placeholder
  * frontend/dist/index.html so ServeStaticModule has a file to serve.

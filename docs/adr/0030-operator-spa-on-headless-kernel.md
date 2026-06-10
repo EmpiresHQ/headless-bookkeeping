@@ -40,7 +40,7 @@ facts, never debits and credits.
 
 Read (list/detail); delete of probe garbage (draft expense/invoice, unreferenced
 entity) via the existing `DELETE` routes; document upload + triage/approvals;
-bank-statement upload (ADR-0030). Posted records are never edited from the UI —
+bank-statement upload (ADR-0031). Posted records are never edited from the UI —
 corrections remain in the kernel's correction flow (ADR-0009).
 
 ## Why
@@ -71,4 +71,4 @@ multiple users.
 - Delivered in phases as separate PRs: **P1** shell + auth + read tabs (the
   delete buttons depend on the `cli-delete-garbage` branch's `DELETE` routes
   being deployed); **P2** documents + triage/approvals; **P3** bank statements
-  (ADR-0030).
+  (ADR-0031).
