@@ -97,15 +97,17 @@ export class MastraService implements OnModuleInit {
       url: 'file:./data/mastra.sqlite',
     });
 
-    // Resolve model and instructions from AgentConfigService (settings-backed).
+    // Resolve instructions + the full model config (endpoint-aware) from
+    // AgentConfigService (settings-backed).
     const triage = await this.config.resolve('triage');
+    const triageModel = await this.config.resolveModelConfig('triage');
 
     // Create the triage agent with read-only tools.
     const triageAgent = new Agent({
       id: 'triage-agent',
       name: 'Triage Agent',
       instructions: triage.instructions,
-      model: triage.model,
+      model: triageModel,
       tools,
     });
 
