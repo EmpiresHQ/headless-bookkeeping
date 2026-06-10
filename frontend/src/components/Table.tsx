@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
+
 export interface Column<T> {
   header: string;
-  cell: (row: T) => React.ReactNode;
+  cell: (row: T) => ReactNode;
 }
 
 export function Table<T>({

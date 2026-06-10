@@ -24,6 +24,7 @@ export function TokenGate({ onSaved }: { onSaved: () => void }) {
           className="w-full border rounded px-3 py-2 font-mono text-sm"
           type="password"
           placeholder="token"
+          aria-label="API token"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           autoFocus
