@@ -1,20 +1,17 @@
 import type { ComponentType } from 'react';
 import { Column } from './components/Table';
 import {
-  Entity,
   Expense,
   SalesInvoice,
   DocumentRow,
   ReportingPeriod,
   fmtCents,
-  getEntities,
   getExpenses,
   getInvoices,
   getDocuments,
   getReportingPeriods,
   deleteExpense,
   deleteInvoice,
-  deleteEntity,
 } from './api';
 import { KmdView } from './components/KmdView';
 import { IntakeView } from './components/IntakeView';
@@ -22,6 +19,7 @@ import { BankView } from './components/BankView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
 import { OrgView } from './components/OrgView';
+import { EntitiesView } from './components/EntitiesView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -54,19 +52,12 @@ const orgTab: TabDef = {
   Custom: OrgView,
 };
 
-const entitiesTab: TabDef<Entity> = {
+const entitiesTab: TabDef = {
   key: 'entities',
   label: 'Entities',
-  load: getEntities,
-  columns: [
-    { header: 'ID', cell: (e) => e.id },
-    { header: 'Name', cell: (e) => e.name },
-    { header: 'Role', cell: (e) => e.role },
-    { header: 'Country', cell: (e) => e.country },
-    { header: 'Goods/Services', cell: (e) => e.goods_vs_services ?? '—' },
-  ],
-  remove: (e) => deleteEntity(e.id),
-  rowId: (e) => e.id,
+  load: async () => [],
+  columns: [],
+  Custom: EntitiesView,
 };
 
 const expensesTab: TabDef<Expense> = {
