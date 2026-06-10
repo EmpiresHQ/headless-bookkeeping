@@ -14,8 +14,8 @@ export class CreditNotesController {
   }
 
   @Get()
-  list() {
-    return this.service.list();
+  async list() {
+    return { credit_notes: await this.service.list() };
   }
 
   @Get(':id')

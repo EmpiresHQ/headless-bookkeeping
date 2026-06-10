@@ -148,9 +148,9 @@ describe('Credit notes E2E (create/list/get)', () => {
       .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThanOrEqual(1);
-    expect(res.body[0]).toHaveProperty('credit_note_number');
+    expect(Array.isArray(res.body.credit_notes)).toBe(true);
+    expect(res.body.credit_notes.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.credit_notes[0]).toHaveProperty('credit_note_number');
   });
 
   it('GET /api/credit-notes/:id returns a specific credit note', async () => {
