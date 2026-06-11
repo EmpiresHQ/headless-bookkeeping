@@ -175,6 +175,27 @@ export const createReportingPeriod = (input: CreateReportingPeriodInput) =>
     body: JSON.stringify(input),
   });
 
+export interface PeriodConfig {
+  frequency_options: string[];
+  default_frequency: string;
+}
+
+export const getPeriodConfig = () =>
+  apiFetch<PeriodConfig>('/api/organization/period-config');
+
+export interface CreateNextPeriodInput {
+  start_date?: string;
+  end_date?: string;
+  name?: string;
+}
+
+export const createNextPeriod = (input: CreateNextPeriodInput = {}) =>
+  apiFetch<ReportingPeriod>('/api/reporting-periods/next', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
 /** Integer cents → display string, e.g. 615700 -> "6157.00". */
 export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
 
