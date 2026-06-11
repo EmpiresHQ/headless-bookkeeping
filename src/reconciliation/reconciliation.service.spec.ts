@@ -208,6 +208,7 @@ describe('ReconciliationService (integration)', () => {
     supplierId: number,
     grossCents: number,
     taxPointDate: string,
+    supplierInvoiceNumber?: string,
   ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
     voucherCounter++;
@@ -224,6 +225,7 @@ describe('ReconciliationService (integration)', () => {
         tax_point_date: taxPointDate,
         status: 'posted',
         voucher_id: null,
+        supplier_invoice_number: supplierInvoiceNumber ?? null,
         created_at: now,
         updated_at: now,
       })
@@ -416,10 +418,39 @@ describe('ReconciliationService (integration)', () => {
       expect(match!.amountMatched).toBe(50000);
     });
 
-    it('does NOT emit invoice_number proposals for outgoing/AP transactions (no invoice key on expenses)', async () => {
+    it('matches outgoing transaction to AP voucher by supplier_invoice_number in reference', async () => {
       const supplier = await seedSupplier();
-      // Two posted expense vouchers with the SAME gross amount, neither tied to
-      // any invoice number.
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        42000,
+        '2025-01-10',
+        'INV-9001',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -42000,
+          reference: 'INV-9001',
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const match = proposals.find((p) => p.voucherId === voucherId);
+      expect(match).toBeDefined();
+      expect(match!.signal).toBe('invoice_number');
+      expect(match!.confidence).toBe('high');
+      expect(match!.matchType).toBe('exact');
+      expect(match!.amountMatched).toBe(42000);
+    });
+
+    it('does NOT emit invoice_number proposals when no expense supplier_invoice_number matches the token', async () => {
+      const supplier = await seedSupplier();
+      // Posted expense vouchers with NO supplier_invoice_number set.
       await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
       await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
 
@@ -609,6 +640,69 @@ describe('ReconciliationService (integration)', () => {
       );
       const match = proposals.find((p) => p.signal === 'amount_date');
       expect(match).toBeUndefined();
+    });
+
+    it('filters out window vouchers whose amount is far from the bank line', async () => {
+      const customer = await seedCustomer();
+      // Both vouchers sit inside the ±7-day window; only the near-amount one
+      // should survive the tolerance band (the far one is junk the old code
+      // would have proposed regardless of amount).
+      const nearVoucher = await seedSalesInvoiceVoucher(
+        customer.id,
+        25000,
+        'INV-31001',
+        '2025-01-10',
+      );
+      const farVoucher = await seedSalesInvoiceVoucher(
+        customer.id,
+        100000,
+        'INV-31002',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Unknown payment',
+          amount: 25000,
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      expect(proposals.find((p) => p.voucherId === nearVoucher)).toBeDefined();
+      expect(proposals.find((p) => p.voucherId === farVoucher)).toBeUndefined();
+    });
+
+    it('keeps a window voucher within the FX-drift floor (1.00 base unit)', async () => {
+      const customer = await seedCustomer();
+      // Bank line 13.91 vs voucher 14.72 — an 81-cent gap (card-settlement FX
+      // drift). 5% of 1391 is ~70, but the 100-cent floor admits it.
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        1472,
+        'INV-31003',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Card settlement',
+          amount: 1391,
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const match = proposals.find((p) => p.voucherId === voucherId);
+      expect(match).toBeDefined();
+      expect(match!.signal).toBe('amount_date');
+      expect(match!.amountMatched).toBe(1391);
     });
   });
 

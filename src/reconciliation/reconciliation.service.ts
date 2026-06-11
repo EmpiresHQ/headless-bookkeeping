@@ -38,6 +38,17 @@ const INVOICE_NUMBER_PATTERNS = [
 /** IBAN pattern: 2-letter country code + 2 check digits + up to 30 alphanumeric. */
 const IBAN_PATTERN = /[A-Z]{2}\d{2}[A-Z0-9]{4,30}/gi;
 
+/**
+ * Amount-and-date fallback tolerance. A candidate qualifies only if its
+ * remaining balance is within `max(FLOOR, PCT · bankBase)` of the bank line's
+ * base amount. The relative band absorbs card-settlement FX drift (a charge
+ * booked at the reference rate vs settled at the card rate); the absolute floor
+ * keeps tiny amounts from collapsing to a near-zero window. Without this, the
+ * fallback returned EVERY voucher in the date window regardless of amount.
+ */
+const AMOUNT_DATE_TOLERANCE_FLOOR = 100; // 1 unit of base currency, in cents
+const AMOUNT_DATE_TOLERANCE_PCT = 0.05;
+
 @Injectable()
 export class ReconciliationService {
   constructor(
@@ -414,10 +425,42 @@ export class ReconciliationService {
           }
         }
       }
-      // Outgoing / AP payments have no invoice-number key: the `expense` table
-      // has no `invoice_number` column, so the invoice-number signal applies to
-      // incoming / AR only. Outgoing payments rely on the counterparty and
-      // amount-and-date signals (handled in proposeMatchesForTransaction).
+      // Outgoing / AP: look up the supplier's invoice number on the expense
+      // (migration 036). Symmetric to the AR branch — the bank line must carry a
+      // token equal to `expense.supplier_invoice_number` (e.g. a transfer that
+      // references "INV-1756"). Card descriptors carry no such token, so those
+      // fall through to the counterparty / amount-date signals.
+      else {
+        const expense = await this.db
+          .selectFrom('expense')
+          .select(['id', 'voucher_id', 'gross_amount', 'currency'])
+          .where('supplier_invoice_number', '=', invNum)
+          .where('status', '=', 'posted')
+          .where('voucher_id', 'is not', null)
+          .executeTakeFirst();
+
+        if (expense && expense.voucher_id) {
+          const remaining =
+            await this.outstandingVouchers.getRemainingVoucherBalance(
+              expense.voucher_id,
+            );
+          if (remaining > 0) {
+            const amountMatched = Math.min(absBaseAmount, remaining);
+            const matchType: MatchType =
+              amountMatched === remaining && amountMatched === absBaseAmount
+                ? 'exact'
+                : 'partial';
+            proposals.push({
+              bankTransactionId,
+              voucherId: expense.voucher_id,
+              matchType,
+              amountMatched,
+              confidence: 'high',
+              signal: 'invoice_number',
+            });
+          }
+        }
+      }
     }
 
     return proposals;
@@ -554,7 +597,7 @@ export class ReconciliationService {
    * the proposal-building loops below see only positive-balance candidates.
    */
   private async getCandidateVouchersByAmountAndDate(
-    _absAmount: number,
+    absBaseAmount: number,
     transactionDate: string,
     isIncoming: boolean,
   ): Promise<CandidateVoucher[]> {
@@ -565,7 +608,19 @@ export class ReconciliationService {
       : await this.outstandingVouchers.findApCandidatesByAmountAndDate(
           transactionDate,
         );
-    return candidates.filter((c) => c.remainingBalance > 0);
+
+    // The SQL query filters by the ±7-day window only; apply the amount
+    // tolerance here, against the voucher's REMAINING balance (the figure this
+    // bank line could settle), not its original line amount.
+    const tolerance = Math.max(
+      AMOUNT_DATE_TOLERANCE_FLOOR,
+      Math.round(absBaseAmount * AMOUNT_DATE_TOLERANCE_PCT),
+    );
+    return candidates.filter(
+      (c) =>
+        c.remainingBalance > 0 &&
+        Math.abs(c.remainingBalance - absBaseAmount) <= tolerance,
+    );
   }
 
   /**
