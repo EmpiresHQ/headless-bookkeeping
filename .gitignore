@@ -57,11 +57,8 @@ evals/**/output.*
 # CodeGraph local tooling
 .codegraph/
 
-# Operator SPA build artifacts
-frontend/node_modules
-frontend/dist
-
 # Monorepo package build artifacts and coverage
+*.tsbuildinfo
 data/
 packages/*/dist/
 packages/server/coverage/

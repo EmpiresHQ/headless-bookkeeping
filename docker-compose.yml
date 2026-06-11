@@ -27,6 +27,6 @@ services:
       context: .
       dockerfile: packages/server/Dockerfile
       target: test
-    command: ["npm", "run", "test"]
+    command: ["npm", "run", "test", "-w", "@headless-bookkeeping/server"]
     environment:
       - NODE_ENV=test
