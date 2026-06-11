@@ -363,6 +363,76 @@ describe('Entity aggregate (integration)', () => {
     });
   });
 
+  describe('multi-key resolution', () => {
+    it('resolveByIdentifiers matches on ANY identifier and dedups entity ids', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [
+          { kind: 'email', value: 'Help@Anoma.LY' },
+          { kind: 'phone', value: '+1 555 0000' },
+        ],
+      });
+
+      // Match by email alone (different casing) and by phone alone.
+      expect(
+        await entitiesService.resolveByIdentifiers([{ kind: 'email', value: 'help@anoma.ly' }]),
+      ).toEqual([s.id]);
+      expect(
+        await entitiesService.resolveByIdentifiers([{ kind: 'phone', value: '+15550000' }]),
+      ).toEqual([s.id]);
+
+      // Two candidates that both hit the same entity → single, deduped id.
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'email', value: 'help@anoma.ly' },
+          { kind: 'phone', value: '+15550000' },
+        ]),
+      ).toEqual([s.id]);
+
+      // No match → empty array.
+      expect(
+        await entitiesService.resolveByIdentifiers([{ kind: 'email', value: 'nobody@x.io' }]),
+      ).toEqual([]);
+    });
+
+    it('onboardWithIdentifiers writes every present identifier and skips empties', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [
+          { kind: 'registration_key', value: '   ' }, // normalizes to null → skipped
+          { kind: 'email', value: 'help@anoma.ly' },
+          { kind: 'address', value: '1 Main St' },
+        ],
+      });
+
+      const found = await entitiesService.findById(s.id);
+      const kinds = found.identifiers.map((i) => i.kind).sort();
+      expect(kinds).toEqual(['address', 'email']);
+    });
+
+    it('addIdentifierIfAbsent inserts once and is idempotent', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [{ kind: 'email', value: 'help@anoma.ly' }],
+      });
+
+      await entitiesService.addIdentifierIfAbsent(s.id, 'phone', '+1 555 0000');
+      await entitiesService.addIdentifierIfAbsent(s.id, 'phone', '+15550000'); // same after normalize
+
+      const phones = (await entitiesService.findById(s.id)).identifiers.filter(
+        (i) => i.kind === 'phone',
+      );
+      expect(phones).toHaveLength(1);
+      expect(phones[0].value).toBe('+15550000');
+    });
+  });
+
   describe('delete', () => {
     it('removes an unreferenced entity', async () => {
       const e = await entitiesService.onboard({
