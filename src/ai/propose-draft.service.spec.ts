@@ -23,6 +23,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
 import { AgentConfigService } from './agent-config.service';
+import { CategoryService } from '../categories/category.service';
 import {
   ProposeDraftService,
   ProposeDraftResult,
@@ -87,6 +88,7 @@ describe('ProposeDraftService (integration)', () => {
         ExpensesService,
         EntitiesService,
         AgentConfigService,
+        CategoryService,
         ProposeDraftService,
       ],
     }).compile();
@@ -416,6 +418,30 @@ describe('ProposeDraftService (integration)', () => {
         .executeTakeFirstOrThrow();
 
       expect(proposals.ocr_artifact_id).toBeNull();
+    });
+
+    it('returns category-unresolved for a triage category the active plugin does not know', async () => {
+      const categoryService = module.get(CategoryService);
+      // Stub isValid to return false for anything that is not 'software'.
+      jest
+        .spyOn(categoryService, 'isValid')
+        .mockResolvedValue(false);
+
+      const triage: TriageResult = {
+        kind: 'new_expense',
+        category: 'made-up-category',
+        gross_amount: 1000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-01-01',
+        document_type: 'receipt',
+        document_vat_marking: null,
+        supplier_invoice_number: null,
+        confidence: 0.9,
+      };
+
+      const outcome = await service.proposeDraft(triage, null, 1);
+      expect(outcome.outcome).toBe('category-unresolved');
     });
   });
 });
