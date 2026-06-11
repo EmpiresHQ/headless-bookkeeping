@@ -53,20 +53,25 @@ describe('BankView', () => {
     const file = new File(['Date,Amount\n'], 's.csv', { type: 'text/csv' });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    const accountInput = screen.getByLabelText('Account code') as HTMLInputElement;
+    const accountInput = screen.getByLabelText(
+      'Account code',
+    ) as HTMLInputElement;
     fireEvent.change(accountInput, { target: { value: 'BANK_EUR' } });
 
     fireEvent.click(screen.getByRole('button', { name: /import/i }));
 
-    expect(
-      await screen.findByText('Created statement #5'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Created statement #5')).toBeInTheDocument();
     expect(api.importBankStatement).toHaveBeenCalledWith(file, 'BANK_EUR');
   });
 
   it('lists statements and shows transactions on View', async () => {
     vi.mocked(api.listBankStatements).mockResolvedValue([
-      { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+      {
+        id: 5,
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        uploaded_at: 0,
+      },
     ]);
     vi.mocked(api.listBankTransactions).mockResolvedValue([
       {
@@ -100,7 +105,12 @@ describe('BankView', () => {
   it('deletes a statement after confirmation and reloads the list', async () => {
     vi.mocked(api.listBankStatements)
       .mockResolvedValueOnce([
-        { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+        {
+          id: 5,
+          start_date: '2026-05-01',
+          end_date: '2026-05-31',
+          uploaded_at: 0,
+        },
       ])
       .mockResolvedValue([]); // after delete: empty
     vi.mocked(api.deleteBankStatement).mockResolvedValue({ deleted: 5 });
@@ -118,7 +128,12 @@ describe('BankView', () => {
 
   it('shows a match badge from reconciliation status', async () => {
     vi.mocked(api.listBankStatements).mockResolvedValue([
-      { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+      {
+        id: 5,
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        uploaded_at: 0,
+      },
     ]);
     vi.mocked(api.listBankTransactions).mockResolvedValue([
       {
@@ -154,7 +169,12 @@ describe('BankView', () => {
 
   it('proposes matches and books a selected proposal', async () => {
     vi.mocked(api.listBankStatements).mockResolvedValue([
-      { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+      {
+        id: 5,
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        uploaded_at: 0,
+      },
     ]);
     vi.mocked(api.listBankTransactions).mockResolvedValue([
       {
@@ -226,7 +246,12 @@ describe('BankView', () => {
 
   it('dispositions an open outgoing txn as personal', async () => {
     vi.mocked(api.listBankStatements).mockResolvedValue([
-      { id: 5, start_date: '2026-05-01', end_date: '2026-05-31', uploaded_at: 0 },
+      {
+        id: 5,
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        uploaded_at: 0,
+      },
     ]);
     vi.mocked(api.listBankTransactions).mockResolvedValue([
       {

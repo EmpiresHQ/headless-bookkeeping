@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  getOrganization,
-  updateOrganization,
-  type Organization,
-} from '../api';
+import { getOrganization, updateOrganization, type Organization } from '../api';
 
 const ORG_TYPES = ['company', 'sole_proprietor'] as const;
 
@@ -30,12 +26,17 @@ export function OrgView() {
     try {
       const saved = await updateOrganization({
         country: org.country,
-        org_type: org.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
+        org_type:
+          org.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
         vat_registered: org.vat_registered,
         // Empty string → null: inherit the country plugin's base currency.
-        base_currency: org.base_currency?.trim() ? org.base_currency.trim() : null,
+        base_currency: org.base_currency?.trim()
+          ? org.base_currency.trim()
+          : null,
         name: org.name?.trim() ? org.name.trim() : null,
-        vat_registration_number: org.vat_registration_number?.trim() ? org.vat_registration_number.trim() : null,
+        vat_registration_number: org.vat_registration_number?.trim()
+          ? org.vat_registration_number.trim()
+          : null,
       });
       setOrg(saved);
       setSavedNote('Organization saved.');

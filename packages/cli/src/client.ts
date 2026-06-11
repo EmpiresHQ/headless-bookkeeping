@@ -27,7 +27,6 @@ export type RequestFn = (
  * dispatches dynamically; openapi-typescript's `types.gen.ts` is for consumers.
  */
 export function makeRequest(ctx: ResolvedContext): RequestFn {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createClient<any>({
     baseUrl: ctx.baseUrl,
     headers: { Authorization: `Bearer ${ctx.token}` },

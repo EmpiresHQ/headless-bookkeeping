@@ -89,7 +89,8 @@ export interface ReportingPeriod {
   filed_at: number | null;
 }
 
-export const getOrganization = () => apiFetch<Organization>('/api/organization');
+export const getOrganization = () =>
+  apiFetch<Organization>('/api/organization');
 
 export interface UpdateOrganizationDto {
   country?: string;
@@ -550,7 +551,9 @@ export const listBankStatements = () =>
   apiFetch<BankStatement[]>('/api/bank-statements');
 
 export const listBankTransactions = (statementId: number) =>
-  apiFetch<BankTransaction[]>(`/api/bank-statements/${statementId}/transactions`);
+  apiFetch<BankTransaction[]>(
+    `/api/bank-statements/${statementId}/transactions`,
+  );
 
 export const deleteBankStatement = (statementId: number) =>
   apiFetch<{ deleted: number }>(`/api/bank-statements/${statementId}`, {
@@ -633,10 +636,9 @@ export const getStatementMatches = (statementId: number) =>
 
 // Undo a match (deletes the sub-ledger link; reverses any FX voucher server-side).
 export const unmatchMatch = (statementId: number, matchId: number) =>
-  apiFetch<unknown>(
-    `/api/bank-statements/${statementId}/matches/${matchId}`,
-    { method: 'DELETE' },
-  );
+  apiFetch<unknown>(`/api/bank-statements/${statementId}/matches/${matchId}`, {
+    method: 'DELETE',
+  });
 
 // Manual-match candidates: open business objects a bank line can settle, plus
 // the line's remaining unallocated amount (BASE cents). voucherId is for the

@@ -37,7 +37,9 @@ describe('apiFetch', () => {
       new Response('nope', { status: 401 }),
     );
 
-    await expect(apiFetch('/api/organization')).rejects.toThrow(/unauthorized/i);
+    await expect(apiFetch('/api/organization')).rejects.toThrow(
+      /unauthorized/i,
+    );
     expect(getToken()).toBeNull();
   });
 

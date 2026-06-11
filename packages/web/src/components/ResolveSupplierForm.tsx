@@ -76,55 +76,90 @@ export function ResolveSupplierForm({
     return (
       <div className="border rounded p-3 text-sm">
         <p className="text-red-600">{error}</p>
-        <button type="button" className="text-gray-600 hover:underline" onClick={onCancel}>
+        <button
+          type="button"
+          className="text-gray-600 hover:underline"
+          onClick={onCancel}
+        >
           Close
         </button>
       </div>
     );
   }
-  if (!pd) return <div className="border rounded p-3 text-sm text-gray-500">Loading…</div>;
+  if (!pd)
+    return (
+      <div className="border rounded p-3 text-sm text-gray-500">Loading…</div>
+    );
 
   return (
     <div className="border rounded p-3 space-y-3 text-sm bg-gray-50">
       <div className="text-gray-700">
-        AI proposes supplier <strong>{pd.supplier_proposal.create_name}</strong> (
-        {pd.supplier_proposal.create_country}) — draft {pd.draft.category}{' '}
-        {cents(pd.draft.gross_amount)} {pd.draft.currency} (VAT {cents(pd.draft.vat_amount)}),{' '}
-        {pd.draft.tax_point_date}
+        AI proposes supplier <strong>{pd.supplier_proposal.create_name}</strong>{' '}
+        ({pd.supplier_proposal.create_country}) — draft {pd.draft.category}{' '}
+        {cents(pd.draft.gross_amount)} {pd.draft.currency} (VAT{' '}
+        {cents(pd.draft.vat_amount)}), {pd.draft.tax_point_date}
       </div>
 
       <div className="flex gap-3">
         <label className="flex items-center gap-1">
-          <input type="radio" checked={mode === 'create'} onChange={() => setMode('create')} />
+          <input
+            type="radio"
+            checked={mode === 'create'}
+            onChange={() => setMode('create')}
+          />
           Create new
         </label>
         <label className="flex items-center gap-1">
-          <input type="radio" checked={mode === 'pick'} onChange={() => setMode('pick')} />
+          <input
+            type="radio"
+            checked={mode === 'pick'}
+            onChange={() => setMode('pick')}
+          />
           Pick existing
         </label>
       </div>
 
       {mode === 'create' ? (
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col">Name
-            <input className="border rounded px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="flex flex-col">
+            Name
+            <input
+              className="border rounded px-2 py-1"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </label>
-          <label className="flex flex-col">Country
-            <input className="border rounded px-2 py-1" value={country} onChange={(e) => setCountry(e.target.value)} />
+          <label className="flex flex-col">
+            Country
+            <input
+              className="border rounded px-2 py-1"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+            />
           </label>
-          <label className="flex flex-col">Registration key
-            <input aria-label="Registration key" className="border rounded px-2 py-1" value={registrationKey} onChange={(e) => setRegistrationKey(e.target.value)} />
+          <label className="flex flex-col">
+            Registration key
+            <input
+              aria-label="Registration key"
+              className="border rounded px-2 py-1"
+              value={registrationKey}
+              onChange={(e) => setRegistrationKey(e.target.value)}
+            />
           </label>
         </div>
       ) : (
         <select
           className="border rounded px-2 py-1"
           value={pickId ?? ''}
-          onChange={(e) => setPickId(e.target.value ? Number(e.target.value) : null)}
+          onChange={(e) =>
+            setPickId(e.target.value ? Number(e.target.value) : null)
+          }
         >
           <option value="">Select a supplier…</option>
           {suppliers.map((s) => (
-            <option key={s.id} value={s.id}>{s.name} ({s.country})</option>
+            <option key={s.id} value={s.id}>
+              {s.name} ({s.country})
+            </option>
           ))}
         </select>
       )}
@@ -140,7 +175,12 @@ export function ResolveSupplierForm({
         >
           {mode === 'create' ? 'Create supplier & book' : 'Use supplier & book'}
         </button>
-        <button type="button" disabled={busy} onClick={onCancel} className="text-gray-600 hover:underline">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onCancel}
+          className="text-gray-600 hover:underline"
+        >
           Cancel
         </button>
       </div>

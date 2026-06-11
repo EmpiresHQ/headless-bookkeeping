@@ -26,7 +26,11 @@ describe('resolveContext precedence', () => {
   });
 
   it('env overrides the config profile', () => {
-    const ctx = resolveContext({}, { HBK_URL: 'https://env', HBK_TOKEN: 'env-tok' }, cfg);
+    const ctx = resolveContext(
+      {},
+      { HBK_URL: 'https://env', HBK_TOKEN: 'env-tok' },
+      cfg,
+    );
     expect(ctx.baseUrl).toBe('https://env');
     expect(ctx.token).toBe('env-tok');
   });
@@ -42,8 +46,8 @@ describe('resolveContext precedence', () => {
   });
 
   it('throws a helpful error when nothing resolves a token', () => {
-    expect(() => resolveContext({}, {}, { currentProfile: 'x', profiles: {} })).toThrow(
-      /no token/i,
-    );
+    expect(() =>
+      resolveContext({}, {}, { currentProfile: 'x', profiles: {} }),
+    ).toThrow(/no token/i);
   });
 });
