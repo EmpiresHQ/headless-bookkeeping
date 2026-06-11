@@ -1,6 +1,7 @@
 import { Injectable, Inject, Optional } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { dataDir } from '../common/paths';
 
 export const DOCUMENT_STORAGE_ROOT = Symbol('DOCUMENT_STORAGE_ROOT');
 
@@ -13,7 +14,7 @@ export class DocumentStorageService {
     @Inject(DOCUMENT_STORAGE_ROOT)
     private readonly injectedRoot: string | undefined,
   ) {
-    this.root = this.injectedRoot ?? join(process.cwd(), 'data', 'documents');
+    this.root = this.injectedRoot ?? join(dataDir(), 'documents');
   }
 
   /**
