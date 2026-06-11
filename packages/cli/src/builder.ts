@@ -92,7 +92,7 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
         group: kebab(tag),
         action: op.operationId
           ? actionFromOperationId(op.operationId)
-          : kebab(`${method}-${path.replace(/[\/{}]/g, '-')}`),
+          : kebab(`${method}-${path.replace(/[/{}]/g, '-')}`),
         method,
         path,
         positionals,
