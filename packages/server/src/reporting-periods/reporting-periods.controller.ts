@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ReportingPeriodsService } from './reporting-periods.service';
-import { CreateReportingPeriodDto } from './types';
+import { CreateReportingPeriodDto, CreateNextPeriodDto } from './types';
 import type { ReportingPeriod, PeriodWarning } from './types';
 
 @ApiTags('reporting-periods')
@@ -39,6 +39,13 @@ export class ReportingPeriodsController {
     @Body() dto: CreateReportingPeriodDto,
   ): Promise<ReportingPeriod> {
     return this.service.create(dto);
+  }
+
+  @Post('next')
+  async createNext(
+    @Body() dto: CreateNextPeriodDto,
+  ): Promise<ReportingPeriod> {
+    return this.service.createNext(dto);
   }
 
   @Post(':id/lock')
