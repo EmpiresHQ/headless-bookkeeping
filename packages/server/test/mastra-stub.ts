@@ -77,6 +77,10 @@ export class Agent {
   listTools(): Record<string, unknown> {
     return (this.tools ?? {}) as Record<string, unknown>;
   }
+
+  getInstructions(): Promise<string> {
+    return Promise.resolve((this.instructions as string) ?? '');
+  }
 }
 
 export class LibSQLStore {
