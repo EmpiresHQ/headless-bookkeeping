@@ -46,7 +46,7 @@ jobs:
 
   build-and-push:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, cli-test]
     if: github.event_name == 'push'
     steps:
       - name: Checkout
