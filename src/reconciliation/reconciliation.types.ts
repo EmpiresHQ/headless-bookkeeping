@@ -14,8 +14,15 @@ import { FXRealizedResult } from './fx-realized.service';
 /** The type of a reconciliation match. */
 export type MatchType = 'exact' | 'partial' | 'prepayment';
 
-/** The signal that produced a match proposal — ordered by strength. */
-export type MatchSignal = 'invoice_number' | 'counterparty' | 'amount_date';
+/**
+ * The signal that produced a match proposal — ordered by strength.
+ * `manual` is operator-asserted (no engine signal); it carries no confidence.
+ */
+export type MatchSignal =
+  | 'invoice_number'
+  | 'counterparty'
+  | 'amount_date'
+  | 'manual';
 
 /** Confidence level derived from signal strength. */
 export type MatchConfidence = 'high' | 'medium' | 'low';
@@ -33,8 +40,8 @@ export interface MatchProposal {
   matchType: MatchType;
   /** Positive cents — the portion of the transaction amount this match covers. */
   amountMatched: number;
-  /** Confidence based on signal strength. */
-  confidence: MatchConfidence;
+  /** Confidence based on signal strength. Absent for manual matches. */
+  confidence?: MatchConfidence;
   /** Which signal produced this proposal. */
   signal: MatchSignal;
 }
@@ -92,8 +99,8 @@ export const matchProposalSchema = z.object({
   voucherId: z.number().int(),
   matchType: z.enum(['exact', 'partial', 'prepayment']),
   amountMatched: z.number().int(),
-  confidence: z.enum(['high', 'medium', 'low']),
-  signal: z.enum(['invoice_number', 'counterparty', 'amount_date']),
+  confidence: z.enum(['high', 'medium', 'low']).optional(),
+  signal: z.enum(['invoice_number', 'counterparty', 'amount_date', 'manual']),
 });
 
 /** Input for executing matches. */
