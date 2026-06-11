@@ -182,5 +182,8 @@ export function classifyReasonType(description: string): TriageReasonType {
     description.includes('classification failed')
   ) return 'ocr_failed';
   if (description.includes('not yet implemented')) return 'unimplemented';
+  // 'AI could not classify the document' — the agent returned kind='unknown'.
+  // Treated as low_confidence: the human action is the same (manually classify).
+  if (description.includes('could not classify')) return 'low_confidence';
   return 'unknown';
 }

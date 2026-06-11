@@ -44,7 +44,7 @@ export class TriageService {
       filename: r.filename,
       created_at: r.created_at,
       reason: r.reason,
-      reason_type: classifyReasonType(r.reason),
+      reason_type: classifyReasonType(r.reason ?? ''),
     }));
   }
 

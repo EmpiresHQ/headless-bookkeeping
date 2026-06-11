@@ -23,6 +23,10 @@ describe('classifyReasonType', () => {
     expect(classifyReasonType("Triage kind 'correction' is not yet implemented"))
       .toBe('unimplemented');
   });
+  it('maps ai_unknown (could not classify) to low_confidence', () => {
+    expect(classifyReasonType('AI could not classify the document'))
+      .toBe('low_confidence');
+  });
   it('falls back to unknown', () => {
     expect(classifyReasonType('some unexpected reason'))
       .toBe('unknown');
