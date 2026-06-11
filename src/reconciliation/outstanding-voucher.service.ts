@@ -300,6 +300,10 @@ export class OutstandingVoucherService {
 
   /**
    * Total already-matched amount for a Voucher from reconciliation_match.
+   *
+   * Only `active` matches count: a `draft` match is staged behind an Approval
+   * and must NOT reduce the outstanding AR/AP until a human promotes it. This is
+   * the single seam that keeps a draft from silently settling a receivable.
    */
   private async getAlreadyMatched(
     voucherId: number,
@@ -309,6 +313,7 @@ export class OutstandingVoucherService {
       .selectFrom('reconciliation_match')
       .select((eb) => eb.fn.sum<number>('amount_matched').as('total'))
       .where('voucher_id', '=', voucherId)
+      .where('status', '=', 'active')
       .executeTakeFirst();
 
     return result?.total ?? 0;

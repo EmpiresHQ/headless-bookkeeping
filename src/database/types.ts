@@ -279,6 +279,9 @@ export interface ReconciliationMatchTable {
   // Provenance: 'invoice_number' | 'counterparty' | 'amount_date' | 'manual'.
   // Informational only — never part of the settlement maths. Null for legacy rows.
   signal: Generated<string | null>;
+  // The realized-FX voucher this match posted (multi-currency only), so an
+  // unmatch can reverse it. Null for same-currency matches.
+  fx_voucher_id: Generated<number | null>;
   created_at: number;
 }
 

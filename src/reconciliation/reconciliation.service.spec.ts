@@ -31,6 +31,7 @@ describe('ReconciliationService (integration)', () => {
   let reconciliationService: ReconciliationService;
   let bankStatementService: BankStatementService;
   let entitiesService: EntitiesService;
+  let postingService: PostingService;
   let voucherCounter = 0;
 
   beforeEach(async () => {
@@ -71,6 +72,7 @@ describe('ReconciliationService (integration)', () => {
     bankStatementService = module.get(BankStatementService);
     entitiesService = module.get(EntitiesService);
     reconciliationService = module.get(ReconciliationService);
+    postingService = module.get(PostingService);
   });
 
   afterEach(async () => {
@@ -1357,6 +1359,182 @@ describe('ReconciliationService (integration)', () => {
       );
       const match = proposals.find((p) => p.voucherId === voucherId);
       expect(match).toBeUndefined();
+    });
+
+    it('a DRAFT match does NOT settle the voucher (only active counts)', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-95002',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-05',
+          description: 'Staged payment',
+          amount: 50000,
+        },
+      ]);
+
+      // A draft match for the full amount is staged behind approval.
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: stmt.transactions[0].id,
+          voucher_id: voucherId,
+          match_type: 'exact',
+          amount_matched: 50000,
+          status: 'draft',
+          created_at: now,
+        })
+        .execute();
+
+      // The voucher is still fully outstanding — the draft settles nothing.
+      const remaining =
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        );
+      expect(remaining).toBe(50000);
+
+      // …and a fresh proposal for the same invoice still surfaces it.
+      const stmt2 = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment',
+          amount: 50000,
+          reference: 'INV-95002',
+        },
+      ]);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt2.statement.id,
+      );
+      expect(proposals.find((p) => p.voucherId === voucherId)).toBeDefined();
+    });
+  });
+
+  describe('unmatch', () => {
+    it('removes a same-currency match and restores the outstanding balance', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -30000,
+        },
+      ]);
+
+      const now = Math.floor(Date.now() / 1000);
+      const inserted = await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: stmt.transactions[0].id,
+          voucher_id: voucherId,
+          match_type: 'exact',
+          amount_matched: 30000,
+          status: 'active',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(0);
+
+      const result = await reconciliationService.unmatch(inserted.id);
+      expect(result.fxReversalVoucherId).toBeNull();
+      expect(result.voucherId).toBe(voucherId);
+
+      // Link gone, outstanding restored.
+      const stillThere = await db
+        .selectFrom('reconciliation_match')
+        .select('id')
+        .where('id', '=', inserted.id)
+        .executeTakeFirst();
+      expect(stillThere).toBeUndefined();
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(30000);
+    });
+
+    it('reverses the realized-FX voucher when one is linked', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+
+      // Stand in for a realized-FX voucher: a balanced base-currency voucher.
+      const fxVoucher = await postingService.postVoucher({
+        tax_point_date: '2025-01-12',
+        lines: [
+          {
+            account_code: 'FX_GAIN_LOSS',
+            amount: 500,
+            currency: 'EUR',
+            base_amount: 500,
+            fx_rate: 1.0,
+            is_debit: true,
+          },
+          {
+            account_code: 'BANK_EUR',
+            amount: 500,
+            currency: 'EUR',
+            base_amount: 500,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+        ],
+        reason: 'test FX',
+      });
+
+      const now = Math.floor(Date.now() / 1000);
+      const inserted = await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: stmt.transactions[0].id,
+          voucher_id: voucherId,
+          match_type: 'exact',
+          amount_matched: 30000,
+          status: 'active',
+          fx_voucher_id: fxVoucher.id,
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const result = await reconciliationService.unmatch(inserted.id);
+
+      expect(result.fxReversalVoucherId).not.toBeNull();
+      const reversal = await db
+        .selectFrom('voucher')
+        .select(['id', 'reverses_id'])
+        .where('reverses_id', '=', fxVoucher.id)
+        .executeTakeFirst();
+      expect(reversal).toBeDefined();
+      expect(result.fxReversalVoucherId).toBe(reversal!.id);
+    });
+
+    it('throws when the match does not exist', async () => {
+      await expect(reconciliationService.unmatch(999999)).rejects.toThrow(
+        /not found/i,
+      );
     });
   });
 

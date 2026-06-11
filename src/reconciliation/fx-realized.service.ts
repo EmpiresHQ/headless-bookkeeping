@@ -1,10 +1,15 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 import { determineFXDirection } from './fx-direction';
 
@@ -27,6 +32,7 @@ export class FXRealizedService {
     private readonly postingService: PostingService,
     private readonly currencyService: CurrencyService,
     private readonly ledgerBalance: LedgerBalanceService,
+    private readonly periodLock: PeriodLockService,
   ) {}
 
   /**
@@ -220,5 +226,75 @@ export class FXRealizedService {
    */
   private getVoucherBookedBase(voucherId: number): Promise<number> {
     return this.ledgerBalance.getVoucherNetBase(voucherId, ['AR', 'AP']);
+  }
+
+  /**
+   * Reverse a previously-posted realized-FX voucher when its match is undone.
+   *
+   * The original FX voucher is immutable (ADR-0006), so it is reversed by a
+   * mirror voucher (every line's debit/credit flipped) that carries
+   * `reverses_id`. If the original voucher's date sits in a LOCKED period the
+   * reversal is REDIRECTED into the current open period (ADR-0009), mirroring
+   * the corrections flow — the lock is never violated. Throws if no open period
+   * exists to receive a redirected reversal.
+   */
+  async reverseFxVoucher(fxVoucherId: number): Promise<PostedVoucher> {
+    const voucher = await this.db
+      .selectFrom('voucher')
+      .select(['id', 'voucher_number', 'tax_point_date'])
+      .where('id', '=', fxVoucherId)
+      .executeTakeFirst();
+    if (!voucher) {
+      throw new BadRequestException(`FX voucher ${fxVoucherId} not found`);
+    }
+
+    const lines = await this.db
+      .selectFrom('voucher_line')
+      .innerJoin('account', 'account.id', 'voucher_line.account_id')
+      .select([
+        'account.code as account_code',
+        'voucher_line.amount',
+        'voucher_line.currency',
+        'voucher_line.base_amount',
+        'voucher_line.fx_rate',
+        'voucher_line.vat_code',
+        'voucher_line.is_debit',
+      ])
+      .where('voucher_line.voucher_id', '=', fxVoucherId)
+      .execute();
+
+    // Redirect into the current open period if the FX voucher's date is locked.
+    let taxPointDate = voucher.tax_point_date;
+    const locked = await this.periodLock.findLockedPeriod(
+      voucher.tax_point_date,
+    );
+    if (locked) {
+      const open = await this.periodLock.getCurrentOpenPeriod();
+      if (!open) {
+        throw new ConflictException(
+          `Cannot reverse FX voucher ${fxVoucherId} dated in locked period ` +
+            `${locked.name}: no open period to receive the reversal`,
+        );
+      }
+      taxPointDate = open.start_date;
+    }
+
+    const draft: DraftVoucher = {
+      voucher_number: `${voucher.voucher_number}-REV`,
+      tax_point_date: taxPointDate,
+      lines: lines.map((l) => ({
+        account_code: l.account_code,
+        amount: l.amount,
+        currency: l.currency,
+        base_amount: l.base_amount,
+        fx_rate: l.fx_rate,
+        vat_code: l.vat_code,
+        is_debit: !l.is_debit,
+      })),
+      reverses_id: fxVoucherId,
+      reason: `Reversal of realized-FX voucher ${fxVoucherId} on unmatch`,
+    };
+
+    return this.postingService.postVoucher(draft);
   }
 }

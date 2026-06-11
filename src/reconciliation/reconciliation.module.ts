@@ -4,6 +4,7 @@ import { BankModule } from '../bank/bank.module';
 import { EntitiesModule } from '../entities/entities.module';
 import { AccountModule } from '../ledger/account/account.module';
 import { PostingModule } from '../ledger/posting/posting.module';
+import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { CurrencyModule } from '../currency/currency.module';
 import { OrganizationModule } from '../organization/organization.module';
@@ -24,6 +25,7 @@ import { FXRealizedController } from './fx-realized.controller';
     EntitiesModule,
     AccountModule,
     PostingModule,
+    PeriodLockModule,
     PluginsModule,
     CurrencyModule,
     OrganizationModule,

@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   ParseIntPipe,
@@ -49,5 +50,18 @@ export class ReconciliationController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ReconciliationStatusRow[]> {
     return this.service.getStatementReconciliation(id);
+  }
+
+  /**
+   * Undo a reconciliation match — deletes the sub-ledger link and reverses its
+   * realized-FX voucher (if any). The statement id scopes the route; the match
+   * id identifies the link.
+   */
+  @Delete(':id/matches/:matchId')
+  async unmatch(
+    @Param('id', ParseIntPipe) _id: number,
+    @Param('matchId', ParseIntPipe) matchId: number,
+  ) {
+    return this.service.unmatch(matchId);
   }
 }

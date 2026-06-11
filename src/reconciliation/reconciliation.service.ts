@@ -805,6 +805,56 @@ export class ReconciliationService {
   }
 
   /**
+   * Undo a reconciliation match.
+   *
+   * The match link lives in a sub-ledger, NOT the general ledger, so removing it
+   * is ledger-neutral: the voucher's outstanding AR/AP recomputes from the
+   * remaining `active` matches. The one GL artifact a match can leave behind is a
+   * realized-FX voucher (multi-currency settlement); that IS immutable, so it is
+   * reversed via {@link FXRealizedService} (mirror voucher + `reverses_id`,
+   * redirected out of a locked period) BEFORE the link is deleted. A `draft`
+   * match never reached the ledger nor posted FX, so undoing it is a plain
+   * delete.
+   */
+  async unmatch(matchId: number): Promise<{
+    matchId: number;
+    bankTransactionId: number;
+    voucherId: number;
+    fxReversalVoucherId: number | null;
+  }> {
+    const match = await this.db
+      .selectFrom('reconciliation_match')
+      .select(['id', 'bank_transaction_id', 'voucher_id', 'fx_voucher_id'])
+      .where('id', '=', matchId)
+      .executeTakeFirst();
+    if (!match) {
+      throw new NotFoundException(`Reconciliation match ${matchId} not found`);
+    }
+
+    // Reverse the realized-FX voucher first (if any). If this throws (e.g. no
+    // open period to receive a locked-period redirect) the link is left intact.
+    let fxReversalVoucherId: number | null = null;
+    if (match.fx_voucher_id !== null) {
+      const reversal = await this.fxRealizedService.reverseFxVoucher(
+        match.fx_voucher_id,
+      );
+      fxReversalVoucherId = reversal.id;
+    }
+
+    await this.db
+      .deleteFrom('reconciliation_match')
+      .where('id', '=', matchId)
+      .execute();
+
+    return {
+      matchId,
+      bankTransactionId: match.bank_transaction_id,
+      voucherId: match.voucher_id,
+      fxReversalVoucherId,
+    };
+  }
+
+  /**
    * Insert one reconciliation_match row on the given transaction, translating a
    * UNIQUE(bank_transaction_id, voucher_id) violation (migration 031) into a
    * clear duplicate-pair rejection. The constraint is the backstop behind the
