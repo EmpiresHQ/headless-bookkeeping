@@ -16,7 +16,9 @@ const line = (over: Partial<StatutoryDocLine>): StatutoryDocLine => ({
 
 describe('buildInfPart', () => {
   it('excludes B2C (no registration number)', () => {
-    const { rows } = buildInfPart([line({ counterpartyRegNumber: null, netAmount: 500000 })]);
+    const { rows } = buildInfPart([
+      line({ counterpartyRegNumber: null, netAmount: 500000 }),
+    ]);
     expect(rows).toHaveLength(0);
   });
 
@@ -47,7 +49,9 @@ describe('buildInfPart', () => {
   });
 
   it('warns when a qualifying line has no invoice number', () => {
-    const { warnings } = buildInfPart([line({ invoiceNumber: null, netAmount: 500000 })]);
+    const { warnings } = buildInfPart([
+      line({ invoiceNumber: null, netAmount: 500000 }),
+    ]);
     expect(warnings[0].code).toBe('inf_missing_invoice_number');
     expect(warnings[0].counterparty).toBe('Acme OÜ');
   });

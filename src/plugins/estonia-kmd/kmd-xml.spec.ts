@@ -4,19 +4,35 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { StatutoryReportInput } from '../statutory-report.types';
 
-const xsd = readFileSync(join(__dirname, '../../../test/fixtures/vatdeclaration.xsd'), 'utf8');
+const xsd = readFileSync(
+  join(__dirname, '../../../test/fixtures/vatdeclaration.xsd'),
+  'utf8',
+);
 
 const input: StatutoryReportInput = {
   declarant: { regNumber: 'EE100000001', name: 'Test OÜ' },
   period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
   mode: 'final',
-  boxes: [{ vat_code: 'EE_OUTPUT_24', input_vat: 0, output_vat: 48000, line_count: 1 }],
+  boxes: [
+    {
+      vat_code: 'EE_OUTPUT_24',
+      input_vat: 0,
+      output_vat: 48000,
+      line_count: 1,
+    },
+  ],
   totals: { totalInputVat: 0, totalOutputVat: 48000, totalPayable: 48000 },
   salesLines: [
     {
-      documentKind: 'invoice', counterpartyName: 'Acme OÜ', counterpartyRegNumber: 'EE100000002',
-      invoiceNumber: 'INV-1', creditsInvoiceNumber: null, date: '2026-05-10',
-      vatCode: 'EE_OUTPUT_24', netAmount: 200000, vatAmount: 48000,
+      documentKind: 'invoice',
+      counterpartyName: 'Acme OÜ',
+      counterpartyRegNumber: 'EE100000002',
+      invoiceNumber: 'INV-1',
+      creditsInvoiceNumber: null,
+      date: '2026-05-10',
+      vatCode: 'EE_OUTPUT_24',
+      netAmount: 200000,
+      vatAmount: 48000,
     },
   ],
   purchaseLines: [],
@@ -42,8 +58,28 @@ it('stays XSD-valid with a purchase line and a credit note (negative)', () => {
   const withB = {
     ...input,
     purchaseLines: [
-      { documentKind: 'invoice' as const, counterpartyName: 'Vend OÜ', counterpartyRegNumber: 'EE100000003', invoiceNumber: 'SUP-1', creditsInvoiceNumber: null, date: '2026-05-12', vatCode: 'EE_INPUT_24', netAmount: 500000, vatAmount: 120000 },
-      { documentKind: 'credit_note' as const, counterpartyName: 'Vend OÜ', counterpartyRegNumber: 'EE100000003', invoiceNumber: 'CN-1', creditsInvoiceNumber: 'SUP-1', date: '2026-05-20', vatCode: 'EE_INPUT_24', netAmount: -100000, vatAmount: -24000 },
+      {
+        documentKind: 'invoice' as const,
+        counterpartyName: 'Vend OÜ',
+        counterpartyRegNumber: 'EE100000003',
+        invoiceNumber: 'SUP-1',
+        creditsInvoiceNumber: null,
+        date: '2026-05-12',
+        vatCode: 'EE_INPUT_24',
+        netAmount: 500000,
+        vatAmount: 120000,
+      },
+      {
+        documentKind: 'credit_note' as const,
+        counterpartyName: 'Vend OÜ',
+        counterpartyRegNumber: 'EE100000003',
+        invoiceNumber: 'CN-1',
+        creditsInvoiceNumber: 'SUP-1',
+        date: '2026-05-20',
+        vatCode: 'EE_INPUT_24',
+        netAmount: -100000,
+        vatAmount: -24000,
+      },
     ],
   };
   const res = validateAgainstKmdXsd(renderKmdXml(withB), xsd);

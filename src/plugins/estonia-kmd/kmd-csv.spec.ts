@@ -5,7 +5,14 @@ const input: StatutoryReportInput = {
   declarant: { regNumber: 'EE100000001', name: 'Test OÜ' },
   period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
   mode: 'final',
-  boxes: [{ vat_code: 'EE_OUTPUT_24', input_vat: 0, output_vat: 48000, line_count: 1 }],
+  boxes: [
+    {
+      vat_code: 'EE_OUTPUT_24',
+      input_vat: 0,
+      output_vat: 48000,
+      line_count: 1,
+    },
+  ],
   totals: { totalInputVat: 0, totalOutputVat: 48000, totalPayable: 48000 },
   salesLines: [
     {

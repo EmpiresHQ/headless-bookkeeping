@@ -2,7 +2,10 @@ import { validateAgainstKmdXsd } from './xsd-validate';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const xsd = readFileSync(join(__dirname, '../../../test/fixtures/vatdeclaration.xsd'), 'utf8');
+const xsd = readFileSync(
+  join(__dirname, '../../../test/fixtures/vatdeclaration.xsd'),
+  'utf8',
+);
 
 it('rejects a malformed document', () => {
   const bad = '<vatDeclaration><wrong/></vatDeclaration>';

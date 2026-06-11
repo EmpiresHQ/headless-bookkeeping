@@ -49,7 +49,14 @@ describe('MastraService', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
-        { provide: PeriodLockService, useValue: { assertPeriodOpen: jest.fn().mockResolvedValue(undefined), findLockedPeriod: jest.fn().mockResolvedValue(undefined), getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: PeriodLockService,
+          useValue: {
+            assertPeriodOpen: jest.fn().mockResolvedValue(undefined),
+            findLockedPeriod: jest.fn().mockResolvedValue(undefined),
+            getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         AgentConfigService,
         MastraService,
       ],
