@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { specToCommands, actionFromOperationId, kebab } from './builder.js';
+import { specToCommands, actionFromOperationId, kebab, type OpenApiSpec } from './builder.js';
 
-const SPEC = {
+const SPEC: OpenApiSpec = {
   paths: {
     '/api/expenses': {
       post: {
