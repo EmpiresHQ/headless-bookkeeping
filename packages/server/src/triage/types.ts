@@ -31,11 +31,14 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
     mode: z.literal('create'),
     create_name: z.string().min(1),
     create_country: z.string().min(1),
-    // The strong registration key (VAT / registry no.) read from the document —
-    // the identity a Supplier is anchored on (ADR-0014). Required: a Supplier
-    // created without it could never be matched again, so a 'create' proposal
-    // that lacks one fails validation → needs_triage.
-    create_registration_key: z.string().min(1),
+    // Identifiers are ALL optional/nullable: a non-EU supplier may print none of
+    // them. The model must NOT fabricate a registration key just to fill the
+    // field (that was the duplicate-supplier bug). When every identifier is
+    // null, resolveSupplier routes the document to operator triage.
+    create_registration_key: z.string().nullable().default(null),
+    create_email: z.string().nullable().default(null),
+    create_phone: z.string().nullable().default(null),
+    create_address: z.string().nullable().default(null),
   }),
 ]);
 
@@ -120,7 +123,10 @@ export interface PendingDraft {
   supplier_proposal: {
     create_name: string;
     create_country: string;
-    create_registration_key: string;
+    create_registration_key: string | null;
+    create_email: string | null;
+    create_phone: string | null;
+    create_address: string | null;
   };
   draft: {
     category: string;

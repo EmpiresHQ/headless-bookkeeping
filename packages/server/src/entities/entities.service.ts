@@ -14,6 +14,7 @@ import {
   AddAliasDto,
   UpdateEntityDto,
 } from './types';
+import { normalizeIdentifier, MATCH_KINDS } from './identifier-normalization';
 
 @Injectable()
 export class EntitiesService {
@@ -90,6 +91,123 @@ export class EntitiesService {
 
     const identifiers = await this.getIdentifiers(entity.id);
     return { ...this.mapEntity(entity), identifiers };
+  }
+
+  /**
+   * Resolve any of a set of candidate identifiers to existing entities. Each
+   * candidate is normalized; a candidate that normalizes to null is skipped.
+   * Returns the DISTINCT entity ids that match at least one candidate on a
+   * confirmed identifier. Empty array when nothing matches.
+   */
+  async resolveByIdentifiers(
+    candidates: { kind: string; value: string }[],
+  ): Promise<number[]> {
+    const ids = new Set<number>();
+    for (const c of candidates) {
+      // address (and any non-match kind) is stored but never a match key —
+      // exact-matching a postal address produces false merges. Enforce here so
+      // the policy holds regardless of what a caller passes.
+      if (!MATCH_KINDS.includes(c.kind as (typeof MATCH_KINDS)[number]))
+        continue;
+      const value = normalizeIdentifier(c.kind, c.value);
+      if (value === null) continue;
+      const rows = await this.db
+        .selectFrom('entity_identifier')
+        .select('entity_id')
+        .where('kind', '=', c.kind)
+        .where('value', '=', value)
+        .where('confirmed', '=', 1)
+        .execute();
+      for (const r of rows) ids.add(r.entity_id);
+    }
+    return [...ids];
+  }
+
+  /**
+   * Onboard a supplier/customer with an arbitrary set of identifiers (each
+   * normalized before write; identifiers that normalize to null are skipped).
+   * All written identifiers are confirmed. Used by the AI intake path where the
+   * anchoring identifier may be an email/phone rather than a registration key.
+   *
+   * NOTE: if every identifier normalizes to null the entity is created with NO
+   * identifiers, so the CALLER is responsible for ensuring at least one anchoring
+   * identifier is present when that matters.
+   */
+  async onboardWithIdentifiers(input: {
+    role: 'supplier' | 'customer';
+    country: string;
+    name: string;
+    goodsVsServices?: 'goods' | 'services' | 'unknown';
+    identifiers: { kind: string; value: string }[];
+  }): Promise<EntityWithIdentifiers> {
+    const now = Math.floor(Date.now() / 1000);
+    const normalized = input.identifiers
+      .map((i) => ({
+        kind: i.kind,
+        value: normalizeIdentifier(i.kind, i.value),
+      }))
+      .filter((i): i is { kind: string; value: string } => i.value !== null);
+
+    const entity = await this.db.transaction().execute(async (trx) => {
+      const row = await trx
+        .insertInto('entity')
+        .values({
+          role: input.role,
+          country: input.country,
+          name: input.name,
+          goods_vs_services: input.goodsVsServices ?? null,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      if (normalized.length > 0) {
+        await trx
+          .insertInto('entity_identifier')
+          .values(
+            normalized.map((i) => ({
+              entity_id: row.id,
+              kind: i.kind,
+              value: i.value,
+              confirmed: 1,
+            })),
+          )
+          .execute();
+      }
+      return row;
+    });
+
+    const identifiers = await this.getIdentifiers(entity.id);
+    return { ...this.mapEntity(entity), identifiers };
+  }
+
+  /**
+   * Backfill a single identifier onto an existing entity if it is not already
+   * present (compared on the normalized value). Idempotent. Confirmed on write.
+   */
+  async addIdentifierIfAbsent(
+    entityId: number,
+    kind: string,
+    rawValue: string,
+  ): Promise<void> {
+    const value = normalizeIdentifier(kind, rawValue);
+    if (value === null) return;
+
+    const existing = await this.db
+      .selectFrom('entity_identifier')
+      .select('id')
+      .where('entity_id', '=', entityId)
+      .where('kind', '=', kind)
+      .where('value', '=', value)
+      .limit(1)
+      .executeTakeFirst();
+    if (existing) return;
+
+    await this.db
+      .insertInto('entity_identifier')
+      .values({ entity_id: entityId, kind, value, confirmed: 1 })
+      .execute();
   }
 
   /**

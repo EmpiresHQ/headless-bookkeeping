@@ -340,6 +340,159 @@ describe('Entity aggregate (integration)', () => {
     });
   });
 
+  describe('migration 043 — entity_identifier kinds', () => {
+    it('accepts email, phone, and address identifier kinds', async () => {
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        registrationKey: 'REG-1',
+      });
+
+      // Direct inserts: the CHECK must now admit the three new kinds.
+      await expect(
+        db
+          .insertInto('entity_identifier')
+          .values([
+            {
+              entity_id: supplier.id,
+              kind: 'email',
+              value: 'help@anoma.ly',
+              confirmed: 1,
+            },
+            {
+              entity_id: supplier.id,
+              kind: 'phone',
+              value: '+1555',
+              confirmed: 1,
+            },
+            {
+              entity_id: supplier.id,
+              kind: 'address',
+              value: '1 main st',
+              confirmed: 1,
+            },
+          ])
+          .execute(),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('multi-key resolution', () => {
+    it('resolveByIdentifiers matches on ANY identifier and dedups entity ids', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [
+          { kind: 'email', value: 'Help@Anoma.LY' },
+          { kind: 'phone', value: '+1 555 0000' },
+        ],
+      });
+
+      // Match by email alone (different casing) and by phone alone.
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'email', value: 'help@anoma.ly' },
+        ]),
+      ).toEqual([s.id]);
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'phone', value: '+15550000' },
+        ]),
+      ).toEqual([s.id]);
+
+      // Two candidates that both hit the same entity → single, deduped id.
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'email', value: 'help@anoma.ly' },
+          { kind: 'phone', value: '+15550000' },
+        ]),
+      ).toEqual([s.id]);
+
+      // No match → empty array.
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'email', value: 'nobody@x.io' },
+        ]),
+      ).toEqual([]);
+    });
+
+    it('onboardWithIdentifiers writes every present identifier and skips empties', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [
+          { kind: 'registration_key', value: '   ' }, // normalizes to null → skipped
+          { kind: 'email', value: 'help@anoma.ly' },
+          { kind: 'address', value: '1 Main St' },
+        ],
+      });
+
+      const found = await entitiesService.findById(s.id);
+      const kinds = found.identifiers.map((i) => i.kind).sort();
+      expect(kinds).toEqual(['address', 'email']);
+    });
+
+    it('addIdentifierIfAbsent inserts once and is idempotent', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [{ kind: 'email', value: 'help@anoma.ly' }],
+      });
+
+      await entitiesService.addIdentifierIfAbsent(s.id, 'phone', '+1 555 0000');
+      await entitiesService.addIdentifierIfAbsent(s.id, 'phone', '+15550000'); // same after normalize
+
+      const phones = (await entitiesService.findById(s.id)).identifiers.filter(
+        (i) => i.kind === 'phone',
+      );
+      expect(phones).toHaveLength(1);
+      expect(phones[0].value).toBe('+15550000');
+    });
+
+    it('resolveByIdentifiers returns DISTINCT ids when candidates hit different entities', async () => {
+      const a = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier A',
+        identifiers: [{ kind: 'email', value: 'a@x.io' }],
+      });
+      const b = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier B',
+        identifiers: [{ kind: 'phone', value: '+1 555 1111' }],
+      });
+
+      const ids = await entitiesService.resolveByIdentifiers([
+        { kind: 'email', value: 'a@x.io' },
+        { kind: 'phone', value: '+15551111' },
+      ]);
+      expect(ids.sort()).toEqual([a.id, b.id].sort());
+    });
+
+    it('resolveByIdentifiers ignores non-match kinds like address', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Addressed Co',
+        identifiers: [{ kind: 'address', value: '1 Main St' }],
+      });
+      // address is stored but must never be a match key
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'address', value: '1 main st' },
+        ]),
+      ).toEqual([]);
+      // sanity: the entity DOES carry the stored address
+      const found = await entitiesService.findById(s.id);
+      expect(found.identifiers.some((i) => i.kind === 'address')).toBe(true);
+    });
+  });
+
   describe('delete', () => {
     it('removes an unreferenced entity', async () => {
       const e = await entitiesService.onboard({
