@@ -72,6 +72,7 @@ describe('admin CLI (yargs)', () => {
       expenses: new ExpensesService(db, noProjection),
       salesInvoices: new SalesInvoicesService(db, noProjection),
       entities: new EntitiesService(db),
+      db,
     };
   });
 
