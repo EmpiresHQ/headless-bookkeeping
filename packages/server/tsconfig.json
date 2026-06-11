@@ -14,7 +14,6 @@
     "lib": ["ES2024"],
     "sourceMap": true,
     "outDir": "./dist",
-    "paths": { "*": ["./*"] },
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,
