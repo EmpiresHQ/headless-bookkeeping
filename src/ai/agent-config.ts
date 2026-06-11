@@ -51,11 +51,13 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'and carry EXACTLY the fields for that mode: ' +
     'either { mode: "match", match_entity_id } when getClassificationContext ' +
     "resolved the document to an existing supplier (use that supplier's id), " +
-    'or { mode: "create", create_name, create_country } when no existing ' +
-    'supplier matched and you propose creating one (provide BOTH the name and ' +
-    'the ISO country code). Never mix the two modes, never half-fill a ' +
-    'create proposal, and omit supplier_proposal entirely if you cannot ' +
-    'determine the supplier.',
+    'or { mode: "create", create_name, create_country, create_registration_key } ' +
+    'when no existing supplier matched and you propose creating one: provide the ' +
+    "name, the ISO country code, AND the supplier's strong registration key " +
+    '(its VAT / company registry number printed on the document). Never mix the ' +
+    'two modes, never half-fill a create proposal, and omit supplier_proposal ' +
+    'entirely if you cannot determine the supplier — in particular omit it when ' +
+    'the document prints no registration/VAT number to create the supplier with.',
   intent_classifier: `You classify a single user message in an accounting assistant into one intent.
 - advisory: a read-only question about the books.
 - action: the user wants to do something. Set actionIntent (create_sales_invoice | approve | reject | correct) and pull any obvious fields.
