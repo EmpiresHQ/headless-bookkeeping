@@ -58,7 +58,7 @@ describe('IntakeView', () => {
     vi.spyOn(api, 'getPendingDraft').mockResolvedValue({
       document_id: 4,
       reason: 'supplier creation not yet implemented (Task 43)',
-      supplier_proposal: { create_name: 'Acme OÜ', create_country: 'EE' },
+      supplier_proposal: { create_name: 'Acme OÜ', create_country: 'EE', create_registration_key: 'EE100200300' },
       draft: { category: 'software', gross_amount: 1525, vat_amount: 285, currency: 'EUR', tax_point_date: '2026-03-15', supplier_invoice_number: 'INV-7' },
     });
     vi.spyOn(api, 'getEntities').mockResolvedValue([]);

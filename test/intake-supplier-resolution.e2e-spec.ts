@@ -10,6 +10,7 @@ import { DOCUMENT_STORAGE_ROOT } from '../src/documents/document-storage.service
 import { AppModule } from '../src/app.module';
 import { OcrService } from '../src/triage/ocr.service';
 import { Pass2AgentService } from '../src/ai/pass2-agent.service';
+import { EntitiesService } from '../src/entities/entities.service';
 import { ZodValidationPipe } from '../src/common/pipes/zod-validation.pipe';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -19,18 +20,22 @@ import { tmpdir } from 'os';
 import { createHash } from 'crypto';
 
 /**
- * E2E for the supplier-unresolved resolution flow.
+ * E2E for the supplier-unresolved RECOVERY flow.
  *
- * A confident `new_expense` whose `supplier_proposal.mode === 'create'` cannot
- * be auto-resolved (the kernel never silently creates a supplier), so the
- * document parks on `needs_triage` with the blocking TriageResult stored on
- * `document.pending_triage_result`. The operator reads the pending draft,
- * creates the supplier, and resolves — replaying the parked result through
- * proposeDraft into a draft Expense bound to the chosen supplier.
+ * The kernel now auto-onboards the proposed supplier during triage
+ * (proposeDraft.resolveSupplier find-or-onboards from create_registration_key),
+ * so a confident create-supplier new_expense normally posts straight through.
+ * This flow is the RECOVERY path for the remaining failure case: when that
+ * auto-onboard throws, the document parks on `needs_triage` with the blocking
+ * TriageResult stored on `document.pending_triage_result`. The operator then
+ * reads the pending draft, creates (or picks) the supplier, and resolves —
+ * replaying the parked result through proposeDraft into a draft Expense bound
+ * to the chosen supplier.
  *
- * Pass-1 (OcrService) and Pass-2 (Pass2AgentService) are overridden with
- * deterministic stubs so triage always classifies a confident create-supplier
- * new_expense — there is no OCR engine or LLM in the test env.
+ * Pass-1 (OcrService) and Pass-2 (Pass2AgentService) are stubbed deterministically
+ * (no OCR/LLM in the test env), and `EntitiesService.onboard` is made to throw
+ * ONCE per test so the triage-time auto-onboard fails and the document parks —
+ * the operator's later explicit create then succeeds against the real service.
  */
 describe('intake supplier-unresolved resolution (e2e)', () => {
   let app: INestApplication<App>;
@@ -53,6 +58,7 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
             mode: 'create',
             create_name: 'Acme OÜ',
             create_country: 'EE',
+            create_registration_key: 'EE100200300',
           },
           document_type: 'invoice',
           currency: 'EUR',
@@ -104,6 +110,15 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     // same global pipe main.ts applies so DTO validation runs in the e2e app.
     app.useGlobalPipes(new ZodValidationPipe());
     await app.init();
+
+    // Recovery premise: make the kernel's triage-time auto-onboard fail ONCE so
+    // the document genuinely parks on supplier-unresolved. Subsequent onboard
+    // calls (the operator's explicit POST /api/entities) hit the real service.
+    jest
+      .spyOn(app.get(EntitiesService), 'onboard')
+      .mockImplementationOnce(() =>
+        Promise.reject(new Error('simulated transient onboard failure')),
+      );
 
     // Seed API token AFTER migrations have run.
     apiToken = 'test-token-e2e-12345';
@@ -157,7 +172,11 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
       .get(`/api/documents/${documentId}/pending-draft`)
       .expect(200);
     const draft = pd.body as {
-      supplier_proposal: { create_name: string; create_country: string };
+      supplier_proposal: {
+        create_name: string;
+        create_country: string;
+        create_registration_key: string;
+      };
       draft: {
         gross_amount: number;
         vat_amount: number;
@@ -169,6 +188,7 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     expect(draft.supplier_proposal).toEqual({
       create_name: 'Acme OÜ',
       create_country: 'EE',
+      create_registration_key: 'EE100200300',
     });
     expect(draft.draft.gross_amount).toBe(1525);
     expect(draft.draft.vat_amount).toBe(285);

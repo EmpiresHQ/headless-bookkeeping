@@ -31,6 +31,11 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
     mode: z.literal('create'),
     create_name: z.string().min(1),
     create_country: z.string().min(1),
+    // The strong registration key (VAT / registry no.) read from the document —
+    // the identity a Supplier is anchored on (ADR-0014). Required: a Supplier
+    // created without it could never be matched again, so a 'create' proposal
+    // that lacks one fails validation → needs_triage.
+    create_registration_key: z.string().min(1),
   }),
 ]);
 
@@ -112,7 +117,11 @@ export type TriageOutcome =
 export interface PendingDraft {
   document_id: number;
   reason: string;
-  supplier_proposal: { create_name: string; create_country: string };
+  supplier_proposal: {
+    create_name: string;
+    create_country: string;
+    create_registration_key: string;
+  };
   draft: {
     category: string;
     gross_amount: number;

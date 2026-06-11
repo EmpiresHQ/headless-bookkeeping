@@ -294,7 +294,11 @@ export const completeDocument = (id: number) =>
 export interface PendingDraft {
   document_id: number;
   reason: string;
-  supplier_proposal: { create_name: string; create_country: string };
+  supplier_proposal: {
+    create_name: string;
+    create_country: string;
+    create_registration_key: string;
+  };
   draft: {
     category: string;
     gross_amount: number;

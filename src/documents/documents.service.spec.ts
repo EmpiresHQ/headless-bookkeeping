@@ -382,6 +382,7 @@ describe('DocumentsService (unit)', () => {
           mode: 'create' as const,
           create_name: 'Acme OÜ',
           create_country: 'EE',
+          create_registration_key: 'EE100200300',
         },
         document_type: 'invoice' as const,
         currency: 'EUR',

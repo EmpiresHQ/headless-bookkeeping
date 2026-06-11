@@ -320,6 +320,7 @@ describe('IntakeWorkflowService', () => {
           mode: 'create',
           create_name: 'Acme',
           create_country: 'EE',
+          create_registration_key: 'EE100200300',
         },
         document_type: 'invoice',
         currency: 'EUR',
@@ -346,7 +347,7 @@ describe('IntakeWorkflowService', () => {
       setPendingSpy.mockRestore();
     });
 
-    it('routes a create supplier_proposal to needs_triage (supplier-unresolved, Task 43)', async () => {
+    it('routes to needs_triage when proposeDraft reports supplier-unresolved', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
@@ -357,23 +358,22 @@ describe('IntakeWorkflowService', () => {
             mode: 'create',
             create_name: 'Fresh Supplier Ltd',
             create_country: 'IE',
+            create_registration_key: 'IE5550000',
           },
         }),
       });
-      // proposeDraft performs the explicit resolution and reports the create
-      // proposal as unresolved (no draft).
+      // proposeDraft owns supplier resolution; if onboarding the Supplier fails
+      // it reports the proposal unresolved rather than producing a null draft.
       mockProposeDraft.proposeDraft.mockResolvedValue({
         outcome: 'supplier-unresolved',
-        reason: 'supplier creation not yet implemented (Task 43)',
+        reason: 'supplier creation failed: db is locked',
       });
 
       const result = await service.process(docId);
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.reason).toContain(
-          'supplier creation not yet implemented',
-        );
+        expect(result.reason).toContain('supplier creation failed');
       }
       // proposeDraft WAS consulted (it owns the resolution) but produced no draft.
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledTimes(1);
@@ -628,6 +628,7 @@ describe('IntakeWorkflowService', () => {
           mode: 'create',
           create_name: 'Acme OÜ',
           create_country: 'EE',
+          create_registration_key: 'EE100200300',
         },
         category: 'software',
         gross_amount: 1525,
@@ -661,7 +662,11 @@ describe('IntakeWorkflowService', () => {
       expect(result).toEqual({
         document_id: docId,
         reason: 'supplier creation not yet implemented (Task 43)',
-        supplier_proposal: { create_name: 'Acme OÜ', create_country: 'EE' },
+        supplier_proposal: {
+          create_name: 'Acme OÜ',
+          create_country: 'EE',
+          create_registration_key: 'EE100200300',
+        },
         draft: {
           category: 'software',
           gross_amount: 1525,
@@ -691,6 +696,7 @@ describe('IntakeWorkflowService', () => {
         mode: 'create',
         create_name: 'Acme',
         create_country: 'EE',
+        create_registration_key: 'EE100200300',
       },
     });
 

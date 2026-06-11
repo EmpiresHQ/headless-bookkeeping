@@ -35,6 +35,7 @@ export function ResolveSupplierForm({
         setPd(d);
         setName(d.supplier_proposal.create_name);
         setCountry(d.supplier_proposal.create_country);
+        setRegistrationKey(d.supplier_proposal.create_registration_key);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
     getEntities()

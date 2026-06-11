@@ -253,7 +253,11 @@ describe('TriageService (integration)', () => {
       const pd = {
         document_id: doc.id,
         reason: 'r',
-        supplier_proposal: { create_name: 'A', create_country: 'EE' },
+        supplier_proposal: {
+          create_name: 'A',
+          create_country: 'EE',
+          create_registration_key: 'EE1',
+        },
         draft: {
           category: 'c',
           gross_amount: 1,

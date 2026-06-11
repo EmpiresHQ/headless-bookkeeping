@@ -382,11 +382,11 @@ export class IntakeWorkflowService {
     return {
       document_id: documentId,
       reason:
-        finding?.description ??
-        'supplier creation not yet implemented (Task 43)',
+        finding?.description ?? 'supplier could not be resolved automatically',
       supplier_proposal: {
         create_name: tr.supplier_proposal.create_name,
         create_country: tr.supplier_proposal.create_country,
+        create_registration_key: tr.supplier_proposal.create_registration_key,
       },
       draft: {
         category: tr.category,
