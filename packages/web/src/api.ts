@@ -22,6 +22,8 @@ export interface Organization {
   vat_registered: boolean;
   org_type: string;
   created_at: number;
+  name: string | null;
+  vat_registration_number: string | null;
 }
 
 export interface EntityIdentifier {
@@ -95,6 +97,8 @@ export interface UpdateOrganizationDto {
   base_currency?: string | null;
   vat_registered?: boolean;
   org_type?: 'company' | 'sole_proprietor';
+  name?: string | null;
+  vat_registration_number?: string | null;
 }
 
 export const updateOrganization = (dto: UpdateOrganizationDto) =>
