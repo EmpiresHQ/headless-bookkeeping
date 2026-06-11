@@ -1,6 +1,9 @@
 {
   "name": "bookkeeping",
   "version": "0.0.1",
+  "workspaces": [
+    "packages/*"
+  ],
   "description": "",
   "author": "",
   "private": true,
