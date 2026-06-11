@@ -37,6 +37,13 @@ jobs:
           scope: '@empireshq'
           cache: npm
       - run: npm ci
+      # Generate the OpenAPI spec fresh from the current server code (offline
+      # Nest emit) so the published CLI always matches the running API. The spec
+      # is NOT committed — it only exists as a build artifact bundled at publish.
+      - name: Generate OpenAPI spec from the server
+        run: |
+          mkdir -p data
+          npm run cli:codegen
       - run: npm run build -w @empireshq/hbk
       - run: npm test -w @empireshq/hbk
 

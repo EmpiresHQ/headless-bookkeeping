@@ -1,2 +1,7 @@
 node_modules/
 dist/
+
+# Generated fresh from the server at release time (cli-release.yml), never
+# committed — avoids perpetual staleness / per-PR codegen.
+openapi.json
+src/types.gen.ts

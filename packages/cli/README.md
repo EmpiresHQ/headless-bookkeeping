@@ -41,15 +41,30 @@ invocation with `HBK_URL` / `HBK_TOKEN` / `HBK_PROFILE`.
 
 JSON response body → stdout. Notes/errors → stderr. HTTP >= 400 exits non-zero.
 
+## The OpenAPI spec is generated at release, not committed
+
+`openapi.json` (and `types.gen.ts`) are **build artifacts**, gitignored, never
+committed. The release workflow regenerates the spec fresh from the current
+server code (`npm run cli:codegen` → offline Nest emit) right before publishing,
+so a published `hbk` always matches the API it was cut from. There is no drift
+check and no per-PR codegen burden — changing the API never breaks CI here.
+
+For local CLI development, generate the spec once so `hbk --help` works:
+
+    npm run cli:codegen        # from the repo root; writes packages/cli/openapi.json
+
 ## Releasing (maintainers)
 
 Releases publish `@empireshq/hbk` to the private Verdaccio registry
 (`https://npm.empireshq.com`) via `.github/workflows/cli-release.yml`.
 
-The workflow is currently **paused** (manual `workflow_dispatch` only). To enable
-automatic diff-driven releases later, uncomment the `push:` trigger in that file —
-then any merge to `main` touching `packages/cli/**` cuts a patch release (use
-`[minor]` / `[major]` in the merge commit message to bump higher).
+The workflow is **manual** (`workflow_dispatch`). Cut a release with:
+
+    gh workflow run cli-release.yml --ref main
+
+It regenerates the spec, builds + tests the CLI, bumps the version
+(patch by default; put `[minor]` / `[major]` in the triggering commit message to
+bump higher), publishes to Verdaccio, then tags + creates a GitHub Release.
 
 ### One-time: create the publish token (Verdaccio)
 
