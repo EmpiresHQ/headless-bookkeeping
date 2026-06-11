@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
 import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
 import {
@@ -8,8 +14,9 @@ import {
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
+import { EntitiesService } from '../entities/entities.service';
 import { AuditFinding } from '../audit-findings/types';
-import { DocumentDebug } from '../triage/types';
+import { DocumentDebug, PendingDraft } from '../triage/types';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -97,6 +104,7 @@ export class IntakeWorkflowService {
     private readonly auditFindings: AuditFindingsService,
     private readonly policyService: PolicyService,
     private readonly documents: DocumentsService,
+    private readonly entities: EntitiesService,
   ) {}
 
   /**
@@ -218,6 +226,12 @@ export class IntakeWorkflowService {
             this.logger.warn(
               `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
             );
+            // Keep the exact proposal that blocked us so a human can resolve the
+            // supplier and replay it deterministically (no re-run of the agent).
+            await this.documents.setPendingTriageResult(
+              documentId,
+              triageResult,
+            );
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
           await this.documents.setStatus(documentId, 'triaged');
@@ -268,6 +282,121 @@ export class IntakeWorkflowService {
         );
       }
     }
+  }
+
+  /**
+   * Resolve a document parked on the supplier-unresolved route. Given the
+   * Supplier the operator created or picked, replay the stored TriageResult
+   * through proposeDraft (explicit supplier id wins), then move the document to
+   * `triaged`, resolve the open needs_triage finding, and clear the stored
+   * proposal. Idempotent: a second call on an already-`triaged` document
+   * replays its existing draft instead of double-posting.
+   */
+  async resolveSupplier(
+    documentId: number,
+    supplierEntityId: number,
+  ): Promise<IntakeWorkflowResult> {
+    const doc = await this.documents.getById(documentId);
+
+    // Idempotent replay: already resolved into a draft.
+    if (doc.status === 'triaged' || doc.status === 'processed') {
+      const replay = await this.replayDraftProposed(documentId);
+      if (replay) {
+        return replay;
+      }
+    }
+    if (doc.status !== 'needs_triage') {
+      throw new ConflictException(
+        `Document ${documentId} is not awaiting triage (status=${doc.status})`,
+      );
+    }
+
+    // The exact proposal that blocked us. Absent → the needs_triage reason was
+    // not supplier-unresolved, so there is nothing here to resolve.
+    const triageResult =
+      await this.documents.getPendingTriageResult(documentId);
+    if (!triageResult) {
+      throw new BadRequestException(
+        `Document ${documentId} has no pending supplier proposal to resolve`,
+      );
+    }
+
+    // Validate the chosen Supplier (findById throws 404 if it does not exist).
+    const entity = await this.entities.findById(supplierEntityId);
+    if (entity.role !== 'supplier') {
+      throw new BadRequestException(
+        `Entity ${supplierEntityId} is not a supplier (role=${entity.role})`,
+      );
+    }
+
+    // Explicit supplier id wins in resolveSupplier → a draft is produced and the
+    // full posting pipeline runs (post/hold per policy), exactly as a confident
+    // intake would.
+    const outcome = await this.proposeDraft.proposeDraft(
+      triageResult,
+      documentId,
+      supplierEntityId,
+    );
+    if (outcome.outcome === 'supplier-unresolved') {
+      // Defensive: an explicit supplier id must resolve.
+      throw new Error(
+        `proposeDraft returned supplier-unresolved for document ${documentId} despite explicit supplier ${supplierEntityId}`,
+      );
+    }
+
+    // Settle the human-wait: triaged + resolve finding + clear the proposal.
+    await this.transitionDocument(documentId, 'triaged');
+    const finding = await this.auditFindings.findOpenByReference(
+      'needs_triage',
+      'document',
+      documentId,
+    );
+    if (finding) {
+      await this.auditFindings.resolve(finding.id, {
+        reason: `supplier resolved to entity ${supplierEntityId}`,
+      });
+    }
+    await this.documents.setPendingTriageResult(documentId, null);
+
+    return { status: 'draft_proposed', draft: outcome };
+  }
+
+  /**
+   * Build the operator-facing view of a supplier-unresolved document: the AI's
+   * create-supplier proposal plus the draft figures. Throws NotFound if the
+   * document has no stored proposal (its needs_triage reason is not a supplier
+   * issue, or it is not parked at all).
+   */
+  async getPendingDraft(documentId: number): Promise<PendingDraft> {
+    const tr = await this.documents.getPendingTriageResult(documentId);
+    if (!tr || tr.supplier_proposal?.mode !== 'create') {
+      throw new NotFoundException(
+        `Document ${documentId} has no pending supplier proposal`,
+      );
+    }
+    const finding = await this.auditFindings.findOpenByReference(
+      'needs_triage',
+      'document',
+      documentId,
+    );
+    return {
+      document_id: documentId,
+      reason:
+        finding?.description ?? 'supplier could not be resolved automatically',
+      supplier_proposal: {
+        create_name: tr.supplier_proposal.create_name,
+        create_country: tr.supplier_proposal.create_country,
+        create_registration_key: tr.supplier_proposal.create_registration_key,
+      },
+      draft: {
+        category: tr.category,
+        gross_amount: tr.gross_amount,
+        vat_amount: tr.vat_amount,
+        currency: tr.currency,
+        tax_point_date: tr.tax_point_date,
+        supplier_invoice_number: tr.supplier_invoice_number,
+      },
+    };
   }
 
   // ── Private helpers ──────────────────────────────────────────

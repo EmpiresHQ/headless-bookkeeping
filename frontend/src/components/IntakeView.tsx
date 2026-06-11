@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   uploadDocument,
   getTriagePending,
@@ -8,6 +8,7 @@ import {
   type DocumentRow,
   type TriageOutcome,
 } from '../api';
+import { ResolveSupplierForm } from './ResolveSupplierForm';
 
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
@@ -24,6 +25,7 @@ export function IntakeView() {
   const [busy, setBusy] = useState(false);
   // Per-document triage outcome, keyed by document id.
   const [outcomes, setOutcomes] = useState<Record<number, string>>({});
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = () =>
@@ -182,35 +184,59 @@ export function IntakeView() {
               </thead>
               <tbody>
                 {needsTriage.map((d) => (
-                  <tr key={d.id} className="border-b align-top">
-                    <td className="px-3 py-2">{d.id}</td>
-                    <td className="px-3 py-2">{d.filename}</td>
-                    <td className="px-3 py-2 text-gray-500">
-                      {outcomes[d.id] ?? (
-                        <span className="text-gray-400">
-                          (click Why? to load)
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 space-x-2 whitespace-nowrap">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onTriage(d.id)}
-                        className="text-blue-600 hover:underline disabled:opacity-50"
-                      >
-                        Why?
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onComplete(d.id)}
-                        className="text-gray-600 hover:underline disabled:opacity-50"
-                      >
-                        Dismiss
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={d.id}>
+                    <tr className="border-b align-top">
+                      <td className="px-3 py-2">{d.id}</td>
+                      <td className="px-3 py-2">{d.filename}</td>
+                      <td className="px-3 py-2 text-gray-500">
+                        {outcomes[d.id] ?? (
+                          <span className="text-gray-400">
+                            (click Why? to load)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 space-x-2 whitespace-nowrap">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setResolvingId(d.id)}
+                          className="text-green-700 hover:underline disabled:opacity-50"
+                        >
+                          Resolve
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void onTriage(d.id)}
+                          className="text-blue-600 hover:underline disabled:opacity-50"
+                        >
+                          Why?
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void onComplete(d.id)}
+                          className="text-gray-600 hover:underline disabled:opacity-50"
+                        >
+                          Dismiss
+                        </button>
+                      </td>
+                    </tr>
+                    {resolvingId === d.id && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-2">
+                          <ResolveSupplierForm
+                            documentId={d.id}
+                            onCancel={() => setResolvingId(null)}
+                            onDone={() => {
+                              setResolvingId(null);
+                              void refresh();
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

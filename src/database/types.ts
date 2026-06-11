@@ -174,6 +174,9 @@ export interface DocumentTable {
   // enum: 'pending' | 'triaged' | 'needs_triage' | 'processed' | 'error'
   // (CHECK widened in migration 030; owned by IntakeWorkflowService, ADR-0024)
   status: string;
+  // Nullable JSON (TEXT): the JSON-stringified TriageResult that blocked this
+  // document on the supplier-unresolved route (migration 039). NULL otherwise.
+  pending_triage_result: string | null;
   created_at: number;
 }
 
