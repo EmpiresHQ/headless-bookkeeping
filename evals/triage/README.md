@@ -6,7 +6,7 @@ inference endpoint. They isolate the two capabilities the kernel relies on:
 | Eval | Config | Question it answers |
 |------|--------|---------------------|
 | **tools** | `toolcall.yaml` | Does the model actually **call tools** (`listCategories`, `getClassificationContext`, …) through this endpoint? If not, the agent never gets categories/supplier context and falls back to `unknown`. |
-| **classify** | `classify.yaml` | Given **clean OCR text**, does the model emit a **schema-valid classification** with the right `kind` and amounts (e.g. parses `6 157,00` as `615700` cents, not `61.57`)? |
+| **classify** | `classify.yaml` | Given **clean OCR text**, does the model emit a **schema-valid classification** with the right `kind` and amounts (e.g. parses `6 157,00` as `615700` cents, not `61.57`), and extract the supplier's identifiers into `supplier_proposal` — every identifier the document prints (reg/VAT, email, phone, address) and **null (never fabricated)** when one is absent? |
 
 These mirror what `MastraService` wires up (prompt = `AGENT_PROMPTS.triage`, tools =
 `src/ai/tools`, schema = `triageResultSchema`), but talk to the raw endpoint so a

@@ -61,3 +61,51 @@ tests:
         value: |
           const o = typeof output === 'string' ? JSON.parse(output) : output;
           return o.kind === 'new_expense' && o.gross_amount === 615700;
+
+  - description: US SaaS receipt, NO VAT/reg number → must NOT fabricate a registration key
+    vars:
+      markdown: |
+        Anomaly, Inc.
+        548 Market St, San Francisco, CA, United States
+        support: help@anoma.ly
+        Receipt RI7USPNX-0013   Date: 2026-06-08
+        Pro subscription (monthly)        US$16.00
+        Total                             US$16.00
+        No VAT — services
+    assert:
+      - type: is-json
+      - type: javascript
+        # The document prints an email and address but NO VAT/registry number.
+        # The model must extract the email and leave create_registration_key NULL
+        # (fabricating one is exactly what created duplicate suppliers). mode=create.
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          const sp = o.supplier_proposal;
+          return sp && sp.mode === 'create'
+            && sp.create_registration_key === null
+            && sp.create_email === 'help@anoma.ly';
+
+  - description: EE invoice with VAT no. + email + phone → extract all printed identifiers
+    vars:
+      markdown: |
+        Example Seller OÜ
+        VAT EE100200300
+        Pärnu mnt 12, Tallinn, Estonia
+        billing@example.ee   +372 555 0100
+        Invoice No. 7788   Date: 12.06.2026
+        Consulting services        1 200,00 EUR
+        VAT 22%                      264,00 EUR
+        Total                      1 464,00 EUR
+    assert:
+      - type: is-json
+      - type: javascript
+        # Every identifier the document prints must land in its field: the VAT
+        # number into create_registration_key, plus email and phone. None fabricated.
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          const sp = o.supplier_proposal;
+          return sp && sp.mode === 'create'
+            && typeof sp.create_registration_key === 'string'
+            && sp.create_registration_key.replace(/\s/g, '').toUpperCase().includes('EE100200300')
+            && typeof sp.create_email === 'string' && sp.create_email.includes('billing@example.ee')
+            && typeof sp.create_phone === 'string' && /\d/.test(sp.create_phone);
