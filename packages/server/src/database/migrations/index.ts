@@ -41,6 +41,7 @@ import * as m041 from './041_approval_object_type_reconciliation_match';
 import * as m042 from './042_add_reconciliation_match_fx_voucher_id';
 import * as m043 from './043_add_approval_policy_reason';
 import * as m044 from './044_add_document_processing_since';
+import * as m045 from './045_widen_entity_identifier_kind';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -85,4 +86,5 @@ export const migrations: Record<string, Migration> = {
   '042_add_reconciliation_match_fx_voucher_id': m042,
   '043_add_approval_policy_reason': m043,
   '044_add_document_processing_since': m044,
+  '045_widen_entity_identifier_kind': m045,
 };

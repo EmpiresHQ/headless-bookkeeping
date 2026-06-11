@@ -340,6 +340,29 @@ describe('Entity aggregate (integration)', () => {
     });
   });
 
+  describe('migration 043 — entity_identifier kinds', () => {
+    it('accepts email, phone, and address identifier kinds', async () => {
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        registrationKey: 'REG-1',
+      });
+
+      // Direct inserts: the CHECK must now admit the three new kinds.
+      await expect(
+        db
+          .insertInto('entity_identifier')
+          .values([
+            { entity_id: supplier.id, kind: 'email', value: 'help@anoma.ly', confirmed: 1 },
+            { entity_id: supplier.id, kind: 'phone', value: '+1555', confirmed: 1 },
+            { entity_id: supplier.id, kind: 'address', value: '1 main st', confirmed: 1 },
+          ])
+          .execute(),
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('delete', () => {
     it('removes an unreferenced entity', async () => {
       const e = await entitiesService.onboard({
