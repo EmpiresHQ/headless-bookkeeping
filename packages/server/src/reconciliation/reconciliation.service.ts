@@ -432,15 +432,27 @@ export class ReconciliationService {
 
     const expense = await this.db
       .selectFrom('expense')
-      .select(['id', 'supplier_id'])
+      .select([
+        'id',
+        'supplier_id',
+        'tax_point_date',
+        'supplier_invoice_number',
+      ])
       .where('voucher_id', '=', voucherId)
       .executeTakeFirst();
     if (expense) {
       const name = await this.safeEntityName(expense.supplier_id);
+      // The supplier name + amount sit beside this label, so identify the
+      // expense by its tax point date plus the supplier's invoice number when
+      // we have one — the fields an operator actually cross-references against
+      // a bank line. "Expense #<id>" told them nothing.
+      const objectLabel = expense.supplier_invoice_number
+        ? `${expense.tax_point_date} · ${expense.supplier_invoice_number}`
+        : expense.tax_point_date;
       return {
         objectType: 'expense',
         objectId: expense.id,
-        objectLabel: `Expense #${expense.id}`,
+        objectLabel,
         counterpartyName: name,
         voucherRemaining,
       };

@@ -539,7 +539,29 @@ describe('ReconciliationService (integration)', () => {
       const p = proposals.find((x) => x.objectType === 'expense');
       expect(p).toBeDefined();
       expect(p!.counterpartyName).toBe('Test Supplier Co');
-      expect(p!.objectLabel).toContain('Expense');
+      // No supplier invoice number on this expense → label is the tax point date.
+      expect(p!.objectLabel).toBe('2025-01-10');
+    });
+
+    it('labels an AP (expense) proposal with date · supplier invoice number when present', async () => {
+      const supplier = await seedSupplier('DE89370400440532013000');
+      await seedExpenseVoucher(supplier.id, 42000, '2025-01-10', 'INV-4042');
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -42000,
+          counterparty_iban: 'DE89370400440532013000',
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+      const p = proposals.find((x) => x.objectType === 'expense');
+      expect(p).toBeDefined();
+      expect(p!.objectLabel).toBe('2025-01-10 · INV-4042');
     });
   });
 
@@ -1724,7 +1746,7 @@ describe('ReconciliationService (integration)', () => {
       );
       expect(rows).toHaveLength(1);
       expect(rows[0].status).toBe('draft');
-      expect(rows[0].objectLabel).toMatch(/Expense/);
+      expect(rows[0].objectLabel).toBe('2025-01-10');
       expect(rows[0].counterpartyName).toBe('Test Supplier Co');
 
       await reconciliationService.activateMatch(staged.records[0].id);
