@@ -1,4 +1,4 @@
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
@@ -260,6 +260,53 @@ describe('admin CLI (yargs)', () => {
       await expectFailure(() =>
         buildCli(deps, io).parseAsync(['expense', 'delete', 'nope']),
       );
+    });
+  });
+
+  describe('reset', () => {
+    const insertVatReport = () =>
+      db
+        .insertInto('vat_report')
+        .values({
+          reporting_period_id: 1,
+          period_name: '2026-Q1',
+          start_date: '2026-01-01',
+          end_date: '2026-03-31',
+          vat_summary: '{}',
+          total_input_vat: 0,
+          total_output_vat: 0,
+          total_payable: 0,
+          total_receivable: 0,
+          voucher_ids: '[]',
+          generated_at: 0,
+        })
+        .execute();
+
+    const countVatReports = async () =>
+      (await db.selectFrom('vat_report').selectAll().execute()).length;
+
+    it('wipes immutable vat_report rows despite the block-delete trigger', async () => {
+      await insertVatReport();
+      await buildCli(deps, makeIo().io).parseAsync(['reset', '--force']);
+      expect(await countVatReports()).toBe(0);
+    });
+
+    it('restores the immutability trigger after the wipe', async () => {
+      await buildCli(deps, makeIo().io).parseAsync(['reset', '--force']);
+      // reset leaves foreign_keys = ON (prod behaviour); this orphan row only
+      // exercises the restored trigger, so FK enforcement is noise here.
+      await sql`PRAGMA foreign_keys = OFF`.execute(db);
+      await insertVatReport();
+      // The block-delete guard must be back in place after reset.
+      await expectFailure(() => db.deleteFrom('vat_report').execute());
+    });
+
+    it('without --force deletes nothing', async () => {
+      await insertVatReport();
+      const { io, err } = makeIo();
+      await buildCli(deps, io).parseAsync(['reset']);
+      expect(err()).toContain('--force');
+      expect(await countVatReports()).toBe(1);
     });
   });
 
