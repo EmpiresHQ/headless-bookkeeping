@@ -156,15 +156,25 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     const pd = await http
       .get(`/api/documents/${documentId}/pending-draft`)
       .expect(200);
-    expect(pd.body.supplier_proposal).toEqual({
+    const draft = pd.body as {
+      supplier_proposal: { create_name: string; create_country: string };
+      draft: {
+        gross_amount: number;
+        vat_amount: number;
+        category: string;
+        currency: string;
+        supplier_invoice_number: string | null;
+      };
+    };
+    expect(draft.supplier_proposal).toEqual({
       create_name: 'Acme OÜ',
       create_country: 'EE',
     });
-    expect(pd.body.draft.gross_amount).toBe(1525);
-    expect(pd.body.draft.vat_amount).toBe(285);
-    expect(pd.body.draft.category).toBe('software');
-    expect(pd.body.draft.currency).toBe('EUR');
-    expect(pd.body.draft.supplier_invoice_number).toBe('INV-7');
+    expect(draft.draft.gross_amount).toBe(1525);
+    expect(draft.draft.vat_amount).toBe(285);
+    expect(draft.draft.category).toBe('software');
+    expect(draft.draft.currency).toBe('EUR');
+    expect(draft.draft.supplier_invoice_number).toBe('INV-7');
 
     // 4. Operator creates the proposed supplier.
     const sup = await http

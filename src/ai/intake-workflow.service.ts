@@ -228,7 +228,10 @@ export class IntakeWorkflowService {
             );
             // Keep the exact proposal that blocked us so a human can resolve the
             // supplier and replay it deterministically (no re-run of the agent).
-            await this.documents.setPendingTriageResult(documentId, triageResult);
+            await this.documents.setPendingTriageResult(
+              documentId,
+              triageResult,
+            );
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
           await this.documents.setStatus(documentId, 'triaged');
@@ -310,7 +313,8 @@ export class IntakeWorkflowService {
 
     // The exact proposal that blocked us. Absent → the needs_triage reason was
     // not supplier-unresolved, so there is nothing here to resolve.
-    const triageResult = await this.documents.getPendingTriageResult(documentId);
+    const triageResult =
+      await this.documents.getPendingTriageResult(documentId);
     if (!triageResult) {
       throw new BadRequestException(
         `Document ${documentId} has no pending supplier proposal to resolve`,
@@ -377,7 +381,9 @@ export class IntakeWorkflowService {
     );
     return {
       document_id: documentId,
-      reason: finding?.description ?? 'supplier creation not yet implemented (Task 43)',
+      reason:
+        finding?.description ??
+        'supplier creation not yet implemented (Task 43)',
       supplier_proposal: {
         create_name: tr.supplier_proposal.create_name,
         create_country: tr.supplier_proposal.create_country,

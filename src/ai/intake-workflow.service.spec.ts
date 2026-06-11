@@ -316,7 +316,11 @@ describe('IntakeWorkflowService', () => {
         vat_amount: 200,
         tax_point_date: '2026-03-01',
         category: 'software',
-        supplier_proposal: { mode: 'create', create_name: 'Acme', create_country: 'EE' },
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Acme',
+          create_country: 'EE',
+        },
         document_type: 'invoice',
         currency: 'EUR',
         document_vat_marking: null,
@@ -329,7 +333,10 @@ describe('IntakeWorkflowService', () => {
         reason: 'supplier creation not yet implemented (Task 43)',
       });
 
-      const setPendingSpy = jest.spyOn(documentsService, 'setPendingTriageResult');
+      const setPendingSpy = jest.spyOn(
+        documentsService,
+        'setPendingTriageResult',
+      );
 
       const result = await service.process(docId);
 
@@ -617,7 +624,11 @@ describe('IntakeWorkflowService', () => {
     it('returns the create-proposal and draft figures for a parked document', async () => {
       const docId = await seedDocument();
       const triage = sampleTriageResult({
-        supplier_proposal: { mode: 'create', create_name: 'Acme OÜ', create_country: 'EE' },
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Acme OÜ',
+          create_country: 'EE',
+        },
         category: 'software',
         gross_amount: 1525,
         vat_amount: 285,
@@ -668,13 +679,19 @@ describe('IntakeWorkflowService', () => {
         .spyOn(documentsService, 'getPendingTriageResult')
         .mockResolvedValueOnce(null);
 
-      await expect(service.getPendingDraft(docId)).rejects.toThrow(/no pending/i);
+      await expect(service.getPendingDraft(docId)).rejects.toThrow(
+        /no pending/i,
+      );
     });
   });
 
   describe('resolveSupplier', () => {
     const triage = sampleTriageResult({
-      supplier_proposal: { mode: 'create', create_name: 'Acme', create_country: 'EE' },
+      supplier_proposal: {
+        mode: 'create',
+        create_name: 'Acme',
+        create_country: 'EE',
+      },
     });
 
     // Seed a needs_triage document with a stored proposal and an open finding.
@@ -706,7 +723,11 @@ describe('IntakeWorkflowService', () => {
       const result = await service.resolveSupplier(docId, 3);
 
       // proposeDraft called with the stored triage, doc id, and explicit supplier id.
-      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(triage, docId, 3);
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
+        triage,
+        docId,
+        3,
+      );
       // Document moved to triaged.
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('triaged');

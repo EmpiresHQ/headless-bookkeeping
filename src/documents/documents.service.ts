@@ -162,7 +162,9 @@ export class DocumentsService {
   ): Promise<void> {
     await this.db
       .updateTable('document')
-      .set({ pending_triage_result: result !== null ? JSON.stringify(result) : null })
+      .set({
+        pending_triage_result: result !== null ? JSON.stringify(result) : null,
+      })
       .where('id', '=', id)
       .execute();
   }
