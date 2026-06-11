@@ -7,6 +7,7 @@ import { buildCli, type BuilderDeps, type CliIo } from './builder.js';
 import { makeRequest } from './client.js';
 import { resolveContext, readConfig } from './config.js';
 import { loginCommand } from './commands/login.js';
+import { apiCommand } from './commands/api.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // openapi.json sits at the package root (one level up from dist/).
@@ -52,7 +53,9 @@ async function main(): Promise<void> {
     },
   };
 
-  const cli = buildCli(spec, deps).command(loginCommand(io));
+  const cli = buildCli(spec, deps)
+    .command(loginCommand(io))
+    .command(apiCommand(deps));
 
   try {
     await cli.parseAsync(argv);
