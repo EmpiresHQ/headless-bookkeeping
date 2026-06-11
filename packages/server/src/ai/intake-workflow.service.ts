@@ -160,138 +160,139 @@ export class IntakeWorkflowService {
     //    across refreshes (triage can take a minute or two).
     await this.documents.markProcessing(documentId);
     try {
-      // ── Pass 1: OCR → markdown | typed failure ──────────────────
-      const ocr = await this.ocrService.transcribe(documentId);
 
-      if (!ocr.ok) {
-        // Transcription failed (provider down, unreadable doc, IO blip). Route to
-        // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
-        // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
-        // short-circuited: there is no markdown to classify.
-        this.logger.warn(
-          `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
-        );
-        return this.routeNeedsTriage(
-          documentId,
-          `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
-          { pass: 'ocr', category: ocr.category },
-        );
-      }
+    // ── Pass 1: OCR → markdown | typed failure ──────────────────
+    const ocr = await this.ocrService.transcribe(documentId);
 
-      const markdown = ocr.markdown;
-      this.logger.debug(`Pass 1 complete for document ${documentId}`);
-
-      // ── Pass 2: Agent → TriageResult | typed failure ────────────
-      const pass2 = await this.pass2Agent.classify(markdown);
-
-      if (!pass2.ok) {
-        // Bounded-retry exhausted / agent unavailable → needs_triage, but with
-        // the explicit failure category surfaced (ADR-0024).
-        this.logger.warn(
-          `Pass 2 failed for document ${documentId}: category=${pass2.category}`,
-        );
-        return this.routeNeedsTriage(
-          documentId,
-          `AI classification failed (${pass2.category}): ${pass2.detail}`,
-          { pass: 'classify', category: pass2.category },
-        );
-      }
-
-      const triageResult = pass2.result;
-      this.logger.debug(
-        `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
+    if (!ocr.ok) {
+      // Transcription failed (provider down, unreadable doc, IO blip). Route to
+      // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
+      // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
+      // short-circuited: there is no markdown to classify.
+      this.logger.warn(
+        `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
       );
+      return this.routeNeedsTriage(
+        documentId,
+        `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
+        { pass: 'ocr', category: ocr.category },
+      );
+    }
 
-      // ── Deterministic routing — the ONE place that decides ──────
-      const threshold = (await this.policyService.getConfig())
-        .auto_post_min_confidence;
+    const markdown = ocr.markdown;
+    this.logger.debug(`Pass 1 complete for document ${documentId}`);
 
-      // Capture the discriminant up front: in the exhaustive `default` branch
-      // `triageResult` narrows to `never`, so the unexpected value has to be read
-      // from a variable widened to `string` rather than the narrowed local.
-      const triageKind: string = triageResult.kind;
+    // ── Pass 2: Agent → TriageResult | typed failure ────────────
+    const pass2 = await this.pass2Agent.classify(markdown);
 
-      switch (triageResult.kind) {
-        case 'new_expense':
-          if (triageResult.confidence >= threshold) {
-            this.logger.log(
-              `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
+    if (!pass2.ok) {
+      // Bounded-retry exhausted / agent unavailable → needs_triage, but with
+      // the explicit failure category surfaced (ADR-0024).
+      this.logger.warn(
+        `Pass 2 failed for document ${documentId}: category=${pass2.category}`,
+      );
+      return this.routeNeedsTriage(
+        documentId,
+        `AI classification failed (${pass2.category}): ${pass2.detail}`,
+        { pass: 'classify', category: pass2.category },
+      );
+    }
+
+    const triageResult = pass2.result;
+    this.logger.debug(
+      `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
+    );
+
+    // ── Deterministic routing — the ONE place that decides ──────
+    const threshold = (await this.policyService.getConfig())
+      .auto_post_min_confidence;
+
+    // Capture the discriminant up front: in the exhaustive `default` branch
+    // `triageResult` narrows to `never`, so the unexpected value has to be read
+    // from a variable widened to `string` rather than the narrowed local.
+    const triageKind: string = triageResult.kind;
+
+    switch (triageResult.kind) {
+      case 'new_expense':
+        if (triageResult.confidence >= threshold) {
+          this.logger.log(
+            `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
+          );
+          // proposeDraft trusts this validated, already-routed new_expense. It
+          // performs the EXPLICIT supplier-proposal → Supplier resolution: a
+          // 'create' proposal cannot yet produce a draft (Task 43), so it
+          // returns `supplier-unresolved` and we route to needs_triage rather
+          // than silently dropping a null-supplier draft (ADR-0014/0024).
+          const outcome = await this.proposeDraft.proposeDraft(
+            triageResult,
+            documentId,
+          );
+          if (outcome.outcome === 'supplier-unresolved') {
+            this.logger.warn(
+              `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
             );
-            // proposeDraft trusts this validated, already-routed new_expense. It
-            // performs the EXPLICIT supplier-proposal → Supplier resolution: a
-            // 'create' proposal cannot yet produce a draft (Task 43), so it
-            // returns `supplier-unresolved` and we route to needs_triage rather
-            // than silently dropping a null-supplier draft (ADR-0014/0024).
-            const outcome = await this.proposeDraft.proposeDraft(
-              triageResult,
+            // Keep the exact proposal that blocked us so a human can resolve the
+            // supplier and replay it deterministically (no re-run of the agent).
+            await this.documents.setPendingTriageResult(
               documentId,
+              triageResult,
             );
-            if (outcome.outcome === 'supplier-unresolved') {
-              this.logger.warn(
-                `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
-              );
-              // Keep the exact proposal that blocked us so a human can resolve the
-              // supplier and replay it deterministically (no re-run of the agent).
-              await this.documents.setPendingTriageResult(
-                documentId,
-                triageResult,
-              );
-              return this.routeNeedsTriage(documentId, outcome.reason);
-            }
-            if (outcome.outcome === 'category-unresolved') {
-              this.logger.warn(
-                `new_expense for document ${documentId} has an unresolved category: ${outcome.reason}`,
-              );
-              return this.routeNeedsTriage(documentId, outcome.reason);
-            }
-            await this.documents.setStatus(documentId, 'triaged');
-            return { status: 'draft_proposed', draft: outcome };
+            return this.routeNeedsTriage(documentId, outcome.reason);
           }
-          this.logger.warn(
-            `new_expense below confidence threshold (${triageResult.confidence} < ${threshold}) for document ${documentId}`,
-          );
-          return this.routeNeedsTriage(
-            documentId,
-            `AI confidence ${triageResult.confidence} below threshold ${threshold}`,
-          );
-
-        case 'unknown':
-          this.logger.warn(
-            `Unknown classification for document ${documentId}, routing to needs_triage`,
-          );
-          return this.routeNeedsTriage(
-            documentId,
-            'AI could not classify the document',
-          );
-
-        case 'correction':
-        case 'duplicate':
-          // These kinds are GENUINELY classified by the agent but the kernel
-          // handling is NOT YET IMPLEMENTED (Task 43). The reason marks them as
-          // unimplemented-kind routes — explicitly distinct from a low-confidence
-          // new_expense or a genuinely-unknown classification — so a human (and
-          // any later automation) can tell "we recognised this but can't act on
-          // it yet" apart from "the AI was unsure".
-          this.logger.warn(
-            `Unimplemented kind '${triageResult.kind}' for document ${documentId} — routing to needs_triage (Task 43)`,
-          );
-          return this.routeNeedsTriage(
-            documentId,
-            unimplementedKindReason(triageResult.kind),
-          );
-
-        default: {
-          // Exhaustiveness guard — should never happen with the Zod schema.
-          const unexpectedKind = triageKind;
-          this.logger.error(
-            `Unexpected triage kind "${unexpectedKind}" for document ${documentId}`,
-          );
-          return this.routeNeedsTriage(
-            documentId,
-            `Unexpected triage kind: ${unexpectedKind}`,
-          );
+          if (outcome.outcome === 'category-unresolved') {
+            this.logger.warn(
+              `new_expense for document ${documentId} has an unresolved category: ${outcome.reason}`,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason);
+          }
+          await this.documents.setStatus(documentId, 'triaged');
+          return { status: 'draft_proposed', draft: outcome };
         }
+        this.logger.warn(
+          `new_expense below confidence threshold (${triageResult.confidence} < ${threshold}) for document ${documentId}`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          `AI confidence ${triageResult.confidence} below threshold ${threshold}`,
+        );
+
+      case 'unknown':
+        this.logger.warn(
+          `Unknown classification for document ${documentId}, routing to needs_triage`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          'AI could not classify the document',
+        );
+
+      case 'correction':
+      case 'duplicate':
+        // These kinds are GENUINELY classified by the agent but the kernel
+        // handling is NOT YET IMPLEMENTED (Task 43). The reason marks them as
+        // unimplemented-kind routes — explicitly distinct from a low-confidence
+        // new_expense or a genuinely-unknown classification — so a human (and
+        // any later automation) can tell "we recognised this but can't act on
+        // it yet" apart from "the AI was unsure".
+        this.logger.warn(
+          `Unimplemented kind '${triageResult.kind}' for document ${documentId} — routing to needs_triage (Task 43)`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          unimplementedKindReason(triageResult.kind),
+        );
+
+      default: {
+        // Exhaustiveness guard — should never happen with the Zod schema.
+        const unexpectedKind = triageKind;
+        this.logger.error(
+          `Unexpected triage kind "${unexpectedKind}" for document ${documentId}`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          `Unexpected triage kind: ${unexpectedKind}`,
+        );
       }
+    }
     } finally {
       await this.documents.clearProcessing(documentId);
     }
