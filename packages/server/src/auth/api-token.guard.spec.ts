@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, Controller, Get } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';

@@ -23,7 +23,9 @@ describe('Operator SPA serving (e2e)', () => {
   let app: INestApplication<App>;
   const distDir = path.join(
     path.dirname(
-      createRequire(__filename).resolve('@headless-bookkeeping/web/package.json'),
+      createRequire(__filename).resolve(
+        '@headless-bookkeeping/web/package.json',
+      ),
     ),
     'dist',
   );
