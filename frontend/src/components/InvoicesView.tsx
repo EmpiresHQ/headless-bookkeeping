@@ -14,6 +14,7 @@ import {
   eurosToCents,
   type CorrectionDraft,
 } from './corrections-form';
+import { Table, type Column } from './Table';
 
 interface NewInvoice {
   invoice_number: string;
@@ -113,6 +114,34 @@ export function InvoicesView() {
   const addValid =
     form.invoice_number.trim() !== '' && form.tax_point_date.trim() !== '';
 
+  const columns: Column<SalesInvoice>[] = [
+    { header: 'No.', cell: (i) => i.invoice_number },
+    {
+      header: 'Gross',
+      cell: (i) => (
+        <span className="tabular-nums">
+          {fmtCents(i.gross_amount)} {i.currency}
+        </span>
+      ),
+    },
+    {
+      header: 'VAT',
+      cell: (i) => <span className="tabular-nums">{fmtCents(i.vat_amount)}</span>,
+    },
+    { header: 'Tax point', cell: (i) => i.tax_point_date },
+    { header: 'Status', cell: (i) => i.status },
+    { header: 'Sent', cell: (i) => (i.sent_at ? 'yes' : 'no') },
+    {
+      header: 'Bank',
+      cell: (i) =>
+        i.reconciled ? (
+          <span className="text-green-700">reconciled</span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+  ];
+
   return (
     <div className="p-4 space-y-6 text-sm">
       {error && <p className="text-red-600">{error}</p>}
@@ -181,66 +210,35 @@ export function InvoicesView() {
         </div>
       </section>
 
-      <section className="overflow-x-auto">
-        <table className="min-w-full border-collapse">
-          <thead>
-            <tr className="border-b bg-gray-50 text-left">
-              <th className="px-3 py-2 font-medium text-gray-700">No.</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Gross</th>
-              <th className="px-3 py-2 font-medium text-gray-700">VAT</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Tax point</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Status</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Sent</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Bank</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => (
-              <tr key={i.id} className="border-b align-top">
-                <td className="px-3 py-2">{i.invoice_number}</td>
-                <td className="px-3 py-2 tabular-nums">
-                  {fmtCents(i.gross_amount)} {i.currency}
-                </td>
-                <td className="px-3 py-2 tabular-nums">
-                  {fmtCents(i.vat_amount)}
-                </td>
-                <td className="px-3 py-2">{i.tax_point_date}</td>
-                <td className="px-3 py-2">{i.status}</td>
-                <td className="px-3 py-2">{i.sent_at ? 'yes' : 'no'}</td>
-                <td className="px-3 py-2">
-                  {i.reconciled ? (
-                    <span className="text-green-700">reconciled</span>
-                  ) : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                  {i.status === 'draft' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onDelete(i)}
-                      className="text-red-600 hover:underline disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  )}
-                  {i.status === 'posted' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => startCorrect(i)}
-                      className="text-amber-700 hover:underline disabled:opacity-50"
-                    >
-                      Correct
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <section>
+        <Table
+          columns={columns}
+          rows={rows}
+          actions={(i) => (
+            <div className="space-x-3 whitespace-nowrap">
+              {i.status === 'draft' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onDelete(i)}
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              )}
+              {i.status === 'posted' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => startCorrect(i)}
+                  className="text-amber-700 hover:underline disabled:opacity-50"
+                >
+                  Correct
+                </button>
+              )}
+            </div>
+          )}
+        />
       </section>
 
       {correctId !== null && correction && (
