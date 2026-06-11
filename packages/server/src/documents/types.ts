@@ -29,6 +29,9 @@ export interface Document {
   size_bytes: number;
   storage_path: string | null;
   status: DocumentStatus;
+  // Unix seconds — set when intake workflow starts processing; cleared on
+  // completion. NULL = idle (not currently in the intake pipeline).
+  processing_since: number | null;
   created_at: number;
 }
 

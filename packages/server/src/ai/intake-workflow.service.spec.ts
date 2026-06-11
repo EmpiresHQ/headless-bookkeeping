@@ -216,6 +216,8 @@ describe('IntakeWorkflowService', () => {
       // The workflow owns the status transition: pending -> triaged.
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('triaged');
+      // processing_since is cleared after successful completion.
+      expect(doc.processing_since).toBeNull();
     });
 
     it('creates AuditFinding for uncertain new_expense (confidence < threshold)', async () => {

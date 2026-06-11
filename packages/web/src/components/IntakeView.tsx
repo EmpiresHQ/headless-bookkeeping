@@ -23,7 +23,10 @@ export function IntakeView() {
   const [needsTriage, setNeedsTriage] = useState<DocumentRow[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Document ids currently being triaged — per-doc loading state so the UI
+  // shows "Processing…" on the right row and survives a slow triage (OCR + LLM
+  // can take a minute or two).
+  const [processing, setProcessing] = useState<Set<number>>(new Set());
   // Per-document triage outcome, keyed by document id.
   const [outcomes, setOutcomes] = useState<Record<number, string>>({});
   const [resolvingId, setResolvingId] = useState<number | null>(null);
@@ -42,15 +45,12 @@ export function IntakeView() {
   }, []);
 
   const run = async (fn: () => Promise<unknown>) => {
-    setBusy(true);
     setError(null);
     setNote(null);
     try {
       await fn();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -71,12 +71,20 @@ export function IntakeView() {
       await refresh();
     });
 
-  const onTriage = (id: number) =>
-    run(async () => {
+  const onTriage = (id: number) => {
+    setProcessing((prev) => new Set(prev).add(id));
+    void run(async () => {
       const outcome = await triageDocument(id);
       setOutcomes((m) => ({ ...m, [id]: outcomeLabel(outcome) }));
       await refresh();
+    }).finally(() => {
+      setProcessing((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     });
+  };
 
   const onComplete = (id: number) =>
     run(async () => {
@@ -123,7 +131,7 @@ export function IntakeView() {
         />
         <button
           type="button"
-          disabled={busy}
+          disabled={processing.size > 0}
           onClick={onUpload}
           className="bg-black text-white rounded px-3 py-1 text-sm disabled:opacity-50"
         >
@@ -144,18 +152,25 @@ export function IntakeView() {
           <Table
             columns={pendingColumns}
             rows={pending}
-            actions={(d) => (
-              <div className="space-x-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onTriage(d.id)}
-                  className="text-blue-600 hover:underline disabled:opacity-50"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
+            actions={(d) => {
+              const isProcessing =
+                processing.has(d.id) || d.processing_since !== null;
+              return (
+                <div className="space-x-2">
+                  {isProcessing ? (
+                    <span className="text-blue-400 italic">Processing…</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void onTriage(d.id)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              );
+            }}
           />
         )}
       </div>
@@ -178,7 +193,7 @@ export function IntakeView() {
                 <div className="space-x-2 whitespace-nowrap">
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={processing.size > 0}
                     onClick={() => setResolvingId(d.id)}
                     className="text-green-700 hover:underline disabled:opacity-50"
                   >
@@ -186,7 +201,7 @@ export function IntakeView() {
                   </button>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={processing.size > 0}
                     onClick={() => void onTriage(d.id)}
                     className="text-blue-600 hover:underline disabled:opacity-50"
                   >
@@ -194,7 +209,7 @@ export function IntakeView() {
                   </button>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={processing.size > 0}
                     onClick={() => void onComplete(d.id)}
                     className="text-gray-600 hover:underline disabled:opacity-50"
                   >
