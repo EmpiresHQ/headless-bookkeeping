@@ -42,7 +42,10 @@ export class RecordingFlowDispatcher extends FlowDispatcher {
 /** 8a production stub: handles nothing, records nothing. Replaced by real flows in 8b. */
 @Injectable()
 export class NoopFlowDispatcher extends FlowDispatcher {
-  dispatch(): Promise<DispatchResult> {
+  dispatch(
+    _intent: RoutedIntent,
+    _ctx: DispatchContext,
+  ): Promise<DispatchResult> {
     return Promise.resolve({ handled: false });
   }
 }

@@ -59,12 +59,15 @@ export function IntakeView() {
       const file = fileRef.current?.files?.[0];
       if (!file) return;
       const { document, deduplicated } = await uploadDocument(file);
-      setNote(
-        deduplicated
-          ? `Document #${document.id} already existed (deduplicated).`
-          : `Uploaded document #${document.id}.`,
-      );
       if (fileRef.current) fileRef.current.value = '';
+      const outcome = await triageDocument(document.id);
+      setOutcomes((m) => ({ ...m, [document.id]: outcomeLabel(outcome) }));
+      setNote(
+        (deduplicated
+          ? `Document #${document.id} already existed.`
+          : `Uploaded document #${document.id}.`) +
+          ` ${outcomeLabel(outcome)}`,
+      );
       await refresh();
     });
 
@@ -149,15 +152,7 @@ export function IntakeView() {
                   onClick={() => void onTriage(d.id)}
                   className="text-blue-600 hover:underline disabled:opacity-50"
                 >
-                  Run triage
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onComplete(d.id)}
-                  className="text-gray-600 hover:underline disabled:opacity-50"
-                >
-                  Complete
+                  Retry
                 </button>
               </div>
             )}
