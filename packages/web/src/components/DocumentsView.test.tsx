@@ -50,9 +50,7 @@ describe('DocumentsView', () => {
 
     // The classification kind and the OCR markdown both render.
     expect(await screen.findByText('correction')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Refund for invoice 100/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Refund for invoice 100/)).toBeInTheDocument();
     expect(api.getDocumentDebug).toHaveBeenCalledWith(1);
   });
 

@@ -503,7 +503,9 @@ export function BankView() {
                     Counterparty
                   </th>
                   <th className="px-3 py-2 font-medium text-gray-700">Ref</th>
-                  <th className="px-3 py-2 font-medium text-gray-700">Status</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Status
+                  </th>
                   <th className="px-3 py-2 font-medium text-gray-700">Match</th>
                 </tr>
               </thead>
@@ -582,7 +584,9 @@ export function BankView() {
                                       : 'bg-gray-100 text-gray-600'
                                   }`}
                                 >
-                                  {m.status === 'active' ? 'matched' : 'pending'}
+                                  {m.status === 'active'
+                                    ? 'matched'
+                                    : 'pending'}
                                 </span>
                                 <span className="font-medium">
                                   {m.objectLabel}
@@ -652,7 +656,9 @@ export function BankView() {
                                         type="radio"
                                         name={`manual-${t.id}`}
                                         aria-label={`Candidate ${c.objectLabel}`}
-                                        checked={manualVoucherId === c.voucherId}
+                                        checked={
+                                          manualVoucherId === c.voucherId
+                                        }
                                         onChange={() => selectCandidate(c)}
                                       />
                                       <span className="font-medium">

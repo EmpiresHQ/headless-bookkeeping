@@ -60,7 +60,10 @@ export function CreditNotesView() {
     { header: 'Status', cell: (n) => n.status },
     { header: 'Gross', cell: (n) => (n.gross_amount / 100).toFixed(2) },
     { header: 'VAT', cell: (n) => (n.vat_amount / 100).toFixed(2) },
-    { header: 'Credits', cell: (n) => `${n.credits_object_type} #${n.credits_object_id}` },
+    {
+      header: 'Credits',
+      cell: (n) => `${n.credits_object_type} #${n.credits_object_id}`,
+    },
   ];
 
   return (
@@ -154,9 +157,7 @@ export function CreditNotesView() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {notes.length > 0 && (
-        <Table columns={columns} rows={notes} />
-      )}
+      {notes.length > 0 && <Table columns={columns} rows={notes} />}
     </div>
   );
 }

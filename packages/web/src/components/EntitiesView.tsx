@@ -156,7 +156,12 @@ export function EntitiesView() {
     },
     {
       header: 'Role',
-      cell: (e) => (editId === e.id && draft ? <span className="text-gray-400">{e.role}</span> : e.role),
+      cell: (e) =>
+        editId === e.id && draft ? (
+          <span className="text-gray-400">{e.role}</span>
+        ) : (
+          e.role
+        ),
     },
     {
       header: 'Country',
@@ -182,7 +187,8 @@ export function EntitiesView() {
             onChange={(ev) =>
               setDraft({
                 ...draft,
-                goodsVsServices: ev.target.value as EditDraft['goodsVsServices'],
+                goodsVsServices: ev.target
+                  .value as EditDraft['goodsVsServices'],
               })
             }
             className="border rounded px-2 py-1 w-full sm:w-auto"
@@ -194,7 +200,7 @@ export function EntitiesView() {
             ))}
           </select>
         ) : (
-          e.goods_vs_services ?? '—'
+          (e.goods_vs_services ?? '—')
         ),
     },
   ];
