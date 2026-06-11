@@ -54,15 +54,17 @@ async function main(): Promise<void> {
         expenses: app.get(ExpensesService),
         salesInvoices: app.get(SalesInvoicesService),
         entities: app.get(EntitiesService),
-        db: app.get(KYSELY_MODULE_CONNECTION_TOKEN),
+        db: app.get(KYSELY_MODULE_CONNECTION_TOKEN()),
       },
       {
         out: (s) => process.stdout.write(s),
         err: (s) => process.stderr.write(s),
       },
     ).parseAsync(hideBin(process.argv));
-  } catch {
-    // yargs surfaced a usage/validation error (already written to stderr).
+  } catch (err) {
+    // yargs writes usage/validation errors to stderr itself; surface anything
+    // else (DI wiring, runtime failures) so a command never dies silently.
+    if (err) console.error(err instanceof Error ? (err.stack ?? err.message) : err);
     process.exitCode = 1;
   } finally {
     await app.close();
