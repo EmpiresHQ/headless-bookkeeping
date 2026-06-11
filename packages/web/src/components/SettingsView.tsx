@@ -17,13 +17,49 @@ interface LlmKey {
 }
 
 const LLM_KEYS: LlmKey[] = [
-  { key: 'ai_base_url', label: 'Inference base URL', placeholder: '(provider default)', multiline: false },
-  { key: 'ai_api_key', label: 'API key', placeholder: '(provider default / env)', multiline: false, secret: true },
-  { key: 'ai_model', label: 'Global model', placeholder: 'openai/gpt-4o-mini', multiline: false },
-  { key: 'ai_model.triage', label: 'Model — triage', placeholder: '(inherits global)', multiline: false },
-  { key: 'ai_model.intent_classifier', label: 'Model — intent classifier', placeholder: '(inherits global)', multiline: false },
-  { key: 'prompt.triage', label: 'Prompt — triage', placeholder: '(built-in default)', multiline: true },
-  { key: 'prompt.intent_classifier', label: 'Prompt — intent classifier', placeholder: '(built-in default)', multiline: true },
+  {
+    key: 'ai_base_url',
+    label: 'Inference base URL',
+    placeholder: '(provider default)',
+    multiline: false,
+  },
+  {
+    key: 'ai_api_key',
+    label: 'API key',
+    placeholder: '(provider default / env)',
+    multiline: false,
+    secret: true,
+  },
+  {
+    key: 'ai_model',
+    label: 'Global model',
+    placeholder: 'openai/gpt-4o-mini',
+    multiline: false,
+  },
+  {
+    key: 'ai_model.triage',
+    label: 'Model — triage',
+    placeholder: '(inherits global)',
+    multiline: false,
+  },
+  {
+    key: 'ai_model.intent_classifier',
+    label: 'Model — intent classifier',
+    placeholder: '(inherits global)',
+    multiline: false,
+  },
+  {
+    key: 'prompt.triage',
+    label: 'Prompt — triage',
+    placeholder: '(built-in default)',
+    multiline: true,
+  },
+  {
+    key: 'prompt.intent_classifier',
+    label: 'Prompt — intent classifier',
+    placeholder: '(built-in default)',
+    multiline: true,
+  },
 ];
 
 const INGEST_OPTIONS = ['known-only', 'quarantine', 'open'] as const;
@@ -170,15 +206,16 @@ export function SettingsView() {
           prefix only selects the request format; requests still go to your base
           URL.
         </p>
-        {settings !== null && LLM_KEYS.map((def) => (
-          <SettingRow
-            key={def.key}
-            def={def}
-            current={settings[def.key] ?? ''}
-            onChanged={loadSettings}
-            onError={setError}
-          />
-        ))}
+        {settings !== null &&
+          LLM_KEYS.map((def) => (
+            <SettingRow
+              key={def.key}
+              def={def}
+              current={settings[def.key] ?? ''}
+              onChanged={loadSettings}
+              onError={setError}
+            />
+          ))}
         <p className="text-xs text-gray-400">
           OCR uses a faux model in v1 — there is no OCR provider/model to
           configure yet.
@@ -230,7 +267,9 @@ export function SettingsView() {
               />
             </label>
             <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-              <span className="sm:w-56 text-gray-700">Min confidence (0–1)</span>
+              <span className="sm:w-56 text-gray-700">
+                Min confidence (0–1)
+              </span>
               <input
                 aria-label="Min confidence"
                 type="number"

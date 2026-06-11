@@ -59,7 +59,7 @@ export interface MatchProposalView extends MatchProposal {
   objectType: MatchObjectType;
   /** The business object's id (sales_invoice.id / expense.id), null for prepayment. */
   objectId: number | null;
-  /** Human label: invoice number, "Expense #<id>", or "Prepayment". */
+  /** Human label: invoice number, expense "<date> · <supplier invoice no>", or "Prepayment". */
   objectLabel: string;
   /** Counterparty (customer/supplier) name, null when unresolved (e.g. prepayment). */
   counterpartyName: string | null;

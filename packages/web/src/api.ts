@@ -22,6 +22,8 @@ export interface Organization {
   vat_registered: boolean;
   org_type: string;
   created_at: number;
+  name: string | null;
+  vat_registration_number: string | null;
 }
 
 export interface EntityIdentifier {
@@ -87,7 +89,8 @@ export interface ReportingPeriod {
   filed_at: number | null;
 }
 
-export const getOrganization = () => apiFetch<Organization>('/api/organization');
+export const getOrganization = () =>
+  apiFetch<Organization>('/api/organization');
 
 export interface UpdateOrganizationDto {
   country?: string;
@@ -95,6 +98,8 @@ export interface UpdateOrganizationDto {
   base_currency?: string | null;
   vat_registered?: boolean;
   org_type?: 'company' | 'sole_proprietor';
+  name?: string | null;
+  vat_registration_number?: string | null;
 }
 
 export const updateOrganization = (dto: UpdateOrganizationDto) =>
@@ -160,6 +165,40 @@ export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
     '/api/reporting-periods',
   ).then((r) => r.reportingPeriods);
+
+export interface CreateReportingPeriodInput {
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
+export const createReportingPeriod = (input: CreateReportingPeriodInput) =>
+  apiFetch<ReportingPeriod>('/api/reporting-periods', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+export interface PeriodConfig {
+  frequency_options: string[];
+  default_frequency: string;
+}
+
+export const getPeriodConfig = () =>
+  apiFetch<PeriodConfig>('/api/organization/period-config');
+
+export interface CreateNextPeriodInput {
+  start_date?: string;
+  end_date?: string;
+  name?: string;
+}
+
+export const createNextPeriod = (input: CreateNextPeriodInput = {}) =>
+  apiFetch<ReportingPeriod>('/api/reporting-periods/next', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 
 /** Integer cents → display string, e.g. 615700 -> "6157.00". */
 export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
@@ -546,7 +585,9 @@ export const listBankStatements = () =>
   apiFetch<BankStatement[]>('/api/bank-statements');
 
 export const listBankTransactions = (statementId: number) =>
-  apiFetch<BankTransaction[]>(`/api/bank-statements/${statementId}/transactions`);
+  apiFetch<BankTransaction[]>(
+    `/api/bank-statements/${statementId}/transactions`,
+  );
 
 export const deleteBankStatement = (statementId: number) =>
   apiFetch<{ deleted: number }>(`/api/bank-statements/${statementId}`, {
@@ -629,10 +670,9 @@ export const getStatementMatches = (statementId: number) =>
 
 // Undo a match (deletes the sub-ledger link; reverses any FX voucher server-side).
 export const unmatchMatch = (statementId: number, matchId: number) =>
-  apiFetch<unknown>(
-    `/api/bank-statements/${statementId}/matches/${matchId}`,
-    { method: 'DELETE' },
-  );
+  apiFetch<unknown>(`/api/bank-statements/${statementId}/matches/${matchId}`, {
+    method: 'DELETE',
+  });
 
 // Manual-match candidates: open business objects a bank line can settle, plus
 // the line's remaining unallocated amount (BASE cents). voucherId is for the

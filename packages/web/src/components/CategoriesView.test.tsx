@@ -13,7 +13,9 @@ describe('CategoriesView', () => {
 
   it('renders each category with its account binding', async () => {
     render(<CategoriesView />);
-    await waitFor(() => expect(screen.getByText('software')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('software')).toBeInTheDocument(),
+    );
     expect(screen.getByText('EXPENSE_SOFTWARE')).toBeInTheDocument();
     expect(screen.getByText('rent')).toBeInTheDocument();
     expect(screen.getByText('EXPENSE_RENT')).toBeInTheDocument();

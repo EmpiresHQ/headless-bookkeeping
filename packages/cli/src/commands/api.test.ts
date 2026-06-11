@@ -16,7 +16,10 @@ describe('runApi', () => {
       readStdin: () => '',
       exit: () => {},
     };
-    await runApi({ method: 'post', path: '/api/expenses', 'body-file': '/tmp/x.json' }, deps);
+    await runApi(
+      { method: 'post', path: '/api/expenses', 'body-file': '/tmp/x.json' },
+      deps,
+    );
     expect(calls[0]).toMatchObject({
       method: 'post',
       path: '/api/expenses',

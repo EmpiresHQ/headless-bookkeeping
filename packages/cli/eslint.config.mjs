@@ -5,27 +5,17 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  {
-    ignores: ['eslint.config.mjs'],
-  },
+  { ignores: ['dist', 'src/types.gen.ts'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   eslintPluginPrettierRecommended,
   {
     languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.jest,
-      },
-      sourceType: 'commonjs',
+      globals: { ...globals.node },
+      sourceType: 'module',
     },
-  },
-  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
-      // Interface-mandated parameters are often unused in a given
-      // implementation (e.g. country plugin stubs). A leading underscore marks
-      // them as intentionally unused.
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

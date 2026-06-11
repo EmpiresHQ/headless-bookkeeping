@@ -7,6 +7,11 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+# New push to the same PR/branch cancels the previous run automatically.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -97,7 +102,7 @@ jobs:
         with:
           name: app-test-image
       - run: docker load < app-test.tar.gz
-      - run: docker run --rm app-test npm run test -w @headless-bookkeeping/web
+      - run: docker run --rm app-test sh -c "npm run lint -w @headless-bookkeeping/web && npm run test -w @headless-bookkeeping/web"
 
   cli-test:
     runs-on: ubuntu-latest
@@ -108,14 +113,26 @@ jobs:
         with:
           name: app-test-image
       - run: docker load < app-test.tar.gz
-      - run: docker run --rm app-test sh -c "npm run build -w @empireshq/hbk && npm test -w @empireshq/hbk"
+      - run: docker run --rm app-test sh -c "npm run lint -w @empireshq/hbk && npm run build -w @empireshq/hbk && npm test -w @empireshq/hbk"
+
+  typecheck:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck -w @headless-bookkeeping/server
 
   build-and-push:
     runs-on: ubuntu-latest
-    needs: [changes, lint, unit, e2e, web-check, cli-test]
+    needs: [changes, lint, unit, e2e, typecheck, web-check, cli-test]
     if: >
       github.event_name == 'push'
-      && needs.changes.outputs.server == 'true'
       && !cancelled()
       && !contains(needs.*.result, 'failure')
     steps:

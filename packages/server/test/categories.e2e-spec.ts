@@ -70,7 +70,9 @@ describe('GET /api/categories (e2e)', () => {
       .set('Authorization', `Bearer ${bearerToken}`)
       .expect(200);
 
-    const body = res.body as { categories: { key: string; label: string; accountCode: string }[] };
+    const body = res.body as {
+      categories: { key: string; label: string; accountCode: string }[];
+    };
     expect(Array.isArray(body.categories)).toBe(true);
     expect(body.categories.length).toBeGreaterThan(0);
     expect(body.categories.map((c) => c.key)).toContain('software');

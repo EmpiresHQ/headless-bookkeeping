@@ -16,7 +16,10 @@ export interface LoginDeps {
 }
 
 /** Core login logic; returns the process exit code. */
-export async function runLogin(args: LoginArgs, deps: LoginDeps): Promise<number> {
+export async function runLogin(
+  args: LoginArgs,
+  deps: LoginDeps,
+): Promise<number> {
   const name = args.profile ?? 'default';
   const status = await deps.validate(args.url, args.token);
   if (status !== 200) {
@@ -43,12 +46,28 @@ export function loginCommand(io: CliIo): CommandModule {
     describe: 'Store and validate a base URL + API token as a profile',
     builder: (y) =>
       y
-        .option('url', { type: 'string', demandOption: true, describe: 'Server base URL' })
-        .option('token', { type: 'string', demandOption: true, describe: 'API token' })
-        .option('profile', { type: 'string', default: 'default', describe: 'Profile name' }),
+        .option('url', {
+          type: 'string',
+          demandOption: true,
+          describe: 'Server base URL',
+        })
+        .option('token', {
+          type: 'string',
+          demandOption: true,
+          describe: 'API token',
+        })
+        .option('profile', {
+          type: 'string',
+          default: 'default',
+          describe: 'Profile name',
+        }),
     handler: async (argv) => {
       const code = await runLogin(
-        { url: argv.url as string, token: argv.token as string, profile: argv.profile as string },
+        {
+          url: argv.url as string,
+          token: argv.token as string,
+          profile: argv.profile as string,
+        },
         {
           validate: defaultValidate,
           saveProfile: (name, baseUrl, token) =>

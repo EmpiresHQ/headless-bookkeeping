@@ -34,6 +34,7 @@ describe('ReportingPeriodsController', () => {
     getById: jest.fn(),
     getCurrent: jest.fn(),
     create: jest.fn(),
+    createNext: jest.fn(),
   };
 
   beforeEach(async () => {

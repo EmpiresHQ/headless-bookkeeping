@@ -24,6 +24,14 @@ export class CreateReportingPeriodDto extends createZodDto(
   createReportingPeriodSchema,
 ) {}
 
+export const createNextPeriodSchema = z.object({
+  start_date: z.string().optional(),
+  end_date: z.string().optional(),
+  name: z.string().optional(),
+});
+
+export class CreateNextPeriodDto extends createZodDto(createNextPeriodSchema) {}
+
 export interface PeriodWarning {
   type: 'pending_approval' | 'unposted_draft';
   object_type: string;

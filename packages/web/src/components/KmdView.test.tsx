@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import { KmdView } from './KmdView';
 import * as api from '../api';
 
@@ -27,6 +27,14 @@ const decl = {
   vd_intra_eu_services: 1174000,
   review_flags: ['Verify KMD row 6 vs 7.'],
 };
+const newPeriod = {
+  id: 7,
+  name: '2026-06',
+  start_date: '2026-06-01',
+  end_date: '2026-06-30',
+  status: 'open',
+  filed_at: null,
+};
 
 describe('KmdView', () => {
   beforeEach(() => {
@@ -39,17 +47,51 @@ describe('KmdView', () => {
     render(<KmdView />);
     await waitFor(() => expect(api.getKmd).toHaveBeenCalledWith(3));
 
-    // Row 3 (0% käive) and the VD 3S total legitimately share the same value —
-    // the 0% käive IS the intra-EU services — so assert each within its own row
-    // rather than with a global text query (which would match both).
-    const row3 = (
-      await screen.findByText('Row 3 — 0% käive (base)')
-    ).closest('tr')!;
-    expect(within(row3).getByText(/11740\.00/)).toBeInTheDocument(); // cents → €
+    const row3 = (await screen.findByText('Row 3 — 0% käive (base)')).closest('tr')!;
+    expect(within(row3).getByText(/11740\.00/)).toBeInTheDocument();
 
     const vd = screen.getByText(/VD koondaruanne — 3S/).closest('tr')!;
     expect(within(vd).getByText(/11740\.00/)).toBeInTheDocument();
 
     expect(screen.getByText(/Verify KMD row 6 vs 7\./)).toBeInTheDocument();
+  });
+
+  it('"Create next period" one-click creates and auto-selects the new period', async () => {
+    vi.spyOn(api, 'createNextPeriod').mockResolvedValue(newPeriod);
+    render(<KmdView />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create next period' }));
+
+    await waitFor(() =>
+      expect(api.createNextPeriod).toHaveBeenCalledWith({}),
+    );
+
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('7');
+    expect(screen.getByRole('option', { name: /2026-06/ })).toBeInTheDocument();
+  });
+
+  it('"Override" toggle reveals optional date fields and submits overrides', async () => {
+    vi.spyOn(api, 'createNextPeriod').mockResolvedValue(newPeriod);
+    render(<KmdView />);
+    await screen.findByRole('button', { name: 'Create next period' });
+
+    // Override form hidden by default
+    expect(screen.queryByLabelText('Start date')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Override' }));
+    expect(screen.getByLabelText('Start date')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Start date'), {
+      target: { value: '2026-06-15' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create next period' }));
+
+    await waitFor(() =>
+      expect(api.createNextPeriod).toHaveBeenCalledWith({
+        start_date: '2026-06-15',
+      }),
+    );
   });
 });
