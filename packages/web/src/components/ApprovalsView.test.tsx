@@ -11,6 +11,7 @@ const approval = {
   requested_by: 'system',
   approved_by: null,
   rejected_reason: null,
+  policy_reason: 'Unknown supplier requires approval',
   superseded_by: null,
   created_at: 0,
   resolved_at: null,
