@@ -98,7 +98,11 @@ describe('Credit notes E2E (create/list/get)', () => {
 
     const draft = await salesInvoicesService.generateDraftVoucher(invoice.id);
     const posted = await postingService.postVoucher(draft);
-    await salesInvoicesService.updateInvoiceStatus(invoice.id, 'posted', posted.id);
+    await salesInvoicesService.updateInvoiceStatus(
+      invoice.id,
+      'posted',
+      posted.id,
+    );
     return salesInvoicesService.getInvoiceById(invoice.id);
   }
 
@@ -118,12 +122,20 @@ describe('Credit notes E2E (create/list/get)', () => {
       })
       .expect(201);
 
-    expect(res.body.status).toBe('posted');
-    expect(res.body.credit_note_number).toBe('CN-1');
-    expect(res.body.gross_amount).toBe(50000);
-    expect(res.body.vat_amount).toBe(12000);
-    expect(res.body.currency).toBe('EUR');
-    expect(typeof res.body.id).toBe('number');
+    const body = res.body as {
+      id: number;
+      status: string;
+      credit_note_number: string;
+      gross_amount: number;
+      vat_amount: number;
+      currency: string;
+    };
+    expect(body.status).toBe('posted');
+    expect(body.credit_note_number).toBe('CN-1');
+    expect(body.gross_amount).toBe(50000);
+    expect(body.vat_amount).toBe(12000);
+    expect(body.currency).toBe('EUR');
+    expect(typeof body.id).toBe('number');
   });
 
   it('GET /api/credit-notes lists credit notes', async () => {
@@ -148,9 +160,10 @@ describe('Credit notes E2E (create/list/get)', () => {
       .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
-    expect(Array.isArray(res.body.credit_notes)).toBe(true);
-    expect(res.body.credit_notes.length).toBeGreaterThanOrEqual(1);
-    expect(res.body.credit_notes[0]).toHaveProperty('credit_note_number');
+    const body = res.body as { credit_notes: unknown[] };
+    expect(Array.isArray(body.credit_notes)).toBe(true);
+    expect(body.credit_notes.length).toBeGreaterThanOrEqual(1);
+    expect(body.credit_notes[0]).toHaveProperty('credit_note_number');
   });
 
   it('GET /api/credit-notes/:id returns a specific credit note', async () => {
@@ -169,22 +182,25 @@ describe('Credit notes E2E (create/list/get)', () => {
       })
       .expect(201);
 
-    const id: number = created.body.id as number;
+    const id = (created.body as { id: number }).id;
 
     const res = await request(app.getHttpServer())
       .get(`/api/credit-notes/${id}`)
       .set('Authorization', `Bearer ${apiToken}`)
       .expect(200);
 
-    expect(res.body.id).toBe(id);
-    expect(res.body.credit_note_number).toBe('CN-GET-1');
-    expect(res.body.status).toBe('posted');
+    const body = res.body as {
+      id: number;
+      credit_note_number: string;
+      status: string;
+    };
+    expect(body.id).toBe(id);
+    expect(body.credit_note_number).toBe('CN-GET-1');
+    expect(body.status).toBe('posted');
   });
 
   it('rejects unauthenticated requests', async () => {
-    await request(app.getHttpServer())
-      .get('/api/credit-notes')
-      .expect(401);
+    await request(app.getHttpServer()).get('/api/credit-notes').expect(401);
 
     await request(app.getHttpServer())
       .post('/api/credit-notes')
