@@ -24,6 +24,7 @@ import { ExpensesService } from '../../expenses/expenses.service';
 import { SalesInvoicesService } from '../../sales-invoices/sales-invoices.service';
 import { VoucherProjectionService } from '../projection/voucher-projection.service';
 import { ApprovalsService } from '../../approvals/approvals.service';
+import { ReconciliationService } from '../../reconciliation/reconciliation.service';
 import { VoucherRepository } from '../voucher/voucher.repository';
 import { PostingService, PostingSemantics } from './posting.service';
 import { CategoryService } from '../../categories/category.service';
@@ -84,6 +85,13 @@ describe('Posting seam consolidation (integration)', () => {
         VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
+        {
+          provide: ReconciliationService,
+          useValue: {
+            activateMatch: jest.fn(),
+            discardDraftMatch: jest.fn(),
+          },
+        },
         ApprovalsService,
         VoucherRepository,
         {

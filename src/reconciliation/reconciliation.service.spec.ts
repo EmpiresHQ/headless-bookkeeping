@@ -22,6 +22,7 @@ import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
+import { MatchProposal } from './reconciliation.types';
 
 /**
  * Integration test for the reconciliation matching engine.
@@ -31,6 +32,7 @@ describe('ReconciliationService (integration)', () => {
   let reconciliationService: ReconciliationService;
   let bankStatementService: BankStatementService;
   let entitiesService: EntitiesService;
+  let postingService: PostingService;
   let voucherCounter = 0;
 
   beforeEach(async () => {
@@ -71,6 +73,7 @@ describe('ReconciliationService (integration)', () => {
     bankStatementService = module.get(BankStatementService);
     entitiesService = module.get(EntitiesService);
     reconciliationService = module.get(ReconciliationService);
+    postingService = module.get(PostingService);
   });
 
   afterEach(async () => {
@@ -208,6 +211,7 @@ describe('ReconciliationService (integration)', () => {
     supplierId: number,
     grossCents: number,
     taxPointDate: string,
+    supplierInvoiceNumber?: string,
   ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
     voucherCounter++;
@@ -224,6 +228,7 @@ describe('ReconciliationService (integration)', () => {
         tax_point_date: taxPointDate,
         status: 'posted',
         voucher_id: null,
+        supplier_invoice_number: supplierInvoiceNumber ?? null,
         created_at: now,
         updated_at: now,
       })
@@ -316,6 +321,16 @@ describe('ReconciliationService (integration)', () => {
         counterparty_descriptor: t.counterparty_descriptor ?? null,
       })),
     });
+  }
+
+  // Stage proposals as draft matches, then activate each — the full
+  // stage → approve flow as a single test convenience.
+  async function executeAndActivate(proposals: MatchProposal[]) {
+    const result = await reconciliationService.executeMatch(proposals);
+    for (const r of result.records) {
+      await reconciliationService.activateMatch(r.id);
+    }
+    return result;
   }
 
   // ── Tests ────────────────────────────────────────────────────────────
@@ -416,10 +431,39 @@ describe('ReconciliationService (integration)', () => {
       expect(match!.amountMatched).toBe(50000);
     });
 
-    it('does NOT emit invoice_number proposals for outgoing/AP transactions (no invoice key on expenses)', async () => {
+    it('matches outgoing transaction to AP voucher by supplier_invoice_number in reference', async () => {
       const supplier = await seedSupplier();
-      // Two posted expense vouchers with the SAME gross amount, neither tied to
-      // any invoice number.
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        42000,
+        '2025-01-10',
+        'INV-9001',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -42000,
+          reference: 'INV-9001',
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const match = proposals.find((p) => p.voucherId === voucherId);
+      expect(match).toBeDefined();
+      expect(match!.signal).toBe('invoice_number');
+      expect(match!.confidence).toBe('high');
+      expect(match!.matchType).toBe('exact');
+      expect(match!.amountMatched).toBe(42000);
+    });
+
+    it('does NOT emit invoice_number proposals when no expense supplier_invoice_number matches the token', async () => {
+      const supplier = await seedSupplier();
+      // Posted expense vouchers with NO supplier_invoice_number set.
       await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
       await seedExpenseVoucher(supplier.id, 42000, '2025-01-10');
 
@@ -610,6 +654,69 @@ describe('ReconciliationService (integration)', () => {
       const match = proposals.find((p) => p.signal === 'amount_date');
       expect(match).toBeUndefined();
     });
+
+    it('filters out window vouchers whose amount is far from the bank line', async () => {
+      const customer = await seedCustomer();
+      // Both vouchers sit inside the ±7-day window; only the near-amount one
+      // should survive the tolerance band (the far one is junk the old code
+      // would have proposed regardless of amount).
+      const nearVoucher = await seedSalesInvoiceVoucher(
+        customer.id,
+        25000,
+        'INV-31001',
+        '2025-01-10',
+      );
+      const farVoucher = await seedSalesInvoiceVoucher(
+        customer.id,
+        100000,
+        'INV-31002',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Unknown payment',
+          amount: 25000,
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      expect(proposals.find((p) => p.voucherId === nearVoucher)).toBeDefined();
+      expect(proposals.find((p) => p.voucherId === farVoucher)).toBeUndefined();
+    });
+
+    it('keeps a window voucher within the FX-drift floor (1.00 base unit)', async () => {
+      const customer = await seedCustomer();
+      // Bank line 13.91 vs voucher 14.72 — an 81-cent gap (card-settlement FX
+      // drift). 5% of 1391 is ~70, but the 100-cent floor admits it.
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        1472,
+        'INV-31003',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Card settlement',
+          amount: 1391,
+        },
+      ]);
+
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const match = proposals.find((p) => p.voucherId === voucherId);
+      expect(match).toBeDefined();
+      expect(match!.signal).toBe('amount_date');
+      expect(match!.amountMatched).toBe(1391);
+    });
   });
 
   describe('N:M matching', () => {
@@ -675,7 +782,8 @@ describe('ReconciliationService (integration)', () => {
       expect(proposals1[0].amountMatched).toBe(40000);
       expect(proposals1[0].matchType).toBe('partial');
 
-      await reconciliationService.executeMatch(proposals1);
+      // Stage AND activate — only an active match reduces the outstanding.
+      await executeAndActivate(proposals1);
 
       const stmt2 = await seedBankStatement([
         {
@@ -834,7 +942,7 @@ describe('ReconciliationService (integration)', () => {
       expect(rows[0].amount_matched).toBe(20000);
     });
 
-    it('rejects an over-match beyond the outstanding AR balance (across two executes)', async () => {
+    it('rejects ACTIVATING an over-match beyond the outstanding AR balance', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedSalesInvoiceVoucher(
         customer.id,
@@ -858,8 +966,8 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // First bank line settles 60000 of the 100000 invoice.
-      await reconciliationService.executeMatch([
+      // First bank line settles 60000 of the 100000 invoice (staged + active).
+      await executeAndActivate([
         {
           bankTransactionId: stmt.transactions[0].id,
           voucherId,
@@ -870,32 +978,36 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // A second (distinct) bank line trying to match another 60000 would push
-      // the matched total to 120000 > 100000 outstanding → rejected.
+      // A second distinct bank line for another 60000 stages fine (a draft
+      // settles nothing) — but ACTIVATING it would push the total to 120000 >
+      // 100000 outstanding, so the approval seam rejects it. The draft stays.
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[1].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 60000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
       await expect(
-        reconciliationService.executeMatch([
-          {
-            bankTransactionId: stmt.transactions[1].id,
-            voucherId,
-            matchType: 'partial',
-            amountMatched: 60000,
-            confidence: 'high',
-            signal: 'invoice_number',
-          },
-        ]),
+        reconciliationService.activateMatch(staged.records[0].id),
       ).rejects.toThrow();
 
-      // Only the first 60000 match persisted; nothing over-matched.
+      // First active; second still draft — nothing over-settled.
       const rows = await db
         .selectFrom('reconciliation_match')
         .selectAll()
         .where('voucher_id', '=', voucherId)
         .execute();
-      expect(rows).toHaveLength(1);
-      expect(rows[0].amount_matched).toBe(60000);
+      const active = rows.filter((r) => r.status === 'active');
+      expect(active).toHaveLength(1);
+      expect(active[0].amount_matched).toBe(60000);
+      expect(rows.filter((r) => r.status === 'draft')).toHaveLength(1);
     });
 
-    it('rejects an over-match within a single batch of two distinct bank lines', async () => {
+    it('rejects ACTIVATING the second of two staged matches that together over-match', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedSalesInvoiceVoucher(
         customer.id,
@@ -917,36 +1029,40 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // Two distinct (bank line, voucher) pairs in ONE batch summing to 140000
-      // against a 100000 invoice → the whole atomic batch is rejected.
+      // Both stage as drafts (no settlement). Activating both would sum to
+      // 140000 against a 100000 invoice, so the SECOND activation is rejected.
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 70000,
+          confidence: 'medium',
+          signal: 'amount_date',
+        },
+        {
+          bankTransactionId: stmt.transactions[1].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 70000,
+          confidence: 'medium',
+          signal: 'amount_date',
+        },
+      ]);
+      expect(staged.records).toHaveLength(2);
+
+      await reconciliationService.activateMatch(staged.records[0].id);
       await expect(
-        reconciliationService.executeMatch([
-          {
-            bankTransactionId: stmt.transactions[0].id,
-            voucherId,
-            matchType: 'partial',
-            amountMatched: 70000,
-            confidence: 'medium',
-            signal: 'amount_date',
-          },
-          {
-            bankTransactionId: stmt.transactions[1].id,
-            voucherId,
-            matchType: 'partial',
-            amountMatched: 70000,
-            confidence: 'medium',
-            signal: 'amount_date',
-          },
-        ]),
+        reconciliationService.activateMatch(staged.records[1].id),
       ).rejects.toThrow();
 
-      // Atomic: NEITHER row persisted (the batch rolled back).
+      // Exactly one active; no over-settlement.
       const rows = await db
         .selectFrom('reconciliation_match')
         .selectAll()
         .where('voucher_id', '=', voucherId)
         .execute();
-      expect(rows).toHaveLength(0);
+      expect(rows.filter((r) => r.status === 'active')).toHaveLength(1);
     });
 
     it('rejects matches that over-allocate the bank line beyond its amount', async () => {
@@ -978,8 +1094,8 @@ describe('ReconciliationService (integration)', () => {
       ]);
       const txnId = stmt.transactions[0].id;
 
-      // First match: fully allocates the bank line against invoice A.
-      await reconciliationService.executeMatch([
+      // First match: fully allocates the bank line against invoice A (active).
+      await executeAndActivate([
         {
           bankTransactionId: txnId,
           voucherId: voucherA,
@@ -990,30 +1106,32 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // Second match: SAME txn, DIFFERENT fully-open voucher B → the bank line
-      // is already fully allocated, so this over-allocates the line and must be
-      // rejected with the bank-line reason (not the voucher reason).
+      // Second match: SAME txn, DIFFERENT fully-open voucher B. It stages, but
+      // ACTIVATING it over-allocates the already-fully-allocated bank line and
+      // is rejected with the bank-line reason (not the voucher reason).
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txnId,
+          voucherId: voucherB,
+          matchType: 'exact',
+          amountMatched: 100000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
       await expect(
-        reconciliationService.executeMatch([
-          {
-            bankTransactionId: txnId,
-            voucherId: voucherB,
-            matchType: 'exact',
-            amountMatched: 100000,
-            confidence: 'high',
-            signal: 'invoice_number',
-          },
-        ]),
+        reconciliationService.activateMatch(staged.records[0].id),
       ).rejects.toThrow(/over-allocate|bank line|exceeds/i);
 
-      // Only the first match against voucher A persisted; voucher B untouched.
+      // Only the match against voucher A is active; B stays draft.
       const rows = await db
         .selectFrom('reconciliation_match')
         .selectAll()
         .where('bank_transaction_id', '=', txnId)
         .execute();
-      expect(rows).toHaveLength(1);
-      expect(rows[0].voucher_id).toBe(voucherA);
+      const active = rows.filter((r) => r.status === 'active');
+      expect(active).toHaveLength(1);
+      expect(active[0].voucher_id).toBe(voucherA);
     });
 
     it('still records a legitimate N:M batch (two distinct vouchers) with identical amounts', async () => {
@@ -1093,9 +1211,10 @@ describe('ReconciliationService (integration)', () => {
       ]);
       const txnId = stmt.transactions[0].id;
 
-      // Book a PARTIAL match of 20000 against the 50000 invoice.
+      // Book + activate a PARTIAL match of 20000 against the 50000 invoice
+      // (only an active match counts toward the line's reconciled total).
       const partialAmount = 20000;
-      await reconciliationService.executeMatch([
+      await executeAndActivate([
         {
           bankTransactionId: txnId,
           voucherId,
@@ -1263,6 +1382,479 @@ describe('ReconciliationService (integration)', () => {
       );
       const match = proposals.find((p) => p.voucherId === voucherId);
       expect(match).toBeUndefined();
+    });
+
+    it('a DRAFT match does NOT settle the voucher (only active counts)', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-95002',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-05',
+          description: 'Staged payment',
+          amount: 50000,
+        },
+      ]);
+
+      // A draft match for the full amount is staged behind approval.
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: stmt.transactions[0].id,
+          voucher_id: voucherId,
+          match_type: 'exact',
+          amount_matched: 50000,
+          status: 'draft',
+          created_at: now,
+        })
+        .execute();
+
+      // The voucher is still fully outstanding — the draft settles nothing.
+      const remaining =
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        );
+      expect(remaining).toBe(50000);
+
+      // …and a fresh proposal for the same invoice still surfaces it.
+      const stmt2 = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment',
+          amount: 50000,
+          reference: 'INV-95002',
+        },
+      ]);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt2.statement.id,
+      );
+      expect(proposals.find((p) => p.voucherId === voucherId)).toBeDefined();
+    });
+  });
+
+  describe('staging behind approval', () => {
+    it('executeMatch stages a draft and creates a pending approval per match', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-8001',
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment',
+          amount: 50000,
+          reference: 'INV-8001',
+        },
+      ]);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const result = await reconciliationService.executeMatch(proposals);
+      expect(result.approvals).toHaveLength(result.records.length);
+
+      const row = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('id', '=', result.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('draft');
+      expect(row.signal).toBe('invoice_number');
+
+      // The draft settles nothing yet.
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(50000);
+
+      const approval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'reconciliation_match')
+        .where('object_id', '=', result.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(approval.status).toBe('pending');
+    });
+
+    it('activateMatch flips a draft to active and settles the voucher', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        40000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -40000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      const { fxVoucherId } = await reconciliationService.activateMatch(
+        staged.records[0].id,
+      );
+      expect(fxVoucherId).toBeNull(); // same currency — no FX
+
+      const row = await db
+        .selectFrom('reconciliation_match')
+        .select('status')
+        .where('id', '=', staged.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('active');
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(0);
+    });
+
+    it('discardDraftMatch deletes a draft but refuses an active match', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        40000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -40000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+      const matchId = staged.records[0].id;
+
+      await reconciliationService.discardDraftMatch(matchId);
+      const gone = await db
+        .selectFrom('reconciliation_match')
+        .select('id')
+        .where('id', '=', matchId)
+        .executeTakeFirst();
+      expect(gone).toBeUndefined();
+
+      // An active match cannot be discarded (use unmatch).
+      const staged2 = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+      await reconciliationService.activateMatch(staged2.records[0].id);
+      await expect(
+        reconciliationService.discardDraftMatch(staged2.records[0].id),
+      ).rejects.toThrow(/not draft|unmatch/i);
+    });
+  });
+
+  describe('autoStageStatement', () => {
+    it('auto-stages an unambiguous exact invoice-number match as a system draft, idempotently', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-9100',
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'pay',
+          amount: 50000,
+          reference: 'INV-9100',
+        },
+      ]);
+
+      const r1 = await reconciliationService.autoStageStatement(
+        stmt.statement.id,
+      );
+      expect(r1.staged).toBe(1);
+
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('voucher_id', '=', voucherId)
+        .execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe('draft');
+      expect(rows[0].signal).toBe('invoice_number');
+
+      const approval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'reconciliation_match')
+        .where('object_id', '=', rows[0].id)
+        .executeTakeFirstOrThrow();
+      expect(approval.status).toBe('pending');
+      expect(approval.requested_by).toBe('system');
+
+      // Idempotent: the line is already matched, so a re-run stages nothing.
+      const r2 = await reconciliationService.autoStageStatement(
+        stmt.statement.id,
+      );
+      expect(r2.staged).toBe(0);
+    });
+
+    it('does NOT auto-stage a weak amount_date-only match', async () => {
+      const customer = await seedCustomer();
+      await seedSalesInvoiceVoucher(
+        customer.id,
+        25000,
+        'INV-9200',
+        '2025-01-10',
+      );
+      // No reference on the bank line → no invoice_number signal; only the
+      // amount_date fallback fires, which the gate excludes.
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'unknown',
+          amount: 25000,
+        },
+      ]);
+
+      const r = await reconciliationService.autoStageStatement(
+        stmt.statement.id,
+      );
+      expect(r.staged).toBe(0);
+
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .execute();
+      expect(rows).toHaveLength(0);
+    });
+  });
+
+  describe('getMatchCandidates', () => {
+    it('returns direction-correct open candidates with the line remaining', async () => {
+      const supplier = await seedSupplier();
+      const apVoucher = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      // An AR invoice exists but must NOT show for an OUTGOING line.
+      const customer = await seedCustomer();
+      await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-CAND-1',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+
+      const result = await reconciliationService.getMatchCandidates(
+        stmt.statement.id,
+        stmt.transactions[0].id,
+      );
+
+      expect(result.lineRemaining).toBe(30000);
+      const cand = result.candidates.find((c) => c.voucherId === apVoucher);
+      expect(cand).toBeDefined();
+      expect(cand!.objectType).toBe('expense');
+      expect(cand!.voucherRemaining).toBe(30000);
+      expect(cand!.counterpartyName).toBe('Test Supplier Co');
+      // Outgoing line → AP only, never the AR invoice.
+      expect(result.candidates.every((c) => c.objectType === 'expense')).toBe(
+        true,
+      );
+    });
+
+    it('throws when the transaction is not on the given statement', async () => {
+      await expect(
+        reconciliationService.getMatchCandidates(99999, 88888),
+      ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe('listStatementMatches', () => {
+    it('lists the statement matches with their status and label', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 30000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      let rows = await reconciliationService.listStatementMatches(
+        stmt.statement.id,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe('draft');
+      expect(rows[0].objectLabel).toMatch(/Expense/);
+      expect(rows[0].counterpartyName).toBe('Test Supplier Co');
+
+      await reconciliationService.activateMatch(staged.records[0].id);
+      rows = await reconciliationService.listStatementMatches(
+        stmt.statement.id,
+      );
+      expect(rows[0].status).toBe('active');
+    });
+  });
+
+  describe('unmatch', () => {
+    it('removes a same-currency match and restores the outstanding balance', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Supplier payment',
+          amount: -30000,
+        },
+      ]);
+
+      const now = Math.floor(Date.now() / 1000);
+      const inserted = await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: stmt.transactions[0].id,
+          voucher_id: voucherId,
+          match_type: 'exact',
+          amount_matched: 30000,
+          status: 'active',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(0);
+
+      const result = await reconciliationService.unmatch(inserted.id);
+      expect(result.fxReversalVoucherId).toBeNull();
+      expect(result.voucherId).toBe(voucherId);
+
+      // Link gone, outstanding restored.
+      const stillThere = await db
+        .selectFrom('reconciliation_match')
+        .select('id')
+        .where('id', '=', inserted.id)
+        .executeTakeFirst();
+      expect(stillThere).toBeUndefined();
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(30000);
+    });
+
+    it('reverses the realized-FX voucher when one is linked', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+
+      // Stand in for a realized-FX voucher: a balanced base-currency voucher.
+      const fxVoucher = await postingService.postVoucher({
+        tax_point_date: '2025-01-12',
+        lines: [
+          {
+            account_code: 'FX_GAIN_LOSS',
+            amount: 500,
+            currency: 'EUR',
+            base_amount: 500,
+            fx_rate: 1.0,
+            is_debit: true,
+          },
+          {
+            account_code: 'BANK_EUR',
+            amount: 500,
+            currency: 'EUR',
+            base_amount: 500,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+        ],
+        reason: 'test FX',
+      });
+
+      const now = Math.floor(Date.now() / 1000);
+      const inserted = await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: stmt.transactions[0].id,
+          voucher_id: voucherId,
+          match_type: 'exact',
+          amount_matched: 30000,
+          status: 'active',
+          fx_voucher_id: fxVoucher.id,
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const result = await reconciliationService.unmatch(inserted.id);
+
+      expect(result.fxReversalVoucherId).not.toBeNull();
+      const reversal = await db
+        .selectFrom('voucher')
+        .select(['id', 'reverses_id'])
+        .where('reverses_id', '=', fxVoucher.id)
+        .executeTakeFirst();
+      expect(reversal).toBeDefined();
+      expect(result.fxReversalVoucherId).toBe(reversal!.id);
+    });
+
+    it('throws when the match does not exist', async () => {
+      await expect(reconciliationService.unmatch(999999)).rejects.toThrow(
+        /not found/i,
+      );
     });
   });
 

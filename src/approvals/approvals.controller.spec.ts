@@ -24,6 +24,7 @@ import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ApprovalsController } from './approvals.controller';
 import { ApprovalsService } from './approvals.service';
+import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
 
@@ -68,6 +69,13 @@ describe('ApprovalsController (integration)', () => {
         VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
+        {
+          provide: ReconciliationService,
+          useValue: {
+            activateMatch: jest.fn(),
+            discardDraftMatch: jest.fn(),
+          },
+        },
         ApprovalsService,
         {
           provide: CategoryService,

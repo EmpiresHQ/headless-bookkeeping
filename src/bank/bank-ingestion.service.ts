@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Optional, forwardRef } from '@nestjs/common';
 import { MastraService } from '../ai/mastra.service';
 import { BankStatementService } from './bank-statement.service';
 import { BankImportJobRepository } from './bank-import-job.repository';
 import { buildBankIngestionWorkflow } from './bank-ingestion.workflow';
+import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import type { CreateStatementInput } from './bank-statement.types';
 
 @Injectable()
@@ -11,6 +12,11 @@ export class BankIngestionService {
     private readonly mastra: MastraService,
     private readonly statements: BankStatementService,
     private readonly jobs: BankImportJobRepository,
+    // Optional so a bank-only test harness need not wire reconciliation; the
+    // forwardRef breaks the Bank↔Reconciliation module cycle.
+    @Optional()
+    @Inject(forwardRef(() => ReconciliationService))
+    private readonly reconciliation?: ReconciliationService,
   ) {}
 
   /** Overridable seam: run the Mastra workflow and return the validated input. */
@@ -49,6 +55,15 @@ export class BankIngestionService {
       const input = await this.runWorkflow(csvText, accountHint);
       const { statement } = await this.statements.createStatement(input);
       await this.jobs.markDone(jobId, statement.id);
+
+      // Best-effort: auto-stage unambiguous high-confidence matches as drafts
+      // (behind approvals). The import itself has already succeeded, so a
+      // failure here must never fail the job.
+      try {
+        await this.reconciliation?.autoStageStatement(statement.id);
+      } catch {
+        // Swallow — auto-staging is an optimisation, not part of the import.
+      }
     } catch (e) {
       await this.jobs.markFailed(
         jobId,

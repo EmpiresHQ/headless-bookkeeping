@@ -1,6 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { FXRealizedResult } from './fx-realized.service';
 
 /**
  * Types for the reconciliation matching engine.
@@ -14,8 +13,15 @@ import { FXRealizedResult } from './fx-realized.service';
 /** The type of a reconciliation match. */
 export type MatchType = 'exact' | 'partial' | 'prepayment';
 
-/** The signal that produced a match proposal — ordered by strength. */
-export type MatchSignal = 'invoice_number' | 'counterparty' | 'amount_date';
+/**
+ * The signal that produced a match proposal — ordered by strength.
+ * `manual` is operator-asserted (no engine signal); it carries no confidence.
+ */
+export type MatchSignal =
+  | 'invoice_number'
+  | 'counterparty'
+  | 'amount_date'
+  | 'manual';
 
 /** Confidence level derived from signal strength. */
 export type MatchConfidence = 'high' | 'medium' | 'low';
@@ -33,8 +39,8 @@ export interface MatchProposal {
   matchType: MatchType;
   /** Positive cents — the portion of the transaction amount this match covers. */
   amountMatched: number;
-  /** Confidence based on signal strength. */
-  confidence: MatchConfidence;
+  /** Confidence based on signal strength. Absent for manual matches. */
+  confidence?: MatchConfidence;
   /** Which signal produced this proposal. */
   signal: MatchSignal;
 }
@@ -59,6 +65,46 @@ export interface MatchProposalView extends MatchProposal {
   counterpartyName: string | null;
   /** The voucher's remaining unmatched balance in BASE currency cents. */
   voucherRemaining: number;
+}
+
+/**
+ * A manually-selectable settlement target for a bank line: an open business
+ * object (invoice / expense) described the same way a proposal is (ADR-0030 —
+ * `voucherId` is for the execute round-trip, never rendered).
+ */
+export interface MatchCandidateView {
+  voucherId: number;
+  objectType: MatchObjectType;
+  objectId: number | null;
+  objectLabel: string;
+  counterpartyName: string | null;
+  /** The voucher's remaining unmatched balance in BASE currency cents. */
+  voucherRemaining: number;
+}
+
+/**
+ * The candidate set for a manual match against one bank line, plus how much of
+ * the line is still unallocated (BASE cents) so the UI can default/clamp the
+ * amount. Direction is derived server-side from the line's sign.
+ */
+export interface MatchCandidatesResult {
+  bankTransactionId: number;
+  lineRemaining: number;
+  candidates: MatchCandidateView[];
+}
+
+/**
+ * A recorded match on a statement's lines, described for the operator (so the
+ * UI can show what a line is matched to and offer an unmatch). `voucherId` stays
+ * server-side (ADR-0030).
+ */
+export interface MatchRowView {
+  id: number;
+  bankTransactionId: number;
+  status: 'draft' | 'active';
+  amountMatched: number;
+  objectLabel: string;
+  counterpartyName: string | null;
 }
 
 /** Per-transaction reconciliation state for the operator UI. */
@@ -92,8 +138,8 @@ export const matchProposalSchema = z.object({
   voucherId: z.number().int(),
   matchType: z.enum(['exact', 'partial', 'prepayment']),
   amountMatched: z.number().int(),
-  confidence: z.enum(['high', 'medium', 'low']),
-  signal: z.enum(['invoice_number', 'counterparty', 'amount_date']),
+  confidence: z.enum(['high', 'medium', 'low']).optional(),
+  signal: z.enum(['invoice_number', 'counterparty', 'amount_date', 'manual']),
 });
 
 /** Input for executing matches. */
@@ -138,10 +184,11 @@ export interface CandidateVoucher {
 }
 
 /**
- * Result of executing a match: the persisted reconciliation_match records
- * plus any realized-FX vouchers posted for foreign-currency settlements.
+ * Result of staging matches: the persisted draft reconciliation_match records
+ * plus the pending approvals created for them. Nothing is posted to the ledger
+ * until each approval is approved (which activates the match).
  */
 export interface ExecuteMatchResult {
   records: ReconciliationMatchRecord[];
-  fxResults: FXRealizedResult[];
+  approvals: { id: number; matchId: number }[];
 }

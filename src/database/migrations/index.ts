@@ -36,6 +36,9 @@ import * as m036 from './036_add_supplier_invoice_number';
 import * as m037 from './037_add_org_declarant_identity';
 import * as m038 from './038_create_credit_note';
 import * as m039 from './039_add_document_pending_triage_result';
+import * as m040 from './040_add_reconciliation_match_status_signal';
+import * as m041 from './041_approval_object_type_reconciliation_match';
+import * as m042 from './042_add_reconciliation_match_fx_voucher_id';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -75,4 +78,7 @@ export const migrations: Record<string, Migration> = {
   '037_add_org_declarant_identity': m037,
   '038_create_credit_note': m038,
   '039_add_document_pending_triage_result': m039,
+  '040_add_reconciliation_match_status_signal': m040,
+  '041_approval_object_type_reconciliation_match': m041,
+  '042_add_reconciliation_match_fx_voucher_id': m042,
 };

@@ -158,6 +158,24 @@ export class OutstandingVoucherService {
   }
 
   /**
+   * ALL outstanding AR candidate Vouchers (no counterparty / date filter) — the
+   * pool a manual match picks from. AR only (incoming settlements).
+   */
+  async findAllArCandidates(): Promise<CandidateVoucher[]> {
+    const rows = await this.arBaseQuery().execute();
+    return this.toCandidates(rows, { isPrepayment: false });
+  }
+
+  /**
+   * ALL outstanding AP candidate Vouchers (no counterparty / date filter) — the
+   * pool a manual match picks from. AP only (outgoing settlements).
+   */
+  async findAllApCandidates(): Promise<CandidateVoucher[]> {
+    const rows = await this.apBaseQuery().execute();
+    return this.toCandidates(rows, { isPrepayment: false });
+  }
+
+  /**
    * The remaining unmatched balance for an AR/AP Voucher — the path used by the
    * AR/AP candidate reads above and by direct invoice-number lookups. AR/AP net
    * base (canonical maths in {@link LedgerBalanceService}, netted by
@@ -300,6 +318,10 @@ export class OutstandingVoucherService {
 
   /**
    * Total already-matched amount for a Voucher from reconciliation_match.
+   *
+   * Only `active` matches count: a `draft` match is staged behind an Approval
+   * and must NOT reduce the outstanding AR/AP until a human promotes it. This is
+   * the single seam that keeps a draft from silently settling a receivable.
    */
   private async getAlreadyMatched(
     voucherId: number,
@@ -309,6 +331,7 @@ export class OutstandingVoucherService {
       .selectFrom('reconciliation_match')
       .select((eb) => eb.fn.sum<number>('amount_matched').as('total'))
       .where('voucher_id', '=', voucherId)
+      .where('status', '=', 'active')
       .executeTakeFirst();
 
     return result?.total ?? 0;

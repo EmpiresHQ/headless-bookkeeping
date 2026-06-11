@@ -454,17 +454,22 @@ describe('Reconciliation E2E (full flow)', () => {
         voucherId: number;
         amountMatched: number;
       }>;
-      fxResults: Array<{ status: string; message?: string }>;
+      approvals: Array<{ id: number; matchId: number }>;
     };
     expect(matchResult.records).toHaveLength(1);
     expect(matchResult.records[0].bankTransactionId).toBe(txnAId);
     expect(matchResult.records[0].voucherId).toBe(arVoucherId);
     expect(matchResult.records[0].amountMatched).toBe(12500);
+    expect(matchResult.approvals).toHaveLength(1);
 
-    // FX result should be 'no_fx' since this is same-currency (EUR).
-    expect(matchResult.fxResults[0].status).toBe('no_fx');
+    // Approve the staged match → activates it (same currency → no FX voucher).
+    await request(app.getHttpServer())
+      .post(`/api/approvals/${matchResult.approvals[0].id}/approve`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({ approved_by: 'e2e' })
+      .expect(201);
 
-    // Verify reconciliation_match record in DB.
+    // Verify reconciliation_match record in DB is now active.
     const matchRecords = await db
       .selectFrom('reconciliation_match')
       .selectAll()
@@ -473,6 +478,7 @@ describe('Reconciliation E2E (full flow)', () => {
     expect(matchRecords).toHaveLength(1);
     expect(matchRecords[0].voucher_id).toBe(arVoucherId);
     expect(matchRecords[0].amount_matched).toBe(12500);
+    expect(matchRecords[0].status).toBe('active');
 
     // ── Step 7: Create prepayment for Transaction B ───────────────────
     const prepayRes = await request(app.getHttpServer())
@@ -883,19 +889,24 @@ describe('Reconciliation E2E (full flow)', () => {
 
     const matchResult = matchRes.body as {
       records: Array<{ id: number }>;
-      fxResults: Array<{ status: string; voucher?: { id: number } }>;
+      approvals: Array<{ id: number; matchId: number }>;
     };
 
-    // FX result should be 'posted' with a gain voucher.
-    expect(matchResult.fxResults[0].status).toBe('posted');
-    expect(matchResult.fxResults[0].voucher).toBeDefined();
+    // Approve the staged match → activates it and posts the realized-FX voucher.
+    await request(app.getHttpServer())
+      .post(`/api/approvals/${matchResult.approvals[0].id}/approve`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({ approved_by: 'e2e' })
+      .expect(201);
 
-    // Verify the FX voucher was posted: Dr BANK_EUR / Cr FX_GAIN_LOSS (gain).
-    const fxVoucher = matchResult.fxResults[0].voucher;
-    if (!fxVoucher) {
-      throw new Error('Expected FX result to include a posted voucher');
-    }
-    const fxVoucherId = fxVoucher.id;
+    // The realized-FX voucher id is recorded on the match.
+    const activated = await db
+      .selectFrom('reconciliation_match')
+      .select('fx_voucher_id')
+      .where('id', '=', matchResult.records[0].id)
+      .executeTakeFirstOrThrow();
+    expect(activated.fx_voucher_id).not.toBeNull();
+    const fxVoucherId = activated.fx_voucher_id!;
     const fxLines = await db
       .selectFrom('voucher_line')
       .innerJoin('account', 'account.id', 'voucher_line.account_id')

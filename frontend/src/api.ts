@@ -24,12 +24,22 @@ export interface Organization {
   created_at: number;
 }
 
+export interface EntityIdentifier {
+  id: number;
+  entity_id: number;
+  kind: 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias';
+  value: string;
+  confirmed: boolean;
+}
+
 export interface Entity {
   id: number;
   role: string;
   country: string;
   name: string;
   goods_vs_services: string | null;
+  // Present on a single-entity fetch (getEntity); absent on the list.
+  identifiers?: EntityIdentifier[];
 }
 
 export interface Expense {
@@ -242,6 +252,26 @@ export const correctInvoice = (id: number, req: CorrectionRequest) =>
   });
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
+
+// Single entity WITH its identifiers (the list endpoint omits them).
+export const getEntity = (id: number) =>
+  apiFetch<Entity>(`/api/entities/${id}`);
+
+// Add a matching alias (IBAN / card merchant descriptor) so reconciliation's
+// counterparty signal can resolve this entity. confirmed defaults to true so it
+// participates in matching immediately.
+export interface AddAliasInput {
+  kind: 'iban' | 'merchant_descriptor' | 'name_alias';
+  value: string;
+  confirmed?: boolean;
+}
+
+export const addEntityAlias = (id: number, input: AddAliasInput) =>
+  apiFetch<EntityIdentifier>(`/api/entities/${id}/aliases`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ confirmed: true, ...input }),
+  });
 
 export interface OnboardEntityInput {
   role: 'supplier' | 'customer';
@@ -581,6 +611,71 @@ export const executeMatches = (
           signal: p.signal,
         })),
       }),
+    },
+  );
+
+// Recorded matches (draft + active) on a statement's lines.
+export interface MatchRowView {
+  id: number;
+  bankTransactionId: number;
+  status: 'draft' | 'active';
+  amountMatched: number;
+  objectLabel: string;
+  counterpartyName: string | null;
+}
+
+export const getStatementMatches = (statementId: number) =>
+  apiFetch<MatchRowView[]>(`/api/bank-statements/${statementId}/matches`);
+
+// Undo a match (deletes the sub-ledger link; reverses any FX voucher server-side).
+export const unmatchMatch = (statementId: number, matchId: number) =>
+  apiFetch<unknown>(
+    `/api/bank-statements/${statementId}/matches/${matchId}`,
+    { method: 'DELETE' },
+  );
+
+// Manual-match candidates: open business objects a bank line can settle, plus
+// the line's remaining unallocated amount (BASE cents). voucherId is for the
+// execute round-trip only (ADR-0030).
+export interface MatchCandidateView {
+  voucherId: number;
+  objectType: 'sales_invoice' | 'expense' | 'prepayment';
+  objectId: number | null;
+  objectLabel: string;
+  counterpartyName: string | null;
+  voucherRemaining: number;
+}
+
+export interface MatchCandidatesResult {
+  bankTransactionId: number;
+  lineRemaining: number;
+  candidates: MatchCandidateView[];
+}
+
+export const getMatchCandidates = (
+  statementId: number,
+  bankTransactionId: number,
+) =>
+  apiFetch<MatchCandidatesResult>(
+    `/api/bank-statements/${statementId}/match-candidates?bankTransactionId=${bankTransactionId}`,
+  );
+
+// Stage a manual match (signal 'manual'); it becomes a draft pending approval.
+export const manualMatch = (
+  statementId: number,
+  m: {
+    bankTransactionId: number;
+    voucherId: number;
+    amountMatched: number;
+    matchType: 'exact' | 'partial';
+  },
+) =>
+  apiFetch<{ records: { id: number }[] }>(
+    `/api/bank-statements/${statementId}/match`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ matches: [{ ...m, signal: 'manual' }] }),
     },
   );
 

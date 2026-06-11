@@ -2,8 +2,10 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
+  Query,
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -13,6 +15,8 @@ import type {
   ExecuteMatchResult,
   MatchProposalView,
   ReconciliationStatusRow,
+  MatchCandidatesResult,
+  MatchRowView,
 } from './reconciliation.types';
 
 @ApiTags('reconciliation')
@@ -43,11 +47,44 @@ export class ReconciliationController {
     return this.service.executeMatch(input.matches);
   }
 
+  /**
+   * Open business objects a bank line can be manually matched against, plus the
+   * line's remaining unallocated amount. Direction is derived from the line.
+   */
+  @Get(':id/match-candidates')
+  async getMatchCandidates(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('bankTransactionId', ParseIntPipe) bankTransactionId: number,
+  ): Promise<MatchCandidatesResult> {
+    return this.service.getMatchCandidates(id, bankTransactionId);
+  }
+
+  /** The recorded matches (draft + active) on a statement's lines. */
+  @Get(':id/matches')
+  async listMatches(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<MatchRowView[]> {
+    return this.service.listStatementMatches(id);
+  }
+
   /** Per-transaction reconciliation state for a statement (UI badges + caps). */
   @Get(':id/reconciliation')
   async getStatementReconciliation(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ReconciliationStatusRow[]> {
     return this.service.getStatementReconciliation(id);
+  }
+
+  /**
+   * Undo a reconciliation match — deletes the sub-ledger link and reverses its
+   * realized-FX voucher (if any). The statement id scopes the route; the match
+   * id identifies the link.
+   */
+  @Delete(':id/matches/:matchId')
+  async unmatch(
+    @Param('id', ParseIntPipe) _id: number,
+    @Param('matchId', ParseIntPipe) matchId: number,
+  ) {
+    return this.service.unmatch(matchId);
   }
 }

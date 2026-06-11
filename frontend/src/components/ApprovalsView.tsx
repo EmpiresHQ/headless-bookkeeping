@@ -7,9 +7,22 @@ import {
 } from '../api';
 import { Table, type Column } from './Table';
 
+const objectLabel = (a: Approval): string => {
+  switch (a.object_type) {
+    case 'reconciliation_match':
+      return `Bank match #${a.object_id}`;
+    case 'sales_invoice':
+      return `Invoice #${a.object_id}`;
+    case 'expense':
+      return `Expense #${a.object_id}`;
+    default:
+      return `${a.object_type} #${a.object_id}`;
+  }
+};
+
 const columns: Column<Approval>[] = [
   { header: 'ID', cell: (a) => a.id },
-  { header: 'Object', cell: (a) => `${a.object_type} #${a.object_id}` },
+  { header: 'Object', cell: (a) => objectLabel(a) },
   { header: 'Requested by', cell: (a) => a.requested_by },
 ];
 

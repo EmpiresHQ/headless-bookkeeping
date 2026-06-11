@@ -8,11 +8,10 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, Transaction } from 'kysely';
 import { Database } from '../database/types';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
-import { BankTransactionRecord } from '../bank/bank-statement.types';
 import { EntitiesService } from '../entities/entities.service';
 import { CurrencyService } from '../currency/currency.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
-import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
+import { FXRealizedService } from './fx-realized.service';
 import {
   MatchProposal,
   MatchProposalView,
@@ -24,6 +23,9 @@ import {
   ExecuteMatchResult,
   ParsedTransactionTokens,
   CandidateVoucher,
+  MatchCandidateView,
+  MatchCandidatesResult,
+  MatchRowView,
 } from './reconciliation.types';
 
 /** Regex patterns for deterministic token extraction. */
@@ -37,6 +39,17 @@ const INVOICE_NUMBER_PATTERNS = [
 
 /** IBAN pattern: 2-letter country code + 2 check digits + up to 30 alphanumeric. */
 const IBAN_PATTERN = /[A-Z]{2}\d{2}[A-Z0-9]{4,30}/gi;
+
+/**
+ * Amount-and-date fallback tolerance. A candidate qualifies only if its
+ * remaining balance is within `max(FLOOR, PCT · bankBase)` of the bank line's
+ * base amount. The relative band absorbs card-settlement FX drift (a charge
+ * booked at the reference rate vs settled at the card rate); the absolute floor
+ * keeps tiny amounts from collapsing to a near-zero window. Without this, the
+ * fallback returned EVERY voucher in the date window regardless of amount.
+ */
+const AMOUNT_DATE_TOLERANCE_FLOOR = 100; // 1 unit of base currency, in cents
+const AMOUNT_DATE_TOLERANCE_PCT = 0.05;
 
 @Injectable()
 export class ReconciliationService {
@@ -128,6 +141,132 @@ export class ReconciliationService {
   }
 
   /**
+   * Auto-stage the unambiguous, high-confidence matches in a freshly imported
+   * statement as DRAFTs (behind approvals). Deliberately conservative: the
+   * machine NEVER posts to the ledger, it only proposes for human approval, and
+   * only when the match is beyond doubt. A line is auto-staged ONLY when it has
+   * EXACTLY ONE eligible candidate that is:
+   *   - signal `invoice_number` (a deterministic invoice-number hit),
+   *   - matchType `exact` (settles the line and the voucher to the cent),
+   *   - single-currency (auto-stage must never trigger a realized-FX voucher).
+   * Anything ambiguous (≥2 candidates), partial, FX, or weaker-signal is left
+   * for a human. Idempotent: lines already carrying a match are skipped, so a
+   * re-import or re-run never double-stages.
+   */
+  async autoStageStatement(
+    statementId: number,
+    requestedBy = 'system',
+  ): Promise<{ staged: number }> {
+    const txns = await this.transactionRepo.findByStatementId(statementId);
+    if (txns.length === 0) {
+      return { staged: 0 };
+    }
+
+    const proposals = await this.proposeMatches(statementId);
+
+    // Multi-currency lines are excluded — auto-stage must never post FX.
+    const multiCurrency = new Set(
+      txns
+        .filter(
+          (t) => t.source_currency !== null && t.source_currency !== t.currency,
+        )
+        .map((t) => t.id),
+    );
+
+    // Idempotency: skip lines that already carry a match (draft or active).
+    const existing = await this.db
+      .selectFrom('reconciliation_match')
+      .select('bank_transaction_id')
+      .where(
+        'bank_transaction_id',
+        'in',
+        txns.map((t) => t.id),
+      )
+      .execute();
+    const alreadyMatched = new Set(existing.map((e) => e.bank_transaction_id));
+
+    const eligible = proposals.filter(
+      (p) =>
+        p.signal === 'invoice_number' &&
+        p.matchType === 'exact' &&
+        !multiCurrency.has(p.bankTransactionId) &&
+        !alreadyMatched.has(p.bankTransactionId),
+    );
+
+    // Ambiguity guard: only a line with EXACTLY ONE eligible candidate.
+    const byLine = new Map<number, MatchProposalView[]>();
+    for (const p of eligible) {
+      const list = byLine.get(p.bankTransactionId) ?? [];
+      list.push(p);
+      byLine.set(p.bankTransactionId, list);
+    }
+    const unambiguous = [...byLine.values()]
+      .filter((list) => list.length === 1)
+      .map((list) => list[0]);
+
+    if (unambiguous.length === 0) {
+      return { staged: 0 };
+    }
+
+    await this.executeMatch(unambiguous, requestedBy);
+    return { staged: unambiguous.length };
+  }
+
+  /**
+   * The open business objects a bank line can be MANUALLY matched against, plus
+   * the line's still-unallocated base amount. Direction is derived from the
+   * line's sign (incoming → AR invoices, outgoing → AP expenses); prepayments
+   * are out of scope for v1 manual matching. The returned `voucherId` feeds the
+   * execute round-trip but is never rendered (ADR-0030).
+   */
+  async getMatchCandidates(
+    statementId: number,
+    bankTransactionId: number,
+  ): Promise<MatchCandidatesResult> {
+    const txn = await this.transactionRepo.findById(bankTransactionId);
+    if (!txn || txn.statement_id !== statementId) {
+      throw new NotFoundException(
+        `Bank transaction ${bankTransactionId} not found on statement ${statementId}`,
+      );
+    }
+
+    const isIncoming = txn.amount >= 0;
+    const candidates = isIncoming
+      ? await this.outstandingVouchers.findAllArCandidates()
+      : await this.outstandingVouchers.findAllApCandidates();
+
+    const views: MatchCandidateView[] = [];
+    for (const c of candidates) {
+      if (c.remainingBalance <= 0) continue;
+      const info = await this.resolveVoucherDisplay(c.voucherId, 'exact');
+      views.push({
+        voucherId: c.voucherId,
+        objectType: info.objectType,
+        objectId: info.objectId,
+        objectLabel: info.objectLabel,
+        counterpartyName: info.counterpartyName,
+        voucherRemaining: info.voucherRemaining,
+      });
+    }
+
+    // How much of the line is still unallocated (active matches only), BASE cents.
+    const { baseAmount } = await this.currencyService.toBase(
+      Math.abs(txn.amount),
+      txn.currency,
+      txn.transaction_date,
+    );
+    const matched = await this.db
+      .selectFrom('reconciliation_match')
+      .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    const lineRemaining = Math.max(0, baseAmount - Number(matched?.sum ?? 0));
+
+    return { bankTransactionId, lineRemaining, candidates: views };
+  }
+
+  /**
    * Per-transaction reconciliation state for a statement: the matchable base
    * amount, how much is already matched, and the remaining. Drives the operator
    * UI's badges and over-allocation cap. matched sums are BASE cents (matching
@@ -151,6 +290,8 @@ export class ReconciliationService {
         .selectFrom('reconciliation_match')
         .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
         .where('bank_transaction_id', '=', txn.id)
+        // Only ACTIVE matches reconcile a line; a draft is staged, not settled.
+        .where('status', '=', 'active')
         .executeTakeFirst();
       const matchedSum = Number(matched?.sum ?? 0);
       const remaining = Math.max(0, amountBase - matchedSum);
@@ -166,6 +307,52 @@ export class ReconciliationService {
       });
     }
     return rows;
+  }
+
+  /**
+   * The recorded matches on a statement's lines (draft + active), enriched for
+   * the operator UI so a line can show what it is matched to and offer an
+   * unmatch.
+   */
+  async listStatementMatches(statementId: number): Promise<MatchRowView[]> {
+    const txns = await this.transactionRepo.findByStatementId(statementId);
+    if (txns.length === 0) {
+      return [];
+    }
+    const rows = await this.db
+      .selectFrom('reconciliation_match')
+      .select([
+        'id',
+        'bank_transaction_id',
+        'voucher_id',
+        'match_type',
+        'amount_matched',
+        'status',
+      ])
+      .where(
+        'bank_transaction_id',
+        'in',
+        txns.map((t) => t.id),
+      )
+      .orderBy('id')
+      .execute();
+
+    const views: MatchRowView[] = [];
+    for (const r of rows) {
+      const info = await this.resolveVoucherDisplay(
+        r.voucher_id,
+        r.match_type as MatchType,
+      );
+      views.push({
+        id: r.id,
+        bankTransactionId: r.bank_transaction_id,
+        status: r.status as 'draft' | 'active',
+        amountMatched: r.amount_matched,
+        objectLabel: info.objectLabel,
+        counterpartyName: info.counterpartyName,
+      });
+    }
+    return views;
   }
 
   /**
@@ -414,10 +601,42 @@ export class ReconciliationService {
           }
         }
       }
-      // Outgoing / AP payments have no invoice-number key: the `expense` table
-      // has no `invoice_number` column, so the invoice-number signal applies to
-      // incoming / AR only. Outgoing payments rely on the counterparty and
-      // amount-and-date signals (handled in proposeMatchesForTransaction).
+      // Outgoing / AP: look up the supplier's invoice number on the expense
+      // (migration 036). Symmetric to the AR branch — the bank line must carry a
+      // token equal to `expense.supplier_invoice_number` (e.g. a transfer that
+      // references "INV-1756"). Card descriptors carry no such token, so those
+      // fall through to the counterparty / amount-date signals.
+      else {
+        const expense = await this.db
+          .selectFrom('expense')
+          .select(['id', 'voucher_id', 'gross_amount', 'currency'])
+          .where('supplier_invoice_number', '=', invNum)
+          .where('status', '=', 'posted')
+          .where('voucher_id', 'is not', null)
+          .executeTakeFirst();
+
+        if (expense && expense.voucher_id) {
+          const remaining =
+            await this.outstandingVouchers.getRemainingVoucherBalance(
+              expense.voucher_id,
+            );
+          if (remaining > 0) {
+            const amountMatched = Math.min(absBaseAmount, remaining);
+            const matchType: MatchType =
+              amountMatched === remaining && amountMatched === absBaseAmount
+                ? 'exact'
+                : 'partial';
+            proposals.push({
+              bankTransactionId,
+              voucherId: expense.voucher_id,
+              matchType,
+              amountMatched,
+              confidence: 'high',
+              signal: 'invoice_number',
+            });
+          }
+        }
+      }
     }
 
     return proposals;
@@ -554,7 +773,7 @@ export class ReconciliationService {
    * the proposal-building loops below see only positive-balance candidates.
    */
   private async getCandidateVouchersByAmountAndDate(
-    _absAmount: number,
+    absBaseAmount: number,
     transactionDate: string,
     isIncoming: boolean,
   ): Promise<CandidateVoucher[]> {
@@ -565,7 +784,19 @@ export class ReconciliationService {
       : await this.outstandingVouchers.findApCandidatesByAmountAndDate(
           transactionDate,
         );
-    return candidates.filter((c) => c.remainingBalance > 0);
+
+    // The SQL query filters by the ±7-day window only; apply the amount
+    // tolerance here, against the voucher's REMAINING balance (the figure this
+    // bank line could settle), not its original line amount.
+    const tolerance = Math.max(
+      AMOUNT_DATE_TOLERANCE_FLOOR,
+      Math.round(absBaseAmount * AMOUNT_DATE_TOLERANCE_PCT),
+    );
+    return candidates.filter(
+      (c) =>
+        c.remainingBalance > 0 &&
+        Math.abs(c.remainingBalance - absBaseAmount) <= tolerance,
+    );
   }
 
   /**
@@ -576,28 +807,21 @@ export class ReconciliationService {
   }
 
   /**
-   * Record one or more **ReconciliationMatch**es — the deep operation that
-   * enforces the "no over-match / no duplicate pair" invariant ATOMICALLY.
+   * Stage one or more **ReconciliationMatch**es as DRAFTs behind an Approval.
    *
-   * ── Why this is a transaction, not a loop of inserts ──────────────────────
-   * The invariant — a match must never push a Voucher's matched total past its
-   * outstanding **Receivable** / **Payable** (or undrawn prepayment), and the
-   * SAME `(bank line, Voucher)` pair must never be recorded twice — used to
-   * live only in the proposal phase's `min(amount, remaining)`. Execution
-   * trusted the proposal and inserted blind, so two concurrent or repeated
-   * executes could over-match (1500 against a 1000 invoice) and a stale
-   * proposal could duplicate a pair. We now re-read the outstanding balance and
-   * INSERT inside ONE transaction, so the check the INSERT relies on cannot go
-   * stale between read and write. N:M stays legitimate: many Vouchers per bank
-   * line and many bank lines per Voucher are all distinct pairs the
-   * UNIQUE(bank_transaction_id, voucher_id) index (migration 031) admits — only
-   * the same pair and over-matching are rejected.
-   *
-   * Realized-FX posting happens AFTER the matching transaction commits: it
-   * posts its own balanced **Voucher** through PostingService and is not part
-   * of the match-recording invariant.
+   * Nothing settles or posts to the ledger here. Each match is recorded with
+   * `status = 'draft'` (so it does NOT reduce any outstanding **Receivable** /
+   * **Payable**) and a pending Approval of type `reconciliation_match` is created
+   * alongside it. The settlement — promoting the draft to `active` and posting
+   * any realized-FX voucher — happens only when a human approves (see
+   * {@link activateMatch}). The UNIQUE(bank_transaction_id, voucher_id) index
+   * still rejects a duplicate pair; the over-match and bank-line over-allocation
+   * invariants are enforced at ACTIVATION, against the `active` set.
    */
-  async executeMatch(proposals: MatchProposal[]): Promise<ExecuteMatchResult> {
+  async executeMatch(
+    proposals: MatchProposal[],
+    requestedBy = 'operator',
+  ): Promise<ExecuteMatchResult> {
     if (proposals.length === 0) {
       throw new BadRequestException('No match proposals provided');
     }
@@ -610,48 +834,20 @@ export class ReconciliationService {
       }
     }
 
-    // Validate all proposals reference existing transactions and vouchers.
+    // Validate all proposals reference existing transactions.
     const txnIds = [...new Set(proposals.map((p) => p.bankTransactionId))];
-
-    const txnMap = new Map<number, BankTransactionRecord>();
     for (const txnId of txnIds) {
       const txn = await this.transactionRepo.findById(txnId);
       if (!txn) {
         throw new NotFoundException(`Bank transaction ${txnId} not found`);
       }
-      txnMap.set(txnId, txn);
-    }
-
-    // Precompute each bank line's matchable BASE amount BEFORE the atomic
-    // block. The line amount is immutable, and currency conversion cannot run
-    // inside the better-sqlite3 sync transaction. amount_matched is BASE cents,
-    // so the per-line cap must be base too (bank_transaction.amount is the
-    // txn's OWN currency).
-    const txnBaseAmount = new Map<number, number>();
-    for (const txnId of txnIds) {
-      const txn = txnMap.get(txnId);
-      if (!txn) {
-        throw new NotFoundException(`Bank transaction ${txnId} not found`);
-      }
-      const { baseAmount } = await this.currencyService.toBase(
-        Math.abs(txn.amount),
-        txn.currency,
-        txn.transaction_date,
-      );
-      txnBaseAmount.set(txnId, baseAmount);
     }
 
     const now = Math.floor(Date.now() / 1000);
 
-    // ── Atomic check-then-insert ──────────────────────────────────────────
-    // The remaining-balance read and the INSERT run on the SAME transaction
-    // connection, so the outstanding balance the rejection relies on cannot
-    // change between read and write. Proposals in this batch that target the
-    // same Voucher accumulate against ONE outstanding figure, so a batch can no
-    // more over-match than two separate executes can.
-    const records = await this.db.transaction().execute(async (trx) => {
-      const batchMatchedByVoucher = new Map<number, number>();
-      const inserted: ReconciliationMatchRecord[] = [];
+    return this.db.transaction().execute(async (trx) => {
+      const records: ReconciliationMatchRecord[] = [];
+      const approvals: { id: number; matchId: number }[] = [];
 
       for (const proposal of proposals) {
         const voucher = await trx
@@ -665,88 +861,219 @@ export class ReconciliationService {
           );
         }
 
-        // Re-read the outstanding AR/AP (or prepayment) balance INSIDE the
-        // transaction, then subtract anything already matched earlier in THIS
-        // batch against the same Voucher.
-        const persistedRemaining =
-          proposal.matchType === 'prepayment'
-            ? await this.outstandingVouchers.getRemainingPrepaymentBalance(
-                proposal.voucherId,
-                trx,
-              )
-            : await this.outstandingVouchers.getRemainingVoucherBalance(
-                proposal.voucherId,
-                trx,
-              );
-        const alreadyInBatch =
-          batchMatchedByVoucher.get(proposal.voucherId) ?? 0;
-        const available = persistedRemaining - alreadyInBatch;
-
-        if (proposal.amountMatched > available) {
-          throw new ConflictException(
-            `Match of ${proposal.amountMatched} would over-match voucher ` +
-              `${proposal.voucherId}: only ${available} outstanding remains`,
-          );
-        }
-
-        // ── Bank-line over-allocation guard (symmetric to the voucher guard) ──
-        // SUM(amount_matched) for this bank line — everything matched so far
-        // (persisted + this batch's own inserts, both visible to this re-read on
-        // the SAME transaction connection) plus the current proposal — must not
-        // exceed the line's BASE amount. The re-read already accounts for prior
-        // batch inserts, so no separate batch tally is added here (that would
-        // double-count). batchMatchedByTxn is kept purely diagnostic of this
-        // batch's own contribution.
-        const persistedTxnMatched = await trx
-          .selectFrom('reconciliation_match')
-          .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
-          .where('bank_transaction_id', '=', proposal.bankTransactionId)
-          .executeTakeFirst();
-        const txnMatchedSoFar = Number(persistedTxnMatched?.sum ?? 0);
-        const lineCap = txnBaseAmount.get(proposal.bankTransactionId) ?? 0;
-        if (txnMatchedSoFar + proposal.amountMatched > lineCap) {
-          throw new ConflictException(
-            `Match of ${proposal.amountMatched} would over-allocate bank line ` +
-              `${proposal.bankTransactionId}: only ` +
-              `${lineCap - txnMatchedSoFar} of the line remains`,
-          );
-        }
-
+        // Draft link — settles nothing until activated through its approval.
         const row = await this.insertMatchRow(trx, proposal, now);
-        batchMatchedByVoucher.set(
-          proposal.voucherId,
-          alreadyInBatch + proposal.amountMatched,
-        );
-        inserted.push(row);
+
+        const approval = await trx
+          .insertInto('approval')
+          .values({
+            object_type: 'reconciliation_match',
+            object_id: row.id,
+            status: 'pending',
+            requested_by: requestedBy,
+            created_at: now,
+            resolved_at: null,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+
+        records.push(row);
+        approvals.push({ id: approval.id, matchId: row.id });
       }
 
-      return inserted;
+      return { records, approvals };
+    });
+  }
+
+  /**
+   * Promote a DRAFT match to `active` — the approval seam where the settlement
+   * actually takes effect. Re-checks the over-match and bank-line
+   * over-allocation invariants against the `active` set INSIDE a transaction (a
+   * still-draft match is excluded from the read, so it is checked against what
+   * is already settled), flips the status, then posts the realized-FX voucher
+   * for a multi-currency settlement and records its id on the match. Idempotent:
+   * an already-active match is a no-op.
+   */
+  async activateMatch(
+    matchId: number,
+  ): Promise<{ matchId: number; fxVoucherId: number | null }> {
+    const match = await this.db
+      .selectFrom('reconciliation_match')
+      .select([
+        'id',
+        'bank_transaction_id',
+        'voucher_id',
+        'match_type',
+        'amount_matched',
+        'status',
+        'fx_voucher_id',
+      ])
+      .where('id', '=', matchId)
+      .executeTakeFirst();
+    if (!match) {
+      throw new NotFoundException(`Reconciliation match ${matchId} not found`);
+    }
+    if (match.status === 'active') {
+      return { matchId, fxVoucherId: match.fx_voucher_id };
+    }
+
+    const txn = await this.transactionRepo.findById(match.bank_transaction_id);
+    if (!txn) {
+      throw new NotFoundException(
+        `Bank transaction ${match.bank_transaction_id} not found`,
+      );
+    }
+
+    // Bank-line cap in BASE cents — currency conversion cannot run inside the
+    // better-sqlite3 sync transaction, so resolve it up front.
+    const { baseAmount: lineCap } = await this.currencyService.toBase(
+      Math.abs(txn.amount),
+      txn.currency,
+      txn.transaction_date,
+    );
+
+    await this.db.transaction().execute(async (trx) => {
+      const remaining =
+        match.match_type === 'prepayment'
+          ? await this.outstandingVouchers.getRemainingPrepaymentBalance(
+              match.voucher_id,
+              trx,
+            )
+          : await this.outstandingVouchers.getRemainingVoucherBalance(
+              match.voucher_id,
+              trx,
+            );
+      if (match.amount_matched > remaining) {
+        throw new ConflictException(
+          `Match of ${match.amount_matched} would over-match voucher ` +
+            `${match.voucher_id}: only ${remaining} outstanding remains`,
+        );
+      }
+
+      const txnActive = await trx
+        .selectFrom('reconciliation_match')
+        .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+        .where('bank_transaction_id', '=', match.bank_transaction_id)
+        .where('status', '=', 'active')
+        .executeTakeFirst();
+      const activeSoFar = Number(txnActive?.sum ?? 0);
+      if (activeSoFar + match.amount_matched > lineCap) {
+        throw new ConflictException(
+          `Match of ${match.amount_matched} would over-allocate bank line ` +
+            `${match.bank_transaction_id}: only ${lineCap - activeSoFar} of ` +
+            `the line remains`,
+        );
+      }
+
+      const flipped = await trx
+        .updateTable('reconciliation_match')
+        .set({ status: 'active' })
+        .where('id', '=', matchId)
+        .where('status', '=', 'draft')
+        .executeTakeFirst();
+      if (Number(flipped.numUpdatedRows) === 0) {
+        throw new ConflictException(
+          `Reconciliation match ${matchId} is no longer draft`,
+        );
+      }
     });
 
-    // ── Realized FX (post-commit; posts its own Voucher) ──────────────────
-    const fxResults: FXRealizedResult[] = [];
-    for (const proposal of proposals) {
-      const txn = txnMap.get(proposal.bankTransactionId);
-      if (
-        txn &&
-        txn.source_currency !== null &&
-        txn.source_currency !== txn.currency
-      ) {
-        const fxResult = await this.fxRealizedService.computeAndPost(
-          proposal.voucherId,
-          proposal.bankTransactionId,
-          proposal.amountMatched,
-        );
-        fxResults.push(fxResult);
-      } else {
-        fxResults.push({
-          status: 'no_fx',
-          message: 'Same currency — no realized FX',
-        });
+    // ── Realized FX (post-commit; posts its own voucher) ──────────────────
+    let fxVoucherId: number | null = null;
+    if (txn.source_currency !== null && txn.source_currency !== txn.currency) {
+      const fxResult = await this.fxRealizedService.computeAndPost(
+        match.voucher_id,
+        match.bank_transaction_id,
+        match.amount_matched,
+      );
+      if (fxResult.status === 'posted' && fxResult.voucher) {
+        fxVoucherId = fxResult.voucher.id;
+        await this.db
+          .updateTable('reconciliation_match')
+          .set({ fx_voucher_id: fxVoucherId })
+          .where('id', '=', matchId)
+          .execute();
       }
     }
 
-    return { records, fxResults };
+    return { matchId, fxVoucherId };
+  }
+
+  /**
+   * Discard a DRAFT match (its approval was rejected). Ledger-neutral — a draft
+   * never settled anything nor posted FX, so it is simply deleted. Refuses an
+   * `active` match (use {@link unmatch}, which also reverses any FX voucher).
+   */
+  async discardDraftMatch(matchId: number): Promise<void> {
+    const match = await this.db
+      .selectFrom('reconciliation_match')
+      .select(['id', 'status'])
+      .where('id', '=', matchId)
+      .executeTakeFirst();
+    if (!match) {
+      throw new NotFoundException(`Reconciliation match ${matchId} not found`);
+    }
+    if (match.status !== 'draft') {
+      throw new ConflictException(
+        `Reconciliation match ${matchId} is ${match.status}, not draft; ` +
+          `use unmatch to reverse an active match`,
+      );
+    }
+    await this.db
+      .deleteFrom('reconciliation_match')
+      .where('id', '=', matchId)
+      .where('status', '=', 'draft')
+      .execute();
+  }
+
+  /**
+   * Undo a reconciliation match.
+   *
+   * The match link lives in a sub-ledger, NOT the general ledger, so removing it
+   * is ledger-neutral: the voucher's outstanding AR/AP recomputes from the
+   * remaining `active` matches. The one GL artifact a match can leave behind is a
+   * realized-FX voucher (multi-currency settlement); that IS immutable, so it is
+   * reversed via {@link FXRealizedService} (mirror voucher + `reverses_id`,
+   * redirected out of a locked period) BEFORE the link is deleted. A `draft`
+   * match never reached the ledger nor posted FX, so undoing it is a plain
+   * delete.
+   */
+  async unmatch(matchId: number): Promise<{
+    matchId: number;
+    bankTransactionId: number;
+    voucherId: number;
+    fxReversalVoucherId: number | null;
+  }> {
+    const match = await this.db
+      .selectFrom('reconciliation_match')
+      .select(['id', 'bank_transaction_id', 'voucher_id', 'fx_voucher_id'])
+      .where('id', '=', matchId)
+      .executeTakeFirst();
+    if (!match) {
+      throw new NotFoundException(`Reconciliation match ${matchId} not found`);
+    }
+
+    // Reverse the realized-FX voucher first (if any). If this throws (e.g. no
+    // open period to receive a locked-period redirect) the link is left intact.
+    let fxReversalVoucherId: number | null = null;
+    if (match.fx_voucher_id !== null) {
+      const reversal = await this.fxRealizedService.reverseFxVoucher(
+        match.fx_voucher_id,
+      );
+      fxReversalVoucherId = reversal.id;
+    }
+
+    await this.db
+      .deleteFrom('reconciliation_match')
+      .where('id', '=', matchId)
+      .execute();
+
+    return {
+      matchId,
+      bankTransactionId: match.bank_transaction_id,
+      voucherId: match.voucher_id,
+      fxReversalVoucherId,
+    };
   }
 
   /**
@@ -778,6 +1105,9 @@ export class ReconciliationService {
           voucher_id: proposal.voucherId,
           match_type: proposal.matchType,
           amount_matched: proposal.amountMatched,
+          // Staged behind an approval — settles nothing until activated.
+          status: 'draft',
+          signal: proposal.signal,
           created_at: now,
         })
         .returningAll()

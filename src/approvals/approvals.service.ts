@@ -12,6 +12,7 @@ import { StatusTransitionService } from '../ledger/status/status-transition.serv
 import { ValidationError } from '../ledger/posting/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
+import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import {
   Approval,
   ApprovalStatus,
@@ -39,6 +40,7 @@ export class ApprovalsService {
     private readonly statusTransition: StatusTransitionService,
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
+    private readonly reconciliationService: ReconciliationService,
   ) {}
 
   // ── Create ──────────────────────────────────────────────────────
@@ -51,6 +53,15 @@ export class ApprovalsService {
    * atomically (matching the posting pipeline's claimForApproval).
    */
   async createApproval(dto: CreateApprovalDto): Promise<Approval> {
+    // Reconciliation-match approvals are staged by the reconciliation engine
+    // (executeMatch), never created through this generic endpoint — they have no
+    // draft→pending business-object transition.
+    if (dto.object_type === 'reconciliation_match') {
+      throw new BadRequestException(
+        'reconciliation_match approvals are created by the reconciliation engine, not here',
+      );
+    }
+    const objectType = dto.object_type;
     const now = Math.floor(Date.now() / 1000);
 
     // Check for existing pending approval for the same object
@@ -74,7 +85,7 @@ export class ApprovalsService {
       // hold-for-approval claim.
       await this.statusTransition.transition(
         trx,
-        dto.object_type,
+        objectType,
         dto.object_id,
         'draft',
         'pending',
@@ -131,6 +142,14 @@ export class ApprovalsService {
       );
     }
 
+    // Reconciliation matches are not voucher-generating business objects:
+    // approving one ACTIVATES the sub-ledger link (and posts any realized-FX
+    // voucher) via the reconciliation engine, rather than re-deriving and
+    // posting a draft voucher from the object.
+    if (approval.object_type === 'reconciliation_match') {
+      return this.approveReconciliationMatch(approval, approvedBy);
+    }
+
     // Generate the draft voucher BEFORE the transaction to avoid deadlock
     // (generateDraftVoucher uses this.db, not the transaction handle).
     const draft = await this.generateDraftVoucher(
@@ -166,7 +185,7 @@ export class ApprovalsService {
     const voucher = await this.db.transaction().execute(async (trx) => {
       await this.statusTransition.transition(
         trx,
-        approval.object_type,
+        approval.object_type as 'expense' | 'sales_invoice',
         approval.object_id,
         'pending',
         'posted',
@@ -221,6 +240,23 @@ export class ApprovalsService {
       );
     }
 
+    // Rejecting a reconciliation match discards the draft link (ledger-neutral)
+    // instead of returning a business object to draft.
+    if (approval.object_type === 'reconciliation_match') {
+      await this.reconciliationService.discardDraftMatch(approval.object_id);
+      const now = Math.floor(Date.now() / 1000);
+      await this.db
+        .updateTable('approval')
+        .set({
+          status: 'rejected',
+          rejected_reason: rejectedReason,
+          resolved_at: now,
+        })
+        .where('id', '=', id)
+        .execute();
+      return this.getApprovalById(id);
+    }
+
     const now = Math.floor(Date.now() / 1000);
 
     await this.db.transaction().execute(async (trx) => {
@@ -229,7 +265,7 @@ export class ApprovalsService {
       // flip and atomically claims only from `pending`.
       await this.statusTransition.transition(
         trx,
-        approval.object_type,
+        approval.object_type as 'expense' | 'sales_invoice',
         approval.object_id,
         'pending',
         'draft',
@@ -317,6 +353,29 @@ export class ApprovalsService {
 
   // ── Private helpers ─────────────────────────────────────────────
 
+  /**
+   * Approve a reconciliation-match approval: delegate the activation (draft →
+   * active + realized-FX posting) to the reconciliation engine, then mark the
+   * approval approved. The `voucher` in the result is null — a match has no
+   * business-object voucher (any FX voucher is incidental and recorded on the
+   * match itself).
+   */
+  private async approveReconciliationMatch(
+    approval: Approval,
+    approvedBy: string,
+  ): Promise<{ approval: Approval; voucher: PostedVoucher | null }> {
+    await this.reconciliationService.activateMatch(approval.object_id);
+
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .updateTable('approval')
+      .set({ status: 'approved', approved_by: approvedBy, resolved_at: now })
+      .where('id', '=', approval.id)
+      .execute();
+
+    return { approval: await this.getApprovalById(approval.id), voucher: null };
+  }
+
   private async getApprovalById(id: number): Promise<Approval> {
     const row = await this.db
       .selectFrom('approval')
@@ -350,6 +409,11 @@ export class ApprovalsService {
   private async getPostedVoucherForApproval(
     approval: Approval,
   ): Promise<PostedVoucher | null> {
+    // A reconciliation match has no business-object voucher.
+    if (approval.object_type === 'reconciliation_match') {
+      return null;
+    }
+
     // Look up the business object to find its voucher_id
     const row = await this.db
       .selectFrom(approval.object_type)
@@ -395,7 +459,14 @@ export class ApprovalsService {
   }
 
   private label(type: ApprovalObjectType): string {
-    return type === 'expense' ? 'Expense' : 'SalesInvoice';
+    switch (type) {
+      case 'expense':
+        return 'Expense';
+      case 'sales_invoice':
+        return 'SalesInvoice';
+      case 'reconciliation_match':
+        return 'ReconciliationMatch';
+    }
   }
 
   private mapRow(row: {

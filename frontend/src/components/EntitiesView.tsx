@@ -4,13 +4,18 @@ import {
   onboardEntity,
   updateEntity,
   deleteEntity,
+  getEntity,
+  addEntityAlias,
   type Entity,
+  type EntityIdentifier,
   type OnboardEntityInput,
+  type AddAliasInput,
 } from '../api';
 import { Table, type Column } from './Table';
 
 const ROLES = ['supplier', 'customer'] as const;
 const GOODS = ['goods', 'services', 'unknown'] as const;
+const ALIAS_KINDS = ['iban', 'merchant_descriptor', 'name_alias'] as const;
 
 const blankForm: OnboardEntityInput = {
   role: 'supplier',
@@ -33,6 +38,13 @@ export function EntitiesView() {
   const [form, setForm] = useState<OnboardEntityInput>(blankForm);
   const [editId, setEditId] = useState<number | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
+  // Identifier (alias) management — which row's panel is open + its data.
+  const [aliasFor, setAliasFor] = useState<number | null>(null);
+  const [aliasList, setAliasList] = useState<EntityIdentifier[]>([]);
+  const [aliasDraft, setAliasDraft] = useState<AddAliasInput>({
+    kind: 'merchant_descriptor',
+    value: '',
+  });
 
   const load = () =>
     getEntities()
@@ -95,6 +107,30 @@ export function EntitiesView() {
     run(async () => {
       if (!window.confirm(`Delete entity #${e.id} "${e.name}"?`)) return;
       await deleteEntity(e.id);
+    });
+
+  const openAliases = (id: number) => {
+    if (aliasFor === id) {
+      setAliasFor(null);
+      return;
+    }
+    setAliasDraft({ kind: 'merchant_descriptor', value: '' });
+    void getEntity(id)
+      .then((ent) => {
+        setAliasList(ent.identifiers ?? []);
+        setAliasFor(id);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  };
+
+  const onAddAlias = (id: number) =>
+    run(async () => {
+      const value = aliasDraft.value.trim();
+      if (!value) return;
+      await addEntityAlias(id, { ...aliasDraft, value });
+      const ent = await getEntity(id);
+      setAliasList(ent.identifiers ?? []);
+      setAliasDraft({ kind: 'merchant_descriptor', value: '' });
     });
 
   const addValid =
@@ -293,6 +329,14 @@ export function EntitiesView() {
                   <button
                     type="button"
                     disabled={busy}
+                    onClick={() => openAliases(e.id)}
+                    className="text-gray-700 hover:underline disabled:opacity-50"
+                  >
+                    Aliases
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
                     onClick={() => void onDelete(e)}
                     className="text-red-600 hover:underline disabled:opacity-50"
                   >
@@ -304,6 +348,84 @@ export function EntitiesView() {
           )}
         />
       </section>
+
+      {aliasFor !== null && (
+        <section className="space-y-2">
+          <h2 className="font-medium text-gray-700">
+            Aliases —{' '}
+            {entities.find((e) => e.id === aliasFor)?.name ??
+              `entity #${aliasFor}`}
+          </h2>
+          <p className="text-xs text-gray-500">
+            An IBAN or card merchant descriptor lets reconciliation recognise
+            this counterparty on bank lines.
+          </p>
+          {aliasList.length === 0 ? (
+            <p className="text-xs text-gray-400">No aliases yet.</p>
+          ) : (
+            <ul className="text-xs space-y-1">
+              {aliasList.map((a) => (
+                <li key={a.id}>
+                  <span className="text-gray-500">{a.kind}:</span>{' '}
+                  <span className="font-mono">{a.value}</span>
+                  {!a.confirmed && (
+                    <span className="text-amber-600"> (unconfirmed)</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Kind</span>
+              <select
+                aria-label="Alias kind"
+                value={aliasDraft.kind}
+                onChange={(ev) =>
+                  setAliasDraft({
+                    ...aliasDraft,
+                    kind: ev.target.value as AddAliasInput['kind'],
+                  })
+                }
+                className="border rounded px-2 py-1"
+              >
+                {ALIAS_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Value</span>
+              <input
+                aria-label="Alias value"
+                value={aliasDraft.value}
+                onChange={(ev) =>
+                  setAliasDraft({ ...aliasDraft, value: ev.target.value })
+                }
+                placeholder="e.g. ANOMALY"
+                className="border rounded px-2 py-1"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || aliasDraft.value.trim() === ''}
+              onClick={() => void onAddAlias(aliasFor)}
+              className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
+            >
+              Add alias
+            </button>
+            <button
+              type="button"
+              onClick={() => setAliasFor(null)}
+              className="text-gray-600 hover:underline"
+            >
+              Close
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

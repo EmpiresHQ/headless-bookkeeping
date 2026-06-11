@@ -8,6 +8,10 @@ import {
   proposeMatches,
   getReconciliationStatus,
   executeMatches,
+  getMatchCandidates,
+  manualMatch,
+  getStatementMatches,
+  unmatchMatch,
   createPrepayment,
   markPersonal,
   fmtCents,
@@ -15,6 +19,8 @@ import {
   type BankStatement,
   type BankTransaction,
   type MatchProposalView,
+  type MatchCandidateView,
+  type MatchRowView,
   type ReconciliationStatusRow,
 } from '../api';
 import { Table, type Column } from './Table';
@@ -47,10 +53,19 @@ export function BankView() {
   // Reconciliation: per-txn status (badges + over-allocation cap), proposed
   // matches grouped by bank txn, and the set of selected proposal keys.
   const [recon, setRecon] = useState<ReconciliationStatusRow[]>([]);
+  const [matches, setMatches] = useState<MatchRowView[]>([]);
   const [proposals, setProposals] = useState<MatchProposalView[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   // Inline, transient note for a blocked selection (over-allocation cap).
   const [capNote, setCapNote] = useState<string | null>(null);
+
+  // Manual match: which line's picker is open, its candidate pool + line cap,
+  // and the chosen voucher + amount (major units in the input).
+  const [manualFor, setManualFor] = useState<number | null>(null);
+  const [candidates, setCandidates] = useState<MatchCandidateView[]>([]);
+  const [lineRemaining, setLineRemaining] = useState(0);
+  const [manualVoucherId, setManualVoucherId] = useState<number | null>(null);
+  const [manualAmount, setManualAmount] = useState('');
 
   const stopPolling = () => {
     if (timerRef.current !== null) {
@@ -89,9 +104,31 @@ export function BankView() {
 
   const loadRecon = async (id: number) => {
     try {
-      const rows = await getReconciliationStatus(id);
+      const [rows, ms] = await Promise.all([
+        getReconciliationStatus(id),
+        getStatementMatches(id),
+      ]);
       if (!mountedRef.current) return;
       setRecon(rows);
+      setMatches(ms);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const matchesFor = (txnId: number): MatchRowView[] =>
+    matches.filter((m) => m.bankTransactionId === txnId);
+
+  const onUnmatch = async (matchId: number) => {
+    if (selected === null) return;
+    if (!window.confirm(`Undo match #${matchId}?`)) return;
+    setError(null);
+    try {
+      await unmatchMatch(selected, matchId);
+      if (!mountedRef.current) return;
+      await loadRecon(selected);
+      await viewTransactions(selected);
     } catch (e) {
       if (!mountedRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
@@ -102,6 +139,8 @@ export function BankView() {
     setSelected(id);
     setTxns([]);
     setProposals([]);
+    setMatches([]);
+    setManualFor(null);
     setSelectedKeys(new Set());
     setCapNote(null);
     try {
@@ -216,6 +255,65 @@ export function BankView() {
     }
   };
 
+  const openManual = async (txnId: number) => {
+    if (selected === null) return;
+    if (manualFor === txnId) {
+      setManualFor(null);
+      return;
+    }
+    setError(null);
+    try {
+      const res = await getMatchCandidates(selected, txnId);
+      if (!mountedRef.current) return;
+      setCandidates(res.candidates);
+      setLineRemaining(res.lineRemaining);
+      setManualVoucherId(null);
+      setManualAmount('');
+      setManualFor(txnId);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const selectCandidate = (c: MatchCandidateView) => {
+    setManualVoucherId(c.voucherId);
+    const cents = Math.min(lineRemaining, c.voucherRemaining);
+    setManualAmount((cents / 100).toFixed(2));
+  };
+
+  const onManualBook = async (txnId: number) => {
+    if (selected === null || manualVoucherId === null) return;
+    const cand = candidates.find((c) => c.voucherId === manualVoucherId);
+    if (!cand) return;
+    const cents = Math.round(Number.parseFloat(manualAmount) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) {
+      setError('Enter a valid match amount.');
+      return;
+    }
+    const matchType =
+      cents === cand.voucherRemaining && cents === lineRemaining
+        ? 'exact'
+        : 'partial';
+    setError(null);
+    try {
+      await manualMatch(selected, {
+        bankTransactionId: txnId,
+        voucherId: manualVoucherId,
+        amountMatched: cents,
+        matchType,
+      });
+      if (!mountedRef.current) return;
+      setManualFor(null);
+      setManualVoucherId(null);
+      await loadRecon(selected);
+      await viewTransactions(selected);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   // Stop polling and block late state updates when the component unmounts.
   useEffect(() => {
     return () => {
@@ -283,107 +381,6 @@ export function BankView() {
     { header: 'ID', cell: (s) => s.id },
     { header: 'Period', cell: (s) => `${s.start_date} → ${s.end_date}` },
     { header: 'Uploaded', cell: (s) => fmtDate(s.uploaded_at) },
-  ];
-
-  const transactionColumns: Column<BankTransaction>[] = [
-    { header: 'Date', cell: (t) => <span className="whitespace-nowrap">{t.transaction_date}</span> },
-    {
-      header: 'Amount',
-      cell: (t) => (
-        <div className={`text-right sm:text-left tabular-nums ${t.amount < 0 ? 'text-red-600' : 'text-green-700'}`}>
-          {fmtCents(t.amount)}
-        </div>
-      ),
-    },
-    { header: 'Cur', cell: (t) => t.currency },
-    {
-      header: 'Description',
-      cell: (t) => {
-        const status = reconFor(t.id);
-        const txnProposals = proposals.filter((p) => p.bankTransactionId === t.id);
-        const isOpen = status?.reconStatus === 'open';
-        return (
-          <div>
-            <div>{t.description ?? '—'}</div>
-            {txnProposals.length > 0 && (
-              <ul className="mt-1 space-y-1">
-                {txnProposals.map((p) => (
-                  <li key={proposalKey(p)} className="flex items-center gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      aria-label={`Select match ${p.objectLabel}`}
-                      checked={selectedKeys.has(proposalKey(p))}
-                      onChange={() => toggleProposal(p)}
-                    />
-                    <span
-                      className={`rounded px-1.5 py-0.5 ${
-                        p.confidence === 'high'
-                          ? 'bg-green-100 text-green-800'
-                          : p.confidence === 'medium'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {p.confidence}
-                    </span>
-                    <span className="font-medium">{p.objectLabel}</span>
-                    <span className="text-gray-600">{p.counterpartyName ?? '—'}</span>
-                    <span className="tabular-nums">{fmtCents(p.amountMatched)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {isOpen && (
-              <div className="mt-1 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void onPrepayment(t.id)}
-                  className="text-blue-600 hover:underline text-xs"
-                >
-                  Prepayment
-                </button>
-                <button
-                  type="button"
-                  disabled={t.amount > 0}
-                  onClick={() => void onPersonal(t.id)}
-                  className="text-blue-600 hover:underline text-xs disabled:opacity-50 disabled:no-underline disabled:text-gray-400"
-                >
-                  Personal
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    { header: 'Counterparty', cell: (t) => t.counterparty_iban ?? t.counterparty_descriptor ?? '—' },
-    { header: 'Ref', cell: (t) => t.reference ?? '—' },
-    { header: 'Status', cell: (t) => t.status },
-    {
-      header: 'Match',
-      cell: (t) => {
-        const status = reconFor(t.id);
-        return (
-          <div className="whitespace-nowrap">
-            {status === undefined ? (
-              <span className="text-gray-400">—</span>
-            ) : status.reconStatus === 'matched' ? (
-              <span className="rounded px-1.5 py-0.5 bg-green-100 text-green-800 text-xs">
-                Matched
-              </span>
-            ) : status.reconStatus === 'partial' ? (
-              <span className="rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs">
-                {fmtCents(status.remaining)} left
-              </span>
-            ) : (
-              <span className="rounded px-1.5 py-0.5 bg-gray-100 text-gray-700 text-xs">
-                Open
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
   ];
 
   return (
@@ -491,7 +488,250 @@ export function BankView() {
           {txns.length === 0 ? (
             <p className="text-sm text-gray-500">No transactions.</p>
           ) : (
-            <Table columns={transactionColumns} rows={txns} />
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left">
+                  <th className="px-3 py-2 font-medium text-gray-700">Date</th>
+                  <th className="px-3 py-2 font-medium text-gray-700 text-right">
+                    Amount
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Cur</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Description
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Counterparty
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Ref</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Status</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">Match</th>
+                </tr>
+              </thead>
+              <tbody>
+                {txns.map((t) => {
+                  const status = reconFor(t.id);
+                  const txnProposals = proposals.filter(
+                    (p) => p.bankTransactionId === t.id,
+                  );
+                  const isOpen = status?.reconStatus === 'open';
+                  return (
+                    <tr key={t.id} className="border-b align-top">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {t.transaction_date}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right tabular-nums ${
+                          t.amount < 0 ? 'text-red-600' : 'text-green-700'
+                        }`}
+                      >
+                        {fmtCents(t.amount)}
+                      </td>
+                      <td className="px-3 py-2">{t.currency}</td>
+                      <td className="px-3 py-2">
+                        {/* Description, plus this line's proposals and the
+                            open-line disposition actions. */}
+                        <div>{t.description ?? '—'}</div>
+                        {txnProposals.length > 0 && (
+                          <ul className="mt-1 space-y-1">
+                            {txnProposals.map((p) => (
+                              <li
+                                key={proposalKey(p)}
+                                className="flex items-center gap-2 text-xs"
+                              >
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select match ${p.objectLabel}`}
+                                  checked={selectedKeys.has(proposalKey(p))}
+                                  onChange={() => toggleProposal(p)}
+                                />
+                                <span
+                                  className={`rounded px-1.5 py-0.5 ${
+                                    p.confidence === 'high'
+                                      ? 'bg-green-100 text-green-800'
+                                      : p.confidence === 'medium'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-gray-100 text-gray-700'
+                                  }`}
+                                >
+                                  {p.confidence}
+                                </span>
+                                <span className="font-medium">
+                                  {p.objectLabel}
+                                </span>
+                                <span className="text-gray-600">
+                                  {p.counterpartyName ?? '—'}
+                                </span>
+                                <span className="tabular-nums">
+                                  {fmtCents(p.amountMatched)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {matchesFor(t.id).length > 0 && (
+                          <ul className="mt-1 space-y-1">
+                            {matchesFor(t.id).map((m) => (
+                              <li
+                                key={m.id}
+                                className="flex items-center gap-2 text-xs"
+                              >
+                                <span
+                                  className={`rounded px-1.5 py-0.5 ${
+                                    m.status === 'active'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {m.status === 'active' ? 'matched' : 'pending'}
+                                </span>
+                                <span className="font-medium">
+                                  {m.objectLabel}
+                                </span>
+                                <span className="text-gray-600">
+                                  {m.counterpartyName ?? '—'}
+                                </span>
+                                <span className="tabular-nums">
+                                  {fmtCents(m.amountMatched)}
+                                </span>
+                                {m.status === 'active' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void onUnmatch(m.id)}
+                                    className="text-red-600 hover:underline"
+                                  >
+                                    Unmatch
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {isOpen && (
+                          <div className="mt-1 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void openManual(t.id)}
+                              className="text-blue-600 hover:underline text-xs"
+                            >
+                              Match manually
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void onPrepayment(t.id)}
+                              className="text-blue-600 hover:underline text-xs"
+                            >
+                              Prepayment
+                            </button>
+                            <button
+                              type="button"
+                              disabled={t.amount > 0}
+                              onClick={() => void onPersonal(t.id)}
+                              className="text-blue-600 hover:underline text-xs disabled:opacity-50 disabled:no-underline disabled:text-gray-400"
+                            >
+                              Personal
+                            </button>
+                          </div>
+                        )}
+                        {manualFor === t.id && (
+                          <div className="mt-2 rounded border bg-gray-50 p-2 text-xs space-y-2">
+                            <p className="text-gray-500">
+                              Pick an open{' '}
+                              {t.amount < 0 ? 'expense' : 'invoice'} to settle —
+                              staged for approval, not posted yet.
+                            </p>
+                            {candidates.length === 0 ? (
+                              <p className="text-gray-400">
+                                No open candidates for this direction.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {candidates.map((c) => (
+                                  <li key={c.voucherId}>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="radio"
+                                        name={`manual-${t.id}`}
+                                        aria-label={`Candidate ${c.objectLabel}`}
+                                        checked={manualVoucherId === c.voucherId}
+                                        onChange={() => selectCandidate(c)}
+                                      />
+                                      <span className="font-medium">
+                                        {c.objectLabel}
+                                      </span>
+                                      <span className="text-gray-600">
+                                        {c.counterpartyName ?? '—'}
+                                      </span>
+                                      <span className="tabular-nums text-gray-500">
+                                        {fmtCents(c.voucherRemaining)} open
+                                      </span>
+                                    </label>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {manualVoucherId !== null && (
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1">
+                                  <span className="text-gray-500">Amount</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    aria-label={`Manual amount ${t.id}`}
+                                    value={manualAmount}
+                                    onChange={(e) =>
+                                      setManualAmount(e.target.value)
+                                    }
+                                    className="border rounded px-2 py-1 w-24 tabular-nums"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => void onManualBook(t.id)}
+                                  className="bg-black text-white rounded px-2 py-1"
+                                >
+                                  Book match
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setManualFor(null)}
+                                  className="text-gray-600 hover:underline"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {t.counterparty_iban ??
+                          t.counterparty_descriptor ??
+                          '—'}
+                      </td>
+                      <td className="px-3 py-2">{t.reference ?? '—'}</td>
+                      <td className="px-3 py-2">{t.status}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {status === undefined ? (
+                          <span className="text-gray-400">—</span>
+                        ) : status.reconStatus === 'matched' ? (
+                          <span className="rounded px-1.5 py-0.5 bg-green-100 text-green-800 text-xs">
+                            Matched
+                          </span>
+                        ) : status.reconStatus === 'partial' ? (
+                          <span className="rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs">
+                            {fmtCents(status.remaining)} left
+                          </span>
+                        ) : (
+                          <span className="rounded px-1.5 py-0.5 bg-gray-100 text-gray-700 text-xs">
+                            Open
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </section>
       )}

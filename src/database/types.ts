@@ -275,6 +275,16 @@ export interface ReconciliationMatchTable {
   match_type: string;
   // Positive cents — the matched portion of this link.
   amount_matched: number;
+  // 'draft' | 'active' — a draft match is staged behind an Approval and does
+  // NOT count toward a voucher's settled total until promoted to active.
+  // DB-defaulted to 'active' (optional on insert; behaviour-preserving).
+  status: Generated<string>;
+  // Provenance: 'invoice_number' | 'counterparty' | 'amount_date' | 'manual'.
+  // Informational only — never part of the settlement maths. Null for legacy rows.
+  signal: Generated<string | null>;
+  // The realized-FX voucher this match posted (multi-currency only), so an
+  // unmatch can reverse it. Null for same-currency matches.
+  fx_voucher_id: Generated<number | null>;
   created_at: number;
 }
 
@@ -282,7 +292,7 @@ export interface ReconciliationMatchTable {
 // States: pending → approved | rejected | superseded (ADR-0012).
 export interface ApprovalTable {
   id: Generated<number>;
-  // 'expense' | 'sales_invoice'
+  // 'expense' | 'sales_invoice' | 'reconciliation_match'
   object_type: string;
   object_id: number;
   // 'pending' | 'approved' | 'rejected' | 'superseded'
