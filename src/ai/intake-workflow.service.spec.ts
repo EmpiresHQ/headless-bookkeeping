@@ -16,6 +16,7 @@ import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
+import { EntitiesService } from '../entities/entities.service';
 import { TriageResult } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
@@ -36,6 +37,10 @@ describe('IntakeWorkflowService', () => {
   const mockProposeDraft = {
     proposeDraft: jest.fn(),
     findExistingDraft: jest.fn(),
+  };
+
+  const mockEntities = {
+    findById: jest.fn(),
   };
 
   const sampleTriageResult = (
@@ -94,6 +99,7 @@ describe('IntakeWorkflowService', () => {
         { provide: OcrService, useValue: mockOcrService },
         { provide: Pass2AgentService, useValue: mockPass2Agent },
         { provide: ProposeDraftService, useValue: mockProposeDraft },
+        { provide: EntitiesService, useValue: mockEntities },
         AuditFindingsService,
         PolicyService,
         DocumentsService,
@@ -111,6 +117,7 @@ describe('IntakeWorkflowService', () => {
     mockPass2Agent.classify.mockReset();
     mockProposeDraft.proposeDraft.mockReset();
     mockProposeDraft.findExistingDraft.mockReset();
+    mockEntities.findById.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -603,6 +610,105 @@ describe('IntakeWorkflowService', () => {
       await service.process(docId);
       const afterSecond = await documentsService.getById(docId);
       expect(afterSecond.status).toBe('needs_triage');
+    });
+  });
+
+  describe('resolveSupplier', () => {
+    const triage = sampleTriageResult({
+      supplier_proposal: { mode: 'create', create_name: 'Acme', create_country: 'EE' },
+    });
+
+    // Seed a needs_triage document with a stored proposal and an open finding.
+    async function seedNeedsTriageWithProposal(): Promise<number> {
+      const docId = await seedDocument();
+      await documentsService.setStatus(docId, 'needs_triage');
+      await documentsService.setPendingTriageResult(docId, triage);
+      await auditFindingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'supplier unresolved',
+        referenced_object_type: 'document',
+        referenced_object_id: docId,
+      });
+      return docId;
+    }
+
+    it('resolves: proposes draft, triages, resolves finding, clears proposal', async () => {
+      const docId = await seedNeedsTriageWithProposal();
+      mockEntities.findById.mockResolvedValue({ id: 3, role: 'supplier' });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 55,
+        pipelineResult: {},
+      });
+      const resolveSpy = jest.spyOn(auditFindingsService, 'resolve');
+      const clearSpy = jest.spyOn(documentsService, 'setPendingTriageResult');
+
+      const result = await service.resolveSupplier(docId, 3);
+
+      // proposeDraft called with the stored triage, doc id, and explicit supplier id.
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(triage, docId, 3);
+      // Document moved to triaged.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
+      // Open finding resolved.
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding).toBeUndefined();
+      expect(resolveSpy).toHaveBeenCalled();
+      // Pending proposal cleared.
+      expect(clearSpy).toHaveBeenCalledWith(docId, null);
+      expect(await documentsService.getPendingTriageResult(docId)).toBeNull();
+      // Result is the draft outcome.
+      expect(result).toEqual({
+        status: 'draft_proposed',
+        draft: { outcome: 'draft', expenseId: 55, pipelineResult: {} },
+      });
+
+      resolveSpy.mockRestore();
+      clearSpy.mockRestore();
+    });
+
+    it('rejects a document that is not awaiting triage', async () => {
+      const docId = await seedDocument(); // status 'pending'
+      await expect(service.resolveSupplier(docId, 3)).rejects.toThrow(
+        /not awaiting triage/,
+      );
+    });
+
+    it('rejects when there is no pending proposal', async () => {
+      const docId = await seedDocument();
+      await documentsService.setStatus(docId, 'needs_triage');
+      // No pending proposal stored.
+      await expect(service.resolveSupplier(docId, 3)).rejects.toThrow(
+        /no pending supplier proposal/,
+      );
+    });
+
+    it('rejects a non-supplier entity', async () => {
+      const docId = await seedNeedsTriageWithProposal();
+      mockEntities.findById.mockResolvedValue({ id: 3, role: 'customer' });
+      await expect(service.resolveSupplier(docId, 3)).rejects.toThrow(
+        /not a supplier/,
+      );
+    });
+
+    it('is idempotent: replays the existing draft if already triaged', async () => {
+      const docId = await seedDocument();
+      await documentsService.setStatus(docId, 'triaged');
+      mockProposeDraft.findExistingDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 55,
+        pipelineResult: { replayed: true },
+      });
+
+      const result = await service.resolveSupplier(docId, 3);
+
+      expect(result.status).toBe('draft_proposed');
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
   });
 });
