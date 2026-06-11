@@ -291,6 +291,30 @@ export const completeDocument = (id: number) =>
     method: 'POST',
   });
 
+export interface PendingDraft {
+  document_id: number;
+  reason: string;
+  supplier_proposal: { create_name: string; create_country: string };
+  draft: {
+    category: string;
+    gross_amount: number;
+    vat_amount: number;
+    currency: string;
+    tax_point_date: string;
+    supplier_invoice_number: string | null;
+  };
+}
+
+export const getPendingDraft = (id: number) =>
+  apiFetch<PendingDraft>(`/api/documents/${id}/pending-draft`);
+
+export const resolveSupplier = (id: number, supplierEntityId: number) =>
+  apiFetch<TriageOutcome>(`/api/documents/${id}/resolve-supplier`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ supplier_entity_id: supplierEntityId }),
+  });
+
 // ── Approvals (HITL) ──────────────────────────────────────────────────────
 export interface Approval {
   id: number;
