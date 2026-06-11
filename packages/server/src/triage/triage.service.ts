@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectKysely } from 'nestjs-kysely';
+import { Kysely } from 'kysely';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
-import { TriageOutcome, DocumentDebug, PendingDraft } from './types';
+import { Database } from '../database/types';
+import { TriageOutcome, DocumentDebug, PendingDraft, NeedsTriageItem, classifyReasonType } from './types';
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.
@@ -18,7 +21,32 @@ export class TriageService {
   constructor(
     private readonly workflow: IntakeWorkflowService,
     private readonly documents: DocumentsService,
+    @InjectKysely() private readonly db: Kysely<Database>,
   ) {}
+
+  async getNeedsTriageItems(): Promise<NeedsTriageItem[]> {
+    const rows = await this.db
+      .selectFrom('document as d')
+      .innerJoin('audit_finding as af', (join) =>
+        join
+          .onRef('af.referenced_object_id', '=', 'd.id')
+          .on('af.referenced_object_type', '=', 'document')
+          .on('af.finding_type', '=', 'needs_triage')
+          .on('af.status', '=', 'open'),
+      )
+      .where('d.status', '=', 'needs_triage')
+      .select(['d.id', 'd.filename', 'd.created_at', 'af.description as reason'])
+      .orderBy('d.created_at', 'desc')
+      .execute();
+
+    return rows.map((r) => ({
+      id: r.id,
+      filename: r.filename,
+      created_at: r.created_at,
+      reason: r.reason,
+      reason_type: classifyReasonType(r.reason),
+    }));
+  }
 
   async route(documentId: number): Promise<TriageOutcome> {
     const doc = await this.documents.getById(documentId);

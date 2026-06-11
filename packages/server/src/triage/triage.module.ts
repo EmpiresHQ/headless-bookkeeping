@@ -6,11 +6,13 @@ import { CurrencyModule } from '../currency/currency.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { OcrModule } from './ocr.module';
 import { AiModule } from '../ai/ai.module';
+import { DatabaseModule } from '../database/database.module';
 import { TriageService } from './triage.service';
 import { TriageController } from './triage.controller';
 
 @Module({
   imports: [
+    DatabaseModule,
     DocumentsModule,
     ExpensesModule,
     SalesInvoicesModule,

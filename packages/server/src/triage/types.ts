@@ -155,3 +155,32 @@ export interface DocumentDebug {
     | { ok: false; category: string; detail: string }
     | null;
 }
+
+export type TriageReasonType =
+  | 'supplier_unresolved'
+  | 'low_confidence'
+  | 'category_unresolved'
+  | 'ocr_failed'
+  | 'unimplemented'
+  | 'unknown';
+
+export interface NeedsTriageItem {
+  id: number;
+  filename: string;
+  created_at: number;
+  reason: string;
+  reason_type: TriageReasonType;
+}
+
+export function classifyReasonType(description: string): TriageReasonType {
+  if (description.includes('supplier')) return 'supplier_unresolved';
+  if (description.includes('confidence') || description.includes('below threshold')) return 'low_confidence';
+  if (description.includes('unknown category')) return 'category_unresolved';
+  if (
+    description.includes('OCR') ||
+    description.includes('transcription') ||
+    description.includes('classification failed')
+  ) return 'ocr_failed';
+  if (description.includes('not yet implemented')) return 'unimplemented';
+  return 'unknown';
+}

@@ -15,6 +15,7 @@ import {
   DocumentDebug,
   PendingDraft,
   ResolveSupplierDto,
+  NeedsTriageItem,
 } from './types';
 
 @ApiTags('triage')
@@ -33,6 +34,12 @@ export class TriageController {
   @Get('api/documents/:id/debug')
   async debugDocument(@Param('id') id: string): Promise<DocumentDebug> {
     return this.triageService.debug(Number(id));
+  }
+
+  @Get('api/triage/needs-triage')
+  async getNeedsTriageItems(): Promise<{ items: NeedsTriageItem[] }> {
+    const items = await this.triageService.getNeedsTriageItems();
+    return { items };
   }
 
   @Get('api/triage/pending')
