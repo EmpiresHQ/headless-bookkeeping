@@ -47,12 +47,16 @@ export function TriageManualForm({
   const [invoiceNumber, setInvoiceNumber] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
     Promise.all([
       getDocumentDebug(documentId),
       getCategories(),
       getEntities(),
     ])
       .then(([debug, cats, entities]) => {
+        if (cancelled) return;
         setCategories(cats);
         const supplierList = entities.filter((e) => e.role === 'supplier');
         setSuppliers(supplierList);
@@ -67,13 +71,17 @@ export function TriageManualForm({
           setCategory(r.category || '');
           setVatMarking(r.document_vat_marking ?? '');
         }
-
-        setLoading(false);
       })
       .catch((e: unknown) => {
+        if (cancelled) return;
         setError(e instanceof Error ? e.message : String(e));
-        setLoading(false);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [documentId]);
 
   const handleSubmit = async () => {
@@ -126,14 +134,14 @@ export function TriageManualForm({
     );
   }
 
-  if (error && loading) {
+  if (!loading && error && suppliers.length === 0 && categories.length === 0) {
     return (
-      <div className="border rounded p-3 text-sm">
-        <p className="text-red-600">{error}</p>
+      <div className="p-3 space-y-2 text-sm bg-red-50 border-t border-red-200">
+        <p className="text-red-700 text-xs">Failed to load form: {error}</p>
         <button
           type="button"
-          className="text-gray-600 hover:underline"
           onClick={onCancel}
+          className="text-gray-600 hover:underline text-sm"
         >
           Close
         </button>
