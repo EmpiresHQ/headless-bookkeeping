@@ -59,6 +59,9 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
             create_name: 'Acme OÜ',
             create_country: 'EE',
             create_registration_key: 'EE100200300',
+            create_email: null,
+            create_phone: null,
+            create_address: null,
           },
           document_type: 'invoice',
           currency: 'EUR',
@@ -114,8 +117,10 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     // Recovery premise: make the kernel's triage-time auto-onboard fail ONCE so
     // the document genuinely parks on supplier-unresolved. Subsequent onboard
     // calls (the operator's explicit POST /api/entities) hit the real service.
+    // NOTE: PR #119 (multi-key dedup) replaced `onboard` with `onboardWithIdentifiers`
+    // in the supplier resolution path — mock the new method name.
     jest
-      .spyOn(app.get(EntitiesService), 'onboard')
+      .spyOn(app.get(EntitiesService), 'onboardWithIdentifiers')
       .mockImplementationOnce(() =>
         Promise.reject(new Error('simulated transient onboard failure')),
       );
@@ -189,6 +194,9 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
       create_name: 'Acme OÜ',
       create_country: 'EE',
       create_registration_key: 'EE100200300',
+      create_email: null,
+      create_phone: null,
+      create_address: null,
     });
     expect(draft.draft.gross_amount).toBe(1525);
     expect(draft.draft.vat_amount).toBe(285);
