@@ -23,14 +23,26 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ApprovalsService } from './approvals.service';
+import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 describe('ApprovalsService (integration)', () => {
   let db: Kysely<Database>;
   let service: ApprovalsService;
   let expensesService: ExpensesService;
+  let reconciliationStub: {
+    activateMatch: jest.Mock;
+    discardDraftMatch: jest.Mock;
+  };
 
   beforeEach(async () => {
+    reconciliationStub = {
+      activateMatch: jest.fn().mockResolvedValue({
+        matchId: 1,
+        fxVoucherId: null,
+      }),
+      discardDraftMatch: jest.fn().mockResolvedValue(undefined),
+    };
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
@@ -65,6 +77,7 @@ describe('ApprovalsService (integration)', () => {
         VoucherProjectionService,
         ExpensesService,
         SalesInvoicesService,
+        { provide: ReconciliationService, useValue: reconciliationStub },
         ApprovalsService,
       ],
     }).compile();
@@ -445,6 +458,56 @@ describe('ApprovalsService (integration)', () => {
       const pending = await service.listPendingApprovals();
       expect(pending).toHaveLength(1);
       expect(pending[0].status).toBe('pending');
+    });
+  });
+
+  describe('reconciliation_match approvals', () => {
+    async function seedMatchApproval(objectId: number) {
+      const now = Math.floor(Date.now() / 1000);
+      return db
+        .insertInto('approval')
+        .values({
+          object_type: 'reconciliation_match',
+          object_id: objectId,
+          status: 'pending',
+          requested_by: 'operator',
+          created_at: now,
+          resolved_at: null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    }
+
+    it('approve delegates to activateMatch and marks the approval approved', async () => {
+      const approval = await seedMatchApproval(4242);
+
+      const result = await service.approveApproval(approval.id, 'alice');
+
+      expect(reconciliationStub.activateMatch).toHaveBeenCalledWith(4242);
+      expect(result.approval.status).toBe('approved');
+      expect(result.approval.approved_by).toBe('alice');
+      expect(result.voucher).toBeNull();
+    });
+
+    it('reject delegates to discardDraftMatch and marks the approval rejected', async () => {
+      const approval = await seedMatchApproval(4243);
+
+      const result = await service.rejectApproval(approval.id, 'wrong match');
+
+      expect(reconciliationStub.discardDraftMatch).toHaveBeenCalledWith(4243);
+      expect(result.status).toBe('rejected');
+      expect(result.rejected_reason).toBe('wrong match');
+    });
+
+    it('rejects creating a reconciliation_match approval through the generic endpoint', async () => {
+      await expect(
+        service.createApproval({
+          object_type: 'reconciliation_match',
+          object_id: 1,
+          requested_by: 'operator',
+          reason: 'nope',
+        }),
+      ).rejects.toThrow(/reconciliation engine/i);
     });
   });
 });

@@ -10,9 +10,15 @@ import { z } from 'zod';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'superseded';
 
 /**
- * Business object types that can be held for approval.
+ * Object types that can be held for approval. `reconciliation_match` is staged
+ * by the reconciliation engine (draft match) and is NOT a voucher-generating
+ * business object — approving it activates the sub-ledger link (and posts the
+ * realized-FX voucher for a multi-currency settlement).
  */
-export type ApprovalObjectType = 'expense' | 'sales_invoice';
+export type ApprovalObjectType =
+  | 'expense'
+  | 'sales_invoice'
+  | 'reconciliation_match';
 
 /**
  * A persisted approval record — a Rules-valid submission held by Policy
@@ -35,7 +41,7 @@ export interface Approval {
  * DTO for creating a new approval.
  */
 export const createApprovalSchema = z.object({
-  object_type: z.enum(['expense', 'sales_invoice']),
+  object_type: z.enum(['expense', 'sales_invoice', 'reconciliation_match']),
   object_id: z.number().int(),
   requested_by: z.string(),
   reason: z.string(),

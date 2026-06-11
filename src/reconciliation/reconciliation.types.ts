@@ -1,6 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { FXRealizedResult } from './fx-realized.service';
 
 /**
  * Types for the reconciliation matching engine.
@@ -145,10 +144,11 @@ export interface CandidateVoucher {
 }
 
 /**
- * Result of executing a match: the persisted reconciliation_match records
- * plus any realized-FX vouchers posted for foreign-currency settlements.
+ * Result of staging matches: the persisted draft reconciliation_match records
+ * plus the pending approvals created for them. Nothing is posted to the ledger
+ * until each approval is approved (which activates the match).
  */
 export interface ExecuteMatchResult {
   records: ReconciliationMatchRecord[];
-  fxResults: FXRealizedResult[];
+  approvals: { id: number; matchId: number }[];
 }

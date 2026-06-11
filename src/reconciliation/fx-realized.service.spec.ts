@@ -658,8 +658,8 @@ describe('FXRealizedService (integration)', () => {
     });
   });
 
-  describe('auto-post via executeMatch', () => {
-    it('auto-posts FX voucher when a foreign-currency match is executed', async () => {
+  describe('FX on match activation', () => {
+    it('posts the FX voucher when a foreign-currency match is activated', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedForeignCurrencySalesInvoiceVoucher(
         customer.id,
@@ -689,27 +689,32 @@ describe('FXRealizedService (integration)', () => {
         },
       ]);
 
-      // Match record created.
+      // Staging creates the draft but posts no FX.
       expect(result.records.length).toBe(1);
 
-      // FX voucher auto-posted.
-      expect(result.fxResults.length).toBe(1);
-      const fxResult = result.fxResults[0];
-      expect(fxResult.status).toBe('posted');
-      expect(fxResult.voucher).toBeDefined();
-      expect(fxResult.voucher!.lines.length).toBe(2);
+      // FX posts when the match is ACTIVATED (the approval seam).
+      const { fxVoucherId } = await reconciliationService.activateMatch(
+        result.records[0].id,
+      );
+      expect(fxVoucherId).not.toBeNull();
 
-      // Verify the FX voucher was persisted.
-      const fxVoucherId = fxResult.voucher!.id;
       const persistedLines = await db
         .selectFrom('voucher_line')
         .selectAll()
-        .where('voucher_id', '=', fxVoucherId)
+        .where('voucher_id', '=', fxVoucherId!)
         .execute();
       expect(persistedLines.length).toBe(2);
+
+      // The FX voucher is recorded on the match so an unmatch can reverse it.
+      const row = await db
+        .selectFrom('reconciliation_match')
+        .select('fx_voucher_id')
+        .where('id', '=', result.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(row.fx_voucher_id).toBe(fxVoucherId);
     });
 
-    it('returns no_fx in fxResults for same-currency matches', async () => {
+    it('posts no FX for a same-currency match', async () => {
       const customer = await seedCustomer();
 
       // EUR-denominated voucher (same as base currency).
@@ -820,8 +825,10 @@ describe('FXRealizedService (integration)', () => {
       ]);
 
       expect(result.records.length).toBe(1);
-      expect(result.fxResults.length).toBe(1);
-      expect(result.fxResults[0].status).toBe('no_fx');
+      const { fxVoucherId } = await reconciliationService.activateMatch(
+        result.records[0].id,
+      );
+      expect(fxVoucherId).toBeNull();
     });
   });
 });

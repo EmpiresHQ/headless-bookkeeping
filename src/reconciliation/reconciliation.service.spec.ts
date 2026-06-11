@@ -22,6 +22,7 @@ import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
+import { MatchProposal } from './reconciliation.types';
 
 /**
  * Integration test for the reconciliation matching engine.
@@ -320,6 +321,16 @@ describe('ReconciliationService (integration)', () => {
         counterparty_descriptor: t.counterparty_descriptor ?? null,
       })),
     });
+  }
+
+  // Stage proposals as draft matches, then activate each — the full
+  // stage → approve flow as a single test convenience.
+  async function executeAndActivate(proposals: MatchProposal[]) {
+    const result = await reconciliationService.executeMatch(proposals);
+    for (const r of result.records) {
+      await reconciliationService.activateMatch(r.id);
+    }
+    return result;
   }
 
   // ── Tests ────────────────────────────────────────────────────────────
@@ -771,7 +782,8 @@ describe('ReconciliationService (integration)', () => {
       expect(proposals1[0].amountMatched).toBe(40000);
       expect(proposals1[0].matchType).toBe('partial');
 
-      await reconciliationService.executeMatch(proposals1);
+      // Stage AND activate — only an active match reduces the outstanding.
+      await executeAndActivate(proposals1);
 
       const stmt2 = await seedBankStatement([
         {
@@ -930,7 +942,7 @@ describe('ReconciliationService (integration)', () => {
       expect(rows[0].amount_matched).toBe(20000);
     });
 
-    it('rejects an over-match beyond the outstanding AR balance (across two executes)', async () => {
+    it('rejects ACTIVATING an over-match beyond the outstanding AR balance', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedSalesInvoiceVoucher(
         customer.id,
@@ -954,8 +966,8 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // First bank line settles 60000 of the 100000 invoice.
-      await reconciliationService.executeMatch([
+      // First bank line settles 60000 of the 100000 invoice (staged + active).
+      await executeAndActivate([
         {
           bankTransactionId: stmt.transactions[0].id,
           voucherId,
@@ -966,32 +978,36 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // A second (distinct) bank line trying to match another 60000 would push
-      // the matched total to 120000 > 100000 outstanding → rejected.
+      // A second distinct bank line for another 60000 stages fine (a draft
+      // settles nothing) — but ACTIVATING it would push the total to 120000 >
+      // 100000 outstanding, so the approval seam rejects it. The draft stays.
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[1].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 60000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
       await expect(
-        reconciliationService.executeMatch([
-          {
-            bankTransactionId: stmt.transactions[1].id,
-            voucherId,
-            matchType: 'partial',
-            amountMatched: 60000,
-            confidence: 'high',
-            signal: 'invoice_number',
-          },
-        ]),
+        reconciliationService.activateMatch(staged.records[0].id),
       ).rejects.toThrow();
 
-      // Only the first 60000 match persisted; nothing over-matched.
+      // First active; second still draft — nothing over-settled.
       const rows = await db
         .selectFrom('reconciliation_match')
         .selectAll()
         .where('voucher_id', '=', voucherId)
         .execute();
-      expect(rows).toHaveLength(1);
-      expect(rows[0].amount_matched).toBe(60000);
+      const active = rows.filter((r) => r.status === 'active');
+      expect(active).toHaveLength(1);
+      expect(active[0].amount_matched).toBe(60000);
+      expect(rows.filter((r) => r.status === 'draft')).toHaveLength(1);
     });
 
-    it('rejects an over-match within a single batch of two distinct bank lines', async () => {
+    it('rejects ACTIVATING the second of two staged matches that together over-match', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedSalesInvoiceVoucher(
         customer.id,
@@ -1013,36 +1029,40 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // Two distinct (bank line, voucher) pairs in ONE batch summing to 140000
-      // against a 100000 invoice → the whole atomic batch is rejected.
+      // Both stage as drafts (no settlement). Activating both would sum to
+      // 140000 against a 100000 invoice, so the SECOND activation is rejected.
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 70000,
+          confidence: 'medium',
+          signal: 'amount_date',
+        },
+        {
+          bankTransactionId: stmt.transactions[1].id,
+          voucherId,
+          matchType: 'partial',
+          amountMatched: 70000,
+          confidence: 'medium',
+          signal: 'amount_date',
+        },
+      ]);
+      expect(staged.records).toHaveLength(2);
+
+      await reconciliationService.activateMatch(staged.records[0].id);
       await expect(
-        reconciliationService.executeMatch([
-          {
-            bankTransactionId: stmt.transactions[0].id,
-            voucherId,
-            matchType: 'partial',
-            amountMatched: 70000,
-            confidence: 'medium',
-            signal: 'amount_date',
-          },
-          {
-            bankTransactionId: stmt.transactions[1].id,
-            voucherId,
-            matchType: 'partial',
-            amountMatched: 70000,
-            confidence: 'medium',
-            signal: 'amount_date',
-          },
-        ]),
+        reconciliationService.activateMatch(staged.records[1].id),
       ).rejects.toThrow();
 
-      // Atomic: NEITHER row persisted (the batch rolled back).
+      // Exactly one active; no over-settlement.
       const rows = await db
         .selectFrom('reconciliation_match')
         .selectAll()
         .where('voucher_id', '=', voucherId)
         .execute();
-      expect(rows).toHaveLength(0);
+      expect(rows.filter((r) => r.status === 'active')).toHaveLength(1);
     });
 
     it('rejects matches that over-allocate the bank line beyond its amount', async () => {
@@ -1074,8 +1094,8 @@ describe('ReconciliationService (integration)', () => {
       ]);
       const txnId = stmt.transactions[0].id;
 
-      // First match: fully allocates the bank line against invoice A.
-      await reconciliationService.executeMatch([
+      // First match: fully allocates the bank line against invoice A (active).
+      await executeAndActivate([
         {
           bankTransactionId: txnId,
           voucherId: voucherA,
@@ -1086,30 +1106,32 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      // Second match: SAME txn, DIFFERENT fully-open voucher B → the bank line
-      // is already fully allocated, so this over-allocates the line and must be
-      // rejected with the bank-line reason (not the voucher reason).
+      // Second match: SAME txn, DIFFERENT fully-open voucher B. It stages, but
+      // ACTIVATING it over-allocates the already-fully-allocated bank line and
+      // is rejected with the bank-line reason (not the voucher reason).
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txnId,
+          voucherId: voucherB,
+          matchType: 'exact',
+          amountMatched: 100000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
       await expect(
-        reconciliationService.executeMatch([
-          {
-            bankTransactionId: txnId,
-            voucherId: voucherB,
-            matchType: 'exact',
-            amountMatched: 100000,
-            confidence: 'high',
-            signal: 'invoice_number',
-          },
-        ]),
+        reconciliationService.activateMatch(staged.records[0].id),
       ).rejects.toThrow(/over-allocate|bank line|exceeds/i);
 
-      // Only the first match against voucher A persisted; voucher B untouched.
+      // Only the match against voucher A is active; B stays draft.
       const rows = await db
         .selectFrom('reconciliation_match')
         .selectAll()
         .where('bank_transaction_id', '=', txnId)
         .execute();
-      expect(rows).toHaveLength(1);
-      expect(rows[0].voucher_id).toBe(voucherA);
+      const active = rows.filter((r) => r.status === 'active');
+      expect(active).toHaveLength(1);
+      expect(active[0].voucher_id).toBe(voucherA);
     });
 
     it('still records a legitimate N:M batch (two distinct vouchers) with identical amounts', async () => {
@@ -1412,6 +1434,141 @@ describe('ReconciliationService (integration)', () => {
         stmt2.statement.id,
       );
       expect(proposals.find((p) => p.voucherId === voucherId)).toBeDefined();
+    });
+  });
+
+  describe('staging behind approval', () => {
+    it('executeMatch stages a draft and creates a pending approval per match', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-8001',
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment',
+          amount: 50000,
+          reference: 'INV-8001',
+        },
+      ]);
+      const proposals = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+
+      const result = await reconciliationService.executeMatch(proposals);
+      expect(result.approvals).toHaveLength(result.records.length);
+
+      const row = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('id', '=', result.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('draft');
+      expect(row.signal).toBe('invoice_number');
+
+      // The draft settles nothing yet.
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(50000);
+
+      const approval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'reconciliation_match')
+        .where('object_id', '=', result.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(approval.status).toBe('pending');
+    });
+
+    it('activateMatch flips a draft to active and settles the voucher', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        40000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -40000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      const { fxVoucherId } = await reconciliationService.activateMatch(
+        staged.records[0].id,
+      );
+      expect(fxVoucherId).toBeNull(); // same currency — no FX
+
+      const row = await db
+        .selectFrom('reconciliation_match')
+        .select('status')
+        .where('id', '=', staged.records[0].id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('active');
+      expect(
+        await reconciliationService.getRemainingVoucherBalanceForTest(
+          voucherId,
+        ),
+      ).toBe(0);
+    });
+
+    it('discardDraftMatch deletes a draft but refuses an active match', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        40000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -40000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+      const matchId = staged.records[0].id;
+
+      await reconciliationService.discardDraftMatch(matchId);
+      const gone = await db
+        .selectFrom('reconciliation_match')
+        .select('id')
+        .where('id', '=', matchId)
+        .executeTakeFirst();
+      expect(gone).toBeUndefined();
+
+      // An active match cannot be discarded (use unmatch).
+      const staged2 = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+      await reconciliationService.activateMatch(staged2.records[0].id);
+      await expect(
+        reconciliationService.discardDraftMatch(staged2.records[0].id),
+      ).rejects.toThrow(/not draft|unmatch/i);
     });
   });
 
