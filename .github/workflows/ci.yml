@@ -34,10 +34,15 @@ jobs:
               - *shared
               - 'packages/cli/**'
 
+  # One workspace test image (full `npm ci` + builds) shared by every package's
+  # test/lint jobs. Built whenever ANY package (or a shared root file) changed.
   build-test-image:
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.server == 'true'
+    if: >
+      needs.changes.outputs.server == 'true'
+      || needs.changes.outputs.web == 'true'
+      || needs.changes.outputs.cli == 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Build test image
@@ -85,31 +90,25 @@ jobs:
 
   web-check:
     runs-on: ubuntu-latest
-    needs: changes
+    needs: [changes, build-test-image]
     if: needs.changes.outputs.web == 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run build -w @headless-bookkeeping/web
-      - run: npm run test -w @headless-bookkeeping/web
+          name: app-test-image
+      - run: docker load < app-test.tar.gz
+      - run: docker run --rm app-test npm run test -w @headless-bookkeeping/web
 
   cli-test:
     runs-on: ubuntu-latest
-    needs: changes
+    needs: [changes, build-test-image]
     if: needs.changes.outputs.cli == 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run build -w @empireshq/hbk
-      - run: npm test -w @empireshq/hbk
+          name: app-test-image
+      - run: docker load < app-test.tar.gz
+      - run: docker run --rm app-test sh -c "npm run build -w @empireshq/hbk && npm test -w @empireshq/hbk"
 
   build-and-push:
     runs-on: ubuntu-latest
