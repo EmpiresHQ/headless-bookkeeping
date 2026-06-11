@@ -371,3 +371,42 @@ describe('EstoniaCountryPlugin — KMD row classification', () => {
     });
   });
 });
+
+describe('EstoniaCountryPlugin — getCategories()', () => {
+  const plugin = new EstoniaCountryPlugin();
+  const org: OrgContext = {
+    country: 'EE',
+    vatRegistered: true,
+    baseCurrency: null,
+  };
+  const eeSupplier: SupplierFacts = {
+    country: 'EE',
+    goodsVsServices: 'services',
+    classificationMemory: [],
+  };
+
+  it('returns the expense categories with stable key/label/accountCode', () => {
+    const cats = plugin.getCategories();
+    const keys = cats.map((c) => c.key);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        'software', 'transport', 'travel', 'marketing', 'salary',
+        'contractor', 'rent', 'tax', 'bank fee', 'meals', 'insurance', 'education',
+      ]),
+    );
+    // No 'revenue' — getCategories() is the EXPENSE set only.
+    expect(keys).not.toContain('revenue');
+    const software = cats.find((c) => c.key === 'software');
+    expect(software).toEqual({
+      key: 'software',
+      label: expect.any(String),
+      accountCode: 'EXPENSE_SOFTWARE',
+    });
+  });
+
+  it('is consistent with resolveCategoryMapping (no divergence possible)', () => {
+    for (const cat of plugin.getCategories()) {
+      expect(plugin.resolveCategoryMapping(cat.key, eeSupplier, org).accountCode).toBe(cat.accountCode);
+    }
+  });
+});
