@@ -1,3 +1,6 @@
+import yargs, { type Argv } from 'yargs';
+import type { RequestFn } from './client.js';
+
 export interface OptionSpec {
   name: string;
   type: 'string' | 'number' | 'boolean';
@@ -50,7 +53,8 @@ export function kebab(s: string): string {
 /** `ExpensesController_createExpense` → `create-expense`. */
 export function actionFromOperationId(operationId: string): string {
   const underscore = operationId.indexOf('_');
-  const name = underscore >= 0 ? operationId.slice(underscore + 1) : operationId;
+  const name =
+    underscore >= 0 ? operationId.slice(underscore + 1) : operationId;
   return kebab(name);
 }
 
@@ -99,4 +103,133 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
     }
   }
   return commands;
+}
+
+export interface CliIo {
+  out: (s: string) => void;
+  err: (s: string) => void;
+}
+
+export interface BuilderDeps {
+  request: RequestFn;
+  io: CliIo;
+  readFileSync: (path: string) => string;
+  stdinIsTTY: boolean;
+  readStdin: () => string;
+  exit: (code: number) => void;
+}
+
+interface BodyDeps {
+  readFileSync: (path: string) => string;
+  stdinIsTTY: boolean;
+  readStdin: () => string;
+}
+
+const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
+
+/**
+ * Resolve a JSON request body from --body-file, else from piped stdin (when
+ * stdin is not a TTY), else undefined.
+ */
+export function readBody(
+  argv: Record<string, unknown>,
+  deps: BodyDeps,
+): unknown {
+  const file = argv['body-file'] as string | undefined;
+  if (file) return JSON.parse(deps.readFileSync(file));
+  if (!deps.stdinIsTTY) {
+    const piped = deps.readStdin();
+    if (piped.trim().length > 0) return JSON.parse(piped);
+  }
+  return undefined;
+}
+
+function yargsType(t: OptionSpec['type']): 'string' | 'number' | 'boolean' {
+  return t;
+}
+
+/** Build the full yargs CLI from the OpenAPI spec and injected dependencies. */
+export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
+  const commands = specToCommands(spec);
+  const byGroup = new Map<string, CommandSpec[]>();
+  for (const cmd of commands) {
+    const list = byGroup.get(cmd.group) ?? [];
+    list.push(cmd);
+    byGroup.set(cmd.group, list);
+  }
+
+  let cli = yargs().scriptName('hbk');
+
+  for (const [group, cmds] of byGroup) {
+    cli = cli.command(group, `${group} operations`, (g) => {
+      let sub = g;
+      for (const cmd of cmds) {
+        const positional = cmd.positionals.map((p) => `<${p}>`).join(' ');
+        const commandString = positional
+          ? `${cmd.action} ${positional}`
+          : cmd.action;
+
+        sub = sub.command(
+          commandString,
+          cmd.summary ?? `${cmd.method.toUpperCase()} ${cmd.path}`,
+          (y) => {
+            let yy = y;
+            for (const name of cmd.positionals) {
+              yy = yy.positional(name, { type: 'string', demandOption: true });
+            }
+            for (const opt of cmd.options) {
+              yy = yy.option(opt.name, {
+                type: yargsType(opt.type),
+                demandOption: opt.required,
+                choices: opt.choices,
+                describe: opt.describe,
+              });
+            }
+            if (cmd.hasBody) {
+              yy = yy.option('body-file', {
+                type: 'string',
+                describe:
+                  'Path to a JSON request body (or pipe JSON via stdin)',
+              });
+            }
+            return yy;
+          },
+          async (argv) => {
+            const pathParams: Record<string, string> = {};
+            for (const name of cmd.positionals) {
+              pathParams[name] = String(argv[name]);
+            }
+            const query: Record<string, unknown> = {};
+            for (const opt of cmd.options) {
+              if (argv[opt.name] !== undefined)
+                query[opt.name] = argv[opt.name];
+            }
+            const body = cmd.hasBody ? readBody(argv, deps) : undefined;
+
+            const res = await deps.request(cmd.method, cmd.path, {
+              pathParams,
+              query,
+              body,
+            });
+            if (res.ok) {
+              deps.io.out(json(res.body));
+            } else {
+              deps.io.err(json(res.body));
+              deps.exit(1);
+            }
+          },
+        );
+      }
+      return sub.demandCommand(1, `Specify a ${group} subcommand`).strict();
+    });
+  }
+
+  return cli
+    .demandCommand(1, 'Specify a command group')
+    .strict()
+    .exitProcess(false)
+    .fail((msg, err) => {
+      deps.io.err(`${msg || (err && err.message) || 'error'}\n`);
+      throw err ?? new Error(msg);
+    });
 }
