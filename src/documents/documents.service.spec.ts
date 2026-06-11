@@ -315,6 +315,49 @@ describe('DocumentsService (unit)', () => {
       expect(remainingArtifacts).toHaveLength(0);
     });
 
+    it('persists and clears a pending triage result on the document', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-pending-1',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+
+      const triage = {
+        kind: 'new_expense' as const,
+        gross_amount: 1525,
+        vat_amount: 285,
+        tax_point_date: '2026-03-15',
+        category: 'software',
+        supplier_proposal: {
+          mode: 'create' as const,
+          create_name: 'Acme OÜ',
+          create_country: 'EE',
+        },
+        document_type: 'invoice' as const,
+        currency: 'EUR',
+        document_vat_marking: null,
+        supplier_invoice_number: 'INV-7',
+        confidence: 0.42,
+      };
+
+      await service.setPendingTriageResult(doc.id, triage);
+      expect(await service.getPendingTriageResult(doc.id)).toEqual(triage);
+
+      await service.setPendingTriageResult(doc.id, null);
+      expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+    });
+
     it('unlinks but preserves a real Telegram conversation', async () => {
       const { document } = await upload();
       const now = Math.floor(Date.now() / 1000);

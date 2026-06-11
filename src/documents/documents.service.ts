@@ -7,6 +7,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
+import { triageResultSchema, TriageResult } from '../triage/types';
 import { DocumentStorageService } from './document-storage.service';
 import {
   Document,
@@ -147,6 +148,40 @@ export class DocumentsService {
       .set({ status })
       .where('id', '=', id)
       .execute();
+  }
+
+  /**
+   * Store (or clear) the TriageResult that blocked this document on the
+   * supplier-unresolved route. Pass `null` to clear it. Kept off the mapped
+   * `Document` type on purpose: it is operational AI scratch data read only by
+   * the resolution flow, never shipped in `list()`.
+   */
+  async setPendingTriageResult(
+    id: number,
+    result: TriageResult | null,
+  ): Promise<void> {
+    await this.db
+      .updateTable('document')
+      .set({ pending_triage_result: result ? JSON.stringify(result) : null })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  /**
+   * Read back the stored proposal as a validated TriageResult, or null if the
+   * document has none. Re-validates with the Zod schema so a malformed/stale
+   * blob fails loudly rather than feeding a half-shaped object into the kernel.
+   */
+  async getPendingTriageResult(id: number): Promise<TriageResult | null> {
+    const row = await this.db
+      .selectFrom('document')
+      .select('pending_triage_result')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!row || row.pending_triage_result == null) {
+      return null;
+    }
+    return triageResultSchema.parse(JSON.parse(row.pending_triage_result));
   }
 
   /**

@@ -35,6 +35,7 @@ import * as m035 from './035_create_bank_import_job';
 import * as m036 from './036_add_supplier_invoice_number';
 import * as m037 from './037_add_org_declarant_identity';
 import * as m038 from './038_create_credit_note';
+import * as m039 from './039_add_document_pending_triage_result';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -73,4 +74,5 @@ export const migrations: Record<string, Migration> = {
   '036_add_supplier_invoice_number': m036,
   '037_add_org_declarant_identity': m037,
   '038_create_credit_note': m038,
+  '039_add_document_pending_triage_result': m039,
 };
