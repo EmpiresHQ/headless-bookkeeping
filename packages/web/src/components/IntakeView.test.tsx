@@ -9,6 +9,7 @@ const doc = {
   mime_type: 'application/pdf',
   size_bytes: 2048,
   status: 'pending',
+  processing_since: null,
   created_at: 0,
 };
 
@@ -62,6 +63,7 @@ describe('IntakeView', () => {
       id: 6,
       filename: 'creditnote.pdf',
       status: 'needs_triage',
+      processing_since: null,
     };
     vi.spyOn(api, 'getDocuments').mockResolvedValue([doc, parked]);
 
@@ -82,6 +84,7 @@ describe('IntakeView', () => {
         mime_type: 'application/pdf',
         size_bytes: 1,
         status: 'needs_triage',
+        processing_since: null,
         created_at: 0,
       },
     ]);
@@ -140,5 +143,15 @@ describe('IntakeView', () => {
       );
       expect(api.resolveSupplier).toHaveBeenCalledWith(4, 3);
     });
+  });
+
+  it('shows Processing… for a document with processing_since set', async () => {
+    const processing = { ...doc, id: 7, processing_since: 1718000000 };
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([doc, processing]);
+    vi.spyOn(api, 'getDocuments').mockResolvedValue([doc, processing]);
+
+    render(<IntakeView />);
+
+    expect(await screen.findByText('Processing…')).toBeInTheDocument();
   });
 });

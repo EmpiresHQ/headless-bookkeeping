@@ -77,6 +77,7 @@ export interface DocumentRow {
   mime_type: string;
   size_bytes: number;
   status: string;
+  processing_since: number | null;
   created_at: number;
 }
 

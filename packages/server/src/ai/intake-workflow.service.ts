@@ -156,6 +156,11 @@ export class IntakeWorkflowService {
       // (a partially-applied legacy state). New work is still guarded below.
     }
 
+    // ── Stamp processing_since so the operator SPA can show "Processing…"
+    //    across refreshes (triage can take a minute or two).
+    await this.documents.markProcessing(documentId);
+    try {
+
     // ── Pass 1: OCR → markdown | typed failure ──────────────────
     const ocr = await this.ocrService.transcribe(documentId);
 
@@ -287,6 +292,9 @@ export class IntakeWorkflowService {
           `Unexpected triage kind: ${unexpectedKind}`,
         );
       }
+    }
+    } finally {
+      await this.documents.clearProcessing(documentId);
     }
   }
 

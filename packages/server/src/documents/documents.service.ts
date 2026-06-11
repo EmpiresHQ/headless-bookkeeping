@@ -150,6 +150,25 @@ export class DocumentsService {
       .execute();
   }
 
+  /** Stamp processing_since = now, guarding idempotency. */
+  async markProcessing(id: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .updateTable('document')
+      .set({ processing_since: now })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  /** Clear processing_since after triage completes (success or failure). */
+  async clearProcessing(id: number): Promise<void> {
+    await this.db
+      .updateTable('document')
+      .set({ processing_since: null })
+      .where('id', '=', id)
+      .execute();
+  }
+
   /**
    * Store (or clear) the TriageResult that blocked this document on the
    * supplier-unresolved route. Pass `null` to clear it. Kept off the mapped
@@ -315,6 +334,7 @@ export class DocumentsService {
     size_bytes: number;
     storage_path: string | null;
     status: string;
+    processing_since: number | null;
     created_at: number;
   }): Document {
     return {
@@ -325,6 +345,7 @@ export class DocumentsService {
       size_bytes: row.size_bytes,
       storage_path: row.storage_path,
       status: this.validateDocumentStatus(row.status),
+      processing_since: row.processing_since,
       created_at: row.created_at,
     };
   }

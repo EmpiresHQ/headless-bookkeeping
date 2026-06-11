@@ -18,6 +18,7 @@ describe('DocumentsView', () => {
         mime_type: 'application/pdf',
         size_bytes: 2048,
         status: 'needs_triage',
+        processing_since: null,
         created_at: 0,
       },
     ]);
@@ -63,6 +64,7 @@ describe('DocumentsView', () => {
           mime_type: 'application/pdf',
           size_bytes: 2048,
           status: 'needs_triage',
+          processing_since: null,
           created_at: 0,
         },
       ])
