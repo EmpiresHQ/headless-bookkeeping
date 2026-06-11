@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import {
   uploadDocument,
   getTriagePending,
-  getDocuments,
+  getNeedsTriageItems,
   triageDocument,
   completeDocument,
   type DocumentRow,
+  type NeedsTriageItem,
   type TriageOutcome,
 } from '../api';
 import { Table, type Column } from './Table';
 import { ResolveSupplierForm } from './ResolveSupplierForm';
+import { TriageManualForm } from './TriageManualForm';
+import { TriageOcrFailedForm } from './TriageOcrFailedForm';
 
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
@@ -17,26 +20,41 @@ function outcomeLabel(o: TriageOutcome): string {
   return `→ needs triage: ${o.reason}`;
 }
 
+function reasonBadge(item: NeedsTriageItem): string {
+  switch (item.reason_type) {
+    case 'supplier_unresolved':
+      return '⚠ Unknown supplier';
+    case 'low_confidence':
+      return '⚠ Low AI confidence';
+    case 'category_unresolved':
+      return '⚠ Unknown category';
+    case 'ocr_failed':
+      return '✗ OCR failed';
+    case 'unimplemented':
+      return 'ℹ Not yet implemented';
+    default:
+      return '⚠ Needs review';
+  }
+}
+
 export function IntakeView() {
   const [pending, setPending] = useState<DocumentRow[]>([]);
-  // Documents the workflow parked for a human (status 'needs_triage').
-  const [needsTriage, setNeedsTriage] = useState<DocumentRow[]>([]);
+  const [needsTriageItems, setNeedsTriageItems] = useState<NeedsTriageItem[]>(
+    [],
+  );
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Document ids currently being triaged — per-doc loading state so the UI
-  // shows "Processing…" on the right row and survives a slow triage (OCR + LLM
-  // can take a minute or two).
+  // Per-document loading state — OCR + LLM can take a minute or two.
   const [processing, setProcessing] = useState<Set<number>>(new Set());
-  // Per-document triage outcome, keyed by document id.
   const [outcomes, setOutcomes] = useState<Record<number, string>>({});
-  const [resolvingId, setResolvingId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = () =>
-    Promise.all([getTriagePending(), getDocuments()])
-      .then(([p, all]) => {
+    Promise.all([getTriagePending(), getNeedsTriageItems()])
+      .then(([p, items]) => {
         setPending(p);
-        setNeedsTriage(all.filter((d) => d.status === 'needs_triage'));
+        setNeedsTriageItems(items);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
@@ -89,8 +107,14 @@ export function IntakeView() {
   const onComplete = (id: number) =>
     run(async () => {
       await completeDocument(id);
+      if (expandedId === id) setExpandedId(null);
       await refresh();
     });
+
+  const onFormDone = () => {
+    setExpandedId(null);
+    void refresh();
+  };
 
   const pendingColumns: Column<DocumentRow>[] = [
     { header: 'ID', cell: (d) => d.id },
@@ -105,18 +129,6 @@ export function IntakeView() {
           )}
         </>
       ),
-    },
-  ];
-
-  const triageColumns: Column<DocumentRow>[] = [
-    { header: 'ID', cell: (d) => d.id },
-    { header: 'Filename', cell: (d) => d.filename },
-    {
-      header: 'Reason',
-      cell: (d) =>
-        outcomes[d.id] ?? (
-          <span className="text-gray-400">(click Why? to load)</span>
-        ),
     },
   ];
 
@@ -182,55 +194,80 @@ export function IntakeView() {
             parked for a human — the kernel could not act on it automatically
           </span>
         </h2>
-        {needsTriage.length === 0 ? (
+        {needsTriageItems.length === 0 ? (
           <p className="text-sm text-gray-500">Nothing to triage.</p>
         ) : (
-          <>
-            <Table
-              columns={triageColumns}
-              rows={needsTriage}
-              actions={(d) => (
-                <div className="space-x-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    disabled={processing.size > 0}
-                    onClick={() => setResolvingId(d.id)}
-                    className="text-green-700 hover:underline disabled:opacity-50"
+          <div className="border rounded divide-y text-sm">
+            {needsTriageItems.map((item) => {
+              const isExpanded = expandedId === item.id;
+              return (
+                <div key={item.id}>
+                  <div
+                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-50"
+                    onClick={() => setExpandedId(isExpanded ? null : item.id)}
                   >
-                    Resolve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={processing.size > 0}
-                    onClick={() => void onTriage(d.id)}
-                    className="text-blue-600 hover:underline disabled:opacity-50"
-                  >
-                    Why?
-                  </button>
-                  <button
-                    type="button"
-                    disabled={processing.size > 0}
-                    onClick={() => void onComplete(d.id)}
-                    className="text-gray-600 hover:underline disabled:opacity-50"
-                  >
-                    Dismiss
-                  </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-400 text-xs w-6">
+                        {item.id}
+                      </span>
+                      <span>{item.filename}</span>
+                      <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                        {reasonBadge(item)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void onComplete(item.id);
+                        }}
+                        className="text-gray-500 hover:underline text-xs"
+                      >
+                        Dismiss
+                      </button>
+                      <span className="text-gray-400 text-xs">
+                        {isExpanded ? '▲' : '▼'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <>
+                      {item.reason_type === 'supplier_unresolved' && (
+                        <ResolveSupplierForm
+                          documentId={item.id}
+                          onDone={onFormDone}
+                          onCancel={() => setExpandedId(null)}
+                        />
+                      )}
+                      {(item.reason_type === 'low_confidence' ||
+                        item.reason_type === 'category_unresolved') && (
+                        <TriageManualForm
+                          documentId={item.id}
+                          onDone={onFormDone}
+                          onCancel={() => setExpandedId(null)}
+                        />
+                      )}
+                      {item.reason_type === 'ocr_failed' && (
+                        <TriageOcrFailedForm
+                          documentId={item.id}
+                          onDone={onFormDone}
+                          onCancel={() => setExpandedId(null)}
+                        />
+                      )}
+                      {(item.reason_type === 'unimplemented' ||
+                        item.reason_type === 'unknown') && (
+                        <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500">
+                          {item.reason}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              )}
-            />
-            {resolvingId !== null && (
-              <div className="border rounded p-3 bg-gray-50">
-                <ResolveSupplierForm
-                  documentId={resolvingId}
-                  onCancel={() => setResolvingId(null)}
-                  onDone={() => {
-                    setResolvingId(null);
-                    void refresh();
-                  }}
-                />
-              </div>
-            )}
-          </>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

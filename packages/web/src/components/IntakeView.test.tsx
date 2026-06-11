@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { IntakeView } from './IntakeView';
 import * as api from '../api';
 
-const doc = {
+const doc: api.DocumentRow = {
   id: 5,
   filename: 'invoice.pdf',
   mime_type: 'application/pdf',
@@ -13,10 +13,18 @@ const doc = {
   created_at: 0,
 };
 
+const triageItem: api.NeedsTriageItem = {
+  id: 7,
+  filename: 'low-confidence.pdf',
+  created_at: 0,
+  reason: 'AI confidence 0.61 below threshold 0.8',
+  reason_type: 'low_confidence',
+};
+
 describe('IntakeView', () => {
   beforeEach(() => {
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([doc]);
-    vi.spyOn(api, 'getDocuments').mockResolvedValue([doc]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([]);
     vi.spyOn(api, 'uploadDocument').mockResolvedValue({
       document: doc,
       deduplicated: false,
@@ -57,15 +65,25 @@ describe('IntakeView', () => {
     expect(await screen.findByText(/expense #42/i)).toBeInTheDocument();
   });
 
+  it('shows needs-triage items with reason badge', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+
+    render(<IntakeView />);
+    expect(await screen.findByText('low-confidence.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/low ai confidence/i)).toBeInTheDocument();
+  });
+
   it('shows a Needs triage section with parked documents and dismisses them', async () => {
-    const parked = {
-      ...doc,
+    const parkedItem: api.NeedsTriageItem = {
       id: 6,
       filename: 'creditnote.pdf',
-      status: 'needs_triage',
-      processing_since: null,
+      created_at: 0,
+      reason: 'AI confidence below threshold',
+      reason_type: 'low_confidence',
     };
-    vi.spyOn(api, 'getDocuments').mockResolvedValue([doc, parked]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([parkedItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
 
     render(<IntakeView />);
     expect(await screen.findByText('creditnote.pdf')).toBeInTheDocument();
@@ -75,19 +93,35 @@ describe('IntakeView', () => {
     await waitFor(() => expect(api.completeDocument).toHaveBeenCalledWith(6));
   });
 
-  it('resolves a needs_triage document via the create-supplier path', async () => {
+  it('expands row on click and shows manual form for low_confidence', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getDocumentDebug').mockResolvedValue({
+      document_id: 7,
+      ocr: { ok: false, category: 'unreadable', detail: 'blur' },
+      classification: null,
+    });
+    vi.spyOn(api, 'getCategories').mockResolvedValue([]);
+    vi.spyOn(api, 'getEntities').mockResolvedValue([]);
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
-    vi.spyOn(api, 'getDocuments').mockResolvedValue([
-      {
-        id: 4,
-        filename: 'inv.pdf',
-        mime_type: 'application/pdf',
-        size_bytes: 1,
-        status: 'needs_triage',
-        processing_since: null,
-        created_at: 0,
-      },
-    ]);
+
+    render(<IntakeView />);
+    const filename = await screen.findByText('low-confidence.pdf');
+    fireEvent.click(filename);
+    expect(
+      await screen.findByText(/ai was not confident/i),
+    ).toBeInTheDocument();
+  });
+
+  it('resolves a needs_triage document via the create-supplier path', async () => {
+    const supplierItem: api.NeedsTriageItem = {
+      id: 4,
+      filename: 'inv.pdf',
+      created_at: 0,
+      reason: 'supplier creation not yet implemented (Task 43)',
+      reason_type: 'supplier_unresolved',
+    };
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([supplierItem]);
     vi.spyOn(api, 'getPendingDraft').mockResolvedValue({
       document_id: 4,
       reason: 'supplier creation not yet implemented (Task 43)',
@@ -122,7 +156,8 @@ describe('IntakeView', () => {
     render(<IntakeView />);
     await screen.findByText('inv.pdf');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+    // Click on the row to expand it (which shows ResolveSupplierForm)
+    fireEvent.click(screen.getByText('inv.pdf'));
     await screen.findByText('Acme OÜ', { exact: false });
 
     fireEvent.change(screen.getByLabelText('Registration key'), {
@@ -148,7 +183,7 @@ describe('IntakeView', () => {
   it('shows Processing… for a document with processing_since set', async () => {
     const processing = { ...doc, id: 7, processing_since: 1718000000 };
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([doc, processing]);
-    vi.spyOn(api, 'getDocuments').mockResolvedValue([doc, processing]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([]);
 
     render(<IntakeView />);
 
