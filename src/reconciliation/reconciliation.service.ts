@@ -23,6 +23,8 @@ import {
   ExecuteMatchResult,
   ParsedTransactionTokens,
   CandidateVoucher,
+  MatchCandidateView,
+  MatchCandidatesResult,
 } from './reconciliation.types';
 
 /** Regex patterns for deterministic token extraction. */
@@ -207,6 +209,60 @@ export class ReconciliationService {
 
     await this.executeMatch(unambiguous, requestedBy);
     return { staged: unambiguous.length };
+  }
+
+  /**
+   * The open business objects a bank line can be MANUALLY matched against, plus
+   * the line's still-unallocated base amount. Direction is derived from the
+   * line's sign (incoming → AR invoices, outgoing → AP expenses); prepayments
+   * are out of scope for v1 manual matching. The returned `voucherId` feeds the
+   * execute round-trip but is never rendered (ADR-0030).
+   */
+  async getMatchCandidates(
+    statementId: number,
+    bankTransactionId: number,
+  ): Promise<MatchCandidatesResult> {
+    const txn = await this.transactionRepo.findById(bankTransactionId);
+    if (!txn || txn.statement_id !== statementId) {
+      throw new NotFoundException(
+        `Bank transaction ${bankTransactionId} not found on statement ${statementId}`,
+      );
+    }
+
+    const isIncoming = txn.amount >= 0;
+    const candidates = isIncoming
+      ? await this.outstandingVouchers.findAllArCandidates()
+      : await this.outstandingVouchers.findAllApCandidates();
+
+    const views: MatchCandidateView[] = [];
+    for (const c of candidates) {
+      if (c.remainingBalance <= 0) continue;
+      const info = await this.resolveVoucherDisplay(c.voucherId, 'exact');
+      views.push({
+        voucherId: c.voucherId,
+        objectType: info.objectType,
+        objectId: info.objectId,
+        objectLabel: info.objectLabel,
+        counterpartyName: info.counterpartyName,
+        voucherRemaining: info.voucherRemaining,
+      });
+    }
+
+    // How much of the line is still unallocated (active matches only), BASE cents.
+    const { baseAmount } = await this.currencyService.toBase(
+      Math.abs(txn.amount),
+      txn.currency,
+      txn.transaction_date,
+    );
+    const matched = await this.db
+      .selectFrom('reconciliation_match')
+      .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', '=', 'active')
+      .executeTakeFirst();
+    const lineRemaining = Math.max(0, baseAmount - Number(matched?.sum ?? 0));
+
+    return { bankTransactionId, lineRemaining, candidates: views };
   }
 
   /**

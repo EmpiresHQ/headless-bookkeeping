@@ -158,6 +158,24 @@ export class OutstandingVoucherService {
   }
 
   /**
+   * ALL outstanding AR candidate Vouchers (no counterparty / date filter) — the
+   * pool a manual match picks from. AR only (incoming settlements).
+   */
+  async findAllArCandidates(): Promise<CandidateVoucher[]> {
+    const rows = await this.arBaseQuery().execute();
+    return this.toCandidates(rows, { isPrepayment: false });
+  }
+
+  /**
+   * ALL outstanding AP candidate Vouchers (no counterparty / date filter) — the
+   * pool a manual match picks from. AP only (outgoing settlements).
+   */
+  async findAllApCandidates(): Promise<CandidateVoucher[]> {
+    const rows = await this.apBaseQuery().execute();
+    return this.toCandidates(rows, { isPrepayment: false });
+  }
+
+  /**
    * The remaining unmatched balance for an AR/AP Voucher — the path used by the
    * AR/AP candidate reads above and by direct invoice-number lookups. AR/AP net
    * base (canonical maths in {@link LedgerBalanceService}, netted by

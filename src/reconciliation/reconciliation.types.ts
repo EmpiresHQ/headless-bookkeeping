@@ -67,6 +67,32 @@ export interface MatchProposalView extends MatchProposal {
   voucherRemaining: number;
 }
 
+/**
+ * A manually-selectable settlement target for a bank line: an open business
+ * object (invoice / expense) described the same way a proposal is (ADR-0030 —
+ * `voucherId` is for the execute round-trip, never rendered).
+ */
+export interface MatchCandidateView {
+  voucherId: number;
+  objectType: MatchObjectType;
+  objectId: number | null;
+  objectLabel: string;
+  counterpartyName: string | null;
+  /** The voucher's remaining unmatched balance in BASE currency cents. */
+  voucherRemaining: number;
+}
+
+/**
+ * The candidate set for a manual match against one bank line, plus how much of
+ * the line is still unallocated (BASE cents) so the UI can default/clamp the
+ * amount. Direction is derived server-side from the line's sign.
+ */
+export interface MatchCandidatesResult {
+  bankTransactionId: number;
+  lineRemaining: number;
+  candidates: MatchCandidateView[];
+}
+
 /** Per-transaction reconciliation state for the operator UI. */
 export interface ReconciliationStatusRow {
   bankTransactionId: number;

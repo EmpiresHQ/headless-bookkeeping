@@ -1651,6 +1651,51 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('getMatchCandidates', () => {
+    it('returns direction-correct open candidates with the line remaining', async () => {
+      const supplier = await seedSupplier();
+      const apVoucher = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      // An AR invoice exists but must NOT show for an OUTGOING line.
+      const customer = await seedCustomer();
+      await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-CAND-1',
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+
+      const result = await reconciliationService.getMatchCandidates(
+        stmt.statement.id,
+        stmt.transactions[0].id,
+      );
+
+      expect(result.lineRemaining).toBe(30000);
+      const cand = result.candidates.find((c) => c.voucherId === apVoucher);
+      expect(cand).toBeDefined();
+      expect(cand!.objectType).toBe('expense');
+      expect(cand!.voucherRemaining).toBe(30000);
+      expect(cand!.counterpartyName).toBe('Test Supplier Co');
+      // Outgoing line → AP only, never the AR invoice.
+      expect(result.candidates.every((c) => c.objectType === 'expense')).toBe(
+        true,
+      );
+    });
+
+    it('throws when the transaction is not on the given statement', async () => {
+      await expect(
+        reconciliationService.getMatchCandidates(99999, 88888),
+      ).rejects.toThrow(/not found/i);
+    });
+  });
+
   describe('unmatch', () => {
     it('removes a same-currency match and restores the outstanding balance', async () => {
       const supplier = await seedSupplier();
