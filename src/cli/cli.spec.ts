@@ -24,9 +24,9 @@ import { CategoryService } from '../categories/category.service';
 const noProjection = null as unknown as VoucherProjectionService;
 const noPeriodLock = null as unknown as PeriodLockService;
 const noCategoryService = {
-  list: async () => [],
-  isValid: async () => true,
-  assertValid: async () => {},
+  list: () => Promise.resolve([]),
+  isValid: () => Promise.resolve(true),
+  assertValid: () => Promise.resolve(),
 } as unknown as CategoryService;
 
 function makeIo() {
@@ -77,7 +77,12 @@ describe('admin CLI (yargs)', () => {
           new OrganizationService(db),
         ),
       ),
-      expenses: new ExpensesService(db, noProjection, noPeriodLock, noCategoryService),
+      expenses: new ExpensesService(
+        db,
+        noProjection,
+        noPeriodLock,
+        noCategoryService,
+      ),
       salesInvoices: new SalesInvoicesService(db, noProjection),
       entities: new EntitiesService(db),
     };

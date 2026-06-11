@@ -1,6 +1,9 @@
 import { NullCountryPlugin } from './null-country.plugin';
-import { OrgContext, SupplierFacts } from './country-plugin.interface';
-
+import {
+  CategoryDef,
+  OrgContext,
+  SupplierFacts,
+} from './country-plugin.interface';
 
 describe('NullCountryPlugin — retrieval + distribution tax', () => {
   const plugin = new NullCountryPlugin();
@@ -54,25 +57,43 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
       const keys = cats.map((c) => c.key);
       expect(keys).toEqual(
         expect.arrayContaining([
-          'software', 'transport', 'travel', 'marketing', 'salary',
-          'contractor', 'rent', 'tax', 'bank fee', 'meals', 'insurance', 'education',
+          'software',
+          'transport',
+          'travel',
+          'marketing',
+          'salary',
+          'contractor',
+          'rent',
+          'tax',
+          'bank fee',
+          'meals',
+          'insurance',
+          'education',
         ]),
       );
       // No 'revenue' — getCategories() is the EXPENSE set only.
       expect(keys).not.toContain('revenue');
-      const software = cats.find((c) => c.key === 'software');
+      const software: CategoryDef | undefined = cats.find(
+        (c) => c.key === 'software',
+      );
       expect(software).toEqual({
         key: 'software',
-        label: expect.any(String),
+        label: expect.any(String) as unknown,
         accountCode: 'EXPENSE_SOFTWARE',
       });
     });
 
     it('is consistent with resolveCategoryMapping (no divergence possible)', () => {
-      const facts = { country: 'IE', goodsVsServices: 'services' as const, classificationMemory: [] };
+      const facts = {
+        country: 'IE',
+        goodsVsServices: 'services' as const,
+        classificationMemory: [],
+      };
       const org = { country: 'IE', vatRegistered: true, baseCurrency: null };
       for (const cat of plugin.getCategories()) {
-        expect(plugin.resolveCategoryMapping(cat.key, facts, org).accountCode).toBe(cat.accountCode);
+        expect(
+          plugin.resolveCategoryMapping(cat.key, facts, org).accountCode,
+        ).toBe(cat.accountCode);
       }
     });
   });

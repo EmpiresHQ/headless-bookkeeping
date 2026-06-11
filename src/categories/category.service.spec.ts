@@ -1,13 +1,18 @@
 import { BadRequestException } from '@nestjs/common';
 import { CategoryService } from './category.service';
 
-function makeService(categories: { key: string; label: string; accountCode: string }[]) {
+function makeService(
+  categories: { key: string; label: string; accountCode: string }[],
+) {
   const plugin = { getCategories: () => categories };
   const pluginLoader = { resolve: jest.fn().mockReturnValue(plugin) };
   const organizationService = {
     getOrganization: jest.fn().mockResolvedValue({ country: 'IE' }),
   };
-  return new CategoryService(pluginLoader as never, organizationService as never);
+  return new CategoryService(
+    pluginLoader as never,
+    organizationService as never,
+  );
 }
 
 const CATS = [
@@ -27,7 +32,9 @@ describe('CategoryService', () => {
   });
   it('assertValid() throws BadRequestException for an unknown category', async () => {
     const svc = makeService(CATS);
-    await expect(svc.assertValid('garbage')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.assertValid('garbage')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     await expect(svc.assertValid('software')).resolves.toBeUndefined();
   });
 });

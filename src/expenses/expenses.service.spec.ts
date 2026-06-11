@@ -359,14 +359,17 @@ describe('ExpensesService (integration)', () => {
         provider: { getMigrations: () => Promise.resolve(migrations) },
       });
       const { error } = await migrator2.migrateToLatest();
-      if (error) throw error instanceof Error ? error : new Error('Migration failed');
+      if (error)
+        throw error instanceof Error ? error : new Error('Migration failed');
 
       const strictCategoryService = {
-        assertValid: async (c: string) => {
-          if (c !== 'software')
-            throw new BadRequestException(`Unknown category '${c}'.`);
-        },
-        isValid: async (c: string) => c === 'software',
+        assertValid: (c: string) =>
+          c === 'software'
+            ? Promise.resolve()
+            : Promise.reject(
+                new BadRequestException(`Unknown category '${c}'.`),
+              ),
+        isValid: (c: string) => Promise.resolve(c === 'software'),
       };
 
       const strictModule = await Test.createTestingModule({

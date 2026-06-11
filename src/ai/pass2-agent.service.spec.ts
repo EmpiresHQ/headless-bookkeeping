@@ -80,9 +80,9 @@ describe('Pass2AgentService', () => {
         {
           provide: CategoryService,
           useValue: {
-            list: async () => [],
-            isValid: async () => true,
-            assertValid: async () => {},
+            list: () => Promise.resolve([]),
+            isValid: () => Promise.resolve(true),
+            assertValid: () => Promise.resolve(),
           },
         },
         AgentConfigService,

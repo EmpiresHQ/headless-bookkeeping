@@ -1,6 +1,10 @@
 // src/plugins/estonia-country.plugin.spec.ts
 import { EstoniaCountryPlugin } from './estonia-country.plugin';
-import { OrgContext, SupplierFacts } from './country-plugin.interface';
+import {
+  CategoryDef,
+  OrgContext,
+  SupplierFacts,
+} from './country-plugin.interface';
 
 describe('EstoniaCountryPlugin — VAT core', () => {
   const ee = new EstoniaCountryPlugin();
@@ -390,23 +394,37 @@ describe('EstoniaCountryPlugin — getCategories()', () => {
     const keys = cats.map((c) => c.key);
     expect(keys).toEqual(
       expect.arrayContaining([
-        'software', 'transport', 'travel', 'marketing', 'salary',
-        'contractor', 'rent', 'tax', 'bank fee', 'meals', 'insurance', 'education',
+        'software',
+        'transport',
+        'travel',
+        'marketing',
+        'salary',
+        'contractor',
+        'rent',
+        'tax',
+        'bank fee',
+        'meals',
+        'insurance',
+        'education',
       ]),
     );
     // No 'revenue' — getCategories() is the EXPENSE set only.
     expect(keys).not.toContain('revenue');
-    const software = cats.find((c) => c.key === 'software');
+    const software: CategoryDef | undefined = cats.find(
+      (c) => c.key === 'software',
+    );
     expect(software).toEqual({
       key: 'software',
-      label: expect.any(String),
+      label: expect.any(String) as unknown,
       accountCode: 'EXPENSE_SOFTWARE',
     });
   });
 
   it('is consistent with resolveCategoryMapping (no divergence possible)', () => {
     for (const cat of plugin.getCategories()) {
-      expect(plugin.resolveCategoryMapping(cat.key, eeSupplier, org).accountCode).toBe(cat.accountCode);
+      expect(
+        plugin.resolveCategoryMapping(cat.key, eeSupplier, org).accountCode,
+      ).toBe(cat.accountCode);
     }
   });
 });

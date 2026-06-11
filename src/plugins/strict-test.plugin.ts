@@ -52,7 +52,11 @@ export class StrictTestPlugin extends NullCountryPlugin {
   override getCategories(): CategoryDef[] {
     return [
       ...super.getCategories(),
-      { key: STRICT_REJECTED_CATEGORY, label: 'Strict Test Category', accountCode: 'EXPENSE_OTHER' },
+      {
+        key: STRICT_REJECTED_CATEGORY,
+        label: 'Strict Test Category',
+        accountCode: 'EXPENSE_OTHER',
+      },
     ];
   }
 

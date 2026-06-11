@@ -423,9 +423,7 @@ describe('ProposeDraftService (integration)', () => {
     it('returns category-unresolved for a triage category the active plugin does not know', async () => {
       const categoryService = module.get(CategoryService);
       // Stub isValid to return false for anything that is not 'software'.
-      jest
-        .spyOn(categoryService, 'isValid')
-        .mockResolvedValue(false);
+      jest.spyOn(categoryService, 'isValid').mockResolvedValue(false);
 
       const triage: TriageResult = {
         kind: 'new_expense',
