@@ -16,6 +16,10 @@ describe('IntakeView', () => {
   beforeEach(() => {
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([doc]);
     vi.spyOn(api, 'getDocuments').mockResolvedValue([doc]);
+    vi.spyOn(api, 'uploadDocument').mockResolvedValue({
+      document: doc,
+      deduplicated: false,
+    });
     vi.spyOn(api, 'triageDocument').mockResolvedValue({
       kind: 'expense',
       document_id: 5,
@@ -28,11 +32,25 @@ describe('IntakeView', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('lists pending documents and runs triage, showing the outcome', async () => {
+  it('auto-triages after upload and shows the outcome in the note', async () => {
+    render(<IntakeView />);
+    const input = screen.getByLabelText(/upload document/i);
+    const file = new File(['pdf'], 'invoice.pdf', { type: 'application/pdf' });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    fireEvent.change(input);
+    fireEvent.click(screen.getByRole('button', { name: /upload/i }));
+
+    await waitFor(() => {
+      expect(api.uploadDocument).toHaveBeenCalled();
+      expect(api.triageDocument).toHaveBeenCalledWith(5);
+    });
+  });
+
+  it('retries triage for an already-pending document', async () => {
     render(<IntakeView />);
     expect(await screen.findByText('invoice.pdf')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /run triage/i }));
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
 
     await waitFor(() => expect(api.triageDocument).toHaveBeenCalledWith(5));
     expect(await screen.findByText(/expense #42/i)).toBeInTheDocument();
