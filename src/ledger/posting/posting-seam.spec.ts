@@ -26,6 +26,7 @@ import { VoucherProjectionService } from '../projection/voucher-projection.servi
 import { ApprovalsService } from '../../approvals/approvals.service';
 import { VoucherRepository } from '../voucher/voucher.repository';
 import { PostingService, PostingSemantics } from './posting.service';
+import { CategoryService } from '../../categories/category.service';
 import { StatusTransitionService } from '../status/status-transition.service';
 import { DraftVoucher } from '../voucher/types';
 import { SemanticValidationContext } from '../../rules/types';
@@ -85,6 +86,14 @@ describe('Posting seam consolidation (integration)', () => {
         SalesInvoicesService,
         ApprovalsService,
         VoucherRepository,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: async () => [],
+            isValid: async () => true,
+            assertValid: async () => {},
+          },
+        },
       ],
     }).compile();
 

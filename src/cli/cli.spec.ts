@@ -16,10 +16,18 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { buildCli, CliDeps } from './cli';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
+import { CategoryService } from '../categories/category.service';
 
 // deleteDraft / delete only touch the DB (never the projection), so a null
 // projection is safe for these unit tests.
 const noProjection = null as unknown as VoucherProjectionService;
+const noPeriodLock = null as unknown as PeriodLockService;
+const noCategoryService = {
+  list: async () => [],
+  isValid: async () => true,
+  assertValid: async () => {},
+} as unknown as CategoryService;
 
 function makeIo() {
   const out: string[] = [];
@@ -69,7 +77,7 @@ describe('admin CLI (yargs)', () => {
           new OrganizationService(db),
         ),
       ),
-      expenses: new ExpensesService(db, noProjection),
+      expenses: new ExpensesService(db, noProjection, noPeriodLock, noCategoryService),
       salesInvoices: new SalesInvoicesService(db, noProjection),
       entities: new EntitiesService(db),
     };

@@ -13,6 +13,7 @@ import { fauxMastraService } from './faux-mastra.service';
 import { ExpensesService } from '../src/expenses/expenses.service';
 import { PostingService } from '../src/ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../src/reporting-periods/reporting-periods.service';
+import { CategoryService } from '../src/categories/category.service';
 import { Expense } from '../src/expenses/types';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -53,6 +54,12 @@ describe('Expenses document-metadata PATCH E2E', () => {
       .useValue(root)
       .overrideProvider(MastraService)
       .useValue(fauxMastraService)
+      .overrideProvider(CategoryService)
+      .useValue({
+        list: async () => [],
+        isValid: async () => true,
+        assertValid: async () => {},
+      })
       .compile();
 
     app = module.createNestApplication();

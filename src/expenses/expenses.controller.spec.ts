@@ -23,6 +23,7 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 import { NotFoundException } from '@nestjs/common';
+import { CategoryService } from '../categories/category.service';
 
 describe('ExpensesController (integration)', () => {
   let db: Kysely<Database>;
@@ -63,6 +64,14 @@ describe('ExpensesController (integration)', () => {
         PostingPipelineService,
         VoucherProjectionService,
         ExpensesService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: async () => [],
+            isValid: async () => true,
+            assertValid: async () => {},
+          },
+        },
       ],
     }).compile();
 

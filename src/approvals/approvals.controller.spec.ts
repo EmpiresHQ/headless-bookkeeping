@@ -25,6 +25,7 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { ApprovalsController } from './approvals.controller';
 import { ApprovalsService } from './approvals.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
+import { CategoryService } from '../categories/category.service';
 
 describe('ApprovalsController (integration)', () => {
   let db: Kysely<Database>;
@@ -68,6 +69,14 @@ describe('ApprovalsController (integration)', () => {
         ExpensesService,
         SalesInvoicesService,
         ApprovalsService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: async () => [],
+            isValid: async () => true,
+            assertValid: async () => {},
+          },
+        },
       ],
     }).compile();
 

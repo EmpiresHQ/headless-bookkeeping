@@ -24,6 +24,7 @@ import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { ApprovalsService } from './approvals.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { CategoryService } from '../categories/category.service';
 
 describe('ApprovalsService (integration)', () => {
   let db: Kysely<Database>;
@@ -66,6 +67,14 @@ describe('ApprovalsService (integration)', () => {
         ExpensesService,
         SalesInvoicesService,
         ApprovalsService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: async () => [],
+            isValid: async () => true,
+            assertValid: async () => {},
+          },
+        },
       ],
     }).compile();
 

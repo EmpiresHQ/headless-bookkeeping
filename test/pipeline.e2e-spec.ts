@@ -17,6 +17,7 @@ import { RulesService } from './../src/rules/rules.service';
 import { PolicyService } from './../src/policy/policy.service';
 import { PostingPipelineService } from './../src/ledger/pipeline/posting-pipeline.service';
 import { ExpensesService } from './../src/expenses/expenses.service';
+import { CategoryService } from './../src/categories/category.service';
 import { ExpensesController } from './../src/expenses/expenses.controller';
 import { SalesInvoicesService } from './../src/sales-invoices/sales-invoices.service';
 import { SalesInvoicesController } from './../src/sales-invoices/sales-invoices.controller';
@@ -61,6 +62,14 @@ describe('Pipeline (e2e)', () => {
         PostingPipelineService,
         VoucherProjectionService,
         ExpensesService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: async () => [],
+            isValid: async () => true,
+            assertValid: async () => {},
+          },
+        },
         SalesInvoicesService,
         OrganizationService,
         OrgContextResolver,

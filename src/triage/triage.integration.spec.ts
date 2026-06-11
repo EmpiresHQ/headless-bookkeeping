@@ -19,6 +19,7 @@ import { DocumentStorageService } from '../documents/document-storage.service';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { TriageService } from './triage.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
+import { CategoryService } from '../categories/category.service';
 
 /**
  * Integration test for the triage pipeline:
@@ -76,6 +77,14 @@ describe('TriageService (integration)', () => {
             assertPeriodOpen: jest.fn().mockResolvedValue(undefined),
             findLockedPeriod: jest.fn().mockResolvedValue(undefined),
             getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: CategoryService,
+          useValue: {
+            list: async () => [],
+            isValid: async () => true,
+            assertValid: async () => {},
           },
         },
         SalesInvoicesService,
