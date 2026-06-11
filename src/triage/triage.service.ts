@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
-import { TriageOutcome, DocumentDebug } from './types';
+import { TriageOutcome, DocumentDebug, PendingDraft } from './types';
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.
@@ -54,5 +54,34 @@ export class TriageService {
       throw new NotFoundException(`Document ${documentId} not found`);
     }
     return this.workflow.debug(documentId);
+  }
+
+  /** Operator-facing view of a supplier-unresolved document (404 if none). */
+  async getPendingDraft(documentId: number): Promise<PendingDraft> {
+    await this.documents.getById(documentId); // 404 if the document is unknown
+    return this.workflow.getPendingDraft(documentId);
+  }
+
+  /**
+   * Resolve the supplier on a parked document and replay it into a draft.
+   * Maps the workflow outcome onto the same TriageOutcome shape `route` returns.
+   */
+  async resolveSupplier(
+    documentId: number,
+    supplierEntityId: number,
+  ): Promise<TriageOutcome> {
+    await this.documents.getById(documentId); // 404 if the document is unknown
+    const result = await this.workflow.resolveSupplier(
+      documentId,
+      supplierEntityId,
+    );
+    if (result.status === 'draft_proposed') {
+      return {
+        kind: 'expense',
+        document_id: documentId,
+        expense_id: result.draft.expenseId,
+      };
+    }
+    return { kind: 'unknown', document_id: documentId, reason: result.reason };
   }
 }

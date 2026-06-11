@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 /**
@@ -69,6 +70,16 @@ export const triageResultSchema = z.object({
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;
+
+/**
+ * Request body for resolving the supplier on a parked (supplier-unresolved)
+ * document: the operator-chosen Supplier Entity to book the draft against.
+ */
+export const resolveSupplierSchema = z.object({
+  supplier_entity_id: z.number().int().positive(),
+});
+
+export class ResolveSupplierDto extends createZodDto(resolveSupplierSchema) {}
 
 export interface TriageOutcomeExpense {
   kind: 'expense';

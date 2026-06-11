@@ -42,6 +42,8 @@ describe('TriageService (integration)', () => {
 
   const mockWorkflow = {
     process: jest.fn(),
+    resolveSupplier: jest.fn(),
+    getPendingDraft: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -95,6 +97,8 @@ describe('TriageService (integration)', () => {
   afterEach(async () => {
     await db.destroy();
     mockWorkflow.process.mockReset();
+    mockWorkflow.resolveSupplier.mockReset();
+    mockWorkflow.getPendingDraft.mockReset();
   });
 
   it('routes draft_proposed workflow result to Expense outcome', async () => {
@@ -196,5 +200,81 @@ describe('TriageService (integration)', () => {
 
   it('throws NotFoundException for unknown document id', async () => {
     await expect(triage.route(999)).rejects.toThrow('Document 999 not found');
+  });
+
+  describe('resolveSupplier', () => {
+    it('delegates to the workflow and maps a draft to an expense outcome', async () => {
+      const uploadResult = await documents.upload({
+        filename: 'parked.pdf',
+        buffer: Buffer.from('fake'),
+        mimeType: 'application/pdf',
+        channel: 'upload',
+      });
+      const doc = uploadResult.document;
+      await documents.setStatus(doc.id, 'needs_triage');
+
+      mockWorkflow.resolveSupplier.mockResolvedValue({
+        status: 'draft_proposed',
+        draft: {
+          outcome: 'draft',
+          expenseId: 55,
+          pipelineResult: {},
+        },
+      });
+
+      const out = await triage.resolveSupplier(doc.id, 3);
+
+      expect(mockWorkflow.resolveSupplier).toHaveBeenCalledWith(doc.id, 3);
+      expect(out).toEqual({
+        kind: 'expense',
+        document_id: doc.id,
+        expense_id: 55,
+      });
+    });
+
+    it('throws NotFoundException for unknown document id', async () => {
+      await expect(triage.resolveSupplier(999, 3)).rejects.toThrow(
+        'Document 999 not found',
+      );
+    });
+  });
+
+  describe('getPendingDraft', () => {
+    it('delegates to the workflow', async () => {
+      const uploadResult = await documents.upload({
+        filename: 'parked-2.pdf',
+        buffer: Buffer.from('fake'),
+        mimeType: 'application/pdf',
+        channel: 'upload',
+      });
+      const doc = uploadResult.document;
+      await documents.setStatus(doc.id, 'needs_triage');
+
+      const pd = {
+        document_id: doc.id,
+        reason: 'r',
+        supplier_proposal: { create_name: 'A', create_country: 'EE' },
+        draft: {
+          category: 'c',
+          gross_amount: 1,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-01-01',
+          supplier_invoice_number: null,
+        },
+      };
+      mockWorkflow.getPendingDraft.mockResolvedValue(pd);
+
+      const out = await triage.getPendingDraft(doc.id);
+
+      expect(mockWorkflow.getPendingDraft).toHaveBeenCalledWith(doc.id);
+      expect(out).toEqual(pd);
+    });
+
+    it('throws NotFoundException for unknown document id', async () => {
+      await expect(triage.getPendingDraft(999)).rejects.toThrow(
+        'Document 999 not found',
+      );
+    });
   });
 });
