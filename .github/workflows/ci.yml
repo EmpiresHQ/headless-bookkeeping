@@ -115,7 +115,6 @@ jobs:
     needs: [changes, lint, unit, e2e, web-check, cli-test]
     if: >
       github.event_name == 'push'
-      && needs.changes.outputs.server == 'true'
       && !cancelled()
       && !contains(needs.*.result, 'failure')
     steps:
