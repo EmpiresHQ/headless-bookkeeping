@@ -9,6 +9,7 @@ import {
   type TriageOutcome,
 } from '../api';
 import { Table, type Column } from './Table';
+import { ResolveSupplierForm } from './ResolveSupplierForm';
 
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
@@ -25,6 +26,7 @@ export function IntakeView() {
   const [busy, setBusy] = useState(false);
   // Per-document triage outcome, keyed by document id.
   const [outcomes, setOutcomes] = useState<Record<number, string>>({});
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = () =>
@@ -181,6 +183,14 @@ export function IntakeView() {
                 <button
                   type="button"
                   disabled={busy}
+                  onClick={() => setResolvingId(d.id)}
+                  className="text-green-700 hover:underline disabled:opacity-50"
+                >
+                  Resolve
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
                   onClick={() => void onTriage(d.id)}
                   className="text-blue-600 hover:underline disabled:opacity-50"
                 >
@@ -197,6 +207,18 @@ export function IntakeView() {
               </div>
             )}
           />
+          {resolvingId !== null && (
+            <div className="border rounded p-3 bg-gray-50">
+              <ResolveSupplierForm
+                documentId={resolvingId}
+                onCancel={() => setResolvingId(null)}
+                onDone={() => {
+                  setResolvingId(null);
+                  void refresh();
+                }}
+              />
+            </div>
+          )}
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setToken } from './auth';
-import { deleteExpense, getKmd, downloadStatutoryReport } from './api';
+import { deleteExpense, getKmd, downloadStatutoryReport, resolveSupplier } from './api';
 
 describe('api delete + kmd', () => {
   beforeEach(() => {
@@ -150,6 +150,23 @@ describe('api delete + kmd', () => {
     expect(JSON.parse(init?.body as string)).toEqual({
       auto_post_amount_ceiling: 10000,
     });
+  });
+
+  it('resolveSupplier POSTs the chosen entity id', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"kind":"expense","document_id":4,"expense_id":55}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    const out = await resolveSupplier(4, 3);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/documents/4/resolve-supplier');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({ supplier_entity_id: 3 });
+    expect(out).toEqual({ kind: 'expense', document_id: 4, expense_id: 55 });
   });
 
   it('downloadStatutoryReport requests the period endpoint with the format', async () => {

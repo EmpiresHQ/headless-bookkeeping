@@ -352,4 +352,75 @@ describe('DocumentsService (unit)', () => {
       expect(remainingLinks).toHaveLength(0);
     });
   });
+
+  describe('pending triage result', () => {
+    it('persists and clears a pending triage result on the document', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-pending-1',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+
+      const triage = {
+        kind: 'new_expense' as const,
+        gross_amount: 1525,
+        vat_amount: 285,
+        tax_point_date: '2026-03-15',
+        category: 'software',
+        supplier_proposal: {
+          mode: 'create' as const,
+          create_name: 'Acme OÜ',
+          create_country: 'EE',
+          create_registration_key: 'EE100200300',
+        },
+        document_type: 'invoice' as const,
+        currency: 'EUR',
+        document_vat_marking: null,
+        supplier_invoice_number: 'INV-7',
+        confidence: 0.42,
+      };
+
+      await service.setPendingTriageResult(doc.id, triage);
+      expect(await service.getPendingTriageResult(doc.id)).toEqual(triage);
+
+      await service.setPendingTriageResult(doc.id, null);
+      expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+    });
+
+    it('throws when the stored blob is malformed', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-bad-blob',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await db
+        .updateTable('document')
+        .set({ pending_triage_result: '{not valid triage}' })
+        .where('id', '=', doc.id)
+        .execute();
+
+      await expect(service.getPendingTriageResult(doc.id)).rejects.toThrow();
+    });
+  });
 });
