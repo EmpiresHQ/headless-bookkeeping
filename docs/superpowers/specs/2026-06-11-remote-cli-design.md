@@ -43,24 +43,33 @@ packages/cli/
       login.ts          # the ONE hand-written command
     openapi.json        # committed; refreshed by codegen
     types.gen.ts        # committed; openapi-typescript output
-  scripts/
-    pull-schema.ts      # GET <url>/api-json -> openapi.json + run openapi-ts
 ```
+
+(The server repo gains `src/openapi-emit.ts` — the offline spec emitter — and an
+`openapi:emit` script; see section 3.)
 
 It is wired as an npm workspace of the root repo but is otherwise isolated from
 `src/`.
 
-## 3. Codegen pipeline (build-time)
+## 3. Codegen pipeline (offline, build-time)
 
-`npm run codegen` inside the package:
+The OpenAPI document is produced **offline from the Nest application context** —
+no HTTP server, no open port. This is the single source of truth for the spec and
+makes the CI drift-check (section 8) cheap enough to run on every PR.
 
-1. `pull-schema.ts` does `GET $HBK_SCHEMA_URL/api-json` and writes `openapi.json`.
-2. Runs `openapi-typescript openapi.json -o src/types.gen.ts`.
+- **`npm run openapi:emit`** (in the server repo, e.g. `src/openapi-emit.ts`):
+  `NestFactory.create(AppModule)` **without** `app.listen()`, build the document
+  via the same `setupSwagger` config + `cleanupOpenApiDoc`, write
+  `packages/cli/openapi.json`, close the app.
+- **`npm run codegen`** (in `packages/cli`): runs `openapi:emit`, then
+  `openapi-typescript openapi.json -o src/types.gen.ts`.
 
-Both artifacts are **committed**. Building the package and running `hbk --help`
-therefore require no live server. Updating the API surface = re-run codegen +
-commit the diff. In CI this is a dedicated step run against a booted instance
-(schema is pulled over HTTP, per the chosen approach).
+Both `openapi.json` and `types.gen.ts` are **committed**. Building the package and
+running `hbk --help` therefore require no server and no server code. Updating the
+API surface = re-run `codegen` + commit the diff (enforced by the drift-check).
+
+`pull-schema.ts` (HTTP `GET /api-json`) is intentionally NOT used — offline emit
+is identical (same `createDocument`) and avoids booting an instance in CI.
 
 ## 4. Config & auth
 
@@ -138,18 +147,49 @@ anything non-standard, though full autogen already covers the surface.
 - Handlers: a couple of smoke tests with HTTP mocked (msw or a fetch stub).
 - No live server required for the unit suite.
 
-## 8. Defaults chosen (not separately asked)
+## 8. Release, drift-check & publishing
+
+The CLI ships as a versioned npm package with GitHub Releases. Publishing is
+**diff-driven**: many CI builds run, but the API changes rarely, so a release only
+happens when CLI-relevant files actually change.
+
+**Per-PR drift-check (no publish).** On every PR, CI runs `npm run codegen` then
+`git diff --exit-code packages/cli/openapi.json packages/cli/src/types.gen.ts`. A
+non-empty diff fails the build with "spec out of date — run `npm run codegen` and
+commit". This guarantees the committed artifacts can never drift from the server's
+real API. Cheap (offline emit), so it runs on all builds.
+
+**On merge to `main` — release workflow, path-gated.** A GitHub Actions workflow
+triggered on push to `main` with `paths: ['packages/cli/**']`. It does not run at
+all unless CLI-relevant files changed in the push — and `openapi.json` only changes
+when the API changes. When it runs:
+
+1. Bump version (independent semver): **patch by default**; **minor/major** when the
+   triggering commit/PR carries a label or conventional-commit marker.
+2. `npm publish` the package.
+3. `gh release create` with a changelog assembled from the `openapi.json` diff
+   (added/removed/changed operations) so each release says what API changed.
+
+The CLI version is independent of the server; the OpenAPI `info.version` is embedded
+in the package metadata / `hbk --version` output for reference only.
+
+## 9. Defaults chosen (not separately asked)
 
 - HTTP client: `openapi-fetch` (runtime companion to `openapi-typescript`).
 - Binary name: `hbk`.
 - Default profile name: `default`.
 
-## 9. Decisions log
+## 10. Decisions log
 
 - Separate package, not a mode of the existing CLI (user: "отдельный пакет вообще").
-- Workspace in this repo; schema pulled over HTTP at codegen time.
+- Workspace in this repo.
+- Spec is emitted **offline from the Nest context** (`openapi:emit`), not pulled
+  over HTTP — makes the per-PR drift-check cheap.
 - `login` stores URL + token with multi-profile support; validation via a real
-  network call to a guarded endpoint.
+  network call to a guarded endpoint (`GET /admin/tokens`).
 - Full autogen from OpenAPI; command tree built at runtime from a bundled spec.
 - Request body via `--body-file` or stdin pipe only (no inline `--body`, no
   per-field flags).
+- Diff-driven release: per-PR drift-check gate; path-gated release workflow on
+  `main` publishes to npm + GitHub Releases only when `packages/cli/**` changes.
+- Independent semver, auto-bumped (patch default; minor/major via commit/PR label).
