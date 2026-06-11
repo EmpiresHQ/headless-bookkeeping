@@ -136,7 +136,9 @@ describe('Expenses document-metadata PATCH E2E', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ supplier_invoice_number: 'SUP-9' })
       .expect(200);
-    expect(res.body.supplier_invoice_number).toBe('SUP-9');
+    expect(
+      (res.body as { supplier_invoice_number: string }).supplier_invoice_number,
+    ).toBe('SUP-9');
   });
 
   it('rejects the patch when the expense period is locked', async () => {

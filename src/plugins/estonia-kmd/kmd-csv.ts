@@ -43,7 +43,11 @@ function buildRow(cols: string[]): string {
  *   acquisitionOtherGoodsAndServicesTotal; acquisitionImmovablesAndScrapMetalAndGold;
  *   supplyExemptFromTax; supplySpecialArrangements; adjustmentsPlus; adjustmentsMinus
  */
-function renderKmd6Row(input: StatutoryReportInput, hasSales: boolean, hasPurchases: boolean): string {
+function renderKmd6Row(
+  input: StatutoryReportInput,
+  hasSales: boolean,
+  hasPurchases: boolean,
+): string {
   const netByRate = transactionsNetByRate(input);
 
   const t24 = netByRate.get(24) ?? 0;
@@ -54,36 +58,36 @@ function renderKmd6Row(input: StatutoryReportInput, hasSales: boolean, hasPurcha
 
   const cols: string[] = [
     'KMD6',
-    hasSales ? 'FALSE' : 'TRUE',       // noSales
-    hasPurchases ? 'FALSE' : 'TRUE',    // noPurchases
-    'FALSE',                            // sumPerPartnerSales
-    'FALSE',                            // sumPerPartnerPurchases
-    t24 !== 0 ? eur(t24) : '',          // transactions24
-    '',                                 // transactions22
-    '',                                 // transactions20
-    t9 !== 0 ? eur(t9) : '',            // transactions9
-    '',                                 // transactions5
-    t13 !== 0 ? eur(t13) : '',          // transactions13
-    '',                                 // transactionsZeroVat
-    '',                                 // euSupplyInclGoodsAndServicesZeroVat
-    '',                                 // euSupplyGoodsZeroVat
-    '',                                 // exportZeroVat
-    '',                                 // salePassengersWithReturnVat
+    hasSales ? 'FALSE' : 'TRUE', // noSales
+    hasPurchases ? 'FALSE' : 'TRUE', // noPurchases
+    'FALSE', // sumPerPartnerSales
+    'FALSE', // sumPerPartnerPurchases
+    t24 !== 0 ? eur(t24) : '', // transactions24
+    '', // transactions22
+    '', // transactions20
+    t9 !== 0 ? eur(t9) : '', // transactions9
+    '', // transactions5
+    t13 !== 0 ? eur(t13) : '', // transactions13
+    '', // transactionsZeroVat
+    '', // euSupplyInclGoodsAndServicesZeroVat
+    '', // euSupplyGoodsZeroVat
+    '', // exportZeroVat
+    '', // salePassengersWithReturnVat
     inputVatTotal !== 0 ? eur(inputVatTotal) : '', // inputVatTotal
-    '',                                 // importVat
-    '',                                 // fixedAssetsVat
-    '',                                 // carsVat
-    '',                                 // numberOfCars
-    '',                                 // carsPartialVat
-    '',                                 // numberOfCarsPartial
-    '',                                 // euAcquisitionsGoodsAndServicesTotal
-    '',                                 // euAcquisitionsGoods
-    '',                                 // acquisitionOtherGoodsAndServicesTotal
-    '',                                 // acquisitionImmovablesAndScrapMetalAndGold
-    '',                                 // supplyExemptFromTax
-    '',                                 // supplySpecialArrangements
-    '',                                 // adjustmentsPlus
-    '',                                 // adjustmentsMinus
+    '', // importVat
+    '', // fixedAssetsVat
+    '', // carsVat
+    '', // numberOfCars
+    '', // carsPartialVat
+    '', // numberOfCarsPartial
+    '', // euAcquisitionsGoodsAndServicesTotal
+    '', // euAcquisitionsGoods
+    '', // acquisitionOtherGoodsAndServicesTotal
+    '', // acquisitionImmovablesAndScrapMetalAndGold
+    '', // supplyExemptFromTax
+    '', // supplySpecialArrangements
+    '', // adjustmentsPlus
+    '', // adjustmentsMinus
   ];
 
   return buildRow(cols);
@@ -103,9 +107,9 @@ function renderARow(row: InfRow): string {
     row.date ?? '',
     eur(row.netAmount),
     String(row.ratePercent),
-    '',  // invoiceSumForRate — empty
-    '',  // sumForRateInPeriod — empty
-    '',  // comments — empty
+    '', // invoiceSumForRate — empty
+    '', // sumForRateInPeriod — empty
+    '', // comments — empty
   ];
   return buildRow(cols);
 }
@@ -123,9 +127,9 @@ function renderBRow(row: InfRow): string {
     row.invoiceNumber ? csvField(row.invoiceNumber) : '',
     row.date ?? '',
     eur(row.netAmount + row.vatAmount),
-    '',  // vatSum — empty middle placeholder
+    '', // vatSum — empty middle placeholder
     eur(row.vatAmount),
-    '',  // comments — empty
+    '', // comments — empty
   ];
   return buildRow(cols);
 }
@@ -138,7 +142,9 @@ export function renderKmdCsv(input: StatutoryReportInput): string {
   const allRows: string[] = [];
 
   // ONE KMD6 row first
-  allRows.push(renderKmd6Row(input, salesRows.length > 0, purchaseRows.length > 0));
+  allRows.push(
+    renderKmd6Row(input, salesRows.length > 0, purchaseRows.length > 0),
+  );
 
   // A rows (sales INF)
   for (const row of salesRows) {

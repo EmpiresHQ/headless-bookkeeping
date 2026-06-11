@@ -377,9 +377,17 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     const artifacts = [];
     for (const fmt of opts.formats) {
       if (fmt === 'xml') {
-        artifacts.push({ filename: `kmd-${base}.xml`, mimeType: 'application/xml', content: renderKmdXml(input) });
+        artifacts.push({
+          filename: `kmd-${base}.xml`,
+          mimeType: 'application/xml',
+          content: renderKmdXml(input),
+        });
       } else if (fmt === 'csv') {
-        artifacts.push({ filename: `kmd-${base}.csv`, mimeType: 'text/csv', content: renderKmdCsv(input) });
+        artifacts.push({
+          filename: `kmd-${base}.csv`,
+          mimeType: 'text/csv',
+          content: renderKmdCsv(input),
+        });
       }
     }
     return { artifacts, warnings };

@@ -1,5 +1,9 @@
 import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
-import type { StatutoryReportInput, StatutoryReportResult, StatutoryFormat } from './statutory-report.types';
+import type {
+  StatutoryReportInput,
+  StatutoryReportResult,
+  StatutoryFormat,
+} from './statutory-report.types';
 
 export type {
   VatComputation,

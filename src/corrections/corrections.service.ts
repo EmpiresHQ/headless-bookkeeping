@@ -135,7 +135,7 @@ export class CorrectionsService {
     // 5. Credit note — delegate to CreditNotesService
     if (request.kind === 'credit_note') {
       const cn = await this.creditNotes.create({
-        credits_object_type: params.objectType as 'sales_invoice' | 'expense',
+        credits_object_type: params.objectType,
         credits_object_id: params.objectId,
         ...request.creditNote!,
       });

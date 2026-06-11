@@ -163,11 +163,11 @@ describe('Statutory Report download endpoint (E2E)', () => {
   it('rejects an unsupported format with 400', async () => {
     const periodId = await seedPeriodWithEeInvoice(app);
     const res = await request(app.getHttpServer())
-      .get(
-        `/api/reporting-periods/${periodId}/statutory-report?format=pdf`,
-      )
+      .get(`/api/reporting-periods/${periodId}/statutory-report?format=pdf`)
       .set('Authorization', `Bearer ${token}`)
       .expect(400);
-    expect(res.body.message).toContain('Unsupported format: pdf');
+    expect((res.body as { message: string }).message).toContain(
+      'Unsupported format: pdf',
+    );
   });
 });

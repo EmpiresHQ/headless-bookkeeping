@@ -49,7 +49,11 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
     const result = plugin.generateStatutoryReports(
       {
         declarant: { regNumber: null, name: null },
-        period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
+        period: {
+          name: '2026-05',
+          startDate: '2026-05-01',
+          endDate: '2026-05-31',
+        },
         mode: 'final',
         boxes: [],
         totals: { totalInputVat: 0, totalOutputVat: 0, totalPayable: 0 },

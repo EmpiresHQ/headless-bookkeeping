@@ -19,7 +19,11 @@ export interface StatutoryReportInput {
   period: { name: string; startDate: string; endDate: string };
   mode: 'final' | 'draft';
   boxes: VatSummaryLine[];
-  totals: { totalInputVat: number; totalOutputVat: number; totalPayable: number };
+  totals: {
+    totalInputVat: number;
+    totalOutputVat: number;
+    totalPayable: number;
+  };
   salesLines: StatutoryDocLine[];
   purchaseLines: StatutoryDocLine[];
 }
