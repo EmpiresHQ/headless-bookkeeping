@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { ExpensesView } from './ExpensesView';
 import * as api from '../api';
 
@@ -31,7 +31,11 @@ describe('ExpensesView', () => {
     vi.mocked(api.correctExpense).mockResolvedValue({ outcome: 'corrected' });
     vi.mocked(api.getCategories).mockResolvedValue([
       { key: 'software', label: 'Software', accountCode: 'EXPENSE_SOFTWARE' },
-      { key: 'transport', label: 'Transport', accountCode: 'EXPENSE_TRANSPORT' },
+      {
+        key: 'transport',
+        label: 'Transport',
+        accountCode: 'EXPENSE_TRANSPORT',
+      },
     ]);
   });
   afterEach(() => vi.restoreAllMocks());
@@ -81,5 +85,21 @@ describe('ExpensesView', () => {
       reason: 'wrong amount',
       patch: { gross_amount: 2000, vat_amount: 285, category: 'transport' },
     });
+  });
+
+  it('correction category is a dropdown of valid categories', async () => {
+    render(<ExpensesView />);
+    await screen.findByText('transport');
+
+    fireEvent.click(screen.getByRole('button', { name: /correct/i }));
+    const cat = screen.getByLabelText('Correction category');
+    expect(cat.tagName).toBe('SELECT');
+    // pre-populated from the posted expense, and a valid option is offered
+    expect((cat as HTMLSelectElement).value).toBe('transport');
+    expect(
+      within(cat as HTMLSelectElement).getByRole('option', {
+        name: 'Software',
+      }),
+    ).toBeInTheDocument();
   });
 });

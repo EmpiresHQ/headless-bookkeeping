@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { CategoryDef } from '../api';
 
 export const KINDS = ['cosmetic', 'financial', 'credit_note'] as const;
 
@@ -31,13 +32,16 @@ export function Field({
 /**
  * Correction editor for a posted expense/invoice. Submitting posts a reversal +
  * a corrected entry on the backend; the original becomes `reversed`. `category`
- * is shown for expenses; harmless for invoices (the backend ignores it).
+ * is shown for expenses; harmless for invoices (the backend ignores it). When
+ * `categories` is provided the Category field is a dropdown of the valid set
+ * (the backend rejects an unknown category); otherwise it falls back to text.
  */
 export function CorrectionForm({
   draft,
   busy,
   title,
   showCategory = true,
+  categories,
   onChange,
   onCancel,
   onSubmit,
@@ -46,6 +50,7 @@ export function CorrectionForm({
   busy: boolean;
   title: string;
   showCategory?: boolean;
+  categories?: CategoryDef[];
   onChange: (d: CorrectionDraft) => void;
   onCancel: () => void;
   onSubmit: () => void;
@@ -98,12 +103,37 @@ export function CorrectionForm({
         </Field>
         {showCategory && (
           <Field label="Category">
-            <input
-              aria-label="Correction category"
-              value={draft.category}
-              onChange={(e) => onChange({ ...draft, category: e.target.value })}
-              className="border rounded px-2 py-1"
-            />
+            {categories ? (
+              <select
+                aria-label="Correction category"
+                value={draft.category}
+                onChange={(e) =>
+                  onChange({ ...draft, category: e.target.value })
+                }
+                className="border rounded px-2 py-1"
+              >
+                {/* keep the current value selectable even if it predates the
+                    active plugin's set, so an existing category is never lost */}
+                {draft.category &&
+                  !categories.some((c) => c.key === draft.category) && (
+                    <option value={draft.category}>{draft.category}</option>
+                  )}
+                {categories.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                aria-label="Correction category"
+                value={draft.category}
+                onChange={(e) =>
+                  onChange({ ...draft, category: e.target.value })
+                }
+                className="border rounded px-2 py-1"
+              />
+            )}
           </Field>
         )}
       </div>

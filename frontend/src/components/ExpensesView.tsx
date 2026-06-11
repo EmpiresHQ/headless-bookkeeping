@@ -262,6 +262,7 @@ export function ExpensesView() {
         <CorrectionForm
           draft={correction}
           busy={busy}
+          categories={categories}
           onChange={setCorrection}
           onCancel={() => {
             setCorrectId(null);
