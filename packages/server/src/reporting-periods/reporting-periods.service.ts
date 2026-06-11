@@ -7,9 +7,17 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { VatReportService } from '../vat-report/vat-report.service';
+import { OrganizationService } from '../organization/organization.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import {
+  computeNextPeriodDates,
+  computeEndFromStart,
+  computeNameFromStart,
+} from './period-dates';
 import {
   ReportingPeriod,
   CreateReportingPeriodDto,
+  CreateNextPeriodDto,
   PeriodWarning,
 } from './types';
 
@@ -18,6 +26,8 @@ export class ReportingPeriodsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly vatReportService: VatReportService,
+    private readonly organizationService: OrganizationService,
+    private readonly pluginLoader: PluginLoader,
   ) {}
 
   async list(): Promise<ReportingPeriod[]> {
@@ -126,6 +136,29 @@ export class ReportingPeriodsService {
       .executeTakeFirstOrThrow();
 
     return this.mapRow(row);
+  }
+
+  async createNext(override: CreateNextPeriodDto): Promise<ReportingPeriod> {
+    const org = await this.organizationService.getOrganization();
+    const plugin = this.pluginLoader.resolve(org.country);
+    const frequency = plugin.getDefaultPeriodFrequency();
+
+    const periods = await this.list();
+    const lastEndDate =
+      periods.length > 0 ? periods[periods.length - 1].end_date : null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const computed = computeNextPeriodDates(frequency, lastEndDate, today);
+
+    const start_date = override.start_date ?? computed.start_date;
+    const end_date =
+      override.end_date ??
+      (override.start_date
+        ? computeEndFromStart(frequency, override.start_date)
+        : computed.end_date);
+    const name = override.name ?? computeNameFromStart(frequency, start_date);
+
+    return this.create({ name, start_date, end_date });
   }
 
   /**

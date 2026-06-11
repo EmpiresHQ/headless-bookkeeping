@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getReportingPeriods,
   getKmd,
+  createNextPeriod,
   downloadStatutoryReport,
   fmtCents,
   type ReportingPeriod,
@@ -14,10 +15,7 @@ const ROWS: { label: string; key: keyof KmdDeclaration }[] = [
   { label: 'Row 3 — 0% käive (base)', key: 'row3_base_zero' },
   { label: 'Row 4 — output VAT', key: 'row4_output_vat' },
   { label: 'Row 5 — input VAT', key: 'row5_input_vat' },
-  {
-    label: 'Row 6 — intra-EU acquisitions (base)',
-    key: 'row6_intra_eu_acquisition',
-  },
+  { label: 'Row 6 — intra-EU acquisitions (base)', key: 'row6_intra_eu_acquisition' },
   { label: 'Row 7 — other acquisitions (base)', key: 'row7_other_acquisition' },
 ];
 
@@ -28,6 +26,12 @@ export function KmdView() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  const [creating, setCreating] = useState(false);
+  const [showOverride, setShowOverride] = useState(false);
+  const [overrideStart, setOverrideStart] = useState('');
+  const [overrideEnd, setOverrideEnd] = useState('');
+  const [overrideName, setOverrideName] = useState('');
+
   function handleDownload() {
     if (selected === null) return;
     setDownloading(true);
@@ -36,7 +40,27 @@ export function KmdView() {
       .finally(() => setDownloading(false));
   }
 
-  // Load the period list once; default to the first period.
+  function handleCreateNext(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setError(null);
+    const input: { start_date?: string; end_date?: string; name?: string } = {};
+    if (overrideStart) input.start_date = overrideStart;
+    if (overrideEnd) input.end_date = overrideEnd;
+    if (overrideName) input.name = overrideName;
+    createNextPeriod(input)
+      .then((p) => {
+        setPeriods((prev) => [...prev, p]);
+        setSelected(p.id);
+        setShowOverride(false);
+        setOverrideStart('');
+        setOverrideEnd('');
+        setOverrideName('');
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setCreating(false));
+  }
+
   useEffect(() => {
     getReportingPeriods()
       .then((ps) => {
@@ -46,22 +70,15 @@ export function KmdView() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  // Fetch the declaration whenever the selected period changes.
   useEffect(() => {
     if (selected === null) return;
     let cancelled = false;
     setDecl(null);
     setError(null);
     getKmd(selected)
-      .then((d) => {
-        if (!cancelled) setDecl(d);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((d) => { if (!cancelled) setDecl(d); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
   }, [selected]);
 
   return (
@@ -83,6 +100,12 @@ export function KmdView() {
           </select>
         </label>
         <button
+          className="text-sm border rounded px-3 py-1 bg-white hover:bg-gray-50"
+          onClick={() => setShowOverride((v) => !v)}
+        >
+          {showOverride ? 'Cancel override' : 'Override'}
+        </button>
+        <button
           className="text-sm border rounded px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50"
           disabled={selected === null || downloading}
           onClick={handleDownload}
@@ -90,6 +113,50 @@ export function KmdView() {
           {downloading ? 'Downloading…' : 'Download KMD'}
         </button>
       </div>
+
+      <form onSubmit={handleCreateNext} className="flex items-end gap-2 flex-wrap text-sm">
+        {showOverride && (
+          <>
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">Start date</span>
+              <input
+                type="date"
+                aria-label="Start date"
+                className="border rounded px-2 py-1"
+                value={overrideStart}
+                onChange={(e) => setOverrideStart(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">End date</span>
+              <input
+                type="date"
+                aria-label="End date"
+                className="border rounded px-2 py-1"
+                value={overrideEnd}
+                onChange={(e) => setOverrideEnd(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-gray-600">Name</span>
+              <input
+                aria-label="Name"
+                className="border rounded px-2 py-1"
+                placeholder="e.g. 2026-06"
+                value={overrideName}
+                onChange={(e) => setOverrideName(e.target.value)}
+              />
+            </label>
+          </>
+        )}
+        <button
+          type="submit"
+          className="text-sm border rounded px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50"
+          disabled={creating}
+        >
+          {creating ? 'Creating…' : 'Create next period'}
+        </button>
+      </form>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
@@ -123,14 +190,12 @@ export function KmdView() {
               </tbody>
             </table>
           </div>
-
           {decl.vd_intra_eu_services > 0 && (
             <p className="text-sm text-amber-700">
               File the VD koondaruanne (tähis 3S) manually in e-MTA — the system
               does not submit it.
             </p>
           )}
-
           {decl.review_flags.length > 0 && (
             <div className="text-sm">
               <p className="font-medium text-gray-700">Review before filing:</p>
