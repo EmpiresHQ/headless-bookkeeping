@@ -107,7 +107,8 @@ export class EntitiesService {
       // address (and any non-match kind) is stored but never a match key —
       // exact-matching a postal address produces false merges. Enforce here so
       // the policy holds regardless of what a caller passes.
-      if (!MATCH_KINDS.includes(c.kind as (typeof MATCH_KINDS)[number])) continue;
+      if (!MATCH_KINDS.includes(c.kind as (typeof MATCH_KINDS)[number]))
+        continue;
       const value = normalizeIdentifier(c.kind, c.value);
       if (value === null) continue;
       const rows = await this.db
@@ -141,7 +142,10 @@ export class EntitiesService {
   }): Promise<EntityWithIdentifiers> {
     const now = Math.floor(Date.now() / 1000);
     const normalized = input.identifiers
-      .map((i) => ({ kind: i.kind, value: normalizeIdentifier(i.kind, i.value) }))
+      .map((i) => ({
+        kind: i.kind,
+        value: normalizeIdentifier(i.kind, i.value),
+      }))
       .filter((i): i is { kind: string; value: string } => i.value !== null);
 
     const entity = await this.db.transaction().execute(async (trx) => {

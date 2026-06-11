@@ -33,7 +33,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
   );
 
   await sql`DROP TABLE entity_identifier`.execute(db);
-  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(db);
+  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(
+    db,
+  );
 
   await sql`PRAGMA foreign_keys = ON`.execute(db);
 }
@@ -59,7 +61,9 @@ export async function down(db: Kysely<Database>): Promise<void> {
   );
 
   await sql`DROP TABLE entity_identifier`.execute(db);
-  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(db);
+  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(
+    db,
+  );
 
   await sql`PRAGMA foreign_keys = ON`.execute(db);
 }

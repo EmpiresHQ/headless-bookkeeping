@@ -54,7 +54,7 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'or { mode: "create", create_name, create_country, and any of ' +
     'create_registration_key / create_email / create_phone / create_address } ' +
     'when no existing supplier matched and you propose creating one: ALWAYS ' +
-    "provide the name and the ISO country code, plus EVERY identifier the " +
+    'provide the name and the ISO country code, plus EVERY identifier the ' +
     'document actually prints — the registration/VAT number, email, phone, and ' +
     'postal address. Use null for any identifier the document does not print; ' +
     'NEVER invent or guess a registration key (a fabricated key creates a ' +

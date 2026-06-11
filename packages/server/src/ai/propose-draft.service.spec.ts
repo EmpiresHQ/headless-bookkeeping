@@ -516,9 +516,9 @@ describe('ProposeDraftService (integration)', () => {
 
       expectDraft(await service.proposeDraft(triageResult, 22));
 
-      const phones = (await entitiesService.findById(existing.id)).identifiers.filter(
-        (i) => i.kind === 'phone',
-      );
+      const phones = (
+        await entitiesService.findById(existing.id)
+      ).identifiers.filter((i) => i.kind === 'phone');
       expect(phones).toHaveLength(1);
       expect(phones[0].value).toBe('+15550000');
     });
@@ -563,7 +563,7 @@ describe('ProposeDraftService (integration)', () => {
           create_name: 'Ambiguous',
           create_country: 'US',
           create_registration_key: null,
-          create_email: 'a@x.io',   // → Supplier A
+          create_email: 'a@x.io', // → Supplier A
           create_phone: '+1 555 1111', // → Supplier B
           create_address: null,
         },

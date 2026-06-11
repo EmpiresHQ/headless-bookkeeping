@@ -12,7 +12,10 @@ export type MatchKind = (typeof MATCH_KINDS)[number];
  * lookup is a plain equality comparison. Returns null when the value carries no
  * usable signal (normalizes to empty) — the caller drops it.
  */
-export function normalizeIdentifier(kind: string, value: string): string | null {
+export function normalizeIdentifier(
+  kind: string,
+  value: string,
+): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 

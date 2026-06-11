@@ -354,9 +354,24 @@ describe('Entity aggregate (integration)', () => {
         db
           .insertInto('entity_identifier')
           .values([
-            { entity_id: supplier.id, kind: 'email', value: 'help@anoma.ly', confirmed: 1 },
-            { entity_id: supplier.id, kind: 'phone', value: '+1555', confirmed: 1 },
-            { entity_id: supplier.id, kind: 'address', value: '1 main st', confirmed: 1 },
+            {
+              entity_id: supplier.id,
+              kind: 'email',
+              value: 'help@anoma.ly',
+              confirmed: 1,
+            },
+            {
+              entity_id: supplier.id,
+              kind: 'phone',
+              value: '+1555',
+              confirmed: 1,
+            },
+            {
+              entity_id: supplier.id,
+              kind: 'address',
+              value: '1 main st',
+              confirmed: 1,
+            },
           ])
           .execute(),
       ).resolves.toBeDefined();
@@ -377,10 +392,14 @@ describe('Entity aggregate (integration)', () => {
 
       // Match by email alone (different casing) and by phone alone.
       expect(
-        await entitiesService.resolveByIdentifiers([{ kind: 'email', value: 'help@anoma.ly' }]),
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'email', value: 'help@anoma.ly' },
+        ]),
       ).toEqual([s.id]);
       expect(
-        await entitiesService.resolveByIdentifiers([{ kind: 'phone', value: '+15550000' }]),
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'phone', value: '+15550000' },
+        ]),
       ).toEqual([s.id]);
 
       // Two candidates that both hit the same entity → single, deduped id.
@@ -393,7 +412,9 @@ describe('Entity aggregate (integration)', () => {
 
       // No match → empty array.
       expect(
-        await entitiesService.resolveByIdentifiers([{ kind: 'email', value: 'nobody@x.io' }]),
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'email', value: 'nobody@x.io' },
+        ]),
       ).toEqual([]);
     });
 
@@ -462,7 +483,9 @@ describe('Entity aggregate (integration)', () => {
       });
       // address is stored but must never be a match key
       expect(
-        await entitiesService.resolveByIdentifiers([{ kind: 'address', value: '1 main st' }]),
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'address', value: '1 main st' },
+        ]),
       ).toEqual([]);
       // sanity: the entity DOES carry the stored address
       const found = await entitiesService.findById(s.id);

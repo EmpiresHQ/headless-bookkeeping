@@ -238,7 +238,10 @@ export class ProposeDraftService {
     // stored on a new supplier but is never a match key (false-merge risk).
     const matchCandidates: { kind: string; value: string }[] = [];
     if (proposal.create_registration_key)
-      matchCandidates.push({ kind: 'registration_key', value: proposal.create_registration_key });
+      matchCandidates.push({
+        kind: 'registration_key',
+        value: proposal.create_registration_key,
+      });
     if (proposal.create_email)
       matchCandidates.push({ kind: 'email', value: proposal.create_email });
     if (proposal.create_phone)
@@ -255,7 +258,8 @@ export class ProposeDraftService {
     }
 
     try {
-      const matches = await this.entitiesService.resolveByIdentifiers(matchCandidates);
+      const matches =
+        await this.entitiesService.resolveByIdentifiers(matchCandidates);
 
       if (matches.length > 1) {
         // Ambiguous: identifiers point at distinct existing suppliers (possibly
@@ -272,17 +276,35 @@ export class ProposeDraftService {
         // A null field is passed as '' which normalizes to null → addIdentifierIfAbsent no-ops,
         // so absent identifiers are simply skipped. At least one candidate matched here, so the
         // supplier always keeps a real anchor.
-        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'registration_key', proposal.create_registration_key ?? '');
-        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'email', proposal.create_email ?? '');
-        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'phone', proposal.create_phone ?? '');
-        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'address', proposal.create_address ?? '');
+        await this.entitiesService.addIdentifierIfAbsent(
+          supplierId,
+          'registration_key',
+          proposal.create_registration_key ?? '',
+        );
+        await this.entitiesService.addIdentifierIfAbsent(
+          supplierId,
+          'email',
+          proposal.create_email ?? '',
+        );
+        await this.entitiesService.addIdentifierIfAbsent(
+          supplierId,
+          'phone',
+          proposal.create_phone ?? '',
+        );
+        await this.entitiesService.addIdentifierIfAbsent(
+          supplierId,
+          'address',
+          proposal.create_address ?? '',
+        );
         return { outcome: 'resolved', supplierId };
       }
 
       // No match — onboard a new supplier with ALL present identifiers (incl. address).
       const identifiers = [
         ...matchCandidates,
-        ...(proposal.create_address ? [{ kind: 'address', value: proposal.create_address }] : []),
+        ...(proposal.create_address
+          ? [{ kind: 'address', value: proposal.create_address }]
+          : []),
       ];
       const created = await this.entitiesService.onboardWithIdentifiers({
         role: 'supplier',
