@@ -10,7 +10,7 @@
     "test": "jest -c jest.config.cjs",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
-    "typecheck": "npx @typescript/native-preview --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "openapi:emit": "ts-node --transpile-only src/openapi-emit.ts"
   },
   "dependencies": {
