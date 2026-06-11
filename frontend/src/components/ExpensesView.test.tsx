@@ -8,6 +8,7 @@ vi.mock('../api', () => ({
   createExpense: vi.fn(),
   deleteExpense: vi.fn(),
   correctExpense: vi.fn(),
+  getCategories: vi.fn(),
   fmtCents: (c: number) => (c / 100).toFixed(2),
 }));
 
@@ -28,6 +29,10 @@ describe('ExpensesView', () => {
     vi.mocked(api.getExpenses).mockResolvedValue([{ ...posted }]);
     vi.mocked(api.createExpense).mockResolvedValue({ ...posted, id: 10 });
     vi.mocked(api.correctExpense).mockResolvedValue({ outcome: 'corrected' });
+    vi.mocked(api.getCategories).mockResolvedValue([
+      { key: 'software', label: 'Software', accountCode: 'EXPENSE_SOFTWARE' },
+      { key: 'transport', label: 'Transport', accountCode: 'EXPENSE_TRANSPORT' },
+    ]);
   });
   afterEach(() => vi.restoreAllMocks());
 
