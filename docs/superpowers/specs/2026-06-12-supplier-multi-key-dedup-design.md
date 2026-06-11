@@ -64,9 +64,11 @@ create_address: z.string().nullable().default(null),           // NEW
 
 ### 2. Identifier normalization + multi-key matching (`entities.service.ts`)
 
-`entity_identifier` already supports an arbitrary `kind`; no DB schema migration
-is needed. New `kind` values: `email`, `phone`, `address` (alongside the
-existing `registration_key`).
+New `kind` values are added: `email`, `phone`, `address` (alongside the existing
+`registration_key`). `entity_identifier.kind` carries a CHECK constraint
+(migration 013) that only permits the original four kinds, so a **migration is
+required** to widen it (SQLite cannot alter a CHECK in place → table rebuild, the
+same 12-step pattern as migration 041). The storage shape is otherwise unchanged.
 
 Values are stored **already normalized**, so matching stays an exact-equality
 lookup (consistent with today's `findByRegistrationKey`). Normalization per kind:
@@ -121,7 +123,8 @@ not just `registration_key`.
 
 ### 4. Data model / migration
 
-- No storage migration: `entity_identifier` is already generic over `kind`.
+- One migration (043): widen the `entity_identifier.kind` CHECK to admit
+  `email`, `phone`, `address` (table rebuild). No column/shape change.
 - **No hard `UNIQUE(kind, value)` constraint.** Existing data already contains
   junk (entity #5 has `registration_key = "US"`); a global unique index would
   fail on it. Cross-entity collisions are handled at the application layer (the
