@@ -1697,6 +1697,44 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('listStatementMatches', () => {
+    it('lists the statement matches with their status and label', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 30000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      let rows = await reconciliationService.listStatementMatches(
+        stmt.statement.id,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe('draft');
+      expect(rows[0].objectLabel).toMatch(/Expense/);
+      expect(rows[0].counterpartyName).toBe('Test Supplier Co');
+
+      await reconciliationService.activateMatch(staged.records[0].id);
+      rows = await reconciliationService.listStatementMatches(
+        stmt.statement.id,
+      );
+      expect(rows[0].status).toBe('active');
+    });
+  });
+
   describe('unmatch', () => {
     it('removes a same-currency match and restores the outstanding balance', async () => {
       const supplier = await seedSupplier();

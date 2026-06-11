@@ -93,6 +93,20 @@ export interface MatchCandidatesResult {
   candidates: MatchCandidateView[];
 }
 
+/**
+ * A recorded match on a statement's lines, described for the operator (so the
+ * UI can show what a line is matched to and offer an unmatch). `voucherId` stays
+ * server-side (ADR-0030).
+ */
+export interface MatchRowView {
+  id: number;
+  bankTransactionId: number;
+  status: 'draft' | 'active';
+  amountMatched: number;
+  objectLabel: string;
+  counterpartyName: string | null;
+}
+
 /** Per-transaction reconciliation state for the operator UI. */
 export interface ReconciliationStatusRow {
   bankTransactionId: number;

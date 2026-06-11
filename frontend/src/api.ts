@@ -572,6 +572,19 @@ export const executeMatches = (
     },
   );
 
+// Recorded matches (draft + active) on a statement's lines.
+export interface MatchRowView {
+  id: number;
+  bankTransactionId: number;
+  status: 'draft' | 'active';
+  amountMatched: number;
+  objectLabel: string;
+  counterpartyName: string | null;
+}
+
+export const getStatementMatches = (statementId: number) =>
+  apiFetch<MatchRowView[]>(`/api/bank-statements/${statementId}/matches`);
+
 // Undo a match (deletes the sub-ledger link; reverses any FX voucher server-side).
 export const unmatchMatch = (statementId: number, matchId: number) =>
   apiFetch<unknown>(

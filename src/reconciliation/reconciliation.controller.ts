@@ -16,6 +16,7 @@ import type {
   MatchProposalView,
   ReconciliationStatusRow,
   MatchCandidatesResult,
+  MatchRowView,
 } from './reconciliation.types';
 
 @ApiTags('reconciliation')
@@ -56,6 +57,14 @@ export class ReconciliationController {
     @Query('bankTransactionId', ParseIntPipe) bankTransactionId: number,
   ): Promise<MatchCandidatesResult> {
     return this.service.getMatchCandidates(id, bankTransactionId);
+  }
+
+  /** The recorded matches (draft + active) on a statement's lines. */
+  @Get(':id/matches')
+  async listMatches(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<MatchRowView[]> {
+    return this.service.listStatementMatches(id);
   }
 
   /** Per-transaction reconciliation state for a statement (UI badges + caps). */

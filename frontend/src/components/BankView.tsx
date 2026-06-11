@@ -10,6 +10,8 @@ import {
   executeMatches,
   getMatchCandidates,
   manualMatch,
+  getStatementMatches,
+  unmatchMatch,
   createPrepayment,
   markPersonal,
   fmtCents,
@@ -18,6 +20,7 @@ import {
   type BankTransaction,
   type MatchProposalView,
   type MatchCandidateView,
+  type MatchRowView,
   type ReconciliationStatusRow,
 } from '../api';
 
@@ -49,6 +52,7 @@ export function BankView() {
   // Reconciliation: per-txn status (badges + over-allocation cap), proposed
   // matches grouped by bank txn, and the set of selected proposal keys.
   const [recon, setRecon] = useState<ReconciliationStatusRow[]>([]);
+  const [matches, setMatches] = useState<MatchRowView[]>([]);
   const [proposals, setProposals] = useState<MatchProposalView[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   // Inline, transient note for a blocked selection (over-allocation cap).
@@ -98,9 +102,31 @@ export function BankView() {
 
   const loadRecon = async (id: number) => {
     try {
-      const rows = await getReconciliationStatus(id);
+      const [rows, ms] = await Promise.all([
+        getReconciliationStatus(id),
+        getStatementMatches(id),
+      ]);
       if (!mountedRef.current) return;
       setRecon(rows);
+      setMatches(ms);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const matchesFor = (txnId: number): MatchRowView[] =>
+    matches.filter((m) => m.bankTransactionId === txnId);
+
+  const onUnmatch = async (matchId: number) => {
+    if (selected === null) return;
+    if (!window.confirm(`Undo match #${matchId}?`)) return;
+    setError(null);
+    try {
+      await unmatchMatch(selected, matchId);
+      if (!mountedRef.current) return;
+      await loadRecon(selected);
+      await viewTransactions(selected);
     } catch (e) {
       if (!mountedRef.current) return;
       setError(e instanceof Error ? e.message : String(e));
@@ -111,6 +137,8 @@ export function BankView() {
     setSelected(id);
     setTxns([]);
     setProposals([]);
+    setMatches([]);
+    setManualFor(null);
     setSelectedKeys(new Set());
     setCapNote(null);
     try {
@@ -543,6 +571,44 @@ export function BankView() {
                                 <span className="tabular-nums">
                                   {fmtCents(p.amountMatched)}
                                 </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {matchesFor(t.id).length > 0 && (
+                          <ul className="mt-1 space-y-1">
+                            {matchesFor(t.id).map((m) => (
+                              <li
+                                key={m.id}
+                                className="flex items-center gap-2 text-xs"
+                              >
+                                <span
+                                  className={`rounded px-1.5 py-0.5 ${
+                                    m.status === 'active'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {m.status === 'active' ? 'matched' : 'pending'}
+                                </span>
+                                <span className="font-medium">
+                                  {m.objectLabel}
+                                </span>
+                                <span className="text-gray-600">
+                                  {m.counterpartyName ?? '—'}
+                                </span>
+                                <span className="tabular-nums">
+                                  {fmtCents(m.amountMatched)}
+                                </span>
+                                {m.status === 'active' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void onUnmatch(m.id)}
+                                    className="text-red-600 hover:underline"
+                                  >
+                                    Unmatch
+                                  </button>
+                                )}
                               </li>
                             ))}
                           </ul>

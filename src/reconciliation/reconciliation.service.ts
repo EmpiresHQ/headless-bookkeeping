@@ -25,6 +25,7 @@ import {
   CandidateVoucher,
   MatchCandidateView,
   MatchCandidatesResult,
+  MatchRowView,
 } from './reconciliation.types';
 
 /** Regex patterns for deterministic token extraction. */
@@ -306,6 +307,52 @@ export class ReconciliationService {
       });
     }
     return rows;
+  }
+
+  /**
+   * The recorded matches on a statement's lines (draft + active), enriched for
+   * the operator UI so a line can show what it is matched to and offer an
+   * unmatch.
+   */
+  async listStatementMatches(statementId: number): Promise<MatchRowView[]> {
+    const txns = await this.transactionRepo.findByStatementId(statementId);
+    if (txns.length === 0) {
+      return [];
+    }
+    const rows = await this.db
+      .selectFrom('reconciliation_match')
+      .select([
+        'id',
+        'bank_transaction_id',
+        'voucher_id',
+        'match_type',
+        'amount_matched',
+        'status',
+      ])
+      .where(
+        'bank_transaction_id',
+        'in',
+        txns.map((t) => t.id),
+      )
+      .orderBy('id')
+      .execute();
+
+    const views: MatchRowView[] = [];
+    for (const r of rows) {
+      const info = await this.resolveVoucherDisplay(
+        r.voucher_id,
+        r.match_type as MatchType,
+      );
+      views.push({
+        id: r.id,
+        bankTransactionId: r.bank_transaction_id,
+        status: r.status as 'draft' | 'active',
+        amountMatched: r.amount_matched,
+        objectLabel: info.objectLabel,
+        counterpartyName: info.counterpartyName,
+      });
+    }
+    return views;
   }
 
   /**

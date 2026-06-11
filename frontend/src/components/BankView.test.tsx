@@ -12,6 +12,10 @@ vi.mock('../api', () => ({
   proposeMatches: vi.fn(),
   getReconciliationStatus: vi.fn(),
   executeMatches: vi.fn(),
+  getMatchCandidates: vi.fn(),
+  manualMatch: vi.fn(),
+  getStatementMatches: vi.fn(),
+  unmatchMatch: vi.fn(),
   createPrepayment: vi.fn(),
   markPersonal: vi.fn(),
   fmtCents: (cents: number) => (cents / 100).toFixed(2),
@@ -32,6 +36,7 @@ describe('BankView', () => {
     vi.mocked(api.listBankStatements).mockResolvedValue([]);
     vi.mocked(api.listBankTransactions).mockResolvedValue([]);
     vi.mocked(api.getReconciliationStatus).mockResolvedValue([]);
+    vi.mocked(api.getStatementMatches).mockResolvedValue([]);
     vi.mocked(api.proposeMatches).mockResolvedValue([]);
     vi.mocked(api.executeMatches).mockResolvedValue({ records: [] });
     vi.mocked(api.createPrepayment).mockResolvedValue(undefined);
