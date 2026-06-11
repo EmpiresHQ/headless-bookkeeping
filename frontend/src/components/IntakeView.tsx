@@ -175,50 +175,52 @@ export function IntakeView() {
         {needsTriage.length === 0 ? (
           <p className="text-sm text-gray-500">Nothing to triage.</p>
         ) : (
-          <Table
-            columns={triageColumns}
-            rows={needsTriage}
-            actions={(d) => (
-              <div className="space-x-2 whitespace-nowrap">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setResolvingId(d.id)}
-                  className="text-green-700 hover:underline disabled:opacity-50"
-                >
-                  Resolve
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onTriage(d.id)}
-                  className="text-blue-600 hover:underline disabled:opacity-50"
-                >
-                  Why?
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onComplete(d.id)}
-                  className="text-gray-600 hover:underline disabled:opacity-50"
-                >
-                  Dismiss
-                </button>
+          <>
+            <Table
+              columns={triageColumns}
+              rows={needsTriage}
+              actions={(d) => (
+                <div className="space-x-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setResolvingId(d.id)}
+                    className="text-green-700 hover:underline disabled:opacity-50"
+                  >
+                    Resolve
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onTriage(d.id)}
+                    className="text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    Why?
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onComplete(d.id)}
+                    className="text-gray-600 hover:underline disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            />
+            {resolvingId !== null && (
+              <div className="border rounded p-3 bg-gray-50">
+                <ResolveSupplierForm
+                  documentId={resolvingId}
+                  onCancel={() => setResolvingId(null)}
+                  onDone={() => {
+                    setResolvingId(null);
+                    void refresh();
+                  }}
+                />
               </div>
             )}
-          />
-          {resolvingId !== null && (
-            <div className="border rounded p-3 bg-gray-50">
-              <ResolveSupplierForm
-                documentId={resolvingId}
-                onCancel={() => setResolvingId(null)}
-                onDone={() => {
-                  setResolvingId(null);
-                  void refresh();
-                }}
-              />
-            </div>
-          )}
+          </>
         )}
       </div>
     </div>
