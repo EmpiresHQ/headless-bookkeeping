@@ -76,6 +76,8 @@ describe('admin CLI (yargs)', () => {
           new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
           new OrganizationService(db),
         ),
+        new OrganizationService(db),
+        new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
       ),
       expenses: new ExpensesService(
         db,

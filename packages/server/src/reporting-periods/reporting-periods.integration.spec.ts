@@ -52,13 +52,23 @@ describe('ReportingPeriodsService (integration)', () => {
     // with manual token override, but here we inject the Kysely instance
     // directly via the constructor to avoid DI resolution issues with the
     // nestjs-kysely token in a minimal module.
+    const organizationService = new OrganizationService(db);
+    const pluginLoader = new PluginLoader(
+      new NullCountryPlugin(),
+      new EstoniaCountryPlugin(),
+    );
     const vatReportService = new VatReportService(
       db,
       new LedgerBalanceService(db),
-      new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
-      new OrganizationService(db),
+      pluginLoader,
+      organizationService,
     );
-    service = new ReportingPeriodsService(db, vatReportService);
+    service = new ReportingPeriodsService(
+      db,
+      vatReportService,
+      organizationService,
+      pluginLoader,
+    );
   });
 
   afterEach(async () => {
