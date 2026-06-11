@@ -261,5 +261,95 @@ describe('DocumentsService (unit)', () => {
         NotFoundException,
       );
     });
+
+    it('cascades the internal OCR conversation and its artifact', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      const conv = await db
+        .insertInto('conversation')
+        .values({
+          channel: 'api',
+          thread_key: `ocr:${document.id}`,
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+          closed_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('conversation_document')
+        .values({ conversation_id: conv.id, document_id: document.id })
+        .execute();
+      await db
+        .insertInto('artifact')
+        .values({
+          conversation_id: conv.id,
+          kind: 'ocr_markdown',
+          document_id: document.id,
+          storage_path: `${document.id}/ocr.md`,
+          crc32: null,
+          created_at: now,
+        })
+        .execute();
+
+      await service.deleteDocument(document.id);
+
+      const remainingConv = await db
+        .selectFrom('conversation')
+        .selectAll()
+        .where('id', '=', conv.id)
+        .execute();
+      const remainingLinks = await db
+        .selectFrom('conversation_document')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      const remainingArtifacts = await db
+        .selectFrom('artifact')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(remainingConv).toHaveLength(0);
+      expect(remainingLinks).toHaveLength(0);
+      expect(remainingArtifacts).toHaveLength(0);
+    });
+
+    it('unlinks but preserves a real Telegram conversation', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      const conv = await db
+        .insertInto('conversation')
+        .values({
+          channel: 'telegram',
+          thread_key: 'tg:123',
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+          closed_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('conversation_document')
+        .values({ conversation_id: conv.id, document_id: document.id })
+        .execute();
+
+      await service.deleteDocument(document.id);
+
+      // The thread survives; only the document attachment is removed.
+      const survivingConv = await db
+        .selectFrom('conversation')
+        .selectAll()
+        .where('id', '=', conv.id)
+        .execute();
+      const remainingLinks = await db
+        .selectFrom('conversation_document')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(survivingConv).toHaveLength(1);
+      expect(remainingLinks).toHaveLength(0);
+    });
   });
 });

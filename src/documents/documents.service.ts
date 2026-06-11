@@ -150,11 +150,12 @@ export class DocumentsService {
   }
 
   /**
-   * Delete a document and its owned dependents (sources, OCR/artifact rows, and
-   * the stored files). Atomic. Refuses (409) to delete a document that is
-   * evidence for an expense or linked to a conversation — those references make
-   * it part of a booked/threaded record, not a stray upload. Throws 404 if the
-   * document does not exist.
+   * Delete a document and its owned dependents (sources, OCR/artifact rows, the
+   * internal OCR conversation, and the stored files). Atomic. The SPA is the
+   * operator's admin surface, so the only block is data integrity: a document
+   * that is still evidence for an expense is refused (409) — detach/reverse the
+   * expense first. Real user threads (Telegram/email) are UNLINKED, not deleted.
+   * Throws 404 if the document does not exist.
    */
   async deleteDocument(id: number): Promise<void> {
     const filePaths = await this.db.transaction().execute(async (trx) => {
@@ -175,28 +176,73 @@ export class DocumentsService {
           `Document ${id} is attached to expense #${expense.id} and cannot be deleted`,
         );
       }
-      const conv = await trx
-        .selectFrom('conversation_document')
-        .select('document_id')
-        .where('document_id', '=', id)
-        .executeTakeFirst();
-      if (conv) {
-        throw new ConflictException(
-          `Document ${id} is linked to a conversation and cannot be deleted`,
-        );
-      }
+      // The SPA is the operator's admin surface — a document can always be
+      // deleted. The intake/OCR pipeline creates an INTERNAL conversation per
+      // document (channel 'api', thread_key 'ocr:<id>') just to hold the OCR
+      // artifact — that is part of the document and is cascade-deleted with it.
+      // A REAL user thread (Telegram/email) is merely UNLINKED (its messages and
+      // history are preserved); only the document↔thread attachment is removed.
+      const links = await trx
+        .selectFrom('conversation_document as cd')
+        .innerJoin('conversation as c', 'c.id', 'cd.conversation_id')
+        .select(['c.id as conversation_id', 'c.channel'])
+        .where('cd.document_id', '=', id)
+        .execute();
+      const ocrConvIds = links
+        .filter((l) => l.channel === 'api')
+        .map((l) => l.conversation_id);
 
       const artifacts = await trx
         .selectFrom('artifact')
         .select('storage_path')
-        .where('document_id', '=', id)
+        .where((eb) =>
+          eb.or([
+            eb('document_id', '=', id),
+            ...(ocrConvIds.length
+              ? [eb('conversation_id', 'in', ocrConvIds)]
+              : []),
+          ]),
+        )
         .execute();
       const paths = [
         doc.storage_path,
         ...artifacts.map((a) => a.storage_path),
       ].filter((p): p is string => p !== null);
 
-      await trx.deleteFrom('artifact').where('document_id', '=', id).execute();
+      // Delete in FK-safe order: artifacts/messages/business-object links first,
+      // then the document↔conversation links, the internal conversation, the
+      // document's sources, and finally the document.
+      await trx
+        .deleteFrom('artifact')
+        .where((eb) =>
+          eb.or([
+            eb('document_id', '=', id),
+            ...(ocrConvIds.length
+              ? [eb('conversation_id', 'in', ocrConvIds)]
+              : []),
+          ]),
+        )
+        .execute();
+      if (ocrConvIds.length) {
+        await trx
+          .deleteFrom('message')
+          .where('conversation_id', 'in', ocrConvIds)
+          .execute();
+        await trx
+          .deleteFrom('conversation_business_object')
+          .where('conversation_id', 'in', ocrConvIds)
+          .execute();
+      }
+      await trx
+        .deleteFrom('conversation_document')
+        .where('document_id', '=', id)
+        .execute();
+      if (ocrConvIds.length) {
+        await trx
+          .deleteFrom('conversation')
+          .where('id', 'in', ocrConvIds)
+          .execute();
+      }
       await trx
         .deleteFrom('document_source')
         .where('document_id', '=', id)
