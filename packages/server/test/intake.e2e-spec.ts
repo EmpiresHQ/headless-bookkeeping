@@ -72,6 +72,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
               tax_point_date: '2026-03-15',
               category: 'unknown',
               document_vat_marking: null,
+              supplier_invoice_number: null,
               confidence: 0.2,
             },
           };
@@ -89,6 +90,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
               tax_point_date: '2026-03-15',
               category: 'transport',
               document_vat_marking: 'IE_INPUT_23',
+              supplier_invoice_number: null,
               confidence: 0.95,
             },
           };
@@ -105,6 +107,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
             tax_point_date: '2026-01-01',
             category: 'unknown',
             document_vat_marking: null,
+            supplier_invoice_number: null,
             confidence: 0.2,
           },
         };
