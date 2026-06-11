@@ -1,4 +1,6 @@
 import yargs, { Argv } from 'yargs';
+import { Kysely, sql } from 'kysely';
+import { Database } from '../database/types';
 import { ApiTokenService } from '../auth/api-token.service';
 import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
@@ -21,6 +23,7 @@ export interface CliDeps {
   expenses: ExpensesService;
   salesInvoices: SalesInvoicesService;
   entities: EntitiesService;
+  db: Kysely<Database>;
 }
 
 const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
@@ -33,7 +36,7 @@ const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
  * `parseAsync` surfaces the error.
  */
 export function buildCli(deps: CliDeps, io: CliIo): Argv {
-  const { tokens, organization, periods, expenses, salesInvoices, entities } =
+  const { tokens, organization, periods, expenses, salesInvoices, entities, db } =
     deps;
 
   // Numeric-positional guard reused by the delete subcommands.
@@ -242,9 +245,73 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
           .demandCommand(1, 'Specify an entity subcommand')
           .strict(),
       )
+      // ── reset: wipe all data (development only) ──────────────────
+      .command(
+        'reset',
+        'Wipe ALL data from the database — development only, irreversible',
+        (y) =>
+          y.option('force', {
+            type: 'boolean',
+            default: false,
+            describe: 'Skip confirmation prompt',
+          }),
+        async (argv) => {
+          if (!argv.force) {
+            io.err(
+              'This will DELETE ALL DATA. Re-run with --force to confirm.\n',
+            );
+            return;
+          }
+
+          await sql`PRAGMA foreign_keys = OFF`.execute(db);
+          try {
+            // Every table in the schema, alphabetically.
+            // Tables to wipe (all business data + operational records).
+            // Excludes: account (chart of accounts), setting (config),
+            // policy_config (posting policy), organization (tenant identity).
+            const ALL_TABLES = [
+              'ai_proposal',
+              'api_token',
+              'approval',
+              'artifact',
+              'audit_finding',
+              'audit_log',
+              'bank_import_job',
+              'bank_statement',
+              'bank_transaction',
+              'conversation',
+              'conversation_business_object',
+              'conversation_document',
+              'credit_note',
+              'document',
+              'document_source',
+              'entity',
+              'entity_identifier',
+              'expense',
+              'message',
+              'override',
+              'reconciliation_match',
+              'reporting_period',
+              'sales_invoice',
+              'vat_report',
+              'voucher',
+              'voucher_line',
+              'voucher_sequence',
+            ] as const;
+
+            for (const table of ALL_TABLES) {
+              await db.deleteFrom(table).execute();
+            }
+
+            io.err('Database reset complete.\n');
+          } finally {
+            await sql`PRAGMA foreign_keys = ON`.execute(db);
+          }
+        },
+      )
       .demandCommand(
         1,
-        'Specify a command (token | org | period | expense | invoice | entity)',
+        'Specify a command (token | org | period | expense | invoice | entity | reset)',
       )
       .strict()
       .exitProcess(false)
