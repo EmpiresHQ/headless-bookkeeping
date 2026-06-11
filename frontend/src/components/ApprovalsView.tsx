@@ -5,6 +5,26 @@ import {
   rejectApproval,
   type Approval,
 } from '../api';
+import { Table, type Column } from './Table';
+
+const objectLabel = (a: Approval): string => {
+  switch (a.object_type) {
+    case 'reconciliation_match':
+      return `Bank match #${a.object_id}`;
+    case 'sales_invoice':
+      return `Invoice #${a.object_id}`;
+    case 'expense':
+      return `Expense #${a.object_id}`;
+    default:
+      return `${a.object_type} #${a.object_id}`;
+  }
+};
+
+const columns: Column<Approval>[] = [
+  { header: 'ID', cell: (a) => a.id },
+  { header: 'Object', cell: (a) => objectLabel(a) },
+  { header: 'Requested by', cell: (a) => a.requested_by },
+];
 
 export function ApprovalsView() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -33,19 +53,6 @@ export function ApprovalsView() {
     }
   };
 
-  const objectLabel = (a: Approval) => {
-    switch (a.object_type) {
-      case 'reconciliation_match':
-        return `Bank match #${a.object_id}`;
-      case 'sales_invoice':
-        return `Invoice #${a.object_id}`;
-      case 'expense':
-        return `Expense #${a.object_id}`;
-      default:
-        return `${a.object_type} #${a.object_id}`;
-    }
-  };
-
   const onApprove = (id: number) => {
     const who = window.prompt('Approve as (name):', 'operator');
     if (!who) return;
@@ -64,45 +71,30 @@ export function ApprovalsView() {
       {approvals.length === 0 ? (
         <p className="text-sm text-gray-500">No pending approvals.</p>
       ) : (
-        <div className="overflow-x-auto">
-        <table className="min-w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b bg-gray-50 text-left">
-              <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Object</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Requested by</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {approvals.map((a) => (
-              <tr key={a.id} className="border-b">
-                <td className="px-3 py-2">{a.id}</td>
-                <td className="px-3 py-2">{objectLabel(a)}</td>
-                <td className="px-3 py-2">{a.requested_by}</td>
-                <td className="px-3 py-2 space-x-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onApprove(a.id)}
-                    className="text-green-700 hover:underline disabled:opacity-50"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onReject(a.id)}
-                    className="text-red-600 hover:underline disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+        <Table
+          columns={columns}
+          rows={approvals}
+          actions={(a) => (
+            <div className="space-x-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onApprove(a.id)}
+                className="text-green-700 hover:underline disabled:opacity-50"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onReject(a.id)}
+                className="text-red-600 hover:underline disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+          )}
+        />
       )}
     </div>
   );

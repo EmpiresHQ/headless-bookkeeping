@@ -13,6 +13,7 @@ import { fauxMastraService } from './faux-mastra.service';
 import { ExpensesService } from '../src/expenses/expenses.service';
 import { PostingService } from '../src/ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../src/reporting-periods/reporting-periods.service';
+import { CategoryService } from '../src/categories/category.service';
 import { Expense } from '../src/expenses/types';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -53,6 +54,12 @@ describe('Expenses document-metadata PATCH E2E', () => {
       .useValue(root)
       .overrideProvider(MastraService)
       .useValue(fauxMastraService)
+      .overrideProvider(CategoryService)
+      .useValue({
+        list: () => Promise.resolve([]),
+        isValid: () => Promise.resolve(true),
+        assertValid: async () => {},
+      })
       .compile();
 
     app = module.createNestApplication();
@@ -136,7 +143,9 @@ describe('Expenses document-metadata PATCH E2E', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ supplier_invoice_number: 'SUP-9' })
       .expect(200);
-    expect(res.body.supplier_invoice_number).toBe('SUP-9');
+    expect(
+      (res.body as { supplier_invoice_number: string }).supplier_invoice_number,
+    ).toBe('SUP-9');
   });
 
   it('rejects the patch when the expense period is locked', async () => {

@@ -1,5 +1,9 @@
 import { NullCountryPlugin } from './null-country.plugin';
-import { OrgContext, SupplierFacts } from './country-plugin.interface';
+import {
+  CategoryDef,
+  OrgContext,
+  SupplierFacts,
+} from './country-plugin.interface';
 
 describe('NullCountryPlugin — retrieval + distribution tax', () => {
   const plugin = new NullCountryPlugin();
@@ -45,11 +49,64 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
     expect(plugin.resolveDistributionTax(10000, org)).toBeNull();
   });
 
+  describe('getCategories()', () => {
+    const plugin = new NullCountryPlugin();
+
+    it('returns the expense categories with stable key/label/accountCode', () => {
+      const cats = plugin.getCategories();
+      const keys = cats.map((c) => c.key);
+      expect(keys).toEqual(
+        expect.arrayContaining([
+          'software',
+          'transport',
+          'travel',
+          'marketing',
+          'salary',
+          'contractor',
+          'rent',
+          'tax',
+          'bank fee',
+          'meals',
+          'insurance',
+          'education',
+        ]),
+      );
+      // No 'revenue' — getCategories() is the EXPENSE set only.
+      expect(keys).not.toContain('revenue');
+      const software: CategoryDef | undefined = cats.find(
+        (c) => c.key === 'software',
+      );
+      expect(software).toEqual({
+        key: 'software',
+        label: expect.any(String) as unknown,
+        accountCode: 'EXPENSE_SOFTWARE',
+      });
+    });
+
+    it('is consistent with resolveCategoryMapping (no divergence possible)', () => {
+      const facts = {
+        country: 'IE',
+        goodsVsServices: 'services' as const,
+        classificationMemory: [],
+      };
+      const org = { country: 'IE', vatRegistered: true, baseCurrency: null };
+      for (const cat of plugin.getCategories()) {
+        expect(
+          plugin.resolveCategoryMapping(cat.key, facts, org).accountCode,
+        ).toBe(cat.accountCode);
+      }
+    });
+  });
+
   it('returns no statutory artifacts (jurisdiction has no filing format)', () => {
     const result = plugin.generateStatutoryReports(
       {
         declarant: { regNumber: null, name: null },
-        period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
+        period: {
+          name: '2026-05',
+          startDate: '2026-05-01',
+          endDate: '2026-05-31',
+        },
         mode: 'final',
         boxes: [],
         totals: { totalInputVat: 0, totalOutputVat: 0, totalPayable: 0 },

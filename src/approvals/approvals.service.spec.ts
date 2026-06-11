@@ -25,6 +25,7 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { ApprovalsService } from './approvals.service';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { CategoryService } from '../categories/category.service';
 
 describe('ApprovalsService (integration)', () => {
   let db: Kysely<Database>;
@@ -79,6 +80,14 @@ describe('ApprovalsService (integration)', () => {
         SalesInvoicesService,
         { provide: ReconciliationService, useValue: reconciliationStub },
         ApprovalsService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: () => Promise.resolve([]),
+            isValid: () => Promise.resolve(true),
+            assertValid: () => Promise.resolve(),
+          },
+        },
       ],
     }).compile();
 

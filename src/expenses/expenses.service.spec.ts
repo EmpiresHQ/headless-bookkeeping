@@ -15,7 +15,8 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { ExpensesService } from './expenses.service';
 import { EntitiesService } from '../entities/entities.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { CategoryService } from '../categories/category.service';
 
 describe('ExpensesService (integration)', () => {
   let db: Kysely<Database>;
@@ -50,6 +51,12 @@ describe('ExpensesService (integration)', () => {
         VoucherProjectionService,
         EntitiesService,
         PeriodLockService,
+        {
+          provide: CategoryService,
+          useValue: {
+            assertValid: async () => {},
+          },
+        },
         ExpensesService,
       ],
     }).compile();
@@ -317,8 +324,12 @@ describe('ExpensesService (integration)', () => {
   describe('supplier_invoice_number', () => {
     it('persists supplier_invoice_number on create', async () => {
       const e = await service.createExpense({
-        category: 'software', gross_amount: 12000, vat_amount: 2000, currency: 'EUR',
-        tax_point_date: '2026-05-10', supplier_invoice_number: 'SUP-77',
+        category: 'software',
+        gross_amount: 12000,
+        vat_amount: 2000,
+        currency: 'EUR',
+        tax_point_date: '2026-05-10',
+        supplier_invoice_number: 'SUP-77',
       });
       const fetched = await service.getExpenseById(e.id);
       expect(fetched.supplier_invoice_number).toBe('SUP-77');
@@ -326,10 +337,87 @@ describe('ExpensesService (integration)', () => {
 
     it('defaults supplier_invoice_number to null when omitted', async () => {
       const e = await service.createExpense({
-        category: 'software', gross_amount: 12000, vat_amount: 2000, currency: 'EUR',
+        category: 'software',
+        gross_amount: 12000,
+        vat_amount: 2000,
+        currency: 'EUR',
         tax_point_date: '2026-05-10',
       });
       expect(e.supplier_invoice_number).toBeNull();
+    });
+  });
+
+  describe('createExpense category validation', () => {
+    it('rejects an unknown category with BadRequestException', async () => {
+      const rawDb2 = new SqliteDb(':memory:');
+      rawDb2.pragma('foreign_keys = ON');
+      const db2 = new Kysely<Database>({
+        dialect: new SqliteDialect({ database: rawDb2 }),
+      });
+      const migrator2 = new Migrator({
+        db: db2,
+        provider: { getMigrations: () => Promise.resolve(migrations) },
+      });
+      const { error } = await migrator2.migrateToLatest();
+      if (error)
+        throw error instanceof Error ? error : new Error('Migration failed');
+
+      const strictCategoryService = {
+        assertValid: (c: string) =>
+          c === 'software'
+            ? Promise.resolve()
+            : Promise.reject(
+                new BadRequestException(`Unknown category '${c}'.`),
+              ),
+        isValid: (c: string) => Promise.resolve(c === 'software'),
+      };
+
+      const strictModule = await Test.createTestingModule({
+        providers: [
+          { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db2 },
+          OrganizationService,
+          NullCountryPlugin,
+          EstoniaCountryPlugin,
+          PluginLoader,
+          OrgContextResolver,
+          CurrencyService,
+          VoucherProjectionService,
+          EntitiesService,
+          PeriodLockService,
+          { provide: CategoryService, useValue: strictCategoryService },
+          ExpensesService,
+        ],
+      }).compile();
+
+      const strictService = strictModule.get(ExpensesService);
+
+      await expect(
+        strictService.createExpense({
+          category: 'garbage',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-01-01',
+          supplier_id: null,
+          document_id: null,
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await db2.destroy();
+    });
+
+    it('accepts a valid category without throwing', async () => {
+      await expect(
+        service.createExpense({
+          category: 'software',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-01-01',
+        }),
+      ).resolves.toBeDefined();
     });
   });
 

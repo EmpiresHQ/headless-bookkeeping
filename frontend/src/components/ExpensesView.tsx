@@ -5,8 +5,10 @@ import {
   deleteExpense,
   correctExpense,
   fmtCents,
+  getCategories,
   type Expense,
   type CorrectionRequest,
+  type CategoryDef,
 } from '../api';
 import {
   Field,
@@ -14,6 +16,7 @@ import {
   eurosToCents,
   type CorrectionDraft,
 } from './corrections-form';
+import { Table, type Column } from './Table';
 
 interface NewExpense {
   category: string;
@@ -39,6 +42,7 @@ export function ExpensesView() {
   const [form, setForm] = useState<NewExpense>(blank);
   const [correctId, setCorrectId] = useState<number | null>(null);
   const [correction, setCorrection] = useState<CorrectionDraft | null>(null);
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
 
   const load = () =>
     getExpenses()
@@ -47,6 +51,12 @@ export function ExpensesView() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    getCategories()
+      .then(setCategories)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -114,6 +124,34 @@ export function ExpensesView() {
   const addValid =
     form.category.trim() !== '' && form.tax_point_date.trim() !== '';
 
+  const columns: Column<Expense>[] = [
+    { header: 'ID', cell: (e) => e.id },
+    { header: 'Category', cell: (e) => e.category },
+    {
+      header: 'Gross',
+      cell: (e) => (
+        <span className="tabular-nums">
+          {fmtCents(e.gross_amount)} {e.currency}
+        </span>
+      ),
+    },
+    {
+      header: 'VAT',
+      cell: (e) => <span className="tabular-nums">{fmtCents(e.vat_amount)}</span>,
+    },
+    { header: 'Tax point', cell: (e) => e.tax_point_date },
+    { header: 'Status', cell: (e) => e.status },
+    {
+      header: 'Bank',
+      cell: (e) =>
+        e.reconciled ? (
+          <span className="text-green-700">reconciled</span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+  ];
+
   return (
     <div className="p-4 space-y-6 text-sm">
       {error && <p className="text-red-600">{error}</p>}
@@ -123,12 +161,19 @@ export function ExpensesView() {
         <h2 className="font-medium text-gray-700">Add expense</h2>
         <div className="flex flex-wrap items-end gap-2">
           <Field label="Category">
-            <input
+            <select
               aria-label="Category"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="border rounded px-2 py-1"
-            />
+            >
+              <option value="">— select —</option>
+              {categories.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Gross (€)">
             <input
@@ -172,7 +217,7 @@ export function ExpensesView() {
           <button
             type="button"
             disabled={busy || !addValid}
-            onClick={onAdd}
+            onClick={() => void onAdd()}
             className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
           >
             Add
@@ -181,71 +226,41 @@ export function ExpensesView() {
       </section>
 
       <section>
-        <table className="min-w-full border-collapse">
-          <thead>
-            <tr className="border-b bg-gray-50 text-left">
-              <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Category</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Gross</th>
-              <th className="px-3 py-2 font-medium text-gray-700">VAT</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Tax point</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Status</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Bank</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={e.id} className="border-b align-top">
-                <td className="px-3 py-2">{e.id}</td>
-                <td className="px-3 py-2">{e.category}</td>
-                <td className="px-3 py-2 tabular-nums">
-                  {fmtCents(e.gross_amount)} {e.currency}
-                </td>
-                <td className="px-3 py-2 tabular-nums">
-                  {fmtCents(e.vat_amount)}
-                </td>
-                <td className="px-3 py-2">{e.tax_point_date}</td>
-                <td className="px-3 py-2">{e.status}</td>
-                <td className="px-3 py-2">
-                  {e.reconciled ? (
-                    <span className="text-green-700">reconciled</span>
-                  ) : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                  {e.status === 'draft' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onDelete(e)}
-                      className="text-red-600 hover:underline disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  )}
-                  {e.status === 'posted' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => startCorrect(e)}
-                      className="text-amber-700 hover:underline disabled:opacity-50"
-                    >
-                      Correct
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table
+          columns={columns}
+          rows={rows}
+          actions={(e) => (
+            <div className="space-x-3 whitespace-nowrap">
+              {e.status === 'draft' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onDelete(e)}
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              )}
+              {e.status === 'posted' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => startCorrect(e)}
+                  className="text-amber-700 hover:underline disabled:opacity-50"
+                >
+                  Correct
+                </button>
+              )}
+            </div>
+          )}
+        />
       </section>
 
       {correctId !== null && correction && (
         <CorrectionForm
           draft={correction}
           busy={busy}
+          categories={categories}
           onChange={setCorrection}
           onCancel={() => {
             setCorrectId(null);

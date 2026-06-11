@@ -23,11 +23,11 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
 import { AgentConfigService } from './agent-config.service';
+import { CategoryService } from '../categories/category.service';
 import {
   ProposeDraftService,
   ProposeDraftResult,
   ProposeDraftOutcome,
-  SUPPLIER_CREATE_NOT_IMPLEMENTED,
 } from './propose-draft.service';
 import { TriageResult } from '../triage/types';
 import { BadRequestException } from '@nestjs/common';
@@ -88,6 +88,7 @@ describe('ProposeDraftService (integration)', () => {
         ExpensesService,
         EntitiesService,
         AgentConfigService,
+        CategoryService,
         ProposeDraftService,
       ],
     }).compile();
@@ -181,32 +182,72 @@ describe('ProposeDraftService (integration)', () => {
       expect(expense.supplier_id).toBe(supplier.id);
     });
 
-    it('routes a create supplier_proposal to needs_triage (no null-supplier draft, Task 43)', async () => {
+    it('onboards a Supplier from a create proposal and produces a draft', async () => {
       const triageResult: TriageResult = {
         ...sampleTriageResult(),
         supplier_proposal: {
           mode: 'create',
           create_name: 'Brand New Supplier Ltd',
           create_country: 'IE',
+          create_registration_key: 'IE9999999',
         },
       };
 
       const outcome = await service.proposeDraft(triageResult, 12);
+      expect(outcome.outcome).toBe('draft');
 
-      // No draft was created — the create proposal is reported unresolved.
-      expect(outcome.outcome).toBe('supplier-unresolved');
-      if (outcome.outcome === 'supplier-unresolved') {
-        expect(outcome.reason).toBe(SUPPLIER_CREATE_NOT_IMPLEMENTED);
-      }
+      // The Supplier was created and is matchable by its registration key.
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.findByRegistrationKey('IE9999999');
+      expect(supplier).toBeDefined();
+      expect(supplier!.name).toBe('Brand New Supplier Ltd');
+      expect(supplier!.role).toBe('supplier');
 
-      // Crucially: NO expense (and therefore no null-supplier draft) was
-      // silently created for the document.
+      // The draft expense is linked to the freshly-created Supplier.
       const expenses = await db
         .selectFrom('expense')
         .selectAll()
         .where('document_id', '=', 12)
         .execute();
-      expect(expenses).toHaveLength(0);
+      expect(expenses).toHaveLength(1);
+      expect(expenses[0].supplier_id).toBe(supplier!.id);
+    });
+
+    it('reuses an existing Supplier when the create reg key already exists', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const existing = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'Existing Co',
+        registrationKey: 'IE1234567',
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Existing Co (variant spelling)',
+          create_country: 'IE',
+          create_registration_key: 'IE1234567',
+        },
+      };
+
+      const outcome = await service.proposeDraft(triageResult, 13);
+      expect(outcome.outcome).toBe('draft');
+
+      // No duplicate Supplier — the draft links to the existing one.
+      const identifiers = await db
+        .selectFrom('entity_identifier')
+        .selectAll()
+        .where('value', '=', 'IE1234567')
+        .execute();
+      expect(identifiers).toHaveLength(1);
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 13)
+        .execute();
+      expect(expenses[0].supplier_id).toBe(existing.id);
     });
 
     it('throws BadRequestException for non-new_expense kinds', async () => {
@@ -377,6 +418,28 @@ describe('ProposeDraftService (integration)', () => {
         .executeTakeFirstOrThrow();
 
       expect(proposals.ocr_artifact_id).toBeNull();
+    });
+
+    it('returns category-unresolved for a triage category the active plugin does not know', async () => {
+      const categoryService = module.get(CategoryService);
+      // Stub isValid to return false for anything that is not 'software'.
+      jest.spyOn(categoryService, 'isValid').mockResolvedValue(false);
+
+      const triage: TriageResult = {
+        kind: 'new_expense',
+        category: 'made-up-category',
+        gross_amount: 1000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-01-01',
+        document_type: 'receipt',
+        document_vat_marking: null,
+        supplier_invoice_number: null,
+        confidence: 0.9,
+      };
+
+      const outcome = await service.proposeDraft(triage, null, 1);
+      expect(outcome.outcome).toBe('category-unresolved');
     });
   });
 });

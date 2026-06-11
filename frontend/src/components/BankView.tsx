@@ -23,6 +23,7 @@ import {
   type MatchRowView,
   type ReconciliationStatusRow,
 } from '../api';
+import { Table, type Column } from './Table';
 
 /** Proposal selection key — voucherId is an internal key only, NEVER displayed. */
 const proposalKey = (p: MatchProposalView): string =>
@@ -85,7 +86,8 @@ export function BankView() {
   };
 
   const onDelete = async (id: number) => {
-    if (!window.confirm(`Delete statement #${id} and its transactions?`)) return;
+    if (!window.confirm(`Delete statement #${id} and its transactions?`))
+      return;
     try {
       await deleteBankStatement(id);
       if (!mountedRef.current) return;
@@ -375,9 +377,15 @@ export function BankView() {
     }
   };
 
+  const statementColumns: Column<BankStatement>[] = [
+    { header: 'ID', cell: (s) => s.id },
+    { header: 'Period', cell: (s) => `${s.start_date} → ${s.end_date}` },
+    { header: 'Uploaded', cell: (s) => fmtDate(s.uploaded_at) },
+  ];
+
   return (
     <div className="p-4 space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -429,43 +437,28 @@ export function BankView() {
         {statements.length === 0 ? (
           <p className="text-sm text-gray-500">No statements yet.</p>
         ) : (
-          <table className="min-w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left">
-                <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Period</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Uploaded</th>
-                <th className="px-3 py-2 font-medium text-gray-700"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {statements.map((s) => (
-                <tr key={s.id} className="border-b">
-                  <td className="px-3 py-2">{s.id}</td>
-                  <td className="px-3 py-2">
-                    {s.start_date} → {s.end_date}
-                  </td>
-                  <td className="px-3 py-2">{fmtDate(s.uploaded_at)}</td>
-                  <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => void viewTransactions(s.id)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      View
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onDelete(s.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            columns={statementColumns}
+            rows={statements}
+            actions={(s) => (
+              <div className="space-x-3 whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={() => void viewTransactions(s.id)}
+                  className="text-blue-600 hover:underline"
+                >
+                  View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onDelete(s.id)}
+                  className="text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          />
         )}
       </section>
 
@@ -474,7 +467,7 @@ export function BankView() {
           <h2 className="text-sm font-medium text-gray-700">
             Transactions — statement #{selected}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void onPropose()}

@@ -12,6 +12,7 @@ import { EntitiesView } from './components/EntitiesView';
 import { DocumentsView } from './components/DocumentsView';
 import { ExpensesView } from './components/ExpensesView';
 import { InvoicesView } from './components/InvoicesView';
+import { CategoriesView } from './components/CategoriesView';
 
 export interface TabDef<T = unknown> {
   key: string;
@@ -48,6 +49,14 @@ const expensesTab: TabDef = {
   load: async () => [],
   columns: [],
   Custom: ExpensesView,
+};
+
+const categoriesTab: TabDef = {
+  key: 'categories',
+  label: 'Categories',
+  load: async () => [],
+  columns: [],
+  Custom: CategoriesView,
 };
 
 const invoicesTab: TabDef = {
@@ -134,6 +143,7 @@ export const TABS: TabDef[] = [
   orgTab,
   entitiesTab,
   expensesTab,
+  categoriesTab,
   invoicesTab,
   documentsTab,
   bankTab,

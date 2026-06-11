@@ -9,5 +9,8 @@ export function validateAgainstKmdXsd(
   const xsdDoc = libxml.parseXml(xsd);
   const xmlDoc = libxml.parseXml(xml);
   const valid = xmlDoc.validate(xsdDoc);
-  return { valid, errors: (xmlDoc.validationErrors ?? []).map((e) => String(e)) };
+  return {
+    valid,
+    errors: (xmlDoc.validationErrors ?? []).map((e) => String(e)),
+  };
 }

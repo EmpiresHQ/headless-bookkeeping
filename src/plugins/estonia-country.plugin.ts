@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  CategoryDef,
   CategoryMappingResult,
   CountryPlugin,
   CrossBorderResolution,
@@ -22,6 +23,32 @@ import {
 import { renderKmdXml } from './estonia-kmd/kmd-xml';
 import { renderKmdCsv } from './estonia-kmd/kmd-csv';
 import { buildInfPart } from './estonia-kmd/kmd-inf';
+
+/**
+ * The single source of the EE plugin's category → account binding. Both
+ * resolveCategoryMapping() and getCategories() read from this map, so the two
+ * cannot diverge. Mirrors NullCountryPlugin's map; the VAT code is resolved
+ * separately (EE_INPUT_24) in resolveCategoryMapping.
+ */
+const EE_CATEGORY_ACCOUNTS: Readonly<Record<string, string>> = {
+  software: 'EXPENSE_SOFTWARE',
+  transport: 'EXPENSE_TRANSPORT',
+  travel: 'EXPENSE_TRAVEL',
+  marketing: 'EXPENSE_MARKETING',
+  salary: 'EXPENSE_SALARY',
+  contractor: 'EXPENSE_CONTRACTOR',
+  rent: 'EXPENSE_RENT',
+  tax: 'EXPENSE_TAX',
+  'bank fee': 'EXPENSE_BANK_FEE',
+  meals: 'EXPENSE_MEALS',
+  insurance: 'EXPENSE_INSURANCE',
+  education: 'EXPENSE_EDUCATION',
+};
+
+/** Title-cases a category key into a display label ("bank fee" → "Bank Fee"). */
+function labelFor(key: string): string {
+  return key.replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 /**
  * EstoniaCountryPlugin — the first real-jurisdiction CountryPlugin adapter.
@@ -143,23 +170,16 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
     // Expense categories → seeded chart accounts + EE standard input VAT.
     // Mirrors NullCountryPlugin's map; VAT code swapped to EE_INPUT_24.
-    const expenseMap: Record<string, string> = {
-      software: 'EXPENSE_SOFTWARE',
-      transport: 'EXPENSE_TRANSPORT',
-      travel: 'EXPENSE_TRAVEL',
-      marketing: 'EXPENSE_MARKETING',
-      salary: 'EXPENSE_SALARY',
-      contractor: 'EXPENSE_CONTRACTOR',
-      rent: 'EXPENSE_RENT',
-      tax: 'EXPENSE_TAX',
-      'bank fee': 'EXPENSE_BANK_FEE',
-      meals: 'EXPENSE_MEALS',
-      insurance: 'EXPENSE_INSURANCE',
-      education: 'EXPENSE_EDUCATION',
-    };
-
-    const accountCode = expenseMap[category] ?? 'EXPENSE_OTHER';
+    const accountCode = EE_CATEGORY_ACCOUNTS[category] ?? 'EXPENSE_OTHER';
     return { accountCode, vatCode: 'EE_INPUT_24' };
+  }
+
+  getCategories(): CategoryDef[] {
+    return Object.entries(EE_CATEGORY_ACCOUNTS).map(([key, accountCode]) => ({
+      key,
+      label: labelFor(key),
+      accountCode,
+    }));
   }
 
   // ── Period / currency ─────────────────────────────────────────────────────
@@ -377,9 +397,17 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     const artifacts = [];
     for (const fmt of opts.formats) {
       if (fmt === 'xml') {
-        artifacts.push({ filename: `kmd-${base}.xml`, mimeType: 'application/xml', content: renderKmdXml(input) });
+        artifacts.push({
+          filename: `kmd-${base}.xml`,
+          mimeType: 'application/xml',
+          content: renderKmdXml(input),
+        });
       } else if (fmt === 'csv') {
-        artifacts.push({ filename: `kmd-${base}.csv`, mimeType: 'text/csv', content: renderKmdCsv(input) });
+        artifacts.push({
+          filename: `kmd-${base}.csv`,
+          mimeType: 'text/csv',
+          content: renderKmdCsv(input),
+        });
       }
     }
     return { artifacts, warnings };

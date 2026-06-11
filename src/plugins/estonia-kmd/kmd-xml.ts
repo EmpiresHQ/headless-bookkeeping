@@ -23,7 +23,9 @@ function eur(cents: number): string {
 }
 
 /** Net taxable base per rate, derived from output VAT amounts on the boxes. */
-export function transactionsNetByRate(input: StatutoryReportInput): Map<number, number> {
+export function transactionsNetByRate(
+  input: StatutoryReportInput,
+): Map<number, number> {
   const net = new Map<number, number>();
   for (const box of input.boxes) {
     const code = box.vat_code;
@@ -38,10 +40,14 @@ export function transactionsNetByRate(input: StatutoryReportInput): Map<number, 
 
 function renderSaleLine(row: InfRow): string {
   const parts: string[] = ['    <saleLine>'];
-  parts.push(`      <buyerRegCode>${esc(row.counterpartyRegNumber)}</buyerRegCode>`);
+  parts.push(
+    `      <buyerRegCode>${esc(row.counterpartyRegNumber)}</buyerRegCode>`,
+  );
   parts.push(`      <buyerName>${esc(row.counterpartyName)}</buyerName>`);
   if (row.invoiceNumber) {
-    parts.push(`      <invoiceNumber>${esc(row.invoiceNumber)}</invoiceNumber>`);
+    parts.push(
+      `      <invoiceNumber>${esc(row.invoiceNumber)}</invoiceNumber>`,
+    );
   }
   if (row.date) {
     parts.push(`      <invoiceDate>${esc(row.date)}</invoiceDate>`);
@@ -54,15 +60,21 @@ function renderSaleLine(row: InfRow): string {
 
 function renderPurchaseLine(row: InfRow): string {
   const parts: string[] = ['    <purchaseLine>'];
-  parts.push(`      <sellerRegCode>${esc(row.counterpartyRegNumber)}</sellerRegCode>`);
+  parts.push(
+    `      <sellerRegCode>${esc(row.counterpartyRegNumber)}</sellerRegCode>`,
+  );
   parts.push(`      <sellerName>${esc(row.counterpartyName)}</sellerName>`);
   if (row.invoiceNumber) {
-    parts.push(`      <invoiceNumber>${esc(row.invoiceNumber)}</invoiceNumber>`);
+    parts.push(
+      `      <invoiceNumber>${esc(row.invoiceNumber)}</invoiceNumber>`,
+    );
   }
   if (row.date) {
     parts.push(`      <invoiceDate>${esc(row.date)}</invoiceDate>`);
   }
-  parts.push(`      <invoiceSumVat>${eur(row.netAmount + row.vatAmount)}</invoiceSumVat>`);
+  parts.push(
+    `      <invoiceSumVat>${eur(row.netAmount + row.vatAmount)}</invoiceSumVat>`,
+  );
   parts.push(`      <vatInPeriod>${eur(row.vatAmount)}</vatInPeriod>`);
   parts.push('    </purchaseLine>');
   return parts.join('\n');
@@ -83,7 +95,9 @@ export function renderKmdXml(input: StatutoryReportInput): string {
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<vatDeclaration>');
-  lines.push(`  <taxPayerRegCode>${esc(input.declarant.regNumber ?? '')}</taxPayerRegCode>`);
+  lines.push(
+    `  <taxPayerRegCode>${esc(input.declarant.regNumber ?? '')}</taxPayerRegCode>`,
+  );
   lines.push(`  <year>${year}</year>`);
   lines.push(`  <month>${month}</month>`);
   lines.push('  <declarationType>1</declarationType>');
@@ -92,7 +106,9 @@ export function renderKmdXml(input: StatutoryReportInput): string {
   // declarationBody — required leading flags, then optional MonetaryValue boxes in schema order.
   lines.push('  <declarationBody>');
   lines.push(`    <noSales>${noSales ? 'true' : 'false'}</noSales>`);
-  lines.push(`    <noPurchases>${noPurchases ? 'true' : 'false'}</noPurchases>`);
+  lines.push(
+    `    <noPurchases>${noPurchases ? 'true' : 'false'}</noPurchases>`,
+  );
   lines.push('    <sumPerPartnerSales>false</sumPerPartnerSales>');
   lines.push('    <sumPerPartnerPurchases>false</sumPerPartnerPurchases>');
   // Schema order: transactions24, (22, 20, selfSupply20,) transactions9, (selfSupply9, 5,) transactions13.
@@ -104,7 +120,9 @@ export function renderKmdXml(input: StatutoryReportInput): string {
   if (t13 !== 0) lines.push(`    <transactions13>${eur(t13)}</transactions13>`);
   // inputVatTotal sits after the transactions / zero-rate / export group in the schema.
   if (input.totals.totalInputVat !== 0) {
-    lines.push(`    <inputVatTotal>${eur(input.totals.totalInputVat)}</inputVatTotal>`);
+    lines.push(
+      `    <inputVatTotal>${eur(input.totals.totalInputVat)}</inputVatTotal>`,
+    );
   }
   lines.push('  </declarationBody>');
 

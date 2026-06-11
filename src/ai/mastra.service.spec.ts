@@ -15,6 +15,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { AgentConfigService } from './agent-config.service';
+import { CategoryService } from '../categories/category.service';
 import { MastraService } from './mastra.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
@@ -49,8 +50,16 @@ describe('MastraService', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
-        { provide: PeriodLockService, useValue: { assertPeriodOpen: jest.fn().mockResolvedValue(undefined), findLockedPeriod: jest.fn().mockResolvedValue(undefined), getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: PeriodLockService,
+          useValue: {
+            assertPeriodOpen: jest.fn().mockResolvedValue(undefined),
+            findLockedPeriod: jest.fn().mockResolvedValue(undefined),
+            getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         AgentConfigService,
+        CategoryService,
         MastraService,
       ],
     }).compile();
@@ -135,7 +144,9 @@ describe('MastraService', () => {
 
       const agent = await service.buildTriageAgent();
       expect(agent.model).toBe('openai/gpt-4o');
-      expect(agent.instructions).toBe('SEEDED TRIAGE PROMPT');
+      // withCategoryList appends the valid category keys from the active plugin;
+      // the seeded prompt is retained as the leading prefix.
+      expect(agent.instructions).toContain('SEEDED TRIAGE PROMPT');
     });
 
     it('builds a tool-less bank-mapping agent from settings', async () => {

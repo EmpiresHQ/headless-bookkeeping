@@ -1,3 +1,4 @@
+import { NotFoundException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -195,6 +196,231 @@ describe('DocumentsService (unit)', () => {
       await expect(service.getFile(9999)).rejects.toThrow(
         'Document 9999 not found',
       );
+    });
+  });
+
+  describe('deleteDocument', () => {
+    const upload = () =>
+      service.upload({
+        buffer: Buffer.from('junk upload'),
+        filename: 'junk.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+    it('deletes the document, its sources and its file', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+      await expect(fs.readFile(join(storageRoot, path))).resolves.toBeTruthy();
+
+      await service.deleteDocument(document.id);
+
+      await expect(service.getById(document.id)).rejects.toThrow(
+        `Document ${document.id} not found`,
+      );
+      const sources = await db
+        .selectFrom('document_source')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(sources).toHaveLength(0);
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
+    });
+
+    it('refuses (409) to delete a document attached to an expense', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'draft',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Still present.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+    });
+
+    it('throws NotFoundException for a missing document', async () => {
+      await expect(service.deleteDocument(9999)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('cascades the internal OCR conversation and its artifact', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      const conv = await db
+        .insertInto('conversation')
+        .values({
+          channel: 'api',
+          thread_key: `ocr:${document.id}`,
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+          closed_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('conversation_document')
+        .values({ conversation_id: conv.id, document_id: document.id })
+        .execute();
+      await db
+        .insertInto('artifact')
+        .values({
+          conversation_id: conv.id,
+          kind: 'ocr_markdown',
+          document_id: document.id,
+          storage_path: `${document.id}/ocr.md`,
+          crc32: null,
+          created_at: now,
+        })
+        .execute();
+
+      await service.deleteDocument(document.id);
+
+      const remainingConv = await db
+        .selectFrom('conversation')
+        .selectAll()
+        .where('id', '=', conv.id)
+        .execute();
+      const remainingLinks = await db
+        .selectFrom('conversation_document')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      const remainingArtifacts = await db
+        .selectFrom('artifact')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(remainingConv).toHaveLength(0);
+      expect(remainingLinks).toHaveLength(0);
+      expect(remainingArtifacts).toHaveLength(0);
+    });
+
+    it('unlinks but preserves a real Telegram conversation', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      const conv = await db
+        .insertInto('conversation')
+        .values({
+          channel: 'telegram',
+          thread_key: 'tg:123',
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+          closed_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('conversation_document')
+        .values({ conversation_id: conv.id, document_id: document.id })
+        .execute();
+
+      await service.deleteDocument(document.id);
+
+      // The thread survives; only the document attachment is removed.
+      const survivingConv = await db
+        .selectFrom('conversation')
+        .selectAll()
+        .where('id', '=', conv.id)
+        .execute();
+      const remainingLinks = await db
+        .selectFrom('conversation_document')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(survivingConv).toHaveLength(1);
+      expect(remainingLinks).toHaveLength(0);
+    });
+  });
+
+  describe('pending triage result', () => {
+    it('persists and clears a pending triage result on the document', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-pending-1',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+
+      const triage = {
+        kind: 'new_expense' as const,
+        gross_amount: 1525,
+        vat_amount: 285,
+        tax_point_date: '2026-03-15',
+        category: 'software',
+        supplier_proposal: {
+          mode: 'create' as const,
+          create_name: 'Acme OÜ',
+          create_country: 'EE',
+          create_registration_key: 'EE100200300',
+        },
+        document_type: 'invoice' as const,
+        currency: 'EUR',
+        document_vat_marking: null,
+        supplier_invoice_number: 'INV-7',
+        confidence: 0.42,
+      };
+
+      await service.setPendingTriageResult(doc.id, triage);
+      expect(await service.getPendingTriageResult(doc.id)).toEqual(triage);
+
+      await service.setPendingTriageResult(doc.id, null);
+      expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+    });
+
+    it('throws when the stored blob is malformed', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-bad-blob',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await db
+        .updateTable('document')
+        .set({ pending_triage_result: '{not valid triage}' })
+        .where('id', '=', doc.id)
+        .execute();
+
+      await expect(service.getPendingTriageResult(doc.id)).rejects.toThrow();
     });
   });
 });

@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
+import { triageResultSchema, TriageResult } from '../triage/types';
 import { DocumentStorageService } from './document-storage.service';
 import {
   Document,
@@ -143,6 +148,150 @@ export class DocumentsService {
       .set({ status })
       .where('id', '=', id)
       .execute();
+  }
+
+  /**
+   * Store (or clear) the TriageResult that blocked this document on the
+   * supplier-unresolved route. Pass `null` to clear it. Kept off the mapped
+   * `Document` type on purpose: it is operational AI scratch data read only by
+   * the resolution flow, never shipped in `list()`.
+   */
+  async setPendingTriageResult(
+    id: number,
+    result: TriageResult | null,
+  ): Promise<void> {
+    await this.db
+      .updateTable('document')
+      .set({
+        pending_triage_result: result !== null ? JSON.stringify(result) : null,
+      })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  /**
+   * Read back the stored proposal as a validated TriageResult, or null if the
+   * document has none. Re-validates with the Zod schema so a malformed/stale
+   * blob fails loudly rather than feeding a half-shaped object into the kernel.
+   */
+  async getPendingTriageResult(id: number): Promise<TriageResult | null> {
+    const row = await this.db
+      .selectFrom('document')
+      .select('pending_triage_result')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!row || row.pending_triage_result == null) {
+      return null;
+    }
+    return triageResultSchema.parse(JSON.parse(row.pending_triage_result));
+  }
+
+  /**
+   * Delete a document and its owned dependents (sources, OCR/artifact rows, the
+   * internal OCR conversation, and the stored files). Atomic. The SPA is the
+   * operator's admin surface, so the only block is data integrity: a document
+   * that is still evidence for an expense is refused (409) — detach/reverse the
+   * expense first. Real user threads (Telegram/email) are UNLINKED, not deleted.
+   * Throws 404 if the document does not exist.
+   */
+  async deleteDocument(id: number): Promise<void> {
+    const filePaths = await this.db.transaction().execute(async (trx) => {
+      const doc = await trx
+        .selectFrom('document')
+        .select(['id', 'storage_path'])
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!doc) throw new NotFoundException(`Document ${id} not found`);
+
+      const expense = await trx
+        .selectFrom('expense')
+        .select('id')
+        .where('document_id', '=', id)
+        .executeTakeFirst();
+      if (expense) {
+        throw new ConflictException(
+          `Document ${id} is attached to expense #${expense.id} and cannot be deleted`,
+        );
+      }
+      // The SPA is the operator's admin surface — a document can always be
+      // deleted. The intake/OCR pipeline creates an INTERNAL conversation per
+      // document (channel 'api', thread_key 'ocr:<id>') just to hold the OCR
+      // artifact — that is part of the document and is cascade-deleted with it.
+      // A REAL user thread (Telegram/email) is merely UNLINKED (its messages and
+      // history are preserved); only the document↔thread attachment is removed.
+      const links = await trx
+        .selectFrom('conversation_document as cd')
+        .innerJoin('conversation as c', 'c.id', 'cd.conversation_id')
+        .select(['c.id as conversation_id', 'c.channel'])
+        .where('cd.document_id', '=', id)
+        .execute();
+      const ocrConvIds = links
+        .filter((l) => l.channel === 'api')
+        .map((l) => l.conversation_id);
+
+      const artifacts = await trx
+        .selectFrom('artifact')
+        .select('storage_path')
+        .where((eb) =>
+          eb.or([
+            eb('document_id', '=', id),
+            ...(ocrConvIds.length
+              ? [eb('conversation_id', 'in', ocrConvIds)]
+              : []),
+          ]),
+        )
+        .execute();
+      const paths = [
+        doc.storage_path,
+        ...artifacts.map((a) => a.storage_path),
+      ].filter((p): p is string => p !== null);
+
+      // Delete in FK-safe order: artifacts/messages/business-object links first,
+      // then the document↔conversation links, the internal conversation, the
+      // document's sources, and finally the document.
+      await trx
+        .deleteFrom('artifact')
+        .where((eb) =>
+          eb.or([
+            eb('document_id', '=', id),
+            ...(ocrConvIds.length
+              ? [eb('conversation_id', 'in', ocrConvIds)]
+              : []),
+          ]),
+        )
+        .execute();
+      if (ocrConvIds.length) {
+        await trx
+          .deleteFrom('message')
+          .where('conversation_id', 'in', ocrConvIds)
+          .execute();
+        await trx
+          .deleteFrom('conversation_business_object')
+          .where('conversation_id', 'in', ocrConvIds)
+          .execute();
+      }
+      await trx
+        .deleteFrom('conversation_document')
+        .where('document_id', '=', id)
+        .execute();
+      if (ocrConvIds.length) {
+        await trx
+          .deleteFrom('conversation')
+          .where('id', 'in', ocrConvIds)
+          .execute();
+      }
+      await trx
+        .deleteFrom('document_source')
+        .where('document_id', '=', id)
+        .execute();
+      await trx.deleteFrom('document').where('id', '=', id).execute();
+      return paths;
+    });
+
+    // Best-effort file cleanup once the rows are committed.
+    for (const p of filePaths) {
+      await this.storage.deleteFile(p);
+    }
   }
 
   async hydrate(document: Document): Promise<DocumentWithSources> {

@@ -26,6 +26,7 @@ import { ApprovalsController } from './approvals.controller';
 import { ApprovalsService } from './approvals.service';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
+import { CategoryService } from '../categories/category.service';
 
 describe('ApprovalsController (integration)', () => {
   let db: Kysely<Database>;
@@ -76,6 +77,14 @@ describe('ApprovalsController (integration)', () => {
           },
         },
         ApprovalsService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: () => Promise.resolve([]),
+            isValid: () => Promise.resolve(true),
+            assertValid: () => Promise.resolve(),
+          },
+        },
       ],
     }).compile();
 

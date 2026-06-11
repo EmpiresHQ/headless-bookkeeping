@@ -20,6 +20,7 @@ import {
 } from '../../plugins/country-plugin.interface';
 import { createGetClassificationContextTool } from './index';
 import { PeriodLockService } from '../../reporting-periods/period-lock.service';
+import { CategoryService } from '../../categories/category.service';
 
 /**
  * Unit tests for the composed deep read `getClassificationContext`.
@@ -64,7 +65,22 @@ describe('getClassificationContext (composed deep read)', () => {
         VoucherProjectionService,
         EntitiesService,
         ExpensesService,
-        { provide: PeriodLockService, useValue: { assertPeriodOpen: jest.fn().mockResolvedValue(undefined), findLockedPeriod: jest.fn().mockResolvedValue(undefined), getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: PeriodLockService,
+          useValue: {
+            assertPeriodOpen: jest.fn().mockResolvedValue(undefined),
+            findLockedPeriod: jest.fn().mockResolvedValue(undefined),
+            getCurrentOpenPeriod: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: CategoryService,
+          useValue: {
+            list: () => Promise.resolve([]),
+            isValid: () => Promise.resolve(true),
+            assertValid: () => Promise.resolve(),
+          },
+        },
       ],
     }).compile();
 

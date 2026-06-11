@@ -29,6 +29,31 @@ jobs:
       - name: Run E2E tests
         run: docker run --rm app-test npm run test:e2e
 
+  # Keeps the committed packages/cli OpenAPI artifacts in sync with the server.
+  # Gated on `test` so it only runs once lint + unit + e2e are green.
+  cli-drift:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Ensure SQLite data dir exists
+        run: mkdir -p data
+      - name: Regenerate OpenAPI artifacts
+        run: npm run cli:codegen
+      - name: Fail if committed artifacts are stale
+        run: |
+          git diff --exit-code -- packages/cli/openapi.json packages/cli/src/types.gen.ts \
+            || (echo "::error::OpenAPI artifacts are stale — run 'npm run cli:codegen' and commit." && exit 1)
+      - name: Build & test the CLI
+        run: |
+          npm run build -w @empireshq/hbk
+          npm test -w @empireshq/hbk
+
   build-and-push:
     runs-on: ubuntu-latest
     needs: test

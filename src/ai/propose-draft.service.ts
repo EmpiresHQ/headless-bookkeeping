@@ -3,18 +3,12 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { ExpensesService } from '../expenses/expenses.service';
+import { EntitiesService } from '../entities/entities.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { SupplierProposal, TriageResult } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
 import { AgentConfigService } from './agent-config.service';
-
-/**
- * Reason a 'create' supplier proposal cannot yet be resolved to a Supplier id.
- * Supplier creation is deferred (Task 43); until then a 'create' proposal must
- * route to needs_triage rather than silently yielding a null-supplier draft.
- */
-export const SUPPLIER_CREATE_NOT_IMPLEMENTED =
-  'supplier creation not yet implemented (Task 43)';
+import { CategoryService } from '../categories/category.service';
 
 /** The posting pipeline's result shape (Rules → Policy → post/hold). */
 export type PipelineRunResult = Awaited<
@@ -52,10 +46,25 @@ export interface SupplierUnresolvedResult {
 }
 
 /**
- * Discriminated outcome of a fresh proposeDraft call: either a created draft
- * or an explicit "supplier could not be resolved, route to triage" signal.
+ * Returned when the triage `category` is not in the active country plugin's
+ * category set. Like supplier-unresolved, the caller routes it to needs_triage
+ * rather than silently booking to EXPENSE_OTHER (ADR-0002).
  */
-export type ProposeDraftOutcome = ProposeDraftResult | SupplierUnresolvedResult;
+export interface CategoryUnresolvedResult {
+  outcome: 'category-unresolved';
+  reason: string;
+}
+
+/**
+ * Discriminated outcome of a fresh proposeDraft call: either a created draft
+ * or an explicit "supplier could not be resolved, route to triage" signal, or
+ * an explicit "category not in the active plugin's category set, route to
+ * triage" signal.
+ */
+export type ProposeDraftOutcome =
+  | ProposeDraftResult
+  | SupplierUnresolvedResult
+  | CategoryUnresolvedResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -90,8 +99,10 @@ export class ProposeDraftService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly expensesService: ExpensesService,
+    private readonly entitiesService: EntitiesService,
     private readonly postingPipelineService: PostingPipelineService,
     private readonly config: AgentConfigService,
+    private readonly categoryService: CategoryService,
   ) {}
 
   /**
@@ -99,8 +110,10 @@ export class ProposeDraftService {
    *
    * Returns a discriminated {@link ProposeDraftOutcome}: a created draft, or an
    * explicit `supplier-unresolved` signal when the supplier_proposal asks to
-   * CREATE a Supplier (deferred — Task 43). The latter is NEVER a silent
-   * null-supplier draft; the caller routes it to needs_triage.
+   * CREATE a Supplier (deferred — Task 43), or a `category-unresolved` signal
+   * when the AI emits a category outside the active plugin's set (both route to
+   * needs_triage). The former is NEVER a silent null-supplier draft; the caller
+   * routes it to needs_triage.
    *
    * @param triageResult - The validated AI triage output
    * @param documentId - Optional document ID to associate with the expense
@@ -124,11 +137,23 @@ export class ProposeDraftService {
       );
     }
 
+    // Category guard: the model is given the closed category set (Task 4) but
+    // Zod admits any string. If the emitted category is not in the active
+    // plugin's set, return an explicit signal so the caller routes to
+    // needs_triage rather than letting createExpense throw a 500 or silently
+    // booking to EXPENSE_OTHER (ADR-0002/0024).
+    if (!(await this.categoryService.isValid(triageResult.category))) {
+      return {
+        outcome: 'category-unresolved',
+        reason: `new_expense has an unknown category '${triageResult.category}'`,
+      };
+    }
+
     // Step 0: EXPLICIT supplier resolution. A 'match' proposal resolves to its
-    // entity id (as today); a 'create' proposal is NOT silently dropped into a
-    // null-supplier draft — it is reported unresolved so the caller routes to
-    // needs_triage (Supplier creation is Task 43).
-    const resolved = this.resolveSupplier(
+    // entity id; a 'create' proposal find-or-onboards the Supplier from the
+    // document evidence (ADR-0014). Only a genuine onboard failure stays
+    // unresolved → needs_triage; we never silently produce a null-supplier draft.
+    const resolved = await this.resolveSupplier(
       triageResult.supplier_proposal,
       supplierId,
     );
@@ -181,17 +206,20 @@ export class ProposeDraftService {
    *
    * - An explicit `supplierId` (already resolved by the caller) wins.
    * - A `{ mode: 'match', match_entity_id }` proposal resolves to that id.
-   * - A `{ mode: 'create', ... }` proposal is reported `supplier-unresolved`
-   *   (Supplier creation is Task 43) — never a silent null-supplier draft.
+   * - A `{ mode: 'create', ... }` proposal find-or-onboards the Supplier on its
+   *   registration key (ADR-0014): an existing key is reused (idempotent /
+   *   race-safe), otherwise a new Supplier Entity is created. Only a genuine
+   *   onboard failure is reported `supplier-unresolved` → needs_triage.
    * - No proposal at all resolves to a null supplier (Policy gates unknown
    *   suppliers downstream), preserving the prior behavior.
    */
-  private resolveSupplier(
+  private async resolveSupplier(
     proposal: SupplierProposal | undefined,
     explicitSupplierId?: number | null,
-  ):
+  ): Promise<
     | { outcome: 'resolved'; supplierId: number | null }
-    | SupplierUnresolvedResult {
+    | SupplierUnresolvedResult
+  > {
     if (explicitSupplierId != null) {
       return { outcome: 'resolved', supplierId: explicitSupplierId };
     }
@@ -201,11 +229,29 @@ export class ProposeDraftService {
     if (proposal.mode === 'match') {
       return { outcome: 'resolved', supplierId: proposal.match_entity_id };
     }
-    // mode === 'create' — deferred to Task 43.
-    return {
-      outcome: 'supplier-unresolved',
-      reason: SUPPLIER_CREATE_NOT_IMPLEMENTED,
-    };
+    // mode === 'create' — find-or-onboard the Supplier from the document.
+    try {
+      const existing = await this.entitiesService.findByRegistrationKey(
+        proposal.create_registration_key,
+      );
+      if (existing) {
+        return { outcome: 'resolved', supplierId: existing.id };
+      }
+      const created = await this.entitiesService.onboard({
+        role: 'supplier',
+        country: proposal.create_country,
+        name: proposal.create_name,
+        registrationKey: proposal.create_registration_key,
+      });
+      return { outcome: 'resolved', supplierId: created.id };
+    } catch (e) {
+      return {
+        outcome: 'supplier-unresolved',
+        reason: `supplier creation failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      };
+    }
   }
 
   /**

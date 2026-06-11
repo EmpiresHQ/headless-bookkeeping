@@ -116,6 +116,17 @@ export const getDocuments = () =>
     (r) => r.documents,
   );
 
+export interface CategoryDef {
+  key: string;
+  label: string;
+  accountCode: string;
+}
+
+export const getCategories = () =>
+  apiFetch<{ categories: CategoryDef[] }>('/api/categories').then(
+    (r) => r.categories,
+  );
+
 // ── Document debug (OCR + LLM classification) ─────────────────────────────
 export interface DebugTriageResult {
   kind: string;
@@ -142,6 +153,9 @@ export interface DocumentDebug {
 
 export const getDocumentDebug = (id: number) =>
   apiFetch<DocumentDebug>(`/api/documents/${id}/debug`);
+
+export const deleteDocument = (id: number) =>
+  apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });
 export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
     '/api/reporting-periods',
@@ -316,6 +330,34 @@ export const triageDocument = (id: number) =>
 export const completeDocument = (id: number) =>
   apiFetch<{ id: number; status: string }>(`/api/documents/${id}/complete`, {
     method: 'POST',
+  });
+
+export interface PendingDraft {
+  document_id: number;
+  reason: string;
+  supplier_proposal: {
+    create_name: string;
+    create_country: string;
+    create_registration_key: string;
+  };
+  draft: {
+    category: string;
+    gross_amount: number;
+    vat_amount: number;
+    currency: string;
+    tax_point_date: string;
+    supplier_invoice_number: string | null;
+  };
+}
+
+export const getPendingDraft = (id: number) =>
+  apiFetch<PendingDraft>(`/api/documents/${id}/pending-draft`);
+
+export const resolveSupplier = (id: number, supplierEntityId: number) =>
+  apiFetch<TriageOutcome>(`/api/documents/${id}/resolve-supplier`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ supplier_entity_id: supplierEntityId }),
   });
 
 // ── Approvals (HITL) ──────────────────────────────────────────────────────

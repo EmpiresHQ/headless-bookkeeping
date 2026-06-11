@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   getEntities,
   onboardEntity,
@@ -11,6 +11,7 @@ import {
   type OnboardEntityInput,
   type AddAliasInput,
 } from '../api';
+import { Table, type Column } from './Table';
 
 const ROLES = ['supplier', 'customer'] as const;
 const GOODS = ['goods', 'services', 'unknown'] as const;
@@ -137,6 +138,67 @@ export function EntitiesView() {
     form.country.trim() !== '' &&
     form.registrationKey.trim() !== '';
 
+  const columns: Column<Entity>[] = [
+    { header: 'ID', cell: (e) => e.id },
+    {
+      header: 'Name',
+      cell: (e) =>
+        editId === e.id && draft ? (
+          <input
+            aria-label={`Edit name ${e.id}`}
+            value={draft.name}
+            onChange={(ev) => setDraft({ ...draft, name: ev.target.value })}
+            className="border rounded px-2 py-1 w-full sm:w-auto"
+          />
+        ) : (
+          e.name
+        ),
+    },
+    {
+      header: 'Role',
+      cell: (e) => (editId === e.id && draft ? <span className="text-gray-400">{e.role}</span> : e.role),
+    },
+    {
+      header: 'Country',
+      cell: (e) =>
+        editId === e.id && draft ? (
+          <input
+            aria-label={`Edit country ${e.id}`}
+            value={draft.country}
+            onChange={(ev) => setDraft({ ...draft, country: ev.target.value })}
+            className="border rounded px-2 py-1 w-20 uppercase"
+          />
+        ) : (
+          e.country
+        ),
+    },
+    {
+      header: 'Goods/Services',
+      cell: (e) =>
+        editId === e.id && draft ? (
+          <select
+            aria-label={`Edit goods ${e.id}`}
+            value={draft.goodsVsServices}
+            onChange={(ev) =>
+              setDraft({
+                ...draft,
+                goodsVsServices: ev.target.value as EditDraft['goodsVsServices'],
+              })
+            }
+            className="border rounded px-2 py-1 w-full sm:w-auto"
+          >
+            {GOODS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        ) : (
+          e.goods_vs_services ?? '—'
+        ),
+    },
+  ];
+
   return (
     <div className="p-4 space-y-6 text-sm">
       {error && <p className="text-red-600">{error}</p>}
@@ -215,7 +277,7 @@ export function EntitiesView() {
           <button
             type="button"
             disabled={busy || !addValid}
-            onClick={onAdd}
+            onClick={() => void onAdd()}
             className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
           >
             Add
@@ -228,211 +290,142 @@ export function EntitiesView() {
       </section>
 
       <section>
-        <table className="min-w-full border-collapse">
-          <thead>
-            <tr className="border-b bg-gray-50 text-left">
-              <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Name</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Role</th>
-              <th className="px-3 py-2 font-medium text-gray-700">Country</th>
-              <th className="px-3 py-2 font-medium text-gray-700">
-                Goods/Services
-              </th>
-              <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entities.map((e) =>
-              editId === e.id && draft ? (
-                <tr key={e.id} className="border-b align-top">
-                  <td className="px-3 py-2">{e.id}</td>
-                  <td className="px-3 py-2">
-                    <input
-                      aria-label={`Edit name ${e.id}`}
-                      value={draft.name}
-                      onChange={(ev) =>
-                        setDraft({ ...draft, name: ev.target.value })
-                      }
-                      className="border rounded px-2 py-1"
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-gray-400">{e.role}</td>
-                  <td className="px-3 py-2">
-                    <input
-                      aria-label={`Edit country ${e.id}`}
-                      value={draft.country}
-                      onChange={(ev) =>
-                        setDraft({ ...draft, country: ev.target.value })
-                      }
-                      className="border rounded px-2 py-1 w-20 uppercase"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <select
-                      aria-label={`Edit goods ${e.id}`}
-                      value={draft.goodsVsServices}
-                      onChange={(ev) =>
-                        setDraft({
-                          ...draft,
-                          goodsVsServices: ev.target
-                            .value as EditDraft['goodsVsServices'],
-                        })
-                      }
-                      className="border rounded px-2 py-1"
-                    >
-                      {GOODS.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void saveEdit(e.id)}
-                      className="text-blue-600 hover:underline disabled:opacity-50"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditId(null);
-                        setDraft(null);
-                      }}
-                      className="text-gray-600 hover:underline"
-                    >
-                      Cancel
-                    </button>
-                  </td>
-                </tr>
+        <Table
+          columns={columns}
+          rows={entities}
+          actions={(e) => (
+            <div className="space-x-3 whitespace-nowrap">
+              {editId === e.id && draft ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void saveEdit(e.id)}
+                    className="text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditId(null);
+                      setDraft(null);
+                    }}
+                    className="text-gray-600 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </>
               ) : (
-                <Fragment key={e.id}>
-                  <tr className="border-b align-top">
-                    <td className="px-3 py-2">{e.id}</td>
-                    <td className="px-3 py-2">{e.name}</td>
-                    <td className="px-3 py-2">{e.role}</td>
-                    <td className="px-3 py-2">{e.country}</td>
-                    <td className="px-3 py-2">{e.goods_vs_services ?? '—'}</td>
-                    <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => startEdit(e)}
-                        className="text-blue-600 hover:underline disabled:opacity-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => openAliases(e.id)}
-                        className="text-gray-700 hover:underline disabled:opacity-50"
-                      >
-                        Aliases
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onDelete(e)}
-                        className="text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                  {aliasFor === e.id && (
-                    <tr className="border-b bg-gray-50">
-                      <td className="px-3 py-2" />
-                      <td className="px-3 py-2" colSpan={5}>
-                        <div className="space-y-2">
-                          <p className="text-xs text-gray-500">
-                            Matching aliases — an IBAN or card merchant
-                            descriptor lets reconciliation recognise this
-                            counterparty on bank lines.
-                          </p>
-                          {aliasList.length === 0 ? (
-                            <p className="text-xs text-gray-400">
-                              No aliases yet.
-                            </p>
-                          ) : (
-                            <ul className="text-xs space-y-1">
-                              {aliasList.map((a) => (
-                                <li key={a.id}>
-                                  <span className="text-gray-500">
-                                    {a.kind}:
-                                  </span>{' '}
-                                  <span className="font-mono">{a.value}</span>
-                                  {!a.confirmed && (
-                                    <span className="text-amber-600">
-                                      {' '}
-                                      (unconfirmed)
-                                    </span>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          <div className="flex flex-wrap items-end gap-2">
-                            <label className="flex flex-col gap-1">
-                              <span className="text-xs text-gray-500">Kind</span>
-                              <select
-                                aria-label={`Alias kind ${e.id}`}
-                                value={aliasDraft.kind}
-                                onChange={(ev) =>
-                                  setAliasDraft({
-                                    ...aliasDraft,
-                                    kind: ev.target
-                                      .value as AddAliasInput['kind'],
-                                  })
-                                }
-                                className="border rounded px-2 py-1"
-                              >
-                                {ALIAS_KINDS.map((k) => (
-                                  <option key={k} value={k}>
-                                    {k}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="flex flex-col gap-1">
-                              <span className="text-xs text-gray-500">
-                                Value
-                              </span>
-                              <input
-                                aria-label={`Alias value ${e.id}`}
-                                value={aliasDraft.value}
-                                onChange={(ev) =>
-                                  setAliasDraft({
-                                    ...aliasDraft,
-                                    value: ev.target.value,
-                                  })
-                                }
-                                placeholder="e.g. ANOMALY"
-                                className="border rounded px-2 py-1"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              disabled={busy || aliasDraft.value.trim() === ''}
-                              onClick={() => void onAddAlias(e.id)}
-                              className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
-                            >
-                              Add alias
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ),
-            )}
-          </tbody>
-        </table>
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => startEdit(e)}
+                    className="text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => openAliases(e.id)}
+                    className="text-gray-700 hover:underline disabled:opacity-50"
+                  >
+                    Aliases
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onDelete(e)}
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        />
       </section>
+
+      {aliasFor !== null && (
+        <section className="space-y-2">
+          <h2 className="font-medium text-gray-700">
+            Aliases —{' '}
+            {entities.find((e) => e.id === aliasFor)?.name ??
+              `entity #${aliasFor}`}
+          </h2>
+          <p className="text-xs text-gray-500">
+            An IBAN or card merchant descriptor lets reconciliation recognise
+            this counterparty on bank lines.
+          </p>
+          {aliasList.length === 0 ? (
+            <p className="text-xs text-gray-400">No aliases yet.</p>
+          ) : (
+            <ul className="text-xs space-y-1">
+              {aliasList.map((a) => (
+                <li key={a.id}>
+                  <span className="text-gray-500">{a.kind}:</span>{' '}
+                  <span className="font-mono">{a.value}</span>
+                  {!a.confirmed && (
+                    <span className="text-amber-600"> (unconfirmed)</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Kind</span>
+              <select
+                aria-label="Alias kind"
+                value={aliasDraft.kind}
+                onChange={(ev) =>
+                  setAliasDraft({
+                    ...aliasDraft,
+                    kind: ev.target.value as AddAliasInput['kind'],
+                  })
+                }
+                className="border rounded px-2 py-1"
+              >
+                {ALIAS_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Value</span>
+              <input
+                aria-label="Alias value"
+                value={aliasDraft.value}
+                onChange={(ev) =>
+                  setAliasDraft({ ...aliasDraft, value: ev.target.value })
+                }
+                placeholder="e.g. ANOMALY"
+                className="border rounded px-2 py-1"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || aliasDraft.value.trim() === ''}
+              onClick={() => void onAddAlias(aliasFor)}
+              className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
+            >
+              Add alias
+            </button>
+            <button
+              type="button"
+              onClick={() => setAliasFor(null)}
+              className="text-gray-600 hover:underline"
+            >
+              Close
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

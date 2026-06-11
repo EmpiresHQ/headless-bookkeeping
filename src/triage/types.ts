@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 /**
@@ -30,6 +31,11 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
     mode: z.literal('create'),
     create_name: z.string().min(1),
     create_country: z.string().min(1),
+    // The strong registration key (VAT / registry no.) read from the document —
+    // the identity a Supplier is anchored on (ADR-0014). Required: a Supplier
+    // created without it could never be matched again, so a 'create' proposal
+    // that lacks one fails validation → needs_triage.
+    create_registration_key: z.string().min(1),
   }),
 ]);
 
@@ -70,6 +76,16 @@ export const triageResultSchema = z.object({
 
 export type TriageResult = z.infer<typeof triageResultSchema>;
 
+/**
+ * Request body for resolving the supplier on a parked (supplier-unresolved)
+ * document: the operator-chosen Supplier Entity to book the draft against.
+ */
+export const resolveSupplierSchema = z.object({
+  supplier_entity_id: z.number().int().positive(),
+});
+
+export class ResolveSupplierDto extends createZodDto(resolveSupplierSchema) {}
+
 export interface TriageOutcomeExpense {
   kind: 'expense';
   document_id: number;
@@ -92,6 +108,29 @@ export type TriageOutcome =
   | TriageOutcomeExpense
   | TriageOutcomeInvoice
   | TriageOutcomeUnknown;
+
+/**
+ * The operator-facing view of a document parked on the supplier-unresolved
+ * route: the AI's create-supplier proposal plus the draft figures it extracted,
+ * so the resolve form can show what will be booked once a supplier is chosen.
+ */
+export interface PendingDraft {
+  document_id: number;
+  reason: string;
+  supplier_proposal: {
+    create_name: string;
+    create_country: string;
+    create_registration_key: string;
+  };
+  draft: {
+    category: string;
+    gross_amount: number;
+    vat_amount: number;
+    currency: string;
+    tax_point_date: string;
+    supplier_invoice_number: string | null;
+  };
+}
 
 /**
  * Read-only debug snapshot for a document: what Pass-1 OCR transcribed and what

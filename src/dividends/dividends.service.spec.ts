@@ -24,11 +24,13 @@ import {
   OrgContext,
   SupplierFacts,
   CategoryMappingResult,
+  CategoryDef,
   CrossBorderResolution,
   VATCode,
 } from '../plugins/country-plugin.interface';
 import {
   ExpenseTreatmentPreview,
+  KmdBaseClassification,
   VatComputation,
 } from '../plugins/country-plugin-retrieval.interface';
 import { DividendsService } from './dividends.service';
@@ -360,6 +362,17 @@ describe('DividendsService (integration)', () => {
       getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
         return null;
       }
+      getCategories(): CategoryDef[] {
+        return [];
+      }
+      classifyKmd(_vatCode: string): KmdBaseClassification {
+        return {
+          outputBaseRow: null,
+          acquisitionRow: null,
+          vdCode: null,
+          review: null,
+        };
+      }
       resolveDistributionTax(
         _netToOwner: number,
         _orgContext: OrgContext,
@@ -565,6 +578,17 @@ describe('DividendsService (integration)', () => {
       }
       getVatRegistrationThreshold(_orgContext: OrgContext): number | null {
         return null;
+      }
+      getCategories(): CategoryDef[] {
+        return [];
+      }
+      classifyKmd(_vatCode: string): KmdBaseClassification {
+        return {
+          outputBaseRow: null,
+          acquisitionRow: null,
+          vdCode: null,
+          review: null,
+        };
       }
       resolveDistributionTax(
         netToOwner: number,

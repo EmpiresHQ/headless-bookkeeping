@@ -7,7 +7,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import JSZip = require('jszip');
+import JSZip from 'jszip';
 import { StatutoryReportService } from './statutory-report.service';
 import { StatutoryFormat } from '../plugins/statutory-report.types';
 
