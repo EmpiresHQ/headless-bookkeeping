@@ -613,6 +613,65 @@ describe('IntakeWorkflowService', () => {
     });
   });
 
+  describe('getPendingDraft', () => {
+    it('returns the create-proposal and draft figures for a parked document', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({
+        supplier_proposal: { mode: 'create', create_name: 'Acme OÜ', create_country: 'EE' },
+        category: 'software',
+        gross_amount: 1525,
+        vat_amount: 285,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        supplier_invoice_number: 'INV-7',
+      });
+      jest
+        .spyOn(documentsService, 'getPendingTriageResult')
+        .mockResolvedValueOnce(triage);
+      jest
+        .spyOn(auditFindingsService, 'findOpenByReference')
+        .mockResolvedValueOnce({
+          id: 9,
+          finding_type: 'needs_triage',
+          severity: 'medium',
+          description: 'supplier creation not yet implemented (Task 43)',
+          referenced_object_type: 'document',
+          referenced_object_id: docId,
+          status: 'open',
+          created_at: 0,
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
+        });
+
+      const result = await service.getPendingDraft(docId);
+
+      expect(result).toEqual({
+        document_id: docId,
+        reason: 'supplier creation not yet implemented (Task 43)',
+        supplier_proposal: { create_name: 'Acme OÜ', create_country: 'EE' },
+        draft: {
+          category: 'software',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+          supplier_invoice_number: 'INV-7',
+        },
+      });
+    });
+
+    it('throws NotFound when no proposal is stored', async () => {
+      const docId = await seedDocument();
+      jest
+        .spyOn(documentsService, 'getPendingTriageResult')
+        .mockResolvedValueOnce(null);
+
+      await expect(service.getPendingDraft(docId)).rejects.toThrow(/no pending/i);
+    });
+  });
+
   describe('resolveSupplier', () => {
     const triage = sampleTriageResult({
       supplier_proposal: { mode: 'create', create_name: 'Acme', create_country: 'EE' },

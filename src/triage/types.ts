@@ -94,6 +94,25 @@ export type TriageOutcome =
   | TriageOutcomeUnknown;
 
 /**
+ * The operator-facing view of a document parked on the supplier-unresolved
+ * route: the AI's create-supplier proposal plus the draft figures it extracted,
+ * so the resolve form can show what will be booked once a supplier is chosen.
+ */
+export interface PendingDraft {
+  document_id: number;
+  reason: string;
+  supplier_proposal: { create_name: string; create_country: string };
+  draft: {
+    category: string;
+    gross_amount: number;
+    vat_amount: number;
+    currency: string;
+    tax_point_date: string;
+    supplier_invoice_number: string | null;
+  };
+}
+
+/**
  * Read-only debug snapshot for a document: what Pass-1 OCR transcribed and what
  * Pass-2 (the LLM) classified it as — for understanding a routing decision
  * (e.g. why a document was tagged 'correction'). Re-runs Pass-2 on the (cached)

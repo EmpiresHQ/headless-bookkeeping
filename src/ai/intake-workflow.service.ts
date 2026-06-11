@@ -3,6 +3,7 @@ import {
   Logger,
   ConflictException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
 import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
@@ -15,7 +16,7 @@ import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EntitiesService } from '../entities/entities.service';
 import { AuditFinding } from '../audit-findings/types';
-import { DocumentDebug } from '../triage/types';
+import { DocumentDebug, PendingDraft } from '../triage/types';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -354,6 +355,42 @@ export class IntakeWorkflowService {
     await this.documents.setPendingTriageResult(documentId, null);
 
     return { status: 'draft_proposed', draft: outcome };
+  }
+
+  /**
+   * Build the operator-facing view of a supplier-unresolved document: the AI's
+   * create-supplier proposal plus the draft figures. Throws NotFound if the
+   * document has no stored proposal (its needs_triage reason is not a supplier
+   * issue, or it is not parked at all).
+   */
+  async getPendingDraft(documentId: number): Promise<PendingDraft> {
+    const tr = await this.documents.getPendingTriageResult(documentId);
+    if (!tr || tr.supplier_proposal?.mode !== 'create') {
+      throw new NotFoundException(
+        `Document ${documentId} has no pending supplier proposal`,
+      );
+    }
+    const finding = await this.auditFindings.findOpenByReference(
+      'needs_triage',
+      'document',
+      documentId,
+    );
+    return {
+      document_id: documentId,
+      reason: finding?.description ?? 'supplier creation not yet implemented (Task 43)',
+      supplier_proposal: {
+        create_name: tr.supplier_proposal.create_name,
+        create_country: tr.supplier_proposal.create_country,
+      },
+      draft: {
+        category: tr.category,
+        gross_amount: tr.gross_amount,
+        vat_amount: tr.vat_amount,
+        currency: tr.currency,
+        tax_point_date: tr.tax_point_date,
+        supplier_invoice_number: tr.supplier_invoice_number,
+      },
+    };
   }
 
   // ── Private helpers ──────────────────────────────────────────
