@@ -1,5 +1,5 @@
 {
-  "name": "hbk",
+  "name": "@empireshq/hbk",
   "version": "0.0.0",
   "description": "Remote REST CLI for the headless-bookkeeping API (auto-generated from OpenAPI).",
   "type": "module",
@@ -10,6 +10,9 @@
     "dist",
     "openapi.json"
   ],
+  "publishConfig": {
+    "registry": "https://npm.empireshq.com"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",

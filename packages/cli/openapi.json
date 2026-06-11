@@ -409,6 +409,20 @@
         ]
       }
     },
+    "/api/categories": {
+      "get": {
+        "operationId": "CategoriesController_getCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "categories"
+        ]
+      }
+    },
     "/api/sales-invoices": {
       "get": {
         "operationId": "SalesInvoicesController_getInvoices",

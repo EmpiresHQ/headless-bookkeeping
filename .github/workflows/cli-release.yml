@@ -1,17 +1,24 @@
-# Prerequisites:
-#   - Repo secret NPM_TOKEN (npm automation token) for `npm publish`.
-#   - The npm package name in packages/cli/package.json ("hbk") must be available
-#     on npm, or be renamed/scoped (e.g. @your-org/hbk) — the `bin` name stays `hbk`.
-#   - This workflow pushes a version-bump commit + tag back to `main`. If `main` is
-#     a protected branch, allow the actions bot to push (or use a PAT/deploy key).
+# Releases the @empireshq/hbk CLI to the private Verdaccio registry
+# (https://npm.empireshq.com) + a GitHub Release.
+#
+# PAUSED: trigger is manual (workflow_dispatch) for now. To re-enable automatic
+# diff-driven releases, restore the `push` trigger below (commented out).
+#
+# Prerequisites before running:
+#   - Repo secret NPM_TOKEN = a Verdaccio auth token (the value of
+#     //npm.empireshq.com/:_authToken in ~/.npmrc after `npm login` — see README).
+#   - This workflow pushes a version-bump commit + tag back to `main`. If `main`
+#     is a protected branch, allow the actions bot to push (or use a PAT/deploy key).
 
 name: cli-release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'packages/cli/**'
+  workflow_dispatch:
+  # Re-enable diff-driven auto-release by uncommenting:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'packages/cli/**'
 
 permissions:
   contents: write
@@ -26,11 +33,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.empireshq.com
+          scope: '@empireshq'
           cache: npm
       - run: npm ci
-      - run: npm run build -w hbk
-      - run: npm test -w hbk
+      - run: npm run build -w @empireshq/hbk
+      - run: npm test -w @empireshq/hbk
 
       - name: Decide semver bump from commit message
         id: bump
@@ -44,12 +52,13 @@ jobs:
         id: version
         working-directory: packages/cli
         run: |
-          NEW="$(npm version ${{ steps.bump.outputs.level }} --no-git-tag-version)"
+          # tail -n1: npm may emit warnings on stdout; the version is the last line.
+          NEW="$(npm version ${{ steps.bump.outputs.level }} --no-git-tag-version | tail -n1)"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to npm
+      - name: Publish to the private registry
         working-directory: packages/cli
-        run: npm publish --access public
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -68,4 +77,4 @@ jobs:
         run: |
           gh release create "hbk-${{ steps.version.outputs.version }}" \
             --title "hbk ${{ steps.version.outputs.version }}" \
-            --notes "Auto-release of the hbk CLI. API surface reflects the current OpenAPI spec (packages/cli/openapi.json)."
+            --notes "Auto-release of @empireshq/hbk. API surface reflects the current OpenAPI spec (packages/cli/openapi.json)."
