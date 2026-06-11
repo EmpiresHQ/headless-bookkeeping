@@ -7,7 +7,10 @@ export type IdentifierKind =
   | 'registration_key'
   | 'iban'
   | 'merchant_descriptor'
-  | 'name_alias';
+  | 'name_alias'
+  | 'email'
+  | 'phone'
+  | 'address';
 
 export interface Entity {
   id: number;

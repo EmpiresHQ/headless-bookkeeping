@@ -212,11 +212,12 @@ export interface EntityTable {
 }
 
 // Identifiers anchored on a strong registration key (CVR/VAT number), IBAN,
-// merchant descriptor, or name alias. The kind column determines the type.
+// merchant descriptor, name alias, email, phone, or address. The kind column
+// is free-form text validated by a CHECK constraint in the migration.
 export interface EntityIdentifierTable {
   id: Generated<number>;
   entity_id: number;
-  // 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias'
+  // 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias' | 'email' | 'phone' | 'address'
   kind: string;
   value: string;
   // SQLite boolean (0/1): 1 = confirmed by user, 0 = unconfirmed (e.g. raw
