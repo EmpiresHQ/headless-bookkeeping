@@ -206,10 +206,14 @@ export class ProposeDraftService {
    *
    * - An explicit `supplierId` (already resolved by the caller) wins.
    * - A `{ mode: 'match', match_entity_id }` proposal resolves to that id.
-   * - A `{ mode: 'create', ... }` proposal find-or-onboards the Supplier on its
-   *   registration key (ADR-0014): an existing key is reused (idempotent /
-   *   race-safe), otherwise a new Supplier Entity is created. Only a genuine
-   *   onboard failure is reported `supplier-unresolved` → needs_triage.
+   * - A `{ mode: 'create', ... }` proposal does MULTI-KEY find-or-onboard on the
+   *   strong identifiers present (registration key / email / phone; address is
+   *   stored on a new supplier but is never a match key — false-merge risk).
+   *   With no strong identifier the call returns `supplier-unresolved` (operator
+   *   triage); a single existing match is reused and enriched with any new
+   *   identifiers; multiple distinct matches are ambiguous and also return
+   *   `supplier-unresolved`; no match onboards a new Supplier with all
+   *   identifiers.
    * - No proposal at all resolves to a null supplier (Policy gates unknown
    *   suppliers downstream), preserving the prior behavior.
    */
@@ -265,6 +269,9 @@ export class ProposeDraftService {
       if (matches.length === 1) {
         const supplierId = matches[0];
         // Enrich: backfill any identifier this supplier does not yet carry.
+        // A null field is passed as '' which normalizes to null → addIdentifierIfAbsent no-ops,
+        // so absent identifiers are simply skipped. At least one candidate matched here, so the
+        // supplier always keeps a real anchor.
         await this.entitiesService.addIdentifierIfAbsent(supplierId, 'registration_key', proposal.create_registration_key ?? '');
         await this.entitiesService.addIdentifierIfAbsent(supplierId, 'email', proposal.create_email ?? '');
         await this.entitiesService.addIdentifierIfAbsent(supplierId, 'phone', proposal.create_phone ?? '');
