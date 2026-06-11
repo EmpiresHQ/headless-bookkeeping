@@ -187,3 +187,16 @@ export function classifyReasonType(description: string): TriageReasonType {
   if (description.includes('could not classify')) return 'low_confidence';
   return 'unknown';
 }
+
+export const manualClassifySchema = z.object({
+  supplier_id: z.number().int().positive(),
+  category: z.string().min(1),
+  document_vat_marking: z.string().nullable(),
+  gross_amount: z.number().int().positive(),
+  vat_amount: z.number().int().min(0),
+  currency: z.string().length(3),
+  tax_point_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  supplier_invoice_number: z.string().nullable().optional(),
+});
+
+export class ManualClassifyDto extends createZodDto(manualClassifySchema) {}

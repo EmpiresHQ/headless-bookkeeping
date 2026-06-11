@@ -4,7 +4,7 @@ import { Kysely } from 'kysely';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { Database } from '../database/types';
-import { TriageOutcome, DocumentDebug, PendingDraft, NeedsTriageItem, classifyReasonType } from './types';
+import { TriageOutcome, DocumentDebug, ManualClassifyDto, PendingDraft, NeedsTriageItem, classifyReasonType } from './types';
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.
@@ -103,6 +103,26 @@ export class TriageService {
       documentId,
       supplierEntityId,
     );
+    if (result.status === 'draft_proposed') {
+      return {
+        kind: 'expense',
+        document_id: documentId,
+        expense_id: result.draft.expenseId,
+      };
+    }
+    return { kind: 'unknown', document_id: documentId, reason: result.reason };
+  }
+
+  /**
+   * Manually classify a needs_triage document using operator-supplied fields.
+   * Maps the workflow outcome onto the same TriageOutcome shape `route` returns.
+   */
+  async manualClassify(
+    documentId: number,
+    dto: ManualClassifyDto,
+  ): Promise<TriageOutcome> {
+    await this.documents.getById(documentId); // 404 if unknown
+    const result = await this.workflow.manualClassify(documentId, dto);
     if (result.status === 'draft_proposed') {
       return {
         kind: 'expense',

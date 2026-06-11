@@ -13,6 +13,7 @@ import { DocumentsService } from '../documents/documents.service';
 import {
   TriageOutcome,
   DocumentDebug,
+  ManualClassifyDto,
   PendingDraft,
   ResolveSupplierDto,
   NeedsTriageItem,
@@ -63,6 +64,14 @@ export class TriageController {
       Number(id),
       dto.supplier_entity_id,
     );
+  }
+
+  @Post('api/documents/:id/manual-classify')
+  async manualClassify(
+    @Param('id') id: string,
+    @Body() dto: ManualClassifyDto,
+  ): Promise<TriageOutcome> {
+    return this.triageService.manualClassify(Number(id), dto);
   }
 
   @Post('api/documents/:id/complete')

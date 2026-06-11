@@ -16,7 +16,7 @@ import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EntitiesService } from '../entities/entities.service';
 import { AuditFinding } from '../audit-findings/types';
-import { DocumentDebug, PendingDraft } from '../triage/types';
+import { DocumentDebug, ManualClassifyDto, PendingDraft } from '../triage/types';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -403,6 +403,46 @@ export class IntakeWorkflowService {
     if (finding) {
       await this.auditFindings.resolve(finding.id, {
         reason: `supplier resolved to entity ${supplierEntityId}`,
+      });
+    }
+    await this.documents.setPendingTriageResult(documentId, null);
+
+    return { status: 'draft_proposed', draft: outcome };
+  }
+
+  /**
+   * Manually classify a document: the operator supplies all fields directly,
+   * bypassing the AI passes. Creates an expense and runs the posting pipeline.
+   * Idempotent: a second call on an already-triaged document replays its
+   * existing draft instead of creating a second expense.
+   */
+  async manualClassify(
+    documentId: number,
+    dto: ManualClassifyDto,
+  ): Promise<IntakeWorkflowResult> {
+    const doc = await this.documents.getById(documentId);
+
+    if (doc.status === 'triaged' || doc.status === 'processed') {
+      const replay = await this.replayDraftProposed(documentId);
+      if (replay) return replay;
+    }
+    if (doc.status !== 'needs_triage') {
+      throw new ConflictException(
+        `Document ${documentId} is not awaiting triage (status=${doc.status})`,
+      );
+    }
+
+    const outcome = await this.proposeDraft.manualClassifyDraft(documentId, dto);
+
+    await this.transitionDocument(documentId, 'triaged');
+    const finding = await this.auditFindings.findOpenByReference(
+      'needs_triage',
+      'document',
+      documentId,
+    );
+    if (finding) {
+      await this.auditFindings.resolve(finding.id, {
+        reason: 'manually classified by operator',
       });
     }
     await this.documents.setPendingTriageResult(documentId, null);
