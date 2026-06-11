@@ -349,6 +349,15 @@ export class IntakeWorkflowService {
         `proposeDraft returned supplier-unresolved for document ${documentId} despite explicit supplier ${supplierEntityId}`,
       );
     }
+    if (outcome.outcome === 'category-unresolved') {
+      // Defensive: proposeDraft validates the category BEFORE supplier
+      // resolution, so a document that was held as supplier-unresolved already
+      // passed category validation — re-running it on the same triageResult
+      // cannot regress to an unknown category.
+      throw new Error(
+        `proposeDraft returned category-unresolved for document ${documentId} during supplier resolution: ${outcome.reason}`,
+      );
+    }
 
     // Settle the human-wait: triaged + resolve finding + clear the proposal.
     await this.transitionDocument(documentId, 'triaged');
