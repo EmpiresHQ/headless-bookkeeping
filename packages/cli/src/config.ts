@@ -80,7 +80,10 @@ export function readConfig(path: string = CONFIG_PATH): CliConfig {
 }
 
 /** Persist config (0600) creating the directory if needed. */
-export function writeConfig(config: CliConfig, path: string = CONFIG_PATH): void {
+export function writeConfig(
+  config: CliConfig,
+  path: string = CONFIG_PATH,
+): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
   chmodSync(path, 0o600);

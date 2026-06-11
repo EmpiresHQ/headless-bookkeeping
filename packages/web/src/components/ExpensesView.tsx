@@ -137,7 +137,9 @@ export function ExpensesView() {
     },
     {
       header: 'VAT',
-      cell: (e) => <span className="tabular-nums">{fmtCents(e.vat_amount)}</span>,
+      cell: (e) => (
+        <span className="tabular-nums">{fmtCents(e.vat_amount)}</span>
+      ),
     },
     { header: 'Tax point', cell: (e) => e.tax_point_date },
     { header: 'Status', cell: (e) => e.status },

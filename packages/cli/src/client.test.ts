@@ -54,13 +54,21 @@ describe('makeRequest', () => {
 
     const { url, init } = calls[0];
     expect(url).toBe('https://api.example/api/expenses/7?include=voucher');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer tok',
+    );
   });
 
   it('marks ok=false on >=400 and returns the error body', async () => {
     stubFetch(404, { message: 'not found' });
-    const request = makeRequest({ baseUrl: 'https://api.example', token: 't', profile: 'dev' });
-    const res = await request('get', '/api/expenses/{id}', { pathParams: { id: '1' } });
+    const request = makeRequest({
+      baseUrl: 'https://api.example',
+      token: 't',
+      profile: 'dev',
+    });
+    const res = await request('get', '/api/expenses/{id}', {
+      pathParams: { id: '1' },
+    });
     expect(res.ok).toBe(false);
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ message: 'not found' });

@@ -14,7 +14,10 @@ const ROWS: { label: string; key: keyof KmdDeclaration }[] = [
   { label: 'Row 3 — 0% käive (base)', key: 'row3_base_zero' },
   { label: 'Row 4 — output VAT', key: 'row4_output_vat' },
   { label: 'Row 5 — input VAT', key: 'row5_input_vat' },
-  { label: 'Row 6 — intra-EU acquisitions (base)', key: 'row6_intra_eu_acquisition' },
+  {
+    label: 'Row 6 — intra-EU acquisitions (base)',
+    key: 'row6_intra_eu_acquisition',
+  },
   { label: 'Row 7 — other acquisitions (base)', key: 'row7_other_acquisition' },
 ];
 
@@ -93,32 +96,32 @@ export function KmdView() {
       {decl && (
         <div className="space-y-4">
           <div className="overflow-x-auto">
-          <table className="text-sm border-collapse">
-            <tbody>
-              {ROWS.map((r) => (
-                <tr key={r.key} className="border-b">
-                  <td className="px-3 py-1 text-gray-700">{r.label}</td>
+            <table className="text-sm border-collapse">
+              <tbody>
+                {ROWS.map((r) => (
+                  <tr key={r.key} className="border-b">
+                    <td className="px-3 py-1 text-gray-700">{r.label}</td>
+                    <td className="px-3 py-1 text-right tabular-nums">
+                      {fmtCents(decl[r.key] as number)} €
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-b font-medium">
+                  <td className="px-3 py-1">Net VAT due (row 4 − row 5)</td>
                   <td className="px-3 py-1 text-right tabular-nums">
-                    {fmtCents(decl[r.key] as number)} €
+                    {fmtCents(decl.net_vat_due)} €
                   </td>
                 </tr>
-              ))}
-              <tr className="border-b font-medium">
-                <td className="px-3 py-1">Net VAT due (row 4 − row 5)</td>
-                <td className="px-3 py-1 text-right tabular-nums">
-                  {fmtCents(decl.net_vat_due)} €
-                </td>
-              </tr>
-              <tr>
-                <td className="px-3 py-1 text-gray-700">
-                  VD koondaruanne — 3S (intra-EU services)
-                </td>
-                <td className="px-3 py-1 text-right tabular-nums">
-                  {fmtCents(decl.vd_intra_eu_services)} €
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                <tr>
+                  <td className="px-3 py-1 text-gray-700">
+                    VD koondaruanne — 3S (intra-EU services)
+                  </td>
+                  <td className="px-3 py-1 text-right tabular-nums">
+                    {fmtCents(decl.vd_intra_eu_services)} €
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {decl.vd_intra_eu_services > 0 && (

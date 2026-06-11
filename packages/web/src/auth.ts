@@ -39,7 +39,9 @@ export async function apiFetch<T = unknown>(
     throw new UnauthorizedError();
   }
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}: ${await errorDetail(res)}`);
+    throw new Error(
+      `${res.status} ${res.statusText}: ${await errorDetail(res)}`,
+    );
   }
   // P1 only calls JSON GET endpoints, so we always parse. When P2 adds
   // mutations that may return 204 No Content, this must grow an empty-body
@@ -66,7 +68,9 @@ export async function apiFetchRaw(
     throw new UnauthorizedError();
   }
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}: ${await errorDetail(res)}`);
+    throw new Error(
+      `${res.status} ${res.statusText}: ${await errorDetail(res)}`,
+    );
   }
   return res;
 }

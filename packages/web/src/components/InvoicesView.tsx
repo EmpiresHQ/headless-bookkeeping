@@ -126,7 +126,9 @@ export function InvoicesView() {
     },
     {
       header: 'VAT',
-      cell: (i) => <span className="tabular-nums">{fmtCents(i.vat_amount)}</span>,
+      cell: (i) => (
+        <span className="tabular-nums">{fmtCents(i.vat_amount)}</span>
+      ),
     },
     { header: 'Tax point', cell: (i) => i.tax_point_date },
     { header: 'Status', cell: (i) => i.status },

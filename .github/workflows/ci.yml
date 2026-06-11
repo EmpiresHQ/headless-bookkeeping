@@ -97,7 +97,7 @@ jobs:
         with:
           name: app-test-image
       - run: docker load < app-test.tar.gz
-      - run: docker run --rm app-test npm run test -w @headless-bookkeeping/web
+      - run: docker run --rm app-test sh -c "npm run lint -w @headless-bookkeeping/web && npm run test -w @headless-bookkeeping/web"
 
   cli-test:
     runs-on: ubuntu-latest
@@ -108,7 +108,7 @@ jobs:
         with:
           name: app-test-image
       - run: docker load < app-test.tar.gz
-      - run: docker run --rm app-test sh -c "npm run build -w @empireshq/hbk && npm test -w @empireshq/hbk"
+      - run: docker run --rm app-test sh -c "npm run lint -w @empireshq/hbk && npm run build -w @empireshq/hbk && npm test -w @empireshq/hbk"
 
   build-and-push:
     runs-on: ubuntu-latest

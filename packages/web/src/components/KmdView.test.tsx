@@ -42,9 +42,9 @@ describe('KmdView', () => {
     // Row 3 (0% käive) and the VD 3S total legitimately share the same value —
     // the 0% käive IS the intra-EU services — so assert each within its own row
     // rather than with a global text query (which would match both).
-    const row3 = (
-      await screen.findByText('Row 3 — 0% käive (base)')
-    ).closest('tr')!;
+    const row3 = (await screen.findByText('Row 3 — 0% käive (base)')).closest(
+      'tr',
+    )!;
     expect(within(row3).getByText(/11740\.00/)).toBeInTheDocument(); // cents → €
 
     const vd = screen.getByText(/VD koondaruanne — 3S/).closest('tr')!;

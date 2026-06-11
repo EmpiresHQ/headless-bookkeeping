@@ -13,7 +13,8 @@ function deps(overrides: Partial<LoginDeps> = {}): {
     err,
     deps: {
       validate: vi.fn(async () => 200),
-      saveProfile: (name, baseUrl, token) => saved.push({ name, baseUrl, token }),
+      saveProfile: (name, baseUrl, token) =>
+        saved.push({ name, baseUrl, token }),
       io: { out: () => {}, err: (s) => err.push(s) },
       ...overrides,
     },
@@ -29,12 +30,17 @@ describe('runLogin', () => {
     );
     expect(code).toBe(0);
     expect(d.validate).toHaveBeenCalledWith('https://api.example', 'tok');
-    expect(saved).toEqual([{ name: 'dev', baseUrl: 'https://api.example', token: 'tok' }]);
+    expect(saved).toEqual([
+      { name: 'dev', baseUrl: 'https://api.example', token: 'tok' },
+    ]);
   });
 
   it('does not save and returns 1 when validation is 401', async () => {
     const { deps: d, saved, err } = deps({ validate: vi.fn(async () => 401) });
-    const code = await runLogin({ url: 'https://api.example', token: 'bad' }, d);
+    const code = await runLogin(
+      { url: 'https://api.example', token: 'bad' },
+      d,
+    );
     expect(code).toBe(1);
     expect(saved).toEqual([]);
     expect(err.join('')).toMatch(/401|invalid|rejected/i);

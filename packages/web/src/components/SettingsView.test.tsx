@@ -30,15 +30,14 @@ describe('SettingsView', () => {
     expect(input.value).toBe('openai/gpt-4o');
 
     fireEvent.change(input, { target: { value: 'anthropic/claude-3-5' } });
-    fireEvent.click(
-      screen.getByRole('button', { name: /save global model/i }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: /save global model/i }));
 
-    await waitFor(() =>
-      expect(api.setSetting).toHaveBeenCalledWith(
-        'ai_model',
-        'anthropic/claude-3-5',
-      ),
+    await waitFor(
+      () =>
+        expect(api.setSetting).toHaveBeenCalledWith(
+          'ai_model',
+          'anthropic/claude-3-5',
+        ),
       { timeout: 5000 },
     );
   });
