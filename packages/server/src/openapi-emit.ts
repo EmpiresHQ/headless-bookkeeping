@@ -1,21 +1,13 @@
-/**
- * Offline OpenAPI emitter. Boots the Nest application context WITHOUT opening a
- * port, builds the same document the HTTP server serves at /api-json, and writes
- * it to packages/cli/openapi.json. Run from the repo root.
- *
- *   npm run openapi:emit
- */
 import { writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { buildOpenApiDocument } from './swagger';
+import { repoRoot } from './common/paths';
 
-const OUT = resolve(process.cwd(), 'packages/cli/openapi.json');
+const OUT = join(repoRoot(), 'packages/cli/openapi.json');
 
 async function main(): Promise<void> {
-  // Use the full HTTP app (builds the HTTP adapter so Swagger's route scanning
-  // works) but never call app.listen(), so no port is opened.
   const app = await NestFactory.create(AppModule, { logger: ['error'] });
   try {
     const doc = buildOpenApiDocument(app);

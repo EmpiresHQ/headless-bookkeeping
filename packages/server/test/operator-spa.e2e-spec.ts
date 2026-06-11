@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 // Internal paths (no public API for this) — revisit if @nestjs/serve-static bumps a major.
 import { AbstractLoader } from '@nestjs/serve-static/dist/loaders/abstract.loader';
 import { ExpressLoader } from '@nestjs/serve-static/dist/loaders/express.loader';
+import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import request from 'supertest';
@@ -13,11 +14,19 @@ import { AppModule } from '../src/app.module';
  * Operator SPA serve-static wiring (ADR-0030): the page is served at "/" by
  * static middleware that runs ahead of the global ApiTokenGuard, while the API
  * stays guarded. We don't run a real Vite build here — we drop a placeholder
- * frontend/dist/index.html so ServeStaticModule has a file to serve.
+ * packages/web/dist/index.html so ServeStaticModule has a file to serve.
+ *
+ * The distDir is resolved via the same node module resolution that app.module.ts
+ * uses in production — cwd-independent and correct in both local and Docker.
  */
 describe('Operator SPA serving (e2e)', () => {
   let app: INestApplication<App>;
-  const distDir = path.join(process.cwd(), 'frontend', 'dist');
+  const distDir = path.join(
+    path.dirname(
+      createRequire(__filename).resolve('@headless-bookkeeping/web/package.json'),
+    ),
+    'dist',
+  );
   const indexFile = path.join(distDir, 'index.html');
   let createdIndex = false;
   let createdDir = false;

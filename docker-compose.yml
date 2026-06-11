@@ -2,6 +2,7 @@ services:
   app:
     build:
       context: .
+      dockerfile: packages/server/Dockerfile
       target: production
     ports:
       - "3000:3000"
@@ -24,7 +25,8 @@ services:
   test:
     build:
       context: .
+      dockerfile: packages/server/Dockerfile
       target: test
-    command: ["npm", "run", "test"]
+    command: ["npm", "run", "test", "-w", "@headless-bookkeeping/server"]
     environment:
       - NODE_ENV=test

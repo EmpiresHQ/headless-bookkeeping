@@ -6,6 +6,7 @@ import SqliteDb from 'better-sqlite3';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { dataDir } from '../common/paths';
 import { NotFoundException } from '@nestjs/common';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
@@ -45,7 +46,7 @@ describe('OcrService', () => {
   let service: OcrService;
   let transcriber: StubTranscriber;
   let storageRoot: string;
-  const testArtifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
+  const testArtifactsDir = join(dataDir(), 'artifacts', 'ocr');
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');

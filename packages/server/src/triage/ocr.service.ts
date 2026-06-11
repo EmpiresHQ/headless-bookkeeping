@@ -6,6 +6,7 @@ import { join } from 'path';
 import { Database } from '../database/types';
 import { DocumentsService } from '../documents/documents.service';
 import { crc32 } from '../common/crc32.util';
+import { dataDir } from '../common/paths';
 import {
   DocumentTranscriber,
   type OcrOutcome,
@@ -101,7 +102,7 @@ export class OcrService {
       // 4. Write markdown to filesystem. The path is deterministic per document
       //    (`{id}.md`) and the content is deterministic, so a concurrent/retried
       //    write is idempotent (same bytes, same path) — no race on the file.
-      const artifactsDir = join(process.cwd(), 'data', 'artifacts', 'ocr');
+      const artifactsDir = join(dataDir(), 'artifacts', 'ocr');
       if (!existsSync(artifactsDir)) {
         mkdirSync(artifactsDir, { recursive: true });
       }

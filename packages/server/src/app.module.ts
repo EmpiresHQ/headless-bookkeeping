@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { SqliteConstraintFilter } from './common/filters/sqlite-constraint.filter';
 import { DatabaseModule } from './database/database.module';
 import { OrganizationModule } from './organization/organization.module';
@@ -38,8 +39,16 @@ import { ApiTokenGuard } from './auth/api-token.guard';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
-      // Built Vite output; produced by `cd frontend && npm run build`.
-      rootPath: join(process.cwd(), 'frontend', 'dist'),
+      // Built SPA from the @headless-bookkeeping/web package, resolved via node
+      // module resolution (cwd-independent; the server depends on web).
+      rootPath: join(
+        dirname(
+          createRequire(__filename).resolve(
+            '@headless-bookkeeping/web/package.json',
+          ),
+        ),
+        'dist',
+      ),
       // Never let static serving intercept the API / admin / health surfaces —
       // those must reach the global ApiTokenGuard (or the health route).
       // Note: @nestjs/serve-static v5 uses path-to-regexp v8 which no longer
