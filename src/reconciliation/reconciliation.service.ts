@@ -138,6 +138,78 @@ export class ReconciliationService {
   }
 
   /**
+   * Auto-stage the unambiguous, high-confidence matches in a freshly imported
+   * statement as DRAFTs (behind approvals). Deliberately conservative: the
+   * machine NEVER posts to the ledger, it only proposes for human approval, and
+   * only when the match is beyond doubt. A line is auto-staged ONLY when it has
+   * EXACTLY ONE eligible candidate that is:
+   *   - signal `invoice_number` (a deterministic invoice-number hit),
+   *   - matchType `exact` (settles the line and the voucher to the cent),
+   *   - single-currency (auto-stage must never trigger a realized-FX voucher).
+   * Anything ambiguous (≥2 candidates), partial, FX, or weaker-signal is left
+   * for a human. Idempotent: lines already carrying a match are skipped, so a
+   * re-import or re-run never double-stages.
+   */
+  async autoStageStatement(
+    statementId: number,
+    requestedBy = 'system',
+  ): Promise<{ staged: number }> {
+    const txns = await this.transactionRepo.findByStatementId(statementId);
+    if (txns.length === 0) {
+      return { staged: 0 };
+    }
+
+    const proposals = await this.proposeMatches(statementId);
+
+    // Multi-currency lines are excluded — auto-stage must never post FX.
+    const multiCurrency = new Set(
+      txns
+        .filter(
+          (t) => t.source_currency !== null && t.source_currency !== t.currency,
+        )
+        .map((t) => t.id),
+    );
+
+    // Idempotency: skip lines that already carry a match (draft or active).
+    const existing = await this.db
+      .selectFrom('reconciliation_match')
+      .select('bank_transaction_id')
+      .where(
+        'bank_transaction_id',
+        'in',
+        txns.map((t) => t.id),
+      )
+      .execute();
+    const alreadyMatched = new Set(existing.map((e) => e.bank_transaction_id));
+
+    const eligible = proposals.filter(
+      (p) =>
+        p.signal === 'invoice_number' &&
+        p.matchType === 'exact' &&
+        !multiCurrency.has(p.bankTransactionId) &&
+        !alreadyMatched.has(p.bankTransactionId),
+    );
+
+    // Ambiguity guard: only a line with EXACTLY ONE eligible candidate.
+    const byLine = new Map<number, MatchProposalView[]>();
+    for (const p of eligible) {
+      const list = byLine.get(p.bankTransactionId) ?? [];
+      list.push(p);
+      byLine.set(p.bankTransactionId, list);
+    }
+    const unambiguous = [...byLine.values()]
+      .filter((list) => list.length === 1)
+      .map((list) => list[0]);
+
+    if (unambiguous.length === 0) {
+      return { staged: 0 };
+    }
+
+    await this.executeMatch(unambiguous, requestedBy);
+    return { staged: unambiguous.length };
+  }
+
+  /**
    * Per-transaction reconciliation state for a statement: the matchable base
    * amount, how much is already matched, and the remaining. Drives the operator
    * UI's badges and over-allocation cap. matched sums are BASE cents (matching

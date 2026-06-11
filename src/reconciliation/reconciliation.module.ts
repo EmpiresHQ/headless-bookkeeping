@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { BankModule } from '../bank/bank.module';
 import { EntitiesModule } from '../entities/entities.module';
@@ -21,7 +21,7 @@ import { FXRealizedController } from './fx-realized.controller';
 @Module({
   imports: [
     DatabaseModule,
-    BankModule,
+    forwardRef(() => BankModule),
     EntitiesModule,
     AccountModule,
     PostingModule,

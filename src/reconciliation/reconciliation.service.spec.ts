@@ -1572,6 +1572,85 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('autoStageStatement', () => {
+    it('auto-stages an unambiguous exact invoice-number match as a system draft, idempotently', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-9100',
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'pay',
+          amount: 50000,
+          reference: 'INV-9100',
+        },
+      ]);
+
+      const r1 = await reconciliationService.autoStageStatement(
+        stmt.statement.id,
+      );
+      expect(r1.staged).toBe(1);
+
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('voucher_id', '=', voucherId)
+        .execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe('draft');
+      expect(rows[0].signal).toBe('invoice_number');
+
+      const approval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'reconciliation_match')
+        .where('object_id', '=', rows[0].id)
+        .executeTakeFirstOrThrow();
+      expect(approval.status).toBe('pending');
+      expect(approval.requested_by).toBe('system');
+
+      // Idempotent: the line is already matched, so a re-run stages nothing.
+      const r2 = await reconciliationService.autoStageStatement(
+        stmt.statement.id,
+      );
+      expect(r2.staged).toBe(0);
+    });
+
+    it('does NOT auto-stage a weak amount_date-only match', async () => {
+      const customer = await seedCustomer();
+      await seedSalesInvoiceVoucher(
+        customer.id,
+        25000,
+        'INV-9200',
+        '2025-01-10',
+      );
+      // No reference on the bank line → no invoice_number signal; only the
+      // amount_date fallback fires, which the gate excludes.
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'unknown',
+          amount: 25000,
+        },
+      ]);
+
+      const r = await reconciliationService.autoStageStatement(
+        stmt.statement.id,
+      );
+      expect(r.staged).toBe(0);
+
+      const rows = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .execute();
+      expect(rows).toHaveLength(0);
+    });
+  });
+
   describe('unmatch', () => {
     it('removes a same-currency match and restores the outstanding balance', async () => {
       const supplier = await seedSupplier();
