@@ -190,6 +190,9 @@ describe('ProposeDraftService (integration)', () => {
           create_name: 'Brand New Supplier Ltd',
           create_country: 'IE',
           create_registration_key: 'IE9999999',
+          create_email: null,
+          create_phone: null,
+          create_address: null,
         },
       };
 
@@ -229,6 +232,9 @@ describe('ProposeDraftService (integration)', () => {
           create_name: 'Existing Co (variant spelling)',
           create_country: 'IE',
           create_registration_key: 'IE1234567',
+          create_email: null,
+          create_phone: null,
+          create_address: null,
         },
       };
 
