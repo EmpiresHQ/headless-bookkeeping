@@ -64,7 +64,8 @@ async function main(): Promise<void> {
   } catch (err) {
     // yargs writes usage/validation errors to stderr itself; surface anything
     // else (DI wiring, runtime failures) so a command never dies silently.
-    if (err) console.error(err instanceof Error ? (err.stack ?? err.message) : err);
+    if (err)
+      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
     process.exitCode = 1;
   } finally {
     await app.close();
