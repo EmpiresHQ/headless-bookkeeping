@@ -229,27 +229,65 @@ export class ProposeDraftService {
     if (proposal.mode === 'match') {
       return { outcome: 'resolved', supplierId: proposal.match_entity_id };
     }
-    // mode === 'create' — find-or-onboard the Supplier from the document.
+    // mode === 'create' — multi-key find-or-onboard (ADR-0014).
+    // Match candidates are the STRONG identifiers (reg/email/phone); address is
+    // stored on a new supplier but is never a match key (false-merge risk).
+    const matchCandidates: { kind: string; value: string }[] = [];
+    if (proposal.create_registration_key)
+      matchCandidates.push({ kind: 'registration_key', value: proposal.create_registration_key });
+    if (proposal.create_email)
+      matchCandidates.push({ kind: 'email', value: proposal.create_email });
+    if (proposal.create_phone)
+      matchCandidates.push({ kind: 'phone', value: proposal.create_phone });
+
+    // No strong identifier to anchor on → route to operator triage rather than
+    // spawning an unanchored duplicate.
+    if (matchCandidates.length === 0) {
+      return {
+        outcome: 'supplier-unresolved',
+        reason:
+          'create proposal carries no strong identifier (registration key / email / phone) to match or anchor a supplier',
+      };
+    }
+
     try {
-      const existing = await this.entitiesService.findByRegistrationKey(
-        proposal.create_registration_key,
-      );
-      if (existing) {
-        return { outcome: 'resolved', supplierId: existing.id };
+      const matches = await this.entitiesService.resolveByIdentifiers(matchCandidates);
+
+      if (matches.length > 1) {
+        // Ambiguous: identifiers point at distinct existing suppliers (possibly
+        // a sign they should be merged). Never guess.
+        return {
+          outcome: 'supplier-unresolved',
+          reason: `ambiguous supplier: identifiers match ${matches.length} existing entities (${matches.join(', ')})`,
+        };
       }
-      const created = await this.entitiesService.onboard({
+
+      if (matches.length === 1) {
+        const supplierId = matches[0];
+        // Enrich: backfill any identifier this supplier does not yet carry.
+        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'registration_key', proposal.create_registration_key ?? '');
+        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'email', proposal.create_email ?? '');
+        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'phone', proposal.create_phone ?? '');
+        await this.entitiesService.addIdentifierIfAbsent(supplierId, 'address', proposal.create_address ?? '');
+        return { outcome: 'resolved', supplierId };
+      }
+
+      // No match — onboard a new supplier with ALL present identifiers (incl. address).
+      const identifiers = [
+        ...matchCandidates,
+        ...(proposal.create_address ? [{ kind: 'address', value: proposal.create_address }] : []),
+      ];
+      const created = await this.entitiesService.onboardWithIdentifiers({
         role: 'supplier',
         country: proposal.create_country,
         name: proposal.create_name,
-        registrationKey: proposal.create_registration_key,
+        identifiers,
       });
       return { outcome: 'resolved', supplierId: created.id };
     } catch (e) {
       return {
         outcome: 'supplier-unresolved',
-        reason: `supplier creation failed: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
+        reason: `supplier resolution failed: ${e instanceof Error ? e.message : String(e)}`,
       };
     }
   }

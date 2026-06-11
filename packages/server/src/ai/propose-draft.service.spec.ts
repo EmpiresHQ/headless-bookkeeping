@@ -420,6 +420,153 @@ describe('ProposeDraftService (integration)', () => {
       expect(proposals.ocr_artifact_id).toBeNull();
     });
 
+    it('reuses an existing Supplier when only the EMAIL matches (Anomaly regression)', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const existing = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [{ kind: 'email', value: 'help@anoma.ly' }],
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Anomaly',
+          create_country: 'US',
+          create_registration_key: null,
+          create_email: 'help@anoma.ly',
+          create_phone: null,
+          create_address: null,
+        },
+      };
+
+      expectDraft(await service.proposeDraft(triageResult, 20));
+
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 20)
+        .execute();
+      expect(expenses[0].supplier_id).toBe(existing.id);
+
+      const suppliers = await db
+        .selectFrom('entity')
+        .select('id')
+        .where('role', '=', 'supplier')
+        .where('name', '=', 'Anomaly')
+        .execute();
+      expect(suppliers).toHaveLength(1);
+    });
+
+    it('onboards a new Supplier with all identifiers when nothing matches', async () => {
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Fresh US Co',
+          create_country: 'US',
+          create_registration_key: null,
+          create_email: 'billing@fresh.io',
+          create_phone: '+1 555 7777',
+          create_address: '1 Market St',
+        },
+      };
+
+      expectDraft(await service.proposeDraft(triageResult, 21));
+
+      const entitiesService = module.get(EntitiesService);
+      const [match] = await entitiesService.resolveByIdentifiers([
+        { kind: 'phone', value: '+15557777' },
+      ]);
+      expect(match).toBeDefined();
+      const created = await entitiesService.findById(match);
+      const kinds = created.identifiers.map((i) => i.kind).sort();
+      expect(kinds).toEqual(['address', 'email', 'phone']);
+    });
+
+    it('backfills a missing identifier onto a matched Supplier', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const existing = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        identifiers: [{ kind: 'email', value: 'help@anoma.ly' }],
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Anomaly',
+          create_country: 'US',
+          create_registration_key: null,
+          create_email: 'help@anoma.ly',
+          create_phone: '+1 555 0000',
+          create_address: null,
+        },
+      };
+
+      expectDraft(await service.proposeDraft(triageResult, 22));
+
+      const phones = (await entitiesService.findById(existing.id)).identifiers.filter(
+        (i) => i.kind === 'phone',
+      );
+      expect(phones).toHaveLength(1);
+      expect(phones[0].value).toBe('+15550000');
+    });
+
+    it('routes to supplier-unresolved when the create proposal has no match keys', async () => {
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'No Identifiers Inc',
+          create_country: 'US',
+          create_registration_key: null,
+          create_email: null,
+          create_phone: null,
+          create_address: '1 Anonymous Way', // address is NOT a match key
+        },
+      };
+
+      const outcome = await service.proposeDraft(triageResult, 23);
+      expect(outcome.outcome).toBe('supplier-unresolved');
+    });
+
+    it('routes to supplier-unresolved when identifiers match TWO different Suppliers', async () => {
+      const entitiesService = module.get(EntitiesService);
+      await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier A',
+        identifiers: [{ kind: 'email', value: 'a@x.io' }],
+      });
+      await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier B',
+        identifiers: [{ kind: 'phone', value: '+15551111' }],
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Ambiguous',
+          create_country: 'US',
+          create_registration_key: null,
+          create_email: 'a@x.io',   // → Supplier A
+          create_phone: '+1 555 1111', // → Supplier B
+          create_address: null,
+        },
+      };
+
+      const outcome = await service.proposeDraft(triageResult, 24);
+      expect(outcome.outcome).toBe('supplier-unresolved');
+    });
+
     it('returns category-unresolved for a triage category the active plugin does not know', async () => {
       const categoryService = module.get(CategoryService);
       // Stub isValid to return false for anything that is not 'software'.
