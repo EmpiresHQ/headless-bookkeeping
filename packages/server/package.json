@@ -13,6 +13,7 @@
     "openapi:emit": "ts-node --transpile-only src/openapi-emit.ts"
   },
   "dependencies": {
+    "@headless-bookkeeping/web": "*",
     "@mastra/core": "^1.41.0",
     "@mastra/libsql": "^1.12.1",
     "@nestjs/common": "^11.0.1",
