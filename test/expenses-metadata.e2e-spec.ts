@@ -56,8 +56,8 @@ describe('Expenses document-metadata PATCH E2E', () => {
       .useValue(fauxMastraService)
       .overrideProvider(CategoryService)
       .useValue({
-        list: async () => [],
-        isValid: async () => true,
+        list: () => Promise.resolve([]),
+        isValid: () => Promise.resolve(true),
         assertValid: async () => {},
       })
       .compile();

@@ -65,8 +65,8 @@ describe('Pipeline (e2e)', () => {
         {
           provide: CategoryService,
           useValue: {
-            list: async () => [],
-            isValid: async () => true,
+            list: () => Promise.resolve([]),
+            isValid: () => Promise.resolve(true),
             assertValid: async () => {},
           },
         },
