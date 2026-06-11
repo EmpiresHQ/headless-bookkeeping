@@ -301,6 +301,37 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
 
+    it('persists the TriageResult when proposeDraft is supplier-unresolved', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({
+        kind: 'new_expense',
+        gross_amount: 1000,
+        vat_amount: 200,
+        tax_point_date: '2026-03-01',
+        category: 'software',
+        supplier_proposal: { mode: 'create', create_name: 'Acme', create_country: 'EE' },
+        document_type: 'invoice',
+        currency: 'EUR',
+        document_vat_marking: null,
+        supplier_invoice_number: null,
+        confidence: 0.9,
+      });
+      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: triage });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'supplier-unresolved',
+        reason: 'supplier creation not yet implemented (Task 43)',
+      });
+
+      const setPendingSpy = jest.spyOn(documentsService, 'setPendingTriageResult');
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      expect(setPendingSpy).toHaveBeenCalledWith(docId, triage);
+
+      setPendingSpy.mockRestore();
+    });
+
     it('routes a create supplier_proposal to needs_triage (supplier-unresolved, Task 43)', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({

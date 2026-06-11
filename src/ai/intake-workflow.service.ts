@@ -218,6 +218,9 @@ export class IntakeWorkflowService {
             this.logger.warn(
               `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
             );
+            // Keep the exact proposal that blocked us so a human can resolve the
+            // supplier and replay it deterministically (no re-run of the agent).
+            await this.documents.setPendingTriageResult(documentId, triageResult);
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
           await this.documents.setStatus(documentId, 'triaged');
