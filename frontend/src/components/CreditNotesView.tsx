@@ -8,7 +8,9 @@ export function CreditNotesView() {
 
   // form state
   const [creditNoteNumber, setCreditNoteNumber] = useState('');
-  const [objectType, setObjectType] = useState<'sales_invoice' | 'expense'>('sales_invoice');
+  const [objectType, setObjectType] = useState<'sales_invoice' | 'expense'>(
+    'sales_invoice',
+  );
   const [objectId, setObjectId] = useState('');
   const [grossAmount, setGrossAmount] = useState('');
   const [vatAmount, setVatAmount] = useState('');
@@ -74,7 +76,9 @@ export function CreditNotesView() {
           id="cn-object-type"
           aria-label="Object type"
           value={objectType}
-          onChange={(e) => setObjectType(e.target.value as 'sales_invoice' | 'expense')}
+          onChange={(e) =>
+            setObjectType(e.target.value as 'sales_invoice' | 'expense')
+          }
           className="border rounded px-2 py-1 text-sm"
         >
           <option value="sales_invoice">Sales invoice</option>
@@ -142,30 +146,36 @@ export function CreditNotesView() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {notes.length > 0 && (
-        <table className="text-sm border-collapse w-full max-w-2xl">
-          <thead>
-            <tr>
-              <th className="border px-2 py-1 text-left">Number</th>
-              <th className="border px-2 py-1 text-left">Status</th>
-              <th className="border px-2 py-1 text-left">Gross</th>
-              <th className="border px-2 py-1 text-left">VAT</th>
-              <th className="border px-2 py-1 text-left">Credits</th>
-            </tr>
-          </thead>
-          <tbody>
-            {notes.map((n) => (
-              <tr key={n.id}>
-                <td className="border px-2 py-1">{n.credit_note_number}</td>
-                <td className="border px-2 py-1">{n.status}</td>
-                <td className="border px-2 py-1">{(n.gross_amount / 100).toFixed(2)}</td>
-                <td className="border px-2 py-1">{(n.vat_amount / 100).toFixed(2)}</td>
-                <td className="border px-2 py-1">
-                  {n.credits_object_type} #{n.credits_object_id}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="text-sm border-collapse w-full max-w-2xl">
+            <thead>
+              <tr>
+                <th className="border px-2 py-1 text-left">Number</th>
+                <th className="border px-2 py-1 text-left">Status</th>
+                <th className="border px-2 py-1 text-left">Gross</th>
+                <th className="border px-2 py-1 text-left">VAT</th>
+                <th className="border px-2 py-1 text-left">Credits</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {notes.map((n) => (
+                <tr key={n.id}>
+                  <td className="border px-2 py-1">{n.credit_note_number}</td>
+                  <td className="border px-2 py-1">{n.status}</td>
+                  <td className="border px-2 py-1">
+                    {(n.gross_amount / 100).toFixed(2)}
+                  </td>
+                  <td className="border px-2 py-1">
+                    {(n.vat_amount / 100).toFixed(2)}
+                  </td>
+                  <td className="border px-2 py-1">
+                    {n.credits_object_type} #{n.credits_object_id}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

@@ -107,47 +107,51 @@ export function DocumentsView() {
     <div className="p-4 space-y-4 text-sm">
       {error && <p className="text-red-600">{error}</p>}
 
-      <table className="min-w-full border-collapse">
-        <thead>
-          <tr className="border-b bg-gray-50 text-left">
-            <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-            <th className="px-3 py-2 font-medium text-gray-700">Filename</th>
-            <th className="px-3 py-2 font-medium text-gray-700">Type</th>
-            <th className="px-3 py-2 font-medium text-gray-700">Size</th>
-            <th className="px-3 py-2 font-medium text-gray-700">Status</th>
-            <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {docs.map((d) => (
-            <tr key={d.id} className="border-b align-top">
-              <td className="px-3 py-2">{d.id}</td>
-              <td className="px-3 py-2">{d.filename}</td>
-              <td className="px-3 py-2">{d.mime_type}</td>
-              <td className="px-3 py-2">{(d.size_bytes / 1024).toFixed(1)} KB</td>
-              <td className="px-3 py-2">{d.status}</td>
-              <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                <button
-                  type="button"
-                  disabled={debugBusy && selected === d.id}
-                  onClick={() => void runDebug(d.id)}
-                  className="text-blue-600 hover:underline disabled:opacity-50"
-                >
-                  Debug
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onDelete(d)}
-                  className="text-red-600 hover:underline disabled:opacity-50"
-                >
-                  Delete
-                </button>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse">
+          <thead>
+            <tr className="border-b bg-gray-50 text-left">
+              <th className="px-3 py-2 font-medium text-gray-700">ID</th>
+              <th className="px-3 py-2 font-medium text-gray-700">Filename</th>
+              <th className="px-3 py-2 font-medium text-gray-700">Type</th>
+              <th className="px-3 py-2 font-medium text-gray-700">Size</th>
+              <th className="px-3 py-2 font-medium text-gray-700">Status</th>
+              <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {docs.map((d) => (
+              <tr key={d.id} className="border-b align-top">
+                <td className="px-3 py-2">{d.id}</td>
+                <td className="px-3 py-2">{d.filename}</td>
+                <td className="px-3 py-2">{d.mime_type}</td>
+                <td className="px-3 py-2">
+                  {(d.size_bytes / 1024).toFixed(1)} KB
+                </td>
+                <td className="px-3 py-2">{d.status}</td>
+                <td className="px-3 py-2 space-x-3 whitespace-nowrap">
+                  <button
+                    type="button"
+                    disabled={debugBusy && selected === d.id}
+                    onClick={() => void runDebug(d.id)}
+                    className="text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    Debug
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onDelete(d)}
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {selected !== null && (
         <section className="space-y-3 border rounded p-3 bg-gray-50">

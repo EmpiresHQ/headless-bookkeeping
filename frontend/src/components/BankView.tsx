@@ -70,7 +70,8 @@ export function BankView() {
   };
 
   const onDelete = async (id: number) => {
-    if (!window.confirm(`Delete statement #${id} and its transactions?`)) return;
+    if (!window.confirm(`Delete statement #${id} and its transactions?`))
+      return;
     try {
       await deleteBankStatement(id);
       if (!mountedRef.current) return;
@@ -279,7 +280,7 @@ export function BankView() {
 
   return (
     <div className="p-4 space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -331,43 +332,49 @@ export function BankView() {
         {statements.length === 0 ? (
           <p className="text-sm text-gray-500">No statements yet.</p>
         ) : (
-          <table className="min-w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left">
-                <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Period</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Uploaded</th>
-                <th className="px-3 py-2 font-medium text-gray-700"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {statements.map((s) => (
-                <tr key={s.id} className="border-b">
-                  <td className="px-3 py-2">{s.id}</td>
-                  <td className="px-3 py-2">
-                    {s.start_date} → {s.end_date}
-                  </td>
-                  <td className="px-3 py-2">{fmtDate(s.uploaded_at)}</td>
-                  <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => void viewTransactions(s.id)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      View
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onDelete(s.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left">
+                  <th className="px-3 py-2 font-medium text-gray-700">ID</th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Period
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700">
+                    Uploaded
+                  </th>
+                  <th className="px-3 py-2 font-medium text-gray-700"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {statements.map((s) => (
+                  <tr key={s.id} className="border-b">
+                    <td className="px-3 py-2">{s.id}</td>
+                    <td className="px-3 py-2">
+                      {s.start_date} → {s.end_date}
+                    </td>
+                    <td className="px-3 py-2">{fmtDate(s.uploaded_at)}</td>
+                    <td className="px-3 py-2 space-x-3 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => void viewTransactions(s.id)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onDelete(s.id)}
+                        className="text-red-600 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -376,7 +383,7 @@ export function BankView() {
           <h2 className="text-sm font-medium text-gray-700">
             Transactions — statement #{selected}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void onPropose()}
@@ -397,135 +404,143 @@ export function BankView() {
           {txns.length === 0 ? (
             <p className="text-sm text-gray-500">No transactions.</p>
           ) : (
-            <table className="min-w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left">
-                  <th className="px-3 py-2 font-medium text-gray-700">Date</th>
-                  <th className="px-3 py-2 font-medium text-gray-700 text-right">
-                    Amount
-                  </th>
-                  <th className="px-3 py-2 font-medium text-gray-700">Cur</th>
-                  <th className="px-3 py-2 font-medium text-gray-700">
-                    Description
-                  </th>
-                  <th className="px-3 py-2 font-medium text-gray-700">
-                    Counterparty
-                  </th>
-                  <th className="px-3 py-2 font-medium text-gray-700">Ref</th>
-                  <th className="px-3 py-2 font-medium text-gray-700">Status</th>
-                  <th className="px-3 py-2 font-medium text-gray-700">Match</th>
-                </tr>
-              </thead>
-              <tbody>
-                {txns.map((t) => {
-                  const status = reconFor(t.id);
-                  const txnProposals = proposals.filter(
-                    (p) => p.bankTransactionId === t.id,
-                  );
-                  const isOpen = status?.reconStatus === 'open';
-                  return (
-                    <tr key={t.id} className="border-b align-top">
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {t.transaction_date}
-                      </td>
-                      <td
-                        className={`px-3 py-2 text-right tabular-nums ${
-                          t.amount < 0 ? 'text-red-600' : 'text-green-700'
-                        }`}
-                      >
-                        {fmtCents(t.amount)}
-                      </td>
-                      <td className="px-3 py-2">{t.currency}</td>
-                      <td className="px-3 py-2">
-                        {/* Description, plus this line's proposals and the
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left">
+                    <th className="px-3 py-2 font-medium text-gray-700">
+                      Date
+                    </th>
+                    <th className="px-3 py-2 font-medium text-gray-700 text-right">
+                      Amount
+                    </th>
+                    <th className="px-3 py-2 font-medium text-gray-700">Cur</th>
+                    <th className="px-3 py-2 font-medium text-gray-700">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 font-medium text-gray-700">
+                      Counterparty
+                    </th>
+                    <th className="px-3 py-2 font-medium text-gray-700">Ref</th>
+                    <th className="px-3 py-2 font-medium text-gray-700">
+                      Status
+                    </th>
+                    <th className="px-3 py-2 font-medium text-gray-700">
+                      Match
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {txns.map((t) => {
+                    const status = reconFor(t.id);
+                    const txnProposals = proposals.filter(
+                      (p) => p.bankTransactionId === t.id,
+                    );
+                    const isOpen = status?.reconStatus === 'open';
+                    return (
+                      <tr key={t.id} className="border-b align-top">
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {t.transaction_date}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums ${
+                            t.amount < 0 ? 'text-red-600' : 'text-green-700'
+                          }`}
+                        >
+                          {fmtCents(t.amount)}
+                        </td>
+                        <td className="px-3 py-2">{t.currency}</td>
+                        <td className="px-3 py-2">
+                          {/* Description, plus this line's proposals and the
                             open-line disposition actions. */}
-                        <div>{t.description ?? '—'}</div>
-                        {txnProposals.length > 0 && (
-                          <ul className="mt-1 space-y-1">
-                            {txnProposals.map((p) => (
-                              <li
-                                key={proposalKey(p)}
-                                className="flex items-center gap-2 text-xs"
-                              >
-                                <input
-                                  type="checkbox"
-                                  aria-label={`Select match ${p.objectLabel}`}
-                                  checked={selectedKeys.has(proposalKey(p))}
-                                  onChange={() => toggleProposal(p)}
-                                />
-                                <span
-                                  className={`rounded px-1.5 py-0.5 ${
-                                    p.confidence === 'high'
-                                      ? 'bg-green-100 text-green-800'
-                                      : p.confidence === 'medium'
-                                        ? 'bg-amber-100 text-amber-800'
-                                        : 'bg-gray-100 text-gray-700'
-                                  }`}
+                          <div>{t.description ?? '—'}</div>
+                          {txnProposals.length > 0 && (
+                            <ul className="mt-1 space-y-1">
+                              {txnProposals.map((p) => (
+                                <li
+                                  key={proposalKey(p)}
+                                  className="flex items-center gap-2 text-xs"
                                 >
-                                  {p.confidence}
-                                </span>
-                                <span className="font-medium">
-                                  {p.objectLabel}
-                                </span>
-                                <span className="text-gray-600">
-                                  {p.counterpartyName ?? '—'}
-                                </span>
-                                <span className="tabular-nums">
-                                  {fmtCents(p.amountMatched)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {isOpen && (
-                          <div className="mt-1 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void onPrepayment(t.id)}
-                              className="text-blue-600 hover:underline text-xs"
-                            >
-                              Prepayment
-                            </button>
-                            <button
-                              type="button"
-                              disabled={t.amount > 0}
-                              onClick={() => void onPersonal(t.id)}
-                              className="text-blue-600 hover:underline text-xs disabled:opacity-50 disabled:no-underline disabled:text-gray-400"
-                            >
-                              Personal
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        {t.counterparty_iban ??
-                          t.counterparty_descriptor ??
-                          '—'}
-                      </td>
-                      <td className="px-3 py-2">{t.reference ?? '—'}</td>
-                      <td className="px-3 py-2">{t.status}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {status === undefined ? (
-                          <span className="text-gray-400">—</span>
-                        ) : status.reconStatus === 'matched' ? (
-                          <span className="rounded px-1.5 py-0.5 bg-green-100 text-green-800 text-xs">
-                            Matched
-                          </span>
-                        ) : status.reconStatus === 'partial' ? (
-                          <span className="rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs">
-                            {fmtCents(status.remaining)} left
-                          </span>
-                        ) : (
-                          <span className="rounded px-1.5 py-0.5 bg-gray-100 text-gray-700 text-xs">
-                            Open
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select match ${p.objectLabel}`}
+                                    checked={selectedKeys.has(proposalKey(p))}
+                                    onChange={() => toggleProposal(p)}
+                                  />
+                                  <span
+                                    className={`rounded px-1.5 py-0.5 ${
+                                      p.confidence === 'high'
+                                        ? 'bg-green-100 text-green-800'
+                                        : p.confidence === 'medium'
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : 'bg-gray-100 text-gray-700'
+                                    }`}
+                                  >
+                                    {p.confidence}
+                                  </span>
+                                  <span className="font-medium">
+                                    {p.objectLabel}
+                                  </span>
+                                  <span className="text-gray-600">
+                                    {p.counterpartyName ?? '—'}
+                                  </span>
+                                  <span className="tabular-nums">
+                                    {fmtCents(p.amountMatched)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {isOpen && (
+                            <div className="mt-1 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void onPrepayment(t.id)}
+                                className="text-blue-600 hover:underline text-xs"
+                              >
+                                Prepayment
+                              </button>
+                              <button
+                                type="button"
+                                disabled={t.amount > 0}
+                                onClick={() => void onPersonal(t.id)}
+                                className="text-blue-600 hover:underline text-xs disabled:opacity-50 disabled:no-underline disabled:text-gray-400"
+                              >
+                                Personal
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {t.counterparty_iban ??
+                            t.counterparty_descriptor ??
+                            '—'}
+                        </td>
+                        <td className="px-3 py-2">{t.reference ?? '—'}</td>
+                        <td className="px-3 py-2">{t.status}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {status === undefined ? (
+                            <span className="text-gray-400">—</span>
+                          ) : status.reconStatus === 'matched' ? (
+                            <span className="rounded px-1.5 py-0.5 bg-green-100 text-green-800 text-xs">
+                              Matched
+                            </span>
+                          ) : status.reconStatus === 'partial' ? (
+                            <span className="rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs">
+                              {fmtCents(status.remaining)} left
+                            </span>
+                          ) : (
+                            <span className="rounded px-1.5 py-0.5 bg-gray-100 text-gray-700 text-xs">
+                              Open
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}

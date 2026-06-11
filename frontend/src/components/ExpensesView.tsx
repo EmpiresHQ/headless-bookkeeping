@@ -172,7 +172,7 @@ export function ExpensesView() {
           <button
             type="button"
             disabled={busy || !addValid}
-            onClick={onAdd}
+            onClick={() => void onAdd()}
             className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
           >
             Add
@@ -180,7 +180,7 @@ export function ExpensesView() {
         </div>
       </section>
 
-      <section>
+      <section className="overflow-x-auto">
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="border-b bg-gray-50 text-left">
