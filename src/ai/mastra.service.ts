@@ -6,6 +6,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
 import { AgentConfigService } from './agent-config.service';
+import { CategoryService } from '../categories/category.service';
 import {
   createSearchSuppliersTool,
   createListCategoriesTool,
@@ -42,6 +43,7 @@ export class MastraService {
     private readonly pluginLoader: PluginLoader,
     private readonly organizationService: OrganizationService,
     private readonly config: AgentConfigService,
+    private readonly categoryService: CategoryService,
   ) {}
 
   /**
@@ -51,7 +53,7 @@ export class MastraService {
    */
   private buildTools(): ToolsInput {
     const searchSuppliers = createSearchSuppliersTool(this.entitiesService);
-    const listCategories = createListCategoriesTool();
+    const listCategories = createListCategoriesTool(this.categoryService);
     const getClassificationMemory = createGetClassificationMemoryTool(
       this.expensesService,
     );

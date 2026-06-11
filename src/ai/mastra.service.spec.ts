@@ -15,6 +15,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { OrganizationService } from '../organization/organization.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { AgentConfigService } from './agent-config.service';
+import { CategoryService } from '../categories/category.service';
 import { MastraService } from './mastra.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
@@ -58,6 +59,7 @@ describe('MastraService', () => {
           },
         },
         AgentConfigService,
+        CategoryService,
         MastraService,
       ],
     }).compile();

@@ -10,6 +10,7 @@ import { OcrModule } from '../triage/ocr.module';
 import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { PolicyModule } from '../policy/policy.module';
 import { AgentConfigModule } from './agent-config.module';
+import { CategoriesModule } from '../categories/categories.module';
 import { MastraService } from './mastra.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
@@ -39,6 +40,7 @@ import { IntakeWorkflowService } from './intake-workflow.service';
   imports: [
     DatabaseModule,
     AgentConfigModule,
+    CategoriesModule,
     DocumentsModule,
     EntitiesModule,
     ExpensesModule,
