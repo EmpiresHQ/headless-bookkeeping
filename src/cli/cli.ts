@@ -36,8 +36,15 @@ const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
  * `parseAsync` surfaces the error.
  */
 export function buildCli(deps: CliDeps, io: CliIo): Argv {
-  const { tokens, organization, periods, expenses, salesInvoices, entities, db } =
-    deps;
+  const {
+    tokens,
+    organization,
+    periods,
+    expenses,
+    salesInvoices,
+    entities,
+    db,
+  } = deps;
 
   // Numeric-positional guard reused by the delete subcommands.
   const numericId = (label: string) => (y: Argv) =>
@@ -264,7 +271,23 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
           }
 
           await sql`PRAGMA foreign_keys = OFF`.execute(db);
+
+          // Immutability triggers (ADR-0009 vat_report; ADR-0019 posted
+          // voucher / voucher_line) RAISE(ABORT) on the DELETEs below. Capture
+          // their DDL, drop them for the wipe, then recreate from the captured
+          // `sql` in finally so the guards always survive a reset — even if the
+          // wipe throws midway.
+          const triggers = (
+            await sql<{ name: string; sql: string | null }>`
+              SELECT name, sql FROM sqlite_master WHERE type = 'trigger'
+            `.execute(db)
+          ).rows;
+
           try {
+            for (const t of triggers) {
+              await sql.raw(`DROP TRIGGER IF EXISTS "${t.name}"`).execute(db);
+            }
+
             // Every table in the schema, alphabetically.
             // Tables to wipe (all business data + operational records).
             // Excludes: account (chart of accounts), setting (config),
@@ -305,6 +328,9 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
 
             io.err('Database reset complete.\n');
           } finally {
+            for (const t of triggers) {
+              if (t.sql) await sql.raw(t.sql).execute(db);
+            }
             await sql`PRAGMA foreign_keys = ON`.execute(db);
           }
         },
