@@ -662,6 +662,9 @@ describe('IntakeWorkflowService', () => {
           create_name: 'Acme OÜ',
           create_country: 'EE',
           create_registration_key: 'EE100200300',
+          create_email: null,
+          create_phone: null,
+          create_address: null,
         },
         category: 'software',
         gross_amount: 1525,
@@ -699,6 +702,9 @@ describe('IntakeWorkflowService', () => {
           create_name: 'Acme OÜ',
           create_country: 'EE',
           create_registration_key: 'EE100200300',
+          create_email: null,
+          create_phone: null,
+          create_address: null,
         },
         draft: {
           category: 'software',
@@ -730,6 +736,9 @@ describe('IntakeWorkflowService', () => {
         create_name: 'Acme',
         create_country: 'EE',
         create_registration_key: 'EE100200300',
+        create_email: null,
+        create_phone: null,
+        create_address: null,
       },
     });
 

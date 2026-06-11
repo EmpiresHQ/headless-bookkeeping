@@ -36,13 +36,16 @@ describe('supplierProposalSchema (discriminated union)', () => {
     }
   });
 
-  it('rejects a create proposal without a registration key', () => {
+  it('accepts a create proposal without a registration key (all identifiers nullable)', () => {
     const parsed = supplierProposalSchema.safeParse({
       mode: 'create',
       create_name: 'Acme Ltd',
       create_country: 'IE',
     });
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.mode === 'create') {
+      expect(parsed.data.create_registration_key).toBeNull();
+    }
   });
 
   it('rejects a proposal with no mode discriminant', () => {
@@ -90,6 +93,38 @@ describe('supplierProposalSchema (discriminated union)', () => {
       match_entity_id: 0,
     });
     expect(parsed.success).toBe(false);
+  });
+
+  describe('create proposal — nullable identifiers (multi-key dedup)', () => {
+    it('parses a create proposal with NO registration key but an email', () => {
+      const parsed = supplierProposalSchema.parse({
+        mode: 'create',
+        create_name: 'Anomaly',
+        create_country: 'US',
+        create_email: 'help@anoma.ly',
+      });
+      expect(parsed).toMatchObject({
+        mode: 'create',
+        create_registration_key: null,
+        create_email: 'help@anoma.ly',
+        create_phone: null,
+        create_address: null,
+      });
+    });
+
+    it('still parses a create proposal with only a registration key', () => {
+      const parsed = supplierProposalSchema.parse({
+        mode: 'create',
+        create_name: 'Acme OÜ',
+        create_country: 'EE',
+        create_registration_key: 'EE100200300',
+      });
+      expect(parsed.mode).toBe('create');
+      if (parsed.mode === 'create') {
+        expect(parsed.create_registration_key).toBe('EE100200300');
+        expect(parsed.create_email).toBeNull();
+      }
+    });
   });
 });
 

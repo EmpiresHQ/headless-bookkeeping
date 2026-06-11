@@ -410,6 +410,9 @@ export class IntakeWorkflowService {
         create_name: tr.supplier_proposal.create_name,
         create_country: tr.supplier_proposal.create_country,
         create_registration_key: tr.supplier_proposal.create_registration_key,
+        create_email: tr.supplier_proposal.create_email,
+        create_phone: tr.supplier_proposal.create_phone,
+        create_address: tr.supplier_proposal.create_address,
       },
       draft: {
         category: tr.category,
