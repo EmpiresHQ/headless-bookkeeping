@@ -1,0 +1,24 @@
+name: Cancel stale CI on merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cancel:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel in-progress CI runs for the merged branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh run list \
+            --branch "${{ github.head_ref }}" \
+            --workflow ci.yml \
+            --json databaseId,status \
+            --jq '.[] | select(.status == "in_progress" or .status == "queued") | .databaseId' \
+          | xargs -r -I{} gh run cancel {}

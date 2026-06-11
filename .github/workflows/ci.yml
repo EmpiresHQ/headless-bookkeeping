@@ -7,6 +7,11 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+# New push to the same PR/branch cancels the previous run automatically.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changes:
     runs-on: ubuntu-latest
