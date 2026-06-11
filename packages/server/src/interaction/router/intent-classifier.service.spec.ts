@@ -50,7 +50,7 @@ describe('IntentClassifierService', () => {
         fields: { amount: '10000' },
       },
       text: '',
-    } as any);
+    });
 
     const intent = await service.classify('please invoice Acme 100 eur');
     expect(intent).toEqual({
@@ -64,7 +64,7 @@ describe('IntentClassifierService', () => {
     const agent: Agent = await pinAgent();
     jest
       .spyOn(agent, 'generate')
-      .mockResolvedValue({ object: { kind: 'banana' }, text: '' } as any);
+      .mockResolvedValue({ object: { kind: 'banana' }, text: '' });
 
     const intent = await service.classify('???');
     expect(intent.kind).toBe('clarify');

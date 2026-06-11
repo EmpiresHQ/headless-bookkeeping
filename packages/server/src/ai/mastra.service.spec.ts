@@ -146,7 +146,7 @@ describe('MastraService', () => {
       expect(agent.model).toBe('openai/gpt-4o');
       // withCategoryList appends the valid category keys from the active plugin;
       // the seeded prompt is retained as the leading prefix.
-      expect(await agent.getInstructions()).toContain('SEEDED TRIAGE PROMPT');
+      expect(agent.instructions).toContain('SEEDED TRIAGE PROMPT');
     });
 
     it('builds a tool-less bank-mapping agent from settings', async () => {
