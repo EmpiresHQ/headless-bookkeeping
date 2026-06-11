@@ -2,7 +2,6 @@
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { hideBin } from 'yargs/helpers';
-import { Kysely } from 'kysely';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationModule } from './organization/organization.module';
@@ -11,7 +10,6 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { SalesInvoicesModule } from './sales-invoices/sales-invoices.module';
 import { EntitiesModule } from './entities/entities.module';
 import { DatabaseModule } from './database/database.module';
-import { Database } from './database/types';
 import { ApiTokenService } from './auth/api-token.service';
 import { OrganizationService } from './organization/organization.service';
 import { ReportingPeriodsService } from './reporting-periods/reporting-periods.service';
