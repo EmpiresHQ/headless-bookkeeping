@@ -33,6 +33,19 @@ export function ApprovalsView() {
     }
   };
 
+  const objectLabel = (a: Approval) => {
+    switch (a.object_type) {
+      case 'reconciliation_match':
+        return `Bank match #${a.object_id}`;
+      case 'sales_invoice':
+        return `Invoice #${a.object_id}`;
+      case 'expense':
+        return `Expense #${a.object_id}`;
+      default:
+        return `${a.object_type} #${a.object_id}`;
+    }
+  };
+
   const onApprove = (id: number) => {
     const who = window.prompt('Approve as (name):', 'operator');
     if (!who) return;
@@ -65,9 +78,7 @@ export function ApprovalsView() {
             {approvals.map((a) => (
               <tr key={a.id} className="border-b">
                 <td className="px-3 py-2">{a.id}</td>
-                <td className="px-3 py-2">
-                  {a.object_type} #{a.object_id}
-                </td>
+                <td className="px-3 py-2">{objectLabel(a)}</td>
                 <td className="px-3 py-2">{a.requested_by}</td>
                 <td className="px-3 py-2 space-x-2">
                   <button

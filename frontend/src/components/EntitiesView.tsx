@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   getEntities,
   onboardEntity,
   updateEntity,
   deleteEntity,
+  getEntity,
+  addEntityAlias,
   type Entity,
+  type EntityIdentifier,
   type OnboardEntityInput,
+  type AddAliasInput,
 } from '../api';
 
 const ROLES = ['supplier', 'customer'] as const;
 const GOODS = ['goods', 'services', 'unknown'] as const;
+const ALIAS_KINDS = ['iban', 'merchant_descriptor', 'name_alias'] as const;
 
 const blankForm: OnboardEntityInput = {
   role: 'supplier',
@@ -32,6 +37,13 @@ export function EntitiesView() {
   const [form, setForm] = useState<OnboardEntityInput>(blankForm);
   const [editId, setEditId] = useState<number | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
+  // Identifier (alias) management — which row's panel is open + its data.
+  const [aliasFor, setAliasFor] = useState<number | null>(null);
+  const [aliasList, setAliasList] = useState<EntityIdentifier[]>([]);
+  const [aliasDraft, setAliasDraft] = useState<AddAliasInput>({
+    kind: 'merchant_descriptor',
+    value: '',
+  });
 
   const load = () =>
     getEntities()
@@ -94,6 +106,30 @@ export function EntitiesView() {
     run(async () => {
       if (!window.confirm(`Delete entity #${e.id} "${e.name}"?`)) return;
       await deleteEntity(e.id);
+    });
+
+  const openAliases = (id: number) => {
+    if (aliasFor === id) {
+      setAliasFor(null);
+      return;
+    }
+    setAliasDraft({ kind: 'merchant_descriptor', value: '' });
+    void getEntity(id)
+      .then((ent) => {
+        setAliasList(ent.identifiers ?? []);
+        setAliasFor(id);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  };
+
+  const onAddAlias = (id: number) =>
+    run(async () => {
+      const value = aliasDraft.value.trim();
+      if (!value) return;
+      await addEntityAlias(id, { ...aliasDraft, value });
+      const ent = await getEntity(id);
+      setAliasList(ent.identifiers ?? []);
+      setAliasDraft({ kind: 'merchant_descriptor', value: '' });
     });
 
   const addValid =
@@ -273,31 +309,125 @@ export function EntitiesView() {
                   </td>
                 </tr>
               ) : (
-                <tr key={e.id} className="border-b align-top">
-                  <td className="px-3 py-2">{e.id}</td>
-                  <td className="px-3 py-2">{e.name}</td>
-                  <td className="px-3 py-2">{e.role}</td>
-                  <td className="px-3 py-2">{e.country}</td>
-                  <td className="px-3 py-2">{e.goods_vs_services ?? '—'}</td>
-                  <td className="px-3 py-2 space-x-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => startEdit(e)}
-                      className="text-blue-600 hover:underline disabled:opacity-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onDelete(e)}
-                      className="text-red-600 hover:underline disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={e.id}>
+                  <tr className="border-b align-top">
+                    <td className="px-3 py-2">{e.id}</td>
+                    <td className="px-3 py-2">{e.name}</td>
+                    <td className="px-3 py-2">{e.role}</td>
+                    <td className="px-3 py-2">{e.country}</td>
+                    <td className="px-3 py-2">{e.goods_vs_services ?? '—'}</td>
+                    <td className="px-3 py-2 space-x-3 whitespace-nowrap">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => startEdit(e)}
+                        className="text-blue-600 hover:underline disabled:opacity-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => openAliases(e.id)}
+                        className="text-gray-700 hover:underline disabled:opacity-50"
+                      >
+                        Aliases
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void onDelete(e)}
+                        className="text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                  {aliasFor === e.id && (
+                    <tr className="border-b bg-gray-50">
+                      <td className="px-3 py-2" />
+                      <td className="px-3 py-2" colSpan={5}>
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-500">
+                            Matching aliases — an IBAN or card merchant
+                            descriptor lets reconciliation recognise this
+                            counterparty on bank lines.
+                          </p>
+                          {aliasList.length === 0 ? (
+                            <p className="text-xs text-gray-400">
+                              No aliases yet.
+                            </p>
+                          ) : (
+                            <ul className="text-xs space-y-1">
+                              {aliasList.map((a) => (
+                                <li key={a.id}>
+                                  <span className="text-gray-500">
+                                    {a.kind}:
+                                  </span>{' '}
+                                  <span className="font-mono">{a.value}</span>
+                                  {!a.confirmed && (
+                                    <span className="text-amber-600">
+                                      {' '}
+                                      (unconfirmed)
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs text-gray-500">Kind</span>
+                              <select
+                                aria-label={`Alias kind ${e.id}`}
+                                value={aliasDraft.kind}
+                                onChange={(ev) =>
+                                  setAliasDraft({
+                                    ...aliasDraft,
+                                    kind: ev.target
+                                      .value as AddAliasInput['kind'],
+                                  })
+                                }
+                                className="border rounded px-2 py-1"
+                              >
+                                {ALIAS_KINDS.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs text-gray-500">
+                                Value
+                              </span>
+                              <input
+                                aria-label={`Alias value ${e.id}`}
+                                value={aliasDraft.value}
+                                onChange={(ev) =>
+                                  setAliasDraft({
+                                    ...aliasDraft,
+                                    value: ev.target.value,
+                                  })
+                                }
+                                placeholder="e.g. ANOMALY"
+                                className="border rounded px-2 py-1"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              disabled={busy || aliasDraft.value.trim() === ''}
+                              onClick={() => void onAddAlias(e.id)}
+                              className="bg-black text-white rounded px-3 py-1 disabled:opacity-50"
+                            >
+                              Add alias
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ),
             )}
           </tbody>

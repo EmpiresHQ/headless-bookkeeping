@@ -289,6 +289,8 @@ export class ReconciliationService {
         .selectFrom('reconciliation_match')
         .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
         .where('bank_transaction_id', '=', txn.id)
+        // Only ACTIVE matches reconcile a line; a draft is staged, not settled.
+        .where('status', '=', 'active')
         .executeTakeFirst();
       const matchedSum = Number(matched?.sum ?? 0);
       const remaining = Math.max(0, amountBase - matchedSum);

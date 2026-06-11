@@ -1211,9 +1211,10 @@ describe('ReconciliationService (integration)', () => {
       ]);
       const txnId = stmt.transactions[0].id;
 
-      // Book a PARTIAL match of 20000 against the 50000 invoice.
+      // Book + activate a PARTIAL match of 20000 against the 50000 invoice
+      // (only an active match counts toward the line's reconciled total).
       const partialAmount = 20000;
-      await reconciliationService.executeMatch([
+      await executeAndActivate([
         {
           bankTransactionId: txnId,
           voucherId,

@@ -8,6 +8,8 @@ import {
   proposeMatches,
   getReconciliationStatus,
   executeMatches,
+  getMatchCandidates,
+  manualMatch,
   createPrepayment,
   markPersonal,
   fmtCents,
@@ -15,6 +17,7 @@ import {
   type BankStatement,
   type BankTransaction,
   type MatchProposalView,
+  type MatchCandidateView,
   type ReconciliationStatusRow,
 } from '../api';
 
@@ -50,6 +53,14 @@ export function BankView() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   // Inline, transient note for a blocked selection (over-allocation cap).
   const [capNote, setCapNote] = useState<string | null>(null);
+
+  // Manual match: which line's picker is open, its candidate pool + line cap,
+  // and the chosen voucher + amount (major units in the input).
+  const [manualFor, setManualFor] = useState<number | null>(null);
+  const [candidates, setCandidates] = useState<MatchCandidateView[]>([]);
+  const [lineRemaining, setLineRemaining] = useState(0);
+  const [manualVoucherId, setManualVoucherId] = useState<number | null>(null);
+  const [manualAmount, setManualAmount] = useState('');
 
   const stopPolling = () => {
     if (timerRef.current !== null) {
@@ -206,6 +217,65 @@ export function BankView() {
     try {
       await markPersonal(txnId);
       if (!mountedRef.current) return;
+      await loadRecon(selected);
+      await viewTransactions(selected);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const openManual = async (txnId: number) => {
+    if (selected === null) return;
+    if (manualFor === txnId) {
+      setManualFor(null);
+      return;
+    }
+    setError(null);
+    try {
+      const res = await getMatchCandidates(selected, txnId);
+      if (!mountedRef.current) return;
+      setCandidates(res.candidates);
+      setLineRemaining(res.lineRemaining);
+      setManualVoucherId(null);
+      setManualAmount('');
+      setManualFor(txnId);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const selectCandidate = (c: MatchCandidateView) => {
+    setManualVoucherId(c.voucherId);
+    const cents = Math.min(lineRemaining, c.voucherRemaining);
+    setManualAmount((cents / 100).toFixed(2));
+  };
+
+  const onManualBook = async (txnId: number) => {
+    if (selected === null || manualVoucherId === null) return;
+    const cand = candidates.find((c) => c.voucherId === manualVoucherId);
+    if (!cand) return;
+    const cents = Math.round(Number.parseFloat(manualAmount) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) {
+      setError('Enter a valid match amount.');
+      return;
+    }
+    const matchType =
+      cents === cand.voucherRemaining && cents === lineRemaining
+        ? 'exact'
+        : 'partial';
+    setError(null);
+    try {
+      await manualMatch(selected, {
+        bankTransactionId: txnId,
+        voucherId: manualVoucherId,
+        amountMatched: cents,
+        matchType,
+      });
+      if (!mountedRef.current) return;
+      setManualFor(null);
+      setManualVoucherId(null);
       await loadRecon(selected);
       await viewTransactions(selected);
     } catch (e) {
@@ -481,6 +551,13 @@ export function BankView() {
                           <div className="mt-1 flex gap-2">
                             <button
                               type="button"
+                              onClick={() => void openManual(t.id)}
+                              className="text-blue-600 hover:underline text-xs"
+                            >
+                              Match manually
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => void onPrepayment(t.id)}
                               className="text-blue-600 hover:underline text-xs"
                             >
@@ -494,6 +571,76 @@ export function BankView() {
                             >
                               Personal
                             </button>
+                          </div>
+                        )}
+                        {manualFor === t.id && (
+                          <div className="mt-2 rounded border bg-gray-50 p-2 text-xs space-y-2">
+                            <p className="text-gray-500">
+                              Pick an open{' '}
+                              {t.amount < 0 ? 'expense' : 'invoice'} to settle —
+                              staged for approval, not posted yet.
+                            </p>
+                            {candidates.length === 0 ? (
+                              <p className="text-gray-400">
+                                No open candidates for this direction.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {candidates.map((c) => (
+                                  <li key={c.voucherId}>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="radio"
+                                        name={`manual-${t.id}`}
+                                        aria-label={`Candidate ${c.objectLabel}`}
+                                        checked={manualVoucherId === c.voucherId}
+                                        onChange={() => selectCandidate(c)}
+                                      />
+                                      <span className="font-medium">
+                                        {c.objectLabel}
+                                      </span>
+                                      <span className="text-gray-600">
+                                        {c.counterpartyName ?? '—'}
+                                      </span>
+                                      <span className="tabular-nums text-gray-500">
+                                        {fmtCents(c.voucherRemaining)} open
+                                      </span>
+                                    </label>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {manualVoucherId !== null && (
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1">
+                                  <span className="text-gray-500">Amount</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    aria-label={`Manual amount ${t.id}`}
+                                    value={manualAmount}
+                                    onChange={(e) =>
+                                      setManualAmount(e.target.value)
+                                    }
+                                    className="border rounded px-2 py-1 w-24 tabular-nums"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => void onManualBook(t.id)}
+                                  className="bg-black text-white rounded px-2 py-1"
+                                >
+                                  Book match
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setManualFor(null)}
+                                  className="text-gray-600 hover:underline"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
