@@ -162,6 +162,19 @@ export const getReportingPeriods = () =>
     '/api/reporting-periods',
   ).then((r) => r.reportingPeriods);
 
+export interface CreateReportingPeriodInput {
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
+export const createReportingPeriod = (input: CreateReportingPeriodInput) =>
+  apiFetch<ReportingPeriod>('/api/reporting-periods', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
 /** Integer cents → display string, e.g. 615700 -> "6157.00". */
 export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
 

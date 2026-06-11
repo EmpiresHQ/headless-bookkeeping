@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import { KmdView } from './KmdView';
 import * as api from '../api';
 
@@ -51,5 +51,65 @@ describe('KmdView', () => {
     expect(within(vd).getByText(/11740\.00/)).toBeInTheDocument();
 
     expect(screen.getByText(/Verify KMD row 6 vs 7\./)).toBeInTheDocument();
+  });
+
+  it('toggles the create form when "New period" is clicked', async () => {
+    render(<KmdView />);
+    // Form is hidden initially.
+    expect(screen.queryByPlaceholderText(/e\.g\. 2026/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New period' }));
+    expect(screen.getByPlaceholderText(/e\.g\. 2026/)).toBeInTheDocument();
+
+    // Button label flips to "Cancel".
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByPlaceholderText(/e\.g\. 2026/)).not.toBeInTheDocument();
+  });
+
+  it('creates a period, appends it to the list, and auto-selects it', async () => {
+    const newPeriod = {
+      id: 7,
+      name: '2026-06',
+      start_date: '2026-06-01',
+      end_date: '2026-06-30',
+      status: 'open',
+      filed_at: null,
+    };
+    vi.spyOn(api, 'createReportingPeriod').mockResolvedValue(newPeriod);
+
+    render(<KmdView />);
+    fireEvent.click(screen.getByRole('button', { name: 'New period' }));
+
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. 2026/), {
+      target: { value: '2026-06' },
+    });
+    fireEvent.change(screen.getByLabelText('Start date'), {
+      target: { value: '2026-06-01' },
+    });
+    fireEvent.change(screen.getByLabelText('End date'), {
+      target: { value: '2026-06-30' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() =>
+      expect(api.createReportingPeriod).toHaveBeenCalledWith({
+        name: '2026-06',
+        start_date: '2026-06-01',
+        end_date: '2026-06-30',
+      }),
+    );
+
+    // Form closes after success.
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText(/e\.g\. 2026/)).not.toBeInTheDocument(),
+    );
+
+    // New period appears in the select and is selected.
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('7');
+    expect(
+      screen.getByRole('option', { name: /2026-06/ }),
+    ).toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getReportingPeriods,
   getKmd,
+  createReportingPeriod,
   downloadStatutoryReport,
   fmtCents,
   type ReportingPeriod,
@@ -28,12 +29,35 @@ export function KmdView() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newStart, setNewStart] = useState('');
+  const [newEnd, setNewEnd] = useState('');
+
   function handleDownload() {
     if (selected === null) return;
     setDownloading(true);
     downloadStatutoryReport(selected, 'all')
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setDownloading(false));
+  }
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setError(null);
+    createReportingPeriod({ name: newName, start_date: newStart, end_date: newEnd })
+      .then((p) => {
+        setPeriods((prev) => [...prev, p]);
+        setSelected(p.id);
+        setShowCreate(false);
+        setNewName('');
+        setNewStart('');
+        setNewEnd('');
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setCreating(false));
   }
 
   // Load the period list once; default to the first period.
@@ -83,6 +107,12 @@ export function KmdView() {
           </select>
         </label>
         <button
+          className="text-sm border rounded px-3 py-1 bg-white hover:bg-gray-50"
+          onClick={() => setShowCreate((v) => !v)}
+        >
+          {showCreate ? 'Cancel' : 'New period'}
+        </button>
+        <button
           className="text-sm border rounded px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50"
           disabled={selected === null || downloading}
           onClick={handleDownload}
@@ -90,6 +120,48 @@ export function KmdView() {
           {downloading ? 'Downloading…' : 'Download KMD'}
         </button>
       </div>
+
+      {showCreate && (
+        <form onSubmit={handleCreate} className="flex items-end gap-2 flex-wrap text-sm">
+          <label className="flex flex-col gap-1">
+            <span className="text-gray-600">Name</span>
+            <input
+              className="border rounded px-2 py-1"
+              placeholder="e.g. 2026-06"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-gray-600">Start date</span>
+            <input
+              type="date"
+              className="border rounded px-2 py-1"
+              value={newStart}
+              onChange={(e) => setNewStart(e.target.value)}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-gray-600">End date</span>
+            <input
+              type="date"
+              className="border rounded px-2 py-1"
+              value={newEnd}
+              onChange={(e) => setNewEnd(e.target.value)}
+              required
+            />
+          </label>
+          <button
+            type="submit"
+            className="border rounded px-3 py-1 bg-white hover:bg-gray-50 disabled:opacity-50"
+            disabled={creating}
+          >
+            {creating ? 'Creating…' : 'Create'}
+          </button>
+        </form>
+      )}
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
