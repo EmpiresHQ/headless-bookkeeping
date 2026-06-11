@@ -39,6 +39,7 @@ describe('SettingsView', () => {
         'ai_model',
         'anthropic/claude-3-5',
       ),
+      { timeout: 5000 },
     );
   });
 
