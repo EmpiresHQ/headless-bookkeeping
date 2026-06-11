@@ -431,6 +431,43 @@ describe('Entity aggregate (integration)', () => {
       expect(phones).toHaveLength(1);
       expect(phones[0].value).toBe('+15550000');
     });
+
+    it('resolveByIdentifiers returns DISTINCT ids when candidates hit different entities', async () => {
+      const a = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier A',
+        identifiers: [{ kind: 'email', value: 'a@x.io' }],
+      });
+      const b = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier B',
+        identifiers: [{ kind: 'phone', value: '+1 555 1111' }],
+      });
+
+      const ids = await entitiesService.resolveByIdentifiers([
+        { kind: 'email', value: 'a@x.io' },
+        { kind: 'phone', value: '+15551111' },
+      ]);
+      expect(ids.sort()).toEqual([a.id, b.id].sort());
+    });
+
+    it('resolveByIdentifiers ignores non-match kinds like address', async () => {
+      const s = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Addressed Co',
+        identifiers: [{ kind: 'address', value: '1 Main St' }],
+      });
+      // address is stored but must never be a match key
+      expect(
+        await entitiesService.resolveByIdentifiers([{ kind: 'address', value: '1 main st' }]),
+      ).toEqual([]);
+      // sanity: the entity DOES carry the stored address
+      const found = await entitiesService.findById(s.id);
+      expect(found.identifiers.some((i) => i.kind === 'address')).toBe(true);
+    });
   });
 
   describe('delete', () => {

@@ -14,7 +14,7 @@ import {
   AddAliasDto,
   UpdateEntityDto,
 } from './types';
-import { normalizeIdentifier } from './identifier-normalization';
+import { normalizeIdentifier, MATCH_KINDS } from './identifier-normalization';
 
 @Injectable()
 export class EntitiesService {
@@ -104,6 +104,10 @@ export class EntitiesService {
   ): Promise<number[]> {
     const ids = new Set<number>();
     for (const c of candidates) {
+      // address (and any non-match kind) is stored but never a match key —
+      // exact-matching a postal address produces false merges. Enforce here so
+      // the policy holds regardless of what a caller passes.
+      if (!MATCH_KINDS.includes(c.kind as (typeof MATCH_KINDS)[number])) continue;
       const value = normalizeIdentifier(c.kind, c.value);
       if (value === null) continue;
       const rows = await this.db
@@ -123,6 +127,10 @@ export class EntitiesService {
    * normalized before write; identifiers that normalize to null are skipped).
    * All written identifiers are confirmed. Used by the AI intake path where the
    * anchoring identifier may be an email/phone rather than a registration key.
+   *
+   * NOTE: if every identifier normalizes to null the entity is created with NO
+   * identifiers, so the CALLER is responsible for ensuring at least one anchoring
+   * identifier is present when that matters.
    */
   async onboardWithIdentifiers(input: {
     role: 'supplier' | 'customer';
