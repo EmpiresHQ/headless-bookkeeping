@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  CategoryDef,
   CategoryMappingResult,
   CountryPlugin,
   CrossBorderResolution,
@@ -29,6 +30,31 @@ import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 export { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
 /**
+ * The single source of the Null plugin's category → account binding. Both
+ * resolveCategoryMapping() and getCategories() read from this map, so the two
+ * cannot diverge.
+ */
+const CATEGORY_ACCOUNTS: Readonly<Record<string, string>> = {
+  software: 'EXPENSE_SOFTWARE',
+  transport: 'EXPENSE_TRANSPORT',
+  travel: 'EXPENSE_TRAVEL',
+  marketing: 'EXPENSE_MARKETING',
+  salary: 'EXPENSE_SALARY',
+  contractor: 'EXPENSE_CONTRACTOR',
+  rent: 'EXPENSE_RENT',
+  tax: 'EXPENSE_TAX',
+  'bank fee': 'EXPENSE_BANK_FEE',
+  meals: 'EXPENSE_MEALS',
+  insurance: 'EXPENSE_INSURANCE',
+  education: 'EXPENSE_EDUCATION',
+};
+
+/** Title-cases a category key into a display label ("bank fee" → "Bank Fee"). */
+function labelFor(key: string): string {
+  return key.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * NullCountryPlugin - A stub implementation of CountryPlugin that returns safe defaults.
  *
  * Used as a fallback when no country-specific plugin is available or configured.
@@ -56,29 +82,19 @@ export class NullCountryPlugin implements CountryPlugin {
     _supplierFacts: SupplierFacts,
     _orgContext: OrgContext,
   ): CategoryMappingResult {
-    // Revenue branch
     if (category === 'revenue') {
       return { accountCode: 'REVENUE', vatCode: 'IE_OUTPUT_23' };
     }
-
-    // Expense categories mapped to seeded chart accounts + IE input VAT.
-    const expenseMap: Record<string, string> = {
-      software: 'EXPENSE_SOFTWARE',
-      transport: 'EXPENSE_TRANSPORT',
-      travel: 'EXPENSE_TRAVEL',
-      marketing: 'EXPENSE_MARKETING',
-      salary: 'EXPENSE_SALARY',
-      contractor: 'EXPENSE_CONTRACTOR',
-      rent: 'EXPENSE_RENT',
-      tax: 'EXPENSE_TAX',
-      'bank fee': 'EXPENSE_BANK_FEE',
-      meals: 'EXPENSE_MEALS',
-      insurance: 'EXPENSE_INSURANCE',
-      education: 'EXPENSE_EDUCATION',
-    };
-
-    const accountCode = expenseMap[category] ?? 'EXPENSE_OTHER';
+    const accountCode = CATEGORY_ACCOUNTS[category] ?? 'EXPENSE_OTHER';
     return { accountCode, vatCode: 'IE_INPUT_23' };
+  }
+
+  getCategories(): CategoryDef[] {
+    return Object.entries(CATEGORY_ACCOUNTS).map(([key, accountCode]) => ({
+      key,
+      label: labelFor(key),
+      accountCode,
+    }));
   }
 
   getPeriodFrequencyOptions(): string[] {

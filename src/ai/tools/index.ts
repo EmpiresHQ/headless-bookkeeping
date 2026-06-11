@@ -2,6 +2,7 @@ import { EntitiesService } from '../../entities/entities.service';
 import { ExpensesService } from '../../expenses/expenses.service';
 import { PluginLoader } from '../../plugins/plugin-loader.service';
 import { OrganizationService } from '../../organization/organization.service';
+import { CategoryService } from '../../categories/category.service';
 import {
   SupplierFacts,
   OrgContext,
@@ -17,22 +18,6 @@ import {
   getClassificationContextInputSchema,
   getClassificationContextOutputSchema,
 } from './tool-schemas';
-
-/**
- * Canonical categories exposed to the AI agent.
- * These are the user-facing labels that map to Accounts + VAT codes via the country plugin.
- */
-const CANONICAL_CATEGORIES = [
-  'software',
-  'transport',
-  'rent',
-  'meals',
-  'office',
-  'utilities',
-  'marketing',
-  'professional_services',
-  'other',
-];
 
 /**
  * Create the searchSuppliers tool.
@@ -80,18 +65,19 @@ export function createSearchSuppliersTool(entitiesService: EntitiesService) {
 }
 
 /**
- * Create the listCategories tool.
- * Returns the canonical set of user-facing expense categories.
+ * Create the listCategories tool. The active country plugin is the SOLE source
+ * of the category set (ADR-0002) — this reads it via CategoryService.
  */
-export function createListCategoriesTool() {
+export function createListCategoriesTool(categoryService: CategoryService) {
   return {
     id: 'listCategories',
     description:
       'List all available expense categories. These are user-facing labels that map to accounting accounts and VAT codes.',
     inputSchema: listCategoriesOutputSchema,
     outputSchema: listCategoriesOutputSchema,
-    execute: (): Promise<string[]> => {
-      return Promise.resolve(CANONICAL_CATEGORIES);
+    execute: async (): Promise<string[]> => {
+      const cats = await categoryService.list();
+      return cats.map((c) => c.key);
     },
   };
 }

@@ -60,6 +60,21 @@ export interface CategoryMappingResult {
 }
 
 /**
+ * CategoryDef - A user-facing expense category and its country-neutral account
+ * binding. The category → account binding is context-free (it is the
+ * chart-of-accounts binding); the VAT code is resolved separately by
+ * resolveCategoryMapping, which depends on supplier + org context.
+ */
+export interface CategoryDef {
+  /** Stable category key, stored as the `category` value (e.g. "software"). */
+  key: string;
+  /** Human-facing label for UI (e.g. "Software"). */
+  label: string;
+  /** Kernel account code this category books to (e.g. "EXPENSE_SOFTWARE"). */
+  accountCode: string;
+}
+
+/**
  * CrossBorderTreatment - The resolved VAT treatment for a cross-border transaction.
  *
  * Per ADR-0002, each country plugin encodes its own jurisdiction's view of cross-border
@@ -112,6 +127,14 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * Used for validation and UI dropdowns.
    */
   getVATCodes(): VATCode[];
+
+  /**
+   * Returns the set of valid EXPENSE categories for this country, each with its
+   * country-neutral account binding. Used for validation, the AI prompt/tool,
+   * and UI display. Mirrors getVATCodes(). Does NOT include 'revenue'
+   * (a sales/posting concept resolved by resolveCategoryMapping's own branch).
+   */
+  getCategories(): CategoryDef[];
 
   /**
    * Resolves a user-facing Category to a kernel Account + VAT code.

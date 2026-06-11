@@ -383,6 +383,37 @@ describe('IntakeWorkflowService', () => {
       expect(doc.status).toBe('needs_triage');
     });
 
+    it('routes to needs_triage when proposeDraft reports category-unresolved', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          kind: 'new_expense',
+          confidence: 0.97,
+          category: 'made-up-category',
+        }),
+      });
+      // proposeDraft performs the category guard and returns category-unresolved
+      // when the category is not in the active plugin's set (ADR-0002/0024).
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'category-unresolved',
+        reason: "new_expense has an unknown category 'made-up-category'",
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toContain('unknown category');
+      }
+      // proposeDraft WAS consulted (it owns the category guard) but produced no draft.
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledTimes(1);
+
+      // The Document moves to needs_triage — not triaged (no draft).
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
     it('calls OCR transcribe with the correct documentId', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({

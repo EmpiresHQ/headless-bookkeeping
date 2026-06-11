@@ -5,8 +5,10 @@ import {
   deleteExpense,
   correctExpense,
   fmtCents,
+  getCategories,
   type Expense,
   type CorrectionRequest,
+  type CategoryDef,
 } from '../api';
 import {
   Field,
@@ -40,6 +42,7 @@ export function ExpensesView() {
   const [form, setForm] = useState<NewExpense>(blank);
   const [correctId, setCorrectId] = useState<number | null>(null);
   const [correction, setCorrection] = useState<CorrectionDraft | null>(null);
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
 
   const load = () =>
     getExpenses()
@@ -48,6 +51,12 @@ export function ExpensesView() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    getCategories()
+      .then(setCategories)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -152,12 +161,19 @@ export function ExpensesView() {
         <h2 className="font-medium text-gray-700">Add expense</h2>
         <div className="flex flex-wrap items-end gap-2">
           <Field label="Category">
-            <input
+            <select
               aria-label="Category"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="border rounded px-2 py-1"
-            />
+            >
+              <option value="">— select —</option>
+              {categories.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Gross (€)">
             <input
@@ -244,6 +260,7 @@ export function ExpensesView() {
         <CorrectionForm
           draft={correction}
           busy={busy}
+          categories={categories}
           onChange={setCorrection}
           onCancel={() => {
             setCorrectId(null);

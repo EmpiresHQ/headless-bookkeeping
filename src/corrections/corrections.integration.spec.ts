@@ -24,6 +24,7 @@ import { CreditNotesService } from '../credit-notes/credit-notes.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { CorrectionsService } from './corrections.service';
 import { CorrectionRequest } from './types';
+import { CategoryService } from '../categories/category.service';
 
 describe('Corrections (integration)', () => {
   let db: Kysely<Database>;
@@ -70,6 +71,14 @@ describe('Corrections (integration)', () => {
         SalesInvoicesService,
         CreditNotesService,
         CorrectionsService,
+        {
+          provide: CategoryService,
+          useValue: {
+            list: () => Promise.resolve([]),
+            isValid: () => Promise.resolve(true),
+            assertValid: () => Promise.resolve(),
+          },
+        },
       ],
     }).compile();
 

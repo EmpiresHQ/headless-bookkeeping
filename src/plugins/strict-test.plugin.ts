@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  CategoryDef,
   CategoryMappingResult,
   OrgContext,
   SupplierFacts,
@@ -46,6 +47,17 @@ export class StrictTestPlugin extends NullCountryPlugin {
 
   override getVATCodes(): VATCode[] {
     return [...super.getVATCodes(), STRICT_REJECTED_VAT];
+  }
+
+  override getCategories(): CategoryDef[] {
+    return [
+      ...super.getCategories(),
+      {
+        key: STRICT_REJECTED_CATEGORY,
+        label: 'Strict Test Category',
+        accountCode: 'EXPENSE_OTHER',
+      },
+    ];
   }
 
   override resolveCategoryMapping(

@@ -9,6 +9,7 @@ import { Database } from '../database/types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
+import { CategoryService } from '../categories/category.service';
 import { Expense, CreateExpenseDto, ExpenseStatus } from './types';
 
 @Injectable()
@@ -17,9 +18,11 @@ export class ExpensesService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly projection: VoucherProjectionService,
     private readonly periodLock: PeriodLockService,
+    private readonly categoryService: CategoryService,
   ) {}
 
   async createExpense(dto: CreateExpenseDto): Promise<Expense> {
+    await this.categoryService.assertValid(dto.category);
     const now = Math.floor(Date.now() / 1000);
     const result = await this.db
       .insertInto('expense')
@@ -126,6 +129,9 @@ export class ExpensesService {
     expenseId: number,
     patch: { gross_amount?: number; vat_amount?: number; category?: string },
   ): Promise<DraftVoucher> {
+    if (patch.category !== undefined) {
+      await this.categoryService.assertValid(patch.category);
+    }
     const expense = await this.getExpenseById(expenseId);
     const patched: Expense = {
       ...expense,
@@ -231,6 +237,9 @@ export class ExpensesService {
       category?: string;
     },
   ): Promise<Expense> {
+    if (patch.category !== undefined) {
+      await this.categoryService.assertValid(patch.category);
+    }
     const expense = await this.getExpenseById(id);
     if (expense.status !== 'draft' && expense.status !== 'pending') {
       throw new Error(
@@ -279,6 +288,11 @@ export class ExpensesService {
     id: number,
     patch: { gross_amount?: number; vat_amount?: number; category?: string },
   ): Promise<void> {
+    // INVARIANT: patch.category is validated by the caller
+    // (previewPatchedDraft -> CategoryService.assertValid) BEFORE this
+    // transaction opens. Do not add an await here -- this runs inside the
+    // synchronous transaction callback, where the patch is applied to the
+    // 'expense' row below.
     const now = Math.floor(Date.now() / 1000);
     await trx
       .updateTable('expense')

@@ -234,6 +234,12 @@ export class IntakeWorkflowService {
             );
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
+          if (outcome.outcome === 'category-unresolved') {
+            this.logger.warn(
+              `new_expense for document ${documentId} has an unresolved category: ${outcome.reason}`,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason);
+          }
           await this.documents.setStatus(documentId, 'triaged');
           return { status: 'draft_proposed', draft: outcome };
         }

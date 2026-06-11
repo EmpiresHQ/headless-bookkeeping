@@ -106,6 +106,17 @@ export const getDocuments = () =>
     (r) => r.documents,
   );
 
+export interface CategoryDef {
+  key: string;
+  label: string;
+  accountCode: string;
+}
+
+export const getCategories = () =>
+  apiFetch<{ categories: CategoryDef[] }>('/api/categories').then(
+    (r) => r.categories,
+  );
+
 // ── Document debug (OCR + LLM classification) ─────────────────────────────
 export interface DebugTriageResult {
   kind: string;
