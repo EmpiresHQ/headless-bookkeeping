@@ -164,6 +164,7 @@ export class PostingPipelineService {
       params.businessObjectType,
       params.businessObjectId,
       params.requestedBy ?? 'system',
+      policyDecision.reason,
     );
     const businessObject = await params.refetch();
     return { businessObject, voucher: null, policy: policyDecision };
@@ -259,6 +260,7 @@ export class PostingPipelineService {
     type: 'expense' | 'sales_invoice',
     id: number,
     requestedBy: string,
+    policyReason: string,
   ): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
       await this.statusTransition.transition(trx, type, id, 'draft', 'pending');
@@ -272,6 +274,7 @@ export class PostingPipelineService {
           requested_by: requestedBy,
           approved_by: null,
           rejected_reason: null,
+          policy_reason: policyReason,
           superseded_by: null,
           created_at: Math.floor(Date.now() / 1000),
           resolved_at: null,

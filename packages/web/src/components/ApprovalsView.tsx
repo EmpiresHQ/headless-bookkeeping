@@ -24,6 +24,7 @@ const columns: Column<Approval>[] = [
   { header: 'ID', cell: (a) => a.id },
   { header: 'Object', cell: (a) => objectLabel(a) },
   { header: 'Requested by', cell: (a) => a.requested_by },
+  { header: 'Reason', cell: (a) => a.policy_reason ?? '—' },
 ];
 
 export function ApprovalsView() {

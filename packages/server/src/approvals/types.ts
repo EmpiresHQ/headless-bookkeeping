@@ -32,6 +32,7 @@ export interface Approval {
   requested_by: string;
   approved_by: string | null;
   rejected_reason: string | null;
+  policy_reason: string | null;
   superseded_by: number | null;
   created_at: number;
   resolved_at: number | null;

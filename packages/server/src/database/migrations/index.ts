@@ -39,6 +39,7 @@ import * as m039 from './039_add_document_pending_triage_result';
 import * as m040 from './040_add_reconciliation_match_status_signal';
 import * as m041 from './041_approval_object_type_reconciliation_match';
 import * as m042 from './042_add_reconciliation_match_fx_voucher_id';
+import * as m043 from './043_add_approval_policy_reason';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -81,4 +82,5 @@ export const migrations: Record<string, Migration> = {
   '040_add_reconciliation_match_status_signal': m040,
   '041_approval_object_type_reconciliation_match': m041,
   '042_add_reconciliation_match_fx_voucher_id': m042,
+  '043_add_approval_policy_reason': m043,
 };

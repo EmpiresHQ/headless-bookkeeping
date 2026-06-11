@@ -300,6 +300,7 @@ export interface ApprovalTable {
   requested_by: string;
   approved_by: string | null;
   rejected_reason: string | null;
+  policy_reason: string | null;
   // FK to the approval that superseded this one.
   superseded_by: number | null;
   created_at: number;

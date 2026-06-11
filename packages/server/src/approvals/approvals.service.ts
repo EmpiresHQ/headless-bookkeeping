@@ -103,6 +103,7 @@ export class ApprovalsService {
           object_id: dto.object_id,
           status: 'pending',
           requested_by: dto.requested_by,
+          policy_reason: dto.reason ?? null,
           created_at: now,
           resolved_at: null,
         })
@@ -477,6 +478,7 @@ export class ApprovalsService {
     requested_by: string;
     approved_by: string | null;
     rejected_reason: string | null;
+    policy_reason: string | null;
     superseded_by: number | null;
     created_at: number;
     resolved_at: number | null;
@@ -489,6 +491,7 @@ export class ApprovalsService {
       requested_by: row.requested_by,
       approved_by: row.approved_by,
       rejected_reason: row.rejected_reason,
+      policy_reason: row.policy_reason,
       superseded_by: row.superseded_by,
       created_at: row.created_at,
       resolved_at: row.resolved_at,
