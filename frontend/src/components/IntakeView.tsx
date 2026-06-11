@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   uploadDocument,
   getTriagePending,
@@ -8,6 +8,7 @@ import {
   type DocumentRow,
   type TriageOutcome,
 } from '../api';
+import { Table, type Column } from './Table';
 import { ResolveSupplierForm } from './ResolveSupplierForm';
 
 function outcomeLabel(o: TriageOutcome): string {
@@ -80,6 +81,34 @@ export function IntakeView() {
       await refresh();
     });
 
+  const pendingColumns: Column<DocumentRow>[] = [
+    { header: 'ID', cell: (d) => d.id },
+    { header: 'Filename', cell: (d) => d.filename },
+    {
+      header: 'Status',
+      cell: (d) => (
+        <>
+          {d.status}
+          {outcomes[d.id] && (
+            <span className="block text-gray-500">{outcomes[d.id]}</span>
+          )}
+        </>
+      ),
+    },
+  ];
+
+  const triageColumns: Column<DocumentRow>[] = [
+    { header: 'ID', cell: (d) => d.id },
+    { header: 'Filename', cell: (d) => d.filename },
+    {
+      header: 'Reason',
+      cell: (d) =>
+        outcomes[d.id] ?? (
+          <span className="text-gray-400">(click Why? to load)</span>
+        ),
+    },
+  ];
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -109,52 +138,30 @@ export function IntakeView() {
         {pending.length === 0 ? (
           <p className="text-sm text-gray-500">Nothing pending.</p>
         ) : (
-          <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left">
-                <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Filename</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Status</th>
-                <th className="px-3 py-2 font-medium text-gray-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending.map((d) => (
-                <tr key={d.id} className="border-b align-top">
-                  <td className="px-3 py-2">{d.id}</td>
-                  <td className="px-3 py-2">{d.filename}</td>
-                  <td className="px-3 py-2">
-                    {d.status}
-                    {outcomes[d.id] && (
-                      <span className="block text-gray-500">
-                        {outcomes[d.id]}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 space-x-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onTriage(d.id)}
-                      className="text-blue-600 hover:underline disabled:opacity-50"
-                    >
-                      Run triage
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onComplete(d.id)}
-                      className="text-gray-600 hover:underline disabled:opacity-50"
-                    >
-                      Complete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+          <Table
+            columns={pendingColumns}
+            rows={pending}
+            actions={(d) => (
+              <div className="space-x-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onTriage(d.id)}
+                  className="text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  Run triage
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onComplete(d.id)}
+                  className="text-gray-600 hover:underline disabled:opacity-50"
+                >
+                  Complete
+                </button>
+              </div>
+            )}
+          />
         )}
       </div>
 
@@ -168,79 +175,52 @@ export function IntakeView() {
         {needsTriage.length === 0 ? (
           <p className="text-sm text-gray-500">Nothing to triage.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left">
-                  <th className="px-3 py-2 font-medium text-gray-700">ID</th>
-                  <th className="px-3 py-2 font-medium text-gray-700">
-                    Filename
-                  </th>
-                  <th className="px-3 py-2 font-medium text-gray-700">Reason</th>
-                  <th className="px-3 py-2 font-medium text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {needsTriage.map((d) => (
-                  <Fragment key={d.id}>
-                    <tr className="border-b align-top">
-                      <td className="px-3 py-2">{d.id}</td>
-                      <td className="px-3 py-2">{d.filename}</td>
-                      <td className="px-3 py-2 text-gray-500">
-                        {outcomes[d.id] ?? (
-                          <span className="text-gray-400">
-                            (click Why? to load)
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 space-x-2 whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setResolvingId(d.id)}
-                          className="text-green-700 hover:underline disabled:opacity-50"
-                        >
-                          Resolve
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void onTriage(d.id)}
-                          className="text-blue-600 hover:underline disabled:opacity-50"
-                        >
-                          Why?
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void onComplete(d.id)}
-                          className="text-gray-600 hover:underline disabled:opacity-50"
-                        >
-                          Dismiss
-                        </button>
-                      </td>
-                    </tr>
-                    {resolvingId === d.id && (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-2">
-                          <ResolveSupplierForm
-                            documentId={d.id}
-                            onCancel={() => setResolvingId(null)}
-                            onDone={() => {
-                              setResolvingId(null);
-                              void refresh();
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <Table
+              columns={triageColumns}
+              rows={needsTriage}
+              actions={(d) => (
+                <div className="space-x-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setResolvingId(d.id)}
+                    className="text-green-700 hover:underline disabled:opacity-50"
+                  >
+                    Resolve
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onTriage(d.id)}
+                    className="text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    Why?
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onComplete(d.id)}
+                    className="text-gray-600 hover:underline disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            />
+            {resolvingId !== null && (
+              <div className="border rounded p-3 bg-gray-50">
+                <ResolveSupplierForm
+                  documentId={resolvingId}
+                  onCancel={() => setResolvingId(null)}
+                  onDone={() => {
+                    setResolvingId(null);
+                    void refresh();
+                  }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
