@@ -33,6 +33,10 @@ export function OrgView() {
         base_currency: org.base_currency?.trim()
           ? org.base_currency.trim()
           : null,
+        name: org.name?.trim() ? org.name.trim() : null,
+        vat_registration_number: org.vat_registration_number?.trim()
+          ? org.vat_registration_number.trim()
+          : null,
       });
       setOrg(saved);
       setSavedNote('Organization saved.');
@@ -93,6 +97,30 @@ export function OrgView() {
           onChange={(e) => setOrg({ ...org, vat_registered: e.target.checked })}
         />
         <span className="text-gray-700">VAT registered</span>
+      </label>
+
+      <label className="flex flex-col gap-1 sm:flex-row sm:items-center">
+        <span className="sm:w-48 text-gray-700">Name</span>
+        <input
+          aria-label="Organization name"
+          value={org.name ?? ''}
+          onChange={(e) => setOrg({ ...org, name: e.target.value })}
+          placeholder="e.g. Acme OÜ"
+          className="border rounded px-2 py-1 flex-1"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 sm:flex-row sm:items-center">
+        <span className="sm:w-48 text-gray-700">VAT reg. number</span>
+        <input
+          aria-label="VAT registration number"
+          value={org.vat_registration_number ?? ''}
+          onChange={(e) =>
+            setOrg({ ...org, vat_registration_number: e.target.value })
+          }
+          placeholder="e.g. EE123456789"
+          className="border rounded px-2 py-1 flex-1"
+        />
       </label>
 
       <label className="flex flex-col gap-1 sm:flex-row sm:items-center">

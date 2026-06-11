@@ -15,6 +15,8 @@ const baseOrg = {
   vat_registered: false,
   org_type: 'company',
   created_at: 0,
+  name: null,
+  vat_registration_number: null,
 };
 
 describe('OrgView', () => {
@@ -44,6 +46,8 @@ describe('OrgView', () => {
       org_type: 'company',
       vat_registered: true,
       base_currency: 'USD',
+      name: null,
+      vat_registration_number: null,
     });
   });
 
@@ -56,6 +60,27 @@ describe('OrgView', () => {
     expect(await screen.findByText('Organization saved.')).toBeInTheDocument();
     expect(api.updateOrganization).toHaveBeenCalledWith(
       expect.objectContaining({ base_currency: null }),
+    );
+  });
+
+  it('sends name and vat_registration_number when filled', async () => {
+    render(<OrgView />);
+
+    fireEvent.change(await screen.findByLabelText('Organization name'), {
+      target: { value: 'Acme OÜ' },
+    });
+    fireEvent.change(screen.getByLabelText('VAT registration number'), {
+      target: { value: 'EE123456789' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByText('Organization saved.')).toBeInTheDocument();
+    expect(api.updateOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Acme OÜ',
+        vat_registration_number: 'EE123456789',
+      }),
     );
   });
 });
