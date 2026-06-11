@@ -315,6 +315,45 @@ describe('DocumentsService (unit)', () => {
       expect(remainingArtifacts).toHaveLength(0);
     });
 
+    it('unlinks but preserves a real Telegram conversation', async () => {
+      const { document } = await upload();
+      const now = Math.floor(Date.now() / 1000);
+      const conv = await db
+        .insertInto('conversation')
+        .values({
+          channel: 'telegram',
+          thread_key: 'tg:123',
+          status: 'open',
+          created_at: now,
+          updated_at: now,
+          closed_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('conversation_document')
+        .values({ conversation_id: conv.id, document_id: document.id })
+        .execute();
+
+      await service.deleteDocument(document.id);
+
+      // The thread survives; only the document attachment is removed.
+      const survivingConv = await db
+        .selectFrom('conversation')
+        .selectAll()
+        .where('id', '=', conv.id)
+        .execute();
+      const remainingLinks = await db
+        .selectFrom('conversation_document')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(survivingConv).toHaveLength(1);
+      expect(remainingLinks).toHaveLength(0);
+    });
+  });
+
+  describe('pending triage result', () => {
     it('persists and clears a pending triage result on the document', async () => {
       const now = Math.floor(Date.now() / 1000);
       const doc = await db
@@ -358,41 +397,29 @@ describe('DocumentsService (unit)', () => {
       expect(await service.getPendingTriageResult(doc.id)).toBeNull();
     });
 
-    it('unlinks but preserves a real Telegram conversation', async () => {
-      const { document } = await upload();
+    it('throws when the stored blob is malformed', async () => {
       const now = Math.floor(Date.now() / 1000);
-      const conv = await db
-        .insertInto('conversation')
+      const doc = await db
+        .insertInto('document')
         .values({
-          channel: 'telegram',
-          thread_key: 'tg:123',
-          status: 'open',
+          hash: 'h-bad-blob',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
           created_at: now,
-          updated_at: now,
-          closed_at: null,
         })
-        .returning('id')
+        .returningAll()
         .executeTakeFirstOrThrow();
+
       await db
-        .insertInto('conversation_document')
-        .values({ conversation_id: conv.id, document_id: document.id })
+        .updateTable('document')
+        .set({ pending_triage_result: '{not valid triage}' })
+        .where('id', '=', doc.id)
         .execute();
 
-      await service.deleteDocument(document.id);
-
-      // The thread survives; only the document attachment is removed.
-      const survivingConv = await db
-        .selectFrom('conversation')
-        .selectAll()
-        .where('id', '=', conv.id)
-        .execute();
-      const remainingLinks = await db
-        .selectFrom('conversation_document')
-        .selectAll()
-        .where('document_id', '=', document.id)
-        .execute();
-      expect(survivingConv).toHaveLength(1);
-      expect(remainingLinks).toHaveLength(0);
+      await expect(service.getPendingTriageResult(doc.id)).rejects.toThrow();
     });
   });
 });
