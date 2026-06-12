@@ -342,6 +342,33 @@ export class IntakeWorkflowService {
       );
     }
 
+    // Teach the operator-chosen supplier the identifiers this document carried,
+    // so a later document with the same email/phone/reg auto-resolves instead of
+    // re-triaging (mirrors the auto-path's enrichment). No-ops on null fields.
+    const sp = triageResult.supplier_proposal;
+    if (sp?.mode === 'create') {
+      await this.entities.addIdentifierIfAbsent(
+        supplierEntityId,
+        'registration_key',
+        sp.create_registration_key ?? '',
+      );
+      await this.entities.addIdentifierIfAbsent(
+        supplierEntityId,
+        'email',
+        sp.create_email ?? '',
+      );
+      await this.entities.addIdentifierIfAbsent(
+        supplierEntityId,
+        'phone',
+        sp.create_phone ?? '',
+      );
+      await this.entities.addIdentifierIfAbsent(
+        supplierEntityId,
+        'address',
+        sp.create_address ?? '',
+      );
+    }
+
     // Explicit supplier id wins in resolveSupplier → a draft is produced and the
     // full posting pipeline runs (post/hold per policy), exactly as a confident
     // intake would.
