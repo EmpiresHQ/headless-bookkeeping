@@ -562,4 +562,165 @@ describe('Entity aggregate (integration)', () => {
       );
     });
   });
+
+  describe('mergeInto', () => {
+    it('reassigns expense references and deletes the duplicate', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const survivor = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly (survivor)',
+        registrationKey: 'US-SUR-1',
+      });
+      const duplicate = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly (dup)',
+        registrationKey: 'US-DUP-1',
+      });
+
+      // Insert an expense referencing the duplicate.
+      const expense = await db
+        .insertInto('expense')
+        .values({
+          supplier_id: duplicate.id,
+          category: 'software',
+          gross_amount: 10000,
+          vat_amount: 2500,
+          currency: 'EUR',
+          tax_point_date: '2025-01-15',
+          status: 'draft',
+          voucher_id: null,
+          document_id: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const result = await entitiesService.mergeInto(survivor.id, duplicate.id);
+
+      // Expense now points to the survivor.
+      const updatedExpense = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('id', '=', expense.id)
+        .executeTakeFirstOrThrow();
+      expect(updatedExpense.supplier_id).toBe(survivor.id);
+
+      // Duplicate entity is gone.
+      await expect(entitiesService.findById(duplicate.id)).rejects.toThrow(
+        /not found/i,
+      );
+
+      // Survivor is returned.
+      expect(result.id).toBe(survivor.id);
+    });
+
+    it('reassigns sales_invoice references and deletes the duplicate', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const survivor = await entitiesService.onboard({
+        role: 'customer',
+        country: 'DK',
+        name: 'ACME (survivor)',
+        registrationKey: 'DK-SUR-1',
+      });
+      const duplicate = await entitiesService.onboard({
+        role: 'customer',
+        country: 'DK',
+        name: 'ACME (dup)',
+        registrationKey: 'DK-DUP-1',
+      });
+
+      const inv = await db
+        .insertInto('sales_invoice')
+        .values({
+          customer_id: duplicate.id,
+          invoice_number: 'INV-MERGE-1',
+          gross_amount: 50000,
+          vat_amount: 10000,
+          currency: 'EUR',
+          tax_point_date: '2025-01-15',
+          due_date: '2025-02-15',
+          status: 'draft',
+          voucher_id: null,
+          sent_at: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await entitiesService.mergeInto(survivor.id, duplicate.id);
+
+      const updatedInv = await db
+        .selectFrom('sales_invoice')
+        .selectAll()
+        .where('id', '=', inv.id)
+        .executeTakeFirstOrThrow();
+      expect(updatedInv.customer_id).toBe(survivor.id);
+      await expect(entitiesService.findById(duplicate.id)).rejects.toThrow(
+        /not found/i,
+      );
+    });
+
+    it('moves identifiers from duplicate onto survivor, deduplicating on (kind, value)', async () => {
+      const survivor = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly (survivor)',
+        identifiers: [{ kind: 'email', value: 'help@anoma.ly' }],
+      });
+      const duplicate = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly (dup)',
+        identifiers: [
+          { kind: 'email', value: 'help@anoma.ly' }, // same → must not be duplicated
+          { kind: 'phone', value: '+1 555 0000' }, // unique → must be moved
+        ],
+      });
+
+      const result = await entitiesService.mergeInto(survivor.id, duplicate.id);
+
+      // Survivor should now have email + phone, no duplicates.
+      const kinds = result.identifiers.map((i) => i.kind).sort();
+      expect(kinds).toEqual(['email', 'phone']);
+
+      // Duplicate is gone.
+      await expect(entitiesService.findById(duplicate.id)).rejects.toThrow(
+        /not found/i,
+      );
+    });
+
+    it('rejects self-merge with BadRequestException', async () => {
+      const e = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Self',
+        registrationKey: 'US-SELF-1',
+      });
+      await expect(entitiesService.mergeInto(e.id, e.id)).rejects.toThrow(
+        /cannot merge/i,
+      );
+    });
+
+    it('rejects role mismatch with BadRequestException', async () => {
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Supplier',
+        registrationKey: 'US-SUP-1',
+      });
+      const customer = await entitiesService.onboard({
+        role: 'customer',
+        country: 'US',
+        name: 'Customer',
+        registrationKey: 'US-CUS-1',
+      });
+      await expect(
+        entitiesService.mergeInto(supplier.id, customer.id),
+      ).rejects.toThrow(/role/i);
+    });
+  });
 });
