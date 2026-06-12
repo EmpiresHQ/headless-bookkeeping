@@ -13,7 +13,32 @@
       "tax_point_date": { "type": "string", "description": "ISO date YYYY-MM-DD" },
       "category": { "type": "string" },
       "document_vat_marking": { "type": ["string", "null"] },
-      "confidence": { "type": "number" }
+      "confidence": { "type": "number" },
+      "supplier_proposal": {
+        "type": ["object", "null"],
+        "additionalProperties": false,
+        "description": "The supplier identity proposal. mode 'create' when no existing supplier is known (the only mode in this no-tools eval). Carry EVERY identifier the document prints; null for any it does not. NEVER fabricate a registration key.",
+        "properties": {
+          "mode": { "type": "string", "enum": ["match", "create"] },
+          "match_entity_id": { "type": ["integer", "null"] },
+          "create_name": { "type": ["string", "null"] },
+          "create_country": { "type": ["string", "null"], "description": "ISO 3166-1 alpha-2 country code" },
+          "create_registration_key": { "type": ["string", "null"], "description": "VAT / company registry number printed on the document — null if none is printed" },
+          "create_email": { "type": ["string", "null"] },
+          "create_phone": { "type": ["string", "null"] },
+          "create_address": { "type": ["string", "null"] }
+        },
+        "required": [
+          "mode",
+          "match_entity_id",
+          "create_name",
+          "create_country",
+          "create_registration_key",
+          "create_email",
+          "create_phone",
+          "create_address"
+        ]
+      }
     },
     "required": [
       "kind",
@@ -24,7 +49,8 @@
       "tax_point_date",
       "category",
       "document_vat_marking",
-      "confidence"
+      "confidence",
+      "supplier_proposal"
     ]
   }
 }
