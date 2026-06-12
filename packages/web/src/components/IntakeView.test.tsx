@@ -108,7 +108,7 @@ describe('IntakeView', () => {
     const filename = await screen.findByText('low-confidence.pdf');
     fireEvent.click(filename);
     expect(
-      await screen.findByText(/ai was not confident/i),
+      await screen.findByText(/manual classification/i),
     ).toBeInTheDocument();
   });
 
