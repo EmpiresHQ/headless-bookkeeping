@@ -155,3 +155,48 @@ export interface DocumentDebug {
     | { ok: false; category: string; detail: string }
     | null;
 }
+
+export type TriageReasonType =
+  | 'supplier_unresolved'
+  | 'low_confidence'
+  | 'category_unresolved'
+  | 'ocr_failed'
+  | 'unimplemented'
+  | 'unknown';
+
+export interface NeedsTriageItem {
+  id: number;
+  filename: string;
+  created_at: number;
+  reason: string;
+  reason_type: TriageReasonType;
+}
+
+export function classifyReasonType(description: string): TriageReasonType {
+  if (description.includes('supplier')) return 'supplier_unresolved';
+  if (description.includes('confidence') || description.includes('below threshold')) return 'low_confidence';
+  if (description.includes('unknown category')) return 'category_unresolved';
+  if (
+    description.includes('OCR') ||
+    description.includes('transcription') ||
+    description.includes('classification failed')
+  ) return 'ocr_failed';
+  if (description.includes('not yet implemented')) return 'unimplemented';
+  // 'AI could not classify the document' — the agent returned kind='unknown'.
+  // Treated as low_confidence: the human action is the same (manually classify).
+  if (description.includes('could not classify')) return 'low_confidence';
+  return 'unknown';
+}
+
+export const manualClassifySchema = z.object({
+  supplier_id: z.number().int().positive(),
+  category: z.string().min(1),
+  document_vat_marking: z.string().nullable(),
+  gross_amount: z.number().int().positive(),
+  vat_amount: z.number().int().min(0),
+  currency: z.string().length(3),
+  tax_point_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  supplier_invoice_number: z.string().nullable().optional(),
+});
+
+export class ManualClassifyDto extends createZodDto(manualClassifySchema) {}

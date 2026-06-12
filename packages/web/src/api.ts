@@ -372,6 +372,43 @@ export const completeDocument = (id: number) =>
     method: 'POST',
   });
 
+export interface NeedsTriageItem {
+  id: number;
+  filename: string;
+  created_at: number;
+  reason: string;
+  reason_type:
+    | 'supplier_unresolved'
+    | 'low_confidence'
+    | 'category_unresolved'
+    | 'ocr_failed'
+    | 'unimplemented'
+    | 'unknown';
+}
+
+export const getNeedsTriageItems = () =>
+  apiFetch<{ items: NeedsTriageItem[] }>('/api/triage/needs-triage').then(
+    (r) => r.items,
+  );
+
+export interface ManualClassifyBody {
+  supplier_id: number;
+  category: string;
+  document_vat_marking: string | null;
+  gross_amount: number; // minor units (cents)
+  vat_amount: number; // minor units (cents)
+  currency: string;
+  tax_point_date: string; // YYYY-MM-DD
+  supplier_invoice_number?: string | null;
+}
+
+export const manualClassify = (id: number, body: ManualClassifyBody) =>
+  apiFetch<TriageOutcome>(`/api/documents/${id}/manual-classify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
 export interface PendingDraft {
   document_id: number;
   reason: string;

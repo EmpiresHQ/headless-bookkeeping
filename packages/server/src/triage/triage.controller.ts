@@ -13,8 +13,10 @@ import { DocumentsService } from '../documents/documents.service';
 import {
   TriageOutcome,
   DocumentDebug,
+  ManualClassifyDto,
   PendingDraft,
   ResolveSupplierDto,
+  NeedsTriageItem,
 } from './types';
 
 @ApiTags('triage')
@@ -33,6 +35,12 @@ export class TriageController {
   @Get('api/documents/:id/debug')
   async debugDocument(@Param('id') id: string): Promise<DocumentDebug> {
     return this.triageService.debug(Number(id));
+  }
+
+  @Get('api/triage/needs-triage')
+  async getNeedsTriageItems(): Promise<{ items: NeedsTriageItem[] }> {
+    const items = await this.triageService.getNeedsTriageItems();
+    return { items };
   }
 
   @Get('api/triage/pending')
@@ -56,6 +64,14 @@ export class TriageController {
       Number(id),
       dto.supplier_entity_id,
     );
+  }
+
+  @Post('api/documents/:id/manual-classify')
+  async manualClassify(
+    @Param('id') id: string,
+    @Body() dto: ManualClassifyDto,
+  ): Promise<TriageOutcome> {
+    return this.triageService.manualClassify(Number(id), dto);
   }
 
   @Post('api/documents/:id/complete')

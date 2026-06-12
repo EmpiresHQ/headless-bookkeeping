@@ -322,6 +322,68 @@ export class ProposeDraftService {
   }
 
   /**
+   * Create an expense and run the posting pipeline from operator-supplied data,
+   * bypassing the AI classification passes. Used by the manual-classify endpoint
+   * when a human operator fills in all fields directly (no AI confidence gate).
+   */
+  async manualClassifyDraft(
+    documentId: number,
+    dto: {
+      supplier_id: number;
+      category: string;
+      document_vat_marking: string | null;
+      gross_amount: number;
+      vat_amount: number;
+      currency: string;
+      tax_point_date: string;
+      supplier_invoice_number?: string | null;
+    },
+  ): Promise<ProposeDraftResult> {
+    const createExpenseDto: CreateExpenseDto = {
+      document_id: documentId,
+      supplier_id: dto.supplier_id,
+      category: dto.category,
+      gross_amount: dto.gross_amount,
+      vat_amount: dto.vat_amount,
+      currency: dto.currency,
+      tax_point_date: dto.tax_point_date,
+      document_vat_marking: dto.document_vat_marking,
+      supplier_invoice_number: dto.supplier_invoice_number ?? null,
+    };
+
+    const expense = await this.expensesService.createExpense(createExpenseDto);
+
+    const pipelineResult = await this.postingPipelineService.runPipeline({
+      businessObjectId: expense.id,
+      businessObjectType: 'expense',
+      draftGenerator: () => this.expensesService.generateDraftVoucher(expense.id),
+      category: expense.category,
+      refetch: () => this.expensesService.getExpenseById(expense.id),
+      supplierKnown: true,
+      requestedBy: 'operator',
+      // confidence intentionally omitted: skip AI confidence gate for manual entry
+    });
+
+    // Construct a TriageResult-compatible provenance record for the audit row.
+    const provenanceResult: TriageResult = {
+      kind: 'new_expense',
+      gross_amount: dto.gross_amount,
+      vat_amount: dto.vat_amount,
+      tax_point_date: dto.tax_point_date,
+      category: dto.category,
+      supplier_proposal: { mode: 'match', match_entity_id: dto.supplier_id },
+      document_type: 'invoice',
+      currency: dto.currency,
+      document_vat_marking: dto.document_vat_marking,
+      supplier_invoice_number: dto.supplier_invoice_number ?? null,
+      confidence: 1.0,
+    };
+    await this.writeAiProvenance(expense.id, provenanceResult);
+
+    return { outcome: 'draft', expenseId: expense.id, pipelineResult };
+  }
+
+  /**
    * Find an Expense already drafted from a Document, if any. Used by the
    * IntakeWorkflowService idempotency guard to replay an already-triaged
    * Document's draft instead of creating a second one. Returns the lightweight
