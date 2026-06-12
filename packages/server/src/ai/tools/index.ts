@@ -3,6 +3,7 @@ import { ExpensesService } from '../../expenses/expenses.service';
 import { PluginLoader } from '../../plugins/plugin-loader.service';
 import { OrganizationService } from '../../organization/organization.service';
 import { CategoryService } from '../../categories/category.service';
+import { normalizeIdentifier } from '../../entities/identifier-normalization';
 import {
   SupplierFacts,
   OrgContext,
@@ -274,10 +275,15 @@ export function createGetClassificationContextTool(
 
       // 1. Resolve the Supplier on its strong registration key (ADR-0014 — never
       //    on name). No key, or no match → propose a new Supplier from evidence.
-      const matched = evidence.registrationKey
+      //    Normalize the key before lookup so the write-form (canonical) and the
+      //    lookup-form always agree (closes the cross-path duplicate gap).
+      const normalizedRegKey = evidence.registrationKey
+        ? normalizeIdentifier('registration_key', evidence.registrationKey)
+        : null;
+      const matched = normalizedRegKey
         ? await entitiesService.resolveByIdentifier(
             'registration_key',
-            evidence.registrationKey,
+            normalizedRegKey,
           )
         : undefined;
 

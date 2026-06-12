@@ -268,6 +268,30 @@ describe('getClassificationContext (composed deep read)', () => {
     spy.mockRestore();
   });
 
+  it('matches a Supplier when evidence.registrationKey differs only in spacing/case', async () => {
+    const supplier = await entitiesService.onboard({
+      role: 'supplier',
+      country: 'EE',
+      name: 'Estonian Co OÜ',
+      registrationKey: 'EE100200300',
+    });
+
+    const tool = createGetClassificationContextTool(
+      entitiesService,
+      expensesService,
+      pluginLoader,
+      organizationService,
+    );
+
+    const result = await tool.execute({
+      category: 'software',
+      evidence: { registrationKey: 'ee 100 200 300' },
+    });
+
+    expect(result.supplier.resolution).toBe('matched');
+    expect(result.supplier.matchEntityId).toBe(supplier.id);
+  });
+
   it('handles the empty-history case for a matched Supplier with no expenses', async () => {
     await entitiesService.onboard({
       role: 'supplier',

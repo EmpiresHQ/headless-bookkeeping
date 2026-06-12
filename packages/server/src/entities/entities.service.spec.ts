@@ -493,6 +493,30 @@ describe('Entity aggregate (integration)', () => {
     });
   });
 
+  describe('onboard normalizes the registration key', () => {
+    it('stores the registration key in canonical (normalized) form', async () => {
+      const s = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Spaced Reg OÜ',
+        registrationKey: '  ee 100 200 300 ',
+      });
+      const found = await entitiesService.findById(s.id);
+      const regs = found.identifiers.filter(
+        (i) => i.kind === 'registration_key',
+      );
+      expect(regs).toHaveLength(1);
+      expect(regs[0].value).toBe('EE100200300');
+
+      // And it is now matchable by the normalized form via the multi-key matcher.
+      expect(
+        await entitiesService.resolveByIdentifiers([
+          { kind: 'registration_key', value: 'EE100200300' },
+        ]),
+      ).toEqual([s.id]);
+    });
+  });
+
   describe('delete', () => {
     it('removes an unreferenced entity', async () => {
       const e = await entitiesService.onboard({

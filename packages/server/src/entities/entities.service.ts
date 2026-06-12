@@ -37,12 +37,16 @@ export class EntitiesService {
         .returningAll()
         .executeTakeFirstOrThrow();
 
+      const regKey = normalizeIdentifier(
+        'registration_key',
+        dto.registrationKey,
+      );
       await trx
         .insertInto('entity_identifier')
         .values({
           entity_id: row.id,
           kind: 'registration_key',
-          value: dto.registrationKey,
+          value: regKey ?? dto.registrationKey,
           confirmed: 1,
         })
         .execute();
