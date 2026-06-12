@@ -63,3 +63,9 @@ export const updateEntitySchema = z.object({
 });
 
 export class UpdateEntityDto extends createZodDto(updateEntitySchema) {}
+
+export const mergeEntitySchema = z.object({
+  duplicate_id: z.number().int().positive(),
+});
+
+export class MergeEntityDto extends createZodDto(mergeEntitySchema) {}

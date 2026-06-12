@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { EntitiesService } from './entities.service';
-import { OnboardEntityDto, AddAliasDto, UpdateEntityDto } from './types';
+import {
+  OnboardEntityDto,
+  AddAliasDto,
+  UpdateEntityDto,
+  MergeEntityDto,
+} from './types';
 import type { EntityWithIdentifiers, Entity, EntityIdentifier } from './types';
 
 @ApiTags('entities')
@@ -51,6 +56,15 @@ export class EntitiesController {
     @Body() dto: AddAliasDto,
   ): Promise<EntityIdentifier> {
     return this.entitiesService.addAlias(id, dto);
+  }
+
+  /** POST /api/entities/:survivorId/merge — merge a duplicate entity into the survivor. */
+  @Post(':survivorId/merge')
+  async merge(
+    @Param('survivorId', ParseIntPipe) survivorId: number,
+    @Body() dto: MergeEntityDto,
+  ): Promise<EntityWithIdentifiers> {
+    return this.entitiesService.mergeInto(survivorId, dto.duplicate_id);
   }
 
   /** DELETE /api/entities/:id — remove an unreferenced entity (cleanup). */

@@ -41,6 +41,7 @@ describe('IntakeWorkflowService', () => {
 
   const mockEntities = {
     findById: jest.fn(),
+    addIdentifierIfAbsent: jest.fn(),
   };
 
   const sampleTriageResult = (
@@ -118,6 +119,7 @@ describe('IntakeWorkflowService', () => {
     mockProposeDraft.proposeDraft.mockReset();
     mockProposeDraft.findExistingDraft.mockReset();
     mockEntities.findById.mockReset();
+    mockEntities.addIdentifierIfAbsent.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -125,6 +127,7 @@ describe('IntakeWorkflowService', () => {
       markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
     });
     mockProposeDraft.findExistingDraft.mockResolvedValue(undefined);
+    mockEntities.addIdentifierIfAbsent.mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
@@ -843,6 +846,62 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('draft_proposed');
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+    });
+
+    it('backfills create-proposal identifiers onto the operator-chosen supplier', async () => {
+      // Set up a document parked on supplier-unresolved with a create proposal
+      // that carries email and phone (and a null registration key).
+      const triageWithIdentifiers = sampleTriageResult({
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Anomaly Ltd',
+          create_country: 'IE',
+          create_registration_key: null,
+          create_email: 'help@anoma.ly',
+          create_phone: '+1 555 0000',
+          create_address: null,
+        },
+      });
+
+      const docId = await seedDocument();
+      await documentsService.setStatus(docId, 'needs_triage');
+      await documentsService.setPendingTriageResult(
+        docId,
+        triageWithIdentifiers,
+      );
+      await auditFindingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'supplier unresolved',
+        referenced_object_type: 'document',
+        referenced_object_id: docId,
+      });
+
+      const chosenSupplierId = 7;
+      mockEntities.findById.mockResolvedValue({
+        id: chosenSupplierId,
+        role: 'supplier',
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 99,
+        pipelineResult: {},
+      });
+
+      await service.resolveSupplier(docId, chosenSupplierId);
+
+      // The chosen supplier must be taught the identifiers this document carried,
+      // normalized: email stays as-is, phone is normalized to E.164.
+      expect(mockEntities.addIdentifierIfAbsent).toHaveBeenCalledWith(
+        chosenSupplierId,
+        'email',
+        'help@anoma.ly',
+      );
+      expect(mockEntities.addIdentifierIfAbsent).toHaveBeenCalledWith(
+        chosenSupplierId,
+        'phone',
+        '+1 555 0000',
+      );
     });
   });
 });

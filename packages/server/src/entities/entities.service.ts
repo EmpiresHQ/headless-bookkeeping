@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
@@ -37,12 +38,16 @@ export class EntitiesService {
         .returningAll()
         .executeTakeFirstOrThrow();
 
+      const regKey = normalizeIdentifier(
+        'registration_key',
+        dto.registrationKey,
+      );
       await trx
         .insertInto('entity_identifier')
         .values({
           entity_id: row.id,
           kind: 'registration_key',
-          value: dto.registrationKey,
+          value: regKey ?? dto.registrationKey,
           confirmed: 1,
         })
         .execute();
@@ -325,6 +330,106 @@ export class EntitiesService {
     const { identifiers: _ignore, ...entity } = found;
     void _ignore;
     return entity;
+  }
+
+  /**
+   * Merge `duplicateId` INTO `survivorId` and delete the duplicate.
+   *
+   * - Both entities must exist and share the same role.
+   * - `survivorId !== duplicateId` (else BadRequestException).
+   * - In a single transaction:
+   *   1. Reassigns expense.supplier_id and sales_invoice.customer_id from
+   *      duplicate → survivor.
+   *   2. Moves the duplicate's identifiers onto the survivor, skipping any
+   *      that the survivor already has (matched on kind + value).
+   *   3. Deletes the duplicate's identifiers, then the duplicate entity.
+   *   4. Bumps survivor updated_at.
+   * - Returns the updated survivor as EntityWithIdentifiers.
+   */
+  async mergeInto(
+    survivorId: number,
+    duplicateId: number,
+  ): Promise<EntityWithIdentifiers> {
+    if (survivorId === duplicateId) {
+      throw new BadRequestException(
+        `Cannot merge entity ${survivorId} into itself.`,
+      );
+    }
+
+    const survivor = await this.findById(survivorId); // 404s if absent
+    const duplicate = await this.findById(duplicateId); // 404s if absent
+
+    if (survivor.role !== duplicate.role) {
+      throw new BadRequestException(
+        `Role mismatch: survivor is '${survivor.role}' but duplicate is '${duplicate.role}'. Only entities with the same role can be merged.`,
+      );
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await this.db.transaction().execute(async (trx) => {
+      // 1. Reassign expense references (supplier).
+      await trx
+        .updateTable('expense')
+        .set({ supplier_id: survivorId })
+        .where('supplier_id', '=', duplicateId)
+        .execute();
+
+      // 2. Reassign sales_invoice references (customer).
+      await trx
+        .updateTable('sales_invoice')
+        .set({ customer_id: survivorId })
+        .where('customer_id', '=', duplicateId)
+        .execute();
+
+      // 3. Move identifiers from duplicate → survivor (skip already-present ones).
+      const dupIdentifiers = await trx
+        .selectFrom('entity_identifier')
+        .selectAll()
+        .where('entity_id', '=', duplicateId)
+        .execute();
+
+      for (const ident of dupIdentifiers) {
+        const already = await trx
+          .selectFrom('entity_identifier')
+          .select('id')
+          .where('entity_id', '=', survivorId)
+          .where('kind', '=', ident.kind)
+          .where('value', '=', ident.value)
+          .limit(1)
+          .executeTakeFirst();
+
+        if (!already) {
+          await trx
+            .insertInto('entity_identifier')
+            .values({
+              entity_id: survivorId,
+              kind: ident.kind,
+              value: ident.value,
+              confirmed: ident.confirmed,
+            })
+            .execute();
+        }
+      }
+
+      // 4. Delete duplicate's identifiers (explicit; CASCADE would also handle it).
+      await trx
+        .deleteFrom('entity_identifier')
+        .where('entity_id', '=', duplicateId)
+        .execute();
+
+      // 5. Delete the duplicate entity.
+      await trx.deleteFrom('entity').where('id', '=', duplicateId).execute();
+
+      // 6. Bump survivor updated_at.
+      await trx
+        .updateTable('entity')
+        .set({ updated_at: now })
+        .where('id', '=', survivorId)
+        .execute();
+    });
+
+    return this.findById(survivorId);
   }
 
   async list(): Promise<Entity[]> {
