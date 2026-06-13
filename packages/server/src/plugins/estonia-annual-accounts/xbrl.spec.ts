@@ -1,22 +1,43 @@
 import { renderAnnualAccountsXbrl } from './xbrl';
 import type { AnnualAccountsInput } from '../annual-accounts.types';
 
-function baseInput(over: Partial<AnnualAccountsInput> = {}): AnnualAccountsInput {
+function baseInput(
+  over: Partial<AnnualAccountsInput> = {},
+): AnnualAccountsInput {
   return {
     period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },
-    priorPeriod: { name: '2025', startDate: '2025-01-01', endDate: '2025-12-31' },
+    priorPeriod: {
+      name: '2025',
+      startDate: '2025-01-01',
+      endDate: '2025-12-31',
+    },
     mode: 'draft',
     balances: [
       { code: 'BANK_EUR', type: 'asset', current: 30000, prior: 10000 },
       { code: 'AR', type: 'asset', current: 5000, prior: 2000 },
-      { code: 'FIXED_ASSETS_VEHICLES', type: 'asset', current: 20000, prior: 20000 },
-      { code: 'ACCUM_DEPRECIATION_VEHICLES', type: 'asset', current: -4000, prior: -2000 },
+      {
+        code: 'FIXED_ASSETS_VEHICLES',
+        type: 'asset',
+        current: 20000,
+        prior: 20000,
+      },
+      {
+        code: 'ACCUM_DEPRECIATION_VEHICLES',
+        type: 'asset',
+        current: -4000,
+        prior: -2000,
+      },
       { code: 'AP', type: 'liability', current: 8000, prior: 3000 },
       { code: 'EQUITY', type: 'equity', current: 2500, prior: 2500 },
       { code: 'RETAINED_EARNINGS', type: 'equity', current: 24500, prior: 0 },
       { code: 'REVENUE', type: 'revenue', current: 60000, prior: 30000 },
       { code: 'EXPENSE_OTHER', type: 'expense', current: 42000, prior: 6000 },
-      { code: 'DEPRECIATION_EXPENSE', type: 'expense', current: 2000, prior: 2000 },
+      {
+        code: 'DEPRECIATION_EXPENSE',
+        type: 'expense',
+        current: 2000,
+        prior: 2000,
+      },
     ],
     fixedAssets: [
       { id: 1, assetClass: 'vehicle', costMinor: 20000, retired: false },
@@ -36,7 +57,9 @@ function baseInput(over: Partial<AnnualAccountsInput> = {}): AnnualAccountsInput
 
 describe('renderAnnualAccountsXbrl', () => {
   it('emits a 2026-pinned XBRL document with two comparative contexts', () => {
-    const xbrl = renderAnnualAccountsXbrl(baseInput(), { taxonomyVersion: 2026 });
+    const xbrl = renderAnnualAccountsXbrl(baseInput(), {
+      taxonomyVersion: 2026,
+    });
     expect(xbrl).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xbrl).toContain('xmlns:ee-rtj="http://www.eesti.ee/xbrl/rtj/2026"');
     // Two period contexts, current + prior.
@@ -49,7 +72,9 @@ describe('renderAnnualAccountsXbrl', () => {
   });
 
   it('reports the current and prior facts for a balance-sheet line', () => {
-    const xbrl = renderAnnualAccountsXbrl(baseInput(), { taxonomyVersion: 2026 });
+    const xbrl = renderAnnualAccountsXbrl(baseInput(), {
+      taxonomyVersion: 2026,
+    });
     // Cash 30000 current / 10000 prior, tagged with the right context.
     expect(xbrl).toContain(
       '<ee-rtj:CashAndCashEquivalents contextRef="C-2026" unitRef="EUR" decimals="-2">30000</ee-rtj:CashAndCashEquivalents>',
@@ -64,7 +89,9 @@ describe('renderAnnualAccountsXbrl', () => {
   });
 
   it('equity is three live lines: capital, brought-forward retained, period result', () => {
-    const xbrl = renderAnnualAccountsXbrl(baseInput(), { taxonomyVersion: 2026 });
+    const xbrl = renderAnnualAccountsXbrl(baseInput(), {
+      taxonomyVersion: 2026,
+    });
     expect(xbrl).toContain(
       '<ee-rtj:IssuedCapital contextRef="C-2026" unitRef="EUR" decimals="-2">2500</ee-rtj:IssuedCapital>',
     );
@@ -77,7 +104,9 @@ describe('renderAnnualAccountsXbrl', () => {
   });
 
   it('calculation-linkbase semantics: Aktiva = Kohustused + Omakapital', () => {
-    const xbrl = renderAnnualAccountsXbrl(baseInput(), { taxonomyVersion: 2026 });
+    const xbrl = renderAnnualAccountsXbrl(baseInput(), {
+      taxonomyVersion: 2026,
+    });
     // Total assets = cash 30000 + receivables 5000 + tangible 16000 = 51000.
     expect(xbrl).toContain(
       '<ee-rtj:TotalAssets contextRef="C-2026" unitRef="EUR" decimals="-2">51000</ee-rtj:TotalAssets>',
@@ -89,7 +118,9 @@ describe('renderAnnualAccountsXbrl', () => {
   });
 
   it('income statement totals: profit for period = revenue − expenses', () => {
-    const xbrl = renderAnnualAccountsXbrl(baseInput(), { taxonomyVersion: 2026 });
+    const xbrl = renderAnnualAccountsXbrl(baseInput(), {
+      taxonomyVersion: 2026,
+    });
     // Revenue 60000 − (otherOp 42000 + depreciation 2000) = 16000.
     expect(xbrl).toContain(
       '<ee-rtj:Revenue contextRef="C-2026" unitRef="EUR" decimals="-2">60000</ee-rtj:Revenue>',

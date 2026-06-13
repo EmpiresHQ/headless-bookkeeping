@@ -35,13 +35,19 @@ describe('AnnualAccountsController', () => {
     } as unknown as import('express').Response;
     await controller.download(7, res);
     expect(service.generate).toHaveBeenCalledWith(7);
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/xml');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      'application/xml',
+    );
     expect(res.send).toHaveBeenCalledWith('<xbrli:xbrl/>');
   });
 
   it('GET throws when no artifact is produced (Null plugin / unsupported)', async () => {
     service.generate.mockResolvedValue({ artifacts: [], warnings: [] });
-    const res = { setHeader: jest.fn(), send: jest.fn() } as unknown as import('express').Response;
+    const res = {
+      setHeader: jest.fn(),
+      send: jest.fn(),
+    } as unknown as import('express').Response;
     await expect(controller.download(7, res)).rejects.toThrow(
       /no annual-accounts/i,
     );

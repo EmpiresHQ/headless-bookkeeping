@@ -86,19 +86,30 @@ export function renderAnnualAccountsXbrl(
     out.push('  ' + fact(def.concept, current, t.current));
     out.push('  ' + fact(def.concept, prior, t.prior));
   }
-  const totalAssetsCurrent = bsAssetIds.reduce((s, id) => s + get(id).current, 0);
+  const totalAssetsCurrent = bsAssetIds.reduce(
+    (s, id) => s + get(id).current,
+    0,
+  );
   const totalAssetsPrior = bsAssetIds.reduce((s, id) => s + get(id).prior, 0);
   out.push('  ' + fact('ee-rtj:TotalAssets', current, totalAssetsCurrent));
   out.push('  ' + fact('ee-rtj:TotalAssets', prior, totalAssetsPrior));
 
   // Liabilities.
   const payables = get('payablesAndPrepayments');
-  out.push('  ' + fact(RTJ_LINES.payablesAndPrepayments.concept, current, payables.current));
-  out.push('  ' + fact(RTJ_LINES.payablesAndPrepayments.concept, prior, payables.prior));
+  out.push(
+    '  ' +
+      fact(RTJ_LINES.payablesAndPrepayments.concept, current, payables.current),
+  );
+  out.push(
+    '  ' +
+      fact(RTJ_LINES.payablesAndPrepayments.concept, prior, payables.prior),
+  );
 
   // Equity — three live lines.
   const capital = get('issuedCapital');
-  out.push('  ' + fact(RTJ_LINES.issuedCapital.concept, current, capital.current));
+  out.push(
+    '  ' + fact(RTJ_LINES.issuedCapital.concept, current, capital.current),
+  );
   out.push('  ' + fact(RTJ_LINES.issuedCapital.concept, prior, capital.prior));
   out.push(
     '  ' +
@@ -118,9 +129,12 @@ export function renderAnnualAccountsXbrl(
       ),
   );
   out.push(
-    '  ' + fact(RTJ_LINES.profitForPeriod.concept, current, input.periodNetIncome),
+    '  ' +
+      fact(RTJ_LINES.profitForPeriod.concept, current, input.periodNetIncome),
   );
-  out.push('  ' + fact(RTJ_LINES.profitForPeriod.concept, prior, input.priorNetIncome));
+  out.push(
+    '  ' + fact(RTJ_LINES.profitForPeriod.concept, prior, input.priorNetIncome),
+  );
 
   const totalEqLiabCurrent =
     payables.current +
@@ -133,14 +147,20 @@ export function renderAnnualAccountsXbrl(
     (get('retainedEarnings').prior - input.priorNetIncome) +
     input.priorNetIncome;
   out.push(
-    '  ' + fact('ee-rtj:TotalEquityAndLiabilities', current, totalEqLiabCurrent),
+    '  ' +
+      fact('ee-rtj:TotalEquityAndLiabilities', current, totalEqLiabCurrent),
   );
   out.push(
     '  ' + fact('ee-rtj:TotalEquityAndLiabilities', prior, totalEqLiabPrior),
   );
 
   // ── Income statement facts (skeem 1) ──
-  const isIds = ['revenue', 'labourExpense', 'otherOperatingExpenses', 'depreciation'];
+  const isIds = [
+    'revenue',
+    'labourExpense',
+    'otherOperatingExpenses',
+    'depreciation',
+  ];
   for (const id of isIds) {
     const def = RTJ_LINES[id];
     const t = get(id);
@@ -149,7 +169,8 @@ export function renderAnnualAccountsXbrl(
   }
   // Profit for period mirrors the equity line (same fact, income-statement total).
   out.push(
-    '  ' + fact(RTJ_LINES.profitForPeriod.concept, current, input.periodNetIncome),
+    '  ' +
+      fact(RTJ_LINES.profitForPeriod.concept, current, input.periodNetIncome),
   );
 
   out.push('</xbrli:xbrl>');

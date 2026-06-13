@@ -190,6 +190,8 @@ export function rollUpLines(balances: AccountBalanceRow[]): RtjLineTotal[] {
 /** Codes whose current OR prior balance is nonzero but map to no RTJ line. */
 export function unmappedNonzeroCodes(balances: AccountBalanceRow[]): string[] {
   return balances
-    .filter((b) => !ACCOUNT_TO_LINE[b.code] && (b.current !== 0 || b.prior !== 0))
+    .filter(
+      (b) => !ACCOUNT_TO_LINE[b.code] && (b.current !== 0 || b.prior !== 0),
+    )
     .map((b) => b.code);
 }

@@ -110,7 +110,9 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
       retainedEarningsBroughtForward: 0,
       declarant: { regNumber: null, name: null },
     };
-    const result = plugin.generateAnnualAccounts(input, { taxonomyVersion: 2026 });
+    const result = plugin.generateAnnualAccounts(input, {
+      taxonomyVersion: 2026,
+    });
     expect(result).toEqual({ artifacts: [], warnings: [] });
   });
 

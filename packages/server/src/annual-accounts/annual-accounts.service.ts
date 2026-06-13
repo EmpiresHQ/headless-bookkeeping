@@ -79,8 +79,13 @@ export class AnnualAccountsService {
   ) {}
 
   async generate(periodId: number): Promise<AnnualAccountsResult> {
-    const { input, plugin, diagnostics } = await this.assemble(periodId, 'draft');
-    const result = plugin.generateAnnualAccounts(input, { taxonomyVersion: 2026 });
+    const { input, plugin, diagnostics } = await this.assemble(
+      periodId,
+      'draft',
+    );
+    const result = plugin.generateAnnualAccounts(input, {
+      taxonomyVersion: 2026,
+    });
     return {
       artifacts: result.artifacts,
       warnings: [...diagnostics, ...result.warnings],
@@ -154,7 +159,9 @@ export class AnnualAccountsService {
       (w) => w.code === 'unmapped_nonzero_account',
     );
     if (blocking.length > 0 || unmapped.length > 0) {
-      const reasons = [...blocking, ...unmapped].map((w) => w.message).join('; ');
+      const reasons = [...blocking, ...unmapped]
+        .map((w) => w.message)
+        .join('; ');
       throw new BadRequestException(
         `Cannot finalize annual accounts: ${reasons}`,
       );
@@ -210,7 +217,9 @@ export class AnnualAccountsService {
           })),
         ],
       };
-      await this.postingService.postVoucher(draft, { kind: 'system-generated' });
+      await this.postingService.postVoucher(draft, {
+        kind: 'system-generated',
+      });
     }
 
     // Lock the year (idempotent; generates the VAT snapshot + flips status).
@@ -335,7 +344,12 @@ export class AnnualAccountsService {
     //   Dr DEPRECIATION_EXPENSE (debit-normal +), Cr ACCUM_DEPRECIATION_* (asset, −).
     const totalCharge = charges.reduce((s, c) => s + c.chargeMinor, 0);
     if (totalCharge !== 0) {
-      this.addToBalance(balances, 'DEPRECIATION_EXPENSE', 'expense', totalCharge);
+      this.addToBalance(
+        balances,
+        'DEPRECIATION_EXPENSE',
+        'expense',
+        totalCharge,
+      );
       for (const c of charges) {
         // Contra-asset: a credit reduces the normal-side-positive asset balance.
         this.addToBalance(
@@ -369,7 +383,11 @@ export class AnnualAccountsService {
         endDate: period.end_date,
       },
       priorPeriod: prior
-        ? { name: prior.name, startDate: prior.start_date, endDate: prior.end_date }
+        ? {
+            name: prior.name,
+            startDate: prior.start_date,
+            endDate: prior.end_date,
+          }
         : null,
       mode,
       balances,
@@ -519,8 +537,8 @@ export class AnnualAccountsService {
     //    the FIXED_ASSETS_* ledger balance per class.
     const ledgerByClass: Record<string, number> = {
       vehicle:
-        input.balances.find((b) => b.code === 'FIXED_ASSETS_VEHICLES')?.current ??
-        0,
+        input.balances.find((b) => b.code === 'FIXED_ASSETS_VEHICLES')
+          ?.current ?? 0,
       it_equipment:
         input.balances.find((b) => b.code === 'FIXED_ASSETS_IT')?.current ?? 0,
       machinery:

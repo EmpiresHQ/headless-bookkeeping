@@ -65,13 +65,16 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
 
     // Organization: EE so the Estonia plugin renders. Migration 001 seeds the
     // singleton org row (id = 1), so update it rather than insert a second.
@@ -96,8 +99,21 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
     await db
       .insertInto('reporting_period')
       .values([
-        { name: '2025', start_date: '2025-01-01', end_date: '2025-12-31', status: 'locked', filed_at: 1, created_at: 1 } as never,
-        { name: '2026', start_date: '2026-01-01', end_date: '2026-12-31', status: 'open', created_at: 1 } as never,
+        {
+          name: '2025',
+          start_date: '2025-01-01',
+          end_date: '2025-12-31',
+          status: 'locked',
+          filed_at: 1,
+          created_at: 1,
+        } as never,
+        {
+          name: '2026',
+          start_date: '2026-01-01',
+          end_date: '2026-12-31',
+          status: 'open',
+          created_at: 1,
+        } as never,
       ])
       .execute();
 
@@ -353,7 +369,9 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
     ]);
     const id = await periodId('2026');
     await service.finalize(id);
-    await expect(service.finalize(id)).rejects.toThrow(/already.*final|locked/i);
+    await expect(service.finalize(id)).rejects.toThrow(
+      /already.*final|locked/i,
+    );
   });
 
   it('does not double-post depreciation when an earlier finalize posted but lock failed (filing-order)', async () => {
@@ -410,7 +428,9 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
 
     // First finalize: lock fails (2025 still open) ⇒ throws AND, with the fix,
     // posts ZERO partial state (precondition checked before posting).
-    await expect(service.finalize(id)).rejects.toThrow(/earlier period.*still open/i);
+    await expect(service.finalize(id)).rejects.toThrow(
+      /earlier period.*still open/i,
+    );
     expect(await countDepLines()).toBe(0);
     const afterFirst = await db
       .selectFrom('reporting_period')
@@ -468,9 +488,11 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       { code: 'EQUITY', isDebit: false, base: 2500 },
     ]);
     const id = await periodId('2026');
-    jest.spyOn(service as never as { diagnose: () => unknown }, 'diagnose').mockReturnValueOnce([
-      { code: 'balance_sheet_imbalance', message: 'x', severity: 'block' },
-    ] as never);
+    jest
+      .spyOn(service as never as { diagnose: () => unknown }, 'diagnose')
+      .mockReturnValueOnce([
+        { code: 'balance_sheet_imbalance', message: 'x', severity: 'block' },
+      ] as never);
     await expect(service.finalize(id)).rejects.toThrow(BadRequestException);
     // And nothing got locked.
     const period = await db

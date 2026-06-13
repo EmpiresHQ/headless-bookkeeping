@@ -10,7 +10,9 @@ describe('Estonia RTJ mapping', () => {
   it('maps the core neutral accounts to RTJ lines', () => {
     expect(ACCOUNT_TO_LINE['BANK_EUR']).toBe('cashAndBankAccounts');
     expect(ACCOUNT_TO_LINE['AR']).toBe('receivablesAndPrepayments');
-    expect(ACCOUNT_TO_LINE['FIXED_ASSETS_VEHICLES']).toBe('tangibleFixedAssets');
+    expect(ACCOUNT_TO_LINE['FIXED_ASSETS_VEHICLES']).toBe(
+      'tangibleFixedAssets',
+    );
     expect(ACCOUNT_TO_LINE['ACCUM_DEPRECIATION_VEHICLES']).toBe(
       'tangibleFixedAssets',
     );
@@ -48,8 +50,18 @@ describe('Estonia RTJ mapping', () => {
 
   it('contra-accumulated-depreciation reduces the tangible-fixed-asset line', () => {
     const balances: AccountBalanceRow[] = [
-      { code: 'FIXED_ASSETS_VEHICLES', type: 'asset', current: 20000, prior: 20000 },
-      { code: 'ACCUM_DEPRECIATION_VEHICLES', type: 'asset', current: -4000, prior: -2000 },
+      {
+        code: 'FIXED_ASSETS_VEHICLES',
+        type: 'asset',
+        current: 20000,
+        prior: 20000,
+      },
+      {
+        code: 'ACCUM_DEPRECIATION_VEHICLES',
+        type: 'asset',
+        current: -4000,
+        prior: -2000,
+      },
     ];
     const lines = rollUpLines(balances);
     const tfa = lines.find((l) => l.id === 'tangibleFixedAssets')!;
