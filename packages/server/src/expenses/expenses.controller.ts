@@ -10,6 +10,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
+import { FixedAssetRegistrarService } from '../fixed-assets/fixed-asset-registrar.service';
 import { CreateExpenseDto, PostOverrideDto } from './types';
 import type { Expense } from './types';
 import type { DraftVoucher } from '../ledger/voucher/types';
@@ -20,6 +21,7 @@ export class ExpensesController {
   constructor(
     private readonly expensesService: ExpensesService,
     private readonly pipeline: PostingPipelineService,
+    private readonly registrar: FixedAssetRegistrarService,
   ) {}
 
   @Post()
@@ -85,6 +87,8 @@ export class ExpensesController {
         override?.ruleType && override?.reason
           ? { ruleType: override.ruleType, reason: override.reason }
           : undefined,
+      afterPost: (trx, voucher) =>
+        this.registrar.registerFromVoucher(trx, voucher, expenseId),
     });
 
     // Preserve original API response shape

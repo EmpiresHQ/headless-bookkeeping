@@ -17,6 +17,9 @@ export interface Expense {
   voucher_id: number | null;
   document_vat_marking: string | null;
   supplier_invoice_number: string | null;
+  asset_name: string | null;
+  asset_useful_life_years: number | null;
+  asset_residual_value_minor: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -31,6 +34,9 @@ export const createExpenseSchema = z.object({
   tax_point_date: z.string(),
   document_vat_marking: z.string().nullable().optional(),
   supplier_invoice_number: z.string().nullable().optional(),
+  asset_name: z.string().nullable().optional(),
+  asset_useful_life_years: z.number().int().positive().nullable().optional(),
+  asset_residual_value_minor: z.number().int().nonnegative().nullable().optional(),
 });
 
 export class CreateExpenseDto extends createZodDto(createExpenseSchema) {}

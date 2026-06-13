@@ -36,6 +36,9 @@ export class ExpensesService {
         tax_point_date: dto.tax_point_date,
         document_vat_marking: dto.document_vat_marking ?? null,
         supplier_invoice_number: dto.supplier_invoice_number ?? null,
+        asset_name: dto.asset_name ?? null,
+        asset_useful_life_years: dto.asset_useful_life_years ?? null,
+        asset_residual_value_minor: dto.asset_residual_value_minor ?? null,
         status: 'draft',
         voucher_id: null,
         created_at: now,
@@ -335,6 +338,9 @@ export class ExpensesService {
     voucher_id: number | null;
     document_vat_marking: string | null;
     supplier_invoice_number: string | null;
+    asset_name: string | null;
+    asset_useful_life_years: number | null;
+    asset_residual_value_minor: number | null;
     created_at: number;
     updated_at: number;
   }): Expense {
@@ -351,6 +357,9 @@ export class ExpensesService {
       voucher_id: row.voucher_id,
       document_vat_marking: row.document_vat_marking,
       supplier_invoice_number: row.supplier_invoice_number,
+      asset_name: row.asset_name,
+      asset_useful_life_years: row.asset_useful_life_years,
+      asset_residual_value_minor: row.asset_residual_value_minor,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
