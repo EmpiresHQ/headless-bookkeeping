@@ -15,8 +15,16 @@ import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EntitiesService } from '../entities/entities.service';
+import { OrganizationService } from '../organization/organization.service';
 import { AuditFinding } from '../audit-findings/types';
-import { DocumentDebug, ManualClassifyDto, PendingDraft } from '../triage/types';
+import {
+  DocumentDebug,
+  ManualClassifyDto,
+  PendingDraft,
+  TriageResult,
+} from '../triage/types';
+import { matchesOrgIban } from '../intake/iban-match';
+import { classifyDocumentClass } from '../intake/document-class';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -105,6 +113,7 @@ export class IntakeWorkflowService {
     private readonly policyService: PolicyService,
     private readonly documents: DocumentsService,
     private readonly entities: EntitiesService,
+    private readonly organizationService: OrganizationService,
   ) {}
 
   /**
@@ -181,8 +190,22 @@ export class IntakeWorkflowService {
       const markdown = ocr.markdown;
       this.logger.debug(`Pass 1 complete for document ${documentId}`);
 
+      // ── Org identity + deterministic direction gate ────────────
+      // Computed BEFORE Pass 2 so the agent can extract direction-appropriate
+      // fields. The IBAN match alone decides direction; the agent's
+      // outgoing_signals are confidence inputs only (ADR-0024).
+      const org = await this.organizationService.getOrganization();
+      const ibanMatched = matchesOrgIban(markdown, org.iban);
+
       // ── Pass 2: Agent → TriageResult | typed failure ────────────
-      const pass2 = await this.pass2Agent.classify(markdown);
+      const pass2 = await this.pass2Agent.classify(markdown, {
+        orgContext: {
+          iban: org.iban,
+          name: org.name,
+          vatNumber: org.vat_registration_number,
+        },
+        directionHint: ibanMatched ? 'outgoing' : 'incoming',
+      });
 
       if (!pass2.ok) {
         // Bounded-retry exhausted / agent unavailable → needs_triage, but with
@@ -202,98 +225,139 @@ export class IntakeWorkflowService {
         `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
       );
 
-      // ── Deterministic routing — the ONE place that decides ──────
-      const threshold = (await this.policyService.getConfig())
-        .auto_post_min_confidence;
+      // ── Deterministic document-class routing — the ONE place ────
+      // Direction + document type decide WHICH intake route owns this document.
+      // The expense path is unchanged; sales/bank/unsupported routes are parked
+      // pending later tasks.
+      const documentClass = classifyDocumentClass({
+        documentType: triageResult.document_type,
+        ibanMatched,
+      });
 
-      // Capture the discriminant up front: in the exhaustive `default` branch
-      // `triageResult` narrows to `never`, so the unexpected value has to be read
-      // from a variable widened to `string` rather than the narrowed local.
-      const triageKind: string = triageResult.kind;
-
-      switch (triageResult.kind) {
-        case 'new_expense':
-          if (triageResult.confidence >= threshold) {
-            this.logger.log(
-              `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
-            );
-            // proposeDraft trusts this validated, already-routed new_expense. It
-            // performs the EXPLICIT supplier-proposal → Supplier resolution: a
-            // 'create' proposal cannot yet produce a draft (Task 43), so it
-            // returns `supplier-unresolved` and we route to needs_triage rather
-            // than silently dropping a null-supplier draft (ADR-0014/0024).
-            const outcome = await this.proposeDraft.proposeDraft(
-              triageResult,
-              documentId,
-            );
-            if (outcome.outcome === 'supplier-unresolved') {
-              this.logger.warn(
-                `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
-              );
-              // Keep the exact proposal that blocked us so a human can resolve the
-              // supplier and replay it deterministically (no re-run of the agent).
-              await this.documents.setPendingTriageResult(
-                documentId,
-                triageResult,
-              );
-              return this.routeNeedsTriage(documentId, outcome.reason);
-            }
-            if (outcome.outcome === 'category-unresolved') {
-              this.logger.warn(
-                `new_expense for document ${documentId} has an unresolved category: ${outcome.reason}`,
-              );
-              return this.routeNeedsTriage(documentId, outcome.reason);
-            }
-            await this.documents.setStatus(documentId, 'triaged');
-            return { status: 'draft_proposed', draft: outcome };
-          }
-          this.logger.warn(
-            `new_expense below confidence threshold (${triageResult.confidence} < ${threshold}) for document ${documentId}`,
-          );
+      switch (documentClass.route) {
+        case 'expense':
+          return this.routeExpense(documentId, triageResult);
+        case 'sales_invoice':
+          // Real wiring lands in a later task; for now park with an explicit reason.
           return this.routeNeedsTriage(
             documentId,
-            `AI confidence ${triageResult.confidence} below threshold ${threshold}`,
+            'Detected an outgoing sales invoice (our IBAN on the document); sales-invoice intake not yet enabled',
           );
-
-        case 'unknown':
-          this.logger.warn(
-            `Unknown classification for document ${documentId}, routing to needs_triage`,
-          );
+        case 'bank_statement':
           return this.routeNeedsTriage(
             documentId,
-            'AI could not classify the document',
+            'Detected a bank statement; bank-statement intake not yet enabled',
           );
-
-        case 'correction':
-        case 'duplicate':
-          // These kinds are GENUINELY classified by the agent but the kernel
-          // handling is NOT YET IMPLEMENTED (Task 43). The reason marks them as
-          // unimplemented-kind routes — explicitly distinct from a low-confidence
-          // new_expense or a genuinely-unknown classification — so a human (and
-          // any later automation) can tell "we recognised this but can't act on
-          // it yet" apart from "the AI was unsure".
-          this.logger.warn(
-            `Unimplemented kind '${triageResult.kind}' for document ${documentId} — routing to needs_triage (Task 43)`,
-          );
+        case 'unsupported':
           return this.routeNeedsTriage(
             documentId,
-            unimplementedKindReason(triageResult.kind),
+            `Document type '${documentClass.docType}' is not supported by intake yet`,
           );
-
-        default: {
-          // Exhaustiveness guard — should never happen with the Zod schema.
-          const unexpectedKind = triageKind;
-          this.logger.error(
-            `Unexpected triage kind "${unexpectedKind}" for document ${documentId}`,
-          );
-          return this.routeNeedsTriage(
-            documentId,
-            `Unexpected triage kind: ${unexpectedKind}`,
-          );
-        }
       }
     } finally {
       await this.documents.clearProcessing(documentId);
+    }
+  }
+
+  /**
+   * Route a confident, deterministically-classified incoming-expense document.
+   * This is the existing expense path, relocated verbatim from `process()`'s
+   * kind-switch: confidence gate → proposeDraft → supplier/category resolution
+   * → draft_proposed | needs_triage. Behavior is byte-for-byte equivalent.
+   */
+  private async routeExpense(
+    documentId: number,
+    triageResult: TriageResult,
+  ): Promise<IntakeWorkflowResult> {
+    // ── Deterministic routing — the ONE place that decides ──────
+    const threshold = (await this.policyService.getConfig())
+      .auto_post_min_confidence;
+
+    // Capture the discriminant up front: in the exhaustive `default` branch
+    // `triageResult` narrows to `never`, so the unexpected value has to be read
+    // from a variable widened to `string` rather than the narrowed local.
+    const triageKind: string = triageResult.kind;
+
+    switch (triageResult.kind) {
+      case 'new_expense':
+        if (triageResult.confidence >= threshold) {
+          this.logger.log(
+            `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
+          );
+          // proposeDraft trusts this validated, already-routed new_expense. It
+          // performs the EXPLICIT supplier-proposal → Supplier resolution: a
+          // 'create' proposal cannot yet produce a draft (Task 43), so it
+          // returns `supplier-unresolved` and we route to needs_triage rather
+          // than silently dropping a null-supplier draft (ADR-0014/0024).
+          const outcome = await this.proposeDraft.proposeDraft(
+            triageResult,
+            documentId,
+          );
+          if (outcome.outcome === 'supplier-unresolved') {
+            this.logger.warn(
+              `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
+            );
+            // Keep the exact proposal that blocked us so a human can resolve the
+            // supplier and replay it deterministically (no re-run of the agent).
+            await this.documents.setPendingTriageResult(
+              documentId,
+              triageResult,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason);
+          }
+          if (outcome.outcome === 'category-unresolved') {
+            this.logger.warn(
+              `new_expense for document ${documentId} has an unresolved category: ${outcome.reason}`,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason);
+          }
+          await this.documents.setStatus(documentId, 'triaged');
+          return { status: 'draft_proposed', draft: outcome };
+        }
+        this.logger.warn(
+          `new_expense below confidence threshold (${triageResult.confidence} < ${threshold}) for document ${documentId}`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          `AI confidence ${triageResult.confidence} below threshold ${threshold}`,
+        );
+
+      case 'unknown':
+        this.logger.warn(
+          `Unknown classification for document ${documentId}, routing to needs_triage`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          'AI could not classify the document',
+        );
+
+      case 'correction':
+      case 'duplicate':
+        // These kinds are GENUINELY classified by the agent but the kernel
+        // handling is NOT YET IMPLEMENTED (Task 43). The reason marks them as
+        // unimplemented-kind routes — explicitly distinct from a low-confidence
+        // new_expense or a genuinely-unknown classification — so a human (and
+        // any later automation) can tell "we recognised this but can't act on
+        // it yet" apart from "the AI was unsure".
+        this.logger.warn(
+          `Unimplemented kind '${triageResult.kind}' for document ${documentId} — routing to needs_triage (Task 43)`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          unimplementedKindReason(triageResult.kind),
+        );
+
+      default: {
+        // Exhaustiveness guard — should never happen with the Zod schema.
+        const unexpectedKind = triageKind;
+        this.logger.error(
+          `Unexpected triage kind "${unexpectedKind}" for document ${documentId}`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          `Unexpected triage kind: ${unexpectedKind}`,
+        );
+      }
     }
   }
 

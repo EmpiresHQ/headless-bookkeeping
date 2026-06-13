@@ -17,6 +17,7 @@ import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import { EntitiesService } from '../entities/entities.service';
+import { OrganizationService } from '../organization/organization.service';
 import { TriageResult } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
@@ -42,6 +43,10 @@ describe('IntakeWorkflowService', () => {
   const mockEntities = {
     findById: jest.fn(),
     addIdentifierIfAbsent: jest.fn(),
+  };
+
+  const mockOrganization = {
+    getOrganization: jest.fn(),
   };
 
   const sampleTriageResult = (
@@ -107,6 +112,7 @@ describe('IntakeWorkflowService', () => {
         { provide: Pass2AgentService, useValue: mockPass2Agent },
         { provide: ProposeDraftService, useValue: mockProposeDraft },
         { provide: EntitiesService, useValue: mockEntities },
+        { provide: OrganizationService, useValue: mockOrganization },
         AuditFindingsService,
         PolicyService,
         DocumentsService,
@@ -126,6 +132,7 @@ describe('IntakeWorkflowService', () => {
     mockProposeDraft.findExistingDraft.mockReset();
     mockEntities.findById.mockReset();
     mockEntities.addIdentifierIfAbsent.mockReset();
+    mockOrganization.getOrganization.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -134,6 +141,14 @@ describe('IntakeWorkflowService', () => {
     });
     mockProposeDraft.findExistingDraft.mockResolvedValue(undefined);
     mockEntities.addIdentifierIfAbsent.mockResolvedValue(undefined);
+    // Default org has no IBAN → ibanMatched is false → documents route to the
+    // existing expense path unchanged.
+    mockOrganization.getOrganization.mockResolvedValue({
+      id: 1,
+      iban: null,
+      name: null,
+      vat_registration_number: null,
+    });
   });
 
   afterEach(async () => {
@@ -464,7 +479,70 @@ describe('IntakeWorkflowService', () => {
 
       await service.process(docId);
 
-      expect(mockPass2Agent.classify).toHaveBeenCalledWith(markdown);
+      // classify now receives the markdown plus an org/direction context object.
+      expect(mockPass2Agent.classify).toHaveBeenCalledWith(
+        markdown,
+        expect.objectContaining({ directionHint: 'incoming' }),
+      );
+    });
+
+    it('routes an incoming invoice (no org-IBAN match) through the existing expense path', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'supplier doc, pay to DE89370400440532013000',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ document_type: 'invoice', confidence: 0.94 }),
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 42,
+        pipelineResult: {
+          businessObject: { id: 42, status: 'posted' },
+          voucher: null,
+          policy: { action: 'auto-post', reason: 'ok' },
+        },
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('draft_proposed');
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalled();
+    });
+
+    it('parks an outgoing invoice (our IBAN on the document) — sales route not yet wired', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Pay to EE38 2200 2210 2014 5685',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ document_type: 'invoice', confidence: 0.94 }),
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      if (res.status === 'needs_triage') {
+        expect(res.reason).toMatch(/sales invoice/i);
+      }
+      // The expense path must not run for an outgoing invoice.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
   });
 
