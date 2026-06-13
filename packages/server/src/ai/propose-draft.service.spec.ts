@@ -622,6 +622,85 @@ describe('ProposeDraftService (integration)', () => {
       expect(expenses).toHaveLength(0);
     });
 
+    it('routes a match to supplier-unresolved when the observed country contradicts the entity', async () => {
+      // The matched entity is a US software vendor; the document the agent read
+      // is Estonian. Booking against it would be the Paavli→Anomaly mis-resolve.
+      const entitiesService = module.get(EntitiesService);
+      const usVendor = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'US',
+        name: 'Anomaly',
+        registrationKey: 'US-ANOMALY',
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: usVendor.id,
+          observed_country: 'EE',
+          observed_registration_key: null,
+        },
+      };
+
+      const outcome = await service.proposeDraft(triageResult, 32);
+      expect(outcome.outcome).toBe('supplier-unresolved');
+
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 32)
+        .execute();
+      expect(expenses).toHaveLength(0);
+    });
+
+    it('keeps a match when the observed country agrees with the entity', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const eeSupplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Paavli Kinnisvara OÜ',
+        registrationKey: 'EE11000000',
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: eeSupplier.id,
+          observed_country: 'EE',
+          observed_registration_key: null,
+        },
+      };
+
+      const result = expectDraft(await service.proposeDraft(triageResult, 33));
+      const expense = await expensesService.getExpenseById(result.expenseId);
+      expect(expense.supplier_id).toBe(eeSupplier.id);
+    });
+
+    it('routes a match to supplier-unresolved when the observed registration key contradicts the entity', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboardWithIdentifiers({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Example Seller OÜ',
+        identifiers: [{ kind: 'registration_key', value: 'EE100200300' }],
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: supplier.id,
+          observed_country: 'EE',
+          observed_registration_key: 'EE999999999', // entity carries a DIFFERENT reg key
+        },
+      };
+
+      const outcome = await service.proposeDraft(triageResult, 34);
+      expect(outcome.outcome).toBe('supplier-unresolved');
+    });
+
     it('returns category-unresolved for a triage category the active plugin does not know', async () => {
       const categoryService = module.get(CategoryService);
       // Stub isValid to return false for anything that is not 'software'.

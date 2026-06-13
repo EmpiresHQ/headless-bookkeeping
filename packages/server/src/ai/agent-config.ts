@@ -49,8 +49,13 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'confidence, and optionally supplier_proposal. ' +
     'When you include supplier_proposal it MUST set a "mode" discriminant ' +
     'and carry EXACTLY the fields for that mode: ' +
-    'either { mode: "match", match_entity_id } when getClassificationContext ' +
-    "resolved the document to an existing supplier (use that supplier's id), " +
+    'either { mode: "match", match_entity_id, observed_country, ' +
+    'observed_registration_key } when getClassificationContext resolved the ' +
+    "document to an existing supplier (use that supplier's id) — ALSO set " +
+    'observed_country (the ISO country code) and observed_registration_key (the ' +
+    'registration/VAT number) EXACTLY AS PRINTED ON THIS DOCUMENT, using null ' +
+    'when the document does not print them: these let the kernel confirm the ' +
+    'match is the right company and reject a wrong one; ' +
     'or { mode: "create", create_name, create_country, and any of ' +
     'create_registration_key / create_email / create_phone / create_address } ' +
     'when no existing supplier matched and you propose creating one: ALWAYS ' +

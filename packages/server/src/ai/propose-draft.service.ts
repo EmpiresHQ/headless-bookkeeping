@@ -11,6 +11,7 @@ import { EntitiesService } from '../entities/entities.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { SupplierProposal, TriageResult } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
+import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
 
@@ -258,6 +259,41 @@ export class ProposeDraftService {
           outcome: 'supplier-unresolved',
           reason: `match proposal references entity ${proposal.match_entity_id}, which is a '${matched.role}', not a supplier`,
         };
+      }
+
+      // Corroborate the match against the identity the agent OBSERVED on the
+      // document (ADR-0014). We reject ONLY on a positive contradiction — an
+      // absent observed value never forces a false reject. This catches a
+      // plausible-but-wrong semantic match (an EE rent invoice resolved to a US
+      // software vendor) that existence + role validation cannot.
+      const observedCountry = proposal.observed_country?.trim();
+      if (
+        observedCountry &&
+        observedCountry.toUpperCase() !== matched.country.trim().toUpperCase()
+      ) {
+        return {
+          outcome: 'supplier-unresolved',
+          reason: `match to entity ${proposal.match_entity_id} (country ${matched.country}) contradicts the document's observed country ${observedCountry}`,
+        };
+      }
+      const observedRegKey = proposal.observed_registration_key
+        ? normalizeIdentifier(
+            'registration_key',
+            proposal.observed_registration_key,
+          )
+        : null;
+      if (observedRegKey) {
+        const entityRegKeys = matched.identifiers
+          .filter((i) => i.kind === 'registration_key')
+          .map((i) => normalizeIdentifier('registration_key', i.value));
+        // Only a contradiction (the entity carries reg keys, none of which is
+        // the observed one) rejects; an entity with no reg key cannot disprove.
+        if (entityRegKeys.length > 0 && !entityRegKeys.includes(observedRegKey)) {
+          return {
+            outcome: 'supplier-unresolved',
+            reason: `match to entity ${proposal.match_entity_id} contradicts the document's observed registration key ${proposal.observed_registration_key}`,
+          };
+        }
       }
       return { outcome: 'resolved', supplierId: proposal.match_entity_id };
     }
