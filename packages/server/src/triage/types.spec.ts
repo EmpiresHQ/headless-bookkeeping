@@ -1,5 +1,40 @@
 import { supplierProposalSchema, triageResultSchema } from './types';
 
+describe('triageResultSchema — sales-invoice kind, outgoing_signals, document_type', () => {
+  it('accepts kind new_sales_invoice with a customer_proposal and outgoing_signals', () => {
+    const parsed = triageResultSchema.parse({
+      kind: 'new_sales_invoice',
+      gross_amount: 12200,
+      vat_amount: 2200,
+      tax_point_date: '2026-06-01',
+      category: 'revenue',
+      document_type: 'invoice',
+      customer_proposal: { mode: 'match', match_entity_id: 7 },
+      outgoing_signals: { org_name_is_issuer: true, org_vat_is_issuer: true },
+    });
+    expect(parsed.kind).toBe('new_sales_invoice');
+    expect(parsed.customer_proposal).toEqual({ mode: 'match', match_entity_id: 7 });
+    expect(parsed.outgoing_signals.has_buyer_block).toBe(false); // defaulted
+  });
+
+  it('defaults document_type to "other" and outgoing_signals to all-false', () => {
+    const parsed = triageResultSchema.parse({
+      kind: 'new_expense',
+      gross_amount: 100,
+      vat_amount: 0,
+      tax_point_date: '2026-06-01',
+      category: 'EXPENSE_OTHER',
+    });
+    expect(parsed.document_type).toBe('other');
+    expect(parsed.outgoing_signals).toEqual({
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    });
+  });
+});
+
 /**
  * The supplier_proposal contract (ADR-0014 / ADR-0024 friction #7): the Zod
  * discriminated union must admit EXACTLY ONE of

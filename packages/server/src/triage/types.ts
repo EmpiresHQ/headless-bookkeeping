@@ -44,12 +44,29 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
 
 export type SupplierProposal = z.infer<typeof supplierProposalSchema>;
 
+// Reuse the supplier discriminated-union shape for the customer counterparty —
+// identical match/create semantics (ADR-0014). A 'create' proposal parks to
+// needs_triage in v1 exactly like supplier 'create'.
+export const customerProposalSchema = supplierProposalSchema;
+export type CustomerProposal = SupplierProposal;
+
+// Structured "is this OUR outgoing invoice?" signals the agent emits. They are
+// confidence inputs ONLY — direction is decided in code from the IBAN match.
+export const outgoingSignalsSchema = z.object({
+  org_name_is_issuer: z.boolean().default(false),
+  org_vat_is_issuer: z.boolean().default(false),
+  has_buyer_block: z.boolean().default(false),
+  self_identifies_as_invoice: z.boolean().default(false),
+});
+export type OutgoingSignals = z.infer<typeof outgoingSignalsSchema>;
+
 /**
  * TriageResult — the structured output produced by the AI triage agent.
  * Represents the AI's interpretation of an incoming document.
  *
  * The `kind` discriminant determines what downstream action to take:
  * - 'new_expense': create an Expense and run the posting pipeline.
+ * - 'new_sales_invoice': create a sales (outgoing) invoice draft.
  * - 'correction': modify an existing business object (wired in Task 43).
  * - 'duplicate': flag as a likely duplicate (wired in Task 43).
  * - 'unknown': cannot classify — hold for human review.
@@ -57,24 +74,35 @@ export type SupplierProposal = z.infer<typeof supplierProposalSchema>;
 export const triageResultSchema = z.object({
   // Booking-critical fields stay REQUIRED — if the model omits them the document
   // genuinely cannot be booked and must go to a human.
-  kind: z.enum(['new_expense', 'correction', 'duplicate', 'unknown']),
+  kind: z.enum(['new_expense', 'new_sales_invoice', 'correction', 'duplicate', 'unknown']),
   gross_amount: z.number().int(),
   vat_amount: z.number().int(),
   tax_point_date: z.string(), // ISO date string (YYYY-MM-DD)
   category: z.string(),
   supplier_proposal: supplierProposalSchema.optional(),
+  customer_proposal: customerProposalSchema.optional(),
   // Safely-defaultable metadata. Some OpenAI-compatible endpoints do NOT enforce
   // `required` in json_schema, so the model occasionally drops a field; defaults
   // keep a good extraction from failing the parse (which would lose ALL the
   // data to needs_triage). currency defaults to the EUR base; a dropped
   // confidence is treated as 0 (conservative — never auto-posts on a guess).
-  document_type: z.enum(['receipt', 'invoice', 'unknown']).default('unknown'),
+  // document_type now also drives routing (bank_statement → CSV path, etc.).
+  document_type: z.enum(['receipt', 'invoice', 'bank_statement', 'credit_note', 'other']).default('other'),
   currency: z.string().length(3).default('EUR'),
   document_vat_marking: z.string().nullable().default(null),
   // Supplier's own invoice/receipt number (opaque, for KMD INF Part B). Same
   // safely-defaultable treatment as document_vat_marking.
   supplier_invoice_number: z.string().nullable().default(null),
   confidence: z.number().min(0).max(1).default(0),
+  // Structured outgoing-invoice signals emitted by the agent. All default to
+  // false so the field is always present on every TriageResult; the explicit
+  // all-false default ensures inner field defaults are applied correctly.
+  outgoing_signals: outgoingSignalsSchema.default({
+    org_name_is_issuer: false,
+    org_vat_is_issuer: false,
+    has_buyer_block: false,
+    self_identifies_as_invoice: false,
+  }),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;

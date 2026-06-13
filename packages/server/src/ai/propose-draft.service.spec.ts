@@ -113,6 +113,12 @@ describe('ProposeDraftService (integration)', () => {
     document_vat_marking: 'IE_INPUT_23',
     supplier_invoice_number: null,
     confidence: 0.94,
+    outgoing_signals: {
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    },
   });
 
   describe('proposeDraft', () => {
@@ -589,6 +595,12 @@ describe('ProposeDraftService (integration)', () => {
         document_vat_marking: null,
         supplier_invoice_number: null,
         confidence: 0.9,
+        outgoing_signals: {
+          org_name_is_issuer: false,
+          org_vat_is_issuer: false,
+          has_buyer_block: false,
+          self_identifies_as_invoice: false,
+        },
       };
 
       const outcome = await service.proposeDraft(triage, null, 1);

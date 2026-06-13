@@ -57,6 +57,12 @@ describe('IntakeWorkflowService', () => {
     document_vat_marking: '23%',
     supplier_invoice_number: null,
     confidence: 0.94,
+    outgoing_signals: {
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    },
     ...overrides,
   });
 
