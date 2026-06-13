@@ -170,6 +170,7 @@ const noopDeps: BuilderDeps = {
   stdinIsTTY: true,
   readStdin: () => '',
   exit: () => {},
+  readFileBuffer: () => new Uint8Array(),
 };
 
 describe('per-command help: op.description', () => {
@@ -198,6 +199,72 @@ describe('agent guidance', () => {
     const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: () => {}, err: (s) => (err += s) } });
     try { await cli.parseAsync([]); } catch { /* expected */ }
     expect(err).toContain('hbk --help');
+  });
+});
+
+const multipartSpec = {
+  paths: {
+    '/api/documents': {
+      post: {
+        tags: ['documents'],
+        operationId: 'Documents_uploadDocument',
+        summary: 'Upload a document',
+        requestBody: {
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: { file: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+describe('multipart upload', () => {
+  it('exposes a --file option in help', async () => {
+    let help = '';
+    const cli = buildCli(multipartSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['documents', 'upload-document', '--help']);
+    expect(help).toContain('--file');
+  });
+
+  it('reads the file and sends a FormData body with the original filename', async () => {
+    let sentBody: unknown;
+    const deps = {
+      ...noopDeps,
+      readFileBuffer: () => new Uint8Array([1, 2, 3]),
+      request: async (_m: string, _p: string, args: any) => {
+        sentBody = args?.body;
+        return { ok: true, status: 201, body: {} };
+      },
+    };
+    const cli = buildCli(multipartSpec as never, deps as never);
+    await cli.parseAsync(['documents', 'upload-document', '--file', '/tmp/invoice.pdf']);
+    expect(sentBody).toBeInstanceOf(FormData);
+    const f = (sentBody as FormData).get('file');
+    expect(f).toBeInstanceOf(Blob);
+    expect((f as File).name).toBe('invoice.pdf');
+  });
+
+  it('sets the file content type from its extension', async () => {
+    let sentBody: unknown;
+    const deps = {
+      ...noopDeps,
+      readFileBuffer: () => new Uint8Array([1, 2, 3]),
+      request: async (_m: string, _p: string, args: any) => {
+        sentBody = args?.body;
+        return { ok: true, status: 201, body: {} };
+      },
+    };
+    const cli = buildCli(multipartSpec as never, deps as never);
+    await cli.parseAsync(['documents', 'upload-document', '--file', '/tmp/invoice.pdf']);
+    const f = (sentBody as FormData).get('file');
+    expect((f as Blob).type).toBe('application/pdf');
   });
 });
 

@@ -1,5 +1,13 @@
 import yargs, { type Argv } from 'yargs';
+import { basename } from 'node:path';
 import type { RequestFn } from './client.js';
+
+export interface MultipartField {
+  name: string;
+  binary: boolean;
+  required: boolean;
+  describe?: string;
+}
 
 export interface OptionSpec {
   name: string;
@@ -17,6 +25,7 @@ export interface CommandSpec {
   positionals: string[];
   options: OptionSpec[];
   hasBody: boolean;
+  multipart?: MultipartField[];
   summary?: string;
   description?: string;
 }
@@ -35,7 +44,17 @@ interface RawOperation {
   summary?: string;
   description?: string;
   parameters?: RawParam[];
-  requestBody?: { content?: Record<string, unknown> };
+  requestBody?: {
+    content?: Record<
+      string,
+      {
+        schema?: {
+          properties?: Record<string, { type?: string; format?: string; description?: string }>;
+          required?: string[];
+        };
+      }
+    >;
+  };
 }
 
 export interface OpenApiSpec {
@@ -91,6 +110,16 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
           describe: p.description,
         }));
 
+      const mpSchema = op.requestBody?.content?.['multipart/form-data']?.schema;
+      const multipart = mpSchema?.properties
+        ? Object.entries(mpSchema.properties).map(([name, p]) => ({
+            name,
+            binary: p.format === 'binary',
+            required: (mpSchema.required ?? []).includes(name),
+            describe: p.description,
+          }))
+        : undefined;
+
       commands.push({
         group: kebab(tag),
         action: op.operationId
@@ -101,6 +130,7 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
         positionals,
         options,
         hasBody: op.requestBody !== undefined,
+        multipart,
         summary: op.summary,
         description: op.description,
       });
@@ -118,6 +148,7 @@ export interface BuilderDeps {
   request: RequestFn;
   io: CliIo;
   readFileSync: (path: string) => string;
+  readFileBuffer: (path: string) => Uint8Array;
   stdinIsTTY: boolean;
   readStdin: () => string;
   exit: (code: number) => void;
@@ -150,6 +181,34 @@ export function readBody(
 
 function yargsType(t: OptionSpec['type']): 'string' | 'number' | 'boolean' {
   return t;
+}
+
+/**
+ * Best-effort content type from a file extension. The server stores the
+ * uploaded part's MIME type and routes on it (e.g. triage OCR only accepts
+ * image/* and application/pdf), so a Blob with no type (-> octet-stream) would
+ * be silently rejected downstream. Falls back to octet-stream for unknowns.
+ */
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  json: 'application/json',
+  xml: 'application/xml',
+};
+
+export function mimeForFile(path: string): string {
+  const dot = path.lastIndexOf('.');
+  const ext = dot >= 0 ? path.slice(dot + 1).toLowerCase() : '';
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream';
 }
 
 /** Build the full yargs CLI from the OpenAPI spec and injected dependencies. */
@@ -209,7 +268,17 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                 describe: opt.describe,
               });
             }
-            if (cmd.hasBody) {
+            if (cmd.multipart) {
+              for (const f of cmd.multipart) {
+                yy = yy.option(f.name, {
+                  type: 'string',
+                  demandOption: f.required,
+                  describe: f.binary
+                    ? (f.describe ?? 'Path to a file to upload')
+                    : (f.describe ?? `Form field: ${f.name}`),
+                });
+              }
+            } else if (cmd.hasBody) {
               yy = yy.option('body-file', {
                 type: 'string',
                 describe:
@@ -231,7 +300,30 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
               if (argv[opt.name] !== undefined)
                 query[opt.name] = argv[opt.name];
             }
-            const body = cmd.hasBody ? readBody(argv, deps) : undefined;
+            let body: unknown;
+            if (cmd.multipart) {
+              const form = new FormData();
+              for (const f of cmd.multipart) {
+                const v = argv[f.name];
+                if (v === undefined) continue;
+                if (f.binary) {
+                  const buf = deps.readFileBuffer(String(v));
+                  const ab: ArrayBuffer = buf.buffer instanceof ArrayBuffer
+                    ? buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+                    : new Uint8Array(buf).buffer as ArrayBuffer;
+                  form.append(
+                    f.name,
+                    new Blob([ab], { type: mimeForFile(String(v)) }),
+                    basename(String(v)),
+                  );
+                } else {
+                  form.append(f.name, String(v));
+                }
+              }
+              body = form;
+            } else {
+              body = cmd.hasBody ? readBody(argv, deps) : undefined;
+            }
 
             const res = await deps.request(cmd.method, cmd.path, {
               pathParams,
