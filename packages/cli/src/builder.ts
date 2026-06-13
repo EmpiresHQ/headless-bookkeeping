@@ -238,12 +238,26 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
           },
         );
       }
-      return sub.demandCommand(1, `Specify a ${group} subcommand`).strict();
+      return sub
+        .demandCommand(1, `No ${group} subcommand given. Run "hbk ${group} --help" to list operations.`)
+        .strict();
     });
   }
 
+  const AGENT_EPILOGUE = [
+    'Remote REST client for the headless-bookkeeping API. Each command maps 1:1 to an API operation.',
+    '',
+    'Auth:      hbk login --url <url> --token <token>   (or HBK_URL / HBK_TOKEN env vars)',
+    'Discover:  hbk <group> --help            list a group\'s operations',
+    '           hbk <group> <command> --help  show parameters and details',
+    'Body:      --body-file <path.json>       (or pipe JSON via stdin)',
+    'Output:    JSON response -> stdout; notes/errors -> stderr; HTTP >= 400 -> non-zero exit',
+    'Escape:    hbk api <method> <path>       call any endpoint directly',
+  ].join('\n');
+
   return cli
-    .demandCommand(1, 'Specify a command group')
+    .demandCommand(1, 'No command group given. Run "hbk --help" to list groups.')
+    .epilogue(AGENT_EPILOGUE)
     .strict()
     .exitProcess(false)
     .fail((msg, err) => {

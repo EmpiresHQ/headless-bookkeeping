@@ -181,6 +181,26 @@ describe('per-command help: op.description', () => {
   });
 });
 
+const minimalSpec = { paths: { '/api/expenses': { get: { tags: ['expenses'], operationId: 'Expenses_getExpenses', summary: 'List expenses' } } } };
+
+describe('agent guidance', () => {
+  it('top-level help carries agent guidance', async () => {
+    let help = '';
+    const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['--help']);
+    expect(help).toContain('hbk login');
+    expect(help).toContain('--body-file');
+    expect(help).toContain('JSON');
+  });
+
+  it('no-command error points at --help', async () => {
+    let err = '';
+    const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: () => {}, err: (s) => (err += s) } });
+    try { await cli.parseAsync([]); } catch { /* expected */ }
+    expect(err).toContain('hbk --help');
+  });
+});
+
 describe('buildCli dispatch', () => {
   function makeDeps() {
     const out: string[] = [];
