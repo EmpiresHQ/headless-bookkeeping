@@ -9,6 +9,7 @@ import { Database } from '../database/types';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
+import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 import {
   computeNextPeriodDates,
   computeEndFromStart,
@@ -28,6 +29,7 @@ export class ReportingPeriodsService {
     private readonly vatReportService: VatReportService,
     private readonly organizationService: OrganizationService,
     private readonly pluginLoader: PluginLoader,
+    private readonly statutorySubmissionService: StatutorySubmissionService,
   ) {}
 
   async list(): Promise<ReportingPeriod[]> {
@@ -211,6 +213,20 @@ export class ReportingPeriodsService {
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirstOrThrow();
+    });
+
+    // 3. Start the external statutory-filing lifecycle (ADR-0037): record a
+    //    `prepared` event pinned to the exact frozen snapshot. filed_at keeps
+    //    its meaning (the internal lock/close timestamp) and corresponds to
+    //    this event. Emitted post-commit so the event log is strictly
+    //    downstream of the immutable artifact; the early idempotent return
+    //    above ensures re-locking never emits a duplicate.
+    await this.statutorySubmissionService.recordEvent(id, {
+      event_kind: 'prepared',
+      report_kind: 'EE_KMD',
+      source_snapshot_type: 'vat_report',
+      source_snapshot_id: row.vat_report_snapshot_id as number,
+      actor: 'system',
     });
 
     return this.mapRow(row);

@@ -9,6 +9,11 @@ import {
   VATCode,
 } from './country-plugin.interface';
 import {
+  AssetClass,
+  DepreciationMethod,
+  FixedAssetDefaults,
+} from './fixed-asset.types';
+import {
   ExpenseTreatmentPreview,
   KmdBaseClassification,
   VatComputation,
@@ -23,6 +28,13 @@ import {
 import { renderKmdXml } from './estonia-kmd/kmd-xml';
 import { renderKmdCsv } from './estonia-kmd/kmd-csv';
 import { buildInfPart } from './estonia-kmd/kmd-inf';
+import {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
+import { renderAnnualAccountsXbrl } from './estonia-annual-accounts/xbrl';
+import { unmappedNonzeroCodes } from './estonia-annual-accounts/rtj-mapping';
 
 /**
  * The single source of the EE plugin's category → account binding. Both
@@ -43,6 +55,10 @@ const EE_CATEGORY_ACCOUNTS: Readonly<Record<string, string>> = {
   meals: 'EXPENSE_MEALS',
   insurance: 'EXPENSE_INSURANCE',
   education: 'EXPENSE_EDUCATION',
+  vehicle: 'FIXED_ASSETS_VEHICLES',
+  it_equipment: 'FIXED_ASSETS_IT',
+  machinery: 'FIXED_ASSETS_EQUIPMENT',
+  furniture: 'FIXED_ASSETS_FURNITURE',
 };
 
 /** Title-cases a category key into a display label ("bank fee" → "Bank Fee"). */
@@ -180,6 +196,25 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       label: labelFor(key),
       accountCode,
     }));
+  }
+
+  // ── Fixed-asset norms (ADR-0035) ──────────────────────────────────────────
+  private static readonly FIXED_ASSET_DEFAULTS: Record<
+    AssetClass,
+    FixedAssetDefaults
+  > = {
+    vehicle: { defaultUsefulLifeYears: 5, defaultResidualMinor: 400000 },
+    it_equipment: { defaultUsefulLifeYears: 3, defaultResidualMinor: 0 },
+    machinery: { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 },
+    furniture: { defaultUsefulLifeYears: 7, defaultResidualMinor: 0 },
+  };
+
+  getDepreciationMethod(): DepreciationMethod {
+    return 'straight_line';
+  }
+
+  getFixedAssetDefaults(assetClass: AssetClass): FixedAssetDefaults {
+    return EstoniaCountryPlugin.FIXED_ASSET_DEFAULTS[assetClass];
   }
 
   // ── Period / currency ─────────────────────────────────────────────────────
@@ -411,6 +446,39 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       }
     }
     return { artifacts, warnings };
+  }
+
+  // ── Annual accounts (RIK-XBRL) ────────────────────────────────────────────
+
+  generateAnnualAccounts(
+    input: AnnualAccountsInput,
+    opts: AnnualAccountsOpts,
+  ): AnnualAccountsResult {
+    const warnings: StatutoryWarning[] = [];
+
+    // Plugin-side soft signal: nonzero accounts the mapping does not cover.
+    // (The kernel HARD-blocks final on the same condition; here it is surfaced
+    // as a rendering warning so a draft still renders.)
+    const unmapped = unmappedNonzeroCodes(input.balances);
+    for (const code of unmapped) {
+      warnings.push({
+        code: 'unmapped_nonzero_account',
+        message: `Account ${code} has a nonzero balance but maps to no RTJ line`,
+      });
+    }
+
+    const base = input.period.name.replace(/[^\w-]/g, '_');
+    const content = renderAnnualAccountsXbrl(input, opts);
+    return {
+      artifacts: [
+        {
+          filename: `annual-accounts-${base}.xbrl`,
+          mimeType: 'application/xml',
+          content,
+        },
+      ],
+      warnings,
+    };
   }
 
   // ── KMD (käibedeklaratsioon) row classification ───────────────────────────

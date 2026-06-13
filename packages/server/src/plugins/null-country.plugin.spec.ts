@@ -98,6 +98,24 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
     });
   });
 
+  it('generateAnnualAccounts returns empty artifacts and warnings', () => {
+    const input = {
+      period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },
+      priorPeriod: null,
+      mode: 'draft' as const,
+      balances: [],
+      fixedAssets: [],
+      periodNetIncome: 0,
+      priorNetIncome: 0,
+      retainedEarningsBroughtForward: 0,
+      declarant: { regNumber: null, name: null },
+    };
+    const result = plugin.generateAnnualAccounts(input, {
+      taxonomyVersion: 2026,
+    });
+    expect(result).toEqual({ artifacts: [], warnings: [] });
+  });
+
   it('returns no statutory artifacts (jurisdiction has no filing format)', () => {
     const result = plugin.generateStatutoryReports(
       {
@@ -116,5 +134,35 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
       { formats: ['xml'] },
     );
     expect(result).toEqual({ artifacts: [], warnings: [] });
+  });
+});
+
+describe('NullCountryPlugin — fixed assets', () => {
+  const plugin = new NullCountryPlugin();
+  const org = { country: 'IE', vatRegistered: true, baseCurrency: null };
+  const supplier = {
+    country: 'IE',
+    goodsVsServices: 'goods' as const,
+    classificationMemory: [],
+  };
+
+  it('maps fixed-asset categories to per-class accounts', () => {
+    expect(
+      plugin.resolveCategoryMapping('vehicle', supplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_VEHICLES');
+    expect(
+      plugin.resolveCategoryMapping('furniture', supplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_FURNITURE');
+  });
+
+  it('declares straight-line and zero residual everywhere (neutral stub)', () => {
+    expect(plugin.getDepreciationMethod()).toBe('straight_line');
+    expect(plugin.getFixedAssetDefaults('vehicle')).toEqual({
+      defaultUsefulLifeYears: 5,
+      defaultResidualMinor: 0,
+    });
+    expect(
+      plugin.getFixedAssetDefaults('it_equipment').defaultUsefulLifeYears,
+    ).toBe(3);
   });
 });
