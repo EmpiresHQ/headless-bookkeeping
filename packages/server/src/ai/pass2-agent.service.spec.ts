@@ -17,10 +17,11 @@ import { OrgContextResolver } from '../organization/org-context.resolver';
 import type { Agent } from '@mastra/core/agent';
 import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
-import { Pass2AgentService } from './pass2-agent.service';
+import { Pass2AgentService, Pass2Context } from './pass2-agent.service';
 import { TriageResult } from '../triage/types';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { CategoryService } from '../categories/category.service';
+import { withOrgIdentity } from './triage-instructions';
 
 type GenerateResult = Awaited<ReturnType<Agent['generate']>>;
 
@@ -336,6 +337,132 @@ describe('Pass2AgentService', () => {
       if (!result.ok) {
         expect(result.category).toBe('invalid-output');
       }
+    });
+
+    it('passes org identity + direction hint to buildTriageAgent when ctx is provided', async () => {
+      const agent = await requireAgent();
+      const buildSpy = jest
+        .spyOn(mastraService, 'buildTriageAgent')
+        .mockResolvedValue(agent);
+
+      const mockResult = sampleTriageResult();
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(mockResult));
+
+      const ctx: Pass2Context = {
+        orgContext: {
+          iban: 'EE382200221020145685',
+          name: 'Acme OÜ',
+          vatNumber: 'EE123456789',
+        },
+        directionHint: 'outgoing',
+      };
+
+      const result = await service.classify('# Sales Invoice\nBuyer: Some Corp', ctx);
+
+      expect(result.ok).toBe(true);
+      expect(buildSpy).toHaveBeenCalledWith({
+        iban: 'EE382200221020145685',
+        name: 'Acme OÜ',
+        vatNumber: 'EE123456789',
+        directionHint: 'outgoing',
+      });
+    });
+
+    it('calls buildTriageAgent with no args when ctx is absent (backward compatible)', async () => {
+      const agent = await requireAgent();
+      const buildSpy = jest
+        .spyOn(mastraService, 'buildTriageAgent')
+        .mockResolvedValue(agent);
+
+      const mockResult = sampleTriageResult();
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(mockResult));
+
+      await service.classify('# Receipt\nAmount: €10');
+
+      expect(buildSpy).toHaveBeenCalledWith(undefined);
+    });
+
+    it('passes incoming direction hint correctly to buildTriageAgent', async () => {
+      const agent = await requireAgent();
+      const buildSpy = jest
+        .spyOn(mastraService, 'buildTriageAgent')
+        .mockResolvedValue(agent);
+
+      const mockResult = sampleTriageResult();
+      jest
+        .spyOn(agent, 'generate')
+        .mockResolvedValue(generateOutput(mockResult));
+
+      const ctx: Pass2Context = {
+        orgContext: {
+          iban: null,
+          name: 'My Company OÜ',
+          vatNumber: null,
+        },
+        directionHint: 'incoming',
+      };
+
+      await service.classify('# Supplier Invoice', ctx);
+
+      expect(buildSpy).toHaveBeenCalledWith({
+        iban: null,
+        name: 'My Company OÜ',
+        vatNumber: null,
+        directionHint: 'incoming',
+      });
+    });
+  });
+
+  describe('withOrgIdentity (pure helper)', () => {
+    it('appends org identity block to instructions', () => {
+      const base = 'BASE INSTRUCTIONS';
+      const result = withOrgIdentity(base, {
+        name: 'Acme OÜ',
+        vatNumber: 'EE123456789',
+        iban: 'EE382200221020145685',
+        directionHint: 'outgoing',
+      });
+
+      expect(result).toContain('BASE INSTRUCTIONS');
+      expect(result).toContain('YOUR ORGANIZATION');
+      expect(result).toContain('name="Acme OÜ"');
+      expect(result).toContain('VAT="EE123456789"');
+      expect(result).toContain('IBAN="EE382200221020145685"');
+      expect(result).toContain('direction="outgoing"');
+      expect(result).toContain('new_sales_invoice');
+      expect(result).toContain('customer_proposal');
+      expect(result).toContain('outgoing_signals');
+    });
+
+    it('substitutes "unknown" for null fields', () => {
+      const result = withOrgIdentity('BASE', {
+        name: null,
+        vatNumber: null,
+        iban: null,
+        directionHint: 'incoming',
+      });
+
+      expect(result).toContain('name="unknown"');
+      expect(result).toContain('VAT="unknown"');
+      expect(result).toContain('IBAN="unknown"');
+      expect(result).toContain('direction="incoming"');
+      expect(result).toContain('new_expense');
+    });
+
+    it('references incoming supplier_proposal path when direction is incoming', () => {
+      const result = withOrgIdentity('BASE', {
+        name: 'Co',
+        vatNumber: 'EE1',
+        iban: 'EE123',
+        directionHint: 'incoming',
+      });
+
+      expect(result).toContain('supplier_proposal');
+      expect(result).toContain('new_expense');
     });
   });
 });

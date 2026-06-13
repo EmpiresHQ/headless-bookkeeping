@@ -18,3 +18,42 @@ export function withCategoryList(
     `${list}. Choose the closest match. NEVER invent a category outside this list.`
   );
 }
+
+/**
+ * Org identity context passed into the Pass-2 agent when the intake pipeline
+ * has already determined the document's direction (incoming vs outgoing) by
+ * matching the organization's IBAN against the document.
+ */
+export interface OrgIdentityContext {
+  name: string | null;
+  vatNumber: string | null;
+  iban: string | null;
+  directionHint: 'incoming' | 'outgoing';
+}
+
+/**
+ * Append the organization's identity (name, VAT, IBAN) and a pre-decided
+ * direction hint to the agent instructions. The direction was determined
+ * deterministically by matching the org IBAN against the document, so the LLM
+ * should trust it rather than re-derive it.
+ *
+ * When direction is "outgoing": the agent should use kind="new_sales_invoice",
+ * extract the CUSTOMER (buyer) into `customer_proposal`, and fill
+ * `outgoing_signals` truthfully.
+ *
+ * When direction is "incoming": the agent behaves as before (kind="new_expense"
+ * with a `supplier_proposal`).
+ */
+export function withOrgIdentity(
+  instructions: string,
+  org: OrgIdentityContext,
+): string {
+  return (
+    instructions +
+    `\n\nYOUR ORGANIZATION: name="${org.name ?? 'unknown'}", VAT="${org.vatNumber ?? 'unknown'}", IBAN="${org.iban ?? 'unknown'}".` +
+    `\nThis document has been pre-classified as direction="${org.directionHint}" (decided by matching your IBAN against the document — trust it).` +
+    `\nReport \`document_type\` accurately (invoice | receipt | bank_statement | credit_note | other).` +
+    `\nWhen direction is "outgoing", set kind="new_sales_invoice", extract the CUSTOMER (buyer) into \`customer_proposal\` and the document's invoice number into \`supplier_invoice_number\`, and set the \`outgoing_signals\` booleans truthfully (does YOUR org name / VAT appear as the issuer/seller? is there a distinct buyer block? does the document call itself an invoice?).` +
+    `\nWhen direction is "incoming", behave as before: kind="new_expense" with a \`supplier_proposal\`.`
+  );
+}

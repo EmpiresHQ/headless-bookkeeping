@@ -7,7 +7,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
-import { withCategoryList } from './triage-instructions';
+import { withCategoryList, withOrgIdentity, OrgIdentityContext } from './triage-instructions';
 import {
   createSearchSuppliersTool,
   createListCategoriesTool,
@@ -86,15 +86,25 @@ export class MastraService {
    * endpoint-aware model config. Throws if the @mastra runtime cannot construct
    * the agent (missing model credentials, ESM load failure) — callers map that
    * to an `agent-unavailable` outcome.
+   *
+   * @param orgContext - Optional org identity + direction hint. When provided,
+   *   the agent instructions are augmented so the LLM knows which organization
+   *   issued/received the document and can set `document_type`, `kind`,
+   *   `customer_proposal`, and `outgoing_signals` accurately. When absent,
+   *   behavior is identical to before this parameter was added.
    */
-  async buildTriageAgent(): Promise<Agent> {
+  async buildTriageAgent(orgContext?: OrgIdentityContext): Promise<Agent> {
     const { instructions } = await this.config.resolve('triage');
     const model = await this.config.resolveModelConfig('triage');
     const categories = await this.categoryService.list();
+    const baseInstructions = withCategoryList(instructions, categories);
+    const finalInstructions = orgContext
+      ? withOrgIdentity(baseInstructions, orgContext)
+      : baseInstructions;
     return new Agent({
       id: 'triage-agent',
       name: 'Triage Agent',
-      instructions: withCategoryList(instructions, categories),
+      instructions: finalInstructions,
       model,
       tools: this.buildTools(),
     });
