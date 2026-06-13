@@ -18,4 +18,15 @@ describe('iban-match', () => {
   it('returns false when no doc IBAN matches the org IBAN', () => {
     expect(matchesOrgIban('LV80BANK0000435195001', 'EE382200221020145685')).toBe(false);
   });
+
+  it('matches the org IBAN even when another IBAN shares the same line', () => {
+    const md = 'Pay to EE38 2200 2210 2014 5685  SWIFT HABAEE2X  Alt GB82 WEST 1234 5698 7654 32';
+    expect(matchesOrgIban(md, 'EE382200221020145685')).toBe(true);
+    expect(matchesOrgIban(md, 'GB82WEST12345698765432')).toBe(true);
+  });
+
+  it('does not match across a line break', () => {
+    const md = 'EE38\n2200221020145685';
+    expect(matchesOrgIban(md, 'EE382200221020145685')).toBe(false);
+  });
 });
