@@ -472,6 +472,11 @@ export class IntakeWorkflowService {
     }
     const file = await this.documents.getFile(documentId);
     const org = await this.organizationService.getOrganization();
+    if (!org.iban) {
+      this.logger.warn(
+        'No org IBAN configured; bank import will run without an account hint',
+      );
+    }
     const { jobId } = await this.bankIngestion.startImport(
       file.buffer.toString('utf-8'),
       org.iban ?? '',
@@ -615,8 +620,40 @@ export class IntakeWorkflowService {
       );
     }
 
-    const outcome = await this.proposeDraft.manualClassifyDraft(documentId, dto);
+    // Branch on the operator's chosen target. A 'sales_invoice' target books an
+    // outgoing-invoice draft; an absent/'expense' target keeps the existing
+    // expense path unchanged. Both branches settle the human-wait identically:
+    // triaged + resolve the open finding + clear any pending proposal.
+    if (dto.target === 'sales_invoice') {
+      const outcome = await this.proposeDraft.manualClassifyInvoiceDraft(
+        documentId,
+        dto,
+      );
+      if (outcome.outcome === 'duplicate-number') {
+        this.logger.warn(
+          `Manual classify-as-invoice for document ${documentId} not booked (duplicate-number): ${outcome.reason}`,
+        );
+        return this.routeNeedsTriage(documentId, outcome.reason);
+      }
+      await this.settleManualClassify(documentId);
+      return {
+        status: 'draft_proposed_invoice',
+        invoiceId: outcome.invoiceId,
+      };
+    }
 
+    const outcome = await this.proposeDraft.manualClassifyDraft(documentId, dto);
+    await this.settleManualClassify(documentId);
+    return { status: 'draft_proposed', draft: outcome };
+  }
+
+  /**
+   * Settle the human-wait after a successful manual classification: move the
+   * document to `triaged`, resolve the open needs_triage finding, and clear any
+   * stored pending proposal. Shared by the expense and sales-invoice branches
+   * of {@link manualClassify} so both behave consistently.
+   */
+  private async settleManualClassify(documentId: number): Promise<void> {
     await this.transitionDocument(documentId, 'triaged');
     const finding = await this.auditFindings.findOpenByReference(
       'needs_triage',
@@ -629,8 +666,6 @@ export class IntakeWorkflowService {
       });
     }
     await this.documents.setPendingTriageResult(documentId, null);
-
-    return { status: 'draft_proposed', draft: outcome };
   }
 
   /**

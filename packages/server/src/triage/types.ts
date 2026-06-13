@@ -223,7 +223,24 @@ export function classifyReasonType(description: string): TriageReasonType {
   return 'unknown';
 }
 
-export const manualClassifySchema = z.object({
+/**
+ * Manual-classify payload — target-discriminated, BACKWARD COMPATIBLE.
+ *
+ * The original payload was the EXPENSE shape with NO `target` field. To let an
+ * operator manually classify a parked document as a SALES INVOICE too, the DTO
+ * is now a union of two arms keyed on an OPTIONAL `target` discriminant:
+ *
+ * - the expense arm carries `target: z.literal('expense').optional()`, so a
+ *   legacy no-target payload still validates (defaults to expense);
+ * - the sales-invoice arm REQUIRES `target: z.literal('sales_invoice')`.
+ *
+ * The union is ordered SALES FIRST so a `target: 'sales_invoice'` payload is
+ * never swallowed by the expense arm (the expense arm's `target` literal would
+ * reject a 'sales_invoice' value anyway — sales-first is for clarity/safety).
+ */
+export const manualClassifyExpenseSchema = z.object({
+  // Optional discriminant: absent → this arm matches (legacy expense payload).
+  target: z.literal('expense').optional(),
   supplier_id: z.number().int().positive(),
   category: z.string().min(1),
   document_vat_marking: z.string().nullable(),
@@ -234,4 +251,44 @@ export const manualClassifySchema = z.object({
   supplier_invoice_number: z.string().nullable().optional(),
 });
 
-export class ManualClassifyDto extends createZodDto(manualClassifySchema) {}
+export const manualClassifySalesInvoiceSchema = z.object({
+  target: z.literal('sales_invoice'),
+  customer_id: z.number().int().nullable().optional(),
+  invoice_number: z.string(),
+  gross_amount: z.number().int(),
+  vat_amount: z.number().int(),
+  currency: z.string(),
+  tax_point_date: z.string(),
+  document_vat_marking: z.string().nullable().optional(),
+});
+
+export const manualClassifySchema = z.union([
+  manualClassifySalesInvoiceSchema,
+  manualClassifyExpenseSchema,
+]);
+
+export type ManualClassifyExpenseInput = z.infer<
+  typeof manualClassifyExpenseSchema
+>;
+export type ManualClassifySalesInvoiceInput = z.infer<
+  typeof manualClassifySalesInvoiceSchema
+>;
+
+/**
+ * Discriminated manual-classify input the workflow narrows on `target`. The
+ * expense arm's `target` is optional (absent on legacy payloads); the
+ * sales-invoice arm's is the required `'sales_invoice'` literal.
+ */
+export type ManualClassifyInput =
+  | ManualClassifySalesInvoiceInput
+  | ManualClassifyExpenseInput;
+
+/**
+ * The endpoint DTO. `createZodDto` cannot be used as a base class for a UNION
+ * schema (its instance type would not be a single object type — TS2509), so the
+ * union DTO is created as a value and its instance type is declared separately
+ * as the discriminated {@link ManualClassifyInput}. The ZodValidationPipe reads
+ * the static `schema` to validate the body, exactly as for an object DTO.
+ */
+export const ManualClassifyDto = createZodDto(manualClassifySchema);
+export type ManualClassifyDto = ManualClassifyInput;

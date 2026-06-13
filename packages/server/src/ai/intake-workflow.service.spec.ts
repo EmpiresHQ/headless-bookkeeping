@@ -41,6 +41,8 @@ describe('IntakeWorkflowService', () => {
     findExistingDraft: jest.fn(),
     proposeSalesInvoiceDraft: jest.fn(),
     findExistingInvoiceDraft: jest.fn(),
+    manualClassifyDraft: jest.fn(),
+    manualClassifyInvoiceDraft: jest.fn(),
   };
 
   const mockEntities = {
@@ -169,6 +171,8 @@ describe('IntakeWorkflowService', () => {
     mockProposeDraft.findExistingDraft.mockReset();
     mockProposeDraft.proposeSalesInvoiceDraft.mockReset();
     mockProposeDraft.findExistingInvoiceDraft.mockReset();
+    mockProposeDraft.manualClassifyDraft.mockReset();
+    mockProposeDraft.manualClassifyInvoiceDraft.mockReset();
     mockEntities.findById.mockReset();
     mockEntities.addIdentifierIfAbsent.mockReset();
     mockOrganization.getOrganization.mockReset();
@@ -1176,6 +1180,113 @@ describe('IntakeWorkflowService', () => {
         'phone',
         '+1 555 0000',
       );
+    });
+  });
+
+  describe('manualClassify', () => {
+    // Seed a needs_triage document with an open finding so the branch can
+    // resolve it (mirrors the resolveSupplier helper).
+    async function seedNeedsTriage(): Promise<number> {
+      const docId = await seedDocument();
+      await documentsService.setStatus(docId, 'needs_triage');
+      await auditFindingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'AI could not classify the document',
+        referenced_object_type: 'document',
+        referenced_object_id: docId,
+      });
+      return docId;
+    }
+
+    it('manually classifies a parked document as a sales invoice', async () => {
+      const docId = await seedNeedsTriage();
+      mockProposeDraft.manualClassifyInvoiceDraft.mockResolvedValue({
+        outcome: 'draft',
+        invoiceId: 77,
+        pipelineResult: {},
+      });
+
+      const res = await service.manualClassify(docId, {
+        target: 'sales_invoice',
+        customer_id: 7,
+        invoice_number: 'INV-77',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_vat_marking: null,
+      });
+
+      expect(res.status).toBe('draft_proposed_invoice');
+      expect((res as { invoiceId: number }).invoiceId).toBe(77);
+      // The expense path must NOT run for a sales-invoice target.
+      expect(mockProposeDraft.manualClassifyDraft).not.toHaveBeenCalled();
+
+      // Settled: doc triaged, finding resolved, pending proposal cleared.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding).toBeUndefined();
+    });
+
+    it('parks a duplicate-number sales-invoice manual classify to needs_triage', async () => {
+      const docId = await seedNeedsTriage();
+      mockProposeDraft.manualClassifyInvoiceDraft.mockResolvedValue({
+        outcome: 'duplicate-number',
+        reason: 'invoice number INV-77 already exists',
+      });
+
+      const res = await service.manualClassify(docId, {
+        target: 'sales_invoice',
+        customer_id: null,
+        invoice_number: 'INV-77',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_vat_marking: null,
+      });
+
+      expect(res.status).toBe('needs_triage');
+      // Still parked — not triaged.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('manually classifies as an expense when target is absent (backward compat)', async () => {
+      const docId = await seedNeedsTriage();
+      mockProposeDraft.manualClassifyDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 42,
+        pipelineResult: {},
+      });
+
+      // Legacy payload: NO `target` field → defaults to the expense path.
+      const res = await service.manualClassify(docId, {
+        supplier_id: 3,
+        category: 'transport',
+        document_vat_marking: null,
+        gross_amount: 1525,
+        vat_amount: 285,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        supplier_invoice_number: null,
+      });
+
+      expect(res.status).toBe('draft_proposed');
+      if (res.status === 'draft_proposed') {
+        expect(res.draft.expenseId).toBe(42);
+      }
+      expect(mockProposeDraft.manualClassifyDraft).toHaveBeenCalledTimes(1);
+      expect(mockProposeDraft.manualClassifyInvoiceDraft).not.toHaveBeenCalled();
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
     });
   });
 });

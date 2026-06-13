@@ -736,4 +736,82 @@ describe('ProposeDraftService (integration)', () => {
       expect(out.outcome).toBe('duplicate-number');
     });
   });
+
+  describe('manualClassifyInvoiceDraft', () => {
+    it('creates a sales invoice from operator data and runs the pipeline', async () => {
+      salesInvoicesService.createInvoice.mockResolvedValue({ id: 88 });
+      const runPipelineSpy = jest
+        .spyOn(postingPipelineService, 'runPipeline')
+        .mockResolvedValue({ ok: true } as never);
+
+      const out = await service.manualClassifyInvoiceDraft(99, {
+        customer_id: 7,
+        invoice_number: 'INV-77',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_vat_marking: null,
+      });
+
+      expect(out.outcome).toBe('draft');
+      expect((out as { invoiceId: number }).invoiceId).toBe(88);
+      expect(salesInvoicesService.createInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          document_id: 99,
+          customer_id: 7,
+          invoice_number: 'INV-77',
+          gross_amount: 12200,
+          vat_amount: 2200,
+          currency: 'EUR',
+          tax_point_date: '2026-06-01',
+          document_vat_marking: null,
+        }),
+      );
+      expect(runPipelineSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          businessObjectType: 'sales_invoice',
+          category: 'revenue',
+          requestedBy: 'operator',
+        }),
+      );
+    });
+
+    it('defaults a missing customer_id / document_vat_marking to null', async () => {
+      salesInvoicesService.createInvoice.mockResolvedValue({ id: 90 });
+      jest
+        .spyOn(postingPipelineService, 'runPipeline')
+        .mockResolvedValue({ ok: true } as never);
+
+      await service.manualClassifyInvoiceDraft(101, {
+        invoice_number: 'INV-90',
+        gross_amount: 1000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+      });
+
+      expect(salesInvoicesService.createInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({ customer_id: null, document_vat_marking: null }),
+      );
+    });
+
+    it('returns duplicate-number when the invoice number collides', async () => {
+      salesInvoicesService.createInvoice.mockRejectedValue(
+        new Error('UNIQUE constraint failed: sales_invoice.invoice_number'),
+      );
+
+      const out = await service.manualClassifyInvoiceDraft(99, {
+        customer_id: null,
+        invoice_number: 'INV-DUP',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_vat_marking: null,
+      });
+
+      expect(out.outcome).toBe('duplicate-number');
+    });
+  });
 });

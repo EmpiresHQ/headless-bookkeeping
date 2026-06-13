@@ -1,4 +1,69 @@
-import { supplierProposalSchema, triageResultSchema } from './types';
+import {
+  manualClassifySchema,
+  supplierProposalSchema,
+  triageResultSchema,
+} from './types';
+
+describe('manualClassifySchema — target-discriminated union (backward compatible)', () => {
+  it('accepts a legacy expense payload with NO target (defaults to expense arm)', () => {
+    const parsed = manualClassifySchema.parse({
+      supplier_id: 3,
+      category: 'transport',
+      document_vat_marking: null,
+      gross_amount: 1525,
+      vat_amount: 285,
+      currency: 'EUR',
+      tax_point_date: '2026-03-15',
+      supplier_invoice_number: null,
+    });
+    // No discriminant on a legacy payload — the expense arm matched.
+    expect('supplier_id' in parsed).toBe(true);
+    expect((parsed as { target?: string }).target).toBeUndefined();
+  });
+
+  it('accepts an explicit target:expense payload', () => {
+    const parsed = manualClassifySchema.parse({
+      target: 'expense',
+      supplier_id: 3,
+      category: 'transport',
+      document_vat_marking: null,
+      gross_amount: 1525,
+      vat_amount: 285,
+      currency: 'EUR',
+      tax_point_date: '2026-03-15',
+    });
+    expect((parsed as { target?: string }).target).toBe('expense');
+  });
+
+  it('accepts a target:sales_invoice payload', () => {
+    const parsed = manualClassifySchema.parse({
+      target: 'sales_invoice',
+      customer_id: 7,
+      invoice_number: 'INV-77',
+      gross_amount: 12200,
+      vat_amount: 2200,
+      currency: 'EUR',
+      tax_point_date: '2026-06-01',
+      document_vat_marking: null,
+    });
+    expect(parsed).toMatchObject({
+      target: 'sales_invoice',
+      invoice_number: 'INV-77',
+    });
+  });
+
+  it('rejects a sales_invoice payload missing the required invoice_number', () => {
+    expect(() =>
+      manualClassifySchema.parse({
+        target: 'sales_invoice',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+      }),
+    ).toThrow();
+  });
+});
 
 describe('triageResultSchema — sales-invoice kind, outgoing_signals, document_type', () => {
   it('accepts kind new_sales_invoice with a customer_proposal and outgoing_signals', () => {

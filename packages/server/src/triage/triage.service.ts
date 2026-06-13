@@ -167,7 +167,7 @@ export class TriageService {
     }
 
     // manualClassify can only yield needs_triage at this point.
-    const needsTriage = result as import('../ai/intake-workflow.service').NeedsTriageOutcome;
+    const needsTriage = result as NeedsTriageOutcome;
     return { kind: 'unknown', document_id: documentId, reason: needsTriage.reason };
   }
 }

@@ -476,6 +476,65 @@ export class ProposeDraftService {
   }
 
   /**
+   * Book a SalesInvoice draft from operator-supplied data, bypassing the AI
+   * classification passes — the sales-invoice analogue of
+   * {@link manualClassifyDraft}. Used by the manual-classify endpoint when an
+   * operator classifies a parked document as an OUTGOING invoice and fills in
+   * all fields directly (no AI confidence gate).
+   *
+   * Returns a {@link ProposeSalesInvoiceResult} on success, or a
+   * {@link DuplicateNumberResult} when the invoice number collides (a UNIQUE
+   * violation, almost always a re-upload). `invoice-number-missing` cannot
+   * happen here — the DTO requires `invoice_number`.
+   */
+  async manualClassifyInvoiceDraft(
+    documentId: number,
+    dto: {
+      customer_id?: number | null;
+      invoice_number: string;
+      gross_amount: number;
+      vat_amount: number;
+      currency: string;
+      tax_point_date: string;
+      document_vat_marking?: string | null;
+    },
+  ): Promise<ProposeSalesInvoiceResult | DuplicateNumberResult> {
+    let invoice;
+    try {
+      invoice = await this.salesInvoicesService.createInvoice({
+        document_id: documentId,
+        customer_id: dto.customer_id ?? null,
+        invoice_number: dto.invoice_number,
+        gross_amount: dto.gross_amount,
+        vat_amount: dto.vat_amount,
+        currency: dto.currency,
+        tax_point_date: dto.tax_point_date,
+        document_vat_marking: dto.document_vat_marking ?? null,
+      });
+    } catch (err) {
+      if (isInvoiceNumberConflict(err)) {
+        return {
+          outcome: 'duplicate-number',
+          reason: `invoice number ${dto.invoice_number} already exists (likely a duplicate of an already-booked invoice)`,
+        };
+      }
+      throw err;
+    }
+
+    const pipelineResult = await this.postingPipelineService.runPipeline({
+      businessObjectId: invoice.id,
+      businessObjectType: 'sales_invoice',
+      draftGenerator: () =>
+        this.salesInvoicesService.generateDraftVoucher(invoice.id),
+      category: 'revenue',
+      refetch: () => this.salesInvoicesService.getInvoiceById(invoice.id),
+      requestedBy: 'operator',
+    });
+
+    return { outcome: 'draft', invoiceId: invoice.id, pipelineResult };
+  }
+
+  /**
    * Find an Expense already drafted from a Document, if any. Used by the
    * IntakeWorkflowService idempotency guard to replay an already-triaged
    * Document's draft instead of creating a second one. Returns the lightweight
