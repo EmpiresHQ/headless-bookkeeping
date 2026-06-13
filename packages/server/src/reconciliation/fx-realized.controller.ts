@@ -1,5 +1,5 @@
 import { Controller, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { FXRealizedService, FXRealizedResult } from './fx-realized.service';
@@ -27,6 +27,8 @@ export class FXRealizedController {
    * Returns an FXRealizedResult indicating whether an FX voucher was posted,
    * no FX was needed, or data was missing.
    */
+  @ApiOperation({ summary: 'Compute and post realized FX', description: 'Compute and post the realized FX gain/loss for a settlement.' })
+  @ApiParam({ name: 'bankTransactionId', description: 'Bank transaction id' })
   @Post(':bankTransactionId/fx-realized')
   async computeAndPost(
     @Param('bankTransactionId', ParseIntPipe) bankTransactionId: number,
