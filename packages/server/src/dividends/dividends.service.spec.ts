@@ -389,6 +389,10 @@ describe('DividendsService (integration)', () => {
         return { artifacts: [], warnings: [] };
       }
 
+      generateAnnualAccounts() {
+        return { artifacts: [], warnings: [] };
+      }
+
       getDepreciationMethod(): DepreciationMethod {
         return 'straight_line';
       }
@@ -614,6 +618,10 @@ describe('DividendsService (integration)', () => {
       }
 
       generateStatutoryReports() {
+        return { artifacts: [], warnings: [] };
+      }
+
+      generateAnnualAccounts() {
         return { artifacts: [], warnings: [] };
       }
 

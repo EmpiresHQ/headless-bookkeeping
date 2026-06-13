@@ -19,6 +19,11 @@ import {
   StatutoryReportResult,
 } from './statutory-report.types';
 import {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
+import {
   ExpenseTreatmentPreview,
   KmdBaseClassification,
   VatComputation,
@@ -277,6 +282,13 @@ export class NullCountryPlugin implements CountryPlugin {
     _input: StatutoryReportInput,
     _opts: { formats: StatutoryFormat[] },
   ): StatutoryReportResult {
+    return { artifacts: [], warnings: [] };
+  }
+
+  generateAnnualAccounts(
+    _input: AnnualAccountsInput,
+    _opts: AnnualAccountsOpts,
+  ): AnnualAccountsResult {
     return { artifacts: [], warnings: [] };
   }
 }

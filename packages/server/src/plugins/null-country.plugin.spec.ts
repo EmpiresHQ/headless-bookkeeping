@@ -98,6 +98,22 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
     });
   });
 
+  it('generateAnnualAccounts returns empty artifacts and warnings', () => {
+    const input = {
+      period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },
+      priorPeriod: null,
+      mode: 'draft' as const,
+      balances: [],
+      fixedAssets: [],
+      periodNetIncome: 0,
+      priorNetIncome: 0,
+      retainedEarningsBroughtForward: 0,
+      declarant: { regNumber: null, name: null },
+    };
+    const result = plugin.generateAnnualAccounts(input, { taxonomyVersion: 2026 });
+    expect(result).toEqual({ artifacts: [], warnings: [] });
+  });
+
   it('returns no statutory artifacts (jurisdiction has no filing format)', () => {
     const result = plugin.generateStatutoryReports(
       {

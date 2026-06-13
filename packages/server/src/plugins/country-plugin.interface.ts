@@ -9,6 +9,11 @@ import type {
   DepreciationMethod,
   FixedAssetDefaults,
 } from './fixed-asset.types';
+import type {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
 
 export type {
   VatComputation,
@@ -28,6 +33,12 @@ export type {
   DepreciationMethod,
   FixedAssetDefaults,
 } from './fixed-asset.types';
+
+export type {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
 
 /**
  * VATCode - A country-specific classification of a line's VAT treatment.
@@ -349,6 +360,17 @@ export interface CountryPlugin extends CountryPluginRetrieval {
     input: StatutoryReportInput,
     opts: { formats: StatutoryFormat[] },
   ): StatutoryReportResult;
+
+  /**
+   * Render the jurisdiction's annual-accounts artifact(s) (e.g. RIK-XBRL) from
+   * a neutral, pre-assembled input. The plugin owns the account→RTJ-line→XBRL
+   * concept mapping and stays pure — no DB access. Unsupported jurisdictions
+   * return empty artifacts. Mirrors generateStatutoryReports (ADR-0033/0034).
+   */
+  generateAnnualAccounts(
+    input: AnnualAccountsInput,
+    opts: AnnualAccountsOpts,
+  ): AnnualAccountsResult;
 
   /**
    * The depreciation method this jurisdiction uses. Estonia: straight-line
