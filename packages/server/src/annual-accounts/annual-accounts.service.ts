@@ -16,6 +16,16 @@ import type {
 } from '../plugins/annual-accounts.types';
 import type { CountryPlugin } from '../plugins/country-plugin.interface';
 
+/**
+ * A kernel diagnostic warning. {@link AnnualAccountsWarning} (= StatutoryWarning)
+ * has no `severity`; the kernel adds an optional structural extension so
+ * `finalize` (Task 8) can hard-block on `severity: 'block'` while soft signals
+ * pass through. Structurally assignable to `AnnualAccountsWarning[]`.
+ */
+type DiagnosticWarning = AnnualAccountsWarning & {
+  severity?: 'block' | 'soft';
+};
+
 /** The asset classes the kernel knows about (mirrors the `fixed_asset` register). */
 type AssetClass = 'vehicle' | 'it_equipment' | 'machinery' | 'furniture';
 
@@ -81,7 +91,7 @@ export class AnnualAccountsService {
   ): Promise<{
     input: AnnualAccountsInput;
     plugin: CountryPlugin;
-    diagnostics: AnnualAccountsWarning[];
+    diagnostics: DiagnosticWarning[];
     charges: AssetAnnualCharge[];
     period: { id: number; name: string; start_date: string; end_date: string };
   }> {
@@ -284,8 +294,99 @@ export class AnnualAccountsService {
     return revenue - expense;
   }
 
-  /** Kernel diagnostics — filled in by Task 7. Returns [] for now. */
-  protected diagnose(_input: AnnualAccountsInput): AnnualAccountsWarning[] {
-    return [];
+  /**
+   * Jurisdiction-neutral draft diagnostics. The RTJ-map-dependent
+   * unmapped-nonzero check is owned by the PLUGIN (it warns during render);
+   * `finalize` re-reads those plugin warnings to hard-block (Task 8). Here the
+   * kernel checks only arithmetic invariants + soft signals:
+   *  - balance-sheet balance (Aktiva == Kohustused + Omakapital) — BLOCK,
+   *  - EXPENSE_OTHER concentration — soft,
+   *  - depreciation not yet posted (register has assets, no ACCUM voucher) — soft,
+   *  - register-vs-ledger cost mismatch — soft.
+   */
+  protected diagnose(input: AnnualAccountsInput): DiagnosticWarning[] {
+    const warnings: DiagnosticWarning[] = [];
+
+    // 1. Balance-sheet balance. Assets (debit-normal +) must equal
+    //    liabilities + equity, where equity = capital + brought-forward retained
+    //    + period result (the three live lines, ADR §3).
+    const sum = (pred: (b: AccountBalanceRow) => boolean): number =>
+      input.balances.filter(pred).reduce((s, b) => s + b.current, 0);
+    const assets = sum((b) => b.type === 'asset');
+    const liabilities = sum((b) => b.type === 'liability');
+    // Equity live lines: EQUITY (capital) + RETAINED_EARNINGS brought forward
+    // + period net income. (RETAINED_EARNINGS current = brought forward in v1.)
+    const capital = input.balances
+      .filter((b) => b.type === 'equity' && b.code !== 'RETAINED_EARNINGS')
+      .reduce((s, b) => s + b.current, 0);
+    const equity =
+      capital + input.retainedEarningsBroughtForward + input.periodNetIncome;
+    if (assets !== liabilities + equity) {
+      warnings.push({
+        code: 'balance_sheet_imbalance',
+        message: `Balance sheet does not balance: assets ${assets} != liabilities ${liabilities} + equity ${equity}`,
+        severity: 'block',
+      });
+    }
+
+    // 2. EXPENSE_OTHER concentration (soft): > 50% of total expense.
+    const totalExpense = input.balances
+      .filter((b) => b.type === 'expense')
+      .reduce((s, b) => s + b.current, 0);
+    const other =
+      input.balances.find((b) => b.code === 'EXPENSE_OTHER')?.current ?? 0;
+    if (totalExpense > 0 && other / totalExpense > 0.5) {
+      warnings.push({
+        code: 'expense_other_concentration',
+        message: `EXPENSE_OTHER is ${Math.round((other / totalExpense) * 100)}% of total expenses`,
+        severity: 'soft',
+      });
+    }
+
+    // 3. Depreciation not yet posted (soft): register has live assets but the
+    //    ledger ACCUM_DEPRECIATION_* lines for the period are absent. In draft
+    //    the charge is virtual, so this signal fires whenever no real ACCUM
+    //    voucher has been posted for the period's depreciation.
+    const liveAssets = input.fixedAssets.filter((a) => !a.retired).length;
+    if (liveAssets > 0 && input.mode === 'draft') {
+      warnings.push({
+        code: 'depreciation_not_yet_posted',
+        message: `${liveAssets} asset(s) in the register; annual depreciation is computed virtually and not yet posted`,
+        severity: 'soft',
+      });
+    }
+
+    // 4. Register-vs-ledger cost mismatch (soft): Σ register cost per class vs
+    //    the FIXED_ASSETS_* ledger balance per class.
+    const ledgerByClass: Record<string, number> = {
+      vehicle:
+        input.balances.find((b) => b.code === 'FIXED_ASSETS_VEHICLES')?.current ??
+        0,
+      it_equipment:
+        input.balances.find((b) => b.code === 'FIXED_ASSETS_IT')?.current ?? 0,
+      machinery:
+        input.balances.find((b) => b.code === 'FIXED_ASSETS_EQUIPMENT')
+          ?.current ?? 0,
+      furniture:
+        input.balances.find((b) => b.code === 'FIXED_ASSETS_FURNITURE')
+          ?.current ?? 0,
+    };
+    const registerByClass: Record<string, number> = {};
+    for (const a of input.fixedAssets) {
+      if (a.retired) continue;
+      registerByClass[a.assetClass] =
+        (registerByClass[a.assetClass] ?? 0) + a.costMinor;
+    }
+    for (const cls of Object.keys(ledgerByClass)) {
+      if ((registerByClass[cls] ?? 0) !== ledgerByClass[cls]) {
+        warnings.push({
+          code: 'register_ledger_cost_mismatch',
+          message: `Fixed-asset register cost for ${cls} (${registerByClass[cls] ?? 0}) != ledger (${ledgerByClass[cls]})`,
+          severity: 'soft',
+        });
+      }
+    }
+
+    return warnings;
   }
 }
