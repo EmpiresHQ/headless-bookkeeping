@@ -33,6 +33,14 @@ Capabilities deliberately **out of v1 scope**, to be added post-v1 as **domain p
 
 **Why deferred:** v1's job is the *ledger record* of what will be billed; actual document production/delivery is out of scope.
 
+## Online-shop module (resale goods, B2C e-commerce)
+
+**What:** The bundle of capabilities a goods-reselling online shop needs that the services solo-OÜ persona does not: **inventory** for resale goods (periodic method — purchases hit `EXPENSE_GOODS`, a period-end physical count posts `Dr INVENTORY / Cr EXPENSE_GOODS` so the balance sheet shows varud and COGS is correct), **OSS** (One Stop Shop — B2C distance-sales VAT at the destination member state's rate), **payment-processor reconciliation** (Stripe/PayPal payouts booked net of fees), and **bulk order ingestion** (marketplace/cart exports rather than one-off sales invoices).
+
+**Why a separate module:** none of this touches the services persona, and each piece is self-contained — inventory has its own count/valuation lifecycle, OSS is a parallel VAT regime to KMD with per-country rates, processor reconciliation is a banking concern with fee splitting. Bundling them keeps the v1 kernel and the annual-accounts work (ADR-0034) focused on services. The annual report already leaves the varud line empty until this module supplies the resale-goods accounts.
+
+**Why deferred:** the v1 persona is the **services** solo-OÜ (consulting, IT). Goods resale is a distinct go-to-market we tackle as a dedicated module later. (Periodic-inventory design was drafted as a proposed ADR and folded here; perpetual inventory, per-SKU/lot valuation, and COGS-on-sale remain further out.)
+
 ## Other deferred (not domain plugins)
 
 These are **kernel-native** capabilities (ledger rules + accounts, possibly a country-plugin hook) that the domain model already names but v1 does not build. Each becomes a kernel + country-plugin wave, not a domain plugin.

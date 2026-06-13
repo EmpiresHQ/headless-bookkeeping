@@ -48,10 +48,12 @@ balances **without** a sweep; sweeping into retained earnings is needed only to
 *open* the next year and is a separate concern.
 
 **4. The report is a pure projection of the posted ledger.** Period-end
-adjustments — depreciation (ADR-0035) and the inventory count (ADR-0036) — are
-**real vouchers posted before** the report reads them, so every figure traces to
-a voucher (integrity layer, ADR-0013/0019). The report never computes a number it
-does not read.
+adjustments — depreciation (ADR-0035) being the only one in scope for the
+services solo-OÜ persona — are **real vouchers posted before** the report reads
+them, so every figure traces to a voucher (integrity layer, ADR-0013/0019). The
+report never computes a number it does not read. (Resale-goods inventory and its
+closing-stock adjustment are deferred to the V2 online-shop module — see
+V2-ROADMAP.md; the services persona carries no stock.)
 
 **5. One calculator, two modes.**
 - **draft** computes the period-end adjustments *virtually* (posts nothing, locks
@@ -74,8 +76,8 @@ is the authoritative validator on upload. No in-runtime XBRL processor dependenc
 balance-sheet imbalance (Aktiva ≠ Kohustused + Omakapital), or any nonzero-balance
 account **not mapped** to an RTJ line (its amount would silently vanish — the #1
 cause of an unbalanced close). **Soft** warnings (non-blocking):
-suspense/`EXPENSE_OTHER` concentration, depreciation not yet run, inventory not
-counted, register-vs-ledger cost mismatch.
+suspense/`EXPENSE_OTHER` concentration, depreciation not yet run,
+register-vs-ledger cost mismatch.
 
 **8. Post-final corrections** go through reversal/adjustment vouchers in the next
 open period (no break-glass, ADR-0012), never by editing the locked year.
@@ -90,9 +92,10 @@ open period (no break-glass, ADR-0012), never by editing the locked year.
   required, an XBRL processor can sit behind the same seam without touching the
   kernel.
 - New neutral kernel accounts are required so the väike lines have somewhere to
-  land: see ADR-0035 (fixed-asset, accumulated-depreciation, depreciation-expense)
-  and ADR-0036 (`INVENTORY`, `EXPENSE_GOODS`). The capital breakdown reuses
-  existing `EQUITY`/`RETAINED_EARNINGS` (a `SHARE_CAPITAL` split is added when
-  needed).
+  land: see ADR-0035 (fixed-asset, accumulated-depreciation, depreciation-expense).
+  The capital breakdown reuses existing `EQUITY`/`RETAINED_EARNINGS` (a
+  `SHARE_CAPITAL` split is added when needed). The varud (inventory) line stays
+  empty for the services persona; the resale-goods accounts arrive with the V2
+  online-shop module.
 - v1 covers the balance sheet + income statement. Notes/disclosures beyond the
   mandatory väike lines, consolidation, and X-tee/API submission are deferred.
