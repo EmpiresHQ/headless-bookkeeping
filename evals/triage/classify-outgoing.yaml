@@ -1,0 +1,146 @@
+# Does the model correctly classify an OUTGOING invoice when the org-identity +
+# direction hint is injected into the system prompt? This isolates "given that
+# we KNOW direction=outgoing (IBAN-matched), does the model emit new_sales_invoice
+# with a customer_proposal (buyer) and truthful outgoing_signals?"
+#
+# Configure the endpoint in evals/triage/.env (see .env.example), then:
+#   npm run eval:triage:classify-outgoing
+#
+# Note: IBAN-direction detection and routing are covered by server unit tests;
+# this eval tests only the LLM-classification half.
+
+description: Triage — outgoing-invoice classification with org-identity hint
+
+providers:
+  # Endpoint + model come from the (gitignored) .env — see .env.example.
+  - id: 'openai:chat:{{ env.EVAL_MODEL }}'
+    config:
+      apiBaseUrl: '{{ env.EVAL_BASE_URL }}'
+      apiKeyEnvar: OPENAI_API_KEY
+      temperature: 0
+      response_format:
+        type: json_schema
+        json_schema: file://schema-outgoing.json
+
+prompts:
+  - file://prompt-classify-outgoing.json
+
+tests:
+  - description: T1 — Outgoing invoice to EU customer (Danish buyer, 0% EU services)
+    vars:
+      markdown: |
+        INVOICE
+
+        From (Seller):
+        Example Seller OÜ
+        VAT EE100000001
+        Pärnu mnt 5, 10148 Tallinn, Estonia
+        accounts@exampleseller.ee
+        IBAN: EE382200221020145685
+
+        To (Buyer):
+        Sample Buyer ApS
+        VAT DK29876543
+        Vesterbrogade 72, 1620 Copenhagen V, Denmark
+
+        Invoice No.: ESO-2026-0047
+        Invoice Date: 2026-06-10
+
+        Description                        Amount (EUR)
+        Software consulting services       6 157,00
+        EU 0% (reverse charge)             0,00
+
+        Total (EUR)                        6 157,00
+
+        Payment due: 2026-07-10
+        Bank: EE382200221020145685
+    assert:
+      - type: is-json
+      - type: javascript
+        # Must recognise this as an outgoing sales invoice (direction hint trusted),
+        # document_type=invoice, our org name is the issuer, and a distinct buyer
+        # block is present. Invoice number ESO-2026-0047 must land in supplier_invoice_number.
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          return o.kind === 'new_sales_invoice'
+            && o.document_type === 'invoice'
+            && o.outgoing_signals.org_name_is_issuer === true
+            && o.outgoing_signals.has_buyer_block === true
+            && typeof o.supplier_invoice_number === 'string'
+            && o.supplier_invoice_number.length > 0
+            && o.supplier_invoice_number.includes('ESO-2026-0047');
+
+  - description: T2 — Outgoing invoice customer extraction (buyer into customer_proposal)
+    vars:
+      markdown: |
+        INVOICE
+
+        From (Seller):
+        Example Seller OÜ
+        Reg. No. 12345678   VAT EE100000001
+        Narva mnt 9, 10151 Tallinn, Estonia
+        IBAN: EE382200221020145685
+
+        Bill To:
+        Sample Buyer ApS
+        VAT DK29876543
+        Vesterbrogade 72, 1620 Copenhagen V, Denmark
+        billing@samplebuyer.dk
+
+        Invoice No.: ESO-2026-0047
+        Invoice Date: 2026-06-10
+
+        Web platform maintenance (monthly)   2 400,00 EUR
+        EU 0%                                0,00 EUR
+
+        Total                                2 400,00 EUR
+    assert:
+      - type: is-json
+      - type: javascript
+        # The BUYER (Sample Buyer ApS) must land in customer_proposal, NOT supplier_proposal.
+        # Accepts mode='create' with a create_name containing the buyer, OR mode='match'.
+        # kind must be new_sales_invoice.
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          if (o.kind !== 'new_sales_invoice') return false;
+          const cp = o.customer_proposal;
+          if (!cp) return false;
+          if (cp.mode === 'match') return true;
+          return cp.mode === 'create'
+            && typeof cp.create_name === 'string'
+            && cp.create_name.toLowerCase().includes('sample buyer');
+
+  - description: T3 — Domestic outgoing invoice with 22% VAT, amounts in cents
+    vars:
+      markdown: |
+        ARVE
+
+        Müüja (Seller):
+        Example Seller OÜ
+        VAT EE100000001
+        Telliskivi 60a, 10412 Tallinn
+        IBAN: EE382200221020145685
+
+        Ostja (Buyer):
+        Kohalik Klient OÜ
+        VAT EE987654321
+        Tartu mnt 84, 10112 Tallinn
+
+        Arve nr: ESO-2026-0055
+        Kuupäev: 2026-06-12
+
+        Kirjeldus                        Summa (EUR)
+        IT-konsultatsioon (12h)          1 200,00
+        Käibemaks 22%                      264,00
+        Kokku                            1 464,00
+    assert:
+      - type: is-json
+      - type: javascript
+        # kind=new_sales_invoice; gross 1 464,00 EUR → 146400 cents; vat 264,00 → 26400 cents.
+        # Also verify outgoing_signals reflect the org VAT appearing as issuer.
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          return o.kind === 'new_sales_invoice'
+            && o.gross_amount === 146400
+            && o.vat_amount === 26400
+            && o.outgoing_signals.org_vat_is_issuer === true;
