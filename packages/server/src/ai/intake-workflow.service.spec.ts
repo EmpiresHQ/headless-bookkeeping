@@ -18,6 +18,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
+import { BankIngestionService } from '../bank/bank-ingestion.service';
 import { TriageResult } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
@@ -51,6 +52,10 @@ describe('IntakeWorkflowService', () => {
     getOrganization: jest.fn(),
   };
 
+  const mockBankIngestion = {
+    startImport: jest.fn(),
+  };
+
   const sampleTriageResult = (
     overrides: Partial<TriageResult> = {},
   ): TriageResult => ({
@@ -72,6 +77,11 @@ describe('IntakeWorkflowService', () => {
     },
     ...overrides,
   });
+
+  // Bank-statement fixture: document_type='bank_statement', kind='unknown'.
+  const makeExpenseResult = (
+    overrides: Partial<TriageResult> = {},
+  ): TriageResult => sampleTriageResult(overrides);
 
   // Sales (outgoing) fixture: mirrors sampleTriageResult but with
   // kind='new_sales_invoice', a revenue category and an invoice document type.
@@ -139,6 +149,7 @@ describe('IntakeWorkflowService', () => {
         { provide: ProposeDraftService, useValue: mockProposeDraft },
         { provide: EntitiesService, useValue: mockEntities },
         { provide: OrganizationService, useValue: mockOrganization },
+        { provide: BankIngestionService, useValue: mockBankIngestion },
         AuditFindingsService,
         PolicyService,
         DocumentsService,
@@ -161,6 +172,7 @@ describe('IntakeWorkflowService', () => {
     mockEntities.findById.mockReset();
     mockEntities.addIdentifierIfAbsent.mockReset();
     mockOrganization.getOrganization.mockReset();
+    mockBankIngestion.startImport.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -618,6 +630,66 @@ describe('IntakeWorkflowService', () => {
       // The workflow owns the status transition: pending -> triaged.
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('triaged');
+    });
+
+    it('hands a CSV bank statement to bank-ingestion', async () => {
+      const docId = await seedDocument('stmt.csv');
+      mockOrganization.getOrganization.mockResolvedValue({ iban: 'EE382200221020145685', name: 'Acme', vat_registration_number: 'EE1' });
+      mockOcrService.transcribe.mockResolvedValue({ ok: true, markdown: 'date,amount,desc\n2026-06-01,100,x' });
+      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: makeExpenseResult({ document_type: 'bank_statement' }) });
+      const getByIdSpy = jest.spyOn(documentsService, 'getById').mockResolvedValue({
+        id: docId,
+        hash: 'h',
+        filename: 'stmt.csv',
+        mime_type: 'text/csv',
+        size_bytes: 100,
+        storage_path: '/tmp/stmt.csv',
+        status: 'pending',
+        processing_since: null,
+        created_at: 0,
+      });
+      const getFileSpy = jest.spyOn(documentsService, 'getFile').mockResolvedValue({
+        buffer: Buffer.from('date,amount,desc\n2026-06-01,100,x'),
+        filename: 'stmt.csv',
+        mimeType: 'text/csv',
+      });
+      mockBankIngestion.startImport.mockResolvedValue({ jobId: 3 });
+
+      const res = await service.process(docId);
+
+      expect(mockBankIngestion.startImport).toHaveBeenCalledWith(expect.any(String), 'EE382200221020145685');
+      expect(res.status).toBe('bank_import_started');
+
+      getByIdSpy.mockRestore();
+      getFileSpy.mockRestore();
+    });
+
+    it('parks a non-CSV (PDF) bank statement', async () => {
+      const docId = await seedDocument('s.pdf');
+      mockOrganization.getOrganization.mockResolvedValue({ iban: 'EE382200221020145685', name: 'Acme', vat_registration_number: 'EE1' });
+      mockOcrService.transcribe.mockResolvedValue({ ok: true, markdown: 'Statement ...' });
+      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: makeExpenseResult({ document_type: 'bank_statement' }) });
+      const getByIdSpy = jest.spyOn(documentsService, 'getById').mockResolvedValue({
+        id: docId,
+        hash: 'h',
+        filename: 's.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 100,
+        storage_path: '/tmp/s.pdf',
+        status: 'pending',
+        processing_since: null,
+        created_at: 0,
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      if (res.status === 'needs_triage') {
+        expect(res.reason).toMatch(/CSV/i);
+      }
+      expect(mockBankIngestion.startImport).not.toHaveBeenCalled();
+
+      getByIdSpy.mockRestore();
     });
 
     it('parks an outgoing invoice with a create-customer proposal', async () => {

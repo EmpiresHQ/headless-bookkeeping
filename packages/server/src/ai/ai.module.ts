@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { EntitiesModule } from '../entities/entities.module';
@@ -12,6 +12,7 @@ import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { PolicyModule } from '../policy/policy.module';
 import { AgentConfigModule } from './agent-config.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { BankModule } from '../bank/bank.module';
 import { MastraService } from './mastra.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
@@ -52,6 +53,9 @@ import { IntakeWorkflowService } from './intake-workflow.service';
     OcrModule,
     AuditFindingsModule,
     PolicyModule,
+    // forwardRef: BankModule imports AiModule (for MastraService); AiModule
+    // imports BankModule (for BankIngestionService used in intake workflow).
+    forwardRef(() => BankModule),
   ],
   providers: [
     MastraService,

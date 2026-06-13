@@ -4,6 +4,8 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
 import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
@@ -16,6 +18,7 @@ import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
+import { BankIngestionService } from '../bank/bank-ingestion.service';
 import { AuditFinding } from '../audit-findings/types';
 import {
   DocumentDebug,
@@ -84,12 +87,22 @@ export interface DraftProposedInvoiceOutcome {
 }
 
 /**
+ * Outcome when a CSV bank statement is handed to BankIngestionService for
+ * background processing. The jobId can be polled via the bank-import endpoint.
+ */
+export interface BankImportStartedOutcome {
+  status: 'bank_import_started';
+  jobId: number;
+}
+
+/**
  * The result of running the intake workflow for a single document.
  */
 export type IntakeWorkflowResult =
   | NeedsTriageOutcome
   | DraftProposedOutcome
-  | DraftProposedInvoiceOutcome;
+  | DraftProposedInvoiceOutcome
+  | BankImportStartedOutcome;
 
 /**
  * IntakeWorkflowService — the single DEEP owner of "Document -> outcome".
@@ -127,6 +140,8 @@ export class IntakeWorkflowService {
     private readonly documents: DocumentsService,
     private readonly entities: EntitiesService,
     private readonly organizationService: OrganizationService,
+    @Inject(forwardRef(() => BankIngestionService))
+    private readonly bankIngestion: BankIngestionService,
   ) {}
 
   /**
@@ -263,10 +278,7 @@ export class IntakeWorkflowService {
         case 'sales_invoice':
           return this.routeSalesInvoice(documentId, triageResult, ibanMatched);
         case 'bank_statement':
-          return this.routeNeedsTriage(
-            documentId,
-            'Detected a bank statement; bank-statement intake not yet enabled',
-          );
+          return this.routeBankStatement(documentId);
         case 'unsupported':
           return this.routeNeedsTriage(
             documentId,
@@ -437,6 +449,35 @@ export class IntakeWorkflowService {
     }
     await this.documents.setStatus(documentId, 'triaged');
     return { status: 'draft_proposed_invoice', invoiceId: outcome.invoiceId };
+  }
+
+  /**
+   * Route a bank statement: CSV files are handed to BankIngestionService for
+   * background import; PDF/image statements are parked to needs_triage (OCR-of-
+   * statements is deferred). The document moves to 'processed' on a successful
+   * CSV handoff.
+   */
+  private async routeBankStatement(
+    documentId: number,
+  ): Promise<IntakeWorkflowResult> {
+    const doc = await this.documents.getById(documentId);
+    const isCsv =
+      doc.mime_type === 'text/csv' ||
+      doc.filename.toLowerCase().endsWith('.csv');
+    if (!isCsv) {
+      return this.routeNeedsTriage(
+        documentId,
+        'Bank statement is not a CSV; PDF/image statements are not yet supported by intake — import it via the bank screen',
+      );
+    }
+    const file = await this.documents.getFile(documentId);
+    const org = await this.organizationService.getOrganization();
+    const { jobId } = await this.bankIngestion.startImport(
+      file.buffer.toString('utf-8'),
+      org.iban ?? '',
+    );
+    await this.documents.setStatus(documentId, 'processed');
+    return { status: 'bank_import_started', jobId };
   }
 
   /**

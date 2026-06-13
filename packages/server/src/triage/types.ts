@@ -129,6 +129,12 @@ export interface TriageOutcomeInvoice {
   invoice_id: number;
 }
 
+export interface TriageOutcomeBankStatement {
+  kind: 'bank_statement';
+  document_id: number;
+  job_id: number;
+}
+
 export interface TriageOutcomeUnknown {
   kind: 'unknown';
   document_id: number;
@@ -138,6 +144,7 @@ export interface TriageOutcomeUnknown {
 export type TriageOutcome =
   | TriageOutcomeExpense
   | TriageOutcomeInvoice
+  | TriageOutcomeBankStatement
   | TriageOutcomeUnknown;
 
 /**

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
-import { IntakeWorkflowService } from '../ai/intake-workflow.service';
+import { IntakeWorkflowService, NeedsTriageOutcome } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { Database } from '../database/types';
 import { TriageOutcome, DocumentDebug, ManualClassifyDto, PendingDraft, NeedsTriageItem, classifyReasonType } from './types';
@@ -74,6 +74,14 @@ export class TriageService {
       };
     }
 
+    if (result.status === 'bank_import_started') {
+      return {
+        kind: 'bank_statement',
+        document_id: documentId,
+        job_id: result.jobId,
+      };
+    }
+
     // needs_triage — the workflow created (or reused) the AuditFinding and
     // moved the Document to 'needs_triage'.
     return {
@@ -127,7 +135,9 @@ export class TriageService {
       };
     }
 
-    return { kind: 'unknown', document_id: documentId, reason: result.reason };
+    // resolveSupplier can only yield needs_triage at this point.
+    const needsTriage = result as NeedsTriageOutcome;
+    return { kind: 'unknown', document_id: documentId, reason: needsTriage.reason };
   }
 
   /**
@@ -156,6 +166,8 @@ export class TriageService {
       };
     }
 
-    return { kind: 'unknown', document_id: documentId, reason: result.reason };
+    // manualClassify can only yield needs_triage at this point.
+    const needsTriage = result as import('../ai/intake-workflow.service').NeedsTriageOutcome;
+    return { kind: 'unknown', document_id: documentId, reason: needsTriage.reason };
   }
 }

@@ -211,6 +211,24 @@ describe('TriageService (integration)', () => {
     await expect(triage.route(999)).rejects.toThrow('Document 999 not found');
   });
 
+  it('maps a bank_import_started workflow outcome to a TriageOutcomeBankStatement', async () => {
+    const uploadResult = await documents.upload({
+      filename: 'stmt.csv',
+      buffer: Buffer.from('date,amount\n2026-06-01,100'),
+      mimeType: 'text/csv',
+      channel: 'upload',
+    });
+    const doc = uploadResult.document;
+
+    mockWorkflow.process.mockImplementation(async (id: number) => {
+      await documents.setStatus(id, 'processed');
+      return { status: 'bank_import_started', jobId: 7 };
+    });
+
+    const out = await triage.route(doc.id);
+    expect(out).toEqual({ kind: 'bank_statement', document_id: doc.id, job_id: 7 });
+  });
+
   it('maps a sales-invoice workflow outcome to a TriageOutcomeInvoice', async () => {
     const uploadResult = await documents.upload({
       filename: 'outgoing-invoice.pdf',
