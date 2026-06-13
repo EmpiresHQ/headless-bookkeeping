@@ -9,6 +9,7 @@ import {
   type NeedsTriageItem,
   type TriageOutcome,
 } from '../api';
+import { TriageManualInvoiceForm } from './TriageManualInvoiceForm';
 import { Table, type Column } from './Table';
 import { ResolveSupplierForm } from './ResolveSupplierForm';
 import { TriageManualForm } from './TriageManualForm';
@@ -16,7 +17,8 @@ import { TriageOcrFailedForm } from './TriageOcrFailedForm';
 
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
-  if (o.kind === 'invoice') return `→ draft invoice #${o.invoice_id}`;
+  if (o.kind === 'invoice') return `Sales invoice #${o.invoice_id}`;
+  if (o.kind === 'bank_statement') return `Bank import started (job #${o.job_id})`;
   return `→ needs triage: ${o.reason}`;
 }
 
@@ -256,8 +258,14 @@ export function IntakeView() {
                           onCancel={() => setExpandedId(null)}
                         />
                       )}
-                      {(item.reason_type === 'unimplemented' ||
-                        item.reason_type === 'unknown') && (
+                      {item.reason_type === 'unimplemented' && (
+                        <TriageManualInvoiceForm
+                          documentId={item.id}
+                          onDone={onFormDone}
+                          onCancel={() => setExpandedId(null)}
+                        />
+                      )}
+                      {item.reason_type === 'unknown' && (
                         <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500">
                           {item.reason}
                         </div>

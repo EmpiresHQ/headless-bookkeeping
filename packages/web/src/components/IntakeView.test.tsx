@@ -189,4 +189,112 @@ describe('IntakeView', () => {
 
     expect(await screen.findByText('Processing…')).toBeInTheDocument();
   });
+
+  it('renders a Sales invoice outcome after triage', async () => {
+    vi.spyOn(api, 'triageDocument').mockResolvedValue({
+      kind: 'invoice',
+      document_id: 5,
+      invoice_id: 55,
+    });
+
+    render(<IntakeView />);
+    expect(await screen.findByText('invoice.pdf')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+
+    expect(await screen.findByText(/Sales invoice #55/i)).toBeInTheDocument();
+  });
+
+  it('renders a bank_statement outcome after triage', async () => {
+    vi.spyOn(api, 'triageDocument').mockResolvedValue({
+      kind: 'bank_statement',
+      document_id: 5,
+      job_id: 99,
+    });
+
+    render(<IntakeView />);
+    expect(await screen.findByText('invoice.pdf')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+
+    expect(
+      await screen.findByText(/Bank import started.*job #99/i),
+    ).toBeInTheDocument();
+  });
+
+  it('shows manual classify-as-invoice form for unimplemented needs-triage item', async () => {
+    const unimplementedItem: api.NeedsTriageItem = {
+      id: 9,
+      filename: 'outgoing.pdf',
+      created_at: 0,
+      reason: 'not yet implemented',
+      reason_type: 'unimplemented',
+    };
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([unimplementedItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+    vi.spyOn(api, 'getEntities').mockResolvedValue([]);
+
+    render(<IntakeView />);
+    await screen.findByText('outgoing.pdf');
+
+    fireEvent.click(screen.getByText('outgoing.pdf'));
+
+    expect(
+      await screen.findByText(/classify as sales invoice/i),
+    ).toBeInTheDocument();
+  });
+
+  it('posts target:sales_invoice when operator classifies a parked document as invoice', async () => {
+    const unimplementedItem: api.NeedsTriageItem = {
+      id: 9,
+      filename: 'outgoing.pdf',
+      created_at: 0,
+      reason: 'not yet implemented',
+      reason_type: 'unimplemented',
+    };
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([unimplementedItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+    vi.spyOn(api, 'getEntities').mockResolvedValue([]);
+    const classifySpy = vi
+      .spyOn(api, 'manualClassifyInvoice')
+      .mockResolvedValue({ kind: 'invoice', document_id: 9, invoice_id: 77 });
+
+    render(<IntakeView />);
+    await screen.findByText('outgoing.pdf');
+
+    // Expand the row
+    fireEvent.click(screen.getByText('outgoing.pdf'));
+    await screen.findByText(/classify as sales invoice/i);
+
+    // Fill in required fields
+    fireEvent.change(screen.getByLabelText(/invoice number/i), {
+      target: { value: 'INV-001' },
+    });
+    fireEvent.change(screen.getByLabelText(/gross amount/i), {
+      target: { value: '121.00' },
+    });
+    fireEvent.change(screen.getByLabelText(/vat amount/i), {
+      target: { value: '21.00' },
+    });
+    fireEvent.change(screen.getByLabelText(/date/i), {
+      target: { value: '2026-06-01' },
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /save.*sales invoice/i }),
+    );
+
+    await waitFor(() => {
+      expect(classifySpy).toHaveBeenCalledWith(
+        9,
+        expect.objectContaining({
+          target: 'sales_invoice',
+          invoice_number: 'INV-001',
+          gross_amount: 12100,
+          vat_amount: 2100,
+          tax_point_date: '2026-06-01',
+        }),
+      );
+    });
+  });
 });
