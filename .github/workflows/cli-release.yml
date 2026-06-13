@@ -71,6 +71,12 @@ jobs:
           NEW="$(node -p "require('./package.json').version")"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
           echo "Releasing @empireshq/hbk@$NEW (was $CUR)"
+        env:
+          # `npm view` needs auth to read the latest version of a PRIVATE
+          # package; without it the lookup fails, the `|| echo 0.0.0` fallback
+          # kicks in, and the patch bump always recomputes an already-published
+          # version (e.g. 0.0.1) → "cannot publish over previously published".
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to the private registry
         working-directory: packages/cli

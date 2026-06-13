@@ -1,5 +1,13 @@
 import yargs, { type Argv } from 'yargs';
+import { basename } from 'node:path';
 import type { RequestFn } from './client.js';
+
+export interface MultipartField {
+  name: string;
+  binary: boolean;
+  required: boolean;
+  describe?: string;
+}
 
 export interface OptionSpec {
   name: string;
@@ -17,7 +25,9 @@ export interface CommandSpec {
   positionals: string[];
   options: OptionSpec[];
   hasBody: boolean;
+  multipart?: MultipartField[];
   summary?: string;
+  description?: string;
 }
 
 interface RawParam {
@@ -32,12 +42,24 @@ interface RawOperation {
   tags?: string[];
   operationId?: string;
   summary?: string;
+  description?: string;
   parameters?: RawParam[];
-  requestBody?: { content?: Record<string, unknown> };
+  requestBody?: {
+    content?: Record<
+      string,
+      {
+        schema?: {
+          properties?: Record<string, { type?: string; format?: string; description?: string }>;
+          required?: string[];
+        };
+      }
+    >;
+  };
 }
 
 export interface OpenApiSpec {
   paths: Record<string, Record<string, RawOperation>>;
+  tags?: { name: string; description?: string }[];
 }
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
@@ -88,6 +110,16 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
           describe: p.description,
         }));
 
+      const mpSchema = op.requestBody?.content?.['multipart/form-data']?.schema;
+      const multipart = mpSchema?.properties
+        ? Object.entries(mpSchema.properties).map(([name, p]) => ({
+            name,
+            binary: p.format === 'binary',
+            required: (mpSchema.required ?? []).includes(name),
+            describe: p.description,
+          }))
+        : undefined;
+
       commands.push({
         group: kebab(tag),
         action: op.operationId
@@ -98,7 +130,9 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
         positionals,
         options,
         hasBody: op.requestBody !== undefined,
+        multipart,
         summary: op.summary,
+        description: op.description,
       });
     }
   }
@@ -114,6 +148,7 @@ export interface BuilderDeps {
   request: RequestFn;
   io: CliIo;
   readFileSync: (path: string) => string;
+  readFileBuffer: (path: string) => Uint8Array;
   stdinIsTTY: boolean;
   readStdin: () => string;
   exit: (code: number) => void;
@@ -148,6 +183,34 @@ function yargsType(t: OptionSpec['type']): 'string' | 'number' | 'boolean' {
   return t;
 }
 
+/**
+ * Best-effort content type from a file extension. The server stores the
+ * uploaded part's MIME type and routes on it (e.g. triage OCR only accepts
+ * image/* and application/pdf), so a Blob with no type (-> octet-stream) would
+ * be silently rejected downstream. Falls back to octet-stream for unknowns.
+ */
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  json: 'application/json',
+  xml: 'application/xml',
+};
+
+export function mimeForFile(path: string): string {
+  const dot = path.lastIndexOf('.');
+  const ext = dot >= 0 ? path.slice(dot + 1).toLowerCase() : '';
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream';
+}
+
 /** Build the full yargs CLI from the OpenAPI spec and injected dependencies. */
 export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
   const commands = specToCommands(spec);
@@ -158,10 +221,30 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
     byGroup.set(cmd.group, list);
   }
 
+  const tagDescriptions = new Map<string, string>();
+  for (const t of spec.tags ?? []) {
+    if (t.description) tagDescriptions.set(kebab(t.name), t.description);
+  }
+
   let cli = yargs().scriptName('hbk');
+  // Route yargs's built-in logger (used for --help / --version output) through
+  // the injected io.out so help text is fully testable without touching
+  // process.stdout. getInternalMethods() is a stable but UNTYPED yargs escape
+  // hatch (@types/yargs does not declare it), so we cast; if it breaks on a
+  // yargs major upgrade, pipe stdout in the test harness instead.
+  (
+    cli as unknown as {
+      getInternalMethods(): {
+        getLoggerInstance(): { log: (s: string) => void };
+      };
+    }
+  )
+    .getInternalMethods()
+    .getLoggerInstance().log = deps.io.out;
 
   for (const [group, cmds] of byGroup) {
-    cli = cli.command(group, `${group} operations`, (g) => {
+    const groupDescribe = tagDescriptions.get(group) ?? `${group} operations`;
+    cli = cli.command(group, groupDescribe, (g) => {
       let sub = g;
       for (const cmd of cmds) {
         const positional = cmd.positionals.map((p) => `<${p}>`).join(' ');
@@ -185,12 +268,25 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                 describe: opt.describe,
               });
             }
-            if (cmd.hasBody) {
+            if (cmd.multipart) {
+              for (const f of cmd.multipart) {
+                yy = yy.option(f.name, {
+                  type: 'string',
+                  demandOption: f.required,
+                  describe: f.binary
+                    ? (f.describe ?? 'Path to a file to upload')
+                    : (f.describe ?? `Form field: ${f.name}`),
+                });
+              }
+            } else if (cmd.hasBody) {
               yy = yy.option('body-file', {
                 type: 'string',
                 describe:
                   'Path to a JSON request body (or pipe JSON via stdin)',
               });
+            }
+            if (cmd.description) {
+              yy = yy.epilogue(cmd.description);
             }
             return yy;
           },
@@ -204,7 +300,30 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
               if (argv[opt.name] !== undefined)
                 query[opt.name] = argv[opt.name];
             }
-            const body = cmd.hasBody ? readBody(argv, deps) : undefined;
+            let body: unknown;
+            if (cmd.multipart) {
+              const form = new FormData();
+              for (const f of cmd.multipart) {
+                const v = argv[f.name];
+                if (v === undefined) continue;
+                if (f.binary) {
+                  const buf = deps.readFileBuffer(String(v));
+                  const ab: ArrayBuffer = buf.buffer instanceof ArrayBuffer
+                    ? buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+                    : new Uint8Array(buf).buffer as ArrayBuffer;
+                  form.append(
+                    f.name,
+                    new Blob([ab], { type: mimeForFile(String(v)) }),
+                    basename(String(v)),
+                  );
+                } else {
+                  form.append(f.name, String(v));
+                }
+              }
+              body = form;
+            } else {
+              body = cmd.hasBody ? readBody(argv, deps) : undefined;
+            }
 
             const res = await deps.request(cmd.method, cmd.path, {
               pathParams,
@@ -220,12 +339,26 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
           },
         );
       }
-      return sub.demandCommand(1, `Specify a ${group} subcommand`).strict();
+      return sub
+        .demandCommand(1, `No ${group} subcommand given. Run "hbk ${group} --help" to list operations.`)
+        .strict();
     });
   }
 
+  const AGENT_EPILOGUE = [
+    'Remote REST client for the headless-bookkeeping API. Each command maps 1:1 to an API operation.',
+    '',
+    'Auth:      hbk login --url <url> --token <token>   (or HBK_URL / HBK_TOKEN env vars)',
+    'Discover:  hbk <group> --help            list a group\'s operations',
+    '           hbk <group> <command> --help  show parameters and details',
+    'Body:      --body-file <path.json>       (or pipe JSON via stdin)',
+    'Output:    JSON response -> stdout; notes/errors -> stderr; HTTP >= 400 -> non-zero exit',
+    'Escape:    hbk api <method> <path>       call any endpoint directly',
+  ].join('\n');
+
   return cli
-    .demandCommand(1, 'Specify a command group')
+    .demandCommand(1, 'No command group given. Run "hbk --help" to list groups.')
+    .epilogue(AGENT_EPILOGUE)
     .strict()
     .exitProcess(false)
     .fail((msg, err) => {

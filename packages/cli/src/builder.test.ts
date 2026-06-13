@@ -124,6 +124,150 @@ describe('readBody', () => {
   });
 });
 
+const tagSpec = {
+  tags: [{ name: 'expenses', description: 'Record supplier expenses' }],
+  paths: {
+    '/api/expenses': {
+      get: { tags: ['expenses'], operationId: 'Expenses_getExpenses', summary: 'List expenses' },
+    },
+  },
+};
+
+describe('group descriptions from spec.tags', () => {
+  it('uses the tag description as the group command description', async () => {
+    let help = '';
+    const cli = buildCli(tagSpec as never, {
+      request: async () => ({ ok: true, status: 200, body: {} }),
+      io: { out: (s) => (help += s), err: () => {} },
+      readFileSync: () => '',
+      stdinIsTTY: true,
+      readStdin: () => '',
+      exit: () => {},
+    });
+    await cli.parseAsync(['--help']);
+    expect(help).toContain('Record supplier expenses');
+  });
+});
+
+const descSpec = {
+  paths: {
+    '/api/expenses': {
+      post: {
+        tags: ['expenses'],
+        operationId: 'Expenses_createExpense',
+        summary: 'Create an expense',
+        description: 'Runs the posting pipeline AI->Rules->Policy->Voucher; 409 if the period is locked.',
+        requestBody: { content: { 'application/json': {} } },
+      },
+    },
+  },
+};
+
+const noopDeps: BuilderDeps = {
+  request: async () => ({ ok: true, status: 200, body: {} }),
+  io: { out: () => {}, err: () => {} },
+  readFileSync: () => '',
+  stdinIsTTY: true,
+  readStdin: () => '',
+  exit: () => {},
+  readFileBuffer: () => new Uint8Array(),
+};
+
+describe('per-command help: op.description', () => {
+  it('prints op.description in the per-command help', async () => {
+    let help = '';
+    const cli = buildCli(descSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['expenses', 'create-expense', '--help']);
+    expect(help).toContain('posting pipeline');
+  });
+});
+
+const minimalSpec = { paths: { '/api/expenses': { get: { tags: ['expenses'], operationId: 'Expenses_getExpenses', summary: 'List expenses' } } } };
+
+describe('agent guidance', () => {
+  it('top-level help carries agent guidance', async () => {
+    let help = '';
+    const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['--help']);
+    expect(help).toContain('hbk login');
+    expect(help).toContain('--body-file');
+    expect(help).toContain('JSON');
+  });
+
+  it('no-command error points at --help', async () => {
+    let err = '';
+    const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: () => {}, err: (s) => (err += s) } });
+    try { await cli.parseAsync([]); } catch { /* expected */ }
+    expect(err).toContain('hbk --help');
+  });
+});
+
+const multipartSpec = {
+  paths: {
+    '/api/documents': {
+      post: {
+        tags: ['documents'],
+        operationId: 'Documents_uploadDocument',
+        summary: 'Upload a document',
+        requestBody: {
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: { file: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+describe('multipart upload', () => {
+  it('exposes a --file option in help', async () => {
+    let help = '';
+    const cli = buildCli(multipartSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['documents', 'upload-document', '--help']);
+    expect(help).toContain('--file');
+  });
+
+  it('reads the file and sends a FormData body with the original filename', async () => {
+    let sentBody: unknown;
+    const deps = {
+      ...noopDeps,
+      readFileBuffer: () => new Uint8Array([1, 2, 3]),
+      request: async (_m: string, _p: string, args: any) => {
+        sentBody = args?.body;
+        return { ok: true, status: 201, body: {} };
+      },
+    };
+    const cli = buildCli(multipartSpec as never, deps as never);
+    await cli.parseAsync(['documents', 'upload-document', '--file', '/tmp/invoice.pdf']);
+    expect(sentBody).toBeInstanceOf(FormData);
+    const f = (sentBody as FormData).get('file');
+    expect(f).toBeInstanceOf(Blob);
+    expect((f as File).name).toBe('invoice.pdf');
+  });
+
+  it('sets the file content type from its extension', async () => {
+    let sentBody: unknown;
+    const deps = {
+      ...noopDeps,
+      readFileBuffer: () => new Uint8Array([1, 2, 3]),
+      request: async (_m: string, _p: string, args: any) => {
+        sentBody = args?.body;
+        return { ok: true, status: 201, body: {} };
+      },
+    };
+    const cli = buildCli(multipartSpec as never, deps as never);
+    await cli.parseAsync(['documents', 'upload-document', '--file', '/tmp/invoice.pdf']);
+    const f = (sentBody as FormData).get('file');
+    expect((f as Blob).type).toBe('application/pdf');
+  });
+});
+
 describe('buildCli dispatch', () => {
   function makeDeps() {
     const out: string[] = [];
