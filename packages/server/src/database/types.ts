@@ -33,6 +33,7 @@ export interface Database {
   audit_log: AuditLogTable;
   credit_note: CreditNoteTable;
   fixed_asset: FixedAssetTable;
+  statutory_submission_event: StatutorySubmissionEventTable;
 }
 
 export interface OrganizationTable {
@@ -511,4 +512,27 @@ export interface FixedAssetTable {
   // Unix seconds when disposed; NULL = active.
   retired_at: number | null;
   disposal_voucher_id: number | null;
+}
+
+// StatutorySubmissionEvent: append-only, jurisdiction-neutral log of the
+// external statutory-filing lifecycle over an immutable snapshot (ADR-0037).
+// One row per lifecycle event; filing state is a FOLD over the events (no
+// mutable status column). Immutable via BEFORE UPDATE/DELETE triggers
+// (ADR-0009). Every `submitted` pins the exact frozen source_snapshot_id.
+export interface StatutorySubmissionEventTable {
+  id: Generated<number>;
+  reporting_period_id: number;
+  // Jurisdiction/report identifier, e.g. 'EE_KMD'.
+  report_kind: string;
+  // The frozen artifact filed — 'vat_report' in v1 (later 'annual_accounts').
+  source_snapshot_type: string;
+  source_snapshot_id: number;
+  // 'prepared' | 'submitted' | 'accepted' | 'rejected'
+  //   | 'correction_submitted' | 'correction_accepted'
+  event_kind: string;
+  // e-MTA confirmation id (nullable).
+  external_ref: string | null;
+  occurred_at: number;
+  actor: string;
+  note: string | null;
 }
