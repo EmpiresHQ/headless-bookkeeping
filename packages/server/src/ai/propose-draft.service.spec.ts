@@ -29,6 +29,7 @@ import {
   ProposeDraftResult,
   ProposeDraftOutcome,
 } from './propose-draft.service';
+import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { TriageResult } from '../triage/types';
 import { BadRequestException } from '@nestjs/common';
 
@@ -51,6 +52,13 @@ describe('ProposeDraftService (integration)', () => {
   let service: ProposeDraftService;
   let expensesService: ExpensesService;
   let _policyService: PolicyService;
+  let salesInvoicesService: {
+    createInvoice: jest.Mock;
+    generateDraftVoucher: jest.Mock;
+    getInvoiceById: jest.Mock;
+    findByDocumentId: jest.Mock;
+  };
+  let postingPipelineService: PostingPipelineService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -89,6 +97,15 @@ describe('ProposeDraftService (integration)', () => {
         EntitiesService,
         AgentConfigService,
         CategoryService,
+        {
+          provide: SalesInvoicesService,
+          useValue: {
+            createInvoice: jest.fn(),
+            generateDraftVoucher: jest.fn(),
+            getInvoiceById: jest.fn(),
+            findByDocumentId: jest.fn(),
+          },
+        },
         ProposeDraftService,
       ],
     }).compile();
@@ -96,6 +113,8 @@ describe('ProposeDraftService (integration)', () => {
     service = module.get(ProposeDraftService);
     expensesService = module.get(ExpensesService);
     _policyService = module.get(PolicyService);
+    salesInvoicesService = module.get(SalesInvoicesService);
+    postingPipelineService = module.get(PostingPipelineService);
   });
 
   afterEach(async () => {
@@ -605,6 +624,116 @@ describe('ProposeDraftService (integration)', () => {
 
       const outcome = await service.proposeDraft(triage, null, 1);
       expect(outcome.outcome).toBe('category-unresolved');
+    });
+  });
+
+  describe('proposeSalesInvoiceDraft', () => {
+    const salesTriageResult = (): TriageResult => ({
+      kind: 'new_sales_invoice',
+      document_type: 'invoice',
+      gross_amount: 12200,
+      vat_amount: 2200,
+      currency: 'EUR',
+      tax_point_date: '2026-04-01',
+      category: 'revenue',
+      document_vat_marking: null,
+      supplier_invoice_number: null,
+      confidence: 0.9,
+      outgoing_signals: {
+        org_name_is_issuer: true,
+        org_vat_is_issuer: true,
+        has_buyer_block: true,
+        self_identifies_as_invoice: true,
+      },
+    });
+
+    it('creates a sales invoice draft and runs the posting pipeline (match customer)', async () => {
+      salesInvoicesService.createInvoice.mockResolvedValue({
+        id: 55,
+        customer_id: 7,
+      });
+      const runPipelineSpy = jest
+        .spyOn(postingPipelineService, 'runPipeline')
+        .mockResolvedValue({ ok: true } as never);
+
+      const out = await service.proposeSalesInvoiceDraft(
+        {
+          ...salesTriageResult(),
+          supplier_invoice_number: 'INV-9',
+          customer_proposal: { mode: 'match', match_entity_id: 7 },
+        },
+        42,
+      );
+
+      expect(out.outcome).toBe('draft');
+      expect((out as { invoiceId: number }).invoiceId).toBe(55);
+      expect(salesInvoicesService.createInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          document_id: 42,
+          customer_id: 7,
+          invoice_number: 'INV-9',
+        }),
+      );
+      expect(runPipelineSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          businessObjectType: 'sales_invoice',
+          category: 'revenue',
+        }),
+      );
+    });
+
+    it('parks (customer-unresolved) for a create proposal — no draft created', async () => {
+      const out = await service.proposeSalesInvoiceDraft(
+        {
+          ...salesTriageResult(),
+          supplier_invoice_number: 'INV-9',
+          customer_proposal: {
+            mode: 'create',
+            create_name: 'X',
+            create_country: 'EE',
+            create_registration_key: null,
+            create_email: null,
+            create_phone: null,
+            create_address: null,
+          },
+        },
+        42,
+      );
+
+      expect(out.outcome).toBe('customer-unresolved');
+      expect(salesInvoicesService.createInvoice).not.toHaveBeenCalled();
+    });
+
+    it('returns invoice-number-missing when supplier_invoice_number is null', async () => {
+      const out = await service.proposeSalesInvoiceDraft(
+        {
+          ...salesTriageResult(),
+          supplier_invoice_number: null,
+          customer_proposal: { mode: 'match', match_entity_id: 7 },
+        },
+        42,
+      );
+
+      expect(out.outcome).toBe('invoice-number-missing');
+    });
+
+    it('returns duplicate-number when invoice_number collides', async () => {
+      salesInvoicesService.createInvoice.mockRejectedValue(
+        new Error(
+          'UNIQUE constraint failed: sales_invoice.invoice_number',
+        ),
+      );
+
+      const out = await service.proposeSalesInvoiceDraft(
+        {
+          ...salesTriageResult(),
+          supplier_invoice_number: 'INV-9',
+          customer_proposal: { mode: 'match', match_entity_id: 7 },
+        },
+        42,
+      );
+
+      expect(out.outcome).toBe('duplicate-number');
     });
   });
 });

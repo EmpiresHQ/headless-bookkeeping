@@ -25,6 +25,7 @@ import {
 } from '../triage/types';
 import { matchesOrgIban } from '../intake/iban-match';
 import { classifyDocumentClass } from '../intake/document-class';
+import { composeOutgoingConfidence } from '../intake/outgoing-confidence';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -74,9 +75,21 @@ export interface DraftProposedOutcome {
 }
 
 /**
+ * Outcome when the workflow successfully books a detected OUTGOING invoice as a
+ * SalesInvoice draft (the sales-invoice analogue of {@link DraftProposedOutcome}).
+ */
+export interface DraftProposedInvoiceOutcome {
+  status: 'draft_proposed_invoice';
+  invoiceId: number;
+}
+
+/**
  * The result of running the intake workflow for a single document.
  */
-export type IntakeWorkflowResult = NeedsTriageOutcome | DraftProposedOutcome;
+export type IntakeWorkflowResult =
+  | NeedsTriageOutcome
+  | DraftProposedOutcome
+  | DraftProposedInvoiceOutcome;
 
 /**
  * IntakeWorkflowService — the single DEEP owner of "Document -> outcome".
@@ -161,6 +174,16 @@ export class IntakeWorkflowService {
       if (replay) {
         return replay;
       }
+      // Also replay an already-booked OUTGOING-invoice draft (the sales-invoice
+      // analogue) before falling through.
+      const invoiceReplay =
+        await this.proposeDraft.findExistingInvoiceDraft(documentId);
+      if (invoiceReplay) {
+        return {
+          status: 'draft_proposed_invoice',
+          invoiceId: invoiceReplay.invoiceId,
+        };
+      }
       // Status says routed but no draft exists — fall through and re-route
       // (a partially-applied legacy state). New work is still guarded below.
     }
@@ -238,11 +261,7 @@ export class IntakeWorkflowService {
         case 'expense':
           return this.routeExpense(documentId, triageResult);
         case 'sales_invoice':
-          // Real wiring lands in a later task; for now park with an explicit reason.
-          return this.routeNeedsTriage(
-            documentId,
-            'Detected an outgoing sales invoice (our IBAN on the document); sales-invoice intake not yet enabled',
-          );
+          return this.routeSalesInvoice(documentId, triageResult, ibanMatched);
         case 'bank_statement':
           return this.routeNeedsTriage(
             documentId,
@@ -269,7 +288,11 @@ export class IntakeWorkflowService {
     documentId: number,
     triageResult: TriageResult,
   ): Promise<IntakeWorkflowResult> {
-    // ── Deterministic routing — the ONE place that decides ──────
+    // ── Kind-level routing within the expense (incoming) path ──────
+    // This handles ALL incoming kinds (new_expense / unknown / correction /
+    // duplicate), not only new_expense — the kind switch below dispatches each.
+    // The document-class decision (which path owns this doc) already happened
+    // in process(); this is the second, narrower routing tier.
     const threshold = (await this.policyService.getConfig())
       .auto_post_min_confidence;
 
@@ -359,6 +382,61 @@ export class IntakeWorkflowService {
         );
       }
     }
+  }
+
+  /**
+   * Route a deterministically-classified OUTGOING (sales) invoice — our IBAN is
+   * on the document. Confidence here is composed in code from the IBAN match
+   * plus the agent's outgoing_signals (NOT the agent's own `confidence`, which
+   * is an incoming-expense notion). Below threshold → needs_triage; above →
+   * book a SalesInvoice draft via proposeSalesInvoiceDraft and run the pipeline.
+   * A create-customer proposal, a missing number, or a duplicate number park to
+   * needs_triage rather than booking a bad draft.
+   */
+  private async routeSalesInvoice(
+    documentId: number,
+    triageResult: TriageResult,
+    ibanMatched: boolean,
+  ): Promise<IntakeWorkflowResult> {
+    const threshold = (await this.policyService.getConfig())
+      .auto_post_min_confidence;
+    const confidence = composeOutgoingConfidence(
+      ibanMatched,
+      triageResult.outgoing_signals,
+    );
+    if (confidence < threshold) {
+      this.logger.warn(
+        `Outgoing-invoice confidence ${confidence} below threshold ${threshold} for document ${documentId}`,
+      );
+      return this.routeNeedsTriage(
+        documentId,
+        `Outgoing-invoice confidence ${confidence} below threshold ${threshold}`,
+      );
+    }
+    const outcome = await this.proposeDraft.proposeSalesInvoiceDraft(
+      triageResult,
+      documentId,
+    );
+    if (outcome.outcome === 'customer-unresolved') {
+      this.logger.warn(
+        `Outgoing invoice for document ${documentId} has an unresolved customer: ${outcome.reason}`,
+      );
+      // Keep the exact triage result so an operator can create/select the
+      // customer and replay it deterministically (no re-run of the agent).
+      await this.documents.setPendingTriageResult(documentId, triageResult);
+      return this.routeNeedsTriage(documentId, outcome.reason);
+    }
+    if (
+      outcome.outcome === 'invoice-number-missing' ||
+      outcome.outcome === 'duplicate-number'
+    ) {
+      this.logger.warn(
+        `Outgoing invoice for document ${documentId} not booked (${outcome.outcome}): ${outcome.reason}`,
+      );
+      return this.routeNeedsTriage(documentId, outcome.reason);
+    }
+    await this.documents.setStatus(documentId, 'triaged');
+    return { status: 'draft_proposed_invoice', invoiceId: outcome.invoiceId };
   }
 
   /**

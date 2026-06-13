@@ -6,6 +6,7 @@ import { ExpensesModule } from '../expenses/expenses.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
+import { SalesInvoicesModule } from '../sales-invoices/sales-invoices.module';
 import { OcrModule } from '../triage/ocr.module';
 import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { PolicyModule } from '../policy/policy.module';
@@ -47,6 +48,7 @@ import { IntakeWorkflowService } from './intake-workflow.service';
     PluginsModule,
     OrganizationModule,
     PostingPipelineModule,
+    SalesInvoicesModule,
     OcrModule,
     AuditFindingsModule,
     PolicyModule,

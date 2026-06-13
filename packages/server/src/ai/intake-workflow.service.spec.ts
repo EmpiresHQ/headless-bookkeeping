@@ -38,6 +38,8 @@ describe('IntakeWorkflowService', () => {
   const mockProposeDraft = {
     proposeDraft: jest.fn(),
     findExistingDraft: jest.fn(),
+    proposeSalesInvoiceDraft: jest.fn(),
+    findExistingInvoiceDraft: jest.fn(),
   };
 
   const mockEntities = {
@@ -62,6 +64,30 @@ describe('IntakeWorkflowService', () => {
     document_vat_marking: '23%',
     supplier_invoice_number: null,
     confidence: 0.94,
+    outgoing_signals: {
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    },
+    ...overrides,
+  });
+
+  // Sales (outgoing) fixture: mirrors sampleTriageResult but with
+  // kind='new_sales_invoice', a revenue category and an invoice document type.
+  const makeSalesResult = (
+    overrides: Partial<TriageResult> = {},
+  ): TriageResult => ({
+    kind: 'new_sales_invoice',
+    document_type: 'invoice',
+    gross_amount: 12200,
+    vat_amount: 2200,
+    currency: 'EUR',
+    tax_point_date: '2026-04-01',
+    category: 'revenue',
+    document_vat_marking: null,
+    supplier_invoice_number: 'INV-9',
+    confidence: 0.9,
     outgoing_signals: {
       org_name_is_issuer: false,
       org_vat_is_issuer: false,
@@ -130,6 +156,8 @@ describe('IntakeWorkflowService', () => {
     mockPass2Agent.classify.mockReset();
     mockProposeDraft.proposeDraft.mockReset();
     mockProposeDraft.findExistingDraft.mockReset();
+    mockProposeDraft.proposeSalesInvoiceDraft.mockReset();
+    mockProposeDraft.findExistingInvoiceDraft.mockReset();
     mockEntities.findById.mockReset();
     mockEntities.addIdentifierIfAbsent.mockReset();
     mockOrganization.getOrganization.mockReset();
@@ -140,6 +168,7 @@ describe('IntakeWorkflowService', () => {
       markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
     });
     mockProposeDraft.findExistingDraft.mockResolvedValue(undefined);
+    mockProposeDraft.findExistingInvoiceDraft.mockResolvedValue(undefined);
     mockEntities.addIdentifierIfAbsent.mockResolvedValue(undefined);
     // Default org has no IBAN → ibanMatched is false → documents route to the
     // existing expense path unchanged.
@@ -518,7 +547,36 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalled();
     });
 
-    it('parks an outgoing invoice (our IBAN on the document) — sales route not yet wired', async () => {
+    it('parks an outgoing invoice below the outgoing-confidence threshold (weak signals)', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Pay to EE38 2200 2210 2014 5685',
+      });
+      // Default outgoing_signals are all false → composed confidence is the 0.5
+      // base, below the 0.8 default threshold → needs_triage.
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ document_type: 'invoice' }),
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      if (res.status === 'needs_triage') {
+        expect(res.reason).toContain('below threshold');
+      }
+      // The expense path must not run for an outgoing invoice.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+    });
+
+    it('books an outgoing invoice as a sales invoice draft above threshold', async () => {
       const docId = await seedDocument();
       mockOrganization.getOrganization.mockResolvedValue({
         id: 1,
@@ -532,17 +590,77 @@ describe('IntakeWorkflowService', () => {
       });
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
-        result: sampleTriageResult({ document_type: 'invoice', confidence: 0.94 }),
+        result: makeSalesResult({
+          document_type: 'invoice',
+          supplier_invoice_number: 'INV-9',
+          customer_proposal: { mode: 'match', match_entity_id: 7 },
+          outgoing_signals: {
+            org_name_is_issuer: true,
+            org_vat_is_issuer: true,
+            has_buyer_block: true,
+            self_identifies_as_invoice: true,
+          },
+        }),
+      });
+      mockProposeDraft.proposeSalesInvoiceDraft.mockResolvedValue({
+        outcome: 'draft',
+        invoiceId: 55,
+        pipelineResult: {},
       });
 
       const res = await service.process(docId);
 
-      expect(res.status).toBe('needs_triage');
-      if (res.status === 'needs_triage') {
-        expect(res.reason).toMatch(/sales invoice/i);
-      }
+      expect(res.status).toBe('draft_proposed_invoice');
+      expect((res as { invoiceId: number }).invoiceId).toBe(55);
       // The expense path must not run for an outgoing invoice.
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+
+      // The workflow owns the status transition: pending -> triaged.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
+    });
+
+    it('parks an outgoing invoice with a create-customer proposal', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Pay to EE38 2200 2210 2014 5685',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeSalesResult({
+          document_type: 'invoice',
+          supplier_invoice_number: 'INV-9',
+          outgoing_signals: {
+            org_name_is_issuer: true,
+            org_vat_is_issuer: true,
+            has_buyer_block: true,
+            self_identifies_as_invoice: true,
+          },
+        }),
+      });
+      mockProposeDraft.proposeSalesInvoiceDraft.mockResolvedValue({
+        outcome: 'customer-unresolved',
+        reason: 'create customer',
+      });
+
+      const setPendingSpy = jest.spyOn(
+        documentsService,
+        'setPendingTriageResult',
+      );
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      expect(setPendingSpy).toHaveBeenCalled();
+
+      setPendingSpy.mockRestore();
     });
   });
 
