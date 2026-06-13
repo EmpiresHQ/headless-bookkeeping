@@ -41,6 +41,17 @@ export interface PostingPipelineParams {
   supplierKnown?: boolean;
   /** Who/what requested the post; recorded on the Approval if Policy holds. */
   requestedBy?: string;
+  /**
+   * Optional hook folded into the SAME atomic transaction as the post,
+   * AFTER the voucher is inserted and the business object's status/voucher_id
+   * are updated. Receives the open `trx` and the posted voucher. Used by the
+   * capex flow to create the fixed-asset register row atomically (ADR-0035).
+   * MUST use the provided `trx` — never `this.db`.
+   */
+  afterPost?: (
+    trx: Kysely<Database>,
+    voucher: PostedVoucher,
+  ) => Promise<void>;
 }
 
 export interface PostingPipelineResult {
@@ -222,6 +233,10 @@ export class PostingPipelineService {
             reason: params.override.reason,
             created_by: 'system',
           });
+        }
+
+        if (params.afterPost) {
+          await params.afterPost(trx, voucher);
         }
 
         return { voucher };
