@@ -32,6 +32,7 @@ export interface Database {
   setting: SettingTable;
   audit_log: AuditLogTable;
   credit_note: CreditNoteTable;
+  fixed_asset: FixedAssetTable;
 }
 
 export interface OrganizationTable {
@@ -131,6 +132,12 @@ export interface ExpenseTable {
   // (opaque evidence, never used for booking — ADR-0002).
   document_vat_marking: string | null;
   supplier_invoice_number: string | null;
+  // Fixed-asset intake (migration 047): set only when the expense was
+  // categorized as a fixed asset; NULL otherwise. The name + optional
+  // useful-life / residual overrides feed the register row created at post time.
+  asset_name: string | null;
+  asset_useful_life_years: number | null;
+  asset_residual_value_minor: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -485,4 +492,23 @@ export interface AuditLogTable {
   target_id: number | null;
   outcome: string;
   detail: string | null;
+}
+
+// FixedAsset: the lightweight asset register (migration 047, ADR-0035).
+// Master data (depreciation parameters); amounts stay sourced from the ledger.
+// Mutable — retired_at + disposal_voucher_id are set on disposal.
+export interface FixedAssetTable {
+  id: Generated<number>;
+  name: string;
+  // 'vehicle' | 'it_equipment' | 'machinery' | 'furniture'
+  asset_class: string;
+  acquisition_voucher_id: number;
+  // ISO date (YYYY-MM-DD) — drives pro-rata months.
+  acquisition_date: string;
+  cost_base_minor: number;
+  useful_life_years: number;
+  residual_value_minor: number;
+  // Unix seconds when disposed; NULL = active.
+  retired_at: number | null;
+  disposal_voucher_id: number | null;
 }
