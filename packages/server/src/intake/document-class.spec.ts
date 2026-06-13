@@ -20,10 +20,15 @@ describe('classifyDocumentClass', () => {
       .toBe('bank_statement');
   });
 
-  it('routes credit_note and other to unsupported in v1', () => {
-    expect(classifyDocumentClass({ documentType: 'credit_note', ibanMatched: true }).route)
-      .toBe('unsupported');
-    expect(classifyDocumentClass({ documentType: 'other', ibanMatched: false }).route)
-      .toBe('unsupported');
+  it('routes credit_note/other to unsupported ONLY when our IBAN matched (we are the payee)', () => {
+    expect(classifyDocumentClass({ documentType: 'credit_note', ibanMatched: true }))
+      .toEqual({ route: 'unsupported', direction: 'outgoing', docType: 'credit_note' });
+    expect(classifyDocumentClass({ documentType: 'other', ibanMatched: true }).route).toBe('unsupported');
+  });
+
+  it('routes a non-IBAN document of ANY non-bank type to the existing expense path (incoming, unchanged)', () => {
+    expect(classifyDocumentClass({ documentType: 'other', ibanMatched: false }))
+      .toEqual({ route: 'expense', direction: 'incoming', docType: 'other' });
+    expect(classifyDocumentClass({ documentType: 'credit_note', ibanMatched: false }).route).toBe('expense');
   });
 });
