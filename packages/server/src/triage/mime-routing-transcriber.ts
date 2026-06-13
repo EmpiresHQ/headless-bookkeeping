@@ -7,6 +7,7 @@ import {
 import { LlmVisionTranscriber } from './llm-vision-transcriber';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PdfRasterizer } from './pdf-rasterizer';
+import { HeicDecoder } from './heic-decoder';
 
 /** A born-digital text layer shorter than this is treated as "no real text"
  *  (a scanned PDF whose only glyphs are noise) → OCR fallback. */
@@ -26,12 +27,32 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
     private readonly vision: LlmVisionTranscriber,
     private readonly pdfText: PdfTextExtractor,
     private readonly rasterizer: PdfRasterizer,
+    private readonly heic: HeicDecoder,
   ) {
     super();
   }
 
   async transcribe(file: TranscribableFile): Promise<OcrOutcome> {
     const mime = file.mimeType.toLowerCase();
+
+    // HEIC/HEIF (default iPhone capture) is an image/* the vision provider can
+    // NOT decode — transcode to PNG first, like a scanned PDF is rasterised. A
+    // decode failure is surfaced with an actionable hint rather than silently
+    // forwarded to a model that would reject it.
+    if (mime === 'image/heic' || mime === 'image/heif') {
+      const png = await this.heic.toPng(file.buffer);
+      if (!png) {
+        return {
+          ok: false,
+          category: 'unreadable',
+          detail: `HEIC/HEIF image could not be decoded for OCR (${file.mimeType}). Convert it to PDF or JPG and re-upload.`,
+        };
+      }
+      return this.vision.transcribeImage({
+        buffer: png,
+        mimeType: 'image/png',
+      });
+    }
 
     if (mime.startsWith('image/')) {
       return this.vision.transcribeImage({
