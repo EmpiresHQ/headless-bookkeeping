@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import { Database } from '../database/types';
@@ -6,6 +6,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { foldSubmissionState } from './fold';
 import {
   EventKind,
+  RecordSubmissionEventDto,
   SubmissionEvent,
   SubmissionState,
 } from './types';
@@ -109,6 +110,40 @@ export class StatutorySubmissionService {
       submissionCount: folded.submissionCount,
       history,
     };
+  }
+
+  /**
+   * Operator-attested record path used by the REST surface. Resolves the
+   * pinned snapshot from the period's frozen VAT report (the operator only
+   * supplies event_kind + optional external_ref/note). Every `submitted` is
+   * thus pinned to the exact frozen snapshot. 404s if the period has no
+   * frozen snapshot (i.e. it was never locked).
+   */
+  async recordOperatorEvent(
+    reportingPeriodId: number,
+    dto: RecordSubmissionEventDto,
+  ): Promise<SubmissionEvent> {
+    const period = await this.db
+      .selectFrom('reporting_period')
+      .select(['id', 'vat_report_snapshot_id'])
+      .where('id', '=', reportingPeriodId)
+      .executeTakeFirst();
+
+    if (!period || period.vat_report_snapshot_id === null) {
+      throw new NotFoundException(
+        `Reporting period ${reportingPeriodId} has no frozen VAT snapshot — lock it before recording submission events.`,
+      );
+    }
+
+    return this.recordEvent(reportingPeriodId, {
+      event_kind: dto.event_kind,
+      report_kind: 'EE_KMD',
+      source_snapshot_type: 'vat_report',
+      source_snapshot_id: period.vat_report_snapshot_id,
+      actor: 'operator',
+      external_ref: dto.external_ref ?? null,
+      note: dto.note ?? null,
+    });
   }
 
   private mapRow(row: {

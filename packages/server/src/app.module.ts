@@ -36,6 +36,7 @@ import { StatutoryReportModule } from './statutory-report/statutory-report.modul
 import { CategoriesModule } from './categories/categories.module';
 import { FixedAssetsModule } from './fixed-assets/fixed-assets.module';
 import { AnnualAccountsModule } from './annual-accounts/annual-accounts.module';
+import { StatutorySubmissionModule } from './statutory-submission/statutory-submission.module';
 import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
@@ -71,6 +72,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     CorrectionsModule,
     TriageModule,
     ReportingPeriodsModule,
+    StatutorySubmissionModule,
     EntitiesModule,
     BankModule,
     ReconciliationModule,
