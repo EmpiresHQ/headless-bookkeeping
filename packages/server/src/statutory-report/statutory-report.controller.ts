@@ -6,7 +6,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import JSZip from 'jszip';
 import { StatutoryReportService } from './statutory-report.service';
@@ -20,6 +20,16 @@ export class StatutoryReportController {
   constructor(private readonly service: StatutoryReportService) {}
 
   @Get(':id/statutory-report')
+  @ApiOperation({
+    summary: 'Render a statutory report',
+    description: 'Render the statutory report (e.g. annual accounts) for a period.',
+  })
+  @ApiParam({ name: 'id', description: 'Reporting period id' })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    description: 'Output format: xml | csv | all (default: xml)',
+  })
   async download(
     @Param('id') id: string,
     @Query('format') format = 'xml',
