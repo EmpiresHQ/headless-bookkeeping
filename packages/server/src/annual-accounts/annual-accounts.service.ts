@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  Optional,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -15,6 +21,7 @@ import type {
   AnnualAccountsWarning,
 } from '../plugins/annual-accounts.types';
 import type { CountryPlugin } from '../plugins/country-plugin.interface';
+import type { DraftVoucher } from '../ledger/voucher/types';
 
 /**
  * A kernel diagnostic warning. {@link AnnualAccountsWarning} (= StatutoryWarning)
@@ -78,6 +85,111 @@ export class AnnualAccountsService {
       artifacts: result.artifacts,
       warnings: [...diagnostics, ...result.warnings],
     };
+  }
+
+  /**
+   * Finalize the year: hard-block on imbalance / unmapped-nonzero, post the
+   * annual depreciation charge as ONE system-generated voucher, lock the year
+   * via the existing period-lock, then render the authoritative XBRL with
+   * numbers IDENTICAL to the draft. One-shot: an already-locked period is
+   * rejected.
+   */
+  async finalize(periodId: number): Promise<AnnualAccountsResult> {
+    if (!this.postingService || !this.reportingPeriods) {
+      throw new Error(
+        'AnnualAccountsService.finalize requires PostingService and ' +
+          'ReportingPeriodsService to be wired',
+      );
+    }
+
+    const period = await this.db
+      .selectFrom('reporting_period')
+      .select(['id', 'status', 'name', 'end_date'])
+      .where('id', '=', periodId)
+      .executeTakeFirst();
+    if (!period) {
+      throw new NotFoundException(`Reporting period ${periodId} not found`);
+    }
+    // One-shot.
+    if (period.status === 'locked') {
+      throw new ConflictException(
+        `Reporting period ${period.name} is already finalized (locked)`,
+      );
+    }
+
+    const { input, plugin, diagnostics, charges } = await this.assemble(
+      periodId,
+      'final',
+    );
+
+    // Render now so we can hard-block on plugin warnings too (unmapped nonzero).
+    const rendered = plugin.generateAnnualAccounts(input, {
+      taxonomyVersion: 2026,
+    });
+
+    // HARD BLOCK: any kernel blocking diagnostic OR any plugin unmapped-nonzero.
+    const blocking = diagnostics.filter((w) => w.severity === 'block');
+    const unmapped = rendered.warnings.filter(
+      (w) => w.code === 'unmapped_nonzero_account',
+    );
+    if (blocking.length > 0 || unmapped.length > 0) {
+      const reasons = [...blocking, ...unmapped].map((w) => w.message).join('; ');
+      throw new BadRequestException(
+        `Cannot finalize annual accounts: ${reasons}`,
+      );
+    }
+
+    // Post the annual depreciation charge as ONE system-generated voucher.
+    const totalCharge = charges.reduce((s, c) => s + c.chargeMinor, 0);
+    if (totalCharge !== 0) {
+      // Aggregate per-class so each ACCUM line is one credit; one debit to
+      // DEPRECIATION_EXPENSE for the total.
+      const byClass = new Map<string, number>();
+      for (const c of charges) {
+        if (c.chargeMinor === 0) continue;
+        byClass.set(
+          ACCUM_BY_CLASS[c.assetClass],
+          (byClass.get(ACCUM_BY_CLASS[c.assetClass]) ?? 0) + c.chargeMinor,
+        );
+      }
+      const draft: DraftVoucher = {
+        tax_point_date: period.end_date,
+        reason: `Annual depreciation charge for ${period.name}`,
+        lines: [
+          {
+            account_code: 'DEPRECIATION_EXPENSE',
+            is_debit: true,
+            amount: totalCharge,
+            currency: 'EUR',
+            base_amount: totalCharge,
+            fx_rate: 1,
+          },
+          ...[...byClass.entries()].map(([code, amount]) => ({
+            account_code: code,
+            is_debit: false,
+            amount,
+            currency: 'EUR',
+            base_amount: amount,
+            fx_rate: 1,
+          })),
+        ],
+      };
+      await this.postingService.postVoucher(draft, { kind: 'system-generated' });
+    }
+
+    // Lock the year (idempotent; generates the VAT snapshot + flips status).
+    await this.reportingPeriods.lock(periodId);
+
+    // Re-render with the SAME assembled input → identical numbers as the draft.
+    return {
+      artifacts: rendered.artifacts,
+      warnings: [...diagnostics, ...rendered.warnings],
+    };
+  }
+
+  /** Test seam: run the diagnostics over a hand-built input (Task 8 unit test). */
+  diagnoseInput(input: AnnualAccountsInput): AnnualAccountsWarning[] {
+    return this.diagnose(input);
   }
 
   /**

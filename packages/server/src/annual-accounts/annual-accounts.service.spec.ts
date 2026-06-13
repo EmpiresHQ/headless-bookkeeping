@@ -5,12 +5,20 @@ import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
+import { BadRequestException } from '@nestjs/common';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { PostingService } from '../ledger/posting/posting.service';
+import { AccountService } from '../ledger/account/account.service';
+import { LedgerValidationService } from '../ledger/validation/ledger-validation.service';
+import { PeriodLockService } from '../reporting-periods/period-lock.service';
+import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { VatReportService } from '../vat-report/vat-report.service';
+import type { AnnualAccountsInput } from '../plugins/annual-accounts.types';
 import { AnnualAccountsService } from './annual-accounts.service';
 
 describe('AnnualAccountsService.generate — draft (integration)', () => {
@@ -78,6 +86,12 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       } as never)
       .execute();
 
+    // Migration 011 seeds a stray open '2024-Q1' period; the finalize path locks
+    // 2026 and the filing-order rule forbids locking a later period while an
+    // earlier one is still open. Clear the seeded periods so only the 2025
+    // (locked) / 2026 (open) fixture below exists.
+    await db.deleteFrom('reporting_period').execute();
+
     // A 2026 reporting period (the year being closed) + a 2025 prior.
     await db
       .insertInto('reporting_period')
@@ -96,6 +110,12 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
         EstoniaCountryPlugin,
         PluginLoader,
         OrgContextResolver,
+        AccountService,
+        LedgerValidationService,
+        PeriodLockService,
+        PostingService,
+        VatReportService,
+        ReportingPeriodsService,
         AnnualAccountsService,
       ],
     }).compile();
@@ -266,5 +286,111 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       (w) => (w as { severity?: string }).severity === 'block',
     );
     expect(blocking).toHaveLength(0);
+  });
+
+  it('finalize posts ONE depreciation voucher, locks the year, and matches the draft numbers', async () => {
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const acqId = await postVoucher('2026-01-10', [
+      { code: 'FIXED_ASSETS_VEHICLES', isDebit: true, base: 20000 },
+      { code: 'BANK_EUR', isDebit: false, base: 20000 },
+    ]);
+    await db
+      .insertInto('fixed_asset')
+      .values({
+        name: 'Van',
+        asset_class: 'vehicle',
+        acquisition_voucher_id: acqId,
+        acquisition_date: '2026-01-10',
+        cost_base_minor: 20000,
+        useful_life_years: 5,
+        residual_value_minor: 0,
+        retired_at: null,
+      } as never)
+      .execute();
+    await postVoucher('2026-03-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 60000 },
+      { code: 'REVENUE', isDebit: false, base: 60000 },
+    ]);
+    await postVoucher('2026-04-01', [
+      { code: 'EXPENSE_OTHER', isDebit: true, base: 42000 },
+      { code: 'BANK_EUR', isDebit: false, base: 42000 },
+    ]);
+
+    const id = await periodId('2026');
+    const draft = await service.generate(id);
+    const final = await service.finalize(id);
+
+    // Numbers identical (the rendered XBRL content matches).
+    expect(final.artifacts[0].content).toBe(draft.artifacts[0].content);
+
+    // A depreciation voucher was posted (4000 to DEPRECIATION_EXPENSE).
+    const depLine = await db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(['vl.base_amount', 'vl.is_debit'])
+      .where('a.code', '=', 'DEPRECIATION_EXPENSE')
+      .executeTakeFirst();
+    expect(depLine?.base_amount).toBe(4000);
+    expect(depLine?.is_debit).toBe(1);
+
+    // The period is now locked.
+    const period = await db
+      .selectFrom('reporting_period')
+      .select(['status', 'filed_at'])
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(period.status).toBe('locked');
+    expect(period.filed_at).not.toBeNull();
+  });
+
+  it('rejects a second finalize on an already-locked period', async () => {
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const id = await periodId('2026');
+    await service.finalize(id);
+    await expect(service.finalize(id)).rejects.toThrow(/already.*final|locked/i);
+  });
+
+  it('diagnoseInput returns a balance_sheet_imbalance block for an imbalanced input', () => {
+    const input: AnnualAccountsInput = {
+      period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },
+      priorPeriod: null,
+      mode: 'final',
+      balances: [{ code: 'BANK_EUR', type: 'asset', current: 100, prior: 0 }],
+      fixedAssets: [],
+      periodNetIncome: 0,
+      priorNetIncome: 0,
+      retainedEarningsBroughtForward: 0,
+      declarant: { regNumber: 'EE123456789', name: 'Test OÜ' },
+    };
+    const warnings = service.diagnoseInput(input);
+    const block = warnings.find(
+      (w) => (w as { severity?: string }).severity === 'block',
+    );
+    expect(block?.code).toBe('balance_sheet_imbalance');
+  });
+
+  it('hard-blocks finalize (BadRequestException) when a blocking diagnostic is present, leaving the period open', async () => {
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const id = await periodId('2026');
+    jest.spyOn(service as never as { diagnose: () => unknown }, 'diagnose').mockReturnValueOnce([
+      { code: 'balance_sheet_imbalance', message: 'x', severity: 'block' },
+    ] as never);
+    await expect(service.finalize(id)).rejects.toThrow(BadRequestException);
+    // And nothing got locked.
+    const period = await db
+      .selectFrom('reporting_period')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(period.status).toBe('open');
   });
 });
