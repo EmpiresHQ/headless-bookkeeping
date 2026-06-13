@@ -4,6 +4,7 @@ import { AccountModule } from '../ledger/account/account.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { ReportingPeriodsModule } from '../reporting-periods/reporting-periods.module';
+import { AnnualAccountsController } from './annual-accounts.controller';
 import { AnnualAccountsService } from './annual-accounts.service';
 
 /**
@@ -24,6 +25,7 @@ import { AnnualAccountsService } from './annual-accounts.service';
     PostingModule,
     ReportingPeriodsModule,
   ],
+  controllers: [AnnualAccountsController],
   providers: [AnnualAccountsService],
   exports: [AnnualAccountsService],
 })
