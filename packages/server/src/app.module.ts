@@ -34,6 +34,7 @@ import { AiModule } from './ai/ai.module';
 import { InteractionModule } from './interaction/interaction.module';
 import { StatutoryReportModule } from './statutory-report/statutory-report.module';
 import { CategoriesModule } from './categories/categories.module';
+import { FixedAssetsModule } from './fixed-assets/fixed-assets.module';
 import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
@@ -85,6 +86,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     InteractionModule,
     StatutoryReportModule,
     CategoriesModule,
+    FixedAssetsModule,
   ],
   providers: [
     {
