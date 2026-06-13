@@ -13,7 +13,7 @@ import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.serv
 import { CreateSalesInvoiceDto, SalesInvoicePostOverrideDto } from './types';
 import type { SalesInvoice } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
-import { isInvoiceNumberConflict } from '../ai/propose-draft.service';
+import { isInvoiceNumberConflict } from './sales-invoices.service';
 
 @ApiTags('sales-invoices')
 @Controller('api/sales-invoices')

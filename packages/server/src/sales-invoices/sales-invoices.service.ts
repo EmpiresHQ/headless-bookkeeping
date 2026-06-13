@@ -14,6 +14,20 @@ import {
   CreateSalesInvoiceDto,
 } from './types';
 
+/**
+ * Whether a thrown error is the SQLite UNIQUE-constraint violation on
+ * sales_invoice.invoice_number — a duplicate invoice number. Used by both
+ * SalesInvoicesController (maps to 409) and ProposeDraftService (maps to
+ * `duplicate-number` outcome → needs_triage).
+ */
+export function isInvoiceNumberConflict(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    err.message.includes('UNIQUE constraint failed') &&
+    err.message.includes('invoice_number')
+  );
+}
+
 @Injectable()
 export class SalesInvoicesService {
   constructor(

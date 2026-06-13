@@ -13,22 +13,10 @@ import {
 import { CreateExpenseDto } from '../expenses/types';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
-import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
-
-/**
- * Whether a thrown error is the SQLite UNIQUE-constraint violation on
- * sales_invoice.invoice_number — a duplicate invoice number. Mirrors the check
- * the SalesInvoicesController uses to map createInvoice conflicts to 409; here
- * it lets proposeSalesInvoiceDraft return an explicit `duplicate-number`
- * outcome instead of a 500.
- */
-export function isInvoiceNumberConflict(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    err.message.includes('UNIQUE constraint failed') &&
-    err.message.includes('invoice_number')
-  );
-}
+import {
+  SalesInvoicesService,
+  isInvoiceNumberConflict,
+} from '../sales-invoices/sales-invoices.service';
 
 /** The posting pipeline's result shape (Rules → Policy → post/hold). */
 export type PipelineRunResult = Awaited<
