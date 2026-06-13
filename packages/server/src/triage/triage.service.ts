@@ -66,6 +66,14 @@ export class TriageService {
       };
     }
 
+    if (result.status === 'draft_proposed_invoice') {
+      return {
+        kind: 'invoice',
+        document_id: documentId,
+        invoice_id: result.invoiceId,
+      };
+    }
+
     // needs_triage — the workflow created (or reused) the AuditFinding and
     // moved the Document to 'needs_triage'.
     return {
@@ -110,6 +118,15 @@ export class TriageService {
         expense_id: result.draft.expenseId,
       };
     }
+
+    if (result.status === 'draft_proposed_invoice') {
+      return {
+        kind: 'invoice',
+        document_id: documentId,
+        invoice_id: result.invoiceId,
+      };
+    }
+
     return { kind: 'unknown', document_id: documentId, reason: result.reason };
   }
 
@@ -130,6 +147,15 @@ export class TriageService {
         expense_id: result.draft.expenseId,
       };
     }
+
+    if (result.status === 'draft_proposed_invoice') {
+      return {
+        kind: 'invoice',
+        document_id: documentId,
+        invoice_id: result.invoiceId,
+      };
+    }
+
     return { kind: 'unknown', document_id: documentId, reason: result.reason };
   }
 }

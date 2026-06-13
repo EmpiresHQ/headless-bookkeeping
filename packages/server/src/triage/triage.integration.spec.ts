@@ -211,6 +211,25 @@ describe('TriageService (integration)', () => {
     await expect(triage.route(999)).rejects.toThrow('Document 999 not found');
   });
 
+  it('maps a sales-invoice workflow outcome to a TriageOutcomeInvoice', async () => {
+    const uploadResult = await documents.upload({
+      filename: 'outgoing-invoice.pdf',
+      buffer: Buffer.from('fake-invoice'),
+      mimeType: 'application/pdf',
+      channel: 'upload',
+    });
+    const doc = uploadResult.document;
+
+    // The workflow owns the status transition; the mock models that ownership.
+    mockWorkflow.process.mockImplementation(async (id: number) => {
+      await documents.setStatus(id, 'triaged');
+      return { status: 'draft_proposed_invoice', invoiceId: 55 };
+    });
+
+    const out = await triage.route(doc.id);
+    expect(out).toEqual({ kind: 'invoice', document_id: doc.id, invoice_id: 55 });
+  });
+
   describe('resolveSupplier', () => {
     it('delegates to the workflow and maps a draft to an expense outcome', async () => {
       const uploadResult = await documents.upload({
