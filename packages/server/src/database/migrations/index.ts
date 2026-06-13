@@ -42,6 +42,9 @@ import * as m042 from './042_add_reconciliation_match_fx_voucher_id';
 import * as m043 from './043_add_approval_policy_reason';
 import * as m044 from './044_add_document_processing_since';
 import * as m045 from './045_widen_entity_identifier_kind';
+import * as m046 from './046_add_fixed_asset_accounts';
+import * as m047 from './047_create_fixed_asset';
+import * as m050 from './050_create_statutory_submission_event';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -87,4 +90,7 @@ export const migrations: Record<string, Migration> = {
   '043_add_approval_policy_reason': m043,
   '044_add_document_processing_since': m044,
   '045_widen_entity_identifier_kind': m045,
+  '046_add_fixed_asset_accounts': m046,
+  '047_create_fixed_asset': m047,
+  '050_create_statutory_submission_event': m050,
 };

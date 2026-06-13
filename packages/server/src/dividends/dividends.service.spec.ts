@@ -33,6 +33,11 @@ import {
   KmdBaseClassification,
   VatComputation,
 } from '../plugins/country-plugin-retrieval.interface';
+import {
+  AssetClass,
+  DepreciationMethod,
+  FixedAssetDefaults,
+} from '../plugins/fixed-asset.types';
 import { DividendsService } from './dividends.service';
 
 /**
@@ -383,6 +388,18 @@ describe('DividendsService (integration)', () => {
       generateStatutoryReports() {
         return { artifacts: [], warnings: [] };
       }
+
+      generateAnnualAccounts() {
+        return { artifacts: [], warnings: [] };
+      }
+
+      getDepreciationMethod(): DepreciationMethod {
+        return 'straight_line';
+      }
+
+      getFixedAssetDefaults(_assetClass: AssetClass): FixedAssetDefaults {
+        return { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 };
+      }
     }
 
     beforeEach(async () => {
@@ -602,6 +619,18 @@ describe('DividendsService (integration)', () => {
 
       generateStatutoryReports() {
         return { artifacts: [], warnings: [] };
+      }
+
+      generateAnnualAccounts() {
+        return { artifacts: [], warnings: [] };
+      }
+
+      getDepreciationMethod(): DepreciationMethod {
+        return 'straight_line';
+      }
+
+      getFixedAssetDefaults(_assetClass: AssetClass): FixedAssetDefaults {
+        return { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 };
       }
     }
 

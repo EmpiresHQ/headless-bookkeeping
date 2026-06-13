@@ -5,6 +5,7 @@ import {
   OrgContext,
   SupplierFacts,
 } from './country-plugin.interface';
+import { renderAnnualAccountsXbrl } from './estonia-annual-accounts/xbrl';
 
 describe('EstoniaCountryPlugin — VAT core', () => {
   const ee = new EstoniaCountryPlugin();
@@ -426,5 +427,101 @@ describe('EstoniaCountryPlugin — getCategories()', () => {
         plugin.resolveCategoryMapping(cat.key, eeSupplier, org).accountCode,
       ).toBe(cat.accountCode);
     }
+  });
+});
+
+describe('EstoniaCountryPlugin — fixed assets', () => {
+  const ee = new EstoniaCountryPlugin();
+  const org = { country: 'EE', vatRegistered: true, baseCurrency: null };
+  const eeSupplier = {
+    country: 'EE',
+    goodsVsServices: 'goods' as const,
+    classificationMemory: [],
+  };
+
+  it('maps the four fixed-asset categories to per-class FIXED_ASSETS_* accounts', () => {
+    expect(
+      ee.resolveCategoryMapping('vehicle', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_VEHICLES');
+    expect(
+      ee.resolveCategoryMapping('it_equipment', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_IT');
+    expect(
+      ee.resolveCategoryMapping('machinery', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_EQUIPMENT');
+    expect(
+      ee.resolveCategoryMapping('furniture', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_FURNITURE');
+  });
+
+  it('exposes the fixed-asset categories in getCategories()', () => {
+    const keys = ee.getCategories().map((c) => c.key);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        'vehicle',
+        'it_equipment',
+        'machinery',
+        'furniture',
+      ]),
+    );
+  });
+
+  it('uses straight-line depreciation', () => {
+    expect(ee.getDepreciationMethod()).toBe('straight_line');
+  });
+
+  it('returns conventional default useful lives per class', () => {
+    expect(ee.getFixedAssetDefaults('vehicle').defaultUsefulLifeYears).toBe(5);
+    expect(
+      ee.getFixedAssetDefaults('it_equipment').defaultUsefulLifeYears,
+    ).toBe(3);
+    expect(ee.getFixedAssetDefaults('machinery').defaultUsefulLifeYears).toBe(
+      5,
+    );
+    expect(ee.getFixedAssetDefaults('furniture').defaultUsefulLifeYears).toBe(
+      7,
+    );
+  });
+
+  it('defaults residual to 0 except for vehicles (non-zero)', () => {
+    expect(ee.getFixedAssetDefaults('it_equipment').defaultResidualMinor).toBe(
+      0,
+    );
+    expect(ee.getFixedAssetDefaults('machinery').defaultResidualMinor).toBe(0);
+    expect(ee.getFixedAssetDefaults('furniture').defaultResidualMinor).toBe(0);
+    expect(
+      ee.getFixedAssetDefaults('vehicle').defaultResidualMinor,
+    ).toBeGreaterThan(0);
+  });
+});
+
+describe('EstoniaCountryPlugin — annual accounts', () => {
+  const ee = new EstoniaCountryPlugin();
+  const input = {
+    period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },
+    priorPeriod: null,
+    mode: 'draft' as const,
+    balances: [
+      { code: 'BANK_EUR', type: 'asset' as const, current: 5000, prior: 0 },
+      { code: 'MYSTERY', type: 'asset' as const, current: 250, prior: 0 },
+    ],
+    fixedAssets: [],
+    periodNetIncome: 0,
+    priorNetIncome: 0,
+    retainedEarningsBroughtForward: 0,
+    declarant: { regNumber: '12345678', name: 'Test OÜ' },
+  };
+
+  it('renders one XBRL artifact and warns on unmapped nonzero accounts', () => {
+    const result = ee.generateAnnualAccounts(input, { taxonomyVersion: 2026 });
+    expect(result.artifacts).toHaveLength(1);
+    expect(result.artifacts[0].filename).toBe('annual-accounts-2026.xbrl');
+    expect(result.artifacts[0].mimeType).toBe('application/xml');
+    expect(result.artifacts[0].content).toBe(
+      renderAnnualAccountsXbrl(input, { taxonomyVersion: 2026 }),
+    );
+    expect(result.warnings.map((w) => w.code)).toContain(
+      'unmapped_nonzero_account',
+    );
   });
 });

@@ -10,6 +10,8 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrganizationService } from '../organization/organization.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 
 /**
  * Integration test for ReportingPeriodsService against a real in-memory
@@ -68,6 +70,7 @@ describe('ReportingPeriodsService (integration)', () => {
       vatReportService,
       organizationService,
       pluginLoader,
+      new StatutorySubmissionService(db, new AuditLogService(db)),
     );
   });
 
