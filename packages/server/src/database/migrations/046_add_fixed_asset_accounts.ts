@@ -17,16 +17,66 @@ const SEED: Array<{
   type: string;
   currency: string | null;
 }> = [
-  { code: 'FIXED_ASSETS_VEHICLES', name: 'Fixed Assets — Vehicles', type: 'asset', currency: null },
-  { code: 'FIXED_ASSETS_IT', name: 'Fixed Assets — IT Equipment', type: 'asset', currency: null },
-  { code: 'FIXED_ASSETS_EQUIPMENT', name: 'Fixed Assets — Equipment', type: 'asset', currency: null },
-  { code: 'FIXED_ASSETS_FURNITURE', name: 'Fixed Assets — Furniture', type: 'asset', currency: null },
-  { code: 'ACCUM_DEPRECIATION_VEHICLES', name: 'Accumulated Depreciation — Vehicles', type: 'asset', currency: null },
-  { code: 'ACCUM_DEPRECIATION_IT', name: 'Accumulated Depreciation — IT Equipment', type: 'asset', currency: null },
-  { code: 'ACCUM_DEPRECIATION_EQUIPMENT', name: 'Accumulated Depreciation — Equipment', type: 'asset', currency: null },
-  { code: 'ACCUM_DEPRECIATION_FURNITURE', name: 'Accumulated Depreciation — Furniture', type: 'asset', currency: null },
-  { code: 'DEPRECIATION_EXPENSE', name: 'Depreciation Expense', type: 'expense', currency: null },
-  { code: 'GAIN_LOSS_ON_ASSET_DISPOSAL', name: 'Gain/Loss on Asset Disposal', type: 'revenue', currency: null },
+  {
+    code: 'FIXED_ASSETS_VEHICLES',
+    name: 'Fixed Assets — Vehicles',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'FIXED_ASSETS_IT',
+    name: 'Fixed Assets — IT Equipment',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'FIXED_ASSETS_EQUIPMENT',
+    name: 'Fixed Assets — Equipment',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'FIXED_ASSETS_FURNITURE',
+    name: 'Fixed Assets — Furniture',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'ACCUM_DEPRECIATION_VEHICLES',
+    name: 'Accumulated Depreciation — Vehicles',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'ACCUM_DEPRECIATION_IT',
+    name: 'Accumulated Depreciation — IT Equipment',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'ACCUM_DEPRECIATION_EQUIPMENT',
+    name: 'Accumulated Depreciation — Equipment',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'ACCUM_DEPRECIATION_FURNITURE',
+    name: 'Accumulated Depreciation — Furniture',
+    type: 'asset',
+    currency: null,
+  },
+  {
+    code: 'DEPRECIATION_EXPENSE',
+    name: 'Depreciation Expense',
+    type: 'expense',
+    currency: null,
+  },
+  {
+    code: 'GAIN_LOSS_ON_ASSET_DISPOSAL',
+    name: 'Gain/Loss on Asset Disposal',
+    type: 'revenue',
+    currency: null,
+  },
 ];
 
 export async function up(db: Kysely<Database>): Promise<void> {

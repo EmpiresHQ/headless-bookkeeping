@@ -37,10 +37,16 @@ describe('FixedAssetsController (integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
-    const migrator = new Migrator({ db, provider: { getMigrations: () => Promise.resolve(migrations) } });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
     await db.updateTable('organization').set({ country: 'EE' }).execute();
 
     // Raise the auto-post ceiling above the capex amount so the pipeline auto-posts
@@ -56,12 +62,26 @@ describe('FixedAssetsController (integration)', () => {
       controllers: [FixedAssetsController],
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
-        FixedAssetsService, FixedAssetRegistrarService,
-        ExpensesService, CategoryService, VoucherProjectionService, CurrencyService,
-        PostingPipelineService, PostingService, AccountService, LedgerBalanceService,
-        LedgerValidationService, PeriodLockService, StatusTransitionService,
-        PolicyService, RulesService, OrgContextResolver, OrganizationService,
-        PluginLoader, NullCountryPlugin, EstoniaCountryPlugin,
+        FixedAssetsService,
+        FixedAssetRegistrarService,
+        ExpensesService,
+        CategoryService,
+        VoucherProjectionService,
+        CurrencyService,
+        PostingPipelineService,
+        PostingService,
+        AccountService,
+        LedgerBalanceService,
+        LedgerValidationService,
+        PeriodLockService,
+        StatusTransitionService,
+        PolicyService,
+        RulesService,
+        OrgContextResolver,
+        OrganizationService,
+        PluginLoader,
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
       ],
     }).compile();
 
@@ -71,18 +91,27 @@ describe('FixedAssetsController (integration)', () => {
     controller = module.get(FixedAssetsController);
   });
 
-  afterEach(async () => { await db.destroy(); });
+  afterEach(async () => {
+    await db.destroy();
+  });
 
   async function acquireCar(): Promise<void> {
     const expense = await expenses.createExpense({
-      category: 'vehicle', gross_amount: 2000000, vat_amount: 0,
-      currency: 'EUR', tax_point_date: '2024-01-01', asset_name: 'Company car',
+      category: 'vehicle',
+      gross_amount: 2000000,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2024-01-01',
+      asset_name: 'Company car',
     });
     await pipeline.runPipeline({
-      businessObjectId: expense.id, businessObjectType: 'expense',
+      businessObjectId: expense.id,
+      businessObjectType: 'expense',
       draftGenerator: () => expenses.generateDraftVoucher(expense.id),
-      category: 'vehicle', refetch: () => expenses.getExpenseById(expense.id),
-      confidence: 1, supplierKnown: true,
+      category: 'vehicle',
+      refetch: () => expenses.getExpenseById(expense.id),
+      confidence: 1,
+      supplierKnown: true,
       afterPost: (trx, v) => registrar.registerFromVoucher(trx, v, expense.id),
     });
   }
@@ -101,7 +130,10 @@ describe('FixedAssetsController (integration)', () => {
   it('book value drops by accumulated depreciation after a disposal catch-up posting', async () => {
     await acquireCar();
     const before = (await controller.list()).fixedAssets[0];
-    await controller.dispose(before.id, { disposal_date: '2025-12-31', proceeds_minor: 1500000 });
+    await controller.dispose(before.id, {
+      disposal_date: '2025-12-31',
+      proceeds_minor: 1500000,
+    });
     const after = (await controller.list()).fixedAssets[0];
     // After disposal the accumulated (640,000) is debited away again to clear ACCUM,
     // so the per-class contra nets to 0 ⇒ book value reads back as cost. The asset is retired.

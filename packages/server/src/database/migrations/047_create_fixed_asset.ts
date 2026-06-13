@@ -21,7 +21,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn('asset_class', 'text', (col) =>
       col
         .notNull()
-        .check(sql`asset_class IN ('vehicle','it_equipment','machinery','furniture')`),
+        .check(
+          sql`asset_class IN ('vehicle','it_equipment','machinery','furniture')`,
+        ),
     )
     .addColumn('acquisition_voucher_id', 'integer', (col) =>
       col.notNull().references('voucher.id'),

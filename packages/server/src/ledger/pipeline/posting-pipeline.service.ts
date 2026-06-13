@@ -48,10 +48,7 @@ export interface PostingPipelineParams {
    * capex flow to create the fixed-asset register row atomically (ADR-0035).
    * MUST use the provided `trx` — never `this.db`.
    */
-  afterPost?: (
-    trx: Kysely<Database>,
-    voucher: PostedVoucher,
-  ) => Promise<void>;
+  afterPost?: (trx: Kysely<Database>, voucher: PostedVoucher) => Promise<void>;
 }
 
 export interface PostingPipelineResult {

@@ -192,7 +192,10 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   }
 
   // ── Fixed-asset norms (ADR-0035) ──────────────────────────────────────────
-  private static readonly FIXED_ASSET_DEFAULTS: Record<AssetClass, FixedAssetDefaults> = {
+  private static readonly FIXED_ASSET_DEFAULTS: Record<
+    AssetClass,
+    FixedAssetDefaults
+  > = {
     vehicle: { defaultUsefulLifeYears: 5, defaultResidualMinor: 400000 },
     it_equipment: { defaultUsefulLifeYears: 3, defaultResidualMinor: 0 },
     machinery: { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 },

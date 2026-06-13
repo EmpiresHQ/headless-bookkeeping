@@ -439,16 +439,29 @@ describe('EstoniaCountryPlugin — fixed assets', () => {
   };
 
   it('maps the four fixed-asset categories to per-class FIXED_ASSETS_* accounts', () => {
-    expect(ee.resolveCategoryMapping('vehicle', eeSupplier, org).accountCode).toBe('FIXED_ASSETS_VEHICLES');
-    expect(ee.resolveCategoryMapping('it_equipment', eeSupplier, org).accountCode).toBe('FIXED_ASSETS_IT');
-    expect(ee.resolveCategoryMapping('machinery', eeSupplier, org).accountCode).toBe('FIXED_ASSETS_EQUIPMENT');
-    expect(ee.resolveCategoryMapping('furniture', eeSupplier, org).accountCode).toBe('FIXED_ASSETS_FURNITURE');
+    expect(
+      ee.resolveCategoryMapping('vehicle', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_VEHICLES');
+    expect(
+      ee.resolveCategoryMapping('it_equipment', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_IT');
+    expect(
+      ee.resolveCategoryMapping('machinery', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_EQUIPMENT');
+    expect(
+      ee.resolveCategoryMapping('furniture', eeSupplier, org).accountCode,
+    ).toBe('FIXED_ASSETS_FURNITURE');
   });
 
   it('exposes the fixed-asset categories in getCategories()', () => {
     const keys = ee.getCategories().map((c) => c.key);
     expect(keys).toEqual(
-      expect.arrayContaining(['vehicle', 'it_equipment', 'machinery', 'furniture']),
+      expect.arrayContaining([
+        'vehicle',
+        'it_equipment',
+        'machinery',
+        'furniture',
+      ]),
     );
   });
 
@@ -458,15 +471,25 @@ describe('EstoniaCountryPlugin — fixed assets', () => {
 
   it('returns conventional default useful lives per class', () => {
     expect(ee.getFixedAssetDefaults('vehicle').defaultUsefulLifeYears).toBe(5);
-    expect(ee.getFixedAssetDefaults('it_equipment').defaultUsefulLifeYears).toBe(3);
-    expect(ee.getFixedAssetDefaults('machinery').defaultUsefulLifeYears).toBe(5);
-    expect(ee.getFixedAssetDefaults('furniture').defaultUsefulLifeYears).toBe(7);
+    expect(
+      ee.getFixedAssetDefaults('it_equipment').defaultUsefulLifeYears,
+    ).toBe(3);
+    expect(ee.getFixedAssetDefaults('machinery').defaultUsefulLifeYears).toBe(
+      5,
+    );
+    expect(ee.getFixedAssetDefaults('furniture').defaultUsefulLifeYears).toBe(
+      7,
+    );
   });
 
   it('defaults residual to 0 except for vehicles (non-zero)', () => {
-    expect(ee.getFixedAssetDefaults('it_equipment').defaultResidualMinor).toBe(0);
+    expect(ee.getFixedAssetDefaults('it_equipment').defaultResidualMinor).toBe(
+      0,
+    );
     expect(ee.getFixedAssetDefaults('machinery').defaultResidualMinor).toBe(0);
     expect(ee.getFixedAssetDefaults('furniture').defaultResidualMinor).toBe(0);
-    expect(ee.getFixedAssetDefaults('vehicle').defaultResidualMinor).toBeGreaterThan(0);
+    expect(
+      ee.getFixedAssetDefaults('vehicle').defaultResidualMinor,
+    ).toBeGreaterThan(0);
   });
 });

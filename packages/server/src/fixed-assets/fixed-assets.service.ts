@@ -1,12 +1,23 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
-import { DraftVoucher, DraftVoucherLine, PostedVoucher } from '../ledger/voucher/types';
+import {
+  DraftVoucher,
+  DraftVoucherLine,
+  PostedVoucher,
+} from '../ledger/voucher/types';
 import { AssetClass } from '../plugins/fixed-asset.types';
-import { accumulatedDepreciationAsOf, depreciationCharge } from './depreciation-engine';
+import {
+  accumulatedDepreciationAsOf,
+  depreciationCharge,
+} from './depreciation-engine';
 import { CLASS_ACCOUNTS } from './fixed-asset-class-map';
 import { DisposeAssetDto, FixedAsset, FixedAssetWithBookValue } from './types';
 
@@ -30,13 +41,27 @@ export class FixedAssetsService {
   ) {}
 
   async list(): Promise<FixedAssetWithBookValue[]> {
-    const rows = await this.db.selectFrom('fixed_asset').selectAll().orderBy('id').execute();
-    return Promise.all(rows.map(async (r) => ({ ...this.mapRow(r), book_value_minor: await this.bookValue(r) })));
+    const rows = await this.db
+      .selectFrom('fixed_asset')
+      .selectAll()
+      .orderBy('id')
+      .execute();
+    return Promise.all(
+      rows.map(async (r) => ({
+        ...this.mapRow(r),
+        book_value_minor: await this.bookValue(r),
+      })),
+    );
   }
 
   /** Book value = cost − accumulated depreciation posted to the contra account. */
-  private async bookValue(row: { id: number; cost_base_minor: number; asset_class: string }): Promise<number> {
-    const { accumDepreciationCode } = CLASS_ACCOUNTS[row.asset_class as AssetClass];
+  private async bookValue(row: {
+    id: number;
+    cost_base_minor: number;
+    asset_class: string;
+  }): Promise<number> {
+    const { accumDepreciationCode } =
+      CLASS_ACCOUNTS[row.asset_class as AssetClass];
     // Σ depreciation = magnitude netted over the contra account for this asset's vouchers.
     // The contra account is per-class, so net over ALL its lines is the class total; for a
     // single-asset deployment that equals this asset. (Multi-asset attribution by voucher set
@@ -51,10 +76,18 @@ export class FixedAssetsService {
   async dispose(
     id: number,
     dto: DisposeAssetDto,
-  ): Promise<{ depreciationVoucher: PostedVoucher | null; disposalVoucher: PostedVoucher }> {
-    const asset = await this.db.selectFrom('fixed_asset').selectAll().where('id', '=', id).executeTakeFirst();
+  ): Promise<{
+    depreciationVoucher: PostedVoucher | null;
+    disposalVoucher: PostedVoucher;
+  }> {
+    const asset = await this.db
+      .selectFrom('fixed_asset')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
     if (!asset) throw new NotFoundException(`Fixed asset ${id} not found`);
-    if (asset.retired_at !== null) throw new ConflictException(`Fixed asset ${id} is already retired`);
+    if (asset.retired_at !== null)
+      throw new ConflictException(`Fixed asset ${id} is already retired`);
 
     const cls = asset.asset_class as AssetClass;
     const { fixedAssetCode, accumDepreciationCode } = CLASS_ACCOUNTS[cls];
@@ -69,7 +102,10 @@ export class FixedAssetsService {
     // depreciation posting (the annual close is a separate plan), so the
     // catch-up is the full accumulated depreciation as of the disposal date.
     const catchUp = depreciationCharge(depreciable, null, dto.disposal_date);
-    const accumulated = accumulatedDepreciationAsOf(depreciable, dto.disposal_date);
+    const accumulated = accumulatedDepreciationAsOf(
+      depreciable,
+      dto.disposal_date,
+    );
 
     const proceeds = dto.proceeds_minor ?? 0;
     const netBookValue = asset.cost_base_minor - accumulated;
@@ -93,12 +129,17 @@ export class FixedAssetsService {
     //     Cr FIXED_ASSETS(cost), balance to GAIN_LOSS.
     const disposalLines: DraftVoucherLine[] = [];
     if (proceeds > 0) disposalLines.push(this.line('BANK_EUR', proceeds, true));
-    if (accumulated > 0) disposalLines.push(this.line(accumDepreciationCode, accumulated, true));
+    if (accumulated > 0)
+      disposalLines.push(this.line(accumDepreciationCode, accumulated, true));
     disposalLines.push(this.line(fixedAssetCode, asset.cost_base_minor, false));
     if (gainLoss > 0) {
-      disposalLines.push(this.line('GAIN_LOSS_ON_ASSET_DISPOSAL', gainLoss, false)); // gain (credit)
+      disposalLines.push(
+        this.line('GAIN_LOSS_ON_ASSET_DISPOSAL', gainLoss, false),
+      ); // gain (credit)
     } else if (gainLoss < 0) {
-      disposalLines.push(this.line('GAIN_LOSS_ON_ASSET_DISPOSAL', -gainLoss, true)); // loss (debit)
+      disposalLines.push(
+        this.line('GAIN_LOSS_ON_ASSET_DISPOSAL', -gainLoss, true),
+      ); // loss (debit)
     }
     drafts.push({
       tax_point_date: dto.disposal_date,
@@ -111,7 +152,10 @@ export class FixedAssetsService {
         const disposalVoucher = vouchers[vouchers.length - 1];
         await trx
           .updateTable('fixed_asset')
-          .set({ retired_at: Math.floor(Date.now() / 1000), disposal_voucher_id: disposalVoucher.id })
+          .set({
+            retired_at: Math.floor(Date.now() / 1000),
+            disposal_voucher_id: disposalVoucher.id,
+          })
           .where('id', '=', id)
           .execute();
       },
@@ -122,20 +166,44 @@ export class FixedAssetsService {
     return { depreciationVoucher, disposalVoucher };
   }
 
-  private line(account_code: string, base_amount: number, is_debit: boolean): DraftVoucherLine {
-    return { account_code, amount: base_amount, currency: 'EUR', base_amount, fx_rate: 1, vat_code: null, is_debit };
+  private line(
+    account_code: string,
+    base_amount: number,
+    is_debit: boolean,
+  ): DraftVoucherLine {
+    return {
+      account_code,
+      amount: base_amount,
+      currency: 'EUR',
+      base_amount,
+      fx_rate: 1,
+      vat_code: null,
+      is_debit,
+    };
   }
 
   private mapRow(r: {
-    id: number; name: string; asset_class: string; acquisition_voucher_id: number;
-    acquisition_date: string; cost_base_minor: number; useful_life_years: number;
-    residual_value_minor: number; retired_at: number | null; disposal_voucher_id: number | null;
+    id: number;
+    name: string;
+    asset_class: string;
+    acquisition_voucher_id: number;
+    acquisition_date: string;
+    cost_base_minor: number;
+    useful_life_years: number;
+    residual_value_minor: number;
+    retired_at: number | null;
+    disposal_voucher_id: number | null;
   }): FixedAsset {
     return {
-      id: r.id, name: r.name, asset_class: r.asset_class,
-      acquisition_voucher_id: r.acquisition_voucher_id, acquisition_date: r.acquisition_date,
-      cost_base_minor: r.cost_base_minor, useful_life_years: r.useful_life_years,
-      residual_value_minor: r.residual_value_minor, retired_at: r.retired_at,
+      id: r.id,
+      name: r.name,
+      asset_class: r.asset_class,
+      acquisition_voucher_id: r.acquisition_voucher_id,
+      acquisition_date: r.acquisition_date,
+      cost_base_minor: r.cost_base_minor,
+      useful_life_years: r.useful_life_years,
+      residual_value_minor: r.residual_value_minor,
+      retired_at: r.retired_at,
       disposal_voucher_id: r.disposal_voucher_id,
     };
   }

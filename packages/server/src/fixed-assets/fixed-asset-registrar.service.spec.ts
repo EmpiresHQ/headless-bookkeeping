@@ -33,13 +33,16 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
 
     await db.updateTable('organization').set({ country: 'EE' }).execute();
 
@@ -56,11 +59,24 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
-        ExpensesService, CategoryService, VoucherProjectionService, CurrencyService,
-        PostingPipelineService, PostingService, AccountService, LedgerValidationService,
-        PeriodLockService, StatusTransitionService, PolicyService, RulesService,
-        OrgContextResolver, OrganizationService, PluginLoader,
-        NullCountryPlugin, EstoniaCountryPlugin, FixedAssetRegistrarService,
+        ExpensesService,
+        CategoryService,
+        VoucherProjectionService,
+        CurrencyService,
+        PostingPipelineService,
+        PostingService,
+        AccountService,
+        LedgerValidationService,
+        PeriodLockService,
+        StatusTransitionService,
+        PolicyService,
+        RulesService,
+        OrgContextResolver,
+        OrganizationService,
+        PluginLoader,
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
+        FixedAssetRegistrarService,
       ],
     }).compile();
 
@@ -69,7 +85,9 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
     registrar = module.get(FixedAssetRegistrarService);
   });
 
-  afterEach(async () => { await db.destroy(); });
+  afterEach(async () => {
+    await db.destroy();
+  });
 
   async function postCapex(over: {
     asset_name: string;
@@ -95,14 +113,18 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
       refetch: () => expenses.getExpenseById(expense.id),
       confidence: 1,
       supplierKnown: true,
-      afterPost: (trx, voucher) => registrar.registerFromVoucher(trx, voucher, expense.id),
+      afterPost: (trx, voucher) =>
+        registrar.registerFromVoucher(trx, voucher, expense.id),
     });
     return expense.id;
   }
 
   it('creates a register row with plugin defaults when no overrides given (vehicle 5y, residual 400000)', async () => {
     await postCapex({ asset_name: 'Company car', category: 'vehicle' });
-    const row = await db.selectFrom('fixed_asset').selectAll().executeTakeFirstOrThrow();
+    const row = await db
+      .selectFrom('fixed_asset')
+      .selectAll()
+      .executeTakeFirstOrThrow();
     expect(row.name).toBe('Company car');
     expect(row.asset_class).toBe('vehicle');
     expect(row.cost_base_minor).toBe(2000000);
@@ -120,7 +142,10 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
       asset_useful_life_years: 6,
       asset_residual_value_minor: 10000,
     });
-    const row = await db.selectFrom('fixed_asset').selectAll().executeTakeFirstOrThrow();
+    const row = await db
+      .selectFrom('fixed_asset')
+      .selectAll()
+      .executeTakeFirstOrThrow();
     expect(row.asset_class).toBe('it_equipment');
     expect(row.useful_life_years).toBe(6);
     expect(row.residual_value_minor).toBe(10000);
@@ -128,8 +153,12 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
 
   it('creates NO register row for a non-capex expense', async () => {
     const expense = await expenses.createExpense({
-      category: 'software', gross_amount: 5000, vat_amount: 0,
-      currency: 'EUR', tax_point_date: '2024-02-15', asset_name: null,
+      category: 'software',
+      gross_amount: 5000,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2024-02-15',
+      asset_name: null,
     });
     await pipeline.runPipeline({
       businessObjectId: expense.id,
@@ -139,7 +168,8 @@ describe('FixedAssetRegistrarService (capex → register, integration)', () => {
       refetch: () => expenses.getExpenseById(expense.id),
       confidence: 1,
       supplierKnown: true,
-      afterPost: (trx, voucher) => registrar.registerFromVoucher(trx, voucher, expense.id),
+      afterPost: (trx, voucher) =>
+        registrar.registerFromVoucher(trx, voucher, expense.id),
     });
     const rows = await db.selectFrom('fixed_asset').selectAll().execute();
     expect(rows).toHaveLength(0);

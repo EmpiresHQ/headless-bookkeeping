@@ -106,7 +106,10 @@ export class NullCountryPlugin implements CountryPlugin {
     }));
   }
 
-  private static readonly FIXED_ASSET_DEFAULTS: Record<AssetClass, FixedAssetDefaults> = {
+  private static readonly FIXED_ASSET_DEFAULTS: Record<
+    AssetClass,
+    FixedAssetDefaults
+  > = {
     vehicle: { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 },
     it_equipment: { defaultUsefulLifeYears: 3, defaultResidualMinor: 0 },
     machinery: { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 },

@@ -36,7 +36,12 @@ export const createExpenseSchema = z.object({
   supplier_invoice_number: z.string().nullable().optional(),
   asset_name: z.string().nullable().optional(),
   asset_useful_life_years: z.number().int().positive().nullable().optional(),
-  asset_residual_value_minor: z.number().int().nonnegative().nullable().optional(),
+  asset_residual_value_minor: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .optional(),
 });
 
 export class CreateExpenseDto extends createZodDto(createExpenseSchema) {}

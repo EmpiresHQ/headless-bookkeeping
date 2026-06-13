@@ -61,6 +61,7 @@ export function depreciationCharge(
   to: string,
 ): number {
   const accumTo = accumulatedDepreciationAsOf(asset, to);
-  const accumFrom = from === null ? 0 : accumulatedDepreciationAsOf(asset, from);
+  const accumFrom =
+    from === null ? 0 : accumulatedDepreciationAsOf(asset, from);
   return Math.max(0, accumTo - accumFrom);
 }

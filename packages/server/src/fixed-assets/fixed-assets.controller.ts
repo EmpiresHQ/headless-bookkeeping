@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Param, Body, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { FixedAssetsService } from './fixed-assets.service';
 import { DisposeAssetDto } from './types';
@@ -18,7 +25,10 @@ export class FixedAssetsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: DisposeAssetDto,
   ) {
-    const { depreciationVoucher, disposalVoucher } = await this.service.dispose(id, dto);
+    const { depreciationVoucher, disposalVoucher } = await this.service.dispose(
+      id,
+      dto,
+    );
     return { depreciationVoucher, disposalVoucher };
   }
 }

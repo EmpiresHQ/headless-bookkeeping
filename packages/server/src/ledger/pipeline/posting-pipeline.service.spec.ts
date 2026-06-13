@@ -27,13 +27,16 @@ describe('PostingPipelineService afterPost hook (integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,23 +64,51 @@ describe('PostingPipelineService afterPost hook (integration)', () => {
     await db
       .insertInto('expense')
       .values({
-        document_id: null, supplier_id: null, category: 'software',
-        gross_amount: 10000, vat_amount: 0, currency: 'EUR',
-        tax_point_date: '2024-02-15', status: 'draft', voucher_id: null,
-        document_vat_marking: null, supplier_invoice_number: null,
-        asset_name: null, asset_useful_life_years: null, asset_residual_value_minor: null,
-        created_at: now, updated_at: now,
+        document_id: null,
+        supplier_id: null,
+        category: 'software',
+        gross_amount: 10000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2024-02-15',
+        status: 'draft',
+        voucher_id: null,
+        document_vat_marking: null,
+        supplier_invoice_number: null,
+        asset_name: null,
+        asset_useful_life_years: null,
+        asset_residual_value_minor: null,
+        created_at: now,
+        updated_at: now,
       })
       .execute();
   });
 
-  afterEach(async () => { await db.destroy(); });
+  afterEach(async () => {
+    await db.destroy();
+  });
 
   const draft = (): DraftVoucher => ({
     tax_point_date: '2024-02-15',
     lines: [
-      { account_code: 'EXPENSE_SOFTWARE', amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, vat_code: null, is_debit: true },
-      { account_code: 'CASH', amount: 10000, currency: 'EUR', base_amount: 10000, fx_rate: 1, vat_code: null, is_debit: false },
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: true,
+      },
+      {
+        account_code: 'CASH',
+        amount: 10000,
+        currency: 'EUR',
+        base_amount: 10000,
+        fx_rate: 1,
+        vat_code: null,
+        is_debit: false,
+      },
     ],
   });
 
