@@ -35,6 +35,7 @@ import { InteractionModule } from './interaction/interaction.module';
 import { StatutoryReportModule } from './statutory-report/statutory-report.module';
 import { CategoriesModule } from './categories/categories.module';
 import { FixedAssetsModule } from './fixed-assets/fixed-assets.module';
+import { AnnualAccountsModule } from './annual-accounts/annual-accounts.module';
 import { ApiTokenGuard } from './auth/api-token.guard';
 
 @Module({
@@ -87,6 +88,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     StatutoryReportModule,
     CategoriesModule,
     FixedAssetsModule,
+    AnnualAccountsModule,
   ],
   providers: [
     {
