@@ -170,9 +170,18 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
   let cli = yargs().scriptName('hbk');
   // Route yargs's built-in logger (used for --help / --version output) through
   // the injected io.out so help text is fully testable without touching
-  // process.stdout. getInternalMethods() is not part of the yargs public API; if
-  // it breaks on a yargs major upgrade, pipe stdout in the test harness instead.
-  cli.getInternalMethods().getLoggerInstance().log = deps.io.out;
+  // process.stdout. getInternalMethods() is a stable but UNTYPED yargs escape
+  // hatch (@types/yargs does not declare it), so we cast; if it breaks on a
+  // yargs major upgrade, pipe stdout in the test harness instead.
+  (
+    cli as unknown as {
+      getInternalMethods(): {
+        getLoggerInstance(): { log: (s: string) => void };
+      };
+    }
+  )
+    .getInternalMethods()
+    .getLoggerInstance().log = deps.io.out;
 
   for (const [group, cmds] of byGroup) {
     const groupDescribe = tagDescriptions.get(group) ?? `${group} operations`;
