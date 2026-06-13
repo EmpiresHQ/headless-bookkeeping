@@ -377,6 +377,12 @@ export class ProposeDraftService {
       document_vat_marking: dto.document_vat_marking,
       supplier_invoice_number: dto.supplier_invoice_number ?? null,
       confidence: 1.0,
+      outgoing_signals: {
+        org_name_is_issuer: false,
+        org_vat_is_issuer: false,
+        has_buyer_block: false,
+        self_identifies_as_invoice: false,
+      },
     };
     await this.writeAiProvenance(expense.id, provenanceResult);
 
