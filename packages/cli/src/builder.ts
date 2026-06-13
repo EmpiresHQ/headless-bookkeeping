@@ -38,6 +38,7 @@ interface RawOperation {
 
 export interface OpenApiSpec {
   paths: Record<string, Record<string, RawOperation>>;
+  tags?: { name: string; description?: string }[];
 }
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
@@ -158,10 +159,21 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
     byGroup.set(cmd.group, list);
   }
 
+  const tagDescriptions = new Map<string, string>();
+  for (const t of spec.tags ?? []) {
+    if (t.description) tagDescriptions.set(kebab(t.name), t.description);
+  }
+
   let cli = yargs().scriptName('hbk');
+  // Route yargs's built-in logger (used for --help / --version output) through
+  // the injected io.out so help text is fully testable without touching
+  // process.stdout. getInternalMethods() is not part of the yargs public API; if
+  // it breaks on a yargs major upgrade, pipe stdout in the test harness instead.
+  cli.getInternalMethods().getLoggerInstance().log = deps.io.out;
 
   for (const [group, cmds] of byGroup) {
-    cli = cli.command(group, `${group} operations`, (g) => {
+    const groupDescribe = tagDescriptions.get(group) ?? `${group} operations`;
+    cli = cli.command(group, groupDescribe, (g) => {
       let sub = g;
       for (const cmd of cmds) {
         const positional = cmd.positionals.map((p) => `<${p}>`).join(' ');

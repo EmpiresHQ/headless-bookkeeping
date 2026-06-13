@@ -124,6 +124,31 @@ describe('readBody', () => {
   });
 });
 
+const tagSpec = {
+  tags: [{ name: 'expenses', description: 'Record supplier expenses' }],
+  paths: {
+    '/api/expenses': {
+      get: { tags: ['expenses'], operationId: 'Expenses_getExpenses', summary: 'List expenses' },
+    },
+  },
+};
+
+describe('group descriptions from spec.tags', () => {
+  it('uses the tag description as the group command description', async () => {
+    let help = '';
+    const cli = buildCli(tagSpec as never, {
+      request: async () => ({ ok: true, status: 200, body: {} }),
+      io: { out: (s) => (help += s), err: () => {} },
+      readFileSync: () => '',
+      stdinIsTTY: true,
+      readStdin: () => '',
+      exit: () => {},
+    });
+    await cli.parseAsync(['--help']);
+    expect(help).toContain('Record supplier expenses');
+  });
+});
+
 describe('buildCli dispatch', () => {
   function makeDeps() {
     const out: string[] = [];
