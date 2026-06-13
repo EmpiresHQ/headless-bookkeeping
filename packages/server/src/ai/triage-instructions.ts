@@ -53,7 +53,7 @@ export function withOrgIdentity(
     `\n\nYOUR ORGANIZATION: name="${org.name ?? 'unknown'}", VAT="${org.vatNumber ?? 'unknown'}", IBAN="${org.iban ?? 'unknown'}".` +
     `\nThis document has been pre-classified as direction="${org.directionHint}" (decided by matching your IBAN against the document — trust it).` +
     `\nReport \`document_type\` accurately (invoice | receipt | bank_statement | credit_note | other).` +
-    `\nWhen direction is "outgoing", set kind="new_sales_invoice", extract the CUSTOMER (buyer) into \`customer_proposal\` and the document's invoice number into \`supplier_invoice_number\`, and set the \`outgoing_signals\` booleans truthfully (does YOUR org name / VAT appear as the issuer/seller? is there a distinct buyer block? does the document call itself an invoice?).` +
+    `\nWhen direction is "outgoing", set kind="new_sales_invoice", extract the CUSTOMER (buyer) into \`customer_proposal\` and the document's OWN invoice number (the schema field is named \`supplier_invoice_number\` for legacy reasons — for an outgoing invoice this is YOUR invoice number) into \`supplier_invoice_number\`, and set the \`outgoing_signals\` booleans truthfully (does YOUR org name / VAT appear as the issuer/seller? is there a distinct buyer block? does the document call itself an invoice?).` +
     `\nWhen direction is "incoming", behave as before: kind="new_expense" with a \`supplier_proposal\`.`
   );
 }

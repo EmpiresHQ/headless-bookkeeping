@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MastraService } from './mastra.service';
 import { triageResultSchema, TriageResult } from '../triage/types';
+import { OrgIdentityContext } from './triage-instructions';
 
 const MAX_RETRIES = 3;
 
@@ -51,11 +52,7 @@ export type Pass2Outcome = Pass2Success | Pass2Failure;
  * keeps Task 8 decoupled from that wiring.
  */
 export interface Pass2Context {
-  orgContext: {
-    iban: string | null;
-    name: string | null;
-    vatNumber: string | null;
-  };
+  orgContext: Omit<OrgIdentityContext, 'directionHint'>;
   directionHint: 'incoming' | 'outgoing';
 }
 
@@ -94,7 +91,7 @@ export class Pass2AgentService {
    * @param markdown - The Pass-1 markdown text (receipt/invoice content).
    * @param ctx - Optional org identity + direction hint. When provided the
    *   agent instructions are augmented so the LLM accurately classifies
-   *   outgoing invoices. When absent, behavior is identical to today.
+   *   outgoing invoices. When absent, behavior is identical to before this parameter was added.
    * @returns A {@link Pass2Outcome} — success with a validated TriageResult,
    *          or failure with an explicit category.
    */
@@ -106,14 +103,7 @@ export class Pass2AgentService {
     let agent: Awaited<ReturnType<MastraService['buildTriageAgent']>>;
     try {
       agent = await this.mastraService.buildTriageAgent(
-        ctx
-          ? {
-              name: ctx.orgContext.name,
-              vatNumber: ctx.orgContext.vatNumber,
-              iban: ctx.orgContext.iban,
-              directionHint: ctx.directionHint,
-            }
-          : undefined,
+        ctx ? { ...ctx.orgContext, directionHint: ctx.directionHint } : undefined,
       );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
