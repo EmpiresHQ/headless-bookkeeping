@@ -9,6 +9,11 @@ import {
   VATCode,
 } from './country-plugin.interface';
 import {
+  AssetClass,
+  DepreciationMethod,
+  FixedAssetDefaults,
+} from './fixed-asset.types';
+import {
   StatutoryFormat,
   StatutoryReportInput,
   StatutoryReportResult,
@@ -47,6 +52,10 @@ const CATEGORY_ACCOUNTS: Readonly<Record<string, string>> = {
   meals: 'EXPENSE_MEALS',
   insurance: 'EXPENSE_INSURANCE',
   education: 'EXPENSE_EDUCATION',
+  vehicle: 'FIXED_ASSETS_VEHICLES',
+  it_equipment: 'FIXED_ASSETS_IT',
+  machinery: 'FIXED_ASSETS_EQUIPMENT',
+  furniture: 'FIXED_ASSETS_FURNITURE',
 };
 
 /** Title-cases a category key into a display label ("bank fee" → "Bank Fee"). */
@@ -95,6 +104,21 @@ export class NullCountryPlugin implements CountryPlugin {
       label: labelFor(key),
       accountCode,
     }));
+  }
+
+  private static readonly FIXED_ASSET_DEFAULTS: Record<AssetClass, FixedAssetDefaults> = {
+    vehicle: { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 },
+    it_equipment: { defaultUsefulLifeYears: 3, defaultResidualMinor: 0 },
+    machinery: { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 },
+    furniture: { defaultUsefulLifeYears: 7, defaultResidualMinor: 0 },
+  };
+
+  getDepreciationMethod(): DepreciationMethod {
+    return 'straight_line';
+  }
+
+  getFixedAssetDefaults(assetClass: AssetClass): FixedAssetDefaults {
+    return NullCountryPlugin.FIXED_ASSET_DEFAULTS[assetClass];
   }
 
   getPeriodFrequencyOptions(): string[] {

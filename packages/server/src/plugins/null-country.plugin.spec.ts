@@ -118,3 +118,24 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
     expect(result).toEqual({ artifacts: [], warnings: [] });
   });
 });
+
+describe('NullCountryPlugin — fixed assets', () => {
+  const plugin = new NullCountryPlugin();
+  const org = { country: 'IE', vatRegistered: true, baseCurrency: null };
+  const supplier = {
+    country: 'IE',
+    goodsVsServices: 'goods' as const,
+    classificationMemory: [],
+  };
+
+  it('maps fixed-asset categories to per-class accounts', () => {
+    expect(plugin.resolveCategoryMapping('vehicle', supplier, org).accountCode).toBe('FIXED_ASSETS_VEHICLES');
+    expect(plugin.resolveCategoryMapping('furniture', supplier, org).accountCode).toBe('FIXED_ASSETS_FURNITURE');
+  });
+
+  it('declares straight-line and zero residual everywhere (neutral stub)', () => {
+    expect(plugin.getDepreciationMethod()).toBe('straight_line');
+    expect(plugin.getFixedAssetDefaults('vehicle')).toEqual({ defaultUsefulLifeYears: 5, defaultResidualMinor: 0 });
+    expect(plugin.getFixedAssetDefaults('it_equipment').defaultUsefulLifeYears).toBe(3);
+  });
+});
