@@ -7,7 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuditFindingsService } from './audit-findings.service';
 import type {
   AuditFinding,
@@ -21,6 +21,7 @@ export class AuditFindingsController {
   constructor(private readonly auditFindingsService: AuditFindingsService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Create an audit finding', description: 'Record an audit finding.' })
   async create(
     @Body() dto: CreateAuditFindingDto,
   ): Promise<{ finding: AuditFinding }> {
@@ -29,6 +30,8 @@ export class AuditFindingsController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'List audit findings', description: 'List findings, optionally filtered by severity.' })
+  @ApiQuery({ name: 'severity', description: 'Filter by finding severity', required: false })
   async list(
     @Query('severity') severity?: FindingSeverity,
   ): Promise<{ findings: AuditFinding[] }> {
@@ -37,6 +40,8 @@ export class AuditFindingsController {
   }
 
   @Post(':id/resolve')
+  @ApiOperation({ summary: 'Resolve an audit finding', description: 'Mark a finding resolved.' })
+  @ApiParam({ name: 'id', description: 'Finding id' })
   async resolve(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ finding: AuditFinding }> {
@@ -45,6 +50,8 @@ export class AuditFindingsController {
   }
 
   @Post(':id/snooze')
+  @ApiOperation({ summary: 'Snooze an audit finding', description: 'Snooze a finding until later.' })
+  @ApiParam({ name: 'id', description: 'Finding id' })
   async snooze(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ finding: AuditFinding }> {
