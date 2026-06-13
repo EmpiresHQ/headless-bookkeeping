@@ -22,6 +22,7 @@ describe('SalesInvoicesController', () => {
     sent_at: null,
     voucher_id: null,
     document_vat_marking: null,
+    document_id: null,
     created_at: 1740000000,
     updated_at: 1740000000,
   };

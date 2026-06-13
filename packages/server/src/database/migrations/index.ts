@@ -43,6 +43,7 @@ import * as m043 from './043_add_approval_policy_reason';
 import * as m044 from './044_add_document_processing_since';
 import * as m045 from './045_widen_entity_identifier_kind';
 import * as m046 from './046_add_organization_iban';
+import * as m047 from './047_add_sales_invoice_document_id';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -89,4 +90,5 @@ export const migrations: Record<string, Migration> = {
   '044_add_document_processing_since': m044,
   '045_widen_entity_identifier_kind': m045,
   '046_add_organization_iban': m046,
+  '047_add_sales_invoice_document_id': m047,
 };

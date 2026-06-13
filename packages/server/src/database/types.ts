@@ -113,6 +113,8 @@ export interface SalesInvoiceTable {
   // Raw VAT code/rate as printed on the counterparty's source document
   // (opaque evidence, never used for booking — ADR-0002).
   document_vat_marking: string | null;
+  // FK to the intake document that originated this invoice — null for manually created invoices.
+  document_id: number | null;
   created_at: number;
   updated_at: number;
 }
