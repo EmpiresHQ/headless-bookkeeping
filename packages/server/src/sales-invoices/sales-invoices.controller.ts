@@ -37,7 +37,7 @@ export class SalesInvoicesController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a sales invoice', description: 'Create a sales invoice (draft).' })
+  @ApiOperation({ summary: 'Create a sales invoice', description: 'Create a sales invoice (draft). 409 if the invoice number already exists.' })
   async createInvoice(
     @Body() dto: CreateSalesInvoiceDto,
   ): Promise<SalesInvoice> {
