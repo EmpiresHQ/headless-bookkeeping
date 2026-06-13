@@ -5,6 +5,7 @@ import {
   OrgContext,
   SupplierFacts,
 } from './country-plugin.interface';
+import { renderAnnualAccountsXbrl } from './estonia-annual-accounts/xbrl';
 
 describe('EstoniaCountryPlugin — VAT core', () => {
   const ee = new EstoniaCountryPlugin();
@@ -491,5 +492,36 @@ describe('EstoniaCountryPlugin — fixed assets', () => {
     expect(
       ee.getFixedAssetDefaults('vehicle').defaultResidualMinor,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('EstoniaCountryPlugin — annual accounts', () => {
+  const ee = new EstoniaCountryPlugin();
+  const input = {
+    period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },
+    priorPeriod: null,
+    mode: 'draft' as const,
+    balances: [
+      { code: 'BANK_EUR', type: 'asset' as const, current: 5000, prior: 0 },
+      { code: 'MYSTERY', type: 'asset' as const, current: 250, prior: 0 },
+    ],
+    fixedAssets: [],
+    periodNetIncome: 0,
+    priorNetIncome: 0,
+    retainedEarningsBroughtForward: 0,
+    declarant: { regNumber: '12345678', name: 'Test OÜ' },
+  };
+
+  it('renders one XBRL artifact and warns on unmapped nonzero accounts', () => {
+    const result = ee.generateAnnualAccounts(input, { taxonomyVersion: 2026 });
+    expect(result.artifacts).toHaveLength(1);
+    expect(result.artifacts[0].filename).toBe('annual-accounts-2026.xbrl');
+    expect(result.artifacts[0].mimeType).toBe('application/xml');
+    expect(result.artifacts[0].content).toBe(
+      renderAnnualAccountsXbrl(input, { taxonomyVersion: 2026 }),
+    );
+    expect(result.warnings.map((w) => w.code)).toContain(
+      'unmapped_nonzero_account',
+    );
   });
 });

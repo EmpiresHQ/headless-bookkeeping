@@ -28,6 +28,13 @@ import {
 import { renderKmdXml } from './estonia-kmd/kmd-xml';
 import { renderKmdCsv } from './estonia-kmd/kmd-csv';
 import { buildInfPart } from './estonia-kmd/kmd-inf';
+import {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
+import { renderAnnualAccountsXbrl } from './estonia-annual-accounts/xbrl';
+import { unmappedNonzeroCodes } from './estonia-annual-accounts/rtj-mapping';
 
 /**
  * The single source of the EE plugin's category → account binding. Both
@@ -439,6 +446,39 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       }
     }
     return { artifacts, warnings };
+  }
+
+  // ── Annual accounts (RIK-XBRL) ────────────────────────────────────────────
+
+  generateAnnualAccounts(
+    input: AnnualAccountsInput,
+    opts: AnnualAccountsOpts,
+  ): AnnualAccountsResult {
+    const warnings: StatutoryWarning[] = [];
+
+    // Plugin-side soft signal: nonzero accounts the mapping does not cover.
+    // (The kernel HARD-blocks final on the same condition; here it is surfaced
+    // as a rendering warning so a draft still renders.)
+    const unmapped = unmappedNonzeroCodes(input.balances);
+    for (const code of unmapped) {
+      warnings.push({
+        code: 'unmapped_nonzero_account',
+        message: `Account ${code} has a nonzero balance but maps to no RTJ line`,
+      });
+    }
+
+    const base = input.period.name.replace(/[^\w-]/g, '_');
+    const content = renderAnnualAccountsXbrl(input, opts);
+    return {
+      artifacts: [
+        {
+          filename: `annual-accounts-${base}.xbrl`,
+          mimeType: 'application/xml',
+          content,
+        },
+      ],
+      warnings,
+    };
   }
 
   // ── KMD (käibedeklaratsioon) row classification ───────────────────────────
