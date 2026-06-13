@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -231,6 +235,30 @@ export class ProposeDraftService {
       return { outcome: 'resolved', supplierId: null };
     }
     if (proposal.mode === 'match') {
+      // Validate the agent-proposed entity BEFORE trusting it. A hallucinated id
+      // (field case: match_entity_id 500001) or a wrong-role match would feed a
+      // phantom/incorrect supplier_id into createExpense — an FK violation that
+      // strands the document in `pending` with no recovery path. A miss routes to
+      // operator triage instead, exactly like the `create` branch, so the
+      // document stays recoverable (resolve-supplier / manual-classify).
+      let matched;
+      try {
+        matched = await this.entitiesService.findById(proposal.match_entity_id);
+      } catch (e) {
+        if (e instanceof NotFoundException) {
+          return {
+            outcome: 'supplier-unresolved',
+            reason: `match proposal references entity ${proposal.match_entity_id}, which does not exist`,
+          };
+        }
+        throw e;
+      }
+      if (matched.role !== 'supplier') {
+        return {
+          outcome: 'supplier-unresolved',
+          reason: `match proposal references entity ${proposal.match_entity_id}, which is a '${matched.role}', not a supplier`,
+        };
+      }
       return { outcome: 'resolved', supplierId: proposal.match_entity_id };
     }
     // mode === 'create' — multi-key find-or-onboard (ADR-0014).

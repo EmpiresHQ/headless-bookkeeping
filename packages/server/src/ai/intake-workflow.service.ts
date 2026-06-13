@@ -292,6 +292,19 @@ export class IntakeWorkflowService {
           );
         }
       }
+    } catch (err) {
+      // Safety net (ADR-0024): no fault may leave the document stranded in
+      // `pending`. Any unforeseen throw during OCR / classification / routing
+      // routes the document to needs_triage with the error surfaced, so a human
+      // can recover it — rather than escaping and stranding the document.
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Unexpected fault processing document ${documentId}: ${message}`,
+      );
+      return this.routeNeedsTriage(
+        documentId,
+        `Unexpected error during intake: ${message}`,
+      );
     } finally {
       await this.documents.clearProcessing(documentId);
     }
