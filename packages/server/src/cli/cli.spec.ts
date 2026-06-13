@@ -8,6 +8,8 @@ import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { EntitiesService } from '../entities/entities.service';
@@ -78,6 +80,7 @@ describe('admin CLI (yargs)', () => {
         ),
         new OrganizationService(db),
         new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
+        new StatutorySubmissionService(db, new AuditLogService(db)),
       ),
       expenses: new ExpensesService(
         db,

@@ -18,6 +18,8 @@ import { LedgerValidationService } from '../ledger/validation/ledger-validation.
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { VatReportService } from '../vat-report/vat-report.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 import type { AnnualAccountsInput } from '../plugins/annual-accounts.types';
 import { AnnualAccountsService } from './annual-accounts.service';
 
@@ -131,6 +133,8 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
         PeriodLockService,
         PostingService,
         VatReportService,
+        AuditLogService,
+        StatutorySubmissionService,
         ReportingPeriodsService,
         AnnualAccountsService,
       ],
