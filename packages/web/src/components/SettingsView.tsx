@@ -5,10 +5,7 @@ import {
   deleteSetting,
   getPolicyConfig,
   updatePolicyConfig,
-  getOrganization,
-  updateOrganization,
   type PolicyConfig,
-  type Organization,
 } from '../api';
 
 interface LlmKey {
@@ -147,10 +144,8 @@ function SettingRow({
 export function SettingsView() {
   const [settings, setSettings] = useState<Record<string, string> | null>(null);
   const [policy, setPolicy] = useState<PolicyConfig | null>(null);
-  const [org, setOrg] = useState<Organization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
-  const [orgSavedNote, setOrgSavedNote] = useState<string | null>(null);
 
   const loadSettings = () =>
     getSettings()
@@ -164,31 +159,10 @@ export function SettingsView() {
       .then(setPolicy)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
-  const loadOrg = () =>
-    getOrganization()
-      .then(setOrg)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-
   useEffect(() => {
     void loadSettings();
     void loadPolicy();
-    void loadOrg();
   }, []);
-
-  const saveOrg = async () => {
-    if (!org) return;
-    setError(null);
-    setOrgSavedNote(null);
-    try {
-      const saved = await updateOrganization({
-        iban: org.iban?.trim() ? org.iban.trim() : null,
-      });
-      setOrg(saved);
-      setOrgSavedNote('Organization saved.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  };
 
   const onIngestChange = async (value: string) => {
     setError(null);
@@ -268,36 +242,6 @@ export function SettingsView() {
             ))}
           </select>
         </label>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="font-semibold">Organization</h2>
-        {org && (
-          <div className="space-y-3 text-sm">
-            <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-              <span className="sm:w-56 text-gray-700">IBAN</span>
-              <input
-                aria-label="IBAN"
-                value={org.iban ?? ''}
-                onChange={(e) => setOrg({ ...org, iban: e.target.value })}
-                placeholder="e.g. EE382200221020145685"
-                className="border rounded px-2 py-1 flex-1 font-mono"
-              />
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void saveOrg()}
-                className="bg-black text-white rounded px-3 py-1"
-              >
-                Save organization
-              </button>
-              {orgSavedNote && (
-                <span className="text-green-700">{orgSavedNote}</span>
-              )}
-            </div>
-          </div>
-        )}
       </section>
 
       <section className="space-y-3">

@@ -37,6 +37,7 @@ export function OrgView() {
         vat_registration_number: org.vat_registration_number?.trim()
           ? org.vat_registration_number.trim()
           : null,
+        iban: org.iban?.trim() ? org.iban.trim() : null,
       });
       setOrg(saved);
       setSavedNote('Organization saved.');
@@ -119,6 +120,17 @@ export function OrgView() {
             setOrg({ ...org, vat_registration_number: e.target.value })
           }
           placeholder="e.g. EE123456789"
+          className="border rounded px-2 py-1 flex-1"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 sm:flex-row sm:items-center">
+        <span className="sm:w-48 text-gray-700">IBAN</span>
+        <input
+          aria-label="IBAN"
+          value={org.iban ?? ''}
+          onChange={(e) => setOrg({ ...org, iban: e.target.value })}
+          placeholder="e.g. EE382200221020145685"
           className="border rounded px-2 py-1 flex-1"
         />
       </label>
