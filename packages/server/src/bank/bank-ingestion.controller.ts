@@ -10,7 +10,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { BankIngestionService } from './bank-ingestion.service';
@@ -20,6 +20,7 @@ import { BankIngestionService } from './bank-ingestion.service';
 export class BankIngestionController {
   constructor(private readonly ingestion: BankIngestionService) {}
 
+  @ApiOperation({ summary: 'Start a bank import', description: 'Begin importing a bank statement (async job).' })
   @Post('import')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async startImport(
@@ -31,6 +32,8 @@ export class BankIngestionController {
     return this.ingestion.startImport(csvText, accountCode ?? '');
   }
 
+  @ApiOperation({ summary: 'Get import job status', description: 'Return the status of an import job.' })
+  @ApiParam({ name: 'jobId', description: 'Import job id' })
   @Get('import/:jobId')
   async status(@Param('jobId', ParseIntPipe) jobId: number) {
     const job = await this.ingestion.getImportStatus(jobId);

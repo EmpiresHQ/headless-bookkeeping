@@ -10,7 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { Public } from '../auth/api-token.guard';
@@ -40,6 +40,7 @@ export class AdminController {
   // list, and revoke tokens over the API (under the same Bearer guard).
 
   /** POST /admin/tokens — mint a new API token. Plaintext returned ONCE. */
+  @ApiOperation({ summary: 'Create an API token', description: 'Mint a new Bearer API token.' })
   @Post('tokens')
   @HttpCode(HttpStatus.CREATED)
   async createToken(@Body() body?: CreateTokenDto) {
@@ -47,12 +48,15 @@ export class AdminController {
   }
 
   /** GET /admin/tokens — list tokens (metadata only, never the secret). */
+  @ApiOperation({ summary: 'List API tokens', description: 'Return all API tokens.' })
   @Get('tokens')
   async listTokens() {
     return { tokens: await this.apiTokenService.list() };
   }
 
   /** POST /admin/tokens/:id/revoke — revoke a token by id. */
+  @ApiOperation({ summary: 'Revoke an API token', description: 'Revoke an API token.' })
+  @ApiParam({ name: 'id', description: 'API token id' })
   @Post('tokens/:id/revoke')
   async revokeToken(@Param('id', ParseIntPipe) id: number) {
     await this.apiTokenService.revoke(id);
@@ -62,6 +66,7 @@ export class AdminController {
   /**
    * GET /admin/accounts — list all accounts with computed balances.
    */
+  @ApiOperation({ summary: 'List accounts (admin)', description: 'Return the chart of accounts.' })
   @Get('accounts')
   async getAccounts() {
     return this.adminService.getAccountsWithBalances();
@@ -70,6 +75,9 @@ export class AdminController {
   /**
    * GET /admin/vouchers — list vouchers with optional date range.
    */
+  @ApiOperation({ summary: 'List vouchers (admin)', description: 'Return vouchers, optionally within a date range.' })
+  @ApiQuery({ name: 'from', description: 'Start of date range (ISO 8601)', required: false })
+  @ApiQuery({ name: 'to', description: 'End of date range (ISO 8601)', required: false })
   @Get('vouchers')
   async getVouchers(@Query('from') from?: string, @Query('to') to?: string) {
     return this.adminService.getVouchers(from, to);
@@ -78,6 +86,8 @@ export class AdminController {
   /**
    * GET /admin/vouchers/:id — single voucher with lines.
    */
+  @ApiOperation({ summary: 'Get a voucher (admin)', description: 'Fetch a single voucher.' })
+  @ApiParam({ name: 'id', description: 'Voucher id' })
   @Get('vouchers/:id')
   async getVoucher(@Param('id', ParseIntPipe) id: number) {
     const voucher = await this.adminService.getVoucherWithLines(id);
@@ -90,6 +100,7 @@ export class AdminController {
   /**
    * GET /admin/periods — list all reporting periods.
    */
+  @ApiOperation({ summary: 'List periods (admin)', description: 'Return all reporting periods.' })
   @Get('periods')
   async getPeriods() {
     return this.adminService.getPeriods();
@@ -98,6 +109,8 @@ export class AdminController {
   /**
    * POST /admin/periods/:id/lock — lock a reporting period.
    */
+  @ApiOperation({ summary: 'Lock a period (admin)', description: 'Lock a reporting period.' })
+  @ApiParam({ name: 'id', description: 'Reporting period id' })
   @Post('periods/:id/lock')
   async lockPeriod(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.lockPeriod(id);
@@ -106,6 +119,8 @@ export class AdminController {
   /**
    * GET /admin/approvals — list approvals.
    */
+  @ApiOperation({ summary: 'List approvals (admin)', description: 'Return approvals, optionally filtered by status.' })
+  @ApiQuery({ name: 'status', description: 'Filter by approval status', required: false })
   @Get('approvals')
   async getApprovals(@Query('status') status?: string) {
     return this.adminService.getApprovals(status);
@@ -114,6 +129,7 @@ export class AdminController {
   /**
    * GET /admin/approvals/pending — list only pending approvals.
    */
+  @ApiOperation({ summary: 'List pending approvals (admin)', description: 'Return approvals awaiting a decision.' })
   @Get('approvals/pending')
   async getPendingApprovals() {
     return this.adminService.getApprovals('pending');
@@ -122,6 +138,8 @@ export class AdminController {
   /**
    * GET /admin/findings — list audit findings.
    */
+  @ApiOperation({ summary: 'List findings (admin)', description: 'Return audit findings, optionally filtered.' })
+  @ApiQuery({ name: 'status', description: 'Filter by finding status', required: false })
   @Get('findings')
   async getFindings(@Query('status') status?: string) {
     return this.adminService.getFindings(status);
@@ -130,6 +148,7 @@ export class AdminController {
   /**
    * GET /admin/findings/open — list only open findings.
    */
+  @ApiOperation({ summary: 'List open findings (admin)', description: 'Return unresolved audit findings.' })
   @Get('findings/open')
   async getOpenFindings() {
     return this.adminService.getFindings('open');
@@ -138,6 +157,7 @@ export class AdminController {
   /**
    * GET /admin/health — public health check with DB probe.
    */
+  @ApiOperation({ summary: 'Admin health', description: 'Return an administrative health summary.' })
   @Public()
   @Get('health')
   async getHealth() {

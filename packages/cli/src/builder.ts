@@ -18,6 +18,7 @@ export interface CommandSpec {
   options: OptionSpec[];
   hasBody: boolean;
   summary?: string;
+  description?: string;
 }
 
 interface RawParam {
@@ -32,12 +33,14 @@ interface RawOperation {
   tags?: string[];
   operationId?: string;
   summary?: string;
+  description?: string;
   parameters?: RawParam[];
   requestBody?: { content?: Record<string, unknown> };
 }
 
 export interface OpenApiSpec {
   paths: Record<string, Record<string, RawOperation>>;
+  tags?: { name: string; description?: string }[];
 }
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
@@ -99,6 +102,7 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
         options,
         hasBody: op.requestBody !== undefined,
         summary: op.summary,
+        description: op.description,
       });
     }
   }
@@ -158,10 +162,30 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
     byGroup.set(cmd.group, list);
   }
 
+  const tagDescriptions = new Map<string, string>();
+  for (const t of spec.tags ?? []) {
+    if (t.description) tagDescriptions.set(kebab(t.name), t.description);
+  }
+
   let cli = yargs().scriptName('hbk');
+  // Route yargs's built-in logger (used for --help / --version output) through
+  // the injected io.out so help text is fully testable without touching
+  // process.stdout. getInternalMethods() is a stable but UNTYPED yargs escape
+  // hatch (@types/yargs does not declare it), so we cast; if it breaks on a
+  // yargs major upgrade, pipe stdout in the test harness instead.
+  (
+    cli as unknown as {
+      getInternalMethods(): {
+        getLoggerInstance(): { log: (s: string) => void };
+      };
+    }
+  )
+    .getInternalMethods()
+    .getLoggerInstance().log = deps.io.out;
 
   for (const [group, cmds] of byGroup) {
-    cli = cli.command(group, `${group} operations`, (g) => {
+    const groupDescribe = tagDescriptions.get(group) ?? `${group} operations`;
+    cli = cli.command(group, groupDescribe, (g) => {
       let sub = g;
       for (const cmd of cmds) {
         const positional = cmd.positionals.map((p) => `<${p}>`).join(' ');
@@ -192,6 +216,9 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                   'Path to a JSON request body (or pipe JSON via stdin)',
               });
             }
+            if (cmd.description) {
+              yy = yy.epilogue(cmd.description);
+            }
             return yy;
           },
           async (argv) => {
@@ -220,12 +247,26 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
           },
         );
       }
-      return sub.demandCommand(1, `Specify a ${group} subcommand`).strict();
+      return sub
+        .demandCommand(1, `No ${group} subcommand given. Run "hbk ${group} --help" to list operations.`)
+        .strict();
     });
   }
 
+  const AGENT_EPILOGUE = [
+    'Remote REST client for the headless-bookkeeping API. Each command maps 1:1 to an API operation.',
+    '',
+    'Auth:      hbk login --url <url> --token <token>   (or HBK_URL / HBK_TOKEN env vars)',
+    'Discover:  hbk <group> --help            list a group\'s operations',
+    '           hbk <group> <command> --help  show parameters and details',
+    'Body:      --body-file <path.json>       (or pipe JSON via stdin)',
+    'Output:    JSON response -> stdout; notes/errors -> stderr; HTTP >= 400 -> non-zero exit',
+    'Escape:    hbk api <method> <path>       call any endpoint directly',
+  ].join('\n');
+
   return cli
-    .demandCommand(1, 'Specify a command group')
+    .demandCommand(1, 'No command group given. Run "hbk --help" to list groups.')
+    .epilogue(AGENT_EPILOGUE)
     .strict()
     .exitProcess(false)
     .fail((msg, err) => {

@@ -1,5 +1,5 @@
 import { Controller, Get, Put, Body } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { OrganizationService } from './organization.service';
 import { Organization } from './types';
 import type { UpdateOrganizationDto } from './types';
@@ -14,11 +14,13 @@ export class OrganizationController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'Get the organization', description: 'Return the organization profile.' })
   async getOrganization(): Promise<Organization> {
     return this.organizationService.getOrganization();
   }
 
   @Get('period-config')
+  @ApiOperation({ summary: 'Get reporting-period config', description: 'Return the reporting-period configuration.' })
   async getPeriodConfig(): Promise<{
     frequency_options: string[];
     default_frequency: string;
@@ -32,6 +34,7 @@ export class OrganizationController {
   }
 
   @Put()
+  @ApiOperation({ summary: 'Update the organization', description: 'Update the organization profile.' })
   async updateOrganization(
     @Body() dto: UpdateOrganizationDto,
   ): Promise<Organization> {

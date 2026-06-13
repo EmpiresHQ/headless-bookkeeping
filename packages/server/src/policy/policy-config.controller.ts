@@ -1,5 +1,5 @@
 import { Controller, Get, Put, Body } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PolicyService } from './policy.service';
 import { PolicyConfig, UpdatePolicyConfigDto } from './types';
 
@@ -15,12 +15,14 @@ export class PolicyConfigController {
 
   /** GET /api/policy-config — the fully-resolved active configuration. */
   @Get()
+  @ApiOperation({ summary: 'Get policy config', description: 'Return the posting-policy configuration.' })
   async getConfig(): Promise<PolicyConfig> {
     return this.policyService.getConfig();
   }
 
   /** PUT /api/policy-config — update one or more config keys; returns the result. */
   @Put()
+  @ApiOperation({ summary: 'Update policy config', description: 'Replace the posting-policy configuration.' })
   async updateConfig(
     @Body() patch: UpdatePolicyConfigDto,
   ): Promise<PolicyConfig> {

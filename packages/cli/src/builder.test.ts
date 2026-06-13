@@ -124,6 +124,83 @@ describe('readBody', () => {
   });
 });
 
+const tagSpec = {
+  tags: [{ name: 'expenses', description: 'Record supplier expenses' }],
+  paths: {
+    '/api/expenses': {
+      get: { tags: ['expenses'], operationId: 'Expenses_getExpenses', summary: 'List expenses' },
+    },
+  },
+};
+
+describe('group descriptions from spec.tags', () => {
+  it('uses the tag description as the group command description', async () => {
+    let help = '';
+    const cli = buildCli(tagSpec as never, {
+      request: async () => ({ ok: true, status: 200, body: {} }),
+      io: { out: (s) => (help += s), err: () => {} },
+      readFileSync: () => '',
+      stdinIsTTY: true,
+      readStdin: () => '',
+      exit: () => {},
+    });
+    await cli.parseAsync(['--help']);
+    expect(help).toContain('Record supplier expenses');
+  });
+});
+
+const descSpec = {
+  paths: {
+    '/api/expenses': {
+      post: {
+        tags: ['expenses'],
+        operationId: 'Expenses_createExpense',
+        summary: 'Create an expense',
+        description: 'Runs the posting pipeline AI->Rules->Policy->Voucher; 409 if the period is locked.',
+        requestBody: { content: { 'application/json': {} } },
+      },
+    },
+  },
+};
+
+const noopDeps: BuilderDeps = {
+  request: async () => ({ ok: true, status: 200, body: {} }),
+  io: { out: () => {}, err: () => {} },
+  readFileSync: () => '',
+  stdinIsTTY: true,
+  readStdin: () => '',
+  exit: () => {},
+};
+
+describe('per-command help: op.description', () => {
+  it('prints op.description in the per-command help', async () => {
+    let help = '';
+    const cli = buildCli(descSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['expenses', 'create-expense', '--help']);
+    expect(help).toContain('posting pipeline');
+  });
+});
+
+const minimalSpec = { paths: { '/api/expenses': { get: { tags: ['expenses'], operationId: 'Expenses_getExpenses', summary: 'List expenses' } } } };
+
+describe('agent guidance', () => {
+  it('top-level help carries agent guidance', async () => {
+    let help = '';
+    const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['--help']);
+    expect(help).toContain('hbk login');
+    expect(help).toContain('--body-file');
+    expect(help).toContain('JSON');
+  });
+
+  it('no-command error points at --help', async () => {
+    let err = '';
+    const cli = buildCli(minimalSpec as never, { ...noopDeps, io: { out: () => {}, err: (s) => (err += s) } });
+    try { await cli.parseAsync([]); } catch { /* expected */ }
+    expect(err).toContain('hbk --help');
+  });
+});
+
 describe('buildCli dispatch', () => {
   function makeDeps() {
     const out: string[] = [];

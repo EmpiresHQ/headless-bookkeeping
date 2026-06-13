@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PolicyService } from './policy.service';
 import { OverrideRecord } from './types';
 
@@ -14,6 +14,7 @@ export class OverrideController {
   constructor(private readonly policyService: PolicyService) {}
 
   @Get()
+  @ApiOperation({ summary: 'List policy overrides', description: 'Return the policy override audit trail.' })
   async getOverrides(): Promise<{ overrides: OverrideRecord[] }> {
     const overrides = await this.policyService.getOverrides();
     return { overrides };

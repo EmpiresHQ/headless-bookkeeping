@@ -8,7 +8,7 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../../auth/api-token.guard';
 import { InteractionConfigService } from '../../config/interaction-config.service';
 import { InteractionRouterService } from '../../router/interaction-router.service';
@@ -29,6 +29,10 @@ export class TelegramWebhookController {
   @Public()
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Telegram webhook',
+    description: 'Inbound Telegram update webhook (channel ingestion).',
+  })
   async handle(
     @Headers('x-telegram-bot-api-secret-token') secret: string | undefined,
     @Body() update: TelegramUpdate,

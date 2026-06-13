@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { ApprovalsService } from './approvals.service';
 import {
   CreateApprovalDto,
@@ -26,6 +26,7 @@ export class ApprovalsController {
   constructor(private readonly approvalsService: ApprovalsService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Create an approval', description: 'Create an approval request for a draft.' })
   async createApproval(
     @Body() dto: CreateApprovalDto,
   ): Promise<{ approval: Approval }> {
@@ -34,6 +35,8 @@ export class ApprovalsController {
   }
 
   @Post(':id/approve')
+  @ApiOperation({ summary: 'Approve and post', description: 'Approve the request and post the underlying voucher.' })
+  @ApiParam({ name: 'id', description: 'Approval id' })
   async approveApproval(
     @Param('id') id: string,
     @Body() dto: ApproveDto,
@@ -42,6 +45,8 @@ export class ApprovalsController {
   }
 
   @Post(':id/reject')
+  @ApiOperation({ summary: 'Reject an approval', description: 'Reject the request and return the item to draft.' })
+  @ApiParam({ name: 'id', description: 'Approval id' })
   async rejectApproval(
     @Param('id') id: string,
     @Body() dto: RejectDto,
@@ -54,6 +59,8 @@ export class ApprovalsController {
   }
 
   @Post(':id/supersede')
+  @ApiOperation({ summary: 'Supersede an approval', description: 'Supersede an existing approval request.' })
+  @ApiParam({ name: 'id', description: 'Approval id' })
   async supersedeApproval(
     @Param('id') id: string,
     @Body() dto: SupersedeDto,
@@ -66,6 +73,9 @@ export class ApprovalsController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'List approvals', description: 'List approvals, optionally filtered by status and/or object type.' })
+  @ApiQuery({ name: 'status', description: 'Filter by approval status', required: false })
+  @ApiQuery({ name: 'object_type', description: 'Filter by approved object type', required: false })
   async listApprovals(
     @Query() query: ListApprovalsQuery,
   ): Promise<{ approvals: Approval[] }> {
@@ -74,6 +84,7 @@ export class ApprovalsController {
   }
 
   @Get('pending')
+  @ApiOperation({ summary: 'List pending approvals', description: 'List approvals awaiting a decision.' })
   async listPendingApprovals(): Promise<{ approvals: Approval[] }> {
     const approvals = await this.approvalsService.listPendingApprovals();
     return { approvals };
