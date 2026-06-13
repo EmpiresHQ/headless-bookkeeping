@@ -6,6 +6,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import JSZip from 'jszip';
 import { StatutoryReportService } from './statutory-report.service';
@@ -13,6 +14,7 @@ import { StatutoryFormat } from '../plugins/statutory-report.types';
 
 const VALID_FORMATS = new Set<string>(['xml', 'csv', 'all']);
 
+@ApiTags('statutory-reports')
 @Controller('api/reporting-periods')
 export class StatutoryReportController {
   constructor(private readonly service: StatutoryReportService) {}
