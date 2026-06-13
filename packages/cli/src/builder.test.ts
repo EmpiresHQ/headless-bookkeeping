@@ -149,6 +149,38 @@ describe('group descriptions from spec.tags', () => {
   });
 });
 
+const descSpec = {
+  paths: {
+    '/api/expenses': {
+      post: {
+        tags: ['expenses'],
+        operationId: 'Expenses_createExpense',
+        summary: 'Create an expense',
+        description: 'Runs the posting pipeline AI->Rules->Policy->Voucher; 409 if the period is locked.',
+        requestBody: { content: { 'application/json': {} } },
+      },
+    },
+  },
+};
+
+const noopDeps: BuilderDeps = {
+  request: async () => ({ ok: true, status: 200, body: {} }),
+  io: { out: () => {}, err: () => {} },
+  readFileSync: () => '',
+  stdinIsTTY: true,
+  readStdin: () => '',
+  exit: () => {},
+};
+
+describe('per-command help: op.description', () => {
+  it('prints op.description in the per-command help', async () => {
+    let help = '';
+    const cli = buildCli(descSpec as never, { ...noopDeps, io: { out: (s) => (help += s), err: () => {} } });
+    await cli.parseAsync(['expenses', 'create-expense', '--help']);
+    expect(help).toContain('posting pipeline');
+  });
+});
+
 describe('buildCli dispatch', () => {
   function makeDeps() {
     const out: string[] = [];

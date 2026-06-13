@@ -18,6 +18,7 @@ export interface CommandSpec {
   options: OptionSpec[];
   hasBody: boolean;
   summary?: string;
+  description?: string;
 }
 
 interface RawParam {
@@ -32,6 +33,7 @@ interface RawOperation {
   tags?: string[];
   operationId?: string;
   summary?: string;
+  description?: string;
   parameters?: RawParam[];
   requestBody?: { content?: Record<string, unknown> };
 }
@@ -100,6 +102,7 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
         options,
         hasBody: op.requestBody !== undefined,
         summary: op.summary,
+        description: op.description,
       });
     }
   }
@@ -203,6 +206,9 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                 describe:
                   'Path to a JSON request body (or pipe JSON via stdin)',
               });
+            }
+            if (cmd.description) {
+              yy = yy.epilogue(cmd.description);
             }
             return yy;
           },
