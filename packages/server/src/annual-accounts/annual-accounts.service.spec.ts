@@ -356,6 +356,93 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
     await expect(service.finalize(id)).rejects.toThrow(/already.*final|locked/i);
   });
 
+  it('does not double-post depreciation when an earlier finalize posted but lock failed (filing-order)', async () => {
+    // Filing-order setup: re-open the 2025 prior period so the filing-order
+    // rule in `lock` (earlier open period blocks locking a later one) throws.
+    await db
+      .updateTable('reporting_period')
+      .set({ status: 'open', filed_at: null } as never)
+      .where('name', '=', '2025')
+      .execute();
+
+    // 2026 book with a live vehicle ⇒ a 4000 annual depreciation charge.
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const acqId = await postVoucher('2026-01-10', [
+      { code: 'FIXED_ASSETS_VEHICLES', isDebit: true, base: 20000 },
+      { code: 'BANK_EUR', isDebit: false, base: 20000 },
+    ]);
+    await db
+      .insertInto('fixed_asset')
+      .values({
+        name: 'Van',
+        asset_class: 'vehicle',
+        acquisition_voucher_id: acqId,
+        acquisition_date: '2026-01-10',
+        cost_base_minor: 20000,
+        useful_life_years: 5,
+        residual_value_minor: 0,
+        retired_at: null,
+      } as never)
+      .execute();
+    await postVoucher('2026-03-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 60000 },
+      { code: 'REVENUE', isDebit: false, base: 60000 },
+    ]);
+    await postVoucher('2026-04-01', [
+      { code: 'EXPENSE_OTHER', isDebit: true, base: 42000 },
+      { code: 'BANK_EUR', isDebit: false, base: 42000 },
+    ]);
+
+    const id = await periodId('2026');
+
+    const countDepLines = async (): Promise<number> => {
+      const r = await db
+        .selectFrom('voucher_line as vl')
+        .innerJoin('account as a', 'a.id', 'vl.account_id')
+        .select(db.fn.countAll<number>().as('n'))
+        .where('a.code', '=', 'DEPRECIATION_EXPENSE')
+        .executeTakeFirstOrThrow();
+      return r.n;
+    };
+
+    // First finalize: lock fails (2025 still open) ⇒ throws AND, with the fix,
+    // posts ZERO partial state (precondition checked before posting).
+    await expect(service.finalize(id)).rejects.toThrow(/earlier period.*still open/i);
+    expect(await countDepLines()).toBe(0);
+    const afterFirst = await db
+      .selectFrom('reporting_period')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(afterFirst.status).toBe('open');
+
+    // Now make 2025 lockable and finalize again: EXACTLY ONE depreciation
+    // charge must end up posted (no double-post), and 2026 ends locked.
+    await service.finalize(await periodId('2025'));
+    await service.finalize(id);
+
+    expect(await countDepLines()).toBe(1);
+    const depLine = await db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(['vl.base_amount', 'vl.is_debit'])
+      .where('a.code', '=', 'DEPRECIATION_EXPENSE')
+      .executeTakeFirstOrThrow();
+    expect(depLine.base_amount).toBe(4000);
+    expect(depLine.is_debit).toBe(1);
+
+    const finalPeriod = await db
+      .selectFrom('reporting_period')
+      .select(['status', 'filed_at'])
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(finalPeriod.status).toBe('locked');
+    expect(finalPeriod.filed_at).not.toBeNull();
+  });
+
   it('diagnoseInput returns a balance_sheet_imbalance block for an imbalanced input', () => {
     const input: AnnualAccountsInput = {
       period: { name: '2026', startDate: '2026-01-01', endDate: '2026-12-31' },

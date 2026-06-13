@@ -104,7 +104,7 @@ export class AnnualAccountsService {
 
     const period = await this.db
       .selectFrom('reporting_period')
-      .select(['id', 'status', 'name', 'end_date'])
+      .select(['id', 'status', 'name', 'start_date', 'end_date'])
       .where('id', '=', periodId)
       .executeTakeFirst();
     if (!period) {
@@ -114,6 +114,27 @@ export class AnnualAccountsService {
     if (period.status === 'locked') {
       throw new ConflictException(
         `Reporting period ${period.name} is already finalized (locked)`,
+      );
+    }
+
+    // DEFENSE 1: check the filing-order precondition BEFORE posting anything.
+    // `ReportingPeriodsService.lock` (which we cannot wrap in our transaction,
+    // because it opens its own better-sqlite3 transaction) throws a
+    // ConflictException when an EARLIER period is still `open`. If we posted the
+    // depreciation voucher first and then `lock` threw, the period would stay
+    // `open` WITH the voucher already committed — and a retry would re-post it
+    // (double-charged depreciation). Replicate the precondition here so the most
+    // realistic lock-failure leaves zero partial state.
+    const earlierOpen = await this.db
+      .selectFrom('reporting_period')
+      .select(['id', 'name'])
+      .where('status', '=', 'open')
+      .where('start_date', '<', period.start_date)
+      .orderBy('start_date', 'asc')
+      .executeTakeFirst();
+    if (earlierOpen) {
+      throw new ConflictException(
+        `Cannot finalize period ${period.name}: earlier period ${earlierOpen.name} is still open — finalize it first`,
       );
     }
 
@@ -139,9 +160,24 @@ export class AnnualAccountsService {
       );
     }
 
+    // DEFENSE 2: idempotent depreciation guard. The annual-close voucher carries
+    // a stable, period-scoped `reason` (see `annualDepreciationReason`). If a
+    // prior finalize already posted it (e.g. it posted, then `lock` threw and the
+    // period stayed open), do NOT re-post — re-posting would double-charge
+    // depreciation, and the virtual fold in `assemble` does not net out the
+    // already-posted voucher. Disposal catch-up depreciation also debits
+    // DEPRECIATION_EXPENSE, so we match on the distinctive `reason` (not the
+    // account) to identify ONLY the annual-close voucher for this period.
+    const alreadyPosted = await this.db
+      .selectFrom('voucher')
+      .select('id')
+      .where('reason', '=', this.annualDepreciationReason(period.name))
+      .limit(1)
+      .executeTakeFirst();
+
     // Post the annual depreciation charge as ONE system-generated voucher.
     const totalCharge = charges.reduce((s, c) => s + c.chargeMinor, 0);
-    if (totalCharge !== 0) {
+    if (totalCharge !== 0 && !alreadyPosted) {
       // Aggregate per-class so each ACCUM line is one credit; one debit to
       // DEPRECIATION_EXPENSE for the total.
       const byClass = new Map<string, number>();
@@ -154,7 +190,7 @@ export class AnnualAccountsService {
       }
       const draft: DraftVoucher = {
         tax_point_date: period.end_date,
-        reason: `Annual depreciation charge for ${period.name}`,
+        reason: this.annualDepreciationReason(period.name),
         lines: [
           {
             account_code: 'DEPRECIATION_EXPENSE',
@@ -185,6 +221,17 @@ export class AnnualAccountsService {
       artifacts: rendered.artifacts,
       warnings: [...diagnostics, ...rendered.warnings],
     };
+  }
+
+  /**
+   * The stable, period-scoped `reason` stamped on the annual-close depreciation
+   * voucher that `finalize` posts. It is the idempotency key: `finalize` looks
+   * for an existing voucher with exactly this reason before posting, so a retry
+   * after a failed `lock` does not double-charge depreciation. Disposal catch-up
+   * vouchers debit the same expense account but never carry this reason.
+   */
+  private annualDepreciationReason(periodName: string): string {
+    return `Annual depreciation charge for ${periodName}`;
   }
 
   /** Test seam: run the diagnostics over a hand-built input (Task 8 unit test). */
