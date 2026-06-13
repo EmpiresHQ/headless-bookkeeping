@@ -1712,6 +1712,57 @@ describe('ReconciliationService (integration)', () => {
       );
     });
 
+    it('ranks candidates by fit: exact remaining first, then amount proximity, then id', async () => {
+      const supplier = await seedSupplier();
+      // Seeded in id order far → exact → near, so repository (id) order would put
+      // the worst fit first. The endpoint must re-rank by fit.
+      const far = await seedExpenseVoucher(supplier.id, 50000, '2025-01-10');
+      const exact = await seedExpenseVoucher(supplier.id, 30000, '2025-01-10');
+      const near = await seedExpenseVoucher(supplier.id, 31000, '2025-01-10');
+
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+
+      const result = await reconciliationService.getMatchCandidates(
+        stmt.statement.id,
+        stmt.transactions[0].id,
+      );
+
+      expect(result.lineRemaining).toBe(30000);
+      expect(result.candidates.map((c) => c.voucherId)).toEqual([
+        exact, // voucherRemaining === lineRemaining
+        near, // |31000 - 30000| = 1000
+        far, // |50000 - 30000| = 20000
+      ]);
+    });
+
+    it('breaks ties on equal proximity by voucher id', async () => {
+      const supplier = await seedSupplier();
+      // Two vouchers equidistant from the line (29000 and 31000 are both 1000
+      // away). The lower id wins the tie.
+      const lowerId = await seedExpenseVoucher(supplier.id, 31000, '2025-01-10');
+      const higherId = await seedExpenseVoucher(
+        supplier.id,
+        29000,
+        '2025-01-10',
+      );
+
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay', amount: -30000 },
+      ]);
+
+      const result = await reconciliationService.getMatchCandidates(
+        stmt.statement.id,
+        stmt.transactions[0].id,
+      );
+
+      expect(result.candidates.map((c) => c.voucherId)).toEqual([
+        lowerId,
+        higherId,
+      ]);
+    });
+
     it('throws when the transaction is not on the given statement', async () => {
       await expect(
         reconciliationService.getMatchCandidates(99999, 88888),

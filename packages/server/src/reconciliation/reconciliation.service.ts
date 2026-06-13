@@ -263,6 +263,17 @@ export class ReconciliationService {
       .executeTakeFirst();
     const lineRemaining = Math.max(0, baseAmount - Number(matched?.sum ?? 0));
 
+    // Rank by fit so the operator/agent sees the likeliest match first instead
+    // of repository (voucher-id) order. Amount proximity to the line's remaining
+    // is the deterministic signal: an exact remaining match has proximity 0 and
+    // sorts first, then nearest, with voucher id as a stable tiebreak. Stronger
+    // (counterparty / invoice-number) signals stay in proposeMatches.
+    views.sort((a, b) => {
+      const da = Math.abs(a.voucherRemaining - lineRemaining);
+      const db = Math.abs(b.voucherRemaining - lineRemaining);
+      return da - db || a.voucherId - b.voucherId;
+    });
+
     return { bankTransactionId, lineRemaining, candidates: views };
   }
 
