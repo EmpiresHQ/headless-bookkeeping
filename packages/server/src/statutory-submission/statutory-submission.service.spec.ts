@@ -17,14 +17,17 @@ describe('StatutorySubmissionService (integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
 
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
 
     // Migration 011 seeds an 'open' period at id=1. Turn that seeded row into
     // the locked period these tests assert against (id=1), keeping the row id
@@ -127,9 +130,21 @@ describe('StatutorySubmissionService (integration)', () => {
       source_snapshot_type: 'vat_report',
       source_snapshot_id: SNAPSHOT_ID,
     };
-    await service.recordEvent(1, { ...base, event_kind: 'submitted', external_ref: 'EMTA-1' });
-    await service.recordEvent(1, { ...base, event_kind: 'rejected', note: 'schema error' });
-    await service.recordEvent(1, { ...base, event_kind: 'submitted', external_ref: 'EMTA-2' });
+    await service.recordEvent(1, {
+      ...base,
+      event_kind: 'submitted',
+      external_ref: 'EMTA-1',
+    });
+    await service.recordEvent(1, {
+      ...base,
+      event_kind: 'rejected',
+      note: 'schema error',
+    });
+    await service.recordEvent(1, {
+      ...base,
+      event_kind: 'submitted',
+      external_ref: 'EMTA-2',
+    });
 
     const state = await service.getState(1);
     expect(state.status).toBe('submitted');

@@ -50,8 +50,5 @@ export async function up(db: Kysely<Database>): Promise<void> {
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {
-  await db.schema
-    .dropTable('statutory_submission_event')
-    .ifExists()
-    .execute();
+  await db.schema.dropTable('statutory_submission_event').ifExists().execute();
 }

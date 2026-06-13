@@ -42,8 +42,18 @@ describe('foldSubmissionState', () => {
   it('→ accepted', () => {
     const state = foldSubmissionState([
       ev({ event_kind: 'prepared', source_snapshot_id: 7, occurred_at: 1000 }),
-      ev({ event_kind: 'submitted', source_snapshot_id: 7, occurred_at: 2000, external_ref: 'EMTA-1' }),
-      ev({ event_kind: 'accepted', source_snapshot_id: 7, occurred_at: 3000, external_ref: 'EMTA-1' }),
+      ev({
+        event_kind: 'submitted',
+        source_snapshot_id: 7,
+        occurred_at: 2000,
+        external_ref: 'EMTA-1',
+      }),
+      ev({
+        event_kind: 'accepted',
+        source_snapshot_id: 7,
+        occurred_at: 3000,
+        external_ref: 'EMTA-1',
+      }),
     ]);
     expect(state.status).toBe('accepted');
     expect(state.currentSnapshotId).toBe(7);
@@ -52,7 +62,12 @@ describe('foldSubmissionState', () => {
   it('→ rejected', () => {
     const state = foldSubmissionState([
       ev({ event_kind: 'prepared', source_snapshot_id: 7, occurred_at: 1000 }),
-      ev({ event_kind: 'submitted', source_snapshot_id: 7, occurred_at: 2000, external_ref: 'EMTA-1' }),
+      ev({
+        event_kind: 'submitted',
+        source_snapshot_id: 7,
+        occurred_at: 2000,
+        external_ref: 'EMTA-1',
+      }),
       ev({ event_kind: 'rejected', source_snapshot_id: 7, occurred_at: 3000 }),
     ]);
     expect(state.status).toBe('rejected');
@@ -62,9 +77,19 @@ describe('foldSubmissionState', () => {
   it('resubmission after a format rejection — two submitted, same snapshot', () => {
     const state = foldSubmissionState([
       ev({ event_kind: 'prepared', source_snapshot_id: 7, occurred_at: 1000 }),
-      ev({ event_kind: 'submitted', source_snapshot_id: 7, occurred_at: 2000, external_ref: 'EMTA-1' }),
+      ev({
+        event_kind: 'submitted',
+        source_snapshot_id: 7,
+        occurred_at: 2000,
+        external_ref: 'EMTA-1',
+      }),
       ev({ event_kind: 'rejected', source_snapshot_id: 7, occurred_at: 3000 }),
-      ev({ event_kind: 'submitted', source_snapshot_id: 7, occurred_at: 4000, external_ref: 'EMTA-2' }),
+      ev({
+        event_kind: 'submitted',
+        source_snapshot_id: 7,
+        occurred_at: 4000,
+        external_ref: 'EMTA-2',
+      }),
     ]);
     expect(state.status).toBe('submitted');
     // Resubmission is against the SAME frozen snapshot.
@@ -76,10 +101,30 @@ describe('foldSubmissionState', () => {
   it('correction events → correction_accepted', () => {
     const state = foldSubmissionState([
       ev({ event_kind: 'prepared', source_snapshot_id: 7, occurred_at: 1000 }),
-      ev({ event_kind: 'submitted', source_snapshot_id: 7, occurred_at: 2000, external_ref: 'EMTA-1' }),
-      ev({ event_kind: 'accepted', source_snapshot_id: 7, occurred_at: 3000, external_ref: 'EMTA-1' }),
-      ev({ event_kind: 'correction_submitted', source_snapshot_id: 7, occurred_at: 4000, external_ref: 'EMTA-C1' }),
-      ev({ event_kind: 'correction_accepted', source_snapshot_id: 7, occurred_at: 5000, external_ref: 'EMTA-C1' }),
+      ev({
+        event_kind: 'submitted',
+        source_snapshot_id: 7,
+        occurred_at: 2000,
+        external_ref: 'EMTA-1',
+      }),
+      ev({
+        event_kind: 'accepted',
+        source_snapshot_id: 7,
+        occurred_at: 3000,
+        external_ref: 'EMTA-1',
+      }),
+      ev({
+        event_kind: 'correction_submitted',
+        source_snapshot_id: 7,
+        occurred_at: 4000,
+        external_ref: 'EMTA-C1',
+      }),
+      ev({
+        event_kind: 'correction_accepted',
+        source_snapshot_id: 7,
+        occurred_at: 5000,
+        external_ref: 'EMTA-C1',
+      }),
     ]);
     expect(state.status).toBe('correction_accepted');
     expect(state.lastExternalRef).toBe('EMTA-C1');
@@ -89,7 +134,12 @@ describe('foldSubmissionState', () => {
     const state = foldSubmissionState([
       ev({ event_kind: 'accepted', source_snapshot_id: 7, occurred_at: 3000 }),
       ev({ event_kind: 'prepared', source_snapshot_id: 7, occurred_at: 1000 }),
-      ev({ event_kind: 'submitted', source_snapshot_id: 7, occurred_at: 2000, external_ref: 'EMTA-1' }),
+      ev({
+        event_kind: 'submitted',
+        source_snapshot_id: 7,
+        occurred_at: 2000,
+        external_ref: 'EMTA-1',
+      }),
     ]);
     expect(state.status).toBe('accepted');
   });

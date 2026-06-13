@@ -19,14 +19,17 @@ describe('StatutorySubmissionController (integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
 
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
 
     // Migration 011 seeds an 'open' period at id=1. Update it into the locked
     // period the controller tests assert against (keeps row id stable).
@@ -89,8 +92,14 @@ describe('StatutorySubmissionController (integration)', () => {
   });
 
   it('GET returns the folded state plus full history', async () => {
-    await controller.recordEvent(1, { event_kind: 'submitted', external_ref: 'EMTA-1' });
-    await controller.recordEvent(1, { event_kind: 'accepted', external_ref: 'EMTA-1' });
+    await controller.recordEvent(1, {
+      event_kind: 'submitted',
+      external_ref: 'EMTA-1',
+    });
+    await controller.recordEvent(1, {
+      event_kind: 'accepted',
+      external_ref: 'EMTA-1',
+    });
 
     const state = await controller.getState(1);
     expect(state.status).toBe('accepted');

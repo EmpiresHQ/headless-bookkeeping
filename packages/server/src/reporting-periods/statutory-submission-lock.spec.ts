@@ -23,14 +23,17 @@ describe('ReportingPeriod lock → prepared event (integration)', () => {
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: rawDb }) });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
 
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateToLatest();
-    if (error) throw error instanceof Error ? error : new Error('Migration failed');
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
 
     // Migration 001 seeds a singleton organization at id=1 (CHECK id = 1), and
     // migration 011 seeds a `2024-Q1` open reporting_period at id=1. We turn
