@@ -193,6 +193,7 @@ export interface DocumentDebug {
 
 export type TriageReasonType =
   | 'supplier_unresolved'
+  | 'outgoing_invoice'
   | 'low_confidence'
   | 'category_unresolved'
   | 'ocr_failed'
@@ -208,6 +209,11 @@ export interface NeedsTriageItem {
 }
 
 export function classifyReasonType(description: string): TriageReasonType {
+  // Checked FIRST: a detected OUTGOING invoice that parked to needs_triage. The
+  // routeSalesInvoice park reasons all carry the stable "outgoing invoice"
+  // marker, so the SPA can reach the manual classify-as-sales-invoice form.
+  if (description.toLowerCase().includes('outgoing invoice'))
+    return 'outgoing_invoice';
   if (description.includes('supplier')) return 'supplier_unresolved';
   if (description.includes('confidence') || description.includes('below threshold')) return 'low_confidence';
   if (description.includes('unknown category')) return 'category_unresolved';

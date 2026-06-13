@@ -222,15 +222,15 @@ describe('IntakeView', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows manual classify-as-invoice form for unimplemented needs-triage item', async () => {
-    const unimplementedItem: api.NeedsTriageItem = {
+  it('shows manual classify-as-invoice form for an outgoing-invoice needs-triage item', async () => {
+    const outgoingItem: api.NeedsTriageItem = {
       id: 9,
       filename: 'outgoing.pdf',
       created_at: 0,
-      reason: 'not yet implemented',
-      reason_type: 'unimplemented',
+      reason: 'Outgoing invoice — no invoice number found on the document',
+      reason_type: 'outgoing_invoice',
     };
-    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([unimplementedItem]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([outgoingItem]);
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
     vi.spyOn(api, 'getEntities').mockResolvedValue([]);
 
@@ -245,14 +245,14 @@ describe('IntakeView', () => {
   });
 
   it('posts target:sales_invoice when operator classifies a parked document as invoice', async () => {
-    const unimplementedItem: api.NeedsTriageItem = {
+    const outgoingItem: api.NeedsTriageItem = {
       id: 9,
       filename: 'outgoing.pdf',
       created_at: 0,
-      reason: 'not yet implemented',
-      reason_type: 'unimplemented',
+      reason: 'Outgoing invoice — no invoice number found on the document',
+      reason_type: 'outgoing_invoice',
     };
-    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([unimplementedItem]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([outgoingItem]);
     vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
     vi.spyOn(api, 'getEntities').mockResolvedValue([]);
     const classifySpy = vi

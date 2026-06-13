@@ -26,6 +26,8 @@ function reasonBadge(item: NeedsTriageItem): string {
   switch (item.reason_type) {
     case 'supplier_unresolved':
       return '⚠ Unknown supplier';
+    case 'outgoing_invoice':
+      return '⚠ Outgoing invoice';
     case 'low_confidence':
       return '⚠ Low AI confidence';
     case 'category_unresolved':
@@ -258,14 +260,15 @@ export function IntakeView() {
                           onCancel={() => setExpandedId(null)}
                         />
                       )}
-                      {item.reason_type === 'unimplemented' && (
+                      {item.reason_type === 'outgoing_invoice' && (
                         <TriageManualInvoiceForm
                           documentId={item.id}
                           onDone={onFormDone}
                           onCancel={() => setExpandedId(null)}
                         />
                       )}
-                      {item.reason_type === 'unknown' && (
+                      {(item.reason_type === 'unimplemented' ||
+                        item.reason_type === 'unknown') && (
                         <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500">
                           {item.reason}
                         </div>

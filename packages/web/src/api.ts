@@ -382,6 +382,7 @@ export interface NeedsTriageItem {
   reason: string;
   reason_type:
     | 'supplier_unresolved'
+    | 'outgoing_invoice'
     | 'low_confidence'
     | 'category_unresolved'
     | 'ocr_failed'

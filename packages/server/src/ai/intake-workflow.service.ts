@@ -420,9 +420,13 @@ export class IntakeWorkflowService {
       this.logger.warn(
         `Outgoing-invoice confidence ${confidence} below threshold ${threshold} for document ${documentId}`,
       );
+      // EVERY routeSalesInvoice park reason carries the uniform
+      // `Outgoing invoice — ` prefix so classifyReasonType tags it
+      // `outgoing_invoice` and the SPA reaches the manual classify-as-sales-
+      // invoice form (the marker must survive: "Outgoing invoice —" contains it).
       return this.routeNeedsTriage(
         documentId,
-        `Outgoing-invoice confidence ${confidence} below threshold ${threshold}`,
+        `Outgoing invoice — AI confidence ${confidence} below threshold ${threshold}`,
       );
     }
     const outcome = await this.proposeDraft.proposeSalesInvoiceDraft(
@@ -436,7 +440,10 @@ export class IntakeWorkflowService {
       // Keep the exact triage result so an operator can create/select the
       // customer and replay it deterministically (no re-run of the agent).
       await this.documents.setPendingTriageResult(documentId, triageResult);
-      return this.routeNeedsTriage(documentId, outcome.reason);
+      return this.routeNeedsTriage(
+        documentId,
+        `Outgoing invoice — ${outcome.reason}`,
+      );
     }
     if (
       outcome.outcome === 'invoice-number-missing' ||
@@ -445,7 +452,10 @@ export class IntakeWorkflowService {
       this.logger.warn(
         `Outgoing invoice for document ${documentId} not booked (${outcome.outcome}): ${outcome.reason}`,
       );
-      return this.routeNeedsTriage(documentId, outcome.reason);
+      return this.routeNeedsTriage(
+        documentId,
+        `Outgoing invoice — ${outcome.reason}`,
+      );
     }
     await this.documents.setStatus(documentId, 'triaged');
     return { status: 'draft_proposed_invoice', invoiceId: outcome.invoiceId };
