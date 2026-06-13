@@ -9,7 +9,9 @@ const NONE = {
 
 describe('composeOutgoingConfidence', () => {
   it('is 0 when the org IBAN did not match (not an outgoing candidate)', () => {
-    expect(composeOutgoingConfidence(false, { ...NONE, org_name_is_issuer: true })).toBe(0);
+    expect(
+      composeOutgoingConfidence(false, { ...NONE, org_name_is_issuer: true }),
+    ).toBe(0);
   });
 
   it('gives the IBAN-match base even with no corroborating signals', () => {
@@ -28,7 +30,12 @@ describe('composeOutgoingConfidence', () => {
   });
 
   it('adds issuer identity weight (name + VAT) above the base', () => {
-    expect(composeOutgoingConfidence(true, { ...NONE, org_name_is_issuer: true, org_vat_is_issuer: true }))
-      .toBeCloseTo(0.9);
+    expect(
+      composeOutgoingConfidence(true, {
+        ...NONE,
+        org_name_is_issuer: true,
+        org_vat_is_issuer: true,
+      }),
+    ).toBeCloseTo(0.9);
   });
 });

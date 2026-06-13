@@ -359,7 +359,10 @@ describe('Pass2AgentService', () => {
         directionHint: 'outgoing',
       };
 
-      const result = await service.classify('# Sales Invoice\nBuyer: Some Corp', ctx);
+      const result = await service.classify(
+        '# Sales Invoice\nBuyer: Some Corp',
+        ctx,
+      );
 
       expect(result.ok).toBe(true);
       expect(buildSpy).toHaveBeenCalledWith({

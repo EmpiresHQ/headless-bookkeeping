@@ -7,7 +7,11 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
-import { withCategoryList, withOrgIdentity, OrgIdentityContext } from './triage-instructions';
+import {
+  withCategoryList,
+  withOrgIdentity,
+  OrgIdentityContext,
+} from './triage-instructions';
 import {
   createSearchSuppliersTool,
   createListCategoriesTool,

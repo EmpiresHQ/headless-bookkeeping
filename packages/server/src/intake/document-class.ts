@@ -5,7 +5,11 @@ export type DocumentType =
   | 'credit_note'
   | 'other';
 
-export type IntakeRoute = 'expense' | 'sales_invoice' | 'bank_statement' | 'unsupported';
+export type IntakeRoute =
+  | 'expense'
+  | 'sales_invoice'
+  | 'bank_statement'
+  | 'unsupported';
 
 export interface DocumentClass {
   route: IntakeRoute;
@@ -34,15 +38,27 @@ export function classifyDocumentClass(input: {
   const { documentType, ibanMatched } = input;
 
   if (documentType === 'bank_statement') {
-    return { route: 'bank_statement', direction: 'none', docType: documentType };
+    return {
+      route: 'bank_statement',
+      direction: 'none',
+      docType: documentType,
+    };
   }
 
   if (ibanMatched) {
     if (documentType === 'invoice' || documentType === 'receipt') {
-      return { route: 'sales_invoice', direction: 'outgoing', docType: documentType };
+      return {
+        route: 'sales_invoice',
+        direction: 'outgoing',
+        docType: documentType,
+      };
     }
     // credit_note, other — our IBAN present but not a clean sale → park.
-    return { route: 'unsupported', direction: 'outgoing', docType: documentType };
+    return {
+      route: 'unsupported',
+      direction: 'outgoing',
+      docType: documentType,
+    };
   }
 
   // No IBAN match, non-bank type → existing incoming expense path, unchanged.

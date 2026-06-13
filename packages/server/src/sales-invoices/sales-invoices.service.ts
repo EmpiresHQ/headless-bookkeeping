@@ -336,7 +336,9 @@ export class SalesInvoicesService {
     };
   }
 
-  async findByDocumentId(documentId: number): Promise<SalesInvoice | undefined> {
+  async findByDocumentId(
+    documentId: number,
+  ): Promise<SalesInvoice | undefined> {
     const row = await this.db
       .selectFrom('sales_invoice')
       .selectAll()

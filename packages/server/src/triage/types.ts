@@ -74,7 +74,13 @@ export type OutgoingSignals = z.infer<typeof outgoingSignalsSchema>;
 export const triageResultSchema = z.object({
   // Booking-critical fields stay REQUIRED — if the model omits them the document
   // genuinely cannot be booked and must go to a human.
-  kind: z.enum(['new_expense', 'new_sales_invoice', 'correction', 'duplicate', 'unknown']),
+  kind: z.enum([
+    'new_expense',
+    'new_sales_invoice',
+    'correction',
+    'duplicate',
+    'unknown',
+  ]),
   gross_amount: z.number().int(),
   vat_amount: z.number().int(),
   tax_point_date: z.string(), // ISO date string (YYYY-MM-DD)
@@ -87,7 +93,9 @@ export const triageResultSchema = z.object({
   // data to needs_triage). currency defaults to the EUR base; a dropped
   // confidence is treated as 0 (conservative — never auto-posts on a guess).
   // document_type now also drives routing (bank_statement → CSV path, etc.).
-  document_type: z.enum(['receipt', 'invoice', 'bank_statement', 'credit_note', 'other']).default('other'),
+  document_type: z
+    .enum(['receipt', 'invoice', 'bank_statement', 'credit_note', 'other'])
+    .default('other'),
   currency: z.string().length(3).default('EUR'),
   document_vat_marking: z.string().nullable().default(null),
   // Supplier's own invoice/receipt number (opaque, for KMD INF Part B). Same
@@ -215,13 +223,18 @@ export function classifyReasonType(description: string): TriageReasonType {
   if (description.toLowerCase().includes('outgoing invoice'))
     return 'outgoing_invoice';
   if (description.includes('supplier')) return 'supplier_unresolved';
-  if (description.includes('confidence') || description.includes('below threshold')) return 'low_confidence';
+  if (
+    description.includes('confidence') ||
+    description.includes('below threshold')
+  )
+    return 'low_confidence';
   if (description.includes('unknown category')) return 'category_unresolved';
   if (
     description.includes('OCR') ||
     description.includes('transcription') ||
     description.includes('classification failed')
-  ) return 'ocr_failed';
+  )
+    return 'ocr_failed';
   if (description.includes('not yet implemented')) return 'unimplemented';
   // 'AI could not classify the document' — the agent returned kind='unknown'.
   // Treated as low_confidence: the human action is the same (manually classify).

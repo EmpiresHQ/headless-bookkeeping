@@ -41,7 +41,9 @@ describe('OrganizationService (integration)', () => {
   });
 
   it('persists and returns the organization IBAN', async () => {
-    const updated = await service.updateOrganization({ iban: 'EE382200221020145685' });
+    const updated = await service.updateOrganization({
+      iban: 'EE382200221020145685',
+    });
     expect(updated.iban).toBe('EE382200221020145685');
 
     const fetched = await service.getOrganization();

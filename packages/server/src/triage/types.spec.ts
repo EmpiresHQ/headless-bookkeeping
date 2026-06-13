@@ -78,7 +78,10 @@ describe('triageResultSchema — sales-invoice kind, outgoing_signals, document_
       outgoing_signals: { org_name_is_issuer: true, org_vat_is_issuer: true },
     });
     expect(parsed.kind).toBe('new_sales_invoice');
-    expect(parsed.customer_proposal).toEqual({ mode: 'match', match_entity_id: 7 });
+    expect(parsed.customer_proposal).toEqual({
+      mode: 'match',
+      match_entity_id: 7,
+    });
     expect(parsed.outgoing_signals.has_buyer_block).toBe(false); // defaulted
   });
 

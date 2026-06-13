@@ -430,7 +430,8 @@ export class ProposeDraftService {
     const pipelineResult = await this.postingPipelineService.runPipeline({
       businessObjectId: expense.id,
       businessObjectType: 'expense',
-      draftGenerator: () => this.expensesService.generateDraftVoucher(expense.id),
+      draftGenerator: () =>
+        this.expensesService.generateDraftVoucher(expense.id),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expense.id),
       supplierKnown: true,
@@ -674,7 +675,8 @@ export class ProposeDraftService {
   async findExistingInvoiceDraft(
     documentId: number,
   ): Promise<InvoiceDraftReplayResult | undefined> {
-    const invoice = await this.salesInvoicesService.findByDocumentId(documentId);
+    const invoice =
+      await this.salesInvoicesService.findByDocumentId(documentId);
     if (!invoice) {
       return undefined;
     }

@@ -226,7 +226,11 @@ describe('TriageService (integration)', () => {
     });
 
     const out = await triage.route(doc.id);
-    expect(out).toEqual({ kind: 'bank_statement', document_id: doc.id, job_id: 7 });
+    expect(out).toEqual({
+      kind: 'bank_statement',
+      document_id: doc.id,
+      job_id: 7,
+    });
   });
 
   it('maps a sales-invoice workflow outcome to a TriageOutcomeInvoice', async () => {
@@ -245,7 +249,11 @@ describe('TriageService (integration)', () => {
     });
 
     const out = await triage.route(doc.id);
-    expect(out).toEqual({ kind: 'invoice', document_id: doc.id, invoice_id: 55 });
+    expect(out).toEqual({
+      kind: 'invoice',
+      document_id: doc.id,
+      invoice_id: 55,
+    });
   });
 
   describe('resolveSupplier', () => {

@@ -25,6 +25,7 @@ export function composeOutgoingConfidence(
   if (signals.org_name_is_issuer) score += WEIGHTS.org_name_is_issuer;
   if (signals.org_vat_is_issuer) score += WEIGHTS.org_vat_is_issuer;
   if (signals.has_buyer_block) score += WEIGHTS.has_buyer_block;
-  if (signals.self_identifies_as_invoice) score += WEIGHTS.self_identifies_as_invoice;
+  if (signals.self_identifies_as_invoice)
+    score += WEIGHTS.self_identifies_as_invoice;
   return Math.min(1, score);
 }

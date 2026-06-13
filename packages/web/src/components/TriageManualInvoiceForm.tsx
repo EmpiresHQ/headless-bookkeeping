@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  manualClassifyInvoice,
-  getEntities,
-  type Entity,
-} from '../api';
+import { manualClassifyInvoice, getEntities, type Entity } from '../api';
 
 const toCents = (s: string): number => Math.round(parseFloat(s) * 100);
 

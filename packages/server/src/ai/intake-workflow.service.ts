@@ -652,7 +652,10 @@ export class IntakeWorkflowService {
       };
     }
 
-    const outcome = await this.proposeDraft.manualClassifyDraft(documentId, dto);
+    const outcome = await this.proposeDraft.manualClassifyDraft(
+      documentId,
+      dto,
+    );
     await this.settleManualClassify(documentId);
     return { status: 'draft_proposed', draft: outcome };
   }

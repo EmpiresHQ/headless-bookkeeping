@@ -42,9 +42,7 @@ export class ReportingPeriodsController {
   }
 
   @Post('next')
-  async createNext(
-    @Body() dto: CreateNextPeriodDto,
-  ): Promise<ReportingPeriod> {
+  async createNext(@Body() dto: CreateNextPeriodDto): Promise<ReportingPeriod> {
     return this.service.createNext(dto);
   }
 

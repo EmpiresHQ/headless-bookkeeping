@@ -9,5 +9,8 @@ export async function up(db: Kysely<Database>): Promise<void> {
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {
-  await db.schema.alterTable('sales_invoice').dropColumn('document_id').execute();
+  await db.schema
+    .alterTable('sales_invoice')
+    .dropColumn('document_id')
+    .execute();
 }

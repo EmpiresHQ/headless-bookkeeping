@@ -45,7 +45,10 @@ describe('IntakeView', () => {
     render(<IntakeView />);
     const input = screen.getByLabelText(/upload document/i);
     const file = new File(['pdf'], 'invoice.pdf', { type: 'application/pdf' });
-    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
     fireEvent.change(input);
     fireEvent.click(screen.getByRole('button', { name: /upload/i }));
 

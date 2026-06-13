@@ -18,7 +18,8 @@ import { TriageOcrFailedForm } from './TriageOcrFailedForm';
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
   if (o.kind === 'invoice') return `Sales invoice #${o.invoice_id}`;
-  if (o.kind === 'bank_statement') return `Bank import started (job #${o.job_id})`;
+  if (o.kind === 'bank_statement')
+    return `Bank import started (job #${o.job_id})`;
   return `→ needs triage: ${o.reason}`;
 }
 
@@ -87,8 +88,7 @@ export function IntakeView() {
       setNote(
         (deduplicated
           ? `Document #${document.id} already existed.`
-          : `Uploaded document #${document.id}.`) +
-          ` ${outcomeLabel(outcome)}`,
+          : `Uploaded document #${document.id}.`) + ` ${outcomeLabel(outcome)}`,
       );
       await refresh();
     });

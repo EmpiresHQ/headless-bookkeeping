@@ -103,7 +103,9 @@ export class Pass2AgentService {
     let agent: Awaited<ReturnType<MastraService['buildTriageAgent']>>;
     try {
       agent = await this.mastraService.buildTriageAgent(
-        ctx ? { ...ctx.orgContext, directionHint: ctx.directionHint } : undefined,
+        ctx
+          ? { ...ctx.orgContext, directionHint: ctx.directionHint }
+          : undefined,
       );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

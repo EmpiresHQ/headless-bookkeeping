@@ -719,9 +719,7 @@ describe('ProposeDraftService (integration)', () => {
 
     it('returns duplicate-number when invoice_number collides', async () => {
       salesInvoicesService.createInvoice.mockRejectedValue(
-        new Error(
-          'UNIQUE constraint failed: sales_invoice.invoice_number',
-        ),
+        new Error('UNIQUE constraint failed: sales_invoice.invoice_number'),
       );
 
       const out = await service.proposeSalesInvoiceDraft(
@@ -792,7 +790,10 @@ describe('ProposeDraftService (integration)', () => {
       });
 
       expect(salesInvoicesService.createInvoice).toHaveBeenCalledWith(
-        expect.objectContaining({ customer_id: null, document_vat_marking: null }),
+        expect.objectContaining({
+          customer_id: null,
+          document_vat_marking: null,
+        }),
       );
     });
 

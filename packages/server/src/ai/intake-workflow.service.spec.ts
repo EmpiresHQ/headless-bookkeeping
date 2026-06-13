@@ -545,7 +545,10 @@ describe('IntakeWorkflowService', () => {
       });
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
-        result: sampleTriageResult({ document_type: 'invoice', confidence: 0.94 }),
+        result: sampleTriageResult({
+          document_type: 'invoice',
+          confidence: 0.94,
+        }),
       });
       mockProposeDraft.proposeDraft.mockResolvedValue({
         outcome: 'draft',
@@ -638,30 +641,47 @@ describe('IntakeWorkflowService', () => {
 
     it('hands a CSV bank statement to bank-ingestion', async () => {
       const docId = await seedDocument('stmt.csv');
-      mockOrganization.getOrganization.mockResolvedValue({ iban: 'EE382200221020145685', name: 'Acme', vat_registration_number: 'EE1' });
-      mockOcrService.transcribe.mockResolvedValue({ ok: true, markdown: 'date,amount,desc\n2026-06-01,100,x' });
-      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: makeExpenseResult({ document_type: 'bank_statement' }) });
-      const getByIdSpy = jest.spyOn(documentsService, 'getById').mockResolvedValue({
-        id: docId,
-        hash: 'h',
-        filename: 'stmt.csv',
-        mime_type: 'text/csv',
-        size_bytes: 100,
-        storage_path: '/tmp/stmt.csv',
-        status: 'pending',
-        processing_since: null,
-        created_at: 0,
+      mockOrganization.getOrganization.mockResolvedValue({
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
       });
-      const getFileSpy = jest.spyOn(documentsService, 'getFile').mockResolvedValue({
-        buffer: Buffer.from('date,amount,desc\n2026-06-01,100,x'),
-        filename: 'stmt.csv',
-        mimeType: 'text/csv',
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'date,amount,desc\n2026-06-01,100,x',
       });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeExpenseResult({ document_type: 'bank_statement' }),
+      });
+      const getByIdSpy = jest
+        .spyOn(documentsService, 'getById')
+        .mockResolvedValue({
+          id: docId,
+          hash: 'h',
+          filename: 'stmt.csv',
+          mime_type: 'text/csv',
+          size_bytes: 100,
+          storage_path: '/tmp/stmt.csv',
+          status: 'pending',
+          processing_since: null,
+          created_at: 0,
+        });
+      const getFileSpy = jest
+        .spyOn(documentsService, 'getFile')
+        .mockResolvedValue({
+          buffer: Buffer.from('date,amount,desc\n2026-06-01,100,x'),
+          filename: 'stmt.csv',
+          mimeType: 'text/csv',
+        });
       mockBankIngestion.startImport.mockResolvedValue({ jobId: 3 });
 
       const res = await service.process(docId);
 
-      expect(mockBankIngestion.startImport).toHaveBeenCalledWith(expect.any(String), 'EE382200221020145685');
+      expect(mockBankIngestion.startImport).toHaveBeenCalledWith(
+        expect.any(String),
+        'EE382200221020145685',
+      );
       expect(res.status).toBe('bank_import_started');
 
       getByIdSpy.mockRestore();
@@ -670,20 +690,32 @@ describe('IntakeWorkflowService', () => {
 
     it('parks a non-CSV (PDF) bank statement', async () => {
       const docId = await seedDocument('s.pdf');
-      mockOrganization.getOrganization.mockResolvedValue({ iban: 'EE382200221020145685', name: 'Acme', vat_registration_number: 'EE1' });
-      mockOcrService.transcribe.mockResolvedValue({ ok: true, markdown: 'Statement ...' });
-      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: makeExpenseResult({ document_type: 'bank_statement' }) });
-      const getByIdSpy = jest.spyOn(documentsService, 'getById').mockResolvedValue({
-        id: docId,
-        hash: 'h',
-        filename: 's.pdf',
-        mime_type: 'application/pdf',
-        size_bytes: 100,
-        storage_path: '/tmp/s.pdf',
-        status: 'pending',
-        processing_since: null,
-        created_at: 0,
+      mockOrganization.getOrganization.mockResolvedValue({
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
       });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Statement ...',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeExpenseResult({ document_type: 'bank_statement' }),
+      });
+      const getByIdSpy = jest
+        .spyOn(documentsService, 'getById')
+        .mockResolvedValue({
+          id: docId,
+          hash: 'h',
+          filename: 's.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: '/tmp/s.pdf',
+          status: 'pending',
+          processing_since: null,
+          created_at: 0,
+        });
 
       const res = await service.process(docId);
 
@@ -1283,7 +1315,9 @@ describe('IntakeWorkflowService', () => {
         expect(res.draft.expenseId).toBe(42);
       }
       expect(mockProposeDraft.manualClassifyDraft).toHaveBeenCalledTimes(1);
-      expect(mockProposeDraft.manualClassifyInvoiceDraft).not.toHaveBeenCalled();
+      expect(
+        mockProposeDraft.manualClassifyInvoiceDraft,
+      ).not.toHaveBeenCalled();
 
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('triaged');
