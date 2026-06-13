@@ -47,6 +47,8 @@ export interface OrganizationTable {
   created_at: number;
   // Declarant identity for statutory reports (migration 037).
   vat_registration_number: string | null;
+  // Own IBAN printed on outgoing invoices — signals document direction (migration 046).
+  iban: string | null;
   name: string | null;
 }
 
