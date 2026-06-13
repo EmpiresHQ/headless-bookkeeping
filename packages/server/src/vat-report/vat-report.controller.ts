@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
   MethodNotAllowedException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { VatReportService } from './vat-report.service';
 import type { VatReport, KmdDeclaration } from './types';
 
@@ -23,6 +23,8 @@ export class VatReportController {
    * POST /api/reporting-periods/:id/vat-report
    */
   @Post('reporting-periods/:id/vat-report')
+  @ApiOperation({ summary: 'Create a VAT report for a period', description: 'Compute and store the VAT report for a reporting period.' })
+  @ApiParam({ name: 'id', description: 'Reporting period id' })
   async generate(
     @Param('id', ParseIntPipe) periodId: number,
   ): Promise<VatReport> {
@@ -34,6 +36,7 @@ export class VatReportController {
    * GET /api/vat-reports
    */
   @Get('vat-reports')
+  @ApiOperation({ summary: 'List VAT reports', description: 'Return all VAT reports.' })
   async list(): Promise<{ vat_reports: VatReport[] }> {
     return { vat_reports: await this.service.list() };
   }
@@ -43,6 +46,8 @@ export class VatReportController {
    * GET /api/vat-reports/:id
    */
   @Get('vat-reports/:id')
+  @ApiOperation({ summary: 'Get a VAT report by id', description: 'Fetch a single VAT report.' })
+  @ApiParam({ name: 'id', description: 'VAT report id' })
   async getById(@Param('id', ParseIntPipe) id: number): Promise<VatReport> {
     return this.service.getById(id);
   }
@@ -52,6 +57,8 @@ export class VatReportController {
    * GET /api/vat-reports/:id/vouchers
    */
   @Get('vat-reports/:id/vouchers')
+  @ApiOperation({ summary: "List a VAT report's vouchers", description: 'Return the vouchers included in a VAT report.' })
+  @ApiParam({ name: 'id', description: 'VAT report id' })
   async getVouchers(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ voucher_ids: number[] }> {
@@ -67,6 +74,8 @@ export class VatReportController {
    * GET /api/reporting-periods/:id/kmd
    */
   @Get('reporting-periods/:id/kmd')
+  @ApiOperation({ summary: 'Export KMD XML for a period', description: 'Render the Estonian KMD declaration XML for a period.' })
+  @ApiParam({ name: 'id', description: 'Reporting period id' })
   async kmd(
     @Param('id', ParseIntPipe) periodId: number,
   ): Promise<KmdDeclaration> {
@@ -76,16 +85,22 @@ export class VatReportController {
   // ── Immutability: VAT reports can never be modified ──────────────────
 
   @Put('vat-reports/:id')
+  @ApiOperation({ summary: 'Replace a VAT report (rejected)', description: 'VAT reports are immutable; always returns 405 Method Not Allowed.' })
+  @ApiParam({ name: 'id', description: 'VAT report id' })
   blockUpdate(): never {
     throw new MethodNotAllowedException('VAT report is immutable');
   }
 
   @Patch('vat-reports/:id')
+  @ApiOperation({ summary: 'Patch a VAT report (rejected)', description: 'VAT reports are immutable; always returns 405 Method Not Allowed.' })
+  @ApiParam({ name: 'id', description: 'VAT report id' })
   blockPatch(): never {
     throw new MethodNotAllowedException('VAT report is immutable');
   }
 
   @Delete('vat-reports/:id')
+  @ApiOperation({ summary: 'Delete a VAT report (rejected)', description: 'VAT reports are immutable; always returns 405 Method Not Allowed.' })
+  @ApiParam({ name: 'id', description: 'VAT report id' })
   blockDelete(): never {
     throw new MethodNotAllowedException('VAT report is immutable');
   }
