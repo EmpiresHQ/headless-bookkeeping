@@ -17,6 +17,7 @@ const baseOrg = {
   created_at: 0,
   name: null,
   vat_registration_number: null,
+  iban: null,
 };
 
 describe('OrgView', () => {
@@ -48,6 +49,7 @@ describe('OrgView', () => {
       base_currency: 'USD',
       name: null,
       vat_registration_number: null,
+      iban: null,
     });
   });
 
@@ -81,6 +83,21 @@ describe('OrgView', () => {
         name: 'Acme OÜ',
         vat_registration_number: 'EE123456789',
       }),
+    );
+  });
+
+  it('sends iban when filled', async () => {
+    render(<OrgView />);
+
+    fireEvent.change(await screen.findByLabelText('IBAN'), {
+      target: { value: 'EE382200221020145685' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByText('Organization saved.')).toBeInTheDocument();
+    expect(api.updateOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({ iban: 'EE382200221020145685' }),
     );
   });
 });

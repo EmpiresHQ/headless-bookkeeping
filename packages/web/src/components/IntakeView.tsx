@@ -9,6 +9,7 @@ import {
   type NeedsTriageItem,
   type TriageOutcome,
 } from '../api';
+import { TriageManualInvoiceForm } from './TriageManualInvoiceForm';
 import { Table, type Column } from './Table';
 import { ResolveSupplierForm } from './ResolveSupplierForm';
 import { TriageManualForm } from './TriageManualForm';
@@ -16,7 +17,9 @@ import { TriageOcrFailedForm } from './TriageOcrFailedForm';
 
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
-  if (o.kind === 'invoice') return `→ draft invoice #${o.invoice_id}`;
+  if (o.kind === 'invoice') return `Sales invoice #${o.invoice_id}`;
+  if (o.kind === 'bank_statement')
+    return `Bank import started (job #${o.job_id})`;
   return `→ needs triage: ${o.reason}`;
 }
 
@@ -24,6 +27,8 @@ function reasonBadge(item: NeedsTriageItem): string {
   switch (item.reason_type) {
     case 'supplier_unresolved':
       return '⚠ Unknown supplier';
+    case 'outgoing_invoice':
+      return '⚠ Outgoing invoice';
     case 'low_confidence':
       return '⚠ Low AI confidence';
     case 'category_unresolved':
@@ -83,8 +88,7 @@ export function IntakeView() {
       setNote(
         (deduplicated
           ? `Document #${document.id} already existed.`
-          : `Uploaded document #${document.id}.`) +
-          ` ${outcomeLabel(outcome)}`,
+          : `Uploaded document #${document.id}.`) + ` ${outcomeLabel(outcome)}`,
       );
       await refresh();
     });
@@ -251,6 +255,13 @@ export function IntakeView() {
                       )}
                       {item.reason_type === 'ocr_failed' && (
                         <TriageOcrFailedForm
+                          documentId={item.id}
+                          onDone={onFormDone}
+                          onCancel={() => setExpandedId(null)}
+                        />
+                      )}
+                      {item.reason_type === 'outgoing_invoice' && (
+                        <TriageManualInvoiceForm
                           documentId={item.id}
                           onDone={onFormDone}
                           onCancel={() => setExpandedId(null)}

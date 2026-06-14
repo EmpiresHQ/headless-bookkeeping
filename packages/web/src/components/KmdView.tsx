@@ -15,7 +15,10 @@ const ROWS: { label: string; key: keyof KmdDeclaration }[] = [
   { label: 'Row 3 — 0% käive (base)', key: 'row3_base_zero' },
   { label: 'Row 4 — output VAT', key: 'row4_output_vat' },
   { label: 'Row 5 — input VAT', key: 'row5_input_vat' },
-  { label: 'Row 6 — intra-EU acquisitions (base)', key: 'row6_intra_eu_acquisition' },
+  {
+    label: 'Row 6 — intra-EU acquisitions (base)',
+    key: 'row6_intra_eu_acquisition',
+  },
   { label: 'Row 7 — other acquisitions (base)', key: 'row7_other_acquisition' },
 ];
 
@@ -76,9 +79,15 @@ export function KmdView() {
     setDecl(null);
     setError(null);
     getKmd(selected)
-      .then((d) => { if (!cancelled) setDecl(d); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
-    return () => { cancelled = true; };
+      .then((d) => {
+        if (!cancelled) setDecl(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selected]);
 
   return (
@@ -114,7 +123,10 @@ export function KmdView() {
         </button>
       </div>
 
-      <form onSubmit={handleCreateNext} className="flex items-end gap-2 flex-wrap text-sm">
+      <form
+        onSubmit={handleCreateNext}
+        className="flex items-end gap-2 flex-wrap text-sm"
+      >
         {showOverride && (
           <>
             <label className="flex flex-col gap-1">

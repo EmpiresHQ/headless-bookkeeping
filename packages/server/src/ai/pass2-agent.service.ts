@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MastraService } from './mastra.service';
 import { triageResultSchema, TriageResult } from '../triage/types';
+import { OrgIdentityContext } from './triage-instructions';
 
 const MAX_RETRIES = 3;
 
@@ -41,6 +42,21 @@ export interface Pass2Failure {
 export type Pass2Outcome = Pass2Success | Pass2Failure;
 
 /**
+ * Optional context passed from the intake pipeline into Pass-2 classify().
+ * When provided, the agent instructions are augmented with the organization's
+ * identity and the pre-decided document direction so the LLM can accurately
+ * set `document_type`, `kind`, `customer_proposal`, and `outgoing_signals`.
+ *
+ * When absent, classify() behavior is identical to before (backward compatible).
+ * A later task wires the real context from the intake workflow; this interface
+ * keeps Task 8 decoupled from that wiring.
+ */
+export interface Pass2Context {
+  orgContext: Omit<OrgIdentityContext, 'directionHint'>;
+  directionHint: 'incoming' | 'outgoing';
+}
+
+/**
  * Pass2AgentService — runs the Pass 2 Mastra agent over Pass-1 markdown
  * and emits a Zod-validated TriageResult.
  *
@@ -73,17 +89,24 @@ export class Pass2AgentService {
    * the reason is now explicit.
    *
    * @param markdown - The Pass-1 markdown text (receipt/invoice content).
+   * @param ctx - Optional org identity + direction hint. When provided the
+   *   agent instructions are augmented so the LLM accurately classifies
+   *   outgoing invoices. When absent, behavior is identical to before this parameter was added.
    * @returns A {@link Pass2Outcome} — success with a validated TriageResult,
    *          or failure with an explicit category.
    */
-  async classify(markdown: string): Promise<Pass2Outcome> {
+  async classify(markdown: string, ctx?: Pass2Context): Promise<Pass2Outcome> {
     // Build the triage agent on demand so the current settings-backed model /
     // prompt / inference endpoint apply to this classification. A build failure
     // (missing model credentials, @mastra runtime unavailable) is the
     // `agent-unavailable` case.
     let agent: Awaited<ReturnType<MastraService['buildTriageAgent']>>;
     try {
-      agent = await this.mastraService.buildTriageAgent();
+      agent = await this.mastraService.buildTriageAgent(
+        ctx
+          ? { ...ctx.orgContext, directionHint: ctx.directionHint }
+          : undefined,
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       this.logger.error(`Mastra triage agent unavailable: ${detail}`);

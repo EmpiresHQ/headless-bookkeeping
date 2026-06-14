@@ -53,12 +53,29 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
 
 export type SupplierProposal = z.infer<typeof supplierProposalSchema>;
 
+// Reuse the supplier discriminated-union shape for the customer counterparty —
+// identical match/create semantics (ADR-0014). A 'create' proposal parks to
+// needs_triage in v1 exactly like supplier 'create'.
+export const customerProposalSchema = supplierProposalSchema;
+export type CustomerProposal = SupplierProposal;
+
+// Structured "is this OUR outgoing invoice?" signals the agent emits. They are
+// confidence inputs ONLY — direction is decided in code from the IBAN match.
+export const outgoingSignalsSchema = z.object({
+  org_name_is_issuer: z.boolean().default(false),
+  org_vat_is_issuer: z.boolean().default(false),
+  has_buyer_block: z.boolean().default(false),
+  self_identifies_as_invoice: z.boolean().default(false),
+});
+export type OutgoingSignals = z.infer<typeof outgoingSignalsSchema>;
+
 /**
  * TriageResult — the structured output produced by the AI triage agent.
  * Represents the AI's interpretation of an incoming document.
  *
  * The `kind` discriminant determines what downstream action to take:
  * - 'new_expense': create an Expense and run the posting pipeline.
+ * - 'new_sales_invoice': create a sales (outgoing) invoice draft.
  * - 'correction': modify an existing business object (wired in Task 43).
  * - 'duplicate': flag as a likely duplicate (wired in Task 43).
  * - 'unknown': cannot classify — hold for human review.
@@ -66,24 +83,43 @@ export type SupplierProposal = z.infer<typeof supplierProposalSchema>;
 export const triageResultSchema = z.object({
   // Booking-critical fields stay REQUIRED — if the model omits them the document
   // genuinely cannot be booked and must go to a human.
-  kind: z.enum(['new_expense', 'correction', 'duplicate', 'unknown']),
+  kind: z.enum([
+    'new_expense',
+    'new_sales_invoice',
+    'correction',
+    'duplicate',
+    'unknown',
+  ]),
   gross_amount: z.number().int(),
   vat_amount: z.number().int(),
   tax_point_date: z.string(), // ISO date string (YYYY-MM-DD)
   category: z.string(),
   supplier_proposal: supplierProposalSchema.optional(),
+  customer_proposal: customerProposalSchema.optional(),
   // Safely-defaultable metadata. Some OpenAI-compatible endpoints do NOT enforce
   // `required` in json_schema, so the model occasionally drops a field; defaults
   // keep a good extraction from failing the parse (which would lose ALL the
   // data to needs_triage). currency defaults to the EUR base; a dropped
   // confidence is treated as 0 (conservative — never auto-posts on a guess).
-  document_type: z.enum(['receipt', 'invoice', 'unknown']).default('unknown'),
+  // document_type now also drives routing (bank_statement → CSV path, etc.).
+  document_type: z
+    .enum(['receipt', 'invoice', 'bank_statement', 'credit_note', 'other'])
+    .default('other'),
   currency: z.string().length(3).default('EUR'),
   document_vat_marking: z.string().nullable().default(null),
   // Supplier's own invoice/receipt number (opaque, for KMD INF Part B). Same
   // safely-defaultable treatment as document_vat_marking.
   supplier_invoice_number: z.string().nullable().default(null),
   confidence: z.number().min(0).max(1).default(0),
+  // Structured outgoing-invoice signals emitted by the agent. All default to
+  // false so the field is always present on every TriageResult; the explicit
+  // all-false default ensures inner field defaults are applied correctly.
+  outgoing_signals: outgoingSignalsSchema.default({
+    org_name_is_issuer: false,
+    org_vat_is_issuer: false,
+    has_buyer_block: false,
+    self_identifies_as_invoice: false,
+  }),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;
@@ -110,6 +146,12 @@ export interface TriageOutcomeInvoice {
   invoice_id: number;
 }
 
+export interface TriageOutcomeBankStatement {
+  kind: 'bank_statement';
+  document_id: number;
+  job_id: number;
+}
+
 export interface TriageOutcomeUnknown {
   kind: 'unknown';
   document_id: number;
@@ -119,6 +161,7 @@ export interface TriageOutcomeUnknown {
 export type TriageOutcome =
   | TriageOutcomeExpense
   | TriageOutcomeInvoice
+  | TriageOutcomeBankStatement
   | TriageOutcomeUnknown;
 
 /**
@@ -167,6 +210,7 @@ export interface DocumentDebug {
 
 export type TriageReasonType =
   | 'supplier_unresolved'
+  | 'outgoing_invoice'
   | 'low_confidence'
   | 'category_unresolved'
   | 'ocr_failed'
@@ -182,14 +226,24 @@ export interface NeedsTriageItem {
 }
 
 export function classifyReasonType(description: string): TriageReasonType {
+  // Checked FIRST: a detected OUTGOING invoice that parked to needs_triage. The
+  // routeSalesInvoice park reasons all carry the stable "outgoing invoice"
+  // marker, so the SPA can reach the manual classify-as-sales-invoice form.
+  if (description.toLowerCase().includes('outgoing invoice'))
+    return 'outgoing_invoice';
   if (description.includes('supplier')) return 'supplier_unresolved';
-  if (description.includes('confidence') || description.includes('below threshold')) return 'low_confidence';
+  if (
+    description.includes('confidence') ||
+    description.includes('below threshold')
+  )
+    return 'low_confidence';
   if (description.includes('unknown category')) return 'category_unresolved';
   if (
     description.includes('OCR') ||
     description.includes('transcription') ||
     description.includes('classification failed')
-  ) return 'ocr_failed';
+  )
+    return 'ocr_failed';
   if (description.includes('not yet implemented')) return 'unimplemented';
   // 'AI could not classify the document' — the agent returned kind='unknown'.
   // Treated as low_confidence: the human action is the same (manually classify).
@@ -197,7 +251,24 @@ export function classifyReasonType(description: string): TriageReasonType {
   return 'unknown';
 }
 
-export const manualClassifySchema = z.object({
+/**
+ * Manual-classify payload — target-discriminated, BACKWARD COMPATIBLE.
+ *
+ * The original payload was the EXPENSE shape with NO `target` field. To let an
+ * operator manually classify a parked document as a SALES INVOICE too, the DTO
+ * is now a union of two arms keyed on an OPTIONAL `target` discriminant:
+ *
+ * - the expense arm carries `target: z.literal('expense').optional()`, so a
+ *   legacy no-target payload still validates (defaults to expense);
+ * - the sales-invoice arm REQUIRES `target: z.literal('sales_invoice')`.
+ *
+ * The union is ordered SALES FIRST so a `target: 'sales_invoice'` payload is
+ * never swallowed by the expense arm (the expense arm's `target` literal would
+ * reject a 'sales_invoice' value anyway — sales-first is for clarity/safety).
+ */
+export const manualClassifyExpenseSchema = z.object({
+  // Optional discriminant: absent → this arm matches (legacy expense payload).
+  target: z.literal('expense').optional(),
   supplier_id: z.number().int().positive(),
   category: z.string().min(1),
   document_vat_marking: z.string().nullable(),
@@ -208,4 +279,44 @@ export const manualClassifySchema = z.object({
   supplier_invoice_number: z.string().nullable().optional(),
 });
 
-export class ManualClassifyDto extends createZodDto(manualClassifySchema) {}
+export const manualClassifySalesInvoiceSchema = z.object({
+  target: z.literal('sales_invoice'),
+  customer_id: z.number().int().nullable().optional(),
+  invoice_number: z.string(),
+  gross_amount: z.number().int(),
+  vat_amount: z.number().int(),
+  currency: z.string(),
+  tax_point_date: z.string(),
+  document_vat_marking: z.string().nullable().optional(),
+});
+
+export const manualClassifySchema = z.union([
+  manualClassifySalesInvoiceSchema,
+  manualClassifyExpenseSchema,
+]);
+
+export type ManualClassifyExpenseInput = z.infer<
+  typeof manualClassifyExpenseSchema
+>;
+export type ManualClassifySalesInvoiceInput = z.infer<
+  typeof manualClassifySalesInvoiceSchema
+>;
+
+/**
+ * Discriminated manual-classify input the workflow narrows on `target`. The
+ * expense arm's `target` is optional (absent on legacy payloads); the
+ * sales-invoice arm's is the required `'sales_invoice'` literal.
+ */
+export type ManualClassifyInput =
+  | ManualClassifySalesInvoiceInput
+  | ManualClassifyExpenseInput;
+
+/**
+ * The endpoint DTO. `createZodDto` cannot be used as a base class for a UNION
+ * schema (its instance type would not be a single object type — TS2509), so the
+ * union DTO is created as a value and its instance type is declared separately
+ * as the discriminated {@link ManualClassifyInput}. The ZodValidationPipe reads
+ * the static `schema` to validate the body, exactly as for an object DTO.
+ */
+export const ManualClassifyDto = createZodDto(manualClassifySchema);
+export type ManualClassifyDto = ManualClassifyInput;

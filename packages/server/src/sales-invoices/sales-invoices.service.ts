@@ -14,6 +14,20 @@ import {
   CreateSalesInvoiceDto,
 } from './types';
 
+/**
+ * Whether a thrown error is the SQLite UNIQUE-constraint violation on
+ * sales_invoice.invoice_number — a duplicate invoice number. Used by both
+ * SalesInvoicesController (maps to 409) and ProposeDraftService (maps to
+ * `duplicate-number` outcome → needs_triage).
+ */
+export function isInvoiceNumberConflict(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    err.message.includes('UNIQUE constraint failed') &&
+    err.message.includes('invoice_number')
+  );
+}
+
 @Injectable()
 export class SalesInvoicesService {
   constructor(
@@ -34,6 +48,7 @@ export class SalesInvoicesService {
         tax_point_date: dto.tax_point_date,
         due_date: dto.due_date ?? null,
         document_vat_marking: dto.document_vat_marking ?? null,
+        document_id: dto.document_id ?? null,
         status: 'draft',
         sent_at: null,
         voucher_id: null,
@@ -298,6 +313,7 @@ export class SalesInvoicesService {
     sent_at: number | null;
     voucher_id: number | null;
     document_vat_marking: string | null;
+    document_id: number | null;
     created_at: number;
     updated_at: number;
   }): SalesInvoice {
@@ -314,9 +330,22 @@ export class SalesInvoicesService {
       sent_at: row.sent_at,
       voucher_id: row.voucher_id,
       document_vat_marking: row.document_vat_marking,
+      document_id: row.document_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
+  }
+
+  async findByDocumentId(
+    documentId: number,
+  ): Promise<SalesInvoice | undefined> {
+    const row = await this.db
+      .selectFrom('sales_invoice')
+      .selectAll()
+      .where('document_id', '=', documentId)
+      .orderBy('id', 'asc')
+      .executeTakeFirst();
+    return row ? this.mapRow(row) : undefined;
   }
 
   private validateStatus(status: string): SalesInvoiceStatus {

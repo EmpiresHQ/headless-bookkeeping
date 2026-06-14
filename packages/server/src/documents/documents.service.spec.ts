@@ -392,6 +392,12 @@ describe('DocumentsService (unit)', () => {
         document_vat_marking: null,
         supplier_invoice_number: 'INV-7',
         confidence: 0.42,
+        outgoing_signals: {
+          org_name_is_issuer: false,
+          org_vat_is_issuer: false,
+          has_buyer_block: false,
+          self_identifies_as_invoice: false,
+        },
       };
 
       await service.setPendingTriageResult(doc.id, triage);

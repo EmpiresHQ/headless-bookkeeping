@@ -11,6 +11,7 @@ export interface Organization {
   // Declarant identity for statutory reports (migration 037).
   vat_registration_number: string | null;
   name: string | null;
+  iban: string | null;
 }
 
 export interface UpdateOrganizationDto {
@@ -21,4 +22,5 @@ export interface UpdateOrganizationDto {
   org_type?: 'company' | 'sole_proprietor';
   vat_registration_number?: string | null;
   name?: string | null;
+  iban?: string | null;
 }

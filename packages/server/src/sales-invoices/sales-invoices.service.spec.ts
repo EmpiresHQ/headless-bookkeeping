@@ -244,6 +244,23 @@ describe('SalesInvoicesService (integration)', () => {
     });
   });
 
+  it('stores document_id on create and finds the invoice by document_id', async () => {
+    const inv = await service.createInvoice({
+      invoice_number: 'INV-1',
+      gross_amount: 12200,
+      vat_amount: 2200,
+      currency: 'EUR',
+      tax_point_date: '2026-06-01',
+      customer_id: null,
+      document_id: 42,
+    });
+    expect(inv.document_id).toBe(42);
+
+    const found = await service.findByDocumentId(42);
+    expect(found?.id).toBe(inv.id);
+    expect(await service.findByDocumentId(999)).toBeUndefined();
+  });
+
   describe('intra-EU B2B service sale (EE org)', () => {
     it('tags revenue 0% intra-EU (EE_OUTPUT_0_EU) for an EU customer of services', async () => {
       await organizationService.updateOrganization({ country: 'EE' });

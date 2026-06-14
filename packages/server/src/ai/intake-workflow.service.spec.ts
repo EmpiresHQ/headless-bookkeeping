@@ -17,6 +17,8 @@ import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import { EntitiesService } from '../entities/entities.service';
+import { OrganizationService } from '../organization/organization.service';
+import { BankIngestionService } from '../bank/bank-ingestion.service';
 import { TriageResult } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
@@ -37,11 +39,23 @@ describe('IntakeWorkflowService', () => {
   const mockProposeDraft = {
     proposeDraft: jest.fn(),
     findExistingDraft: jest.fn(),
+    proposeSalesInvoiceDraft: jest.fn(),
+    findExistingInvoiceDraft: jest.fn(),
+    manualClassifyDraft: jest.fn(),
+    manualClassifyInvoiceDraft: jest.fn(),
   };
 
   const mockEntities = {
     findById: jest.fn(),
     addIdentifierIfAbsent: jest.fn(),
+  };
+
+  const mockOrganization = {
+    getOrganization: jest.fn(),
+  };
+
+  const mockBankIngestion = {
+    startImport: jest.fn(),
   };
 
   const sampleTriageResult = (
@@ -57,6 +71,41 @@ describe('IntakeWorkflowService', () => {
     document_vat_marking: '23%',
     supplier_invoice_number: null,
     confidence: 0.94,
+    outgoing_signals: {
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    },
+    ...overrides,
+  });
+
+  // Bank-statement fixture: document_type='bank_statement', kind='unknown'.
+  const makeExpenseResult = (
+    overrides: Partial<TriageResult> = {},
+  ): TriageResult => sampleTriageResult(overrides);
+
+  // Sales (outgoing) fixture: mirrors sampleTriageResult but with
+  // kind='new_sales_invoice', a revenue category and an invoice document type.
+  const makeSalesResult = (
+    overrides: Partial<TriageResult> = {},
+  ): TriageResult => ({
+    kind: 'new_sales_invoice',
+    document_type: 'invoice',
+    gross_amount: 12200,
+    vat_amount: 2200,
+    currency: 'EUR',
+    tax_point_date: '2026-04-01',
+    category: 'revenue',
+    document_vat_marking: null,
+    supplier_invoice_number: 'INV-9',
+    confidence: 0.9,
+    outgoing_signals: {
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    },
     ...overrides,
   });
 
@@ -101,6 +150,8 @@ describe('IntakeWorkflowService', () => {
         { provide: Pass2AgentService, useValue: mockPass2Agent },
         { provide: ProposeDraftService, useValue: mockProposeDraft },
         { provide: EntitiesService, useValue: mockEntities },
+        { provide: OrganizationService, useValue: mockOrganization },
+        { provide: BankIngestionService, useValue: mockBankIngestion },
         AuditFindingsService,
         PolicyService,
         DocumentsService,
@@ -118,8 +169,14 @@ describe('IntakeWorkflowService', () => {
     mockPass2Agent.classify.mockReset();
     mockProposeDraft.proposeDraft.mockReset();
     mockProposeDraft.findExistingDraft.mockReset();
+    mockProposeDraft.proposeSalesInvoiceDraft.mockReset();
+    mockProposeDraft.findExistingInvoiceDraft.mockReset();
+    mockProposeDraft.manualClassifyDraft.mockReset();
+    mockProposeDraft.manualClassifyInvoiceDraft.mockReset();
     mockEntities.findById.mockReset();
     mockEntities.addIdentifierIfAbsent.mockReset();
+    mockOrganization.getOrganization.mockReset();
+    mockBankIngestion.startImport.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -127,7 +184,16 @@ describe('IntakeWorkflowService', () => {
       markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
     });
     mockProposeDraft.findExistingDraft.mockResolvedValue(undefined);
+    mockProposeDraft.findExistingInvoiceDraft.mockResolvedValue(undefined);
     mockEntities.addIdentifierIfAbsent.mockResolvedValue(undefined);
+    // Default org has no IBAN → ibanMatched is false → documents route to the
+    // existing expense path unchanged.
+    mockOrganization.getOrganization.mockResolvedValue({
+      id: 1,
+      iban: null,
+      name: null,
+      vat_registration_number: null,
+    });
   });
 
   afterEach(async () => {
@@ -485,7 +551,251 @@ describe('IntakeWorkflowService', () => {
 
       await service.process(docId);
 
-      expect(mockPass2Agent.classify).toHaveBeenCalledWith(markdown);
+      // classify now receives the markdown plus an org/direction context object.
+      expect(mockPass2Agent.classify).toHaveBeenCalledWith(
+        markdown,
+        expect.objectContaining({ directionHint: 'incoming' }),
+      );
+    });
+
+    it('routes an incoming invoice (no org-IBAN match) through the existing expense path', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'supplier doc, pay to DE89370400440532013000',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          document_type: 'invoice',
+          confidence: 0.94,
+        }),
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 42,
+        pipelineResult: {
+          businessObject: { id: 42, status: 'posted' },
+          voucher: null,
+          policy: { action: 'auto-post', reason: 'ok' },
+        },
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('draft_proposed');
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalled();
+    });
+
+    it('parks an outgoing invoice below the outgoing-confidence threshold (weak signals)', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Pay to EE38 2200 2210 2014 5685',
+      });
+      // Default outgoing_signals are all false → composed confidence is the 0.5
+      // base, below the 0.8 default threshold → needs_triage.
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ document_type: 'invoice' }),
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      if (res.status === 'needs_triage') {
+        expect(res.reason).toContain('below threshold');
+      }
+      // The expense path must not run for an outgoing invoice.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+    });
+
+    it('books an outgoing invoice as a sales invoice draft above threshold', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Pay to EE38 2200 2210 2014 5685',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeSalesResult({
+          document_type: 'invoice',
+          supplier_invoice_number: 'INV-9',
+          customer_proposal: { mode: 'match', match_entity_id: 7 },
+          outgoing_signals: {
+            org_name_is_issuer: true,
+            org_vat_is_issuer: true,
+            has_buyer_block: true,
+            self_identifies_as_invoice: true,
+          },
+        }),
+      });
+      mockProposeDraft.proposeSalesInvoiceDraft.mockResolvedValue({
+        outcome: 'draft',
+        invoiceId: 55,
+        pipelineResult: {},
+      });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('draft_proposed_invoice');
+      expect((res as { invoiceId: number }).invoiceId).toBe(55);
+      // The expense path must not run for an outgoing invoice.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+
+      // The workflow owns the status transition: pending -> triaged.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
+    });
+
+    it('hands a CSV bank statement to bank-ingestion', async () => {
+      const docId = await seedDocument('stmt.csv');
+      mockOrganization.getOrganization.mockResolvedValue({
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'date,amount,desc\n2026-06-01,100,x',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeExpenseResult({ document_type: 'bank_statement' }),
+      });
+      const getByIdSpy = jest
+        .spyOn(documentsService, 'getById')
+        .mockResolvedValue({
+          id: docId,
+          hash: 'h',
+          filename: 'stmt.csv',
+          mime_type: 'text/csv',
+          size_bytes: 100,
+          storage_path: '/tmp/stmt.csv',
+          status: 'pending',
+          processing_since: null,
+          created_at: 0,
+        });
+      const getFileSpy = jest
+        .spyOn(documentsService, 'getFile')
+        .mockResolvedValue({
+          buffer: Buffer.from('date,amount,desc\n2026-06-01,100,x'),
+          filename: 'stmt.csv',
+          mimeType: 'text/csv',
+        });
+      mockBankIngestion.startImport.mockResolvedValue({ jobId: 3 });
+
+      const res = await service.process(docId);
+
+      expect(mockBankIngestion.startImport).toHaveBeenCalledWith(
+        expect.any(String),
+        'EE382200221020145685',
+      );
+      expect(res.status).toBe('bank_import_started');
+
+      getByIdSpy.mockRestore();
+      getFileSpy.mockRestore();
+    });
+
+    it('parks a non-CSV (PDF) bank statement', async () => {
+      const docId = await seedDocument('s.pdf');
+      mockOrganization.getOrganization.mockResolvedValue({
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Statement ...',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeExpenseResult({ document_type: 'bank_statement' }),
+      });
+      const getByIdSpy = jest
+        .spyOn(documentsService, 'getById')
+        .mockResolvedValue({
+          id: docId,
+          hash: 'h',
+          filename: 's.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: '/tmp/s.pdf',
+          status: 'pending',
+          processing_since: null,
+          created_at: 0,
+        });
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      if (res.status === 'needs_triage') {
+        expect(res.reason).toMatch(/CSV/i);
+      }
+      expect(mockBankIngestion.startImport).not.toHaveBeenCalled();
+
+      getByIdSpy.mockRestore();
+    });
+
+    it('parks an outgoing invoice with a create-customer proposal', async () => {
+      const docId = await seedDocument();
+      mockOrganization.getOrganization.mockResolvedValue({
+        id: 1,
+        iban: 'EE382200221020145685',
+        name: 'Acme',
+        vat_registration_number: 'EE1',
+      });
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: 'Pay to EE38 2200 2210 2014 5685',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: makeSalesResult({
+          document_type: 'invoice',
+          supplier_invoice_number: 'INV-9',
+          outgoing_signals: {
+            org_name_is_issuer: true,
+            org_vat_is_issuer: true,
+            has_buyer_block: true,
+            self_identifies_as_invoice: true,
+          },
+        }),
+      });
+      mockProposeDraft.proposeSalesInvoiceDraft.mockResolvedValue({
+        outcome: 'customer-unresolved',
+        reason: 'create customer',
+      });
+
+      const setPendingSpy = jest.spyOn(
+        documentsService,
+        'setPendingTriageResult',
+      );
+
+      const res = await service.process(docId);
+
+      expect(res.status).toBe('needs_triage');
+      expect(setPendingSpy).toHaveBeenCalled();
+
+      setPendingSpy.mockRestore();
     });
   });
 
@@ -929,6 +1239,115 @@ describe('IntakeWorkflowService', () => {
         'phone',
         '+1 555 0000',
       );
+    });
+  });
+
+  describe('manualClassify', () => {
+    // Seed a needs_triage document with an open finding so the branch can
+    // resolve it (mirrors the resolveSupplier helper).
+    async function seedNeedsTriage(): Promise<number> {
+      const docId = await seedDocument();
+      await documentsService.setStatus(docId, 'needs_triage');
+      await auditFindingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'AI could not classify the document',
+        referenced_object_type: 'document',
+        referenced_object_id: docId,
+      });
+      return docId;
+    }
+
+    it('manually classifies a parked document as a sales invoice', async () => {
+      const docId = await seedNeedsTriage();
+      mockProposeDraft.manualClassifyInvoiceDraft.mockResolvedValue({
+        outcome: 'draft',
+        invoiceId: 77,
+        pipelineResult: {},
+      });
+
+      const res = await service.manualClassify(docId, {
+        target: 'sales_invoice',
+        customer_id: 7,
+        invoice_number: 'INV-77',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_vat_marking: null,
+      });
+
+      expect(res.status).toBe('draft_proposed_invoice');
+      expect((res as { invoiceId: number }).invoiceId).toBe(77);
+      // The expense path must NOT run for a sales-invoice target.
+      expect(mockProposeDraft.manualClassifyDraft).not.toHaveBeenCalled();
+
+      // Settled: doc triaged, finding resolved, pending proposal cleared.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding).toBeUndefined();
+    });
+
+    it('parks a duplicate-number sales-invoice manual classify to needs_triage', async () => {
+      const docId = await seedNeedsTriage();
+      mockProposeDraft.manualClassifyInvoiceDraft.mockResolvedValue({
+        outcome: 'duplicate-number',
+        reason: 'invoice number INV-77 already exists',
+      });
+
+      const res = await service.manualClassify(docId, {
+        target: 'sales_invoice',
+        customer_id: null,
+        invoice_number: 'INV-77',
+        gross_amount: 12200,
+        vat_amount: 2200,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_vat_marking: null,
+      });
+
+      expect(res.status).toBe('needs_triage');
+      // Still parked — not triaged.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('manually classifies as an expense when target is absent (backward compat)', async () => {
+      const docId = await seedNeedsTriage();
+      mockProposeDraft.manualClassifyDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 42,
+        pipelineResult: {},
+      });
+
+      // Legacy payload: NO `target` field → defaults to the expense path.
+      const res = await service.manualClassify(docId, {
+        supplier_id: 3,
+        category: 'transport',
+        document_vat_marking: null,
+        gross_amount: 1525,
+        vat_amount: 285,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        supplier_invoice_number: null,
+      });
+
+      expect(res.status).toBe('draft_proposed');
+      if (res.status === 'draft_proposed') {
+        expect(res.draft.expenseId).toBe(42);
+      }
+      expect(mockProposeDraft.manualClassifyDraft).toHaveBeenCalledTimes(1);
+      expect(
+        mockProposeDraft.manualClassifyInvoiceDraft,
+      ).not.toHaveBeenCalled();
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
     });
   });
 });

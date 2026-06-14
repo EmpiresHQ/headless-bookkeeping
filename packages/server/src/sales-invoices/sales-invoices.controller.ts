@@ -13,6 +13,7 @@ import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.serv
 import { CreateSalesInvoiceDto, SalesInvoicePostOverrideDto } from './types';
 import type { SalesInvoice } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
+import { isInvoiceNumberConflict } from './sales-invoices.service';
 
 @ApiTags('sales-invoices')
 @Controller('api/sales-invoices')
@@ -44,7 +45,7 @@ export class SalesInvoicesController {
     try {
       return await this.salesInvoicesService.createInvoice(dto);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isInvoiceNumberConflict(err)) {
         throw new ConflictException(
           `Invoice number ${dto.invoice_number} already exists`,
         );
@@ -106,13 +107,5 @@ export class SalesInvoicesController {
       voucher: result.voucher,
       policy: result.policy,
     };
-  }
-
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof Error &&
-      err.message.includes('UNIQUE constraint failed') &&
-      err.message.includes('invoice_number')
-    );
   }
 }

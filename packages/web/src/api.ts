@@ -24,6 +24,7 @@ export interface Organization {
   created_at: number;
   name: string | null;
   vat_registration_number: string | null;
+  iban: string | null;
 }
 
 export interface EntityIdentifier {
@@ -101,6 +102,7 @@ export interface UpdateOrganizationDto {
   org_type?: 'company' | 'sole_proprietor';
   name?: string | null;
   vat_registration_number?: string | null;
+  iban?: string | null;
 }
 
 export const updateOrganization = (dto: UpdateOrganizationDto) =>
@@ -347,6 +349,7 @@ export const updateEntity = (id: number, input: UpdateEntityInput) =>
 export type TriageOutcome =
   | { kind: 'expense'; document_id: number; expense_id: number }
   | { kind: 'invoice'; document_id: number; invoice_id: number }
+  | { kind: 'bank_statement'; document_id: number; job_id: number }
   | { kind: 'unknown'; document_id: number; reason: string };
 
 export const uploadDocument = (file: File) => {
@@ -379,6 +382,7 @@ export interface NeedsTriageItem {
   reason: string;
   reason_type:
     | 'supplier_unresolved'
+    | 'outgoing_invoice'
     | 'low_confidence'
     | 'category_unresolved'
     | 'ocr_failed'
@@ -403,6 +407,27 @@ export interface ManualClassifyBody {
 }
 
 export const manualClassify = (id: number, body: ManualClassifyBody) =>
+  apiFetch<TriageOutcome>(`/api/documents/${id}/manual-classify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+export interface ManualClassifyInvoiceBody {
+  target: 'sales_invoice';
+  customer_id?: number | null;
+  invoice_number: string;
+  gross_amount: number; // minor units (cents)
+  vat_amount: number; // minor units (cents)
+  currency: string;
+  tax_point_date: string; // YYYY-MM-DD
+  document_vat_marking?: string | null;
+}
+
+export const manualClassifyInvoice = (
+  id: number,
+  body: ManualClassifyInvoiceBody,
+) =>
   apiFetch<TriageOutcome>(`/api/documents/${id}/manual-classify`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
