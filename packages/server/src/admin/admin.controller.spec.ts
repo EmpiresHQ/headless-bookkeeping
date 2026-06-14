@@ -15,6 +15,8 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrganizationService } from '../organization/organization.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { ApiTokenService } from '../auth/api-token.service';
@@ -57,6 +59,8 @@ describe('AdminController (integration)', () => {
         EstoniaCountryPlugin,
         PluginLoader,
         OrganizationService,
+        AuditLogService,
+        StatutorySubmissionService,
         AdminService,
         ApiTokenService,
         {

@@ -8,7 +8,7 @@ import {
   Param,
   Put,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { SettingsService } from './settings.service';
@@ -24,11 +24,14 @@ export class SetSettingDto extends createZodDto(setSettingSchema) {}
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 
+  @ApiOperation({ summary: 'List settings', description: 'Return all key/value settings.' })
   @Get()
   async list(): Promise<{ settings: { key: string; value: string }[] }> {
     return { settings: await this.settings.list() };
   }
 
+  @ApiOperation({ summary: 'Get a setting', description: 'Fetch a setting by key.' })
+  @ApiParam({ name: 'key', description: 'Setting key' })
   @Get(':key')
   async get(
     @Param('key') key: string,
@@ -36,6 +39,8 @@ export class SettingsController {
     return { key, value: await this.settings.get(key) };
   }
 
+  @ApiOperation({ summary: 'Set a setting', description: 'Create or update a setting value.' })
+  @ApiParam({ name: 'key', description: 'Setting key' })
   @Put(':key')
   @HttpCode(HttpStatus.OK)
   async put(
@@ -46,6 +51,8 @@ export class SettingsController {
     return { key, value: dto.value };
   }
 
+  @ApiOperation({ summary: 'Delete a setting', description: 'Delete a setting by key.' })
+  @ApiParam({ name: 'key', description: 'Setting key' })
   @Delete(':key')
   @HttpCode(HttpStatus.OK)
   async delete(

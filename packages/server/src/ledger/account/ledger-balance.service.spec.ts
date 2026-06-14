@@ -7,6 +7,117 @@ import { Database } from '../../database/types';
 import { migrations } from '../../database/migrations';
 import { LedgerBalanceService } from './ledger-balance.service';
 
+describe('LedgerBalanceService.getLedgerNetForPeriod (integration)', () => {
+  let db: Kysely<Database>;
+  let service: LedgerBalanceService;
+
+  async function insertVoucher(
+    taxPointDate: string,
+    lines: Array<{ code: string; isDebit: boolean; base: number }>,
+  ): Promise<void> {
+    const v = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-${taxPointDate}-${Math.random().toString(36).slice(2, 7)}`,
+        tax_point_date: taxPointDate,
+        posted_at: 1,
+        previous_hash: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    for (const l of lines) {
+      const acc = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', l.code)
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('voucher_line')
+        .values({
+          voucher_id: v.id,
+          account_id: acc.id,
+          amount: l.base,
+          currency: 'EUR',
+          base_amount: l.base,
+          fx_rate: 1,
+          vat_code: null,
+          is_debit: l.isDebit ? 1 : 0,
+        })
+        .execute();
+    }
+  }
+
+  beforeEach(async () => {
+    const rawDb = new SqliteDb(':memory:');
+    rawDb.pragma('foreign_keys = ON');
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: rawDb }),
+    });
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error)
+      throw error instanceof Error ? error : new Error('Migration failed');
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        LedgerBalanceService,
+      ],
+    }).compile();
+    service = module.get(LedgerBalanceService);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it('sums only lines whose tax_point_date <= the period end', async () => {
+    // In-year revenue.
+    await insertVoucher('2026-03-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 10000 },
+      { code: 'REVENUE', isDebit: false, base: 10000 },
+    ]);
+    // Next-year revenue — must NOT count for a 2026 close.
+    await insertVoucher('2027-01-15', [
+      { code: 'BANK_EUR', isDebit: true, base: 5000 },
+      { code: 'REVENUE', isDebit: false, base: 5000 },
+    ]);
+
+    const rev = await service.getLedgerNetForPeriod(
+      { codes: ['REVENUE'] },
+      { endDate: '2026-12-31' },
+      { creditPositive: true },
+    );
+    expect(rev).toBe(10000);
+
+    const bank = await service.getLedgerNetForPeriod(
+      { codes: ['BANK_EUR'] },
+      { endDate: '2026-12-31' },
+    );
+    expect(bank).toBe(10000); // debit-positive, only the in-year voucher
+  });
+
+  it('honours a startDate lower bound for period flows (revenue within a year)', async () => {
+    await insertVoucher('2025-06-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 7000 },
+      { code: 'REVENUE', isDebit: false, base: 7000 },
+    ]);
+    await insertVoucher('2026-06-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 3000 },
+      { code: 'REVENUE', isDebit: false, base: 3000 },
+    ]);
+    const rev2026 = await service.getLedgerNetForPeriod(
+      { codes: ['REVENUE'] },
+      { startDate: '2026-01-01', endDate: '2026-12-31' },
+      { creditPositive: true },
+    );
+    expect(rev2026).toBe(3000);
+  });
+});
+
 /**
  * Integration test for the consolidated signed-balance maths (real-DI, in-memory
  * SQLite). LedgerBalanceService is the ONE place the debit-positive sign

@@ -59,6 +59,12 @@ export interface LedgerNetFilter {
   types?: AccountType[];
 }
 
+/** A tax-point-date window. `startDate` omitted ⇒ from the beginning of time. */
+export interface PeriodRange {
+  startDate?: string;
+  endDate: string;
+}
+
 @Injectable()
 export class LedgerBalanceService {
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
@@ -147,6 +153,50 @@ export class LedgerBalanceService {
           'net',
         ),
       );
+
+    query = query.where((eb) =>
+      eb.or([
+        ...(codes.length > 0 ? [eb('a.code', 'in', codes)] : []),
+        ...(types.length > 0 ? [eb('a.type', 'in', types)] : []),
+      ]),
+    );
+
+    const result = await query.executeTakeFirst();
+    const debitPositive = Number(result?.net ?? 0);
+    return options.creditPositive ? -debitPositive : debitPositive;
+  }
+
+  /**
+   * Period-scoped signed net: like {@link getLedgerNet} but restricted to
+   * voucher lines whose voucher.tax_point_date falls in `[startDate, endDate]`
+   * (startDate optional → cumulative-to-date for closing-balance reads of
+   * balance-sheet accounts; both bounds set → a period flow for P&L accounts).
+   * Only posted vouchers are counted.
+   */
+  async getLedgerNetForPeriod(
+    filter: LedgerNetFilter,
+    range: PeriodRange,
+    options: SignedNetOptions = {},
+  ): Promise<number> {
+    const codes = filter.codes ?? [];
+    const types = filter.types ?? [];
+    if (codes.length === 0 && types.length === 0) return 0;
+
+    let query = this.db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
+      .select(
+        sql<number>`COALESCE(SUM(CASE WHEN vl.is_debit = 1 THEN vl.base_amount ELSE -vl.base_amount END), 0)`.as(
+          'net',
+        ),
+      )
+      .where('v.posted_at', 'is not', null)
+      .where('v.tax_point_date', '<=', range.endDate);
+
+    if (range.startDate !== undefined) {
+      query = query.where('v.tax_point_date', '>=', range.startDate);
+    }
 
     query = query.where((eb) =>
       eb.or([

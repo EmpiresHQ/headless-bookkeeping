@@ -12,7 +12,7 @@ import {
   ConflictException,
   MethodNotAllowedException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { PostingService } from '../posting/posting.service';
 import { ValidationError } from '../posting/types';
 import { VoucherRepository } from './voucher.repository';
@@ -30,11 +30,14 @@ export class VoucherController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'List vouchers', description: 'Return all posted vouchers.' })
   async getVouchers(): Promise<{ vouchers: Voucher[] }> {
     return { vouchers: await this.voucherRepo.getVouchers() };
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get a voucher by id', description: 'Fetch a single posted voucher.' })
+  @ApiParam({ name: 'id', description: 'Voucher id' })
   async getVoucher(@Param('id') id: string): Promise<PostedVoucher> {
     const voucher = await this.voucherRepo.getVoucherById(Number(id));
     if (!voucher) {
@@ -45,6 +48,7 @@ export class VoucherController {
   }
 
   @Post()
+  @ApiOperation({ summary: 'Post a voucher', description: 'Post a draft voucher to the ledger.' })
   async postVoucher(@Body() draft: DraftVoucherDto): Promise<PostedVoucher> {
     try {
       return await this.postingService.postVoucher(draft);
@@ -73,16 +77,22 @@ export class VoucherController {
   // rejected at the API boundary with 405. Corrections happen via reversal
   // counter-vouchers (Task 18), never by editing the original.
   @Put(':id')
+  @ApiOperation({ summary: 'Update a voucher (rejected)', description: 'Vouchers are immutable; always returns 405 Method Not Allowed.' })
+  @ApiParam({ name: 'id', description: 'Voucher id' })
   updateVoucher(@Param('id') _id: string): never {
     throw new MethodNotAllowedException('Posted vouchers are immutable');
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Patch a voucher (rejected)', description: 'Vouchers are immutable; always returns 405 Method Not Allowed.' })
+  @ApiParam({ name: 'id', description: 'Voucher id' })
   patchVoucher(@Param('id') _id: string): never {
     throw new MethodNotAllowedException('Posted vouchers are immutable');
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete a voucher (rejected)', description: 'Vouchers are immutable; always returns 405 Method Not Allowed.' })
+  @ApiParam({ name: 'id', description: 'Voucher id' })
   deleteVoucher(@Param('id') _id: string): never {
     throw new MethodNotAllowedException('Posted vouchers are immutable');
   }

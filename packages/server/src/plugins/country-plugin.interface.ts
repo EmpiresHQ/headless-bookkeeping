@@ -4,6 +4,16 @@ import type {
   StatutoryReportResult,
   StatutoryFormat,
 } from './statutory-report.types';
+import type {
+  AssetClass,
+  DepreciationMethod,
+  FixedAssetDefaults,
+} from './fixed-asset.types';
+import type {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
 
 export type {
   VatComputation,
@@ -17,6 +27,18 @@ export type {
   StatutoryReportResult,
   StatutoryFormat,
 } from './statutory-report.types';
+
+export type {
+  AssetClass,
+  DepreciationMethod,
+  FixedAssetDefaults,
+} from './fixed-asset.types';
+
+export type {
+  AnnualAccountsInput,
+  AnnualAccountsOpts,
+  AnnualAccountsResult,
+} from './annual-accounts.types';
 
 /**
  * VATCode - A country-specific classification of a line's VAT treatment.
@@ -338,4 +360,31 @@ export interface CountryPlugin extends CountryPluginRetrieval {
     input: StatutoryReportInput,
     opts: { formats: StatutoryFormat[] },
   ): StatutoryReportResult;
+
+  /**
+   * Render the jurisdiction's annual-accounts artifact(s) (e.g. RIK-XBRL) from
+   * a neutral, pre-assembled input. The plugin owns the account→RTJ-line→XBRL
+   * concept mapping and stays pure — no DB access. Unsupported jurisdictions
+   * return empty artifacts. Mirrors generateStatutoryReports (ADR-0033/0034).
+   */
+  generateAnnualAccounts(
+    input: AnnualAccountsInput,
+    opts: AnnualAccountsOpts,
+  ): AnnualAccountsResult;
+
+  /**
+   * The depreciation method this jurisdiction uses. Estonia: straight-line
+   * (RTJ 5 prescribes no fixed-rate table). The kernel asks the plugin; it
+   * never hardcodes the method (ADR-0002/0035).
+   */
+  getDepreciationMethod(): DepreciationMethod;
+
+  /**
+   * Per-class default useful life (years) and default residual value
+   * (base-currency minor units) for a fixed-asset class. Estonia: lives
+   * vehicle 5 / it_equipment 3 / machinery 5 / furniture 7; residual 0 for
+   * every class except vehicle (a conventional non-zero default). Both are
+   * overridable per asset at intake (ADR-0035).
+   */
+  getFixedAssetDefaults(assetClass: AssetClass): FixedAssetDefaults;
 }

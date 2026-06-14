@@ -46,6 +46,7 @@ async function main(): Promise<void> {
     request,
     io,
     readFileSync: (p) => fsReadFileSync(p, 'utf8'),
+    readFileBuffer: (p) => fsReadFileSync(p),
     stdinIsTTY: process.stdin.isTTY ?? false,
     readStdin: readStdinSync,
     exit: (code) => {

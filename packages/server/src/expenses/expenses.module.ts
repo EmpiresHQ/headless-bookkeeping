@@ -11,6 +11,7 @@ import { PolicyModule } from '../policy/policy.module';
 import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
 import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { FixedAssetsModule } from '../fixed-assets/fixed-assets.module';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 
@@ -28,6 +29,7 @@ import { ExpensesService } from './expenses.service';
     PostingPipelineModule,
     PeriodLockModule,
     CategoriesModule,
+    FixedAssetsModule,
   ],
   controllers: [ExpensesController],
   providers: [ExpensesService],

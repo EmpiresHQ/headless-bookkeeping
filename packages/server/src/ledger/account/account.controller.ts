@@ -1,5 +1,5 @@
 import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { AccountService } from './account.service';
 import { Account } from './types';
 
@@ -9,11 +9,14 @@ export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
   @Get()
+  @ApiOperation({ summary: 'List accounts', description: 'Return the chart of accounts.' })
   async getAccounts(): Promise<{ accounts: Account[] }> {
     return { accounts: await this.accountService.getAccounts() };
   }
 
   @Get(':code')
+  @ApiOperation({ summary: 'Get an account by code', description: 'Fetch a single account.' })
+  @ApiParam({ name: 'code', description: 'Account code' })
   async getAccount(@Param('code') code: string): Promise<Account> {
     const account = await this.accountService.getAccountByCode(code);
     if (!account) {
