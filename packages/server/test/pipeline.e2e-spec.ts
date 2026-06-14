@@ -338,6 +338,31 @@ describe('Pipeline (e2e)', () => {
         Reflect.get(Reflect.get(res.body, 'invoice'), 'voucher_id'),
       ).toBeNull();
     });
+
+    it('creates a pending Approval for the held invoice (the /post path is self-sufficient)', async () => {
+      // A2 regression guard: posting an over-ceiling invoice must mint the
+      // Approval itself — otherwise the invoice is stuck in pending with nothing
+      // to approve and revenue silently never posts. Mirrors the expense path.
+      const invoice = await createInvoice({
+        gross_amount: 250000,
+        vat_amount: 50000,
+        invoice_number: `INV-APPR-${Date.now()}`,
+      });
+      const invoiceId = Reflect.get(invoice, 'id') as number;
+
+      await request(app.getHttpServer())
+        .post(`/api/sales-invoices/${invoiceId}/post`)
+        .expect(201);
+
+      const approvals = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'sales_invoice')
+        .where('object_id', '=', invoiceId)
+        .execute();
+      expect(approvals).toHaveLength(1);
+      expect(approvals[0].status).toBe('pending');
+    });
   });
 
   describe('SalesInvoice pipeline: idempotency (AC-9)', () => {
