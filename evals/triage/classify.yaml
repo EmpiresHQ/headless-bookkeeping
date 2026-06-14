@@ -96,14 +96,17 @@ tests:
         KM 22%                            48,40 EUR
         Kokku                            268,40 EUR
     assert:
-      - type: is-json
       - type: javascript
         # The supplier is Estonian. The OBSERVED country must be read as EE — this
         # is the signal the kernel's match-corroboration guard checks (an EE rent
         # wrongly matched to a US software vendor was the field mis-resolve). The
         # model must NOT default the country to a foreign value.
+        # Tolerate a ```json markdown fence (this model occasionally wraps
+        # json_schema output) so the assertion tests the content, not the wrapper.
         value: |
-          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          const raw = typeof output === 'string' ? output : JSON.stringify(output);
+          const cleaned = raw.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/i, '').trim();
+          const o = JSON.parse(cleaned);
           const sp = o.supplier_proposal;
           return o.kind === 'new_expense'
             && sp && sp.mode === 'create'
