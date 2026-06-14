@@ -26,6 +26,15 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('match'),
     match_entity_id: z.number().int().positive(),
+    // The supplier identity the agent OBSERVED on the document, carried so the
+    // kernel can corroborate the match deterministically (ADR-0014). A match to
+    // an entity whose country/registration key positively contradicts the
+    // document is routed to operator triage rather than booked against the wrong
+    // supplier (field case: an EE rent invoice matched to a US software vendor).
+    // Optional/nullable: a document may not print these, and an absent value
+    // simply skips the corresponding check — it never forces a false reject.
+    observed_country: z.string().nullable().optional(),
+    observed_registration_key: z.string().nullable().optional(),
   }),
   z.object({
     mode: z.literal('create'),

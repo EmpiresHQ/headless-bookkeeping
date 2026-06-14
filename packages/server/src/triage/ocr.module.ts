@@ -9,6 +9,7 @@ import { MimeRoutingTranscriber } from './mime-routing-transcriber';
 import { LlmVisionTranscriber } from './llm-vision-transcriber';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PdfRasterizer } from './pdf-rasterizer';
+import { HeicDecoder } from './heic-decoder';
 
 /**
  * OcrModule — provides OcrService (Pass 1) and binds the DocumentTranscriber
@@ -31,6 +32,7 @@ import { PdfRasterizer } from './pdf-rasterizer';
     LlmVisionTranscriber,
     PdfTextExtractor,
     PdfRasterizer,
+    HeicDecoder,
     { provide: DocumentTranscriber, useClass: MimeRoutingTranscriber },
   ],
   exports: [OcrService],

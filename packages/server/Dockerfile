@@ -23,8 +23,9 @@ COPY package.json package-lock.json ./
 COPY packages/server/package.json packages/server/
 COPY packages/web/package.json    packages/web/
 COPY packages/cli/package.json    packages/cli/
-# poppler-utils (pdftoppm) rasterises scanned PDFs for OCR (ADR-0032).
-RUN apk add --no-cache python3 make g++ curl poppler-utils && \
+# poppler-utils (pdftoppm) rasterises scanned PDFs; libheif-tools (heif-convert)
+# transcodes HEIC/HEIF photos to PNG — both feed the vision OCR path (ADR-0032).
+RUN apk add --no-cache python3 make g++ curl poppler-utils libheif-tools && \
     npm ci --omit=dev && \
     npm cache clean --force && \
     apk del python3 make g++

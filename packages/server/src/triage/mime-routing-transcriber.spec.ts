@@ -2,33 +2,39 @@ import { MimeRoutingTranscriber } from './mime-routing-transcriber';
 import { LlmVisionTranscriber } from './llm-vision-transcriber';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PdfRasterizer } from './pdf-rasterizer';
+import { HeicDecoder } from './heic-decoder';
 import { OcrOutcome } from './document-transcriber.port';
 
 function make(opts: {
-  vision?: (mime: string) => OcrOutcome;
+  vision?: (img: { buffer: Buffer; mimeType: string }) => OcrOutcome;
   pdfText?: string;
   pages?: Buffer[];
+  /** HEIC decode result: a PNG buffer, or null to simulate a decode failure.
+   *  `undefined` (the default) also yields null — heic is only exercised by the
+   *  heic tests, which set this explicitly. */
+  heicPng?: Buffer | null;
 }) {
   // Standalone jest.fns so assertions reference the fn directly (avoids the
   // unbound-method lint on `obj.method`).
-  const transcribeImage = jest.fn((img: { mimeType: string }) =>
+  const transcribeImage = jest.fn((img: { buffer: Buffer; mimeType: string }) =>
     Promise.resolve(
-      opts.vision
-        ? opts.vision(img.mimeType)
-        : { ok: true, markdown: 'IMG-OCR' },
+      opts.vision ? opts.vision(img) : { ok: true, markdown: 'IMG-OCR' },
     ),
   );
   const extract = jest.fn(() => Promise.resolve(opts.pdfText ?? ''));
   const toPngPages = jest.fn(() => Promise.resolve(opts.pages ?? []));
+  const toPng = jest.fn(() => Promise.resolve(opts.heicPng ?? null));
 
   const vision = { transcribeImage } as unknown as LlmVisionTranscriber;
   const pdfText = { extract } as unknown as PdfTextExtractor;
   const raster = { toPngPages } as unknown as PdfRasterizer;
+  const heic = { toPng } as unknown as HeicDecoder;
   return {
-    t: new MimeRoutingTranscriber(vision, pdfText, raster),
+    t: new MimeRoutingTranscriber(vision, pdfText, raster, heic),
     transcribeImage,
     extract,
     toPngPages,
+    toPng,
   };
 }
 
@@ -96,5 +102,45 @@ describe('MimeRoutingTranscriber', () => {
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.category).toBe('unreadable');
+  });
+
+  it('decodes image/heic to PNG and routes the PNG to vision', async () => {
+    const png = Buffer.from('PNG-BYTES');
+    const { t, transcribeImage, toPng } = make({
+      heicPng: png,
+      vision: () => ({ ok: true, markdown: 'HEIC-OCR' }),
+    });
+
+    const out = await t.transcribe(file('image/heic'));
+
+    expect(out).toEqual({ ok: true, markdown: 'HEIC-OCR' });
+    expect(toPng).toHaveBeenCalledTimes(1);
+    // Vision receives the DECODED png bytes tagged as image/png, never the heic.
+    expect(transcribeImage).toHaveBeenCalledWith({
+      buffer: png,
+      mimeType: 'image/png',
+    });
+  });
+
+  it('decodes image/heif the same way', async () => {
+    const png = Buffer.from('PNG-BYTES');
+    const { t, transcribeImage } = make({ heicPng: png });
+    await t.transcribe(file('image/heif'));
+    expect(transcribeImage).toHaveBeenCalledWith({
+      buffer: png,
+      mimeType: 'image/png',
+    });
+  });
+
+  it('maps a heic that cannot be decoded to unreadable with an actionable hint', async () => {
+    const { t, transcribeImage } = make({ heicPng: null });
+    const out = await t.transcribe(file('image/heic'));
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.category).toBe('unreadable');
+    expect(out.detail.toLowerCase()).toContain('heic');
+    expect(out.detail.toLowerCase()).toContain('convert');
+    // The undecoded heic is NEVER forwarded to a vision model that rejects it.
+    expect(transcribeImage).not.toHaveBeenCalled();
   });
 });

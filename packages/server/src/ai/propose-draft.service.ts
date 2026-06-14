@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -11,6 +15,7 @@ import {
   TriageResult,
 } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
+import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
 import {
@@ -305,6 +310,65 @@ export class ProposeDraftService {
       return { outcome: 'resolved', supplierId: null };
     }
     if (proposal.mode === 'match') {
+      // Validate the agent-proposed entity BEFORE trusting it. A hallucinated id
+      // (field case: match_entity_id 500001) or a wrong-role match would feed a
+      // phantom/incorrect supplier_id into createExpense — an FK violation that
+      // strands the document in `pending` with no recovery path. A miss routes to
+      // operator triage instead, exactly like the `create` branch, so the
+      // document stays recoverable (resolve-supplier / manual-classify).
+      let matched;
+      try {
+        matched = await this.entitiesService.findById(proposal.match_entity_id);
+      } catch (e) {
+        if (e instanceof NotFoundException) {
+          return {
+            outcome: 'supplier-unresolved',
+            reason: `match proposal references entity ${proposal.match_entity_id}, which does not exist`,
+          };
+        }
+        throw e;
+      }
+      if (matched.role !== 'supplier') {
+        return {
+          outcome: 'supplier-unresolved',
+          reason: `match proposal references entity ${proposal.match_entity_id}, which is a '${matched.role}', not a supplier`,
+        };
+      }
+
+      // Corroborate the match against the identity the agent OBSERVED on the
+      // document (ADR-0014). We reject ONLY on a positive contradiction — an
+      // absent observed value never forces a false reject. This catches a
+      // plausible-but-wrong semantic match (an EE rent invoice resolved to a US
+      // software vendor) that existence + role validation cannot.
+      const observedCountry = proposal.observed_country?.trim();
+      if (
+        observedCountry &&
+        observedCountry.toUpperCase() !== matched.country.trim().toUpperCase()
+      ) {
+        return {
+          outcome: 'supplier-unresolved',
+          reason: `match to entity ${proposal.match_entity_id} (country ${matched.country}) contradicts the document's observed country ${observedCountry}`,
+        };
+      }
+      const observedRegKey = proposal.observed_registration_key
+        ? normalizeIdentifier(
+            'registration_key',
+            proposal.observed_registration_key,
+          )
+        : null;
+      if (observedRegKey) {
+        const entityRegKeys = matched.identifiers
+          .filter((i) => i.kind === 'registration_key')
+          .map((i) => normalizeIdentifier('registration_key', i.value));
+        // Only a contradiction (the entity carries reg keys, none of which is
+        // the observed one) rejects; an entity with no reg key cannot disprove.
+        if (entityRegKeys.length > 0 && !entityRegKeys.includes(observedRegKey)) {
+          return {
+            outcome: 'supplier-unresolved',
+            reason: `match to entity ${proposal.match_entity_id} contradicts the document's observed registration key ${proposal.observed_registration_key}`,
+          };
+        }
+      }
       return { outcome: 'resolved', supplierId: proposal.match_entity_id };
     }
     // mode === 'create' — multi-key find-or-onboard (ADR-0014).

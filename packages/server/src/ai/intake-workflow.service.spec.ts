@@ -491,6 +491,33 @@ describe('IntakeWorkflowService', () => {
       expect(doc.status).toBe('needs_triage');
     });
 
+    it('routes to needs_triage when proposeDraft throws unexpectedly (never strands the document in pending)', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ confidence: 0.94 }),
+      });
+      // An unforeseen fault inside draft proposal (e.g. an FK violation that
+      // escapes a service). Per ADR-0024, no fault may leave the document in
+      // `pending` — it must route to a human, recoverably.
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new Error('FOREIGN KEY constraint failed'),
+      );
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toContain('FOREIGN KEY constraint failed');
+        expect(result.finding.finding_type).toBe('needs_triage');
+      }
+
+      // The document is routed, not stranded in pending, and processing cleared.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+      expect(doc.processing_since).toBeNull();
+    });
+
     it('calls OCR transcribe with the correct documentId', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({

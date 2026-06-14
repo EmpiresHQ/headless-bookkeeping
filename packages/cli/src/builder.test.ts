@@ -268,6 +268,257 @@ describe('multipart upload', () => {
   });
 });
 
+const bodyFlagSpec = {
+  components: {
+    schemas: {
+      CreatePeriodDto: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Period name' },
+          start_date: { type: 'string' },
+          end_date: { type: 'string' },
+          count: { type: 'integer' },
+          active: { type: 'boolean' },
+          status: { type: 'string', enum: ['open', 'locked'] },
+        },
+        required: ['name', 'start_date'],
+      },
+      // allOf must be merged into a flat field list.
+      ApproveDto: {
+        allOf: [
+          { type: 'object', properties: { approved_by: { type: 'string' } } },
+          {
+            type: 'object',
+            properties: { note: { type: 'string' } },
+            required: ['approved_by'],
+          },
+        ],
+      },
+      // A nested array makes the body non-scalar → no flags, stdin + epilogue.
+      MatchDto: {
+        type: 'object',
+        properties: {
+          statementId: { type: 'integer' },
+          matches: { type: 'array', items: { type: 'object' } },
+        },
+        required: ['matches'],
+      },
+    },
+  },
+  paths: {
+    '/api/reporting-periods': {
+      post: {
+        tags: ['reporting-periods'],
+        operationId: 'Rp_create',
+        summary: 'Create a reporting period',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CreatePeriodDto' },
+            },
+          },
+        },
+      },
+    },
+    '/api/approvals/{id}/approve': {
+      post: {
+        tags: ['approvals'],
+        operationId: 'Approvals_approve',
+        summary: 'Approve',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ApproveDto' },
+            },
+          },
+        },
+      },
+    },
+    '/api/bank-statements/{id}/match': {
+      post: {
+        tags: ['bank'],
+        operationId: 'Bank_match',
+        summary: 'Execute a match',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/MatchDto' },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+describe('specToCommands — JSON body fields', () => {
+  const cmds = specToCommands(bodyFlagSpec as never);
+
+  it('resolves a $ref body into typed, required-aware scalar fields', () => {
+    const create = cmds.find((c) => c.action === 'create')!;
+    expect(create.bodyAllScalar).toBe(true);
+    const byName = Object.fromEntries(
+      (create.bodyFields ?? []).map((f) => [f.name, f]),
+    );
+    expect(byName.name).toMatchObject({ type: 'string', required: true });
+    expect(byName.start_date).toMatchObject({ required: true });
+    expect(byName.end_date).toMatchObject({ required: false });
+    expect(byName.count.type).toBe('number');
+    expect(byName.active.type).toBe('boolean');
+    expect(byName.status.choices).toEqual(['open', 'locked']);
+  });
+
+  it('merges an allOf body schema into one field list', () => {
+    const approve = cmds.find((c) => c.action === 'approve')!;
+    expect(approve.bodyAllScalar).toBe(true);
+    const names = (approve.bodyFields ?? []).map((f) => f.name).sort();
+    expect(names).toEqual(['approved_by', 'note']);
+    const approvedBy = approve.bodyFields!.find((f) => f.name === 'approved_by');
+    expect(approvedBy!.required).toBe(true);
+  });
+
+  it('marks a body with a nested array as not all-scalar', () => {
+    const match = cmds.find((c) => c.action === 'match')!;
+    expect(match.hasBody).toBe(true);
+    expect(match.bodyAllScalar).toBe(false);
+  });
+});
+
+describe('buildCli — JSON body flags (scalar bodies)', () => {
+  it('exposes one flag per scalar body field in help, with enum choices', async () => {
+    let help = '';
+    const cli = buildCli(bodyFlagSpec as never, {
+      ...noopDeps,
+      io: { out: (s) => (help += s), err: () => {} },
+    });
+    await cli.parseAsync(['reporting-periods', 'create', '--help']);
+    expect(help).toContain('--name');
+    expect(help).toContain('--start_date');
+    expect(help).toContain('--status');
+    expect(help).toContain('open');
+    expect(help).toContain('locked');
+  });
+
+  it('assembles a JSON body from flags with correct types, omitting absent fields', async () => {
+    let sentBody: unknown;
+    const cli = buildCli(bodyFlagSpec as never, {
+      ...noopDeps,
+      request: async (_m, _p, args) => {
+        sentBody = (args as { body?: unknown })?.body;
+        return { ok: true, status: 200, body: {} };
+      },
+    });
+    await cli.parseAsync([
+      'reporting-periods',
+      'create',
+      '--name',
+      '2026-05',
+      '--start_date',
+      '2026-05-01',
+      '--count',
+      '3',
+      '--active',
+      'true',
+    ]);
+    expect(sentBody).toEqual({
+      name: '2026-05',
+      start_date: '2026-05-01',
+      count: 3,
+      active: true,
+    });
+  });
+
+  it('rejects an out-of-enum value for a body flag', async () => {
+    let err = '';
+    let called = false;
+    const cli = buildCli(bodyFlagSpec as never, {
+      ...noopDeps,
+      io: { out: () => {}, err: (s) => (err += s) },
+      request: async () => {
+        called = true;
+        return { ok: true, status: 200, body: {} };
+      },
+    });
+    try {
+      await cli.parseAsync([
+        'reporting-periods',
+        'create',
+        '--name',
+        'x',
+        '--start_date',
+        'y',
+        '--status',
+        'frozen',
+      ]);
+    } catch {
+      /* yargs fail() rethrows */
+    }
+    expect(called).toBe(false);
+    expect(err).toMatch(/status/i);
+  });
+
+  it('errors when body flags and a stdin body are both supplied', async () => {
+    let err = '';
+    let called = false;
+    const cli = buildCli(bodyFlagSpec as never, {
+      ...noopDeps,
+      stdinIsTTY: false,
+      readStdin: () => '{"name":"piped"}',
+      io: { out: () => {}, err: (s) => (err += s) },
+      request: async () => {
+        called = true;
+        return { ok: true, status: 200, body: {} };
+      },
+      exit: () => {},
+    });
+    await cli.parseAsync([
+      'reporting-periods',
+      'create',
+      '--name',
+      '2026-05',
+      '--start_date',
+      '2026-05-01',
+    ]);
+    expect(called).toBe(false);
+    expect(err.toLowerCase()).toContain('both');
+  });
+});
+
+describe('buildCli — complex JSON body (stdin + epilogue)', () => {
+  it('generates no body flags and lists the fields in help', async () => {
+    let help = '';
+    const cli = buildCli(bodyFlagSpec as never, {
+      ...noopDeps,
+      io: { out: (s) => (help += s), err: () => {} },
+    });
+    await cli.parseAsync(['bank', 'match', '7', '--help']);
+    // No per-field flag for the array body…
+    expect(help).not.toContain('--matches');
+    // …but the body shape is discoverable.
+    expect(help).toContain('Request body fields');
+    expect(help).toContain('matches');
+    expect(help).toContain('statementId');
+  });
+
+  it('reads the complex body from stdin', async () => {
+    let sentBody: unknown;
+    const cli = buildCli(bodyFlagSpec as never, {
+      ...noopDeps,
+      stdinIsTTY: false,
+      readStdin: () => '{"matches":[{"voucherId":1}]}',
+      request: async (_m, _p, args) => {
+        sentBody = (args as { body?: unknown })?.body;
+        return { ok: true, status: 200, body: {} };
+      },
+    });
+    await cli.parseAsync(['bank', 'match', '7']);
+    expect(sentBody).toEqual({ matches: [{ voucherId: 1 }] });
+  });
+});
+
 describe('buildCli dispatch', () => {
   function makeDeps() {
     const out: string[] = [];

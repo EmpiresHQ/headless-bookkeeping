@@ -17,6 +17,18 @@ export interface OptionSpec {
   describe?: string;
 }
 
+export interface BodyField {
+  name: string;
+  type: 'string' | 'number' | 'boolean';
+  required: boolean;
+  choices?: string[];
+  describe?: string;
+  /** Raw OpenAPI type for display (e.g. 'array', 'integer', 'enum'). */
+  displayType: string;
+  /** Top-level scalar (string/number/boolean/enum) vs nested object/array. */
+  scalar: boolean;
+}
+
 export interface CommandSpec {
   group: string;
   action: string;
@@ -26,6 +38,10 @@ export interface CommandSpec {
   options: OptionSpec[];
   hasBody: boolean;
   multipart?: MultipartField[];
+  /** Top-level fields of the JSON request body (resolved from $ref/allOf). */
+  bodyFields?: BodyField[];
+  /** True when every bodyField is scalar → the body is driven by flags. */
+  bodyAllScalar?: boolean;
   summary?: string;
   description?: string;
 }
@@ -38,6 +54,26 @@ interface RawParam {
   description?: string;
 }
 
+interface RawProperty {
+  type?: string;
+  format?: string;
+  description?: string;
+  enum?: string[];
+  $ref?: string;
+  allOf?: RawSchema[];
+  items?: unknown;
+  properties?: Record<string, RawProperty>;
+  required?: string[];
+}
+
+interface RawSchema {
+  type?: string;
+  properties?: Record<string, RawProperty>;
+  required?: string[];
+  $ref?: string;
+  allOf?: RawSchema[];
+}
+
 interface RawOperation {
   tags?: string[];
   operationId?: string;
@@ -45,21 +81,14 @@ interface RawOperation {
   description?: string;
   parameters?: RawParam[];
   requestBody?: {
-    content?: Record<
-      string,
-      {
-        schema?: {
-          properties?: Record<string, { type?: string; format?: string; description?: string }>;
-          required?: string[];
-        };
-      }
-    >;
+    content?: Record<string, { schema?: RawSchema }>;
   };
 }
 
 export interface OpenApiSpec {
   paths: Record<string, Record<string, RawOperation>>;
   tags?: { name: string; description?: string }[];
+  components?: { schemas?: Record<string, RawSchema> };
 }
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
@@ -84,6 +113,68 @@ function optionType(schemaType?: string): OptionSpec['type'] {
   if (schemaType === 'integer' || schemaType === 'number') return 'number';
   if (schemaType === 'boolean') return 'boolean';
   return 'string';
+}
+
+const SCALAR_TYPES = new Set(['string', 'number', 'integer', 'boolean']);
+
+/**
+ * Resolve a schema down to its flat top-level `{ properties, required }`.
+ * nestjs-zod emits request bodies into `components.schemas` referenced by
+ * `$ref` (and `match` via `allOf`), so a body schema reads empty until it is
+ * dereferenced. `allOf` members are merged; depth is bounded against cycles.
+ */
+function derefSchema(
+  schema: RawSchema | RawProperty | undefined,
+  schemas: Record<string, RawSchema>,
+  depth = 0,
+): { properties: Record<string, RawProperty>; required: string[] } {
+  if (!schema || depth > 6) return { properties: {}, required: [] };
+  if (schema.$ref) {
+    const name = schema.$ref.split('/').pop() ?? '';
+    return derefSchema(schemas[name], schemas, depth + 1);
+  }
+  if (schema.allOf) {
+    const merged: {
+      properties: Record<string, RawProperty>;
+      required: string[];
+    } = { properties: {}, required: [] };
+    for (const part of schema.allOf) {
+      const d = derefSchema(part, schemas, depth + 1);
+      Object.assign(merged.properties, d.properties);
+      merged.required.push(...d.required);
+    }
+    return merged;
+  }
+  return { properties: schema.properties ?? {}, required: schema.required ?? [] };
+}
+
+/** Extract the top-level body fields of an application/json schema, or undefined. */
+function extractBodyFields(
+  schema: RawSchema | undefined,
+  schemas: Record<string, RawSchema>,
+): BodyField[] | undefined {
+  const { properties, required } = derefSchema(schema, schemas);
+  const names = Object.keys(properties);
+  if (names.length === 0) return undefined;
+  return names.map<BodyField>((name) => {
+    const p = properties[name];
+    const isEnum = Array.isArray(p.enum) && p.enum.length > 0;
+    const scalar =
+      (SCALAR_TYPES.has(p.type ?? '') || isEnum) &&
+      p.type !== 'array' &&
+      !p.properties &&
+      !p.$ref &&
+      !p.allOf;
+    return {
+      name,
+      type: optionType(p.type),
+      required: required.includes(name),
+      choices: isEnum ? p.enum : undefined,
+      describe: p.description,
+      displayType: p.type ?? (isEnum ? 'enum' : 'object'),
+      scalar,
+    };
+  });
 }
 
 /** Turn the OpenAPI spec into a flat list of command descriptors. */
@@ -120,6 +211,14 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
           }))
         : undefined;
 
+      const jsonSchema = op.requestBody?.content?.['application/json']?.schema;
+      const bodyFields = jsonSchema
+        ? extractBodyFields(jsonSchema, spec.components?.schemas ?? {})
+        : undefined;
+      const bodyAllScalar = bodyFields
+        ? bodyFields.every((f) => f.scalar)
+        : undefined;
+
       commands.push({
         group: kebab(tag),
         action: op.operationId
@@ -131,6 +230,8 @@ export function specToCommands(spec: OpenApiSpec): CommandSpec[] {
         options,
         hasBody: op.requestBody !== undefined,
         multipart,
+        bodyFields,
+        bodyAllScalar,
         summary: op.summary,
         description: op.description,
       });
@@ -278,6 +379,25 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                     : (f.describe ?? `Form field: ${f.name}`),
                 });
               }
+            } else if (cmd.bodyAllScalar && cmd.bodyFields) {
+              // A flat scalar body → one flag per field (symmetric with
+              // multipart). Body flags are NEVER demandOption: a required field
+              // is only annotated, so the --body-file / stdin escape still
+              // works; the server's schema validation stays the source of truth.
+              for (const f of cmd.bodyFields) {
+                yy = yy.option(f.name, {
+                  type: f.type,
+                  choices: f.choices,
+                  describe: f.required
+                    ? `${f.describe ?? `Body field: ${f.name}`} (required)`
+                    : (f.describe ?? `Body field: ${f.name}`),
+                });
+              }
+              yy = yy.option('body-file', {
+                type: 'string',
+                describe:
+                  'Path to a JSON request body (or pipe JSON via stdin) — alternative to the flags above',
+              });
             } else if (cmd.hasBody) {
               yy = yy.option('body-file', {
                 type: 'string',
@@ -285,8 +405,20 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                   'Path to a JSON request body (or pipe JSON via stdin)',
               });
             }
-            if (cmd.description) {
-              yy = yy.epilogue(cmd.description);
+            const epilogue: string[] = [];
+            if (cmd.description) epilogue.push(cmd.description);
+            // For stdin-only bodies (nested/array), the field names live only in
+            // OpenAPI; surface them so the body shape is discoverable from --help.
+            if (cmd.hasBody && cmd.bodyFields && !cmd.bodyAllScalar) {
+              epilogue.push('Request body fields (pipe JSON via stdin):');
+              for (const f of cmd.bodyFields) {
+                epilogue.push(
+                  `  ${f.name} (${f.displayType})${f.required ? ' [required]' : ''}`,
+                );
+              }
+            }
+            if (epilogue.length) {
+              yy = yy.epilogue(epilogue.join('\n'));
             }
             return yy;
           },
@@ -321,6 +453,28 @@ export function buildCli(spec: OpenApiSpec, deps: BuilderDeps): Argv {
                 }
               }
               body = form;
+            } else if (cmd.bodyAllScalar && cmd.bodyFields) {
+              // Assemble the JSON body from the defined flags (yargs has already
+              // coerced number/boolean). An undefined flag is omitted, not sent
+              // as null. Flags and a stdin/--body-file body are mutually
+              // exclusive — supplying both is ambiguous, so reject it.
+              const fromFlags: Record<string, unknown> = {};
+              let anyFlag = false;
+              for (const f of cmd.bodyFields) {
+                if (argv[f.name] !== undefined) {
+                  fromFlags[f.name] = argv[f.name];
+                  anyFlag = true;
+                }
+              }
+              const piped = readBody(argv, deps);
+              if (anyFlag && piped !== undefined) {
+                deps.io.err(
+                  'Provide the request body via flags OR via --body-file/stdin, not both.\n',
+                );
+                deps.exit(1);
+                return;
+              }
+              body = anyFlag ? fromFlags : piped;
             } else {
               body = cmd.hasBody ? readBody(argv, deps) : undefined;
             }

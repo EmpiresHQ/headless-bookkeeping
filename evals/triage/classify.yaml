@@ -85,6 +85,30 @@ tests:
             && sp.create_registration_key === null
             && sp.create_email === 'help@anoma.ly';
 
+  - description: EE rent invoice → new_expense, create proposal anchored to country EE (observed-country fidelity)
+    vars:
+      markdown: |
+        Paavli Kinnisvara OÜ
+        Reg. nr 11000000   KMKR EE101000000
+        Paavli 2b, Tallinn, Estonia
+        Arve nr 264   Kuupäev: 01.06.2026
+        Büroopinna üür juuni 2026        220,00 EUR
+        KM 22%                            48,40 EUR
+        Kokku                            268,40 EUR
+    assert:
+      - type: is-json
+      - type: javascript
+        # The supplier is Estonian. The OBSERVED country must be read as EE — this
+        # is the signal the kernel's match-corroboration guard checks (an EE rent
+        # wrongly matched to a US software vendor was the field mis-resolve). The
+        # model must NOT default the country to a foreign value.
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          const sp = o.supplier_proposal;
+          return o.kind === 'new_expense'
+            && sp && sp.mode === 'create'
+            && sp.create_country === 'EE';
+
   - description: EE invoice with VAT no. + email + phone → extract all printed identifiers
     vars:
       markdown: |
