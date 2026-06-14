@@ -22,6 +22,12 @@ import {
 } from './types';
 import { PostedVoucher } from '../ledger/voucher/types';
 
+/** One row of an {@link ApprovalsService.approveBatch} result — success carries
+ *  the approved approval + posted voucher; failure carries the error message. */
+export type BatchApproveRow =
+  | { id: number; ok: true; approval: Approval; voucher: PostedVoucher | null }
+  | { id: number; ok: false; error: string };
+
 /**
  * ApprovalsService — manages the lifecycle of approvals created when Policy
  * holds a Rules-valid voucher for human decision.
@@ -225,6 +231,33 @@ export class ApprovalsService {
 
     const updatedApproval = await this.getApprovalById(id);
     return { approval: updatedApproval, voucher };
+  }
+
+  /**
+   * Approve several approvals in one call. Each is approved independently
+   * (reusing the idempotent {@link approveApproval}); a failure on one id is
+   * captured as a per-id error rather than aborting the whole batch, so the
+   * operator/agent confirms many holds (e.g. a statement's reconciliation
+   * matches) without one bad id losing the rest. Returns one row per input id.
+   */
+  async approveBatch(
+    ids: number[],
+    approvedBy: string,
+  ): Promise<BatchApproveRow[]> {
+    const rows: BatchApproveRow[] = [];
+    for (const id of ids) {
+      try {
+        const { approval, voucher } = await this.approveApproval(id, approvedBy);
+        rows.push({ id, ok: true, approval, voucher });
+      } catch (e) {
+        rows.push({
+          id,
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+    return rows;
   }
 
   // ── Reject ──────────────────────────────────────────────────────

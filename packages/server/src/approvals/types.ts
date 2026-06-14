@@ -60,6 +60,16 @@ export const approveSchema = z.object({
 export class ApproveDto extends createZodDto(approveSchema) {}
 
 /**
+ * DTO for approving several approvals in one call.
+ */
+export const approveBatchSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1),
+  approved_by: z.string(),
+});
+
+export class ApproveBatchDto extends createZodDto(approveBatchSchema) {}
+
+/**
  * DTO for rejecting an approval.
  */
 export const rejectSchema = z.object({

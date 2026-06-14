@@ -864,6 +864,39 @@ describe('ReconciliationService (integration)', () => {
       expect(dbRecords[0].amount_matched).toBe(50000);
     });
 
+    it('does not re-propose a (transaction, voucher) pair already matched (draft)', async () => {
+      const customer = await seedCustomer();
+      const voucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        50000,
+        'INV-DUP-1',
+        '2025-01-10',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment',
+          amount: 50000,
+          reference: 'INV-DUP-1',
+        },
+      ]);
+
+      const first = await reconciliationService.proposeMatches(stmt.statement.id);
+      expect(first.some((p) => p.voucherId === voucherId)).toBe(true);
+
+      // Stage it (draft). The bank transaction stays status='open' (there is no
+      // 'matched' txn status), so a naive re-propose would offer the same pair
+      // again → 409 on book.
+      await reconciliationService.executeMatch(
+        first.filter((p) => p.voucherId === voucherId),
+      );
+
+      const second = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
+      expect(second.some((p) => p.voucherId === voucherId)).toBe(false);
+    });
+
     it('rejects empty proposals array', async () => {
       await expect(reconciliationService.executeMatch([])).rejects.toThrow();
     });
@@ -1761,6 +1794,38 @@ describe('ReconciliationService (integration)', () => {
         lowerId,
         higherId,
       ]);
+    });
+
+    it('excludes a voucher already consumed by a staged (draft) match', async () => {
+      // Field bug: matching stages a DRAFT reconciliation_match (awaiting
+      // approval). If candidate availability only nets ACTIVE matches, the
+      // already-staged voucher is offered again and booking it raises a 409
+      // "duplicate ... already matched" on the UNIQUE(bank_txn, voucher) pair.
+      const supplier = await seedSupplier();
+      const apVoucher = await seedExpenseVoucher(supplier.id, 30000, '2025-01-10');
+
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', description: 'pay 1', amount: -30000 },
+        { transaction_date: '2025-01-13', description: 'pay 2', amount: -30000 },
+      ]);
+      const [tx1, tx2] = stmt.transactions;
+
+      await reconciliationService.executeMatch([
+        {
+          bankTransactionId: tx1.id,
+          voucherId: apVoucher,
+          matchType: 'exact',
+          amountMatched: 30000,
+          confidence: 'high',
+          signal: 'amount_date',
+        },
+      ]);
+
+      const result = await reconciliationService.getMatchCandidates(
+        stmt.statement.id,
+        tx2.id,
+      );
+      expect(result.candidates.map((c) => c.voucherId)).not.toContain(apVoucher);
     });
 
     it('throws when the transaction is not on the given statement', async () => {

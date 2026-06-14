@@ -338,6 +338,59 @@ describe('Pipeline (e2e)', () => {
         Reflect.get(Reflect.get(res.body, 'invoice'), 'voucher_id'),
       ).toBeNull();
     });
+
+    it('creates a pending Approval for the held invoice (the /post path is self-sufficient)', async () => {
+      // A2 regression guard: posting an over-ceiling invoice must mint the
+      // Approval itself — otherwise the invoice is stuck in pending with nothing
+      // to approve and revenue silently never posts. Mirrors the expense path.
+      const invoice = await createInvoice({
+        gross_amount: 250000,
+        vat_amount: 50000,
+        invoice_number: `INV-APPR-${Date.now()}`,
+      });
+      const invoiceId = Reflect.get(invoice, 'id') as number;
+
+      await request(app.getHttpServer())
+        .post(`/api/sales-invoices/${invoiceId}/post`)
+        .expect(201);
+
+      const approvals = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'sales_invoice')
+        .where('object_id', '=', invoiceId)
+        .execute();
+      expect(approvals).toHaveLength(1);
+      expect(approvals[0].status).toBe('pending');
+    });
+  });
+
+  describe('create validation (A1): reject non-positive gross at create', () => {
+    it('rejects a sales invoice with gross_amount = 0 at create (not later at approve)', async () => {
+      await request(app.getHttpServer())
+        .post('/api/sales-invoices')
+        .send({
+          invoice_number: `INV-ZERO-${Date.now()}`,
+          gross_amount: 0,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+        })
+        .expect(400);
+    });
+
+    it('rejects an expense with gross_amount = 0 at create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/expenses')
+        .send({
+          category: 'software',
+          gross_amount: 0,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+        })
+        .expect(400);
+    });
   });
 
   describe('SalesInvoice pipeline: idempotency (AC-9)', () => {

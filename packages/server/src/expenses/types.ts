@@ -28,8 +28,10 @@ export const createExpenseSchema = z.object({
   document_id: z.number().int().nullable().optional(),
   supplier_id: z.number().int().nullable().optional(),
   category: z.string(),
-  gross_amount: z.number(),
-  vat_amount: z.number(),
+  // Reject a non-positive gross at CREATE rather than letting it post a junk
+  // draft that only fails cryptically at approve-time (A1).
+  gross_amount: z.number().positive(),
+  vat_amount: z.number().nonnegative(),
   currency: z.string(),
   tax_point_date: z.string(),
   document_vat_marking: z.string().nullable().optional(),

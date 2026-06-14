@@ -253,6 +253,55 @@ describe('ApprovalsService (integration)', () => {
     });
   });
 
+  // ── approveBatch ─────────────────────────────────────────────────
+
+  describe('approveBatch', () => {
+    it('approves several approvals in one call', async () => {
+      const ids: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const expense = await expensesService.createExpense(sampleExpense());
+        const approval = await service.createApproval({
+          object_type: 'expense',
+          object_id: expense.id,
+          requested_by: 'user@test.com',
+          reason: `Batch ${i}`,
+        });
+        ids.push(approval.id);
+      }
+
+      const results = await service.approveBatch(ids, 'admin@test.com');
+
+      expect(results).toHaveLength(3);
+      expect(results.every((r) => r.ok)).toBe(true);
+      for (const r of results) {
+        expect(r.ok && r.approval.status).toBe('approved');
+        expect(r.ok && r.voucher).not.toBeNull();
+      }
+    });
+
+    it('does not abort the batch when one id fails — reports per-id outcome', async () => {
+      const expense = await expensesService.createExpense(sampleExpense());
+      const good = await service.createApproval({
+        object_type: 'expense',
+        object_id: expense.id,
+        requested_by: 'user@test.com',
+        reason: 'good',
+      });
+
+      const results = await service.approveBatch(
+        [good.id, 999],
+        'admin@test.com',
+      );
+
+      expect(results).toHaveLength(2);
+      const okRow = results.find((r) => r.id === good.id)!;
+      const badRow = results.find((r) => r.id === 999)!;
+      expect(okRow.ok).toBe(true);
+      expect(badRow.ok).toBe(false);
+      expect(badRow.ok === false && badRow.error).toMatch(/not found/i);
+    });
+  });
+
   // ── rejectApproval ───────────────────────────────────────────────
 
   describe('rejectApproval', () => {

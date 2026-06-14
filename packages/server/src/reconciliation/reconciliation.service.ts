@@ -137,7 +137,28 @@ export class ReconciliationService {
       allProposals.push(...proposals);
     }
 
-    return this.enrichProposals(allProposals);
+    // Drop any proposal that duplicates an existing (draft|active) match: a bank
+    // transaction keeps status='open' even after a match is staged (there is no
+    // 'matched' txn status), so the same (bank_txn, voucher) pair would be
+    // proposed again and 409 on book against the UNIQUE pair guard.
+    const txnIds = openTxns.map((t) => t.id);
+    const existingPairs =
+      txnIds.length > 0
+        ? await this.db
+            .selectFrom('reconciliation_match')
+            .select(['bank_transaction_id', 'voucher_id'])
+            .where('bank_transaction_id', 'in', txnIds)
+            .where('status', 'in', ['draft', 'active'])
+            .execute()
+        : [];
+    const taken = new Set(
+      existingPairs.map((r) => `${r.bank_transaction_id}:${r.voucher_id}`),
+    );
+    const deduped = allProposals.filter(
+      (p) => !taken.has(`${p.bankTransactionId}:${p.voucherId}`),
+    );
+
+    return this.enrichProposals(deduped);
   }
 
   /**
@@ -235,9 +256,36 @@ export class ReconciliationService {
       ? await this.outstandingVouchers.findAllArCandidates()
       : await this.outstandingVouchers.findAllApCandidates();
 
+    // Never offer a voucher already matched (draft OR active) to THIS bank line:
+    // booking it again hits UNIQUE(bank_txn, voucher) and 409s. The settlement
+    // primitive (remainingBalance) deliberately nets only ACTIVE matches, so a
+    // DRAFT staged on another line is still reserved — subtract those here too so
+    // a fully-staged voucher is not re-offered for over-allocation.
+    const onThisLineRows = await this.db
+      .selectFrom('reconciliation_match')
+      .select('voucher_id')
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', 'in', ['draft', 'active'])
+      .execute();
+    const alreadyOnThisLine = new Set(onThisLineRows.map((r) => r.voucher_id));
+
+    const draftRows = await this.db
+      .selectFrom('reconciliation_match')
+      .select('voucher_id')
+      .select((eb) => eb.fn.sum<number>('amount_matched').as('amt'))
+      .where('status', '=', 'draft')
+      .groupBy('voucher_id')
+      .execute();
+    const draftReservedByVoucher = new Map(
+      draftRows.map((r) => [r.voucher_id, Number(r.amt ?? 0)]),
+    );
+
     const views: MatchCandidateView[] = [];
     for (const c of candidates) {
-      if (c.remainingBalance <= 0) continue;
+      if (alreadyOnThisLine.has(c.voucherId)) continue;
+      const available =
+        c.remainingBalance - (draftReservedByVoucher.get(c.voucherId) ?? 0);
+      if (available <= 0) continue;
       const info = await this.resolveVoucherDisplay(c.voucherId, 'exact');
       views.push({
         voucherId: c.voucherId,
