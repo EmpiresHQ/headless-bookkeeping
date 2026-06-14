@@ -8,12 +8,27 @@ import { tmpdir } from 'os';
 const execFileAsync = promisify(execFile);
 
 /**
- * Decodes a HEIC/HEIF image to PNG using libheif's `heif-convert` — a small
- * system binary, mirroring how PdfRasterizer shells out to poppler's
- * `pdftoppm`. HEIC is the default iPhone capture format; vision providers do
- * not decode it, so it must be transcoded before OCR (the same reason scanned
- * PDFs are rasterised first). Never throws: returns null on any failure, which
- * the router maps to a typed, actionable "convert to PDF/JPG" outcome.
+ * Candidate HEIC→PNG transcoders, tried in order until one produces output.
+ * libheif's `heif-convert` is what the Docker image ships (libheif-tools);
+ * `sips` is the macOS-native fallback for local dev; ImageMagick covers the
+ * rest. Each entry maps (inPath, outPath) to that tool's argv.
+ */
+const DECODERS: { cmd: string; args: (inPath: string, outPath: string) => string[] }[] =
+  [
+    { cmd: 'heif-convert', args: (i, o) => [i, o] },
+    { cmd: 'sips', args: (i, o) => ['-s', 'format', 'png', i, '--out', o] },
+    { cmd: 'magick', args: (i, o) => [i, o] },
+    { cmd: 'convert', args: (i, o) => [i, o] },
+  ];
+
+/**
+ * Decodes a HEIC/HEIF image to PNG, mirroring how PdfRasterizer shells out to
+ * poppler. HEIC is the default iPhone capture format; vision providers do not
+ * decode it, so it must be transcoded before OCR (the same reason scanned PDFs
+ * are rasterised first). Portable across the Docker image (heif-convert) and
+ * local dev (sips). Never throws: returns null when no decoder is available or
+ * the input is not a decodable image — the router maps that to a typed,
+ * actionable "convert to PDF/JPG" outcome.
  */
 @Injectable()
 export class HeicDecoder {
@@ -27,10 +42,18 @@ export class HeicDecoder {
       const outPath = join(dir, 'out.png');
       await writeFile(inPath, heic);
 
-      // heif-convert in.heic out.png → a single PNG (first image of the file).
-      await execFileAsync('heif-convert', [inPath, outPath]);
-
-      return await readFile(outPath);
+      for (const d of DECODERS) {
+        try {
+          await execFileAsync(d.cmd, d.args(inPath, outPath));
+          return await readFile(outPath);
+        } catch {
+          // Tool missing (ENOENT) or it rejected the input — try the next one.
+        }
+      }
+      this.logger.warn(
+        'HEIC decode failed: no available decoder (heif-convert/sips/magick) could transcode the image',
+      );
+      return null;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.warn(`HEIC decode failed: ${err.message}`);

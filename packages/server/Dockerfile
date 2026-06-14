@@ -2,7 +2,10 @@
 
 # ── Builder ─────────────────────────────────────────────────────
 FROM node:24-alpine AS builder
-RUN apk add --no-cache python3 make g++
+# poppler-utils (pdftoppm) and libheif-tools (heif-convert) are needed by the
+# OCR transcoders AND by the `test` stage below (FROM builder) — the
+# rasterizer/HEIC integration tests run them and would otherwise skip.
+RUN apk add --no-cache python3 make g++ poppler-utils libheif-tools
 WORKDIR /app
 
 # Workspace-aware install: root + every package manifest before npm ci.
