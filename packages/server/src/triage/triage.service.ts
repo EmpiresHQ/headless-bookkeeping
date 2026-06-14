@@ -1,10 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
-import { IntakeWorkflowService } from '../ai/intake-workflow.service';
+import {
+  IntakeWorkflowService,
+  NeedsTriageOutcome,
+} from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { Database } from '../database/types';
-import { TriageOutcome, DocumentDebug, ManualClassifyDto, PendingDraft, NeedsTriageItem, classifyReasonType } from './types';
+import {
+  TriageOutcome,
+  DocumentDebug,
+  ManualClassifyDto,
+  PendingDraft,
+  NeedsTriageItem,
+  classifyReasonType,
+} from './types';
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.
@@ -35,7 +45,12 @@ export class TriageService {
           .on('af.status', '=', 'open'),
       )
       .where('d.status', '=', 'needs_triage')
-      .select(['d.id', 'd.filename', 'd.created_at', 'af.description as reason'])
+      .select([
+        'd.id',
+        'd.filename',
+        'd.created_at',
+        'af.description as reason',
+      ])
       .orderBy('d.created_at', 'desc')
       .execute();
 
@@ -63,6 +78,22 @@ export class TriageService {
         kind: 'expense',
         document_id: documentId,
         expense_id: result.draft.expenseId,
+      };
+    }
+
+    if (result.status === 'draft_proposed_invoice') {
+      return {
+        kind: 'invoice',
+        document_id: documentId,
+        invoice_id: result.invoiceId,
+      };
+    }
+
+    if (result.status === 'bank_import_started') {
+      return {
+        kind: 'bank_statement',
+        document_id: documentId,
+        job_id: result.jobId,
       };
     }
 
@@ -110,7 +141,22 @@ export class TriageService {
         expense_id: result.draft.expenseId,
       };
     }
-    return { kind: 'unknown', document_id: documentId, reason: result.reason };
+
+    if (result.status === 'draft_proposed_invoice') {
+      return {
+        kind: 'invoice',
+        document_id: documentId,
+        invoice_id: result.invoiceId,
+      };
+    }
+
+    // resolveSupplier can only yield needs_triage at this point.
+    const needsTriage = result as NeedsTriageOutcome;
+    return {
+      kind: 'unknown',
+      document_id: documentId,
+      reason: needsTriage.reason,
+    };
   }
 
   /**
@@ -130,6 +176,21 @@ export class TriageService {
         expense_id: result.draft.expenseId,
       };
     }
-    return { kind: 'unknown', document_id: documentId, reason: result.reason };
+
+    if (result.status === 'draft_proposed_invoice') {
+      return {
+        kind: 'invoice',
+        document_id: documentId,
+        invoice_id: result.invoiceId,
+      };
+    }
+
+    // manualClassify can only yield needs_triage at this point.
+    const needsTriage = result as NeedsTriageOutcome;
+    return {
+      kind: 'unknown',
+      document_id: documentId,
+      reason: needsTriage.reason,
+    };
   }
 }

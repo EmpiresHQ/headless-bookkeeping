@@ -17,6 +17,7 @@ export interface SalesInvoice {
   sent_at: number | null;
   voucher_id: number | null;
   document_vat_marking: string | null;
+  document_id: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -30,6 +31,7 @@ export const createSalesInvoiceSchema = z.object({
   tax_point_date: z.string(),
   due_date: z.string().nullable().optional(),
   document_vat_marking: z.string().nullable().optional(),
+  document_id: z.number().int().nullable().optional(),
 });
 
 export class CreateSalesInvoiceDto extends createZodDto(

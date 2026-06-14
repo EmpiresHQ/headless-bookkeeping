@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  within,
+  fireEvent,
+} from '@testing-library/react';
 import { KmdView } from './KmdView';
 import * as api from '../api';
 
@@ -47,7 +53,9 @@ describe('KmdView', () => {
     render(<KmdView />);
     await waitFor(() => expect(api.getKmd).toHaveBeenCalledWith(3));
 
-    const row3 = (await screen.findByText('Row 3 — 0% käive (base)')).closest('tr')!;
+    const row3 = (await screen.findByText('Row 3 — 0% käive (base)')).closest(
+      'tr',
+    )!;
     expect(within(row3).getByText(/11740\.00/)).toBeInTheDocument();
 
     const vd = screen.getByText(/VD koondaruanne — 3S/).closest('tr')!;
@@ -60,11 +68,11 @@ describe('KmdView', () => {
     vi.spyOn(api, 'createNextPeriod').mockResolvedValue(newPeriod);
     render(<KmdView />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create next period' }));
-
-    await waitFor(() =>
-      expect(api.createNextPeriod).toHaveBeenCalledWith({}),
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Create next period' }),
     );
+
+    await waitFor(() => expect(api.createNextPeriod).toHaveBeenCalledWith({}));
 
     const select = screen.getByRole('combobox') as HTMLSelectElement;
     expect(select.value).toBe('7');

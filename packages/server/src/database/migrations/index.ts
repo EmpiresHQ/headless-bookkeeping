@@ -44,6 +44,8 @@ import * as m044 from './044_add_document_processing_since';
 import * as m045 from './045_widen_entity_identifier_kind';
 import * as m046 from './046_add_fixed_asset_accounts';
 import * as m047 from './047_create_fixed_asset';
+import * as m048 from './048_add_organization_iban';
+import * as m049 from './049_add_sales_invoice_document_id';
 import * as m050 from './050_create_statutory_submission_event';
 
 export const migrations: Record<string, Migration> = {
@@ -92,5 +94,7 @@ export const migrations: Record<string, Migration> = {
   '045_widen_entity_identifier_kind': m045,
   '046_add_fixed_asset_accounts': m046,
   '047_create_fixed_asset': m047,
+  '048_add_organization_iban': m048,
+  '049_add_sales_invoice_document_id': m049,
   '050_create_statutory_submission_event': m050,
 };

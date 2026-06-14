@@ -10,9 +10,14 @@ import { AiModule } from '../ai/ai.module';
 import { ReconciliationModule } from '../reconciliation/reconciliation.module';
 
 @Module({
-  // forwardRef: ReconciliationModule depends on BankModule (transaction repo)
-  // and BankModule depends back on it (auto-stage on import).
-  imports: [AccountModule, AiModule, forwardRef(() => ReconciliationModule)],
+  // forwardRef on both AiModule and ReconciliationModule:
+  //   AiModule ↔ BankModule: IntakeWorkflowService (AiModule) uses BankIngestionService
+  //   ReconciliationModule ↔ BankModule: auto-stage on import
+  imports: [
+    AccountModule,
+    forwardRef(() => AiModule),
+    forwardRef(() => ReconciliationModule),
+  ],
   providers: [
     BankStatementService,
     BankTransactionRepository,
