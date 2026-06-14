@@ -1,9 +1,11 @@
 import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { ApprovalsService } from './approvals.service';
+import type { BatchApproveRow } from './approvals.service';
 import {
   CreateApprovalDto,
   ApproveDto,
+  ApproveBatchDto,
   RejectDto,
   SupersedeDto,
 } from './types';
@@ -42,6 +44,22 @@ export class ApprovalsController {
     @Body() dto: ApproveDto,
   ): Promise<{ approval: Approval; voucher: PostedVoucher | null }> {
     return this.approvalsService.approveApproval(Number(id), dto.approved_by);
+  }
+
+  @Post('approve-batch')
+  @ApiOperation({
+    summary: 'Approve several approvals at once',
+    description:
+      'Approve a list of pending approvals in one call (e.g. all reconciliation matches on a statement). Each id is processed independently; a failure on one is reported in its result row without aborting the rest.',
+  })
+  async approveBatch(
+    @Body() dto: ApproveBatchDto,
+  ): Promise<{ results: BatchApproveRow[] }> {
+    const results = await this.approvalsService.approveBatch(
+      dto.ids,
+      dto.approved_by,
+    );
+    return { results };
   }
 
   @Post(':id/reject')
