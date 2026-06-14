@@ -9,6 +9,7 @@
     "cli:codegen": "npm run openapi:emit && openapi-typescript packages/cli/openapi.json -o packages/cli/src/types.gen.ts",
     "eval:triage:tools": "npx -y promptfoo@latest eval -c evals/triage/toolcall.yaml",
     "eval:triage:classify": "npx -y promptfoo@latest eval -c evals/triage/classify.yaml",
+    "eval:triage:classify-outgoing": "npx -y promptfoo@latest eval -c evals/triage/classify-outgoing.yaml",
     "eval:view": "npx -y promptfoo@latest view"
   },
   "devDependencies": {

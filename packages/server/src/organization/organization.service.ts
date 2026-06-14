@@ -52,6 +52,7 @@ export class OrganizationService {
     if (dto.vat_registration_number !== undefined)
       updates.vat_registration_number = dto.vat_registration_number;
     if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.iban !== undefined) updates.iban = dto.iban;
 
     if (Object.keys(updates).length === 0) {
       return this.getOrganization();
@@ -75,6 +76,7 @@ export class OrganizationService {
     created_at,
     vat_registration_number,
     name,
+    iban,
   }: {
     id: number;
     country: string;
@@ -84,6 +86,7 @@ export class OrganizationService {
     created_at: number;
     vat_registration_number: string | null;
     name: string | null;
+    iban: string | null;
   }): Organization {
     return {
       id,
@@ -94,6 +97,7 @@ export class OrganizationService {
       created_at,
       vat_registration_number,
       name,
+      iban,
     };
   }
 }

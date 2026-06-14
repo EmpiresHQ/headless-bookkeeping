@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { EntitiesModule } from '../entities/entities.module';
@@ -6,11 +6,13 @@ import { ExpensesModule } from '../expenses/expenses.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.module';
+import { SalesInvoicesModule } from '../sales-invoices/sales-invoices.module';
 import { OcrModule } from '../triage/ocr.module';
 import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { PolicyModule } from '../policy/policy.module';
 import { AgentConfigModule } from './agent-config.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { BankModule } from '../bank/bank.module';
 import { MastraService } from './mastra.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
@@ -47,9 +49,13 @@ import { IntakeWorkflowService } from './intake-workflow.service';
     PluginsModule,
     OrganizationModule,
     PostingPipelineModule,
+    SalesInvoicesModule,
     OcrModule,
     AuditFindingsModule,
     PolicyModule,
+    // forwardRef: BankModule imports AiModule (for MastraService); AiModule
+    // imports BankModule (for BankIngestionService used in intake workflow).
+    forwardRef(() => BankModule),
   ],
   providers: [
     MastraService,

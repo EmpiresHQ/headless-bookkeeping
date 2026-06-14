@@ -19,6 +19,7 @@ import { PostingPipelineService } from './../src/ledger/pipeline/posting-pipelin
 import { ExpensesService } from './../src/expenses/expenses.service';
 import { CategoryService } from './../src/categories/category.service';
 import { ExpensesController } from './../src/expenses/expenses.controller';
+import { FixedAssetRegistrarService } from './../src/fixed-assets/fixed-asset-registrar.service';
 import { SalesInvoicesService } from './../src/sales-invoices/sales-invoices.service';
 import { SalesInvoicesController } from './../src/sales-invoices/sales-invoices.controller';
 import { OrganizationService } from './../src/organization/organization.service';

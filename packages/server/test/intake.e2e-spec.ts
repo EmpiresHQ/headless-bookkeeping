@@ -74,6 +74,12 @@ describe('Intake E2E (document → draft → pipeline)', () => {
               document_vat_marking: null,
               supplier_invoice_number: null,
               confidence: 0.2,
+              outgoing_signals: {
+                org_name_is_issuer: false,
+                org_vat_is_issuer: false,
+                has_buyer_block: false,
+                self_identifies_as_invoice: false,
+              },
             },
           };
         }
@@ -92,6 +98,12 @@ describe('Intake E2E (document → draft → pipeline)', () => {
               document_vat_marking: 'IE_INPUT_23',
               supplier_invoice_number: null,
               confidence: 0.95,
+              outgoing_signals: {
+                org_name_is_issuer: false,
+                org_vat_is_issuer: false,
+                has_buyer_block: false,
+                self_identifies_as_invoice: false,
+              },
             },
           };
         }
@@ -100,7 +112,7 @@ describe('Intake E2E (document → draft → pipeline)', () => {
           ok: true,
           result: {
             kind: 'unknown',
-            document_type: 'unknown',
+            document_type: 'other',
             gross_amount: 0,
             vat_amount: 0,
             currency: 'EUR',
@@ -109,6 +121,12 @@ describe('Intake E2E (document → draft → pipeline)', () => {
             document_vat_marking: null,
             supplier_invoice_number: null,
             confidence: 0.2,
+            outgoing_signals: {
+              org_name_is_issuer: false,
+              org_vat_is_issuer: false,
+              has_buyer_block: false,
+              self_identifies_as_invoice: false,
+            },
           },
         };
       },

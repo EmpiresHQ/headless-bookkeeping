@@ -1,0 +1,102 @@
+{
+  "name": "triage_result",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "kind": { "type": "string", "enum": ["new_expense", "new_sales_invoice", "correction", "duplicate", "unknown"] },
+      "document_type": { "type": "string", "enum": ["receipt", "invoice", "bank_statement", "credit_note", "other"] },
+      "gross_amount": { "type": "integer", "description": "Total gross in MINOR units (cents)" },
+      "vat_amount": { "type": "integer", "description": "VAT in MINOR units (cents)" },
+      "currency": { "type": "string", "description": "ISO 4217, 3 letters" },
+      "tax_point_date": { "type": "string", "description": "ISO date YYYY-MM-DD" },
+      "category": { "type": "string" },
+      "document_vat_marking": { "type": ["string", "null"] },
+      "confidence": { "type": "number" },
+      "supplier_invoice_number": { "type": ["string", "null"], "description": "The document's own invoice/receipt number. For an outgoing invoice this is YOUR invoice number (field named for legacy reasons)." },
+      "supplier_proposal": {
+        "type": ["object", "null"],
+        "additionalProperties": false,
+        "description": "The supplier identity proposal (mode 'create' when no existing supplier is known). For outgoing invoices, this identifies the issuing org (us); typically null when direction=outgoing since the org is known. Carry EVERY identifier the document prints; null for any it does not.",
+        "properties": {
+          "mode": { "type": "string", "enum": ["match", "create"] },
+          "match_entity_id": { "type": ["integer", "null"] },
+          "create_name": { "type": ["string", "null"] },
+          "create_country": { "type": ["string", "null"], "description": "ISO 3166-1 alpha-2 country code" },
+          "create_registration_key": { "type": ["string", "null"], "description": "VAT / company registry number printed on the document — null if none is printed" },
+          "create_email": { "type": ["string", "null"] },
+          "create_phone": { "type": ["string", "null"] },
+          "create_address": { "type": ["string", "null"] }
+        },
+        "required": [
+          "mode",
+          "match_entity_id",
+          "create_name",
+          "create_country",
+          "create_registration_key",
+          "create_email",
+          "create_phone",
+          "create_address"
+        ]
+      },
+      "customer_proposal": {
+        "type": ["object", "null"],
+        "additionalProperties": false,
+        "description": "The customer (buyer) identity proposal for outgoing invoices — same match/create shape as supplier_proposal. Null for incoming documents.",
+        "properties": {
+          "mode": { "type": "string", "enum": ["match", "create"] },
+          "match_entity_id": { "type": ["integer", "null"] },
+          "create_name": { "type": ["string", "null"] },
+          "create_country": { "type": ["string", "null"], "description": "ISO 3166-1 alpha-2 country code" },
+          "create_registration_key": { "type": ["string", "null"], "description": "VAT / company registry number of the buyer — null if none is printed" },
+          "create_email": { "type": ["string", "null"] },
+          "create_phone": { "type": ["string", "null"] },
+          "create_address": { "type": ["string", "null"] }
+        },
+        "required": [
+          "mode",
+          "match_entity_id",
+          "create_name",
+          "create_country",
+          "create_registration_key",
+          "create_email",
+          "create_phone",
+          "create_address"
+        ]
+      },
+      "outgoing_signals": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Structured confidence signals for outgoing-invoice detection. All booleans; truthfully set by the agent.",
+        "properties": {
+          "org_name_is_issuer": { "type": "boolean", "description": "The organization's name appears as the seller/issuer on this document." },
+          "org_vat_is_issuer": { "type": "boolean", "description": "The organization's VAT number appears as the seller/issuer's VAT on this document." },
+          "has_buyer_block": { "type": "boolean", "description": "The document contains a distinct buyer / bill-to block identifying a counterparty." },
+          "self_identifies_as_invoice": { "type": "boolean", "description": "The document explicitly calls itself an invoice (not a receipt or statement)." }
+        },
+        "required": [
+          "org_name_is_issuer",
+          "org_vat_is_issuer",
+          "has_buyer_block",
+          "self_identifies_as_invoice"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "document_type",
+      "gross_amount",
+      "vat_amount",
+      "currency",
+      "tax_point_date",
+      "category",
+      "document_vat_marking",
+      "confidence",
+      "supplier_invoice_number",
+      "supplier_proposal",
+      "customer_proposal",
+      "outgoing_signals"
+    ]
+  }
+}
