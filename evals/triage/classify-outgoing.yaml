@@ -18,12 +18,24 @@ providers:
       apiBaseUrl: '{{ env.EVAL_BASE_URL }}'
       apiKeyEnvar: OPENAI_API_KEY
       temperature: 0
-      response_format:
-        type: json_schema
-        json_schema: file://schema-outgoing.json
+      max_tokens: 2048
+      # IMPORTANT — this endpoint does NOT honor `response_format`: `json_schema`
+      # is unsupported, and `json_object` returns an EMPTY body. So we omit
+      # response_format entirely and rely on the prompt, which instructs a single
+      # JSON object. Use a NON-reasoning instruct model (EVAL_MODEL=qwen3.6-coder-fast):
+      # a reasoning model leaks chain-of-thought into the output. The expected
+      # shape is documented in schema-outgoing.json.
 
 prompts:
   - file://prompt-classify-outgoing.json
+
+# The model may wrap its JSON in prose or ```json fences; extract the first
+# {...} object before the is-json / javascript assertions run.
+defaultTest:
+  options:
+    transform: |
+      const m = String(output).match(/\{[\s\S]*\}/);
+      return m ? m[0] : output;
 
 tests:
   - description: T1 — Outgoing invoice to EU customer (Danish buyer, 0% EU services)
