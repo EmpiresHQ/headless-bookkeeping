@@ -273,12 +273,19 @@ export class IntakeWorkflowService {
       });
 
       switch (documentClass.route) {
+        // `return await` (not a bare `return`) so a rejection from a routing
+        // helper is caught by the safety-net catch below rather than escaping
+        // and stranding the document in `pending` (ADR-0024).
         case 'expense':
-          return this.routeExpense(documentId, triageResult);
+          return await this.routeExpense(documentId, triageResult);
         case 'sales_invoice':
-          return this.routeSalesInvoice(documentId, triageResult, ibanMatched);
+          return await this.routeSalesInvoice(
+            documentId,
+            triageResult,
+            ibanMatched,
+          );
         case 'bank_statement':
-          return this.routeBankStatement(documentId);
+          return await this.routeBankStatement(documentId);
         case 'unsupported':
           return this.routeNeedsTriage(
             documentId,

@@ -29,7 +29,6 @@ import { NullCountryPlugin } from './../src/plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from './../src/plugins/estonia-country.plugin';
 import { CurrencyService } from './../src/currency/currency.service';
 import { VoucherProjectionService } from './../src/ledger/projection/voucher-projection.service';
-import { FixedAssetRegistrarService } from './../src/fixed-assets/fixed-asset-registrar.service';
 import { ZodValidationPipe } from './../src/common/pipes/zod-validation.pipe';
 
 describe('Pipeline (e2e)', () => {
