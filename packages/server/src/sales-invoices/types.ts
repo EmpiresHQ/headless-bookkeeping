@@ -25,8 +25,11 @@ export interface SalesInvoice {
 export const createSalesInvoiceSchema = z.object({
   customer_id: z.number().int().nullable().optional(),
   invoice_number: z.string(),
-  gross_amount: z.number(),
-  vat_amount: z.number(),
+  // Reject a non-positive document at CREATE — a zero/negative gross cannot be a
+  // real invoice, and letting it through only surfaces a cryptic "amount must be
+  // positive" at approve-time after the object is already stuck in pending (A1).
+  gross_amount: z.number().positive(),
+  vat_amount: z.number().nonnegative(),
   currency: z.string(),
   tax_point_date: z.string(),
   due_date: z.string().nullable().optional(),

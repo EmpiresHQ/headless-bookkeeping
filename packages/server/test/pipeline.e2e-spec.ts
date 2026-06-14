@@ -365,6 +365,34 @@ describe('Pipeline (e2e)', () => {
     });
   });
 
+  describe('create validation (A1): reject non-positive gross at create', () => {
+    it('rejects a sales invoice with gross_amount = 0 at create (not later at approve)', async () => {
+      await request(app.getHttpServer())
+        .post('/api/sales-invoices')
+        .send({
+          invoice_number: `INV-ZERO-${Date.now()}`,
+          gross_amount: 0,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+        })
+        .expect(400);
+    });
+
+    it('rejects an expense with gross_amount = 0 at create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/expenses')
+        .send({
+          category: 'software',
+          gross_amount: 0,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+        })
+        .expect(400);
+    });
+  });
+
   describe('SalesInvoice pipeline: idempotency (AC-9)', () => {
     it('refuses to double-post an already-posted invoice', async () => {
       const invoice = await createInvoice();
