@@ -50,8 +50,17 @@ jobs:
       || needs.changes.outputs.cli == 'true'
     steps:
       - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
       - name: Build test image
-        run: docker build -f packages/server/Dockerfile --target test -t app-test .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/server/Dockerfile
+          target: test
+          tags: app-test
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Save image to a tarball
         run: docker save app-test | gzip > app-test.tar.gz
       - uses: actions/upload-artifact@v7
