@@ -41,6 +41,15 @@ targets:
     sources:
       - path: App
       - path: Sources/AccountingHelper
+      # Bundle the MLX Qwen 3.5 VLM weights INTO the .app as a folder reference so
+      # the on-device "second pass" loads from disk and NEVER downloads at runtime.
+      # `type: folder` preserves the directory structure (config.json + *.safetensors
+      # + tokenizer side by side, as MLX requires) under
+      # Bundle.main/Qwen3.5-0.8B-4bit. Populate it first with Scripts/fetch-qwen.sh
+      # (the weights are gitignored — only the script + this reference are committed).
+      - path: Models/Qwen3.5-0.8B-4bit
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: GRDB
         product: GRDB

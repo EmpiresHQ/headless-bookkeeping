@@ -16,8 +16,9 @@ import Tokenizers
 /// parses the first YES/NO token.
 ///
 /// Lifecycle / safety:
-/// - The model (~0.5 GB, 4-bit) is downloaded from Hugging Face on first use and cached
-///   by the Hub client (`~/Library/Caches`), never bundled.
+/// - The model (~0.5 GB, 4-bit) is BUNDLED INTO THE APP at build time (folder reference
+///   `Qwen3.5-0.8B-4bit/` in `Bundle.main`) and loaded from disk. There is NO Hugging
+///   Face download at runtime — if the bundled directory is missing, loading returns nil.
 /// - Loading is lazy and happens at most once; concurrent calls await the same load task.
 /// - Every failure path (not downloaded, download in progress, load error, generation
 ///   error) returns `nil` — "couldn't decide" — and NEVER crashes. Callers treat `nil`
@@ -30,6 +31,16 @@ public actor MLXSecondPass: SecondPassClassifier {
     /// `model_type: qwen3_5` with a `vision_config`, so VLMModelFactory routes it to the
     /// MLXVLM `Qwen35` (vision-capable) model rather than the text-only MLXLLM one.
     public static let modelId = "mlx-community/Qwen3.5-0.8B-4bit"
+
+    /// Name of the bundled model directory (a folder reference copied into the .app at
+    /// build time by Scripts/fetch-qwen.sh + the XcodeGen `type: folder` resource entry).
+    public static let bundledModelDirectoryName = "Qwen3.5-0.8B-4bit"
+
+    /// On-disk URL of the bundled model directory inside `Bundle.main`, or nil if it was
+    /// not bundled (e.g. the host/test build, or a build where fetch-qwen.sh never ran).
+    static var bundledModelURL: URL? {
+        Bundle.main.url(forResource: bundledModelDirectoryName, withExtension: nil)
+    }
 
     private let prompt: String
     private let maxTokens: Int
@@ -94,12 +105,19 @@ public actor MLXSecondPass: SecondPassClassifier {
         case .loading(let task):
             return await task.value
         case .idle:
-            let task = Task<ModelContainer?, Never> { [modelId = Self.modelId] in
+            // Resolve the bundled directory up front — if it isn't in the .app there is
+            // nothing to load and we must NOT fall back to a network download.
+            guard let directory = Self.bundledModelURL else {
+                state = .failed
+                return nil
+            }
+            let task = Task<ModelContainer?, Never> {
                 do {
-                    // Default Hub client + swift-transformers tokenizer; downloads &
-                    // caches the weights on first run.
-                    let container = try await #huggingFaceLoadModelContainer(
-                        configuration: ModelConfiguration(id: modelId))
+                    // Load purely from the on-disk bundled directory (no Downloader, no
+                    // Hub access). The tokenizer loader reads tokenizer.json &c from the
+                    // same local folder via swift-transformers' AutoTokenizer.
+                    let container = try await loadModelContainer(
+                        from: directory, using: #huggingFaceTokenizerLoader())
                     return container
                 } catch {
                     return nil
