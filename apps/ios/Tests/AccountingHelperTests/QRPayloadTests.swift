@@ -38,9 +38,9 @@ import Foundation
     }
 
     @Test func acceptsHTTPForLocalNetworkHost() throws {
-        let raw = #"{"v":1,"api":"http://192.168.31.162:3001","enroll":"a"}"#
+        let raw = #"{"v":1,"api":"http://192.168.1.50:3001","enroll":"a"}"#
         let p = try QRPayload.parse(raw)
-        #expect(p.api == URL(string: "http://192.168.31.162:3001")!)
+        #expect(p.api == URL(string: "http://192.168.1.50:3001")!)
     }
 
     @Test func acceptsHTTPForLocalhost() throws {
