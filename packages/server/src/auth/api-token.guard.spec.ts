@@ -170,6 +170,20 @@ describe('ApiTokenGuard (integration)', () => {
         .set('Authorization', `Bearer ${initToken}`)
         .expect(401);
     });
+
+    it('accepts a session token on a default (undecorated) route', async () => {
+      const { token } = await apiTokenService.create('session-test-token', 'session');
+      await request(app.getHttpServer())
+        .get('/test/protected')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+    });
+
+    it('returns 401 with no Authorization header on an @EnrollmentOnly route', async () => {
+      await request(app.getHttpServer())
+        .post('/test/exchange')
+        .expect(401);
+    });
   });
 
   // ── Public route ────────────────────────────────────────────────────
