@@ -5,7 +5,7 @@ public enum AuthError: Error, Equatable {
     case noStoredSession
 }
 
-public final class AuthService {
+public final class AuthService: Sendable {
     private let apiFor: @Sendable (URL) -> APIClient
     private let keychain: KeychainStore
 

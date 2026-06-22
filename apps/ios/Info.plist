@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference Info.plist for the iOS .app target (wired in Xcode/CI, since the SPM
+  library itself has no app target). Provides the required privacy usage strings.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>The camera is used to scan the enrollment QR code.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Your photo library is scanned on-device to find and upload financial documents (receipts and invoices).</string>
+    <key>UILaunchScreen</key>
+    <dict/>
+</dict>
+</plist>
