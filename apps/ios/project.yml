@@ -1,0 +1,45 @@
+# XcodeGen spec for the runnable iOS app target.
+#
+# The app code lives in the local SPM package (`.`); this target is a thin
+# `@main` shell that depends on the `AccountingHelper` library product. Generate
+# the project with `xcodegen generate` (the .xcodeproj is gitignored).
+#
+#   cd apps/ios && xcodegen generate && open AccountingHelper.xcodeproj
+#
+# Then set your signing Team under Signing & Capabilities, pick your iPhone, Run.
+name: AccountingHelper
+options:
+  bundleIdPrefix: emireshq
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+packages:
+  AccountingHelper:
+    path: .
+
+targets:
+  AccountingHelperApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - App
+    dependencies:
+      - package: AccountingHelper
+        product: AccountingHelper
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: emireshq.accountinghelper
+        PRODUCT_NAME: AccountingHelper
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        # SwiftUI lifecycle: let Xcode synthesize the scene manifest + launch screen.
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # Permission usage strings — without these the app crashes on first access.
+        INFOPLIST_KEY_NSCameraUsageDescription: "Scan the enrollment QR code shown by the web app or CLI."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Find receipts and invoices in your photo library to upload to your books."

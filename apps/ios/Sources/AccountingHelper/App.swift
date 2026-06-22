@@ -4,35 +4,36 @@ import UIKit
 import CoreGraphics
 import ImageIO
 
-@main
-public struct AccountingHelperApp: App {
+/// Root SwiftUI view for the app. The `@main` entry point lives in the thin
+/// app target (`apps/ios/App/`), which embeds this view; keeping it here (in the
+/// library, behind `#if os(iOS)`) lets the composition root + resources load via
+/// `Bundle.module` while staying out of the host (`swift test`) build.
+public struct AccountingHelperRootView: View {
     @State private var root = RootModel()
     @Environment(\.scenePhase) private var scenePhase
 
     public init() {}
 
-    public var body: some Scene {
-        WindowGroup {
-            Group {
-                if root.isAuthenticated {
-                    TabView {
-                        NavigationStack { HomeView(model: root.homeModel) }
-                            .tabItem { Label("Home", systemImage: "house") }
-                        NavigationStack { LogView(model: root.logModel) }
-                            .tabItem { Label("Log", systemImage: "list.bullet") }
-                        NavigationStack {
-                            SettingsView(model: root.settingsModel, onLogout: { root.logout() })
-                        }
-                        .tabItem { Label("Settings", systemImage: "gear") }
+    public var body: some View {
+        Group {
+            if root.isAuthenticated {
+                TabView {
+                    NavigationStack { HomeView(model: root.homeModel) }
+                        .tabItem { Label("Home", systemImage: "house") }
+                    NavigationStack { LogView(model: root.logModel) }
+                        .tabItem { Label("Log", systemImage: "list.bullet") }
+                    NavigationStack {
+                        SettingsView(model: root.settingsModel, onLogout: { root.logout() })
                     }
-                } else {
-                    LoginView(model: root.loginModel)
+                    .tabItem { Label("Settings", systemImage: "gear") }
                 }
+            } else {
+                LoginView(model: root.loginModel)
             }
-            .task { await root.onLaunch() }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active { Task { await root.onForeground() } }
-            }
+        }
+        .task { await root.onLaunch() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await root.onForeground() } }
         }
     }
 }
