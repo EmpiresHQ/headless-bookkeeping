@@ -106,4 +106,31 @@ describe('ApiTokenService (A1: token management over the service)', () => {
       expect(await service.verify(plaintext)).toBeNull();
     });
   });
+
+  describe('create + createEnrollment', () => {
+    it('mints a session token when kind is session', async () => {
+      const { id } = await service.create('iPhone', 'session');
+      const row = await db
+        .selectFrom('api_token')
+        .select(['kind', 'label'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.kind).toBe('session');
+      expect(row.label).toBe('iPhone');
+    });
+
+    it('createEnrollment sets kind=enrollment and a future expiry', async () => {
+      const before = Math.floor(Date.now() / 1000);
+      const { id, token, expiresAt } = await service.createEnrollment(600);
+      expect(token).toHaveLength(64);
+      expect(expiresAt).toBeGreaterThanOrEqual(before + 600);
+      const row = await db
+        .selectFrom('api_token')
+        .select(['kind', 'expires_at'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.kind).toBe('enrollment');
+      expect(row.expires_at).toBe(expiresAt);
+    });
+  });
 });

@@ -67,19 +67,43 @@ export class ApiTokenService implements OnModuleInit {
    * Create a new API token. Returns the plaintext token (store it securely)
    * and the row id.
    */
-  async create(label: string): Promise<{ id: number; token: string }> {
+  async create(
+    label: string,
+    kind: 'static' | 'enrollment' | 'session' = 'static',
+  ): Promise<{ id: number; token: string }> {
     const plaintext = generateToken();
     const tokenHash = hashToken(plaintext);
 
     const result = await this.db
       .insertInto('api_token')
-      .values({
-        token_hash: tokenHash,
-        label,
-      })
+      .values({ token_hash: tokenHash, label, kind })
       .executeTakeFirst();
 
     return { id: Number(result.insertId), token: plaintext };
+  }
+
+  /**
+   * Mint a one-time, short-lived enrollment token for the QR flow.
+   * Returns the plaintext (rendered into the QR) and its expiry (unix seconds).
+   */
+  async createEnrollment(
+    ttlSeconds = 600,
+  ): Promise<{ id: number; token: string; expiresAt: number }> {
+    const plaintext = generateToken();
+    const tokenHash = hashToken(plaintext);
+    const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
+
+    const result = await this.db
+      .insertInto('api_token')
+      .values({
+        token_hash: tokenHash,
+        label: 'enrollment',
+        kind: 'enrollment',
+        expires_at: expiresAt,
+      })
+      .executeTakeFirst();
+
+    return { id: Number(result.insertId), token: plaintext, expiresAt };
   }
 
   /**
