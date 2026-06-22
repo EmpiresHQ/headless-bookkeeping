@@ -31,6 +31,11 @@ public struct SettingsView: View {
                 Text("Off by default. Screenshots (weather, chats, web) are the main source of false uploads. Turn on only if you keep e-receipts as screenshots.")
             }
             Section {
+                Toggle("AI second pass (Qwen 3.5)", isOn: $model.settings.secondPassEnabled)
+            } footer: {
+                Text("Off by default. After the quick text check, a small on-device AI model double-checks each photo is actually a receipt or invoice before uploading — cutting false uploads from weather, chat, and web screenshots. Downloads a ~0.5GB model on first use, runs fully on-device, and needs a recent iPhone.")
+            }
+            Section {
                 Button("Reset scan state", role: .destructive) {
                     model.resetCursor()
                 }

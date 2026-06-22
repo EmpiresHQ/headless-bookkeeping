@@ -15,14 +15,20 @@ public struct AppSettings: Equatable, Sendable {
     /// web) are the biggest source of text-gate false positives. Turn on if you
     /// keep e-receipts as screenshots.
     public var includeScreenshots: Bool
+    /// Opt-in on-device VLM "second pass" (Qwen 3.5). When on (and on iOS), a small
+    /// vision model double-checks gate-passed images and vetoes non-documents
+    /// (weather/chat/web screenshots) before upload. Default OFF: it downloads a
+    /// ~0.5GB model and needs a recent iPhone.
+    public var secondPassEnabled: Bool
     public init(threshold: Double = 0.22, autoUpload: Bool = true,
                 syncEnabled: Bool = false, maxPerScan: Int = 30,
-                includeScreenshots: Bool = false) {
+                includeScreenshots: Bool = false, secondPassEnabled: Bool = false) {
         self.threshold = threshold
         self.autoUpload = autoUpload
         self.syncEnabled = syncEnabled
         self.maxPerScan = maxPerScan
         self.includeScreenshots = includeScreenshots
+        self.secondPassEnabled = secondPassEnabled
     }
 }
 
@@ -34,9 +40,10 @@ public enum AppSettingsStore {
         let s = defaults.object(forKey: "syncEnabled") as? Bool
         let m = defaults.object(forKey: "maxPerScan") as? Int
         let sc = defaults.object(forKey: "includeScreenshots") as? Bool
+        let sp = defaults.object(forKey: "secondPassEnabled") as? Bool
         return AppSettings(threshold: t ?? 0.22, autoUpload: a ?? true,
                            syncEnabled: s ?? false, maxPerScan: m ?? 30,
-                           includeScreenshots: sc ?? false)
+                           includeScreenshots: sc ?? false, secondPassEnabled: sp ?? false)
     }
     public static func save(_ s: AppSettings, _ defaults: UserDefaults = .standard) {
         defaults.set(s.threshold, forKey: "threshold")
@@ -44,5 +51,6 @@ public enum AppSettingsStore {
         defaults.set(s.syncEnabled, forKey: "syncEnabled")
         defaults.set(s.maxPerScan, forKey: "maxPerScan")
         defaults.set(s.includeScreenshots, forKey: "includeScreenshots")
+        defaults.set(s.secondPassEnabled, forKey: "secondPassEnabled")
     }
 }

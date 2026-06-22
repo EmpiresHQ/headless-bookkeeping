@@ -19,6 +19,19 @@ packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift.git
     from: 7.0.0
+  # MLX VLM stack for the on-device "second pass" (Qwen 3.5 vision). Metal-only, so it
+  # is added to the iOS APP target ONLY — never to Package.swift — to keep the macOS host
+  # (`swift test`) build free of MLX. swift-huggingface + swift-transformers supply the
+  # default Hub downloader + tokenizer the MLXHuggingFace macros bridge to.
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    exactVersion: 3.31.3
+  swift-huggingface:
+    url: https://github.com/huggingface/swift-huggingface.git
+    exactVersion: 0.9.0
+  swift-transformers:
+    url: https://github.com/huggingface/swift-transformers.git
+    exactVersion: 1.3.3
 
 targets:
   AccountingHelperApp:
@@ -31,6 +44,16 @@ targets:
     dependencies:
       - package: GRDB
         product: GRDB
+      - package: mlx-swift-lm
+        product: MLXVLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: mlx-swift-lm
+        product: MLXHuggingFace
+      - package: swift-huggingface
+        product: HuggingFace
+      - package: swift-transformers
+        product: Tokenizers
     info:
       path: App/Info.plist
       properties:

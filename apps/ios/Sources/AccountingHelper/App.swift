@@ -158,8 +158,17 @@ final class RootModel {
         }
         let uploader = DocumentUploader(client: URLSessionAPIClient(baseURL: currentBaseURL()),
                                         tokenProvider: { [keychain] in (try? keychain.read()) ?? nil })
+        // Optional VLM second pass: built only when the user has opted in. nil keeps the
+        // current gate/model behavior. The MLX model is downloaded on first use.
+        var secondPass: SecondPassClassifier?
+        #if canImport(MLXVLM)
+        if settings.secondPassEnabled {
+            secondPass = MLXSecondPass()
+        }
+        #endif
         let coordinator = ScanCoordinator(
             photos: photos, gate: VisionGate(), model: runner, labels: labels,
+            secondPass: secondPass,
             uploader: uploader, store: store, settings: settings,
             decode: { data in RootModel.decode(data) })
         _ = await coordinator.scanOnce()
