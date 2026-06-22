@@ -53,21 +53,45 @@ public actor MLXSecondPass: SecondPassClassifier {
     }
     private var state: LoadState = .idle
 
+    /// Longest-side cap (px) applied before inference. A VLM turns the image into
+    /// vision tokens proportional to its resolution, which drives prefill cost + KV
+    /// cache. Qwen vision tiles in 28px blocks; 1120 = 28×40 ≈ ~400 vision tokens
+    /// after spatial merge — enough detail to read a receipt's structure while
+    /// keeping memory/latency small (full camera res would be many thousands of
+    /// tokens). Still within Qwen's default max_pixels, so the processor won't
+    /// shrink it further.
+    private let maxImageSide: Int
+
     public init(
-        prompt: String = "Look at this image. Is it a receipt, invoice, bill, payment slip, "
-            + "or any accounting/financial document? Answer with exactly one word: YES or NO.",
-        maxTokens: Int = 4
+        prompt: String = MLXSecondPass.defaultPrompt,
+        maxTokens: Int = 4,
+        maxImageSide: Int = 1120
     ) {
         self.prompt = prompt
         self.maxTokens = maxTokens
+        self.maxImageSide = maxImageSide
     }
+
+    /// Strict prompt: accept only genuine purchase/payment documents; explicitly
+    /// reject the text-heavy non-documents that slip past the cheap text gate
+    /// (check-in screens, tickets, boarding passes, confirmations, menus, chats…).
+    public static let defaultPrompt =
+        "You are shown one photo. Reply with exactly one word: YES or NO. "
+        + "Answer YES only if the image is a financial accounting document that records a "
+        + "purchase or payment — a store/restaurant receipt, an invoice, a bill, or a card/"
+        + "payment-terminal slip — showing itemized lines, prices, or a total amount with a "
+        + "currency. Answer NO for everything else, including hotel or airport check-in "
+        + "screens, boarding passes, event/transport tickets, order or booking confirmations, "
+        + "menus, product pages, app or web screenshots, chats, maps, and photos of people, "
+        + "food, or places."
 
     public func isAccountingDocument(_ image: CGImage) async -> Bool? {
         guard let container = await ensureLoaded() else { return nil }
 
-        // CGImage -> CIImage for UserInput.Image.ciImage (the VLM image processor
-        // resizes/normalizes from here).
-        let ci = CIImage(cgImage: image)
+        // Downscale first to bound the vision-token count, then CGImage -> CIImage for
+        // UserInput.Image.ciImage (the VLM image processor normalizes from here).
+        let scaled = Self.downscaled(image, maxSide: maxImageSide)
+        let ci = CIImage(cgImage: scaled)
 
         do {
             // Keep output tiny: we only need the first YES/NO word. Greedy decode
@@ -81,6 +105,24 @@ public actor MLXSecondPass: SecondPassClassifier {
             // Generation failed (e.g. OOM on an older device) — undecided, never crash.
             return nil
         }
+    }
+
+    /// Downscale a CGImage so its longest side is at most `maxSide` (no upscaling).
+    /// Always renders into an sRGB context so grayscale/CMYK sources stay valid.
+    static func downscaled(_ image: CGImage, maxSide: Int) -> CGImage {
+        let longest = max(image.width, image.height)
+        guard longest > maxSide, maxSide > 0 else { return image }
+        let scale = Double(maxSide) / Double(longest)
+        let w = max(1, Int((Double(image.width) * scale).rounded()))
+        let h = max(1, Int((Double(image.height) * scale).rounded()))
+        guard let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let ctx = CGContext(
+                data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return image }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage() ?? image
     }
 
     /// Parse the first standalone YES/NO from the model's reply. Unknown/empty → nil.

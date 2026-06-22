@@ -65,10 +65,16 @@ public final class ScanCoordinator {
             // Optional VLM second pass: only a definitive `false` vetoes. `nil`
             // (model unavailable / undecided) is treated as a PASS to preserve recall,
             // so an unbundled/loading model never silently drops real documents.
-            if let secondPass, await secondPass.isAccountingDocument(image) == false {
-                try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .ignored,
-                                           topLabel: "vlm:not_document", score: 0, at: Date()))
-                summary.ignored += 1; continue
+            // The verdict is surfaced in the log label so it's visible whether (and
+            // how) the VLM decided.
+            var vlmVerdict: Bool?
+            if let secondPass {
+                vlmVerdict = await secondPass.isAccountingDocument(image)
+                if vlmVerdict == false {
+                    try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .ignored,
+                                               topLabel: "vlm:not_document", score: 0, at: Date()))
+                    summary.ignored += 1; continue
+                }
             }
 
             let result: PrecheckResult
@@ -82,13 +88,21 @@ public final class ScanCoordinator {
                                         topScore: 1.0, scores: [])
             }
 
+            // Label reflects the VLM verdict when the second pass ran.
+            let recordLabel: String
+            switch vlmVerdict {
+            case .some(true): recordLabel = "vlm:document"
+            case .none where secondPass != nil: recordLabel = "vlm:undecided"
+            default: recordLabel = result.topLabel
+            }
+
             if result.decision == .upload && settings.autoUpload {
                 let input = UploadInput(assetLocalId: asset.localId, capturedAt: asset.capturedAt,
                                         data: data, precheck: result)
                 do {
                     _ = try await uploader.upload(input)
                     try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .uploaded,
-                                               topLabel: result.topLabel, score: result.topScore, at: Date()))
+                                               topLabel: recordLabel, score: result.topScore, at: Date()))
                     summary.uploaded += 1
                 } catch {
                     // Record the failure (visible in the log) but keep it eligible
@@ -100,7 +114,7 @@ public final class ScanCoordinator {
                 }
             } else {
                 try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .ignored,
-                                           topLabel: result.topLabel, score: result.topScore, at: Date()))
+                                           topLabel: recordLabel, score: result.topScore, at: Date()))
                 summary.ignored += 1
             }
         }

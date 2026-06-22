@@ -85,3 +85,13 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
+
+schemes:
+  AccountingHelperApp:
+    build:
+      targets:
+        AccountingHelperApp: all
+    run:
+      config: Debug
+    archive:
+      config: Debug
