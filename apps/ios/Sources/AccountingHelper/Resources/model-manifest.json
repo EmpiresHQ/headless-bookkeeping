@@ -1,0 +1,6 @@
+{
+  "version": "s0-2024",
+  "_placeholder": "PLACEHOLDER url + sha256. Replace with the real pinned Apple MobileCLIP-S0 Core ML artifact URL and its `shasum -a 256` value before shipping. Scripts/fetch-model.sh verifies the download against this sha256.",
+  "url": "https://docs-assets.developer.apple.com/ml-research/models/mobileclip/mobileclip_s0.mlpackage.zip",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}
