@@ -1,5 +1,7 @@
 Models/
 .build/
+.build-ios/
+.build-device/
 *.xcodeproj
 *.xcworkspace
 xcuserdata/
