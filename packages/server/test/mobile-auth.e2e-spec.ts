@@ -6,7 +6,7 @@ import { Kysely, SqliteDialect } from 'kysely';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../src/database/types';
-import { seedApiToken, auth } from './e2e-auth';
+import { seedApiToken } from './e2e-auth';
 
 describe('Mobile enrollment auth (e2e)', () => {
   let app: INestApplication;

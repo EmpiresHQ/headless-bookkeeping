@@ -1,6 +1,7 @@
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
+import { createHash } from 'crypto';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ApiTokenService } from './api-token.service';
@@ -71,10 +72,7 @@ describe('ApiTokenService (A1: token management over the service)', () => {
 
     it('rejects an expired enrollment token', async () => {
       const plaintext = 'expired-enroll';
-      const hash = require('crypto')
-        .createHash('sha256')
-        .update(plaintext)
-        .digest('hex');
+      const hash = createHash('sha256').update(plaintext).digest('hex');
       await db
         .insertInto('api_token')
         .values({
@@ -89,10 +87,7 @@ describe('ApiTokenService (A1: token management over the service)', () => {
 
     it('rejects a consumed enrollment token', async () => {
       const plaintext = 'used-enroll';
-      const hash = require('crypto')
-        .createHash('sha256')
-        .update(plaintext)
-        .digest('hex');
+      const hash = createHash('sha256').update(plaintext).digest('hex');
       await db
         .insertInto('api_token')
         .values({
@@ -137,10 +132,8 @@ describe('ApiTokenService (A1: token management over the service)', () => {
   describe('exchangeEnrollment', () => {
     it('consumes the enrollment and mints a session token', async () => {
       const { id: enrollId, token: enroll } = await service.createEnrollment();
-      const { id: sessionId, token: session } = await service.exchangeEnrollment(
-        enroll,
-        'Pixel 8',
-      );
+      const { id: sessionId, token: session } =
+        await service.exchangeEnrollment(enroll, 'Pixel 8');
 
       const enrollRow = await db
         .selectFrom('api_token')
@@ -163,16 +156,16 @@ describe('ApiTokenService (A1: token management over the service)', () => {
     it('rejects a second exchange of the same enrollment token', async () => {
       const { token: enroll } = await service.createEnrollment();
       await service.exchangeEnrollment(enroll, 'first');
-      await expect(service.exchangeEnrollment(enroll, 'second')).rejects.toThrow(
-        'invalid or expired enrollment token',
-      );
+      await expect(
+        service.exchangeEnrollment(enroll, 'second'),
+      ).rejects.toThrow('invalid or expired enrollment token');
     });
 
     it('rejects a non-enrollment token', async () => {
       const { token: staticTok } = await service.create('s');
-      await expect(
-        service.exchangeEnrollment(staticTok, 'x'),
-      ).rejects.toThrow('invalid or expired enrollment token');
+      await expect(service.exchangeEnrollment(staticTok, 'x')).rejects.toThrow(
+        'invalid or expired enrollment token',
+      );
     });
   });
 });
