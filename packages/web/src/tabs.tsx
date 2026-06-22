@@ -6,6 +6,7 @@ import { IntakeView } from './components/IntakeView';
 import { BankView } from './components/BankView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { SettingsView } from './components/SettingsView';
+import { EnrollView } from './components/EnrollView';
 import { CreditNotesView } from './components/CreditNotesView';
 import { OrgView } from './components/OrgView';
 import { EntitiesView } from './components/EntitiesView';
@@ -112,6 +113,14 @@ const approvalsTab: TabDef = {
   Custom: ApprovalsView,
 };
 
+const enrollTab: TabDef = {
+  key: 'enroll',
+  label: 'Enroll device',
+  load: async () => [],
+  columns: [],
+  Custom: EnrollView,
+};
+
 const settingsTab: TabDef = {
   key: 'settings',
   label: 'Settings',
@@ -152,5 +161,6 @@ export const TABS: TabDef[] = [
   periodsTab,
   kmdTab,
   creditNotesTab,
+  enrollTab,
   settingsTab,
 ] as unknown as TabDef[];

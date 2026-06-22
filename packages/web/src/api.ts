@@ -794,3 +794,13 @@ export const markPersonal = (bankTransactionId: number) =>
   apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/personal`, {
     method: 'POST',
   });
+
+// ── Device enrollment ─────────────────────────────────────────────────────
+export interface DeviceEnrollment {
+  apiBaseUrl: string;
+  enrollmentToken: string;
+  expiresAt: string;
+}
+
+export const createDeviceEnrollment = () =>
+  apiFetch<DeviceEnrollment>('/api/device-enrollments', { method: 'POST' });

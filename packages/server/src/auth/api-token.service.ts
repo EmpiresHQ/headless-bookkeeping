@@ -67,19 +67,86 @@ export class ApiTokenService implements OnModuleInit {
    * Create a new API token. Returns the plaintext token (store it securely)
    * and the row id.
    */
-  async create(label: string): Promise<{ id: number; token: string }> {
+  async create(
+    label: string,
+    kind: 'static' | 'enrollment' | 'session' = 'static',
+  ): Promise<{ id: number; token: string }> {
     const plaintext = generateToken();
     const tokenHash = hashToken(plaintext);
 
     const result = await this.db
       .insertInto('api_token')
-      .values({
-        token_hash: tokenHash,
-        label,
-      })
+      .values({ token_hash: tokenHash, label, kind })
       .executeTakeFirst();
 
     return { id: Number(result.insertId), token: plaintext };
+  }
+
+  /**
+   * Mint a one-time, short-lived enrollment token for the QR flow.
+   * Returns the plaintext (rendered into the QR) and its expiry (unix seconds).
+   */
+  async createEnrollment(
+    ttlSeconds = 600,
+  ): Promise<{ id: number; token: string; expiresAt: number }> {
+    const plaintext = generateToken();
+    const tokenHash = hashToken(plaintext);
+    const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
+
+    const result = await this.db
+      .insertInto('api_token')
+      .values({
+        token_hash: tokenHash,
+        label: 'enrollment',
+        kind: 'enrollment',
+        expires_at: expiresAt,
+      })
+      .executeTakeFirst();
+
+    return { id: Number(result.insertId), token: plaintext, expiresAt };
+  }
+
+  /**
+   * Exchange a one-time enrollment token for a mobile session token.
+   * Atomic: the enrollment is consumed inside the same transaction that mints
+   * the session, and the conditional UPDATE guards against double-spend.
+   */
+  async exchangeEnrollment(
+    plaintext: string,
+    deviceName: string,
+  ): Promise<{ id: number; token: string }> {
+    const enrollment = await this.verify(plaintext);
+    if (!enrollment || enrollment.kind !== 'enrollment') {
+      throw new Error('invalid or expired enrollment token');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const sessionPlaintext = generateToken();
+    const sessionHash = hashToken(sessionPlaintext);
+
+    return this.db.transaction().execute(async (trx) => {
+      const consumed = await trx
+        .updateTable('api_token')
+        .set({ consumed_at: now })
+        .where('id', '=', enrollment.id)
+        .where('consumed_at', 'is', null)
+        .executeTakeFirst();
+
+      if (Number(consumed.numUpdatedRows) !== 1) {
+        throw new Error('invalid or expired enrollment token');
+      }
+
+      const inserted = await trx
+        .insertInto('api_token')
+        .values({
+          token_hash: sessionHash,
+          label: deviceName,
+          kind: 'session',
+        })
+        .executeTakeFirst();
+
+      return { id: Number(inserted.insertId), token: sessionPlaintext };
+    });
   }
 
   /**
@@ -92,15 +159,30 @@ export class ApiTokenService implements OnModuleInit {
     label: string | null;
     created_at: number;
     revoked_at: number | null;
+    kind: string;
+    expires_at: number | null;
+    consumed_at: number | null;
   } | null> {
     const candidateHash = hashToken(plaintext);
+    const now = Math.floor(Date.now() / 1000);
 
-    // Fetch all active tokens and compare in constant time.
-    // We fetch all because we don't know which hash to look up.
     const tokens = await this.db
       .selectFrom('api_token')
-      .select(['id', 'token_hash', 'label', 'created_at', 'revoked_at'])
+      .select([
+        'id',
+        'token_hash',
+        'label',
+        'created_at',
+        'revoked_at',
+        'kind',
+        'expires_at',
+        'consumed_at',
+      ])
       .where('revoked_at', 'is', null)
+      .where('consumed_at', 'is', null)
+      .where((eb) =>
+        eb.or([eb('expires_at', 'is', null), eb('expires_at', '>', now)]),
+      )
       .execute();
 
     for (const token of tokens) {
