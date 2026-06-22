@@ -77,6 +77,30 @@ describe('Mobile enrollment auth (e2e)', () => {
       .expect(401);
   });
 
+  it('prefers the public_api_url setting over the PUBLIC_API_URL env var', async () => {
+    await db
+      .insertInto('setting')
+      .values({
+        key: 'public_api_url',
+        value: 'https://books.acme.test',
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+      .execute();
+    try {
+      const res = await request(app.getHttpServer())
+        .post('/api/device-enrollments')
+        .set('Authorization', `Bearer ${staticToken}`)
+        .expect(201);
+      // env is 'https://api.example.test'; the setting must win.
+      expect(res.body.apiBaseUrl).toBe('https://books.acme.test');
+    } finally {
+      await db
+        .deleteFrom('setting')
+        .where('key', '=', 'public_api_url')
+        .execute();
+    }
+  });
+
   it('returns 500 when PUBLIC_API_URL is non-https non-localhost', async () => {
     const original = process.env.PUBLIC_API_URL;
     process.env.PUBLIC_API_URL = 'http://insecure.example.test';

@@ -8,6 +8,9 @@ export interface KnownSetting {
 const nonEmpty = (v: string): boolean => v.trim().length > 0;
 const ingestPolicy = (v: string): boolean =>
   v === 'known-only' || v === 'quarantine' || v === 'open';
+const httpsOrLocalhost = (v: string): boolean =>
+  /^https:\/\//.test(v) ||
+  /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(v);
 
 export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
   ai_model: {
@@ -70,6 +73,12 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
   email_whitelist: {
     description: 'Comma-separated converse/command allowlist',
     validate: nonEmpty,
+  },
+  public_api_url: {
+    description:
+      'Public base URL the mobile app talks to, embedded in the enrollment ' +
+      'QR. Must be https:// (http://localhost is allowed for dev).',
+    validate: httpsOrLocalhost,
   },
 };
 
