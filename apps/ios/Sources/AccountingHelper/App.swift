@@ -124,10 +124,16 @@ final class RootModel {
         if photos.authorizationStatus() == .notDetermined {
             _ = await photos.requestAuthorization()
         }
-        guard let labels = try? LabelSet.bundled() else { return }
-        // Model is loaded from the downloaded package; if absent, scanning is a no-op.
-        guard let modelURL = RootModel.modelURL(),
-              let runner = try? MobileCLIPRunner(modelURL: modelURL) else { return }
+        // On-device model is optional: if a MobileCLIP package is bundled we use it,
+        // otherwise we fall back to the Vision document gate alone (gate → upload).
+        var runner: ModelRunner?
+        var labels: LabelSet?
+        if let modelURL = RootModel.modelURL(),
+           let r = try? MobileCLIPRunner(modelURL: modelURL),
+           let l = try? LabelSet.bundled() {
+            runner = r
+            labels = l
+        }
         let uploader = DocumentUploader(client: URLSessionAPIClient(baseURL: currentBaseURL()),
                                         tokenProvider: { [keychain] in (try? keychain.read()) ?? nil })
         let coordinator = ScanCoordinator(

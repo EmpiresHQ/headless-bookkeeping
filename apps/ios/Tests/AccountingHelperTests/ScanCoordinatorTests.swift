@@ -82,6 +82,70 @@ import CoreGraphics
         #expect((try? store.status(of: "A4")) == nil) // retried next scan
     }
 
+    @Test func gateOnlyUploadsWhenNoModel() async {
+        let api = FakeAPIClient()
+        api.responses = [.success(APIResponse(status: 201, data: Data()))]
+        let store = FakeScanStateStore()
+        let gate = FakeGate(); gate.passes = true
+        let asset = PhotoAsset(localId: "G1", capturedAt: Date())
+        let source = FakePhotoSource(
+            assets: [asset],
+            data: [asset.localId: PhotoData(bytes: Data([0x1]), utiType: "public.heic", filename: "G1.HEIC")])
+        let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+        let img = oneByOne()
+        let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                    uploader: uploader, store: store,
+                                    settings: AppSettings(threshold: 0.5, autoUpload: true),
+                                    decode: { _ in img })
+        let summary = await coord.scanOnce()
+        #expect(summary.uploaded == 1)
+        #expect((try? store.status(of: "G1")) == .uploaded)
+        #expect(api.sent.count == 1)
+    }
+
+    @Test func gateOnlyStillRespectsGateFailure() async {
+        let api = FakeAPIClient()
+        api.responses = [.success(APIResponse(status: 201, data: Data()))]
+        let store = FakeScanStateStore()
+        let gate = FakeGate(); gate.passes = false
+        let asset = PhotoAsset(localId: "G2", capturedAt: Date())
+        let source = FakePhotoSource(
+            assets: [asset],
+            data: [asset.localId: PhotoData(bytes: Data([0x1]), utiType: "public.heic", filename: "G2.HEIC")])
+        let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+        let img = oneByOne()
+        let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                    uploader: uploader, store: store,
+                                    settings: AppSettings(threshold: 0.5, autoUpload: true),
+                                    decode: { _ in img })
+        let summary = await coord.scanOnce()
+        #expect(summary.ignored == 1)
+        #expect(api.sent.count == 0)
+    }
+
+    @Test func maxPerScanCapsNewWorkPerRun() async {
+        let api = FakeAPIClient()
+        api.responses = (0..<10).map { _ in .success(APIResponse(status: 201, data: Data())) }
+        let store = FakeScanStateStore()
+        let gate = FakeGate(); gate.passes = true
+        let now = Date()
+        let assets = (0..<5).map { PhotoAsset(localId: "M\($0)", capturedAt: now.addingTimeInterval(Double(-$0))) }
+        let source = FakePhotoSource(
+            assets: assets,
+            data: Dictionary(uniqueKeysWithValues: assets.map {
+                ($0.localId, PhotoData(bytes: Data([0x1]), utiType: "public.heic", filename: "\($0.localId).HEIC")) }))
+        let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+        let img = oneByOne()
+        let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                    uploader: uploader, store: store,
+                                    settings: AppSettings(threshold: 0.5, autoUpload: true, maxPerScan: 2),
+                                    decode: { _ in img })
+        let summary = await coord.scanOnce()
+        #expect(summary.examined == 2)
+        #expect(summary.uploaded == 2)
+        #expect(api.sent.count == 2)
+    }
+
     @Test func alreadyHandledAssetIsSkipped() async {
         let s = AppSettings(threshold: 0.5, autoUpload: true)
         let (coord, store, api) = make(uploadResult: .success(true), modelEmbedding: [1, 0],

@@ -9,14 +9,16 @@ public struct ScanSummary: Equatable, Sendable {
 public final class ScanCoordinator {
     private let photos: PhotoSource
     private let gate: ImageGate
-    private let model: ModelRunner
-    private let labels: LabelSet
+    // Optional: when no on-device model is bundled, classification falls back to
+    // the Vision gate alone (gate-passed → upload candidate).
+    private let model: ModelRunner?
+    private let labels: LabelSet?
     private let uploader: DocumentUploader
     private let store: ScanStateStore
     private let settings: AppSettings
     private let decode: @Sendable (PhotoData) -> CGImage?
 
-    public init(photos: PhotoSource, gate: ImageGate, model: ModelRunner, labels: LabelSet,
+    public init(photos: PhotoSource, gate: ImageGate, model: ModelRunner?, labels: LabelSet?,
                 uploader: DocumentUploader, store: ScanStateStore, settings: AppSettings,
                 decode: @escaping @Sendable (PhotoData) -> CGImage?) {
         self.photos = photos; self.gate = gate; self.model = model; self.labels = labels
@@ -25,9 +27,17 @@ public final class ScanCoordinator {
 
     public func scanOnce() async -> ScanSummary {
         var summary = ScanSummary()
-        let assets = await photos.enumerateImages()
+        // Newest first, so a bounded run processes recent photos rather than
+        // sweeping from the oldest. The local cursor (store.status) skips
+        // already-handled assets, so successive scans walk back in batches.
+        let assets = (await photos.enumerateImages()).sorted { $0.capturedAt > $1.capturedAt }
+        var processed = 0
         for asset in assets {
             if ((try? store.status(of: asset.localId)) ?? nil) != nil { summary.skipped += 1; continue }
+            // Cap NEW work per scan (0 = unlimited) to avoid uploading the whole
+            // library in one run.
+            if settings.maxPerScan > 0 && processed >= settings.maxPerScan { break }
+            processed += 1
             summary.examined += 1
             guard let data = try? await photos.loadOriginal(localId: asset.localId),
                   let image = decode(data) else { summary.failed += 1; continue }
@@ -37,8 +47,16 @@ public final class ScanCoordinator {
                                            topLabel: "gate:not_document", score: 0, at: Date()))
                 summary.ignored += 1; continue
             }
-            guard let emb = try? await model.imageEmbedding(image) else { summary.failed += 1; continue }
-            let result = PrecheckDecision.decide(imageEmbedding: emb, labels: labels, threshold: settings.threshold)
+            let result: PrecheckResult
+            if let model, let labels {
+                guard let emb = try? await model.imageEmbedding(image) else { summary.failed += 1; continue }
+                result = PrecheckDecision.decide(imageEmbedding: emb, labels: labels, threshold: settings.threshold)
+            } else {
+                // Gate-only fallback: no on-device model bundled, so the Vision
+                // document gate (already passed above) IS the decision.
+                result = PrecheckResult(decision: .upload, topLabel: "gate:document",
+                                        topScore: 1.0, scores: [])
+            }
 
             if result.decision == .upload && settings.autoUpload {
                 let input = UploadInput(assetLocalId: asset.localId, capturedAt: asset.capturedAt,
