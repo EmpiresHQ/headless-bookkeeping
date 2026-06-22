@@ -22,18 +22,16 @@ defaults:
     working-directory: apps/ios
 
 jobs:
-  # Build the AccountingHelper library for the iOS Simulator and run the full
-  # test suite. The simulator build compiles the `#if os(iOS)` code (PhotoKit /
-  # Vision / CoreML / Keychain / AVFoundation / SwiftUI) that the macOS host build
-  # excludes, and runs the cross-platform logic tests plus the SIMULATOR-ONLY ones.
-  # Tests are swift-testing; `xcodebuild test` on full Xcode runs them natively.
+  # Run the cross-platform logic tests on macOS. The AccountingHelper package
+  # declares both .macOS and .iOS; the macOS build excludes the `#if os(iOS)` code
+  # (PhotoKit / Vision / CoreML / Keychain / AVFoundation / SwiftUI) and is MLX-free,
+  # so this is fast and reliable (no simulator runtime needed). iOS-only compilation
+  # is covered by the app-build job. SIMULATOR-ONLY tests are device-dependent and
+  # not run here. Tests are swift-testing; `xcodebuild test` runs them natively.
   test:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Show toolchain
         run: |
@@ -43,12 +41,12 @@ jobs:
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme AccountingHelper
 
-      - name: Build & test on iOS Simulator
+      - name: Build & test on macOS
         run: |
           xcodebuild test \
             -scheme AccountingHelper \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -derivedDataPath .build-ios \
+            -destination 'platform=macOS' \
+            -derivedDataPath .build-macos \
             CODE_SIGNING_ALLOWED=NO
 
   # Build the actual runnable app target. Generates the .xcodeproj from project.yml

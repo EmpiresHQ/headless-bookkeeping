@@ -2,6 +2,7 @@ Models/
 .build/
 .build-ios/
 .build-device/
+.build-macos/
 *.xcodeproj
 *.xcworkspace
 App/Info.plist
