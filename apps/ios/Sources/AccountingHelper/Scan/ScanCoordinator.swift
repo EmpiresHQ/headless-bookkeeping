@@ -39,6 +39,9 @@ public final class ScanCoordinator {
         let assets = (await photos.enumerateImages()).sorted { $0.capturedAt > $1.capturedAt }
         var processed = 0
         for asset in assets {
+            // Stop promptly when the scan is cancelled (Stop sync / logout), instead
+            // of grinding through the rest of the batch.
+            if Task.isCancelled { break }
             // Skip terminally-handled assets; previously-failed ones are retried.
             if let st = (try? store.status(of: asset.localId)) ?? nil, st != .failed {
                 summary.skipped += 1; continue

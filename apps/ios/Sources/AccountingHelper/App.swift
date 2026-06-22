@@ -48,6 +48,12 @@ final class RootModel {
     private let auth: AuthService
     private var baseURL: URL?
     private var observer: PhotoLibraryObserver?
+    /// The in-flight scan, if any. Tracked so it is single-flight (no overlapping
+    /// scans) and cancellable (Stop sync / logout aborts it mid-batch).
+    private var scanTask: Task<Void, Never>?
+    /// Bumped per scan start; a finishing task only clears `scanTask` if it is still
+    /// the current generation, so a stale (cancelled) task can't null out a newer one.
+    private var scanGeneration = 0
 
     let loginModel: LoginViewModel
     let homeModel: HomeViewModel
@@ -91,7 +97,7 @@ final class RootModel {
         // Resume an enabled sync automatically after relaunch.
         if isAuthenticated && AppSettingsStore.load().syncEnabled {
             registerObserver()
-            await runScan()
+            startScan()
         }
     }
 
@@ -101,11 +107,12 @@ final class RootModel {
         }
         guard isAuthenticated, AppSettingsStore.load().syncEnabled else { return }
         registerObserver()
-        await runScan()
+        startScan()
     }
 
     /// Start/stop the automatic sync. Persisted, so `onLaunch` resumes it after a
-    /// relaunch. Turning it on triggers an immediate scan + change observer.
+    /// relaunch. Turning it on triggers an immediate scan + change observer; turning
+    /// it off CANCELS any in-flight scan so processing stops promptly.
     func setSyncEnabled(_ on: Bool) {
         settings = AppSettingsStore.load()
         settings.syncEnabled = on
@@ -113,26 +120,42 @@ final class RootModel {
         homeModel.syncEnabled = on
         if on {
             registerObserver()
-            Task { await runScan() }
+            startScan()
         } else {
             observer?.unregister()
             observer = nil
+            scanTask?.cancel()
+            scanTask = nil
         }
     }
 
     func logout() {
+        scanTask?.cancel()
+        scanTask = nil
+        observer?.unregister()
+        observer = nil
         Task {
             await auth.logout(baseURL: currentBaseURL())
             isAuthenticated = false
-            observer?.unregister()
-            observer = nil
+        }
+    }
+
+    /// Single-flight: start a scan only if one isn't already running. The task is
+    /// tracked so Stop sync / logout can cancel it mid-batch.
+    private func startScan() {
+        guard scanTask == nil else { return }
+        scanGeneration += 1
+        let gen = scanGeneration
+        scanTask = Task { [weak self] in
+            await self?.runScan()
+            if self?.scanGeneration == gen { self?.scanTask = nil }
         }
     }
 
     private func registerObserver() {
         guard observer == nil else { return }
         let obs = PhotoLibraryObserver(onChange: { [weak self] in
-            Task { @MainActor in await self?.runScan() }
+            Task { @MainActor in self?.startScan() }
         })
         obs.register()
         observer = obs
