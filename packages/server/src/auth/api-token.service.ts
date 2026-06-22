@@ -107,6 +107,49 @@ export class ApiTokenService implements OnModuleInit {
   }
 
   /**
+   * Exchange a one-time enrollment token for a mobile session token.
+   * Atomic: the enrollment is consumed inside the same transaction that mints
+   * the session, and the conditional UPDATE guards against double-spend.
+   */
+  async exchangeEnrollment(
+    plaintext: string,
+    deviceName: string,
+  ): Promise<{ id: number; token: string }> {
+    const enrollment = await this.verify(plaintext);
+    if (!enrollment || enrollment.kind !== 'enrollment') {
+      throw new Error('invalid or expired enrollment token');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const sessionPlaintext = generateToken();
+    const sessionHash = hashToken(sessionPlaintext);
+
+    return this.db.transaction().execute(async (trx) => {
+      const consumed = await trx
+        .updateTable('api_token')
+        .set({ consumed_at: now })
+        .where('id', '=', enrollment.id)
+        .where('consumed_at', 'is', null)
+        .executeTakeFirst();
+
+      if (Number(consumed.numUpdatedRows) !== 1) {
+        throw new Error('invalid or expired enrollment token');
+      }
+
+      const inserted = await trx
+        .insertInto('api_token')
+        .values({
+          token_hash: sessionHash,
+          label: deviceName,
+          kind: 'session',
+        })
+        .executeTakeFirst();
+
+      return { id: Number(inserted.insertId), token: sessionPlaintext };
+    });
+  }
+
+  /**
    * Verify a plaintext token against the database.
    * Returns the token row if valid and not revoked, null otherwise.
    */

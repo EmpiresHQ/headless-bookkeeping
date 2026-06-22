@@ -133,4 +133,46 @@ describe('ApiTokenService (A1: token management over the service)', () => {
       expect(row.expires_at).toBe(expiresAt);
     });
   });
+
+  describe('exchangeEnrollment', () => {
+    it('consumes the enrollment and mints a session token', async () => {
+      const { id: enrollId, token: enroll } = await service.createEnrollment();
+      const { id: sessionId, token: session } = await service.exchangeEnrollment(
+        enroll,
+        'Pixel 8',
+      );
+
+      const enrollRow = await db
+        .selectFrom('api_token')
+        .select(['consumed_at'])
+        .where('id', '=', enrollId)
+        .executeTakeFirstOrThrow();
+      expect(enrollRow.consumed_at).not.toBeNull();
+
+      const sessionRow = await db
+        .selectFrom('api_token')
+        .select(['kind', 'label'])
+        .where('id', '=', sessionId)
+        .executeTakeFirstOrThrow();
+      expect(sessionRow.kind).toBe('session');
+      expect(sessionRow.label).toBe('Pixel 8');
+
+      expect(await service.verify(session)).not.toBeNull();
+    });
+
+    it('rejects a second exchange of the same enrollment token', async () => {
+      const { token: enroll } = await service.createEnrollment();
+      await service.exchangeEnrollment(enroll, 'first');
+      await expect(service.exchangeEnrollment(enroll, 'second')).rejects.toThrow(
+        'invalid or expired enrollment token',
+      );
+    });
+
+    it('rejects a non-enrollment token', async () => {
+      const { token: staticTok } = await service.create('s');
+      await expect(
+        service.exchangeEnrollment(staticTok, 'x'),
+      ).rejects.toThrow('invalid or expired enrollment token');
+    });
+  });
 });
