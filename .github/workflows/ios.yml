@@ -62,9 +62,11 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      # MLX compiles Metal kernels at build time; the toolchain isn't preinstalled.
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
+      # MLX compiles Metal kernels at build time. On Xcode 26+ the Metal Toolchain
+      # is a separately downloadable component; on older Xcode it's bundled and the
+      # flag doesn't exist — so this is best-effort and must not fail the job.
+      - name: Download Metal Toolchain (best-effort)
+        run: xcodebuild -downloadComponent MetalToolchain || echo "Metal Toolchain not downloadable on this Xcode (bundled) — continuing"
 
       # The Qwen 3.5 VLM weights are NOT committed (gitignored). They are bundled
       # into the .app at build time, so CI must fetch them before generating the
