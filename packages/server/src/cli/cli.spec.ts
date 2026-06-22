@@ -326,17 +326,30 @@ describe('token enroll', () => {
   const makeEnrollIo = () => {
     const out: string[] = [];
     const err: string[] = [];
-    return { io: { out: (s: string) => out.push(s), err: (s: string) => err.push(s) }, out, err };
+    return {
+      io: { out: (s: string) => out.push(s), err: (s: string) => err.push(s) },
+      out,
+      err,
+    };
   };
 
   const fakeTokens = {
-    createEnrollment: async () => ({ id: 1, token: 'enr0lltok', expiresAt: 1750000000 }),
+    createEnrollment: async () => ({
+      id: 1,
+      token: 'enr0lltok',
+      expiresAt: 1750000000,
+    }),
   } as unknown as import('../auth/api-token.service').ApiTokenService;
 
   it('prints a JSON payload with v:1 and the enroll token to stdout', async () => {
     const { io, out } = makeEnrollIo();
     const cli = buildCli({ tokens: fakeTokens } as any, io);
-    await cli.parseAsync(['token', 'enroll', '--api', 'https://api.example.test']);
+    await cli.parseAsync([
+      'token',
+      'enroll',
+      '--api',
+      'https://api.example.test',
+    ]);
     const payload = JSON.parse(out.join(''));
     expect(payload.v).toBe(1);
     expect(payload.api).toBe('https://api.example.test');
@@ -348,9 +361,7 @@ describe('token enroll', () => {
     delete process.env.PUBLIC_API_URL;
     const { io } = makeEnrollIo();
     const cli = buildCli({ tokens: fakeTokens } as any, io);
-    await expect(
-      cli.parseAsync(['token', 'enroll']),
-    ).rejects.toThrow(/api/i);
+    await expect(cli.parseAsync(['token', 'enroll'])).rejects.toThrow(/api/i);
     if (prev !== undefined) process.env.PUBLIC_API_URL = prev;
   });
 });

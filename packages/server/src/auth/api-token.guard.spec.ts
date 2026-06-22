@@ -172,7 +172,10 @@ describe('ApiTokenGuard (integration)', () => {
     });
 
     it('accepts a session token on a default (undecorated) route', async () => {
-      const { token } = await apiTokenService.create('session-test-token', 'session');
+      const { token } = await apiTokenService.create(
+        'session-test-token',
+        'session',
+      );
       await request(app.getHttpServer())
         .get('/test/protected')
         .set('Authorization', `Bearer ${token}`)
@@ -180,9 +183,7 @@ describe('ApiTokenGuard (integration)', () => {
     });
 
     it('returns 401 with no Authorization header on an @EnrollmentOnly route', async () => {
-      await request(app.getHttpServer())
-        .post('/test/exchange')
-        .expect(401);
+      await request(app.getHttpServer()).post('/test/exchange').expect(401);
     });
   });
 
