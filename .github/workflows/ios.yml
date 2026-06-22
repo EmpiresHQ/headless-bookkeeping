@@ -22,32 +22,9 @@ defaults:
     working-directory: apps/ios
 
 jobs:
-  # Run the cross-platform logic tests on macOS. The AccountingHelper package
-  # declares both .macOS and .iOS; the macOS build excludes the `#if os(iOS)` code
-  # (PhotoKit / Vision / CoreML / Keychain / AVFoundation / SwiftUI) and is MLX-free,
-  # so this is fast and reliable (no simulator runtime needed). iOS-only compilation
-  # is covered by the app-build job. SIMULATOR-ONLY tests are device-dependent and
-  # not run here. Tests are swift-testing; `xcodebuild test` runs them natively.
-  test:
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Show toolchain
-        run: |
-          swift --version
-          xcodebuild -version
-
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme AccountingHelper
-
-      - name: Build & test on macOS
-        run: |
-          xcodebuild test \
-            -scheme AccountingHelper \
-            -destination 'platform=macOS' \
-            -derivedDataPath .build-macos \
-            CODE_SIGNING_ALLOWED=NO
+  # NOTE: the cross-platform logic tests run in the main CI workflow (ci.yml,
+  # job `ios-test`, gated on apps/ios changes). This workflow keeps only the heavy
+  # iOS device build (MLX + bundled model) to avoid running the tests twice.
 
   # Build the actual runnable app target. Generates the .xcodeproj from project.yml
   # (the project is gitignored), then compiles the app for a generic iOS device
