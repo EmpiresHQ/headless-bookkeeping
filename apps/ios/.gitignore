@@ -1,0 +1,6 @@
+Models/
+.build/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
