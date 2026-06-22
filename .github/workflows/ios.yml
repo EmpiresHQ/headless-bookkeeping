@@ -22,11 +22,11 @@ defaults:
     working-directory: apps/ios
 
 jobs:
-  # Build for the iOS Simulator and run the full test suite. The simulator build
-  # compiles the `#if os(iOS)` code (PhotoKit / Vision / CoreML / Keychain /
-  # AVFoundation / SwiftUI) that the macOS host build excludes, and runs both the
-  # cross-platform logic tests and the SIMULATOR-ONLY tests. Tests are written in
-  # swift-testing; `xcodebuild test` on full Xcode runs them natively.
+  # Build the AccountingHelper library for the iOS Simulator and run the full
+  # test suite. The simulator build compiles the `#if os(iOS)` code (PhotoKit /
+  # Vision / CoreML / Keychain / AVFoundation / SwiftUI) that the macOS host build
+  # excludes, and runs the cross-platform logic tests plus the SIMULATOR-ONLY ones.
+  # Tests are swift-testing; `xcodebuild test` on full Xcode runs them natively.
   test:
     runs-on: macos-15
     steps:
@@ -51,9 +51,10 @@ jobs:
             -derivedDataPath .build-ios \
             CODE_SIGNING_ALLOWED=NO
 
-  # Pure compile gate for a real iOS device slice (arm64), no code signing.
-  # Catches device-only build differences the simulator (x86_64/arm64-sim) misses.
-  device-build:
+  # Build the actual runnable app target. Generates the .xcodeproj from project.yml
+  # (the project is gitignored), then compiles the app for a generic iOS device
+  # with code signing disabled — the real "build the app" gate.
+  app-build:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
@@ -61,13 +62,17 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme AccountingHelper
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      - name: Build for generic iOS device
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app for generic iOS device
         run: |
           xcodebuild build \
-            -scheme AccountingHelper \
+            -project AccountingHelper.xcodeproj \
+            -scheme AccountingHelperApp \
             -destination 'generic/platform=iOS' \
             -derivedDataPath .build-device \
             CODE_SIGNING_ALLOWED=NO
