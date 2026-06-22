@@ -20,6 +20,12 @@ public struct SettingsView: View {
                 }
             }
             Section {
+                Stepper("Max per scan: \(model.settings.maxPerScan)",
+                        value: $model.settings.maxPerScan, in: 0...500, step: 10)
+            } footer: {
+                Text("How many new photos each scan processes (newest first). 0 = no limit. Keeps the first scan from sweeping your whole library at once.")
+            }
+            Section {
                 Button("Reset scan state", role: .destructive) {
                     model.resetCursor()
                 }

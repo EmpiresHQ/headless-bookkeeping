@@ -67,23 +67,29 @@ final class RootModel {
             apiFor: { url in URLSessionAPIClient(baseURL: url) },
             keychain: kc)
         self.loginModel = LoginViewModel(auth: auth, deviceName: RootModel.deviceName())
-        self.homeModel = HomeViewModel(store: store)
+        self.homeModel = HomeViewModel(store: store, syncEnabled: loadedSettings.syncEnabled)
         self.logModel = LogViewModel(store: store)
         self.settingsModel = SettingsViewModel(store: store, settings: loadedSettings,
                                                onSettingsChange: { AppSettingsStore.save($0) })
-        // Flip to the authenticated UI immediately after a successful scan,
-        // instead of waiting for the next foreground / relaunch.
+        // Flip to the authenticated UI immediately after a successful scan. Only
+        // start scanning if sync is already enabled (otherwise the user opts in
+        // via the Start sync button on Home).
         self.loginModel.onAuthenticated = { [weak self] in
             guard let self else { return }
             self.isAuthenticated = true
-            self.registerObserver()
-            Task { await self.runScan() }
+            if AppSettingsStore.load().syncEnabled {
+                self.registerObserver()
+                Task { await self.runScan() }
+            }
         }
+        // Home's Start/Stop sync button drives setSyncEnabled.
+        self.homeModel.onSetSync = { [weak self] on in self?.setSyncEnabled(on) }
     }
 
     func onLaunch() async {
         isAuthenticated = (try? keychain.read()) != nil
-        if isAuthenticated {
+        // Resume an enabled sync automatically after relaunch.
+        if isAuthenticated && AppSettingsStore.load().syncEnabled {
             registerObserver()
             await runScan()
         }
@@ -92,16 +98,31 @@ final class RootModel {
     func onForeground() async {
         if loginModel.isAuthenticated && !isAuthenticated {
             isAuthenticated = true
-            registerObserver()
         }
-        guard isAuthenticated else { return }
+        guard isAuthenticated, AppSettingsStore.load().syncEnabled else { return }
+        registerObserver()
         await runScan()
+    }
+
+    /// Start/stop the automatic sync. Persisted, so `onLaunch` resumes it after a
+    /// relaunch. Turning it on triggers an immediate scan + change observer.
+    func setSyncEnabled(_ on: Bool) {
+        settings = AppSettingsStore.load()
+        settings.syncEnabled = on
+        AppSettingsStore.save(settings)
+        homeModel.syncEnabled = on
+        if on {
+            registerObserver()
+            Task { await runScan() }
+        } else {
+            observer?.unregister()
+            observer = nil
+        }
     }
 
     func logout() {
         Task {
-            if let baseURL { await auth.logout(baseURL: baseURL) }
-            else { await auth.logout(baseURL: URL(string: "https://invalid.invalid")!) }
+            await auth.logout(baseURL: currentBaseURL())
             isAuthenticated = false
             observer?.unregister()
             observer = nil
@@ -120,6 +141,7 @@ final class RootModel {
     private func runScan() async {
         guard ((try? keychain.read()) ?? nil) != nil else { return }
         let settings = AppSettingsStore.load()
+        guard settings.syncEnabled else { return }
         let photos = PhotoKitPhotoSource()
         if photos.authorizationStatus() == .notDetermined {
             _ = await photos.requestAuthorization()
@@ -146,7 +168,7 @@ final class RootModel {
     }
 
     private func currentBaseURL() -> URL {
-        baseURL ?? URL(string: "https://invalid.invalid")!
+        auth.apiBaseURL() ?? baseURL ?? URL(string: "https://invalid.invalid")!
     }
 
     nonisolated private static func decode(_ data: PhotoData) -> CGImage? {

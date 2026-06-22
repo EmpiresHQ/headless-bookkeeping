@@ -43,6 +43,17 @@ import Foundation
         #expect(!fired)
     }
 
+    @Test func homeViewModelToggleSyncFlipsAndNotifies() {
+        let vm = HomeViewModel(store: FakeScanStateStore(), syncEnabled: false)
+        var got: [Bool] = []
+        vm.onSetSync = { got.append($0) }
+        vm.toggleSync()
+        #expect(vm.syncEnabled == true)
+        vm.toggleSync()
+        #expect(vm.syncEnabled == false)
+        #expect(got == [true, false])
+    }
+
     @Test func homeViewModelReportsCounts() throws {
         let store = FakeScanStateStore()
         try store.record(LogEntry(assetLocalId: "A1", outcome: .uploaded, topLabel: "r", score: 0.9, at: Date()))

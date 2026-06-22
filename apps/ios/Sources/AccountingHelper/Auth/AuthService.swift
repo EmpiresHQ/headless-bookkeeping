@@ -8,6 +8,7 @@ public enum AuthError: Error, Equatable {
 public final class AuthService: Sendable {
     private let apiFor: @Sendable (URL) -> APIClient
     private let keychain: KeychainStore
+    private static let baseURLKey = "apiBaseURL"
 
     public init(apiFor: @escaping @Sendable (URL) -> APIClient, keychain: KeychainStore) {
         self.apiFor = apiFor
@@ -27,11 +28,19 @@ public final class AuthService: Sendable {
             throw AuthError.exchangeFailed(resp.status)
         }
         try keychain.save(token: token)
+        // Persist the API base URL so later uploads / logout reach the same server.
+        UserDefaults.standard.set(payload.api.absoluteString, forKey: Self.baseURLKey)
         return token
     }
 
     public func currentToken() throws -> String? {
         try keychain.read()
+    }
+
+    /// The API base URL captured at enrollment (nil before enrolling).
+    public func apiBaseURL() -> URL? {
+        guard let s = UserDefaults.standard.string(forKey: Self.baseURLKey) else { return nil }
+        return URL(string: s)
     }
 
     public func logout(baseURL: URL) async {
@@ -40,5 +49,6 @@ public final class AuthService: Sendable {
                 method: "POST", path: "/api/mobile/sessions/revoke", bearer: token))
         }
         try? keychain.delete()
+        UserDefaults.standard.removeObject(forKey: Self.baseURLKey)
     }
 }
