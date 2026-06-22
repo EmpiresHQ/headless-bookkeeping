@@ -13,6 +13,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { ApiTokenService } from './api-token.service';
 import { EnrollmentOnly } from './api-token.guard';
+import { SettingsService } from '../admin/settings.service';
 
 const exchangeSchema = z.object({ deviceName: z.string().min(1) });
 export class ExchangeDto extends createZodDto(exchangeSchema) {}
@@ -20,24 +21,32 @@ export class ExchangeDto extends createZodDto(exchangeSchema) {}
 @ApiTags('mobile-auth')
 @Controller('api')
 export class MobileAuthController {
-  constructor(private readonly apiTokenService: ApiTokenService) {}
+  constructor(
+    private readonly apiTokenService: ApiTokenService,
+    private readonly settingsService: SettingsService,
+  ) {}
 
   /** POST /api/device-enrollments — mint a one-time QR enrollment token. */
   @ApiOperation({ summary: 'Create a device enrollment token' })
   @Post('device-enrollments')
   @HttpCode(HttpStatus.CREATED)
   async createEnrollment() {
-    const apiBaseUrl = process.env.PUBLIC_API_URL;
+    // Operator-configurable in the SPA (Settings → "public_api_url"); the
+    // PUBLIC_API_URL env var is a deployment-level fallback.
+    const apiBaseUrl =
+      (await this.settingsService.get('public_api_url')) ??
+      process.env.PUBLIC_API_URL;
     if (!apiBaseUrl) {
       throw new InternalServerErrorException(
-        'PUBLIC_API_URL is not configured',
+        'Public API URL is not configured — set "public_api_url" in Settings ' +
+          '(or the PUBLIC_API_URL env var)',
       );
     }
     const isHttps = apiBaseUrl.startsWith('https://');
     const isLocalDev =
       /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(apiBaseUrl);
     if (!isHttps && !isLocalDev) {
-      throw new InternalServerErrorException('PUBLIC_API_URL must use https');
+      throw new InternalServerErrorException('Public API URL must use https');
     }
     const { token, expiresAt } = await this.apiTokenService.createEnrollment();
     return {

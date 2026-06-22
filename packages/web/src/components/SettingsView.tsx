@@ -222,6 +222,27 @@ export function SettingsView() {
         </p>
       </section>
 
+      <section className="space-y-4">
+        <h2 className="font-semibold">Mobile enrollment</h2>
+        <p className="text-xs text-gray-500">
+          Public base URL the mobile app talks to. It is embedded in the device
+          enrollment QR code. Must be https:// (http://localhost for dev).
+        </p>
+        {settings !== null && (
+          <SettingRow
+            def={{
+              key: 'public_api_url',
+              label: 'Public API URL',
+              placeholder: 'https://api.example.com',
+              multiline: false,
+            }}
+            current={settings['public_api_url'] ?? ''}
+            onChanged={loadSettings}
+            onError={setError}
+          />
+        )}
+      </section>
+
       <section className="space-y-3">
         <h2 className="font-semibold">Intake policy</h2>
         <label className="text-sm flex items-center gap-2">
