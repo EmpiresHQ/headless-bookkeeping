@@ -1,8 +1,9 @@
 # XcodeGen spec for the runnable iOS app target.
 #
-# The app code lives in the local SPM package (`.`); this target is a thin
-# `@main` shell that depends on the `AccountingHelper` library product. Generate
-# the project with `xcodegen generate` (the .xcodeproj is gitignored).
+# The app target compiles the shared `Sources/AccountingHelper` sources directly
+# (plus the thin `@main` in `App/`) and links GRDB via SPM. The SAME sources are
+# also built as an SPM library for `swift test` (Package.swift). Resources resolve
+# via `ResourceBundle.current` (Bundle.main here, Bundle.module under SwiftPM).
 #
 #   cd apps/ios && xcodegen generate && open AccountingHelper.xcodeproj
 #
@@ -15,8 +16,9 @@ options:
   createIntermediateGroups: true
 
 packages:
-  AccountingHelper:
-    path: .
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    from: 7.0.0
 
 targets:
   AccountingHelperApp:
@@ -24,10 +26,11 @@ targets:
     platform: iOS
     deploymentTarget: "18.0"
     sources:
-      - App
+      - path: App
+      - path: Sources/AccountingHelper
     dependencies:
-      - package: AccountingHelper
-        product: AccountingHelper
+      - package: GRDB
+        product: GRDB
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: emireshq.accountinghelper

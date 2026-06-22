@@ -19,13 +19,13 @@ public struct AccountingHelperRootView: View {
             if root.isAuthenticated {
                 TabView {
                     NavigationStack { HomeView(model: root.homeModel) }
-                        .tabItem { Label("Home", systemImage: "house") }
+                        .tabItem { SwiftUI.Label("Home", systemImage: "house") }
                     NavigationStack { LogView(model: root.logModel) }
-                        .tabItem { Label("Log", systemImage: "list.bullet") }
+                        .tabItem { SwiftUI.Label("Log", systemImage: "list.bullet") }
                     NavigationStack {
                         SettingsView(model: root.settingsModel, onLogout: { root.logout() })
                     }
-                    .tabItem { Label("Settings", systemImage: "gear") }
+                    .tabItem { SwiftUI.Label("Settings", systemImage: "gear") }
                 }
             } else {
                 LoginView(model: root.loginModel)
@@ -61,15 +61,15 @@ final class RootModel {
         let dbPath = RootModel.databasePath()
         // GRDB store; if it cannot open, fail loudly on device (not expected).
         self.store = try! GRDBScanStateStore(path: dbPath)
-        self.settings = AppSettingsStore.load()
+        let loadedSettings = AppSettingsStore.load()
+        self.settings = loadedSettings
         self.auth = AuthService(
             apiFor: { url in URLSessionAPIClient(baseURL: url) },
             keychain: kc)
         self.loginModel = LoginViewModel(auth: auth, deviceName: RootModel.deviceName())
         self.homeModel = HomeViewModel(store: store)
         self.logModel = LogViewModel(store: store)
-        let captured = settings
-        self.settingsModel = SettingsViewModel(store: store, settings: captured,
+        self.settingsModel = SettingsViewModel(store: store, settings: loadedSettings,
                                                onSettingsChange: { AppSettingsStore.save($0) })
     }
 
@@ -135,7 +135,7 @@ final class RootModel {
         baseURL ?? URL(string: "https://invalid.invalid")!
     }
 
-    private static func decode(_ data: PhotoData) -> CGImage? {
+    nonisolated private static func decode(_ data: PhotoData) -> CGImage? {
         guard let source = CGImageSourceCreateWithData(data.bytes as CFData, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }

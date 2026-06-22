@@ -15,7 +15,7 @@ public final class MobileCLIPRunner: ModelRunner {
         // MobileCLIP-S0 image encoder input: 256x256 RGB (per model card).
         let side = 256
         let provider = try imageFeatureProvider(image, side: side)
-        let out = try model.prediction(from: provider)
+        let out = try await model.prediction(from: provider)
         guard let name = model.modelDescription.outputDescriptionsByName.keys.first,
               let multi = out.featureValue(for: name)?.multiArrayValue else {
             return []

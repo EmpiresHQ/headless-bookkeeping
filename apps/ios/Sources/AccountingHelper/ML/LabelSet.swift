@@ -28,7 +28,7 @@ public struct LabelSet: Sendable {
     }
 
     public static func bundled() throws -> LabelSet {
-        guard let url = Bundle.module.url(forResource: "label-embeddings", withExtension: "json") else {
+        guard let url = ResourceBundle.current.url(forResource: "label-embeddings", withExtension: "json") else {
             throw NSError(domain: "LabelSet", code: 1)
         }
         return try load(from: Data(contentsOf: url))
