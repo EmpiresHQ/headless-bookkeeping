@@ -71,8 +71,12 @@ export class BankTransactionRepository {
   }
 
   /** Update the status of a transaction. */
-  async updateStatus(id: number, status: BankTransactionStatus): Promise<void> {
-    await this.db
+  async updateStatus(
+    id: number,
+    status: BankTransactionStatus,
+    executor: Kysely<Database> = this.db,
+  ): Promise<void> {
+    await executor
       .updateTable('bank_transaction')
       .set({ status })
       .where('id', '=', id)

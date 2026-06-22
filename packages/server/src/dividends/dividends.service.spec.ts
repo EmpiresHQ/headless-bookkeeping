@@ -270,6 +270,35 @@ describe('DividendsService (integration)', () => {
         'not found',
       );
     });
+
+    it('rolls back the settlement voucher if reconciliation match creation fails', async () => {
+      const declaration = await dividendsService.declare({
+        gross_amount: 5000,
+        tax_point_date: '2025-06-15',
+      });
+      const txn = await seedBankTransaction(-5000, 'dividend');
+      const before = await db
+        .selectFrom('voucher')
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirstOrThrow();
+
+      const faultedService = dividendsService as unknown as {
+        insertSettlementMatchTx: () => Promise<never>;
+      };
+      jest
+        .spyOn(faultedService, 'insertSettlementMatchTx')
+        .mockRejectedValueOnce(new Error('forced match failure'));
+
+      await expect(
+        dividendsService.settle(txn.id, declaration.voucher_id),
+      ).rejects.toThrow('forced match failure');
+
+      const after = await db
+        .selectFrom('voucher')
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirstOrThrow();
+      expect(after.count).toBe(before.count);
+    });
   });
 
   // ── Withholding split (mock plugin with rate > 0) ───────────────────

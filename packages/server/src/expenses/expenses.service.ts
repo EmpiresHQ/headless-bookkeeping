@@ -250,7 +250,45 @@ export class ExpensesService {
       );
     }
 
-    return this.patchAmounts(id, patch);
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db.transaction().execute(async (trx) => {
+      const updated = await trx
+        .updateTable('expense')
+        .set({
+          ...(patch.gross_amount !== undefined && {
+            gross_amount: patch.gross_amount,
+          }),
+          ...(patch.vat_amount !== undefined && {
+            vat_amount: patch.vat_amount,
+          }),
+          ...(patch.category !== undefined && { category: patch.category }),
+          ...(expense.status === 'pending' && {
+            status: 'draft',
+            voucher_id: null,
+          }),
+          updated_at: now,
+        })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      if (expense.status === 'pending') {
+        await trx
+          .updateTable('approval')
+          .set({
+            status: 'superseded',
+            resolved_at: now,
+          })
+          .where('object_type', '=', 'expense')
+          .where('object_id', '=', id)
+          .where('status', '=', 'pending')
+          .execute();
+      }
+
+      return updated;
+    });
+
+    return this.mapRow(row);
   }
 
   async patchAmounts(

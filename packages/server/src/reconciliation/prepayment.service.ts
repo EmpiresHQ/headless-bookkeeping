@@ -174,12 +174,21 @@ export class PrepaymentService {
       lines,
     };
 
-    const voucher = await this.postingService.postVoucher(draft);
+    const prepared = await this.postingService.prepare(draft);
 
-    // Mark the bank transaction as dispositioned to prepayment.
-    await this.transactionRepo.updateStatus(transactionId, 'prepayment');
-
-    return voucher;
+    return this.db.transaction().execute(async (trx) => {
+      const voucher = await this.postingService.postVoucherTx(
+        trx,
+        prepared.draft,
+        prepared.resolved,
+      );
+      await this.transactionRepo.updateStatus(
+        transactionId,
+        'prepayment',
+        trx,
+      );
+      return voucher;
+    });
   }
 
   /**
@@ -220,12 +229,21 @@ export class PrepaymentService {
       lines,
     };
 
-    const voucher = await this.postingService.postVoucher(draft);
+    const prepared = await this.postingService.prepare(draft);
 
-    // Mark the bank transaction as dispositioned to prepayment.
-    await this.transactionRepo.updateStatus(transactionId, 'prepayment');
-
-    return voucher;
+    return this.db.transaction().execute(async (trx) => {
+      const voucher = await this.postingService.postVoucherTx(
+        trx,
+        prepared.draft,
+        prepared.resolved,
+      );
+      await this.transactionRepo.updateStatus(
+        transactionId,
+        'prepayment',
+        trx,
+      );
+      return voucher;
+    });
   }
 
   // ── Draw-down ─────────────────────────────────────────────────────

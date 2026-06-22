@@ -321,6 +321,52 @@ describe('ExpensesService (integration)', () => {
     });
   });
 
+  describe('updateDraft', () => {
+    it('moves a pending expense back to draft and supersedes its pending approval', async () => {
+      const expense = await service.createExpense(sampleDto());
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .updateTable('expense')
+        .set({ status: 'pending' })
+        .where('id', '=', expense.id)
+        .execute();
+      const approval = await db
+        .insertInto('approval')
+        .values({
+          object_type: 'expense',
+          object_id: expense.id,
+          status: 'pending',
+          requested_by: 'policy',
+          approved_by: null,
+          rejected_reason: null,
+          superseded_by: null,
+          created_at: now,
+          resolved_at: null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const updated = await service.updateDraft(expense.id, {
+        gross_amount: 15000,
+        vat_amount: 2500,
+        category: 'transport',
+      });
+
+      expect(updated.status).toBe('draft');
+      expect(updated.gross_amount).toBe(15000);
+      expect(updated.vat_amount).toBe(2500);
+      expect(updated.category).toBe('transport');
+
+      const resolvedApproval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('id', '=', approval.id)
+        .executeTakeFirstOrThrow();
+      expect(resolvedApproval.status).toBe('superseded');
+      expect(resolvedApproval.resolved_at).not.toBeNull();
+    });
+  });
+
   describe('supplier_invoice_number', () => {
     it('persists supplier_invoice_number on create', async () => {
       const e = await service.createExpense({

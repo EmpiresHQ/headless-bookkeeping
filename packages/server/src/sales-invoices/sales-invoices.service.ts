@@ -36,6 +36,17 @@ export class SalesInvoicesService {
   ) {}
 
   async createInvoice(dto: CreateSalesInvoiceDto): Promise<SalesInvoice> {
+    const duplicate = await this.db
+      .selectFrom('sales_invoice')
+      .select('id')
+      .where('invoice_number', '=', dto.invoice_number)
+      .executeTakeFirst();
+    if (duplicate) {
+      throw new ConflictException(
+        `Invoice number ${dto.invoice_number} already exists`,
+      );
+    }
+
     const now = Math.floor(Date.now() / 1000);
     const row = await this.db
       .insertInto('sales_invoice')
@@ -245,7 +256,44 @@ export class SalesInvoicesService {
       );
     }
 
-    return this.patchAmounts(id, patch);
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db.transaction().execute(async (trx) => {
+      const updated = await trx
+        .updateTable('sales_invoice')
+        .set({
+          ...(patch.gross_amount !== undefined && {
+            gross_amount: patch.gross_amount,
+          }),
+          ...(patch.vat_amount !== undefined && {
+            vat_amount: patch.vat_amount,
+          }),
+          ...(invoice.status === 'pending' && {
+            status: 'draft',
+            voucher_id: null,
+          }),
+          updated_at: now,
+        })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      if (invoice.status === 'pending') {
+        await trx
+          .updateTable('approval')
+          .set({
+            status: 'superseded',
+            resolved_at: now,
+          })
+          .where('object_type', '=', 'sales_invoice')
+          .where('object_id', '=', id)
+          .where('status', '=', 'pending')
+          .execute();
+      }
+
+      return updated;
+    });
+
+    return this.mapRow(row);
   }
 
   async patchAmounts(

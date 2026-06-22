@@ -132,11 +132,16 @@ export class PersonalDispositionService {
       ],
     };
 
-    const voucher = await this.postingService.postVoucher(draft);
+    const prepared = await this.postingService.prepare(draft);
 
-    // 6. Update transaction status to 'personal'
-    await this.transactionRepo.updateStatus(transactionId, 'personal');
-
-    return voucher;
+    return this.db.transaction().execute(async (trx) => {
+      const voucher = await this.postingService.postVoucherTx(
+        trx,
+        prepared.draft,
+        prepared.resolved,
+      );
+      await this.transactionRepo.updateStatus(transactionId, 'personal', trx);
+      return voucher;
+    });
   }
 }

@@ -34,6 +34,7 @@ describe('PersonalDispositionService (integration)', () => {
   let personalDispositionService: PersonalDispositionService;
   let bankStatementService: BankStatementService;
   let organizationService: OrganizationService;
+  let transactionRepo: BankTransactionRepository;
 
   beforeEach(async () => {
     db = new Kysely<Database>({
@@ -70,6 +71,7 @@ describe('PersonalDispositionService (integration)', () => {
     personalDispositionService = module.get(PersonalDispositionService);
     bankStatementService = module.get(BankStatementService);
     organizationService = module.get(OrganizationService);
+    transactionRepo = module.get(BankTransactionRepository);
   });
 
   afterEach(async () => {
@@ -151,6 +153,35 @@ describe('PersonalDispositionService (integration)', () => {
         .where('id', '=', txn.id)
         .executeTakeFirstOrThrow();
       expect(updated.status).toBe('personal');
+    });
+
+    it('rolls back the voucher if the bank transaction status update fails', async () => {
+      const txn = await seedBankTransaction(-3000);
+      const before = await db
+        .selectFrom('voucher')
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirstOrThrow();
+
+      jest
+        .spyOn(transactionRepo, 'updateStatus')
+        .mockRejectedValueOnce(new Error('forced status failure'));
+
+      await expect(
+        personalDispositionService.markAsPersonal(txn.id),
+      ).rejects.toThrow('forced status failure');
+
+      const after = await db
+        .selectFrom('voucher')
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirstOrThrow();
+      const updated = await db
+        .selectFrom('bank_transaction')
+        .select('status')
+        .where('id', '=', txn.id)
+        .executeTakeFirstOrThrow();
+
+      expect(after.count).toBe(before.count);
+      expect(updated.status).toBe('open');
     });
   });
 

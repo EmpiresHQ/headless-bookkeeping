@@ -293,29 +293,52 @@ export class DividendsService {
       ],
     };
 
-    const voucher = await this.postingService.postVoucher(draft);
+    const prepared = await this.postingService.prepare(draft);
 
-    // 7. Create N:M reconciliation_match (base-currency cents) linking the bank
-    // transaction to the declaration voucher — this is the settlement record;
-    // match-state is derived from it (Wave-5 Q9), the txn status stays 'dividend'.
-    const now = Math.floor(Date.now() / 1000);
-    const [match] = await this.db
+    return this.db.transaction().execute(async (trx) => {
+      const voucher = await this.postingService.postVoucherTx(
+        trx,
+        prepared.draft,
+        prepared.resolved,
+      );
+
+      const now = Math.floor(Date.now() / 1000);
+      const match = await this.insertSettlementMatchTx(trx, {
+        bankTransactionId,
+        declarationVoucherId,
+        baseAmount,
+        createdAt: now,
+      });
+
+      return {
+        voucher_id: voucher.id,
+        reconciliation_match_id: match.id,
+        amount_settled: baseAmount,
+      };
+    });
+  }
+
+  private async insertSettlementMatchTx(
+    trx: Kysely<Database>,
+    input: {
+      bankTransactionId: number;
+      declarationVoucherId: number;
+      baseAmount: number;
+      createdAt: number;
+    },
+  ): Promise<{ id: number }> {
+    const [match] = await trx
       .insertInto('reconciliation_match')
       .values({
-        bank_transaction_id: bankTransactionId,
-        voucher_id: declarationVoucherId,
+        bank_transaction_id: input.bankTransactionId,
+        voucher_id: input.declarationVoucherId,
         match_type: 'exact',
-        amount_matched: baseAmount,
-        created_at: now,
+        amount_matched: input.baseAmount,
+        created_at: input.createdAt,
       })
-      .returningAll()
+      .returning('id')
       .execute();
-
-    return {
-      voucher_id: voucher.id,
-      reconciliation_match_id: match.id,
-      amount_settled: baseAmount,
-    };
+    return match;
   }
 
   /**

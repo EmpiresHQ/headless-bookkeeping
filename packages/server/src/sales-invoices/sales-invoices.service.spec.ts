@@ -146,7 +146,7 @@ describe('SalesInvoicesService (integration)', () => {
   it('rejects duplicate invoice_number', async () => {
     await service.createInvoice(createDto());
     await expect(service.createInvoice(createDto())).rejects.toThrow(
-      'UNIQUE constraint failed',
+      'already exists',
     );
   });
 
@@ -259,6 +259,50 @@ describe('SalesInvoicesService (integration)', () => {
     const found = await service.findByDocumentId(42);
     expect(found?.id).toBe(inv.id);
     expect(await service.findByDocumentId(999)).toBeUndefined();
+  });
+
+  describe('updateDraft', () => {
+    it('moves a pending invoice back to draft and supersedes its pending approval', async () => {
+      const invoice = await service.createInvoice(createDto());
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .updateTable('sales_invoice')
+        .set({ status: 'pending' })
+        .where('id', '=', invoice.id)
+        .execute();
+      const approval = await db
+        .insertInto('approval')
+        .values({
+          object_type: 'sales_invoice',
+          object_id: invoice.id,
+          status: 'pending',
+          requested_by: 'policy',
+          approved_by: null,
+          rejected_reason: null,
+          superseded_by: null,
+          created_at: now,
+          resolved_at: null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const updated = await service.updateDraft(invoice.id, {
+        gross_amount: 15000,
+        vat_amount: 2500,
+      });
+
+      expect(updated.status).toBe('draft');
+      expect(updated.gross_amount).toBe(15000);
+      expect(updated.vat_amount).toBe(2500);
+
+      const resolvedApproval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('id', '=', approval.id)
+        .executeTakeFirstOrThrow();
+      expect(resolvedApproval.status).toBe('superseded');
+      expect(resolvedApproval.resolved_at).not.toBeNull();
+    });
   });
 
   describe('intra-EU B2B service sale (EE org)', () => {

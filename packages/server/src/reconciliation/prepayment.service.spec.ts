@@ -28,6 +28,7 @@ describe('PrepaymentService (integration)', () => {
   let db: Kysely<Database>;
   let prepaymentService: PrepaymentService;
   let bankStatementService: BankStatementService;
+  let transactionRepo: BankTransactionRepository;
   let _postingService: PostingService;
   let voucherCounter = 0;
 
@@ -65,6 +66,7 @@ describe('PrepaymentService (integration)', () => {
 
     prepaymentService = module.get(PrepaymentService);
     bankStatementService = module.get(BankStatementService);
+    transactionRepo = module.get(BankTransactionRepository);
     _postingService = module.get(PostingService);
   });
 
@@ -407,6 +409,35 @@ describe('PrepaymentService (integration)', () => {
         .where('id', '=', txn.id)
         .executeTakeFirstOrThrow();
       expect(updated.status).toBe('prepayment');
+    });
+
+    it('rolls back the voucher if the bank transaction status update fails', async () => {
+      const txn = await seedBankTransaction(30000);
+      const before = await db
+        .selectFrom('voucher')
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirstOrThrow();
+
+      jest
+        .spyOn(transactionRepo, 'updateStatus')
+        .mockRejectedValueOnce(new Error('forced status failure'));
+
+      await expect(
+        prepaymentService.createCustomerPrepayment(txn.id),
+      ).rejects.toThrow('forced status failure');
+
+      const after = await db
+        .selectFrom('voucher')
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirstOrThrow();
+      const updated = await db
+        .selectFrom('bank_transaction')
+        .select('status')
+        .where('id', '=', txn.id)
+        .executeTakeFirstOrThrow();
+
+      expect(after.count).toBe(before.count);
+      expect(updated.status).toBe('open');
     });
 
     it('rejects a non-open transaction', async () => {
