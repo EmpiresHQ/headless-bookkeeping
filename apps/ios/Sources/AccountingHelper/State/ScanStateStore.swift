@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public enum AssetOutcome: String, Codable, Sendable { case uploaded, ignored }
+public enum AssetOutcome: String, Codable, Sendable { case uploaded, ignored, failed }
 
 public struct LogEntry: Equatable, Sendable {
     public let assetLocalId: String

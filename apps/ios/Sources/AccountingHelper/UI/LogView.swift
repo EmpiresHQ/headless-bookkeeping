@@ -24,7 +24,7 @@ public struct LogView: View {
                             Spacer()
                             Text(entry.outcome.rawValue)
                                 .font(.caption)
-                                .foregroundStyle(entry.outcome == .uploaded ? .green : .secondary)
+                                .foregroundStyle(Self.color(for: entry.outcome))
                         }
                         Text(String(format: "score %.3f · %@", entry.score, entry.at.formatted()))
                             .font(.caption2)
@@ -52,6 +52,14 @@ public struct LogView: View {
         }
         .onAppear { model.refresh() }
         .refreshable { model.refresh() }
+    }
+
+    private static func color(for outcome: AssetOutcome) -> Color {
+        switch outcome {
+        case .uploaded: return .green
+        case .failed: return .red
+        case .ignored: return .secondary
+        }
     }
 
     @ViewBuilder

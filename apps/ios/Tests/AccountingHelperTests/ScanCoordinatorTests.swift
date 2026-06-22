@@ -72,14 +72,38 @@ import CoreGraphics
         #expect((try? store.status(of: "A3")) == .ignored)
     }
 
-    @Test func failedUploadLeavesAssetUnrecordedForRetry() async {
+    @Test func failedUploadRecordsFailedOutcome() async {
         let s = AppSettings(threshold: 0.5, autoUpload: true)
         let (coord, store, _) = make(uploadResult: .failure(UploadError.server(500)),
                                      modelEmbedding: [1, 0], gatePasses: true,
                                      assets: [PhotoAsset(localId: "A4", capturedAt: Date())], settings: s)
         let summary = await coord.scanOnce()
         #expect(summary.failed == 1)
-        #expect((try? store.status(of: "A4")) == nil) // retried next scan
+        #expect((try? store.status(of: "A4")) == .failed)
+    }
+
+    @Test func failedAssetIsRetriedNextScan() async {
+        let api = FakeAPIClient()
+        api.responses = [.failure(UploadError.server(500)),
+                         .success(APIResponse(status: 201, data: Data()))]
+        let store = FakeScanStateStore()
+        let gate = FakeGate(); gate.passes = true
+        let asset = PhotoAsset(localId: "R1", capturedAt: Date())
+        let source = FakePhotoSource(
+            assets: [asset],
+            data: [asset.localId: PhotoData(bytes: Data([0x1]), utiType: "public.heic", filename: "R1.HEIC")])
+        let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+        let img = oneByOne()
+        let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                    uploader: uploader, store: store,
+                                    settings: AppSettings(threshold: 0.5, autoUpload: true),
+                                    decode: { _ in img })
+        let first = await coord.scanOnce()
+        #expect(first.failed == 1)
+        #expect((try? store.status(of: "R1")) == .failed)
+        let second = await coord.scanOnce()   // .failed is not skipped → retried
+        #expect(second.uploaded == 1)
+        #expect((try? store.status(of: "R1")) == .uploaded)
     }
 
     @Test func gateOnlyUploadsWhenNoModel() async {

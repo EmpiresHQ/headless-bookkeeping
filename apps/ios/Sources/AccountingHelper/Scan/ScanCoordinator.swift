@@ -33,7 +33,10 @@ public final class ScanCoordinator {
         let assets = (await photos.enumerateImages()).sorted { $0.capturedAt > $1.capturedAt }
         var processed = 0
         for asset in assets {
-            if ((try? store.status(of: asset.localId)) ?? nil) != nil { summary.skipped += 1; continue }
+            // Skip terminally-handled assets; previously-failed ones are retried.
+            if let st = (try? store.status(of: asset.localId)) ?? nil, st != .failed {
+                summary.skipped += 1; continue
+            }
             // Cap NEW work per scan (0 = unlimited) to avoid uploading the whole
             // library in one run.
             if settings.maxPerScan > 0 && processed >= settings.maxPerScan { break }
@@ -67,7 +70,12 @@ public final class ScanCoordinator {
                                                topLabel: result.topLabel, score: result.topScore, at: Date()))
                     summary.uploaded += 1
                 } catch {
-                    summary.failed += 1 // unrecorded → retried next scan
+                    // Record the failure (visible in the log) but keep it eligible
+                    // for retry on the next scan (the skip check exempts .failed).
+                    try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .failed,
+                                               topLabel: "upload failed: \(Self.shortError(error))",
+                                               score: result.topScore, at: Date()))
+                    summary.failed += 1
                 }
             } else {
                 try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .ignored,
@@ -76,5 +84,16 @@ public final class ScanCoordinator {
             }
         }
         return summary
+    }
+
+    /// Short, human-readable reason for a failed upload, for the scan log.
+    static func shortError(_ error: Error) -> String {
+        switch error {
+        case UploadError.unauthorized: return "401 unauthorized"
+        case UploadError.server(let code): return "HTTP \(code)"
+        default:
+            let ns = error as NSError
+            return "\(ns.domain) \(ns.code)"
+        }
     }
 }
