@@ -4,5 +4,6 @@ Models/
 .build-device/
 *.xcodeproj
 *.xcworkspace
+App/Info.plist
 xcuserdata/
 DerivedData/

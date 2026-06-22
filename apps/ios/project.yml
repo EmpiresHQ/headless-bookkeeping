@@ -31,6 +31,17 @@ targets:
     dependencies:
       - package: GRDB
         product: GRDB
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+        # Permission usage strings — without these the app crashes on first access.
+        NSCameraUsageDescription: "Scan the enrollment QR code shown by the web app or CLI."
+        NSPhotoLibraryUsageDescription: "Find receipts and invoices in your photo library to upload to your books."
+        # Dev: allow cleartext HTTP to local-network hosts (e.g. http://<mac-LAN-ip>:3000).
+        # Remove / tighten before any production/TestFlight build (use HTTPS there).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: emireshq.accountinghelper
@@ -38,11 +49,4 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
-        GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
-        # SwiftUI lifecycle: let Xcode synthesize the scene manifest + launch screen.
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        # Permission usage strings — without these the app crashes on first access.
-        INFOPLIST_KEY_NSCameraUsageDescription: "Scan the enrollment QR code shown by the web app or CLI."
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Find receipts and invoices in your photo library to upload to your books."
