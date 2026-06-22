@@ -92,15 +92,30 @@ export class ApiTokenService implements OnModuleInit {
     label: string | null;
     created_at: number;
     revoked_at: number | null;
+    kind: string;
+    expires_at: number | null;
+    consumed_at: number | null;
   } | null> {
     const candidateHash = hashToken(plaintext);
+    const now = Math.floor(Date.now() / 1000);
 
-    // Fetch all active tokens and compare in constant time.
-    // We fetch all because we don't know which hash to look up.
     const tokens = await this.db
       .selectFrom('api_token')
-      .select(['id', 'token_hash', 'label', 'created_at', 'revoked_at'])
+      .select([
+        'id',
+        'token_hash',
+        'label',
+        'created_at',
+        'revoked_at',
+        'kind',
+        'expires_at',
+        'consumed_at',
+      ])
       .where('revoked_at', 'is', null)
+      .where('consumed_at', 'is', null)
+      .where((eb) =>
+        eb.or([eb('expires_at', 'is', null), eb('expires_at', '>', now)]),
+      )
       .execute();
 
     for (const token of tokens) {

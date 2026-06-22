@@ -61,4 +61,49 @@ describe('ApiTokenService (A1: token management over the service)', () => {
     const row = (await service.list()).find((t) => t.id === id);
     expect(row?.revoked_at).not.toBeNull();
   });
+
+  describe('verify — kind + lifecycle', () => {
+    it('returns the kind for a static token', async () => {
+      const { token } = await service.create('s');
+      const row = await service.verify(token);
+      expect(row?.kind).toBe('static');
+    });
+
+    it('rejects an expired enrollment token', async () => {
+      const plaintext = 'expired-enroll';
+      const hash = require('crypto')
+        .createHash('sha256')
+        .update(plaintext)
+        .digest('hex');
+      await db
+        .insertInto('api_token')
+        .values({
+          token_hash: hash,
+          label: 'e',
+          kind: 'enrollment',
+          expires_at: Math.floor(Date.now() / 1000) - 10,
+        })
+        .execute();
+      expect(await service.verify(plaintext)).toBeNull();
+    });
+
+    it('rejects a consumed enrollment token', async () => {
+      const plaintext = 'used-enroll';
+      const hash = require('crypto')
+        .createHash('sha256')
+        .update(plaintext)
+        .digest('hex');
+      await db
+        .insertInto('api_token')
+        .values({
+          token_hash: hash,
+          label: 'e',
+          kind: 'enrollment',
+          expires_at: Math.floor(Date.now() / 1000) + 600,
+          consumed_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+      expect(await service.verify(plaintext)).toBeNull();
+    });
+  });
 });
