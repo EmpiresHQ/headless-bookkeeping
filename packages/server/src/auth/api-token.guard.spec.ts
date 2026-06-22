@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, Controller, Get } from '@nestjs/common';
+import { INestApplication, Controller, Get, Post } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -10,7 +10,7 @@ import type { Response } from 'supertest';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ApiTokenService } from './api-token.service';
-import { ApiTokenGuard, Public } from './api-token.guard';
+import { ApiTokenGuard, Public, EnrollmentOnly } from './api-token.guard';
 
 /**
  * Minimal test controller with one protected and one public route.
@@ -25,6 +25,12 @@ class TestController {
   @Public()
   @Get('public')
   getPublic(): { ok: boolean } {
+    return { ok: true };
+  }
+
+  @EnrollmentOnly()
+  @Post('exchange')
+  postExchange(): { ok: boolean } {
     return { ok: true };
   }
 }
@@ -137,6 +143,33 @@ describe('ApiTokenGuard (integration)', () => {
       .get('/test/protected')
       .set('Authorization', `Bearer ${initToken}`)
       .expect(401);
+  });
+
+  // ── Kind scoping ────────────────────────────────────────────────────
+
+  describe('kind scoping', () => {
+    it('rejects an enrollment token on a default route', async () => {
+      const { token } = await apiTokenService.createEnrollment();
+      await request(app.getHttpServer())
+        .get('/test/protected')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401);
+    });
+
+    it('accepts an enrollment token on an @EnrollmentOnly route', async () => {
+      const { token } = await apiTokenService.createEnrollment();
+      await request(app.getHttpServer())
+        .post('/test/exchange')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+    });
+
+    it('rejects a static token on an @EnrollmentOnly route', async () => {
+      await request(app.getHttpServer())
+        .post('/test/exchange')
+        .set('Authorization', `Bearer ${initToken}`)
+        .expect(401);
+    });
   });
 
   // ── Public route ────────────────────────────────────────────────────

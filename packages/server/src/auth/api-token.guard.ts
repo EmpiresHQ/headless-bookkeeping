@@ -15,6 +15,16 @@ export const IS_PUBLIC_KEY = 'isPublic';
  */
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
+export const TOKEN_KINDS_KEY = 'tokenKinds';
+
+/**
+ * Restrict a route to enrollment tokens only (the QR-exchange endpoint).
+ * Static/session tokens are rejected; enrollment tokens are rejected everywhere
+ * else by the guard's default allow-list.
+ */
+export const EnrollmentOnly = () =>
+  SetMetadata(TOKEN_KINDS_KEY, ['enrollment']);
+
 /**
  * Global guard that checks `Authorization: Bearer <token>` against the
  * api_token table. Routes decorated with @Public() are exempt.
@@ -51,6 +61,15 @@ export class ApiTokenGuard implements CanActivate {
 
     if (!valid) {
       throw new UnauthorizedException('Invalid or revoked API token');
+    }
+
+    const allowedKinds = this.reflector.getAllAndOverride<string[]>(
+      TOKEN_KINDS_KEY,
+      [context.getHandler(), context.getClass()],
+    ) ?? ['static', 'session'];
+
+    if (!allowedKinds.includes(valid.kind)) {
+      throw new UnauthorizedException('Token kind not allowed for this route');
     }
 
     // Attach token info to the request for downstream use.
