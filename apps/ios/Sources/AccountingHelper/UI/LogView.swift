@@ -48,7 +48,7 @@ public struct LogView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This also lets these photos be re-checked on the next sync.")
+            Text("Removes the log history only. Already-handled photos stay handled (no re-scan).")
         }
         .onAppear { model.refresh() }
         .refreshable { model.refresh() }

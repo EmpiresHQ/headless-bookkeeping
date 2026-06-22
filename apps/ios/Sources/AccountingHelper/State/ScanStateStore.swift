@@ -20,6 +20,10 @@ public protocol ScanStateStore: Sendable {
     func record(_ entry: LogEntry) throws
     func recentLog(limit: Int) throws -> [LogEntry]
     func counts() throws -> (uploaded: Int, ignored: Int)
+    /// Clears ONLY the display log. The per-asset cursor (status) and counts are
+    /// kept, so cleared photos are NOT re-scanned.
+    func clearLog() throws
+    /// Full wipe: cursor + counts + log. Cleared photos become eligible to re-scan.
     func reset() throws
 }
 
@@ -37,9 +41,22 @@ public final class GRDBScanStateStore: ScanStateStore {
 
     private func migrate() throws {
         try queue.write { db in
+            // Per-asset cursor + counts: one row per asset (upsert).
             try db.execute(sql: """
                 CREATE TABLE IF NOT EXISTS asset_state (
                     asset_local_id TEXT PRIMARY KEY,
+                    outcome TEXT NOT NULL,
+                    top_label TEXT NOT NULL,
+                    score DOUBLE NOT NULL,
+                    at DOUBLE NOT NULL
+                )
+            """)
+            // Display log: append-only history, independent of the cursor so it
+            // can be cleared without re-scanning.
+            try db.execute(sql: """
+                CREATE TABLE IF NOT EXISTS scan_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    asset_local_id TEXT NOT NULL,
                     outcome TEXT NOT NULL,
                     top_label TEXT NOT NULL,
                     score DOUBLE NOT NULL,
@@ -60,6 +77,7 @@ public final class GRDBScanStateStore: ScanStateStore {
 
     public func record(_ entry: LogEntry) throws {
         try queue.write { db in
+            // Cursor + counts: one row per asset.
             try db.execute(sql: """
                 INSERT INTO asset_state (asset_local_id, outcome, top_label, score, at)
                 VALUES (?, ?, ?, ?, ?)
@@ -68,13 +86,19 @@ public final class GRDBScanStateStore: ScanStateStore {
                     score = excluded.score, at = excluded.at
             """, arguments: [entry.assetLocalId, entry.outcome.rawValue,
                              entry.topLabel, entry.score, entry.at.timeIntervalSince1970])
+            // Display log: append.
+            try db.execute(sql: """
+                INSERT INTO scan_log (asset_local_id, outcome, top_label, score, at)
+                VALUES (?, ?, ?, ?, ?)
+            """, arguments: [entry.assetLocalId, entry.outcome.rawValue,
+                             entry.topLabel, entry.score, entry.at.timeIntervalSince1970])
         }
     }
 
     public func recentLog(limit: Int) throws -> [LogEntry] {
         try queue.read { db in
             try Row.fetchAll(db,
-                sql: "SELECT * FROM asset_state ORDER BY at DESC LIMIT ?", arguments: [limit])
+                sql: "SELECT * FROM scan_log ORDER BY at DESC, id DESC LIMIT ?", arguments: [limit])
             .map { row in
                 LogEntry(assetLocalId: row["asset_local_id"],
                          outcome: AssetOutcome(rawValue: row["outcome"])!,
@@ -92,7 +116,14 @@ public final class GRDBScanStateStore: ScanStateStore {
         }
     }
 
+    public func clearLog() throws {
+        try queue.write { db in try db.execute(sql: "DELETE FROM scan_log") }
+    }
+
     public func reset() throws {
-        try queue.write { db in try db.execute(sql: "DELETE FROM asset_state") }
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM asset_state")
+            try db.execute(sql: "DELETE FROM scan_log")
+        }
     }
 }

@@ -2,15 +2,23 @@
 import Foundation
 
 final class FakeScanStateStore: ScanStateStore, @unchecked Sendable {
-    private(set) var entries: [String: LogEntry] = [:]
-    func status(of id: String) throws -> AssetOutcome? { entries[id]?.outcome }
-    func record(_ entry: LogEntry) throws { entries[entry.assetLocalId] = entry }
+    // Cursor + counts: one entry per asset.
+    private(set) var state: [String: LogEntry] = [:]
+    // Display log: append-only history.
+    private(set) var log: [LogEntry] = []
+
+    func status(of id: String) throws -> AssetOutcome? { state[id]?.outcome }
+    func record(_ entry: LogEntry) throws {
+        state[entry.assetLocalId] = entry
+        log.append(entry)
+    }
     func recentLog(limit: Int) throws -> [LogEntry] {
-        Array(entries.values.sorted { $0.at > $1.at }.prefix(limit))
+        Array(log.sorted { $0.at > $1.at }.prefix(limit))
     }
     func counts() throws -> (uploaded: Int, ignored: Int) {
-        (entries.values.filter { $0.outcome == .uploaded }.count,
-         entries.values.filter { $0.outcome == .ignored }.count)
+        (state.values.filter { $0.outcome == .uploaded }.count,
+         state.values.filter { $0.outcome == .ignored }.count)
     }
-    func reset() throws { entries.removeAll() }
+    func clearLog() throws { log.removeAll() }
+    func reset() throws { state.removeAll(); log.removeAll() }
 }

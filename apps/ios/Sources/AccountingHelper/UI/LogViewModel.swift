@@ -8,11 +8,10 @@ public final class LogViewModel {
     public init(store: ScanStateStore) { self.store = store }
     public func refresh() { entries = (try? store.recentLog(limit: 200)) ?? [] }
 
-    /// Clears the scan log. Because each log row IS the per-asset cursor, this also
-    /// makes those photos eligible to be re-examined on the next scan (useful
-    /// after tuning the gate/threshold).
+    /// Clears ONLY the display log. The per-asset cursor and counts are kept, so
+    /// cleared photos are NOT re-scanned or re-uploaded.
     public func clear() {
-        try? store.reset()
+        try? store.clearLog()
         refresh()
     }
 }

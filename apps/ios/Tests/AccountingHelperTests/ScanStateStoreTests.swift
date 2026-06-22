@@ -43,6 +43,17 @@ import GRDB
         #expect(try store.counts().uploaded == 0)
     }
 
+    @Test func clearLogKeepsCursorAndCounts() throws {
+        let store = try makeStore()
+        try store.record(LogEntry(assetLocalId: "A1", outcome: .uploaded, topLabel: "r", score: 0.9, at: Date()))
+        try store.clearLog()
+        // Log is empty…
+        #expect(try store.recentLog(limit: 10).isEmpty)
+        // …but the cursor + counts survive (no re-scan).
+        #expect(try store.status(of: "A1") == .uploaded)
+        #expect(try store.counts().uploaded == 1)
+    }
+
     @Test func idempotentRecordKeepsSingleRow() throws {
         let store = try makeStore()
         let e = LogEntry(assetLocalId: "A1", outcome: .uploaded, topLabel: "r", score: 0.9, at: Date())
