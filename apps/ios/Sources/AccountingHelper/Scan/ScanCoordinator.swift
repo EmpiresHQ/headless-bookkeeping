@@ -13,15 +13,21 @@ public final class ScanCoordinator {
     // the Vision gate alone (gate-passed → upload candidate).
     private let model: ModelRunner?
     private let labels: LabelSet?
+    // Optional VLM precision filter run AFTER the cheap gate passes. nil = current
+    // behavior (gate/model decide). When present it can veto a gate-passed image that
+    // is text-heavy but not a document (weather/chat/web screenshots).
+    private let secondPass: SecondPassClassifier?
     private let uploader: DocumentUploader
     private let store: ScanStateStore
     private let settings: AppSettings
     private let decode: @Sendable (PhotoData) -> CGImage?
 
     public init(photos: PhotoSource, gate: ImageGate, model: ModelRunner?, labels: LabelSet?,
+                secondPass: SecondPassClassifier? = nil,
                 uploader: DocumentUploader, store: ScanStateStore, settings: AppSettings,
                 decode: @escaping @Sendable (PhotoData) -> CGImage?) {
         self.photos = photos; self.gate = gate; self.model = model; self.labels = labels
+        self.secondPass = secondPass
         self.uploader = uploader; self.store = store; self.settings = settings; self.decode = decode
     }
 
@@ -55,6 +61,16 @@ public final class ScanCoordinator {
                                            topLabel: "gate:not_document", score: 0, at: Date()))
                 summary.ignored += 1; continue
             }
+
+            // Optional VLM second pass: only a definitive `false` vetoes. `nil`
+            // (model unavailable / undecided) is treated as a PASS to preserve recall,
+            // so an unbundled/loading model never silently drops real documents.
+            if let secondPass, await secondPass.isAccountingDocument(image) == false {
+                try? store.record(LogEntry(assetLocalId: asset.localId, outcome: .ignored,
+                                           topLabel: "vlm:not_document", score: 0, at: Date()))
+                summary.ignored += 1; continue
+            }
+
             let result: PrecheckResult
             if let model, let labels {
                 guard let emb = try? await model.imageEmbedding(image) else { summary.failed += 1; continue }

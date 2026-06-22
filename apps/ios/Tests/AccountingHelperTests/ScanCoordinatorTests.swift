@@ -196,6 +196,83 @@ import CoreGraphics
         #expect(included.uploaded == 1)
     }
 
+    // MARK: - VLM second pass
+
+    /// Build a coordinator with a FakeSecondPass and a passing gate. The model is nil
+    /// so the gate-only path decides AFTER the second pass (gate passed → upload),
+    /// isolating the second pass as the only thing that can veto.
+    private func makeWithSecondPass(verdict: Bool?, localId: String)
+        -> (ScanCoordinator, FakeScanStateStore, FakeAPIClient, FakeSecondPass) {
+        let api = FakeAPIClient()
+        api.responses = [.success(APIResponse(status: 201, data: Data()))]
+        let store = FakeScanStateStore()
+        let gate = FakeGate(); gate.passes = true
+        let sp = FakeSecondPass(verdict: verdict)
+        let asset = PhotoAsset(localId: localId, capturedAt: Date())
+        let source = FakePhotoSource(
+            assets: [asset],
+            data: [asset.localId: PhotoData(bytes: Data([0x1]), utiType: "public.heic",
+                                            filename: "\(localId).HEIC")])
+        let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+        let img = oneByOne()
+        let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                    secondPass: sp, uploader: uploader, store: store,
+                                    settings: AppSettings(threshold: 0.5, autoUpload: true),
+                                    decode: { _ in img })
+        return (coord, store, api, sp)
+    }
+
+    @Test func secondPassFalseVetoesUploadAndRecordsIgnored() async {
+        let (coord, store, api, sp) = makeWithSecondPass(verdict: false, localId: "V1")
+        let summary = await coord.scanOnce()
+        #expect(sp.callCount == 1)                       // ran after the gate passed
+        #expect(summary.ignored == 1)
+        #expect(summary.uploaded == 0)
+        #expect(api.sent.count == 0)                     // never uploaded
+        #expect((try? store.status(of: "V1")) == .ignored)
+    }
+
+    @Test func secondPassTrueAllowsUpload() async {
+        let (coord, store, api, sp) = makeWithSecondPass(verdict: true, localId: "V2")
+        let summary = await coord.scanOnce()
+        #expect(sp.callCount == 1)
+        #expect(summary.uploaded == 1)
+        #expect(api.sent.count == 1)
+        #expect((try? store.status(of: "V2")) == .uploaded)
+    }
+
+    @Test func secondPassNilTreatedAsPassAndUploads() async {
+        // nil = undecided / model unavailable → preserve recall, treat as a pass.
+        let (coord, store, api, sp) = makeWithSecondPass(verdict: nil, localId: "V3")
+        let summary = await coord.scanOnce()
+        #expect(sp.callCount == 1)
+        #expect(summary.uploaded == 1)
+        #expect(api.sent.count == 1)
+        #expect((try? store.status(of: "V3")) == .uploaded)
+    }
+
+    @Test func secondPassNotRunWhenGateFails() async {
+        let api = FakeAPIClient()
+        api.responses = [.success(APIResponse(status: 201, data: Data()))]
+        let store = FakeScanStateStore()
+        let gate = FakeGate(); gate.passes = false
+        let sp = FakeSecondPass(verdict: true)
+        let asset = PhotoAsset(localId: "V4", capturedAt: Date())
+        let source = FakePhotoSource(
+            assets: [asset],
+            data: [asset.localId: PhotoData(bytes: Data([0x1]), utiType: "public.heic", filename: "V4.HEIC")])
+        let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+        let img = oneByOne()
+        let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                    secondPass: sp, uploader: uploader, store: store,
+                                    settings: AppSettings(threshold: 0.5, autoUpload: true),
+                                    decode: { _ in img })
+        let summary = await coord.scanOnce()
+        #expect(sp.callCount == 0)                        // gate failed → never reached
+        #expect(summary.ignored == 1)
+        #expect(api.sent.count == 0)
+    }
+
     @Test func alreadyHandledAssetIsSkipped() async {
         let s = AppSettings(threshold: 0.5, autoUpload: true)
         let (coord, store, api) = make(uploadResult: .success(true), modelEmbedding: [1, 0],
