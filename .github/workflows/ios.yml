@@ -29,7 +29,7 @@ jobs:
   # is covered by the app-build job. SIMULATOR-ONLY tests are device-dependent and
   # not run here. Tests are swift-testing; `xcodebuild test` runs them natively.
   test:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
 
@@ -53,7 +53,7 @@ jobs:
   # (the project is gitignored), then compiles the app for a generic iOS device
   # with code signing disabled — the real "build the app" gate.
   app-build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
 
