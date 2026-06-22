@@ -36,4 +36,23 @@ import Foundation
             try QRPayload.parse(raw)
         }
     }
+
+    @Test func acceptsHTTPForLocalNetworkHost() throws {
+        let raw = #"{"v":1,"api":"http://192.168.31.162:3001","enroll":"a"}"#
+        let p = try QRPayload.parse(raw)
+        #expect(p.api == URL(string: "http://192.168.31.162:3001")!)
+    }
+
+    @Test func acceptsHTTPForLocalhost() throws {
+        let raw = #"{"v":1,"api":"http://localhost:3001","enroll":"a"}"#
+        let p = try QRPayload.parse(raw)
+        #expect(p.enroll == "a")
+    }
+
+    @Test func rejectsHTTPForPublicHost() {
+        let raw = #"{"v":1,"api":"http://api.example.test","enroll":"a"}"#
+        #expect(throws: QRPayloadError.invalidAPIURL("http://api.example.test")) {
+            try QRPayload.parse(raw)
+        }
+    }
 }
