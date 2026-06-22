@@ -71,6 +71,14 @@ final class RootModel {
         self.logModel = LogViewModel(store: store)
         self.settingsModel = SettingsViewModel(store: store, settings: loadedSettings,
                                                onSettingsChange: { AppSettingsStore.save($0) })
+        // Flip to the authenticated UI immediately after a successful scan,
+        // instead of waiting for the next foreground / relaunch.
+        self.loginModel.onAuthenticated = { [weak self] in
+            guard let self else { return }
+            self.isAuthenticated = true
+            self.registerObserver()
+            Task { await self.runScan() }
+        }
     }
 
     func onLaunch() async {

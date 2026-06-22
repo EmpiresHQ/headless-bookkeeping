@@ -23,6 +23,26 @@ import Foundation
         #expect(vm.errorMessage != nil)
     }
 
+    @Test func loginViewModelFiresOnAuthenticatedOnSuccess() async {
+        let api = FakeAPIClient()
+        api.responses = [.success(APIResponse(status: 201, data: #"{"accessToken":"s"}"#.data(using: .utf8)!))]
+        let auth = AuthService(apiFor: { _ in api }, keychain: FakeKeychain())
+        let vm = LoginViewModel(auth: auth, deviceName: "iPhone")
+        var fired = false
+        vm.onAuthenticated = { fired = true }
+        await vm.handleScan(#"{"v":1,"api":"https://api.test","enroll":"e"}"#)
+        #expect(fired)
+    }
+
+    @Test func loginViewModelDoesNotFireOnAuthenticatedOnError() async {
+        let auth = AuthService(apiFor: { _ in FakeAPIClient() }, keychain: FakeKeychain())
+        let vm = LoginViewModel(auth: auth, deviceName: "iPhone")
+        var fired = false
+        vm.onAuthenticated = { fired = true }
+        await vm.handleScan("garbage")
+        #expect(!fired)
+    }
+
     @Test func homeViewModelReportsCounts() throws {
         let store = FakeScanStateStore()
         try store.record(LogEntry(assetLocalId: "A1", outcome: .uploaded, topLabel: "r", score: 0.9, at: Date()))
