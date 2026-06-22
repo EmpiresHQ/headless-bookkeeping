@@ -29,7 +29,15 @@ export class MobileAuthController {
   async createEnrollment() {
     const apiBaseUrl = process.env.PUBLIC_API_URL;
     if (!apiBaseUrl) {
-      throw new InternalServerErrorException('PUBLIC_API_URL is not configured');
+      throw new InternalServerErrorException(
+        'PUBLIC_API_URL is not configured',
+      );
+    }
+    const isHttps = apiBaseUrl.startsWith('https://');
+    const isLocalDev =
+      /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(apiBaseUrl);
+    if (!isHttps && !isLocalDev) {
+      throw new InternalServerErrorException('PUBLIC_API_URL must use https');
     }
     const { token, expiresAt } = await this.apiTokenService.createEnrollment();
     return {
@@ -40,7 +48,9 @@ export class MobileAuthController {
   }
 
   /** POST /api/mobile/sessions — exchange an enrollment token for a session. */
-  @ApiOperation({ summary: 'Exchange an enrollment token for a mobile session' })
+  @ApiOperation({
+    summary: 'Exchange an enrollment token for a mobile session',
+  })
   @EnrollmentOnly()
   @Post('mobile/sessions')
   @HttpCode(HttpStatus.CREATED)
@@ -48,9 +58,11 @@ export class MobileAuthController {
     @Req() req: { apiToken: { token_hash: string } },
     @Body() body: ExchangeDto,
   ) {
-    const header = (req as unknown as {
-      headers: Record<string, string | undefined>;
-    }).headers['authorization']!;
+    const header = (
+      req as unknown as {
+        headers: Record<string, string | undefined>;
+      }
+    ).headers['authorization']!;
     const plaintext = header.slice('Bearer '.length);
     try {
       const { token } = await this.apiTokenService.exchangeEnrollment(

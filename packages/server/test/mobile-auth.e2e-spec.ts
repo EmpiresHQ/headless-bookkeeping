@@ -77,6 +77,19 @@ describe('Mobile enrollment auth (e2e)', () => {
       .expect(401);
   });
 
+  it('returns 500 when PUBLIC_API_URL is non-https non-localhost', async () => {
+    const original = process.env.PUBLIC_API_URL;
+    process.env.PUBLIC_API_URL = 'http://insecure.example.test';
+    try {
+      await request(app.getHttpServer())
+        .post('/api/device-enrollments')
+        .set('Authorization', `Bearer ${staticToken}`)
+        .expect(500);
+    } finally {
+      process.env.PUBLIC_API_URL = original;
+    }
+  });
+
   it('rejects an enrollment token on a normal API route', async () => {
     const enrollRes = await request(app.getHttpServer())
       .post('/api/device-enrollments')

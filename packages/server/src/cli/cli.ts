@@ -113,11 +113,6 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
                 .option('api', {
                   type: 'string',
                   describe: 'API base URL (falls back to PUBLIC_API_URL)',
-                })
-                .option('label', {
-                  type: 'string',
-                  default: 'enrollment',
-                  describe: 'Human label',
                 }),
             async (argv) => {
               const api = argv.api ?? process.env.PUBLIC_API_URL;
