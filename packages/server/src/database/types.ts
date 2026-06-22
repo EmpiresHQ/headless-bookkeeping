@@ -432,11 +432,17 @@ export interface ApiTokenTable {
   id: Generated<number>;
   // SHA-256 hash of the plaintext token.
   token_hash: string;
-  // Human-readable label (e.g. "init-token").
+  // Human-readable label (e.g. "init-token", or a device name for sessions).
   label: string | null;
   created_at: Generated<number>;
   // Unix seconds when revoked; NULL = active.
   revoked_at: number | null;
+  // Token role: 'static' (CLI/operator), 'enrollment' (one-time QR), 'session' (mobile).
+  kind: Generated<string>;
+  // Unix seconds when the token expires; NULL = never (static/session).
+  expires_at: number | null;
+  // Unix seconds when a one-time enrollment token was exchanged; NULL = unused.
+  consumed_at: number | null;
 }
 
 // AiProposal: operational audit trail for AI-driven posting attempts.
