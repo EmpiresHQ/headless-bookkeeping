@@ -1,4 +1,5 @@
 import yargs, { Argv } from 'yargs';
+import qrcode from 'qrcode-terminal';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../database/types';
 import { ApiTokenService } from '../auth/api-token.service';
@@ -97,6 +98,40 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
             async (argv) => {
               await tokens.revoke(argv.id as number);
               io.err(`revoked token id=${argv.id}\n`);
+            },
+          )
+          .command(
+            'enroll',
+            'Mint a one-time enrollment token and render it as a QR code',
+            (y) =>
+              y
+                .option('ttl', {
+                  type: 'number',
+                  default: 600,
+                  describe: 'Lifetime in seconds',
+                })
+                .option('api', {
+                  type: 'string',
+                  describe: 'API base URL (falls back to PUBLIC_API_URL)',
+                }),
+            async (argv) => {
+              const api = argv.api ?? process.env.PUBLIC_API_URL;
+              if (!api) {
+                throw new Error(
+                  'enroll requires --api or PUBLIC_API_URL to be set',
+                );
+              }
+              const { token, expiresAt } = await tokens.createEnrollment(
+                argv.ttl,
+              );
+              const payload = { v: 1, api, enroll: token };
+              // Human-facing QR + note → stderr (does not pollute stdout JSON).
+              qrcode.generate(JSON.stringify(payload), { small: true }, (qr) =>
+                io.err(`${qr}\n`),
+              );
+              io.err(`enrollment expires in ${argv.ttl}s\n`);
+              // Machine-readable payload → stdout.
+              io.out(json({ ...payload, expiresAt }));
             },
           )
           .demandCommand(1, 'Specify a token subcommand')

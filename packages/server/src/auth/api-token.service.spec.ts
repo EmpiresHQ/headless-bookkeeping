@@ -1,6 +1,7 @@
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
+import { createHash } from 'crypto';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ApiTokenService } from './api-token.service';
@@ -60,5 +61,111 @@ describe('ApiTokenService (A1: token management over the service)', () => {
     expect(await service.verify(token)).toBeNull();
     const row = (await service.list()).find((t) => t.id === id);
     expect(row?.revoked_at).not.toBeNull();
+  });
+
+  describe('verify — kind + lifecycle', () => {
+    it('returns the kind for a static token', async () => {
+      const { token } = await service.create('s');
+      const row = await service.verify(token);
+      expect(row?.kind).toBe('static');
+    });
+
+    it('rejects an expired enrollment token', async () => {
+      const plaintext = 'expired-enroll';
+      const hash = createHash('sha256').update(plaintext).digest('hex');
+      await db
+        .insertInto('api_token')
+        .values({
+          token_hash: hash,
+          label: 'e',
+          kind: 'enrollment',
+          expires_at: Math.floor(Date.now() / 1000) - 10,
+        })
+        .execute();
+      expect(await service.verify(plaintext)).toBeNull();
+    });
+
+    it('rejects a consumed enrollment token', async () => {
+      const plaintext = 'used-enroll';
+      const hash = createHash('sha256').update(plaintext).digest('hex');
+      await db
+        .insertInto('api_token')
+        .values({
+          token_hash: hash,
+          label: 'e',
+          kind: 'enrollment',
+          expires_at: Math.floor(Date.now() / 1000) + 600,
+          consumed_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+      expect(await service.verify(plaintext)).toBeNull();
+    });
+  });
+
+  describe('create + createEnrollment', () => {
+    it('mints a session token when kind is session', async () => {
+      const { id } = await service.create('iPhone', 'session');
+      const row = await db
+        .selectFrom('api_token')
+        .select(['kind', 'label'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.kind).toBe('session');
+      expect(row.label).toBe('iPhone');
+    });
+
+    it('createEnrollment sets kind=enrollment and a future expiry', async () => {
+      const before = Math.floor(Date.now() / 1000);
+      const { id, token, expiresAt } = await service.createEnrollment(600);
+      expect(token).toHaveLength(64);
+      expect(expiresAt).toBeGreaterThanOrEqual(before + 600);
+      const row = await db
+        .selectFrom('api_token')
+        .select(['kind', 'expires_at'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.kind).toBe('enrollment');
+      expect(row.expires_at).toBe(expiresAt);
+    });
+  });
+
+  describe('exchangeEnrollment', () => {
+    it('consumes the enrollment and mints a session token', async () => {
+      const { id: enrollId, token: enroll } = await service.createEnrollment();
+      const { id: sessionId, token: session } =
+        await service.exchangeEnrollment(enroll, 'Pixel 8');
+
+      const enrollRow = await db
+        .selectFrom('api_token')
+        .select(['consumed_at'])
+        .where('id', '=', enrollId)
+        .executeTakeFirstOrThrow();
+      expect(enrollRow.consumed_at).not.toBeNull();
+
+      const sessionRow = await db
+        .selectFrom('api_token')
+        .select(['kind', 'label'])
+        .where('id', '=', sessionId)
+        .executeTakeFirstOrThrow();
+      expect(sessionRow.kind).toBe('session');
+      expect(sessionRow.label).toBe('Pixel 8');
+
+      expect(await service.verify(session)).not.toBeNull();
+    });
+
+    it('rejects a second exchange of the same enrollment token', async () => {
+      const { token: enroll } = await service.createEnrollment();
+      await service.exchangeEnrollment(enroll, 'first');
+      await expect(
+        service.exchangeEnrollment(enroll, 'second'),
+      ).rejects.toThrow('invalid or expired enrollment token');
+    });
+
+    it('rejects a non-enrollment token', async () => {
+      const { token: staticTok } = await service.create('s');
+      await expect(service.exchangeEnrollment(staticTok, 'x')).rejects.toThrow(
+        'invalid or expired enrollment token',
+      );
+    });
   });
 });
