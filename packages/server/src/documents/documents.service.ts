@@ -50,6 +50,8 @@ export class DocumentsService {
           channel,
           source_identifier: sourceIdentifier ?? null,
           received_at: now,
+          captured_at: input.capturedAt ?? null,
+          precheck_json: input.precheckJson ?? null,
         })
         .execute();
 
@@ -94,6 +96,8 @@ export class DocumentsService {
         channel,
         source_identifier: sourceIdentifier ?? null,
         received_at: now,
+        captured_at: input.capturedAt ?? null,
+        precheck_json: input.precheckJson ?? null,
       })
       .execute();
 
@@ -356,6 +360,8 @@ export class DocumentsService {
     channel: string;
     source_identifier: string | null;
     received_at: number;
+    captured_at: number | null;
+    precheck_json: string | null;
   }): DocumentSource {
     return {
       id: row.id,
@@ -363,6 +369,8 @@ export class DocumentsService {
       channel: this.validateChannel(row.channel),
       source_identifier: row.source_identifier,
       received_at: row.received_at,
+      captured_at: row.captured_at,
+      precheck_json: row.precheck_json,
     };
   }
 
@@ -384,7 +392,8 @@ export class DocumentsService {
       channel === 'upload' ||
       channel === 'telegram' ||
       channel === 'email' ||
-      channel === 'drive'
+      channel === 'drive' ||
+      channel === 'ios_photo_library'
     ) {
       return channel;
     }

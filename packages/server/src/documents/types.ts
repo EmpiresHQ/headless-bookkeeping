@@ -19,7 +19,12 @@ export type DocumentStatus =
   | 'processed'
   | 'error';
 
-export type Channel = 'upload' | 'telegram' | 'email' | 'drive';
+export type Channel =
+  | 'upload'
+  | 'telegram'
+  | 'email'
+  | 'drive'
+  | 'ios_photo_library';
 
 export interface Document {
   id: number;
@@ -41,6 +46,8 @@ export interface DocumentSource {
   channel: Channel;
   source_identifier: string | null;
   received_at: number;
+  captured_at: number | null;
+  precheck_json: string | null;
 }
 
 export interface DocumentWithSources extends Document {
@@ -53,6 +60,10 @@ export interface UploadDocumentInput {
   mimeType: string;
   channel: Channel;
   sourceIdentifier?: string | null;
+  // Unix seconds the asset was captured on-device (iOS). Optional.
+  capturedAt?: number | null;
+  // Raw JSON string of the on-device pre-check result. Optional.
+  precheckJson?: string | null;
 }
 
 export interface UploadDocumentResult {

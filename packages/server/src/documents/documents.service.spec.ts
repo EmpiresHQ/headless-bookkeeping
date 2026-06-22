@@ -432,4 +432,91 @@ describe('DocumentsService (unit)', () => {
       await expect(service.getPendingTriageResult(doc.id)).rejects.toThrow();
     });
   });
+
+  describe('ios_photo_library channel', () => {
+    it('stores an upload from the ios_photo_library channel', async () => {
+      const result = await service.upload({
+        buffer: Buffer.from('ios-bytes'),
+        filename: 'receipt.heic',
+        mimeType: 'image/heic',
+        channel: 'ios_photo_library',
+        sourceIdentifier: 'ASSET-1',
+      });
+      const hydrated = await service.hydrate(
+        await service.getById(result.document.id),
+      );
+      expect(hydrated.sources[0].channel).toBe('ios_photo_library');
+      expect(hydrated.sources[0].source_identifier).toBe('ASSET-1');
+    });
+  });
+
+  describe('upload — ios metadata persistence', () => {
+    it('persists capturedAt and precheckJson on a new document source', async () => {
+      const result = await service.upload({
+        buffer: Buffer.from('m1'),
+        filename: 'r1.heic',
+        mimeType: 'image/heic',
+        channel: 'ios_photo_library',
+        sourceIdentifier: 'ASSET-M1',
+        capturedAt: 1749990000,
+        precheckJson: '{"decision":"upload","top":0.91}',
+      });
+      const hydrated = await service.hydrate(
+        await service.getById(result.document.id),
+      );
+      expect(hydrated.sources[0].captured_at).toBe(1749990000);
+      expect(hydrated.sources[0].precheck_json).toBe(
+        '{"decision":"upload","top":0.91}',
+      );
+    });
+
+    it('persists ios metadata on the dedup path (second arrival)', async () => {
+      const first = await service.upload({
+        buffer: Buffer.from('dupe-bytes'),
+        filename: 'r2.heic',
+        mimeType: 'image/heic',
+        channel: 'ios_photo_library',
+        sourceIdentifier: 'ASSET-FIRST',
+        capturedAt: 1749990000,
+        precheckJson: '{"decision":"upload"}',
+      });
+      const second = await service.upload({
+        buffer: Buffer.from('dupe-bytes'),
+        filename: 'r2.heic',
+        mimeType: 'image/heic',
+        channel: 'ios_photo_library',
+        sourceIdentifier: 'ASSET-SECOND',
+        capturedAt: 1749991111,
+        precheckJson: '{"decision":"upload","again":true}',
+      });
+      expect(second.deduplicated).toBe(true);
+      expect(second.document.id).toBe(first.document.id);
+
+      const hydrated = await service.hydrate(
+        await service.getById(first.document.id),
+      );
+      const secondSource = hydrated.sources.find(
+        (s) => s.source_identifier === 'ASSET-SECOND',
+      );
+      expect(secondSource?.captured_at).toBe(1749991111);
+      expect(secondSource?.precheck_json).toBe(
+        '{"decision":"upload","again":true}',
+      );
+    });
+
+    it('defaults ios metadata to null when omitted', async () => {
+      const result = await service.upload({
+        buffer: Buffer.from('plain'),
+        filename: 'plain.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      const hydrated = await service.hydrate(
+        await service.getById(result.document.id),
+      );
+      expect(hydrated.sources[0].captured_at).toBeNull();
+      expect(hydrated.sources[0].precheck_json).toBeNull();
+    });
+  });
 });
