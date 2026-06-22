@@ -26,6 +26,11 @@ public struct SettingsView: View {
                 Text("How many new photos each scan processes (newest first). 0 = no limit. Keeps the first scan from sweeping your whole library at once.")
             }
             Section {
+                Toggle("Include screenshots", isOn: $model.settings.includeScreenshots)
+            } footer: {
+                Text("Off by default. Screenshots (weather, chats, web) are the main source of false uploads. Turn on only if you keep e-receipts as screenshots.")
+            }
+            Section {
                 Button("Reset scan state", role: .destructive) {
                     model.resetCursor()
                 }

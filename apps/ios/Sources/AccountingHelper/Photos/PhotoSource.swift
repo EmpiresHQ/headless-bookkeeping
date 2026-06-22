@@ -42,8 +42,10 @@ public final class PhotoKitPhotoSource: PhotoSource {
         let result = PHAsset.fetchAssets(with: opts)
         var assets: [PhotoAsset] = []
         result.enumerateObjects { asset, _, _ in
-            assets.append(PhotoAsset(localId: asset.localIdentifier,
-                                     capturedAt: asset.creationDate ?? Date(timeIntervalSince1970: 0)))
+            assets.append(PhotoAsset(
+                localId: asset.localIdentifier,
+                capturedAt: asset.creationDate ?? Date(timeIntervalSince1970: 0),
+                isScreenshot: asset.mediaSubtypes.contains(.photoScreenshot)))
         }
         return assets
     }

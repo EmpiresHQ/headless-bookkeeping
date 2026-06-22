@@ -37,6 +37,11 @@ public final class ScanCoordinator {
             if let st = (try? store.status(of: asset.localId)) ?? nil, st != .failed {
                 summary.skipped += 1; continue
             }
+            // Skip screenshots unless opted in (not recorded, so flipping the
+            // setting on later reconsiders them).
+            if asset.isScreenshot && !settings.includeScreenshots {
+                summary.skipped += 1; continue
+            }
             // Cap NEW work per scan (0 = unlimited) to avoid uploading the whole
             // library in one run.
             if settings.maxPerScan > 0 && processed >= settings.maxPerScan { break }

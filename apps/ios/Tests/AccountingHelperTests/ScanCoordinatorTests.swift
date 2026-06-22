@@ -170,6 +170,32 @@ import CoreGraphics
         #expect(api.sent.count == 2)
     }
 
+    @Test func screenshotSkippedWhenExcludedAndUploadedWhenIncluded() async {
+        func run(includeScreenshots: Bool) async -> ScanSummary {
+            let api = FakeAPIClient()
+            api.responses = [.success(APIResponse(status: 201, data: Data()))]
+            let store = FakeScanStateStore()
+            let gate = FakeGate(); gate.passes = true
+            let asset = PhotoAsset(localId: "S1", capturedAt: Date(), isScreenshot: true)
+            let source = FakePhotoSource(
+                assets: [asset],
+                data: [asset.localId: PhotoData(bytes: Data([0x1]), utiType: "public.png", filename: "S1.PNG")])
+            let uploader = DocumentUploader(client: api, tokenProvider: { "sess" })
+            let img = oneByOne()
+            let coord = ScanCoordinator(photos: source, gate: gate, model: nil, labels: nil,
+                                        uploader: uploader, store: store,
+                                        settings: AppSettings(threshold: 0.5, autoUpload: true,
+                                                              includeScreenshots: includeScreenshots),
+                                        decode: { _ in img })
+            return await coord.scanOnce()
+        }
+        let excluded = await run(includeScreenshots: false)
+        #expect(excluded.skipped == 1)
+        #expect(excluded.uploaded == 0)
+        let included = await run(includeScreenshots: true)
+        #expect(included.uploaded == 1)
+    }
+
     @Test func alreadyHandledAssetIsSkipped() async {
         let s = AppSettings(threshold: 0.5, autoUpload: true)
         let (coord, store, api) = make(uploadResult: .success(true), modelEmbedding: [1, 0],
