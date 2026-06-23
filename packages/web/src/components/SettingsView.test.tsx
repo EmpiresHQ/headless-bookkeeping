@@ -49,4 +49,33 @@ describe('SettingsView', () => {
     )) as HTMLInputElement;
     expect(ceiling.value).toBe('50000');
   });
+
+  it('keeps an in-progress edit when a background settings refresh lands', async () => {
+    render(<SettingsView />);
+
+    const input = (await screen.findByLabelText(
+      /global model/i,
+    )) as HTMLInputElement;
+    expect(input.value).toBe('openai/gpt-4o');
+
+    // User edits the global model but has NOT saved it yet.
+    fireEvent.change(input, { target: { value: 'anthropic/claude-3-5' } });
+    expect(input.value).toBe('anthropic/claude-3-5');
+
+    // A background refresh lands mid-edit: changing the ingest policy triggers
+    // onIngestChange -> setSetting + loadSettings. Make that reload report a
+    // DIFFERENT server value for ai_model (as if another actor changed it).
+    vi.mocked(api.getSettings).mockResolvedValue([
+      { key: 'ai_model', value: 'openai/gpt-4o-mini' },
+    ]);
+    fireEvent.change(screen.getByLabelText(/ingest policy/i), {
+      target: { value: 'open' },
+    });
+    await waitFor(() => expect(api.getSettings).toHaveBeenCalledTimes(2));
+
+    // The unsaved edit must survive the background refresh (not be clobbered).
+    expect(
+      (screen.getByLabelText(/global model/i) as HTMLInputElement).value,
+    ).toBe('anthropic/claude-3-5');
+  });
 });
