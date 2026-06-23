@@ -107,7 +107,7 @@ export class VoucherProjectionService {
 
     const lines: DraftVoucherLine[] =
       direction === 'purchase'
-        ? this.purchaseLines(facts, netAmount, mapping, fxRate, baseAmount)
+        ? this.purchaseLines(facts, mapping, fxRate, baseAmount)
         : this.saleLines(facts, netAmount, mapping, fxRate, baseAmount);
 
     return {
@@ -182,33 +182,53 @@ export class VoucherProjectionService {
   }
 
   /**
-   * Purchase legs (Expense): Dr category(net) [, Dr VAT_RECEIVABLE(vat)], Cr AP(gross).
-   * The VAT leg is omitted when there is no VAT — matching today's behavior.
+   * Purchase legs (Expense): Dr category(net) [, Dr VAT_RECEIVABLE(vat)], Cr AP|CLAIMANT_PAYABLE(gross).
+   *
+   * Credit account: CLAIMANT_PAYABLE when facts.claimantId is set (the expense
+   * was paid by a claimant, not a supplier); AP otherwise.
+   *
+   * VAT reclaim: suppressed (no VAT_RECEIVABLE line, full gross expensed) when
+   * companyAddressedReceipt is false or null — the receipt is not addressed to
+   * the Organisation, so no VAT can be reclaimed (conservative). Absent
+   * companyAddressedReceipt (undefined) defaults to reclaimable.
    */
   private purchaseLines(
     facts: EconomicFacts,
-    netAmount: number,
     mapping: { accountCode: string; vatCode: string },
     fxRate: number,
     baseAmount: (amount: number) => number,
   ): DraftVoucherLine[] {
+    // When the receipt is not company-addressed (or unknown), no VAT reclaim.
+    // undefined (non-claimant expense) → reclaimable by default.
+    const effectiveCanReclaim =
+      facts.companyAddressedReceipt === undefined
+        ? true
+        : facts.companyAddressedReceipt !== false &&
+          facts.companyAddressedReceipt !== null;
+
+    const effectiveVatAmount = effectiveCanReclaim ? facts.vatAmount : 0;
+    const effectiveNetAmount = facts.grossAmount - effectiveVatAmount;
+
+    const creditAccountCode =
+      facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
+
     return [
       {
         account_code: mapping.accountCode,
-        amount: netAmount,
+        amount: effectiveNetAmount,
         currency: facts.currency,
-        base_amount: baseAmount(netAmount),
+        base_amount: baseAmount(effectiveNetAmount),
         fx_rate: fxRate,
         vat_code: mapping.vatCode,
         is_debit: true,
       },
-      ...(facts.vatAmount > 0
+      ...(effectiveVatAmount > 0
         ? [
             {
               account_code: 'VAT_RECEIVABLE',
-              amount: facts.vatAmount,
+              amount: effectiveVatAmount,
               currency: facts.currency,
-              base_amount: baseAmount(facts.vatAmount),
+              base_amount: baseAmount(effectiveVatAmount),
               fx_rate: fxRate,
               vat_code: mapping.vatCode,
               is_debit: true,
@@ -216,7 +236,7 @@ export class VoucherProjectionService {
           ]
         : []),
       {
-        account_code: 'AP',
+        account_code: creditAccountCode,
         amount: facts.grossAmount,
         currency: facts.currency,
         base_amount: baseAmount(facts.grossAmount),

@@ -180,6 +180,12 @@ export class ExpensesService {
             supplier.goods_vs_services,
           ),
         }),
+        claimantId: expense.claimant_id ?? null,
+        companyAddressedReceipt: expense.claimant_id !== null
+          ? (expense.company_addressed_receipt === null
+              ? null
+              : Boolean(expense.company_addressed_receipt))
+          : undefined,
       },
       'purchase',
     );
@@ -379,6 +385,8 @@ export class ExpensesService {
     asset_name: string | null;
     asset_useful_life_years: number | null;
     asset_residual_value_minor: number | null;
+    claimant_id?: number | null;
+    company_addressed_receipt?: number | null;
     created_at: number;
     updated_at: number;
   }): Expense {
@@ -398,6 +406,12 @@ export class ExpensesService {
       asset_name: row.asset_name,
       asset_useful_life_years: row.asset_useful_life_years,
       asset_residual_value_minor: row.asset_residual_value_minor,
+      claimant_id: row.claimant_id ?? null,
+      company_addressed_receipt:
+        row.company_addressed_receipt === null ||
+        row.company_addressed_receipt === undefined
+          ? null
+          : Boolean(row.company_addressed_receipt),
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

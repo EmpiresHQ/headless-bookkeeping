@@ -181,6 +181,64 @@ describe('VoucherProjectionService', () => {
         expect.objectContaining({ vatRegistered: true }),
       );
     });
+
+    it('credits CLAIMANT_PAYABLE (not AP) when claimantId is set', async () => {
+      const draft = await service.project(
+        {
+          category: 'meals',
+          grossAmount: 2400,
+          vatAmount: 400,
+          currency: 'EUR',
+          taxPointDate: '2026-06-01',
+          claimantId: 7,
+        },
+        'purchase',
+      );
+
+      const credit = draft.lines.find((l) => !l.is_debit);
+      expect(credit?.account_code).toBe('CLAIMANT_PAYABLE');
+      const ap = draft.lines.find((l) => l.account_code === 'AP');
+      expect(ap).toBeUndefined();
+    });
+
+    it('credits AP (not CLAIMANT_PAYABLE) when claimantId is null', async () => {
+      const draft = await service.project(
+        {
+          category: 'software',
+          grossAmount: 10000,
+          vatAmount: 2300,
+          currency: 'EUR',
+          taxPointDate: '2026-06-01',
+          claimantId: null,
+        },
+        'purchase',
+      );
+
+      const credit = draft.lines.find((l) => !l.is_debit);
+      expect(credit?.account_code).toBe('AP');
+    });
+
+    it('omits VAT_RECEIVABLE when companyAddressedReceipt is false', async () => {
+      const draft = await service.project(
+        {
+          category: 'meals',
+          grossAmount: 1200,
+          vatAmount: 200,
+          currency: 'EUR',
+          taxPointDate: '2026-06-01',
+          claimantId: 3,
+          companyAddressedReceipt: false,
+        },
+        'purchase',
+      );
+
+      const vatLine = draft.lines.find((l) => l.account_code === 'VAT_RECEIVABLE');
+      expect(vatLine).toBeUndefined();
+
+      // Full gross must be expensed (no VAT split)
+      const expenseLine = draft.lines.find((l) => l.is_debit && l.account_code !== 'VAT_RECEIVABLE');
+      expect(expenseLine?.amount).toBe(1200);
+    });
   });
 
   describe('sale direction (SalesInvoice)', () => {

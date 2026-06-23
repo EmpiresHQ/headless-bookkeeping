@@ -31,6 +31,17 @@ export interface EconomicFacts {
    * plugin needs to resolve cross-border treatment. Absent ⇒ 'unknown'.
    */
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  /**
+   * When set, the credit leg posts to CLAIMANT_PAYABLE instead of AP.
+   * Null (or absent) → AP (normal supplier expense).
+   */
+  claimantId?: number | null;
+  /**
+   * Whether the receipt is addressed to the Organisation.
+   * false | null → no VAT_RECEIVABLE line (conservative — no reclaim when uncertain).
+   * Only meaningful for claimant-paid expenses; absent → treated as true.
+   */
+  companyAddressedReceipt?: boolean | null;
 }
 
 /**
