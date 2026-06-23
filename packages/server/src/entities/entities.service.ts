@@ -11,6 +11,7 @@ import {
   Entity,
   EntityIdentifier,
   EntityWithIdentifiers,
+  OnboardEntityInput,
   OnboardEntityDto,
   AddAliasDto,
   UpdateEntityDto,
@@ -21,7 +22,7 @@ import { normalizeIdentifier, MATCH_KINDS } from './identifier-normalization';
 export class EntitiesService {
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
 
-  async onboard(dto: OnboardEntityDto): Promise<EntityWithIdentifiers> {
+  async onboard(dto: OnboardEntityInput): Promise<EntityWithIdentifiers> {
     const now = Math.floor(Date.now() / 1000);
 
     const entity = await this.db.transaction().execute(async (trx) => {
@@ -31,26 +32,37 @@ export class EntitiesService {
           role: dto.role,
           country: dto.country,
           name: dto.name,
-          goods_vs_services: dto.goodsVsServices ?? null,
+          goods_vs_services: 'goodsVsServices' in dto ? (dto.goodsVsServices ?? null) : null,
           created_at: now,
           updated_at: now,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      const regKey = normalizeIdentifier(
-        'registration_key',
-        dto.registrationKey,
-      );
-      await trx
-        .insertInto('entity_identifier')
-        .values({
-          entity_id: row.id,
-          kind: 'registration_key',
-          value: regKey ?? dto.registrationKey,
-          confirmed: 1,
-        })
-        .execute();
+      if (dto.role === 'supplier' || dto.role === 'customer') {
+        const regKey = normalizeIdentifier('registration_key', dto.registrationKey);
+        await trx
+          .insertInto('entity_identifier')
+          .values({
+            entity_id: row.id,
+            kind: 'registration_key',
+            value: regKey ?? dto.registrationKey,
+            confirmed: 1,
+          })
+          .execute();
+      } else {
+        // employee | director: email is the primary lookup key; tg_user_id is optional
+        const identifiers: Array<{ kind: string; value: string }> = [
+          { kind: 'email', value: dto.email },
+        ];
+        if (dto.tgUserId) {
+          identifiers.push({ kind: 'tg_user_id', value: dto.tgUserId });
+        }
+        await trx
+          .insertInto('entity_identifier')
+          .values(identifiers.map((i) => ({ entity_id: row.id, kind: i.kind, value: i.value, confirmed: 1 })))
+          .execute();
+      }
 
       return row;
     });

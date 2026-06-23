@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-export type EntityRole = 'supplier' | 'customer';
+export type EntityRole = 'supplier' | 'customer' | 'employee' | 'director';
 export type GoodsVsServices = 'goods' | 'services' | 'unknown';
 export type IdentifierKind =
   | 'registration_key'
@@ -10,7 +10,8 @@ export type IdentifierKind =
   | 'name_alias'
   | 'email'
   | 'phone'
-  | 'address';
+  | 'address'
+  | 'tg_user_id';
 
 export interface Entity {
   id: number;
@@ -34,7 +35,7 @@ export interface EntityWithIdentifiers extends Entity {
   identifiers: EntityIdentifier[];
 }
 
-export const onboardEntitySchema = z.object({
+const onboardSupplierCustomerSchema = z.object({
   role: z.enum(['supplier', 'customer']),
   country: z.string(),
   name: z.string(),
@@ -42,6 +43,20 @@ export const onboardEntitySchema = z.object({
   goodsVsServices: z.enum(['goods', 'services', 'unknown']).optional(),
 });
 
+const onboardClaimantSchema = z.object({
+  role: z.enum(['employee', 'director']),
+  country: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  tgUserId: z.string().optional(),
+});
+
+export const onboardEntitySchema = z.discriminatedUnion('role', [
+  onboardSupplierCustomerSchema,
+  onboardClaimantSchema,
+]);
+
+export type OnboardEntityInput = z.infer<typeof onboardEntitySchema>;
 export class OnboardEntityDto extends createZodDto(onboardEntitySchema) {}
 
 export const addAliasSchema = z.object({
