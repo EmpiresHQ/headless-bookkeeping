@@ -40,6 +40,7 @@ export class IntakeQueueWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    if (process.env.NODE_ENV === 'test') return;
     this.timer = setInterval(() => {
       void this.kick();
     }, POLL_INTERVAL_MS);

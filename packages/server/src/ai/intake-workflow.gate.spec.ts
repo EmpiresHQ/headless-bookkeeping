@@ -30,3 +30,31 @@ describe('IntakeWorkflowService.process gating', () => {
     expect(documents.getById).toHaveBeenCalledWith(1);
   });
 });
+
+describe('IntakeWorkflowService.debug gating', () => {
+  it('routes debug() through the ProcessingGate', async () => {
+    const gate = new ProcessingGate();
+    const runSpy = jest.spyOn(gate, 'run');
+
+    const sentinel = new Error('debug-sentinel');
+    const ocrService = {
+      transcribe: jest.fn().mockRejectedValue(sentinel),
+    };
+
+    const service = new IntakeWorkflowService(
+      ocrService as never, // ocrService
+      {} as never,         // pass2Agent
+      {} as never,         // proposeDraft
+      {} as never,         // auditFindings
+      {} as never,         // policyService
+      {} as never,         // documents
+      {} as never,         // entities
+      {} as never,         // organizationService
+      {} as never,         // bankIngestion
+      gate,
+    );
+
+    await expect(service.debug(1)).rejects.toThrow('debug-sentinel');
+    expect(runSpy).toHaveBeenCalledTimes(1);
+  });
+});

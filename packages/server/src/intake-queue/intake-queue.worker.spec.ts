@@ -1,5 +1,6 @@
 import { IntakeQueueWorker } from './intake-queue.worker';
 
+
 type FakeDoc = { id: number; attempts: number; done: boolean };
 
 function makeDeps(docs: FakeDoc[]) {
@@ -99,5 +100,26 @@ describe('IntakeQueueWorker', () => {
 
     await Promise.all([worker.kick(), worker.kick(), worker.kick()]);
     expect(deps.processed).toEqual([1]); // processed exactly once
+  });
+});
+
+describe('IntakeQueueWorker.onModuleInit under test', () => {
+  it('does not arm setInterval when NODE_ENV=test', () => {
+    // Jest sets NODE_ENV='test' by default — verify the early-return guard.
+    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+
+    const worker = new IntakeQueueWorker(
+      {} as never,
+      {} as never,
+    );
+
+    worker.onModuleInit();
+
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    // onModuleDestroy must be a safe no-op (timer is null).
+    expect(() => worker.onModuleDestroy()).not.toThrow();
+
+    setIntervalSpy.mockRestore();
   });
 });

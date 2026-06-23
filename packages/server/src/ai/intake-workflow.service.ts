@@ -153,22 +153,24 @@ export class IntakeWorkflowService {
    * so the operator can see the raw classification (e.g. why kind='correction').
    */
   async debug(documentId: number): Promise<DocumentDebug> {
-    const ocr = await this.ocrService.transcribe(documentId);
-    if (!ocr.ok) {
+    return this.gate.run(async () => {
+      const ocr = await this.ocrService.transcribe(documentId);
+      if (!ocr.ok) {
+        return {
+          document_id: documentId,
+          ocr: { ok: false, category: ocr.category, detail: ocr.detail },
+          classification: null,
+        };
+      }
+      const pass2 = await this.pass2Agent.classify(ocr.markdown);
       return {
         document_id: documentId,
-        ocr: { ok: false, category: ocr.category, detail: ocr.detail },
-        classification: null,
+        ocr: { ok: true, markdown: ocr.markdown },
+        classification: pass2.ok
+          ? { ok: true, result: pass2.result }
+          : { ok: false, category: pass2.category, detail: pass2.detail },
       };
-    }
-    const pass2 = await this.pass2Agent.classify(ocr.markdown);
-    return {
-      document_id: documentId,
-      ocr: { ok: true, markdown: ocr.markdown },
-      classification: pass2.ok
-        ? { ok: true, result: pass2.result }
-        : { ok: false, category: pass2.category, detail: pass2.detail },
-    };
+    });
   }
 
   /**
