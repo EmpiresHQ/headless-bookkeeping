@@ -14,16 +14,6 @@ interface ChatCompletionResponse {
   choices?: { message?: { content?: string } }[];
 }
 
-function looksLikeReceipt(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return false;
-  if (/^\s*NO[_\s]RECEIPT\s*$/i.test(trimmed)) return false;
-  // Defence-in-depth heuristic: require at least one token that looks like a price.
-  const pricePattern =
-    /[\$\€\£\¥]\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s*(?:EUR|USD|GBP|€|\$|£|¥)/i;
-  return pricePattern.test(trimmed);
-}
-
 /**
  * Transcribes a single image to markdown via an OpenAI-compatible vision
  * endpoint (LiteLLM proxying dots.ocr). Config (base URL, key, model) is reused
@@ -110,11 +100,11 @@ export class LlmVisionTranscriber {
     }
 
     const markdown = body.choices?.[0]?.message?.content ?? '';
-    if (!looksLikeReceipt(markdown)) {
+    if (markdown.trim().length === 0) {
       return {
         ok: false,
         category: 'unreadable',
-        detail: 'OCR endpoint returned content without any prices — does not appear to be a receipt.',
+        detail: 'OCR endpoint returned empty content',
       };
     }
     return { ok: true, markdown };
