@@ -24,7 +24,9 @@ export type Channel =
   | 'telegram'
   | 'email'
   | 'drive'
-  | 'ios_photo_library';
+  | 'ios_photo_library'
+  | 'email_sync'
+  | 'email_push';
 
 export interface Document {
   id: number;
