@@ -30,7 +30,7 @@ export class ImapflowImapClient extends ImapClient {
     const c = buildClient(conn);
     await c.connect();
     try {
-      const lock = await c.getMailboxLock(folder);
+      const lock = await c.getMailboxLock(folder, { readOnly: true });
       try {
         // c.mailbox is MailboxObject | false; after getMailboxLock it is always MailboxObject
         const mb = c.mailbox as { uidValidity: bigint };
@@ -61,7 +61,9 @@ export class ImapflowImapClient extends ImapClient {
     await c.mailboxOpen(folder, { readOnly: true });
     c.on('exists', () => onNew());
     // imapflow auto-renews IDLE; kick once to enter IDLE state
-    void c.idle();
+    void c.idle().catch((err) => {
+      console.error(`[mailbox] IDLE failed for ${folder}:`, err);
+    });
     return {
       close: async () => {
         try {
