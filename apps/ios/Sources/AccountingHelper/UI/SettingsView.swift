@@ -36,10 +36,16 @@ public struct SettingsView: View {
                 Text("Off by default. After the quick text check, a small on-device AI model double-checks each photo is actually a receipt or invoice before uploading — cutting false uploads from weather, chat, and web screenshots. The ~0.5GB model is bundled in the app (no download), runs fully on-device, and needs a recent iPhone.")
             }
             Section {
+                // `.borderless` keeps each button independently hit-testable inside a
+                // Form row. Without it, stacking two buttons in one Section makes the
+                // default (.automatic) style swallow taps, so the row needs several
+                // clicks before it registers.
                 Button("Reset scan state", role: .destructive) {
                     model.resetCursor()
                 }
+                .buttonStyle(.borderless)
                 Button("Log out", role: .destructive, action: onLogout)
+                    .buttonStyle(.borderless)
             }
         }
         .navigationTitle("Settings")

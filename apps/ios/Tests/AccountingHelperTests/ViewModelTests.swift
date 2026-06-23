@@ -69,4 +69,14 @@ import Foundation
         vm.resetCursor()
         #expect(try store.counts().uploaded == 0)
     }
+
+    @Test func settingsViewModelResetNotifiesSoUICanRefresh() throws {
+        let store = FakeScanStateStore()
+        try store.record(LogEntry(assetLocalId: "A1", outcome: .uploaded, topLabel: "r", score: 0.9, at: Date()))
+        var notified = false
+        let vm = SettingsViewModel(store: store, settings: AppSettings(),
+                                   onSettingsChange: { _ in }, onReset: { notified = true })
+        vm.resetCursor()
+        #expect(notified)
+    }
 }
