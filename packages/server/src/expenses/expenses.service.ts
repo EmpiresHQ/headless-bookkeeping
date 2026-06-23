@@ -39,6 +39,13 @@ export class ExpensesService {
         asset_name: dto.asset_name ?? null,
         asset_useful_life_years: dto.asset_useful_life_years ?? null,
         asset_residual_value_minor: dto.asset_residual_value_minor ?? null,
+        claimant_id: dto.claimant_id ?? null,
+        company_addressed_receipt:
+          dto.company_addressed_receipt === true
+            ? 1
+            : dto.company_addressed_receipt === false
+              ? 0
+              : null,
         status: 'draft',
         voucher_id: null,
         created_at: now,

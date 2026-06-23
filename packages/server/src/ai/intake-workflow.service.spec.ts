@@ -278,6 +278,8 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
         triageResult,
         docId,
+        undefined,
+        undefined,
       );
 
       // No AuditFinding should be created.
@@ -1118,11 +1120,12 @@ describe('IntakeWorkflowService', () => {
 
       const result = await service.resolveSupplier(docId, 3);
 
-      // proposeDraft called with the stored triage, doc id, and explicit supplier id.
+      // proposeDraft called with the stored triage, doc id, explicit supplier id, and claimant_id from the doc.
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
         triage,
         docId,
         3,
+        null,
       );
       // Document moved to triaged.
       const doc = await documentsService.getById(docId);

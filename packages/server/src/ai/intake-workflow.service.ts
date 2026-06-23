@@ -303,7 +303,7 @@ export class IntakeWorkflowService {
         // helper is caught by the safety-net catch below rather than escaping
         // and stranding the document in `pending` (ADR-0024).
         case 'expense':
-          return await this.routeExpense(documentId, triageResult);
+          return await this.routeExpense(documentId, triageResult, claimantId);
         case 'sales_invoice':
           return await this.routeSalesInvoice(
             documentId,
@@ -345,6 +345,7 @@ export class IntakeWorkflowService {
   private async routeExpense(
     documentId: number,
     triageResult: TriageResult,
+    claimantId?: number | null,
   ): Promise<IntakeWorkflowResult> {
     // ── Kind-level routing within the expense (incoming) path ──────
     // This handles ALL incoming kinds (new_expense / unknown / correction /
@@ -373,6 +374,8 @@ export class IntakeWorkflowService {
           const outcome = await this.proposeDraft.proposeDraft(
             triageResult,
             documentId,
+            undefined,
+            claimantId,
           );
           if (outcome.outcome === 'supplier-unresolved') {
             this.logger.warn(
@@ -620,6 +623,7 @@ export class IntakeWorkflowService {
       triageResult,
       documentId,
       supplierEntityId,
+      doc.claimant_id,
     );
     if (outcome.outcome === 'supplier-unresolved') {
       // Defensive: an explicit supplier id must resolve.

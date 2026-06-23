@@ -753,6 +753,68 @@ describe('ProposeDraftService (integration)', () => {
       const outcome = await service.proposeDraft(triage, null, 1);
       expect(outcome.outcome).toBe('category-unresolved');
     });
+
+    it('propagates claimant_id to the created Expense when provided', async () => {
+      const entitiesService = module.get(EntitiesService);
+
+      // Seed a claimant entity — expense.claimant_id is an FK → entity(id).
+      const claimant = await entitiesService.onboard({
+        role: 'employee',
+        country: 'EE',
+        name: 'Test Employee',
+        email: 'employee@example.com',
+      });
+
+      // Seed a document row so document_id FK is satisfied.
+      const docId = await db
+        .insertInto('document')
+        .values({
+          hash: 'claimant-test-hash',
+          filename: 'claimant-test.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          status: 'pending',
+          claimant_id: null,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+
+      const triageResult: TriageResult = {
+        kind: 'new_expense' as const,
+        category: 'meals',
+        gross_amount: 2400,
+        vat_amount: 400,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        document_type: 'receipt',
+        document_vat_marking: null,
+        supplier_invoice_number: null,
+        confidence: 0.95,
+        outgoing_signals: {
+          org_name_is_issuer: false,
+          org_vat_is_issuer: false,
+          has_buyer_block: false,
+          self_identifies_as_invoice: false,
+        },
+        company_addressed_receipt: true,
+      };
+
+      const result = expectDraft(
+        await service.proposeDraft(triageResult, docId, undefined, claimant.id),
+      );
+
+      const expense = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('id', '=', result.expenseId)
+        .executeTakeFirstOrThrow();
+
+      expect(expense.claimant_id).toBe(claimant.id);
+      // SQLite stores booleans as integers (1 = true).
+      expect(expense.company_addressed_receipt).toBe(1);
+    });
   });
 
   describe('proposeSalesInvoiceDraft', () => {

@@ -199,11 +199,15 @@ export class ProposeDraftService {
    * @param supplierId - Optional explicit supplier ID. When omitted, the
    *   supplier is resolved from `triageResult.supplier_proposal` (a 'match'
    *   proposal resolves to its entity id; a 'create' proposal is unresolved).
+   * @param claimantId - Optional claimant Entity id. When set, the expense is
+   *   a personal-reimbursement claim and the Cr leg posts to CLAIMANT_PAYABLE
+   *   (Task 6/VoucherProjection). Propagated from the document's claimant_id.
    */
   async proposeDraft(
     triageResult: TriageResult,
     documentId?: number | null,
     supplierId?: number | null,
+    claimantId?: number | null,
   ): Promise<ProposeDraftOutcome> {
     // Defensive backstop, NOT a routing point: the workflow already decided
     // this is a confident new_expense. Reject anything else so a bypass can
@@ -252,6 +256,8 @@ export class ProposeDraftService {
       tax_point_date: triageResult.tax_point_date,
       document_vat_marking: triageResult.document_vat_marking,
       supplier_invoice_number: triageResult.supplier_invoice_number,
+      claimant_id: claimantId ?? null,
+      company_addressed_receipt: triageResult.company_addressed_receipt ?? null,
     };
 
     const expense = await this.expensesService.createExpense(createExpenseDto);

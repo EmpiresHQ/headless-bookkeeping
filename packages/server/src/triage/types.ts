@@ -120,6 +120,10 @@ export const triageResultSchema = z.object({
     has_buyer_block: false,
     self_identifies_as_invoice: false,
   }),
+  // Pass 2 signal: did the document have a company address block (buyer block
+  // addressed to the org)? True → VAT is recoverable (company-addressed);
+  // false/null → personal receipt, VAT not recoverable (NULL_VAT_CODE path).
+  company_addressed_receipt: z.boolean().nullable().optional(),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;
