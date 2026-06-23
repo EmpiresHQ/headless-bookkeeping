@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  InternalServerErrorException,
   Param,
   Post,
   Query,
@@ -33,7 +34,7 @@ export class MailboxController {
 
   @Post('connectors')
   @ApiOperation({ summary: 'Create an IMAP password connector' })
-  create(
+  async create(
     @Body()
     dto: {
       channel: 'email_sync' | 'email_push';
@@ -45,7 +46,20 @@ export class MailboxController {
       folder?: string;
     },
   ): Promise<MailboxConnector> {
-    return this.connectors.create({ ...dto, authMode: 'password' });
+    try {
+      return await this.connectors.create({ ...dto, authMode: 'password' });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'failed to create connector';
+      // The credential cannot be encrypted without the server key. Nest hides
+      // the message of a raw 500, so translate it into an explicit, actionable
+      // error the operator actually sees.
+      if (/MAILBOX_SECRET_KEY/.test(msg)) {
+        throw new InternalServerErrorException(
+          'MAILBOX_SECRET_KEY is not configured on the server. Set it to a 32-byte hex value (e.g. `openssl rand -hex 32`) so mailbox credentials can be encrypted at rest, then retry.',
+        );
+      }
+      throw new BadRequestException(msg);
+    }
   }
 
   @Delete('connectors/:id')

@@ -65,4 +65,29 @@ describe('MailboxController.callback (OAuth redirect)', () => {
     expect(res.redirect).toHaveBeenCalledTimes(1);
     expect(res.redirect.mock.calls[0][0]).toMatch(/^\/\?mailbox_error=/);
   });
+
+  const passwordDto = {
+    channel: 'email_sync' as const,
+    provider: 'imap' as const,
+    host: 'imap.x',
+    port: 993,
+    username: 'me@x',
+    secret: 's',
+  };
+
+  it('translates a missing MAILBOX_SECRET_KEY into a clear, actionable error', async () => {
+    connectors.create.mockRejectedValue(
+      new Error('MAILBOX_SECRET_KEY is not set'),
+    );
+    await expect(controller.create(passwordDto)).rejects.toThrow(
+      /MAILBOX_SECRET_KEY is not configured/i,
+    );
+  });
+
+  it('surfaces other create failures as a 400 with the reason', async () => {
+    connectors.create.mockRejectedValue(
+      new Error('UNIQUE constraint failed: mailbox_connector.channel'),
+    );
+    await expect(controller.create(passwordDto)).rejects.toThrow(/UNIQUE/);
+  });
 });
