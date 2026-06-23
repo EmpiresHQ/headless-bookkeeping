@@ -34,6 +34,7 @@ export interface Database {
   credit_note: CreditNoteTable;
   fixed_asset: FixedAssetTable;
   statutory_submission_event: StatutorySubmissionEventTable;
+  mailbox_connector: MailboxConnectorTable;
 }
 
 export interface OrganizationTable {
@@ -564,4 +565,23 @@ export interface StatutorySubmissionEventTable {
   occurred_at: number;
   actor: string;
   note: string | null;
+}
+
+export interface MailboxConnectorTable {
+  id: Generated<number>;
+  channel: 'email_sync' | 'email_push';
+  auth_mode: 'password' | 'oauth';
+  provider: 'gmail' | 'outlook' | 'imap';
+  host: string;
+  port: number;
+  username: string;
+  secret_cipher: string;          // AES-256-GCM, base64 "iv:tag:ciphertext"
+  folder: Generated<string>;      // default 'INBOX'
+  uidvalidity: number | null;
+  last_uid: Generated<number>;    // default 0
+  status: Generated<'connected' | 'auth_failed' | 'disconnected' | 'error'>;
+  last_synced_at: number | null;
+  last_error: string | null;
+  created_at: number;
+  updated_at: number;
 }
