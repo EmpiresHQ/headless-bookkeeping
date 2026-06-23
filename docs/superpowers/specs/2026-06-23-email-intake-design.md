@@ -39,19 +39,26 @@ A connector is configured as **exactly one** mode (push xor sync). Defaults are 
 | 1. **Candidate gate** | cheap (headers/body, no OCR) | document-like attachment present? (**mandatory**) invoice-mention = **soft** priority signal only | skip — no `Document` created |
 | 1b. **Attachment hygiene** | cheap | drop inline/cid images, logos, files < ~10–20 KB, non-document MIME (`.ics`, `.vcf`) | skip |
 | 2. **Harvest** | cheap | `DocumentsService.upload(channel)` → `status='pending'` → `kick()` | — |
-| 3. **OCR + Pass-2** | **expensive** | existing pipeline via the **serialized intake queue**; extracts fields incl. `recipient_signals` | `needs_triage` |
-| 4. **Recipient check** | cheap | our-Organization match (name/VAT) — *owned by the concurrent recipient-check session* | per Ingest profile |
+| 3. **OCR + Pass-2** | **expensive** | existing pipeline via the **serialized intake queue**; extracts fields incl. `recipient_match` (3-valued, **email-sync owns this extraction** — see coordination) | `needs_triage` |
+| 4. **Recipient check** | cheap | `recipient_match ∈ {ours, other_party, none}` against our **Organization** | per Ingest profile |
 | 5. **Disposition** | cheap | source-aware layer over `IntakeWorkflowResult` | — |
 
 Attachment is mandatory (invoices often have empty bodies); the invoice-mention only raises priority. "Is it really an invoice" is decided by Pass-2 (`document_type`), not by a pre-OCR LLM on the firehose.
 
 ### Disposition (step 5), by Ingest profile
 
-- **Invoice, recipient = us** → normal triage routing (auto-post / Approval via existing **Policy**).
-- **Invoice, recipient = another party** (positive conflict) → `needs_triage` (the operator's "остальные в триаж"). Divert **only on a positive conflict** — an absent recipient (a receipt) is **not** a conflict.
-- **Confidently not an invoice / no-recipient receipt under a strict profile** → `discarded` on ambient channels, `needs_triage` on deliberate channels.
+Decided by a **source-aware layer over `IntakeWorkflowResult`**, in this precedence order:
+
+1. **Claimant short-circuit** (deliberate channels only) — if the document carries a `claimant_id` (resolved by the router from the sender; see the claimant-reimbursement work), it is **always** `needs_triage` (a human must confirm "did this person pay?"). This **outranks** the Ingest-profile disposition and Policy; a claimant document is **never** `discarded`. `email_sync` never sets `claimant_id` (it resolves no **Principal**), so this branch only fires on `email_push` / Telegram / iOS / upload.
+2. **Ingest-profile disposition** on `recipient_match`:
+   - `ours` → normal triage routing (auto-post / Approval via existing **Policy**).
+   - `other_party` (positive conflict) → `needs_triage` (the operator's "остальные в триаж"). Divert **only on a positive conflict** — `none` (a receipt with no bill-to) is **not** a conflict.
+   - `none` / "confidently not an invoice" → `discarded` on ambient channels (`email_sync`), `needs_triage` on deliberate channels.
+3. **Policy** — the usual auto-post vs Approval gate.
 
 For `email_push` (deliberate, reserved mailbox) the permissive profile means everything that lands there is meant to be an accounting document → non-matches go to `needs_triage`, not silently dropped.
+
+The chosen terminal and its trigger are persisted as a short `disposition_reason` on the `document` (`other_party | not_invoice | claimant | …`) so the "discarded" view can explain *why*. `recipient_match` itself is **transient** (consumed at routing time, not stored as a column).
 
 ## Components
 
@@ -117,19 +124,28 @@ Connect / list / remove connectors and edit Ingest-profile knobs via the admin s
 - **OCR / Pass-2 failure** → existing queue logic → `needs_triage`; no email-specific retry loop.
 - **Poison document** → intake-queue poison-guard (bounded retries → park).
 
-## Coordination seam (concurrent recipient-check session)
+## Coordination seam (claimant-reimbursement branch — ADR-0036)
 
-Another session is building Pass-2 `recipient_signals` + our-Organization matching. Split of ownership:
+The concurrent work is **claimant-reimbursement** (`docs/adr/0036-…`, `docs/superpowers/plans/2026-06-23-claimant-reimbursement.md`). Reading its plan reconciled five points; the actionable handoff lives in `2026-06-23-email-claimant-sync-coordination.md`.
 
-- **They own:** extraction of the recipient/bill-to block and the name/VAT match → a signal on the Pass-2 result.
-- **We own:** the *disposition* of that signal, as a source-aware layer **over** `IntakeWorkflowResult` (driven by the channel's Ingest profile).
+- **Recipient signal — one fact, two consumers (resolved option A).** Pass-2 emits **both** `recipient_match: ours | other_party | none` (the real extraction, **email-sync owns it**) **and** the derived `company_addressed_receipt = (recipient_match === 'ours')`. The claimant branch's existing consumers (TriageResult read in their Task 8, migration 056 column, `EconomicFacts`, projection `false|null → NULL_VAT_CODE`) read the **derived boolean unchanged** — their plan is **not** rewritten. Our disposition reads the 3-valued field. Single source of truth, derivation done in Pass-2 output assembly.
 
-Kept as two layers (extraction vs disposition) so the efforts do not collide in `IntakeWorkflowService` routing.
+- **The claimant branch's recipient extraction is a stub.** Their Self-Review lists "Pass 2 prompt update to detect `company_addressed_receipt`" as **out of scope** — so the field exists but is never populated (always `null` → conservative no-reclaim). **Email-sync delivers that extraction** (as `recipient_match` + the derived boolean), which *lights up* their VAT path.
+
+- **Claimant docs must run Pass-2 (a fix to their Task 7).** ADR-0036 assumes "Pass 2 artefacts are already stored", but their Task 7 early-returns to `needs_triage` **before Pass-1 OCR** — a bug: no artefacts, no `company_addressed_receipt`, nothing for `confirm-payment` to rebuild, and our `recipient_match` never runs for claimant docs. Fix: run Pass-1+Pass-2 fully, then **force the routing decision** to `needs_triage` *after* extraction (override confidence), not skip OCR. Communicated via the coordination note; applied on **their** branch before merge (we do not edit their in-flight worktree).
+
+- **Disposition precedence:** `claimant (claimant_id != null → needs_triage)` **>** Ingest-profile disposition **>** Policy. Claimant short-circuits our disposition; claimant docs are never `discarded`. `email_sync` sets no `claimant_id`, so the two only overlap on deliberate channels, where claimant wins.
+
+- **Landing order & migrations:** claimant → `main` first (conservative-safe while extraction is absent); email-sync rebases on updated `main` and layers extraction + boolean derivation + disposition + connector. Migrations: claimant 054–057, email-sync 058–059 (see Migrations).
 
 ## Migrations
 
-- New `mailbox_connector` table (encrypted secret, ingest-profile overrides, sync cursor) — next free migration (053 is taken by the intake-queue poison counter; use the next free number at implementation time).
-- New `document.status` terminal value `discarded` + retention timestamp for byte-purge.
+The claimant-reimbursement branch reserves **054–057** and lands first (see coordination). Email-sync therefore starts at **058**:
+
+- **058** — new `mailbox_connector` table (encrypted secret, `auth_mode`, folder, ingest-profile overrides, sync cursor `uidvalidity`+`last_uid`).
+- **059** — `document` rebuild (12-step, since SQLite cannot alter a CHECK): add `discarded` to the `status` CHECK, add `disposition_reason` column, add a byte-retention timestamp. **Must run after 055** and **must carry `claimant_id`** (added by claimant migration 055) through the rebuilt column list, or it will be dropped.
+
+No new migration for the recipient signal: `recipient_match` is transient Pass-2 output; the derived `company_addressed_receipt` boolean persists on `expense` via the claimant branch's migration 056.
 
 ## Scope cuts (deferred)
 
