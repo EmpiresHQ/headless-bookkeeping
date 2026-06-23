@@ -881,7 +881,9 @@ describe('ReconciliationService (integration)', () => {
         },
       ]);
 
-      const first = await reconciliationService.proposeMatches(stmt.statement.id);
+      const first = await reconciliationService.proposeMatches(
+        stmt.statement.id,
+      );
       expect(first.some((p) => p.voucherId === voucherId)).toBe(true);
 
       // Stage it (draft). The bank transaction stays status='open' (there is no
@@ -1774,7 +1776,11 @@ describe('ReconciliationService (integration)', () => {
       const supplier = await seedSupplier();
       // Two vouchers equidistant from the line (29000 and 31000 are both 1000
       // away). The lower id wins the tie.
-      const lowerId = await seedExpenseVoucher(supplier.id, 31000, '2025-01-10');
+      const lowerId = await seedExpenseVoucher(
+        supplier.id,
+        31000,
+        '2025-01-10',
+      );
       const higherId = await seedExpenseVoucher(
         supplier.id,
         29000,
@@ -1802,11 +1808,23 @@ describe('ReconciliationService (integration)', () => {
       // already-staged voucher is offered again and booking it raises a 409
       // "duplicate ... already matched" on the UNIQUE(bank_txn, voucher) pair.
       const supplier = await seedSupplier();
-      const apVoucher = await seedExpenseVoucher(supplier.id, 30000, '2025-01-10');
+      const apVoucher = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+      );
 
       const stmt = await seedBankStatement([
-        { transaction_date: '2025-01-12', description: 'pay 1', amount: -30000 },
-        { transaction_date: '2025-01-13', description: 'pay 2', amount: -30000 },
+        {
+          transaction_date: '2025-01-12',
+          description: 'pay 1',
+          amount: -30000,
+        },
+        {
+          transaction_date: '2025-01-13',
+          description: 'pay 2',
+          amount: -30000,
+        },
       ]);
       const [tx1, tx2] = stmt.transactions;
 
@@ -1825,7 +1843,9 @@ describe('ReconciliationService (integration)', () => {
         stmt.statement.id,
         tx2.id,
       );
-      expect(result.candidates.map((c) => c.voucherId)).not.toContain(apVoucher);
+      expect(result.candidates.map((c) => c.voucherId)).not.toContain(
+        apVoucher,
+      );
     });
 
     it('throws when the transaction is not on the given statement', async () => {

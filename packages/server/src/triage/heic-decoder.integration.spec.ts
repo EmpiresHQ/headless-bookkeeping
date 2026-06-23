@@ -50,7 +50,6 @@ maybe('HeicDecoder (requires a HEIC decoder: heif-convert or sips)', () => {
 });
 
 if (!hasAnyDecoder()) {
-  // eslint-disable-next-line no-console
   console.warn(
     '[heic-decoder.integration.spec] no HEIC decoder found (heif-convert/sips) — integration tests skipped',
   );

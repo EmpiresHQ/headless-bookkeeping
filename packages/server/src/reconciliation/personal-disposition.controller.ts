@@ -18,7 +18,10 @@ export class PersonalDispositionController {
    * Per ADR-0017: NOT a business expense — no input VAT, not deductible.
    * Approval-required (tax consequences).
    */
-  @ApiOperation({ summary: 'Mark a transaction as personal', description: 'Classify a bank transaction as a personal disposition.' })
+  @ApiOperation({
+    summary: 'Mark a transaction as personal',
+    description: 'Classify a bank transaction as a personal disposition.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Post('bank-transactions/:id/personal')
   async markAsPersonal(

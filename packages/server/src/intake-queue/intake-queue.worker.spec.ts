@@ -1,6 +1,5 @@
 import { IntakeQueueWorker } from './intake-queue.worker';
 
-
 type FakeDoc = { id: number; attempts: number; done: boolean };
 
 function makeDeps(docs: FakeDoc[]) {
@@ -30,7 +29,14 @@ function makeDeps(docs: FakeDoc[]) {
     }),
   };
 
-  return { documents, workflow, get maxActive() { return maxActive; }, processed };
+  return {
+    documents,
+    workflow,
+    get maxActive() {
+      return maxActive;
+    },
+    processed,
+  };
 }
 
 describe('IntakeQueueWorker', () => {
@@ -103,19 +109,25 @@ describe('IntakeQueueWorker', () => {
   });
 
   it('passes claimant_id from the claimed document to workflow.process', async () => {
-    const processedWith: Array<{ id: number; claimantId: number | null | undefined }> = [];
+    const processedWith: Array<{
+      id: number;
+      claimantId: number | null | undefined;
+    }> = [];
 
     const mockDocs = {
-      claimNextPending: jest.fn()
+      claimNextPending: jest
+        .fn()
         .mockResolvedValueOnce({ id: 42, claimant_id: 7 })
         .mockResolvedValue(null),
     } as any;
 
     const mockWorkflow = {
-      process: jest.fn().mockImplementation((id: number, claimantId?: number | null) => {
-        processedWith.push({ id, claimantId });
-        return Promise.resolve({ status: 'needs_triage' });
-      }),
+      process: jest
+        .fn()
+        .mockImplementation((id: number, claimantId?: number | null) => {
+          processedWith.push({ id, claimantId });
+          return Promise.resolve({ status: 'needs_triage' });
+        }),
     } as any;
 
     const worker = new IntakeQueueWorker(mockDocs, mockWorkflow);
@@ -130,10 +142,7 @@ describe('IntakeQueueWorker.onModuleInit under test', () => {
     // Jest sets NODE_ENV='test' by default — verify the early-return guard.
     const setIntervalSpy = jest.spyOn(global, 'setInterval');
 
-    const worker = new IntakeQueueWorker(
-      {} as never,
-      {} as never,
-    );
+    const worker = new IntakeQueueWorker({} as never, {} as never);
 
     worker.onModuleInit();
 

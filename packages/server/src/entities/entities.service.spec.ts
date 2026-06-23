@@ -522,7 +522,10 @@ describe('Entity aggregate (integration)', () => {
 
       expect(result.role).toBe('director');
       expect(result.identifiers).toHaveLength(1);
-      expect(result.identifiers[0]).toMatchObject({ kind: 'email', value: 'bob@acme.ee' });
+      expect(result.identifiers[0]).toMatchObject({
+        kind: 'email',
+        value: 'bob@acme.ee',
+      });
     });
 
     it('resolves employee by tg_user_id', async () => {
@@ -534,7 +537,10 @@ describe('Entity aggregate (integration)', () => {
         tgUserId: '111222333',
       });
 
-      const found = await entitiesService.resolveByIdentifier('tg_user_id', '111222333');
+      const found = await entitiesService.resolveByIdentifier(
+        'tg_user_id',
+        '111222333',
+      );
       expect(found).toBeDefined();
       expect(found!.role).toBe('employee');
     });

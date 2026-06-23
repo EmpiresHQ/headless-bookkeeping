@@ -28,7 +28,10 @@ export class ReconciliationController {
    * Propose matches for all open transactions in a bank statement.
    * Returns ranked MatchProposalView[] by signal hierarchy.
    */
-  @ApiOperation({ summary: 'Propose matches for a transaction', description: 'Suggest candidate ledger matches for a bank transaction.' })
+  @ApiOperation({
+    summary: 'Propose matches for a transaction',
+    description: 'Suggest candidate ledger matches for a bank transaction.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Post(':id/propose-matches')
   async proposeMatches(
@@ -41,7 +44,11 @@ export class ReconciliationController {
    * Execute proposed matches by creating reconciliation_match records.
    * Does NOT auto-post settlement vouchers.
    */
-  @ApiOperation({ summary: 'Match a transaction', description: 'Confirm a match between a bank transaction and a ledger item.' })
+  @ApiOperation({
+    summary: 'Match a transaction',
+    description:
+      'Confirm a match between a bank transaction and a ledger item.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Post(':id/match')
   async executeMatch(
@@ -55,9 +62,15 @@ export class ReconciliationController {
    * Open business objects a bank line can be manually matched against, plus the
    * line's remaining unallocated amount. Direction is derived from the line.
    */
-  @ApiOperation({ summary: 'List match candidates', description: 'Return candidate matches for a transaction.' })
+  @ApiOperation({
+    summary: 'List match candidates',
+    description: 'Return candidate matches for a transaction.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
-  @ApiQuery({ name: 'bankTransactionId', description: 'Bank transaction id to fetch candidates for' })
+  @ApiQuery({
+    name: 'bankTransactionId',
+    description: 'Bank transaction id to fetch candidates for',
+  })
   @Get(':id/match-candidates')
   async getMatchCandidates(
     @Param('id', ParseIntPipe) id: number,
@@ -67,7 +80,10 @@ export class ReconciliationController {
   }
 
   /** The recorded matches (draft + active) on a statement's lines. */
-  @ApiOperation({ summary: 'List matches', description: 'Return confirmed matches for a transaction.' })
+  @ApiOperation({
+    summary: 'List matches',
+    description: 'Return confirmed matches for a transaction.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Get(':id/matches')
   async listMatches(
@@ -77,7 +93,10 @@ export class ReconciliationController {
   }
 
   /** Per-transaction reconciliation state for a statement (UI badges + caps). */
-  @ApiOperation({ summary: 'Get reconciliation state', description: 'Return reconciliation state for a transaction.' })
+  @ApiOperation({
+    summary: 'Get reconciliation state',
+    description: 'Return reconciliation state for a transaction.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Get(':id/reconciliation')
   async getStatementReconciliation(
@@ -91,7 +110,10 @@ export class ReconciliationController {
    * realized-FX voucher (if any). The statement id scopes the route; the match
    * id identifies the link.
    */
-  @ApiOperation({ summary: 'Remove a match', description: 'Delete a confirmed match.' })
+  @ApiOperation({
+    summary: 'Remove a match',
+    description: 'Delete a confirmed match.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @ApiParam({ name: 'matchId', description: 'Match id' })
   @Delete(':id/matches/:matchId')

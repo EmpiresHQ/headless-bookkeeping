@@ -247,7 +247,10 @@ export class ApprovalsService {
     const rows: BatchApproveRow[] = [];
     for (const id of ids) {
       try {
-        const { approval, voucher } = await this.approveApproval(id, approvedBy);
+        const { approval, voucher } = await this.approveApproval(
+          id,
+          approvedBy,
+        );
         rows.push({ id, ok: true, approval, voucher });
       } catch (e) {
         rows.push({

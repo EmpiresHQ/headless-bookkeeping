@@ -10,7 +10,13 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { BankIngestionService } from './bank-ingestion.service';
@@ -20,15 +26,25 @@ import { BankIngestionService } from './bank-ingestion.service';
 export class BankIngestionController {
   constructor(private readonly ingestion: BankIngestionService) {}
 
-  @ApiOperation({ summary: 'Start a bank import', description: 'Begin importing a bank statement (async job).' })
+  @ApiOperation({
+    summary: 'Start a bank import',
+    description: 'Begin importing a bank statement (async job).',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       required: ['file'],
       properties: {
-        file: { type: 'string', format: 'binary', description: 'CSV bank statement file' },
-        account_code: { type: 'string', description: 'Ledger account code for the imported transactions' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV bank statement file',
+        },
+        account_code: {
+          type: 'string',
+          description: 'Ledger account code for the imported transactions',
+        },
       },
     },
   })
@@ -43,7 +59,10 @@ export class BankIngestionController {
     return this.ingestion.startImport(csvText, accountCode ?? '');
   }
 
-  @ApiOperation({ summary: 'Get import job status', description: 'Return the status of an import job.' })
+  @ApiOperation({
+    summary: 'Get import job status',
+    description: 'Return the status of an import job.',
+  })
   @ApiParam({ name: 'jobId', description: 'Import job id' })
   @Get('import/:jobId')
   async status(@Param('jobId', ParseIntPipe) jobId: number) {

@@ -24,21 +24,31 @@ export class SalesInvoicesController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List sales invoices', description: 'Return all sales invoices.' })
+  @ApiOperation({
+    summary: 'List sales invoices',
+    description: 'Return all sales invoices.',
+  })
   async getInvoices(): Promise<{ invoices: SalesInvoice[] }> {
     return { invoices: await this.salesInvoicesService.getInvoices() };
   }
 
   /** Delete a draft invoice (probe/junk cleanup). Non-draft → 409. */
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a draft sales invoice', description: 'Delete a draft invoice. Non-draft -> 409.' })
+  @ApiOperation({
+    summary: 'Delete a draft sales invoice',
+    description: 'Delete a draft invoice. Non-draft -> 409.',
+  })
   @ApiParam({ name: 'id', description: 'Sales invoice id' })
   async deleteInvoice(@Param('id') id: string): Promise<SalesInvoice> {
     return this.salesInvoicesService.deleteDraft(Number(id));
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a sales invoice', description: 'Create a sales invoice (draft). 409 if the invoice number already exists.' })
+  @ApiOperation({
+    summary: 'Create a sales invoice',
+    description:
+      'Create a sales invoice (draft). 409 if the invoice number already exists.',
+  })
   async createInvoice(
     @Body() dto: CreateSalesInvoiceDto,
   ): Promise<SalesInvoice> {
@@ -55,7 +65,10 @@ export class SalesInvoicesController {
   }
 
   @Post(':id/generate-draft')
-  @ApiOperation({ summary: 'Generate a draft voucher for a sales invoice', description: 'Produce a draft voucher without posting.' })
+  @ApiOperation({
+    summary: 'Generate a draft voucher for a sales invoice',
+    description: 'Produce a draft voucher without posting.',
+  })
   @ApiParam({ name: 'id', description: 'Sales invoice id' })
   async generateDraft(
     @Param('id') id: string,
@@ -67,7 +80,10 @@ export class SalesInvoicesController {
   }
 
   @Post(':id/send')
-  @ApiOperation({ summary: 'Send a sales invoice', description: 'Mark the invoice as sent to the customer.' })
+  @ApiOperation({
+    summary: 'Send a sales invoice',
+    description: 'Mark the invoice as sent to the customer.',
+  })
   @ApiParam({ name: 'id', description: 'Sales invoice id' })
   async sendInvoice(@Param('id') id: string): Promise<SalesInvoice> {
     return this.salesInvoicesService.sendInvoice(Number(id));
@@ -80,7 +96,10 @@ export class SalesInvoicesController {
    * without double-posting (AC-9).
    */
   @Post(':id/post')
-  @ApiOperation({ summary: 'Post a sales invoice', description: 'Post the invoice to the ledger. 409 if the period is locked.' })
+  @ApiOperation({
+    summary: 'Post a sales invoice',
+    description: 'Post the invoice to the ledger. 409 if the period is locked.',
+  })
   @ApiParam({ name: 'id', description: 'Sales invoice id' })
   async postInvoice(
     @Param('id') id: string,

@@ -9,7 +9,9 @@ import { Database } from '../types';
  * and passes it to IntakeWorkflowService so channel context is not lost.
  */
 export async function up(db: Kysely<Database>): Promise<void> {
-  await sql`ALTER TABLE document ADD COLUMN claimant_id INTEGER REFERENCES entity(id)`.execute(db);
+  await sql`ALTER TABLE document ADD COLUMN claimant_id INTEGER REFERENCES entity(id)`.execute(
+    db,
+  );
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {
@@ -32,7 +34,9 @@ export async function down(db: Kysely<Database>): Promise<void> {
       created_at INTEGER NOT NULL
     )
   `.execute(db);
-  await sql`INSERT INTO document_new (${sql.raw(COLS)}) SELECT ${sql.raw(COLS)} FROM document`.execute(db);
+  await sql`INSERT INTO document_new (${sql.raw(COLS)}) SELECT ${sql.raw(COLS)} FROM document`.execute(
+    db,
+  );
   await sql`DROP TABLE document`.execute(db);
   await sql`ALTER TABLE document_new RENAME TO document`.execute(db);
   await sql`PRAGMA foreign_keys = ON`.execute(db);

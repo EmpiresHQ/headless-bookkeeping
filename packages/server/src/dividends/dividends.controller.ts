@@ -27,7 +27,10 @@ export class DividendsController {
    *   Dr RETAINED_EARNINGS / Cr DIVIDEND_PAYABLE
    *   (split with DIVIDEND_WITHHOLDING_TAX_PAYABLE when plugin rate > 0)
    */
-  @ApiOperation({ summary: 'Declare a dividend', description: 'Declare a dividend distribution.' })
+  @ApiOperation({
+    summary: 'Declare a dividend',
+    description: 'Declare a dividend distribution.',
+  })
   @Post('dividends')
   @HttpCode(HttpStatus.CREATED)
   async declare(
@@ -44,7 +47,10 @@ export class DividendsController {
    * an N:M reconciliation_match linking the bank transaction to the
    * declaration voucher.
    */
-  @ApiOperation({ summary: 'Settle a dividend', description: 'Settle a declared dividend against a bank transaction.' })
+  @ApiOperation({
+    summary: 'Settle a dividend',
+    description: 'Settle a declared dividend against a bank transaction.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Post('bank-transactions/:id/dividend')
   @HttpCode(HttpStatus.CREATED)

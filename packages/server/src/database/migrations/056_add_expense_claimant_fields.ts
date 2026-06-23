@@ -13,8 +13,12 @@ import { Database } from '../types';
  * choice at post time: true → normal reclaim, false/null → NULL_VAT_CODE (conservative).
  */
 export async function up(db: Kysely<Database>): Promise<void> {
-  await sql`ALTER TABLE expense ADD COLUMN claimant_id INTEGER REFERENCES entity(id)`.execute(db);
-  await sql`ALTER TABLE expense ADD COLUMN company_addressed_receipt INTEGER`.execute(db);
+  await sql`ALTER TABLE expense ADD COLUMN claimant_id INTEGER REFERENCES entity(id)`.execute(
+    db,
+  );
+  await sql`ALTER TABLE expense ADD COLUMN company_addressed_receipt INTEGER`.execute(
+    db,
+  );
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getSettings,
   setSetting,
@@ -78,7 +78,17 @@ function SettingRow({
   const [draft, setDraft] = useState(current);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => setDraft(current), [current]);
+  // The server value we last synced `draft` from. When a background refresh
+  // changes `current` (e.g. a sibling save or an ingest-policy change triggers
+  // loadSettings), adopt the new value ONLY if the user has no unsaved edit —
+  // i.e. `draft` still equals the previously-synced value. Otherwise a reload
+  // landing mid-edit would silently discard what the user is typing.
+  const syncedCurrent = useRef(current);
+  useEffect(() => {
+    if (current === syncedCurrent.current) return;
+    if (draft === syncedCurrent.current) setDraft(current);
+    syncedCurrent.current = current;
+  }, [current, draft]);
 
   const guard = async (fn: () => Promise<unknown>) => {
     setBusy(true);

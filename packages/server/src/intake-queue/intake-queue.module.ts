@@ -12,5 +12,6 @@ import { IntakeQueueWorker } from './intake-queue.worker';
 @Module({
   imports: [DocumentsModule, AiModule],
   providers: [IntakeQueueWorker],
+  exports: [IntakeQueueWorker],
 })
 export class IntakeQueueModule {}

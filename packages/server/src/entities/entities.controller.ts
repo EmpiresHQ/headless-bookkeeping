@@ -24,19 +24,28 @@ export class EntitiesController {
   constructor(private readonly entitiesService: EntitiesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Onboard an entity', description: 'Create a counterparty (supplier/customer) with identifiers.' })
+  @ApiOperation({
+    summary: 'Onboard an entity',
+    description: 'Create a counterparty (supplier/customer) with identifiers.',
+  })
   async onboard(@Body() dto: OnboardEntityDto): Promise<EntityWithIdentifiers> {
     return this.entitiesService.onboard(dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'List entities', description: 'Return all entities.' })
+  @ApiOperation({
+    summary: 'List entities',
+    description: 'Return all entities.',
+  })
   async list(): Promise<{ entities: Entity[] }> {
     return { entities: await this.entitiesService.list() };
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get an entity by id', description: 'Fetch a single entity.' })
+  @ApiOperation({
+    summary: 'Get an entity by id',
+    description: 'Fetch a single entity.',
+  })
   @ApiParam({ name: 'id', description: 'Entity id' })
   async findById(
     @Param('id', ParseIntPipe) id: number,
@@ -46,7 +55,10 @@ export class EntitiesController {
 
   /** PATCH /api/entities/:id — update mutable intrinsic facts (C4). */
   @Patch(':id')
-  @ApiOperation({ summary: 'Update an entity', description: "Update an entity's fields." })
+  @ApiOperation({
+    summary: 'Update an entity',
+    description: "Update an entity's fields.",
+  })
   @ApiParam({ name: 'id', description: 'Entity id' })
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +69,10 @@ export class EntitiesController {
 
   /** POST /api/entities/:id/aliases — add an identifier/alias (C4). */
   @Post(':id/aliases')
-  @ApiOperation({ summary: 'Add an entity alias', description: 'Add an alias/identifier to an entity.' })
+  @ApiOperation({
+    summary: 'Add an entity alias',
+    description: 'Add an alias/identifier to an entity.',
+  })
   @ApiParam({ name: 'id', description: 'Entity id' })
   async addAlias(
     @Param('id', ParseIntPipe) id: number,
@@ -68,7 +83,10 @@ export class EntitiesController {
 
   /** POST /api/entities/:survivorId/merge — merge a duplicate entity into the survivor. */
   @Post(':survivorId/merge')
-  @ApiOperation({ summary: 'Merge a duplicate entity', description: 'Merge a duplicate entity into the survivor entity.' })
+  @ApiOperation({
+    summary: 'Merge a duplicate entity',
+    description: 'Merge a duplicate entity into the survivor entity.',
+  })
   @ApiParam({ name: 'survivorId', description: 'Survivor entity id' })
   async merge(
     @Param('survivorId', ParseIntPipe) survivorId: number,
@@ -79,7 +97,10 @@ export class EntitiesController {
 
   /** DELETE /api/entities/:id — remove an unreferenced entity (cleanup). */
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete an entity', description: 'Delete an entity.' })
+  @ApiOperation({
+    summary: 'Delete an entity',
+    description: 'Delete an entity.',
+  })
   @ApiParam({ name: 'id', description: 'Entity id' })
   async delete(@Param('id', ParseIntPipe) id: number): Promise<Entity> {
     return this.entitiesService.delete(id);

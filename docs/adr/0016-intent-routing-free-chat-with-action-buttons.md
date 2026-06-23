@@ -23,3 +23,15 @@ Email behaves on three distinct tracks, gated differently:
 Because email is spoofable, action/approval over email also requires a **DKIM/SPF pass** — on top of the whitelist, to prove the mail really came from the whitelisted address rather than a spoof. The deployment is self-hosted, so the threat model is relaxed, but DKIM/SPF is still checked.
 
 Outbound email over SMTP carries **dialogue only** (replies, confirmation re-asks, reports) — a *system* action confirmed on whatever channel initiated it (a button on TG/Slack, or the email confirmation loop). **Invoice rendering + delivery to the customer is NOT in v1** (no PDF renderer, no invoice-send): v1 only *registers* the SalesInvoice as the accounting record; rendering+delivery is a v2 plugin (V2-ROADMAP).
+
+## Amendment (email-sync wave): the interactive email tracks are deferred
+
+The email **ingest** track ships first and on its own. Of the three tracks above, only **ingest** is built in the initial email-intake wave; the two *interactive* tracks — **email conversation** and **email action/approval (the confirmation loop)** — and all **outbound SMTP** are **deferred**. v1 email is **inbound-only**: it harvests documents into intake and nothing else.
+
+Concretely deferred to a later wave:
+
+- No outbound SMTP transport, no email replies / confirmation re-asks / emailed reports.
+- No email **confirmation-loop** Action point; an inbound email never commits an **Approval**.
+- The `[conv:CONV-…]` body-token threading and bare-reply Conversation reuse (the email half of deterministic Conversation resolution) are not exercised while email is inbound-only.
+
+What **does** ship now: inbound email ingest over an **IMAP transport** (not the inbound-webhook assumed earlier — self-hosted has no guaranteed public URL; see ADR-0038/email-sync spec), split into two **Delivery channel**s with different **Ingest profile**s (ADR-0038) — `email_push` (a single dedicated, reserved accounting mailbox; deliberate intent) and `email_sync` (the owner's general mailbox(es); ambient firehose). Sender-gating (`ingest_policy`, `email_whitelist`) and the **DKIM/SPF** signal still apply to `email_push`, read from the message's `Authentication-Results` header at IMAP fetch (no inbound webhook needed). Any interactive resolution a harvested document triggers (e.g. a `needs_triage` question) is handled over **Telegram / SecretaryAgent**, not email.

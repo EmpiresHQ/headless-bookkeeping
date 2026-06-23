@@ -22,7 +22,8 @@ export class StatutoryReportController {
   @Get(':id/statutory-report')
   @ApiOperation({
     summary: 'Render a statutory report',
-    description: 'Render the statutory report (e.g. annual accounts) for a period.',
+    description:
+      'Render the statutory report (e.g. annual accounts) for a period.',
   })
   @ApiParam({ name: 'id', description: 'Reporting period id' })
   @ApiQuery({

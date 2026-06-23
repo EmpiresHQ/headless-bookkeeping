@@ -170,20 +170,20 @@ describe('Migration 056: expense.claimant_id + expense.company_addressed_receipt
   });
 
   it('DOWN migration removes both columns', async () => {
-    // migrateDown() rolls back one migration at a time, latest first.
-    // The latest migration is 057 (seed account), so we need two down steps
-    // to reach and undo 056 (the expense columns).
+    // Roll back to just before 056 (i.e. undo 056 and everything after it).
+    // Using migrateTo by name keeps this robust to migrations added after 057
+    // (e.g. 058+), unlike a hard-coded number of single migrateDown() steps.
     const migrator = new Migrator({
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
-    const step1 = await migrator.migrateDown(); // rolls back 057
-    expect(step1.error).toBeUndefined();
-    const step2 = await migrator.migrateDown(); // rolls back 056
-    expect(step2.error).toBeUndefined();
+    const { error } = await migrator.migrateTo('055_add_document_claimant_id');
+    expect(error).toBeUndefined();
 
     // Use PRAGMA table_info to confirm the columns are no longer present.
-    const result = await sql<{ name: string }>`PRAGMA table_info(expense)`.execute(db);
+    const result = await sql<{
+      name: string;
+    }>`PRAGMA table_info(expense)`.execute(db);
     const colNames = result.rows.map((r) => r.name);
     expect(colNames).not.toContain('claimant_id');
     expect(colNames).not.toContain('company_addressed_receipt');

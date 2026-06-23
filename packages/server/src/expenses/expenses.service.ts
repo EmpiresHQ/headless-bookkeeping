@@ -188,11 +188,12 @@ export class ExpensesService {
           ),
         }),
         claimantId: expense.claimant_id ?? null,
-        companyAddressedReceipt: expense.claimant_id !== null
-          ? (expense.company_addressed_receipt === null
+        companyAddressedReceipt:
+          expense.claimant_id !== null
+            ? expense.company_addressed_receipt === null
               ? null
-              : Boolean(expense.company_addressed_receipt))
-          : undefined,
+              : Boolean(expense.company_addressed_receipt)
+            : undefined,
       },
       'purchase',
     );

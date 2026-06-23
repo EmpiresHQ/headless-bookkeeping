@@ -120,8 +120,16 @@ export class ConversationsController {
     summary: 'Find a conversation for an object',
     description: 'Look up the conversation linked to a domain object.',
   })
-  @ApiQuery({ name: 'object_type', description: 'Business object type (e.g. invoice, supplier)', required: true })
-  @ApiQuery({ name: 'object_id', description: 'Numeric id of the domain object', required: true })
+  @ApiQuery({
+    name: 'object_type',
+    description: 'Business object type (e.g. invoice, supplier)',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'object_id',
+    description: 'Numeric id of the domain object',
+    required: true,
+  })
   async getForObject(
     @Query('object_type') object_type: BusinessObjectType,
     @Query('object_id', ParseIntPipe) object_id: number,

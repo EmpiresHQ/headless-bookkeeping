@@ -19,7 +19,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
       updated_at INTEGER
     )
   `.execute(db);
-  await sql`INSERT INTO entity_new (${sql.raw(ENTITY_COLS)}) SELECT ${sql.raw(ENTITY_COLS)} FROM entity`.execute(db);
+  await sql`INSERT INTO entity_new (${sql.raw(ENTITY_COLS)}) SELECT ${sql.raw(ENTITY_COLS)} FROM entity`.execute(
+    db,
+  );
   await sql`DROP TABLE entity`.execute(db);
   await sql`ALTER TABLE entity_new RENAME TO entity`.execute(db);
 
@@ -36,9 +38,13 @@ export async function up(db: Kysely<Database>): Promise<void> {
       confirmed INTEGER NOT NULL DEFAULT 0
     )
   `.execute(db);
-  await sql`INSERT INTO entity_identifier_new (${sql.raw(IDENT_COLS)}) SELECT ${sql.raw(IDENT_COLS)} FROM entity_identifier`.execute(db);
+  await sql`INSERT INTO entity_identifier_new (${sql.raw(IDENT_COLS)}) SELECT ${sql.raw(IDENT_COLS)} FROM entity_identifier`.execute(
+    db,
+  );
   await sql`DROP TABLE entity_identifier`.execute(db);
-  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(db);
+  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(
+    db,
+  );
 
   await sql`PRAGMA foreign_keys = ON`.execute(db);
 }
@@ -57,7 +63,9 @@ export async function down(db: Kysely<Database>): Promise<void> {
       updated_at INTEGER
     )
   `.execute(db);
-  await sql`INSERT INTO entity_new (${sql.raw(ENTITY_COLS)}) SELECT ${sql.raw(ENTITY_COLS)} FROM entity WHERE role IN ('supplier', 'customer')`.execute(db);
+  await sql`INSERT INTO entity_new (${sql.raw(ENTITY_COLS)}) SELECT ${sql.raw(ENTITY_COLS)} FROM entity WHERE role IN ('supplier', 'customer')`.execute(
+    db,
+  );
   await sql`DROP TABLE entity`.execute(db);
   await sql`ALTER TABLE entity_new RENAME TO entity`.execute(db);
 
@@ -73,9 +81,13 @@ export async function down(db: Kysely<Database>): Promise<void> {
       confirmed INTEGER NOT NULL DEFAULT 0
     )
   `.execute(db);
-  await sql`INSERT INTO entity_identifier_new (${sql.raw(IDENT_COLS)}) SELECT ${sql.raw(IDENT_COLS)} FROM entity_identifier WHERE kind IN ('registration_key', 'iban', 'merchant_descriptor', 'name_alias', 'email', 'phone', 'address')`.execute(db);
+  await sql`INSERT INTO entity_identifier_new (${sql.raw(IDENT_COLS)}) SELECT ${sql.raw(IDENT_COLS)} FROM entity_identifier WHERE kind IN ('registration_key', 'iban', 'merchant_descriptor', 'name_alias', 'email', 'phone', 'address')`.execute(
+    db,
+  );
   await sql`DROP TABLE entity_identifier`.execute(db);
-  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(db);
+  await sql`ALTER TABLE entity_identifier_new RENAME TO entity_identifier`.execute(
+    db,
+  );
 
   await sql`PRAGMA foreign_keys = ON`.execute(db);
 }

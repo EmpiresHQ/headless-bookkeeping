@@ -43,14 +43,14 @@ describe('IntakeWorkflowService.debug gating', () => {
 
     const service = new IntakeWorkflowService(
       ocrService as never, // ocrService
-      {} as never,         // pass2Agent
-      {} as never,         // proposeDraft
-      {} as never,         // auditFindings
-      {} as never,         // policyService
-      {} as never,         // documents
-      {} as never,         // entities
-      {} as never,         // organizationService
-      {} as never,         // bankIngestion
+      {} as never, // pass2Agent
+      {} as never, // proposeDraft
+      {} as never, // auditFindings
+      {} as never, // policyService
+      {} as never, // documents
+      {} as never, // entities
+      {} as never, // organizationService
+      {} as never, // bankIngestion
       gate,
     );
 

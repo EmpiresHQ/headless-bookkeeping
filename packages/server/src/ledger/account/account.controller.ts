@@ -9,13 +9,19 @@ export class AccountController {
   constructor(private readonly accountService: AccountService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List accounts', description: 'Return the chart of accounts.' })
+  @ApiOperation({
+    summary: 'List accounts',
+    description: 'Return the chart of accounts.',
+  })
   async getAccounts(): Promise<{ accounts: Account[] }> {
     return { accounts: await this.accountService.getAccounts() };
   }
 
   @Get(':code')
-  @ApiOperation({ summary: 'Get an account by code', description: 'Fetch a single account.' })
+  @ApiOperation({
+    summary: 'Get an account by code',
+    description: 'Fetch a single account.',
+  })
   @ApiParam({ name: 'code', description: 'Account code' })
   async getAccount(@Param('code') code: string): Promise<Account> {
     const account = await this.accountService.getAccountByCode(code);
