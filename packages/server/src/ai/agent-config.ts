@@ -71,10 +71,18 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
 - report: the user wants a report; set reportKind.
 - reconciliation: the user is resolving a bank line.
 - clarify: you are NOT confident. Set a short question. Prefer clarify over guessing.`,
-  // dots.ocr (served via LiteLLM) ignores the prompt — it transcribes layout
-  // regardless. This text is sent only to satisfy the chat/completions content
-  // shape (a vision message needs a text part); it is not operator-overridable.
-  ocr: 'Transcribe this document to markdown.',
+  // Prompt for the iOS-app vision endpoint (dots.ocr via LiteLLM).  Tightened
+  // so the model refuses to transcribe documents that contain no prices —
+  // medical prescriptions, random photos, etc.  If there is no monetary amount
+  // it must return exactly NO_RECEIPT.  The transcriber also applies a heuristic
+  // guard on the response as defence-in-depth.
+  ocr:
+    'Transcribe this document to markdown. ' +
+    'Only transcribe it if the image shows a receipt, invoice, or other ' +
+    'document that contains at least one price or monetary amount. ' +
+    'If the image does not contain any prices, totals, or monetary values ' +
+    '(for example a medical document, prescription, or plain text without ' +
+    'figures), respond with exactly NO_RECEIPT and nothing else.',
   bank_mapping:
     'You map a bank-statement CSV onto a fixed ruleset. You are given the ' +
     'CSV header row and a few sample data rows. Return ONLY the structured ' +

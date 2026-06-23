@@ -81,6 +81,28 @@ describe('LlmVisionTranscriber', () => {
     expect(out.category).toBe('unreadable');
   });
 
+  it('maps non-receipt content without prices to unreadable', async () => {
+    fetchMock.mockResolvedValue(chatResponse('Patient: John Doe\nDate: 2024-01-01'));
+    const t = new LlmVisionTranscriber(
+      withConfig({ id: 'm/x', url: 'http://h/v1', apiKey: 'k' }),
+    );
+    const out = await t.transcribeImage(image);
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.category).toBe('unreadable');
+  });
+
+  it('treats an explicit NO_RECEIPT as unreadable', async () => {
+    fetchMock.mockResolvedValue(chatResponse('NO_RECEIPT'));
+    const t = new LlmVisionTranscriber(
+      withConfig({ id: 'm/x', url: 'http://h/v1', apiKey: 'k' }),
+    );
+    const out = await t.transcribeImage(image);
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.category).toBe('unreadable');
+  });
+
   it('maps HTTP 5xx to transient and 4xx to unreadable', async () => {
     const t = new LlmVisionTranscriber(
       withConfig({ id: 'm/x', url: 'http://h/v1', apiKey: 'k' }),
