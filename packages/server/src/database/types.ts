@@ -575,10 +575,10 @@ export interface MailboxConnectorTable {
   host: string;
   port: number;
   username: string;
-  secret_cipher: string;          // AES-256-GCM, base64 "iv:tag:ciphertext"
-  folder: Generated<string>;      // default 'INBOX'
+  secret_cipher: string; // AES-256-GCM, base64 "iv:tag:ciphertext"
+  folder: Generated<string>; // default 'INBOX'
   uidvalidity: number | null;
-  last_uid: Generated<number>;    // default 0
+  last_uid: Generated<number>; // default 0
   status: Generated<'connected' | 'auth_failed' | 'disconnected' | 'error'>;
   last_synced_at: number | null;
   last_error: string | null;

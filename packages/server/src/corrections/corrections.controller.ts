@@ -9,7 +9,10 @@ export class CorrectionsController {
   constructor(private readonly correctionsService: CorrectionsService) {}
 
   @Post('api/expenses/:id/correct')
-  @ApiOperation({ summary: 'Correct an expense', description: 'Post a correcting entry for a posted expense.' })
+  @ApiOperation({
+    summary: 'Correct an expense',
+    description: 'Post a correcting entry for a posted expense.',
+  })
   @ApiParam({ name: 'id', description: 'Expense id' })
   async correctExpense(
     @Param('id') id: string,
@@ -19,7 +22,10 @@ export class CorrectionsController {
   }
 
   @Post('api/sales-invoices/:id/correct')
-  @ApiOperation({ summary: 'Correct a sales invoice', description: 'Post a correcting entry for a posted sales invoice.' })
+  @ApiOperation({
+    summary: 'Correct a sales invoice',
+    description: 'Post a correcting entry for a posted sales invoice.',
+  })
   @ApiParam({ name: 'id', description: 'Sales invoice id' })
   async correctSalesInvoice(
     @Param('id') id: string,

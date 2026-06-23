@@ -13,13 +13,15 @@ const execFileAsync = promisify(execFile);
  * `sips` is the macOS-native fallback for local dev; ImageMagick covers the
  * rest. Each entry maps (inPath, outPath) to that tool's argv.
  */
-const DECODERS: { cmd: string; args: (inPath: string, outPath: string) => string[] }[] =
-  [
-    { cmd: 'heif-convert', args: (i, o) => [i, o] },
-    { cmd: 'sips', args: (i, o) => ['-s', 'format', 'png', i, '--out', o] },
-    { cmd: 'magick', args: (i, o) => [i, o] },
-    { cmd: 'convert', args: (i, o) => [i, o] },
-  ];
+const DECODERS: {
+  cmd: string;
+  args: (inPath: string, outPath: string) => string[];
+}[] = [
+  { cmd: 'heif-convert', args: (i, o) => [i, o] },
+  { cmd: 'sips', args: (i, o) => ['-s', 'format', 'png', i, '--out', o] },
+  { cmd: 'magick', args: (i, o) => [i, o] },
+  { cmd: 'convert', args: (i, o) => [i, o] },
+];
 
 /**
  * Decodes a HEIC/HEIF image to PNG, mirroring how PdfRasterizer shells out to

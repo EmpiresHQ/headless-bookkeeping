@@ -15,14 +15,20 @@ export class PolicyConfigController {
 
   /** GET /api/policy-config — the fully-resolved active configuration. */
   @Get()
-  @ApiOperation({ summary: 'Get policy config', description: 'Return the posting-policy configuration.' })
+  @ApiOperation({
+    summary: 'Get policy config',
+    description: 'Return the posting-policy configuration.',
+  })
   async getConfig(): Promise<PolicyConfig> {
     return this.policyService.getConfig();
   }
 
   /** PUT /api/policy-config — update one or more config keys; returns the result. */
   @Put()
-  @ApiOperation({ summary: 'Update policy config', description: 'Replace the posting-policy configuration.' })
+  @ApiOperation({
+    summary: 'Update policy config',
+    description: 'Replace the posting-policy configuration.',
+  })
   async updateConfig(
     @Body() patch: UpdatePolicyConfigDto,
   ): Promise<PolicyConfig> {

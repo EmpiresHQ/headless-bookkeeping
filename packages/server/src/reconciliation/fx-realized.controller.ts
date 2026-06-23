@@ -27,7 +27,10 @@ export class FXRealizedController {
    * Returns an FXRealizedResult indicating whether an FX voucher was posted,
    * no FX was needed, or data was missing.
    */
-  @ApiOperation({ summary: 'Compute and post realized FX', description: 'Compute and post the realized FX gain/loss for a settlement.' })
+  @ApiOperation({
+    summary: 'Compute and post realized FX',
+    description: 'Compute and post the realized FX gain/loss for a settlement.',
+  })
   @ApiParam({ name: 'bankTransactionId', description: 'Bank transaction id' })
   @Post(':bankTransactionId/fx-realized')
   async computeAndPost(

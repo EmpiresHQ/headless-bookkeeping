@@ -19,7 +19,15 @@ describe('Migration 055: document.claimant_id', () => {
     const now = Math.floor(Date.now() / 1000);
     const doc = await db
       .insertInto('document')
-      .values({ hash: 'h1', filename: 'f.pdf', mime_type: 'application/pdf', size_bytes: 100, storage_path: null, status: 'pending', created_at: now })
+      .values({
+        hash: 'h1',
+        filename: 'f.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 100,
+        storage_path: null,
+        status: 'pending',
+        created_at: now,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
 

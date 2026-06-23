@@ -186,7 +186,10 @@ export class IntakeWorkflowService {
    * ProcessingGate so only one OCR/LLM pipeline runs at a time across the whole
    * process (worker-driven and manual triage alike).
    */
-  async process(documentId: number, claimantId?: number | null): Promise<IntakeWorkflowResult> {
+  async process(
+    documentId: number,
+    claimantId?: number | null,
+  ): Promise<IntakeWorkflowResult> {
     return this.gate.run(() => this.processInner(documentId, claimantId));
   }
 

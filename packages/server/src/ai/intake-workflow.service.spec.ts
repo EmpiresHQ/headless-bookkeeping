@@ -1264,7 +1264,10 @@ describe('IntakeWorkflowService', () => {
       }
 
       // Verify the audit finding was created
-      const findings = await db.selectFrom('audit_finding').selectAll().execute();
+      const findings = await db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .execute();
       expect(findings.length).toBeGreaterThan(0);
 
       // proposeDraft must NOT be called — routing was overridden before it

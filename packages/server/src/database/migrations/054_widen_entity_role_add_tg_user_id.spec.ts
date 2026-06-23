@@ -25,14 +25,28 @@ describe('Migration 054: widen entity role + add tg_user_id identifier kind', ()
     const now = Math.floor(Date.now() / 1000);
     const emp = await db
       .insertInto('entity')
-      .values({ role: 'employee', country: 'EE', name: 'Alice', goods_vs_services: null, created_at: now, updated_at: now })
+      .values({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice',
+        goods_vs_services: null,
+        created_at: now,
+        updated_at: now,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
     expect(emp.role).toBe('employee');
 
     const dir = await db
       .insertInto('entity')
-      .values({ role: 'director', country: 'EE', name: 'Bob', goods_vs_services: null, created_at: now, updated_at: now })
+      .values({
+        role: 'director',
+        country: 'EE',
+        name: 'Bob',
+        goods_vs_services: null,
+        created_at: now,
+        updated_at: now,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
     expect(dir.role).toBe('director');
@@ -42,13 +56,25 @@ describe('Migration 054: widen entity role + add tg_user_id identifier kind', ()
     const now = Math.floor(Date.now() / 1000);
     const entity = await db
       .insertInto('entity')
-      .values({ role: 'employee', country: 'EE', name: 'Alice', goods_vs_services: null, created_at: now, updated_at: now })
+      .values({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice',
+        goods_vs_services: null,
+        created_at: now,
+        updated_at: now,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
 
     const ident = await db
       .insertInto('entity_identifier')
-      .values({ entity_id: entity.id, kind: 'tg_user_id', value: '123456789', confirmed: 1 })
+      .values({
+        entity_id: entity.id,
+        kind: 'tg_user_id',
+        value: '123456789',
+        confirmed: 1,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
 

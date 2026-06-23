@@ -24,13 +24,19 @@ export class SetSettingDto extends createZodDto(setSettingSchema) {}
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 
-  @ApiOperation({ summary: 'List settings', description: 'Return all key/value settings.' })
+  @ApiOperation({
+    summary: 'List settings',
+    description: 'Return all key/value settings.',
+  })
   @Get()
   async list(): Promise<{ settings: { key: string; value: string }[] }> {
     return { settings: await this.settings.list() };
   }
 
-  @ApiOperation({ summary: 'Get a setting', description: 'Fetch a setting by key.' })
+  @ApiOperation({
+    summary: 'Get a setting',
+    description: 'Fetch a setting by key.',
+  })
   @ApiParam({ name: 'key', description: 'Setting key' })
   @Get(':key')
   async get(
@@ -39,7 +45,10 @@ export class SettingsController {
     return { key, value: await this.settings.get(key) };
   }
 
-  @ApiOperation({ summary: 'Set a setting', description: 'Create or update a setting value.' })
+  @ApiOperation({
+    summary: 'Set a setting',
+    description: 'Create or update a setting value.',
+  })
   @ApiParam({ name: 'key', description: 'Setting key' })
   @Put(':key')
   @HttpCode(HttpStatus.OK)
@@ -51,7 +60,10 @@ export class SettingsController {
     return { key, value: dto.value };
   }
 
-  @ApiOperation({ summary: 'Delete a setting', description: 'Delete a setting by key.' })
+  @ApiOperation({
+    summary: 'Delete a setting',
+    description: 'Delete a setting by key.',
+  })
   @ApiParam({ name: 'key', description: 'Setting key' })
   @Delete(':key')
   @HttpCode(HttpStatus.OK)

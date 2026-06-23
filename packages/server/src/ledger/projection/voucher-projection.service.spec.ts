@@ -232,11 +232,15 @@ describe('VoucherProjectionService', () => {
         'purchase',
       );
 
-      const vatLine = draft.lines.find((l) => l.account_code === 'VAT_RECEIVABLE');
+      const vatLine = draft.lines.find(
+        (l) => l.account_code === 'VAT_RECEIVABLE',
+      );
       expect(vatLine).toBeUndefined();
 
       // Full gross must be expensed (no VAT split)
-      const expenseLine = draft.lines.find((l) => l.is_debit && l.account_code !== 'VAT_RECEIVABLE');
+      const expenseLine = draft.lines.find(
+        (l) => l.is_debit && l.account_code !== 'VAT_RECEIVABLE',
+      );
       expect(expenseLine?.amount).toBe(1200);
       // VAT code must be null when reclaim is suppressed (semantically correct for VAT return)
       expect(expenseLine?.vat_code).toBeNull();
@@ -267,7 +271,9 @@ describe('VoucherProjectionService', () => {
       // Four legs: Dr expense / Dr VAT_RECEIVABLE / Cr <payable> / Cr VAT_PAYABLE
       expect(draft.lines).toHaveLength(4);
       const creditLine = draft.lines.find(
-        (l) => !l.is_debit && (l.account_code === 'AP' || l.account_code === 'CLAIMANT_PAYABLE'),
+        (l) =>
+          !l.is_debit &&
+          (l.account_code === 'AP' || l.account_code === 'CLAIMANT_PAYABLE'),
       );
       expect(creditLine?.account_code).toBe('CLAIMANT_PAYABLE');
       // AP must not appear at all

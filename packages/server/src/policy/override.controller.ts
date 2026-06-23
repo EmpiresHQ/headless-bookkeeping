@@ -14,7 +14,10 @@ export class OverrideController {
   constructor(private readonly policyService: PolicyService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List policy overrides', description: 'Return the policy override audit trail.' })
+  @ApiOperation({
+    summary: 'List policy overrides',
+    description: 'Return the policy override audit trail.',
+  })
   async getOverrides(): Promise<{ overrides: OverrideRecord[] }> {
     const overrides = await this.policyService.getOverrides();
     return { overrides };

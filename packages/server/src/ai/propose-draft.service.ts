@@ -368,7 +368,10 @@ export class ProposeDraftService {
           .map((i) => normalizeIdentifier('registration_key', i.value));
         // Only a contradiction (the entity carries reg keys, none of which is
         // the observed one) rejects; an entity with no reg key cannot disprove.
-        if (entityRegKeys.length > 0 && !entityRegKeys.includes(observedRegKey)) {
+        if (
+          entityRegKeys.length > 0 &&
+          !entityRegKeys.includes(observedRegKey)
+        ) {
           return {
             outcome: 'supplier-unresolved',
             reason: `match to entity ${proposal.match_entity_id} contradicts the document's observed registration key ${proposal.observed_registration_key}`,

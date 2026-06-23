@@ -20,9 +20,13 @@ export async function up(db: Kysely<Database>): Promise<void> {
       precheck_json TEXT
     )
   `.execute(db);
-  await sql`INSERT INTO document_source_new (${sql.raw(COLS)}) SELECT ${sql.raw(COLS)} FROM document_source`.execute(db);
+  await sql`INSERT INTO document_source_new (${sql.raw(COLS)}) SELECT ${sql.raw(COLS)} FROM document_source`.execute(
+    db,
+  );
   await sql`DROP TABLE document_source`.execute(db);
-  await sql`ALTER TABLE document_source_new RENAME TO document_source`.execute(db);
+  await sql`ALTER TABLE document_source_new RENAME TO document_source`.execute(
+    db,
+  );
   await sql`PRAGMA foreign_keys = ON`.execute(db);
 }
 
@@ -39,8 +43,12 @@ export async function down(db: Kysely<Database>): Promise<void> {
       precheck_json TEXT
     )
   `.execute(db);
-  await sql`INSERT INTO document_source_new (${sql.raw(COLS)}) SELECT ${sql.raw(COLS)} FROM document_source WHERE channel IN ('upload','telegram','email','drive','ios_photo_library')`.execute(db);
+  await sql`INSERT INTO document_source_new (${sql.raw(COLS)}) SELECT ${sql.raw(COLS)} FROM document_source WHERE channel IN ('upload','telegram','email','drive','ios_photo_library')`.execute(
+    db,
+  );
   await sql`DROP TABLE document_source`.execute(db);
-  await sql`ALTER TABLE document_source_new RENAME TO document_source`.execute(db);
+  await sql`ALTER TABLE document_source_new RENAME TO document_source`.execute(
+    db,
+  );
   await sql`PRAGMA foreign_keys = ON`.execute(db);
 }

@@ -45,7 +45,10 @@ export class PrepaymentController {
    * For outgoing (amount < 0): creates supplier prepayment
    *   Dr SUPPLIER_PREPAYMENTS / Cr BANK_EUR
    */
-  @ApiOperation({ summary: 'Create a prepayment', description: 'Record a prepayment from a bank transaction.' })
+  @ApiOperation({
+    summary: 'Create a prepayment',
+    description: 'Record a prepayment from a bank transaction.',
+  })
   @ApiParam({ name: 'id', description: 'Bank transaction id' })
   @Post('bank-transactions/:id/prepayment')
   async createPrepayment(
@@ -63,7 +66,10 @@ export class PrepaymentController {
    *
    * Creates a clearing voucher linking the prepayment to the invoice.
    */
-  @ApiOperation({ summary: 'Draw down a prepayment', description: 'Apply part of a prepayment to a liability.' })
+  @ApiOperation({
+    summary: 'Draw down a prepayment',
+    description: 'Apply part of a prepayment to a liability.',
+  })
   @ApiParam({ name: 'id', description: 'Prepayment id' })
   @Post('prepayments/:id/draw-down')
   async drawDownPrepayment(
@@ -80,7 +86,11 @@ export class PrepaymentController {
   /**
    * List all outstanding prepayment vouchers with their remaining balances.
    */
-  @ApiOperation({ summary: 'List outstanding prepayments', description: 'Return all prepayment vouchers with their remaining balances.' })
+  @ApiOperation({
+    summary: 'List outstanding prepayments',
+    description:
+      'Return all prepayment vouchers with their remaining balances.',
+  })
   @Get('prepayments')
   async listPrepayments(): Promise<PrepaymentRecord[]> {
     const prepayments = await this.service.listOutstandingPrepayments();

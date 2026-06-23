@@ -182,11 +182,7 @@ export class PrepaymentService {
         prepared.draft,
         prepared.resolved,
       );
-      await this.transactionRepo.updateStatus(
-        transactionId,
-        'prepayment',
-        trx,
-      );
+      await this.transactionRepo.updateStatus(transactionId, 'prepayment', trx);
       return voucher;
     });
   }
@@ -237,11 +233,7 @@ export class PrepaymentService {
         prepared.draft,
         prepared.resolved,
       );
-      await this.transactionRepo.updateStatus(
-        transactionId,
-        'prepayment',
-        trx,
-      );
+      await this.transactionRepo.updateStatus(transactionId, 'prepayment', trx);
       return voucher;
     });
   }

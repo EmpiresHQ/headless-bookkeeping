@@ -143,7 +143,8 @@ export class VoucherProjectionService {
     const rcVat = Math.round(base * rate);
     // When the reverse-charge purchase was paid by a Claimant out of pocket,
     // the credit leg is CLAIMANT_PAYABLE (not AP) — same rule as purchaseLines().
-    const creditAccountCode = facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
+    const creditAccountCode =
+      facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
     return [
       {
         account_code: mapping.accountCode,
