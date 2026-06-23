@@ -143,6 +143,13 @@ export interface ExpenseTable {
   asset_name: string | null;
   asset_useful_life_years: number | null;
   asset_residual_value_minor: number | null;
+  // Set when the Expense was paid by a Claimant out of pocket (migration 056).
+  // null = normal AP expense; set → CLAIMANT_PAYABLE credit leg.
+  claimant_id: number | null;
+  // Whether the receipt is addressed to the Organisation (migration 056).
+  // true → normal VAT reclaim; false | null → NULL_VAT_CODE (conservative).
+  // Stored as INTEGER (0/1/null) per SQLite boolean convention.
+  company_addressed_receipt: number | null;
   created_at: number;
   updated_at: number;
 }
