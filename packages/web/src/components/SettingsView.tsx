@@ -7,6 +7,7 @@ import {
   updatePolicyConfig,
   type PolicyConfig,
 } from '../api';
+import { MailboxSettings } from './MailboxSettings';
 
 interface LlmKey {
   key: string;
@@ -252,6 +253,8 @@ export function SettingsView() {
           />
         )}
       </section>
+
+      <MailboxSettings />
 
       <section className="space-y-3">
         <h2 className="font-semibold">Intake policy</h2>
