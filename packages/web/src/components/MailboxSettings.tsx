@@ -23,6 +23,7 @@ function formatSynced(ts: number | null): string {
 export function MailboxSettings() {
   const [connectors, setConnectors] = useState<MailboxConnector[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // IMAP + app-password form
@@ -40,6 +41,26 @@ export function MailboxSettings() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
   useEffect(() => void load(), []);
+
+  // Read the result of an OAuth round-trip: the server callback redirects the
+  // browser back to /?mailbox=connected (or ?mailbox_error=...). Surface it,
+  // then strip the params so a refresh doesn't replay the banner.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mailbox') === 'connected') setNote('Mailbox connected.');
+    const err = params.get('mailbox_error');
+    if (err) setError(err);
+    if (params.has('mailbox') || params.has('mailbox_error')) {
+      params.delete('mailbox');
+      params.delete('mailbox_error');
+      const qs = params.toString();
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname + (qs ? `?${qs}` : ''),
+      );
+    }
+  }, []);
 
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
@@ -108,6 +129,7 @@ export function MailboxSettings() {
         rest; access is read-only.
       </p>
 
+      {note && <p className="text-sm text-green-700">{note}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {connectors !== null && connectors.length === 0 && (

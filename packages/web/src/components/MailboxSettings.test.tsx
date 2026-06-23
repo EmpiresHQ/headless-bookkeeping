@@ -135,4 +135,24 @@ describe('MailboxSettings', () => {
       expect(assign).toHaveBeenCalledWith('https://consent.example/oauth'),
     );
   });
+
+  it('shows a success banner after returning from the OAuth redirect', async () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...window.location,
+        pathname: '/',
+        search: '?mailbox=connected',
+      },
+    });
+    const replaceState = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => {});
+
+    render(<MailboxSettings />);
+
+    expect(await screen.findByText(/mailbox connected/i)).toBeInTheDocument();
+    // the ?mailbox= param is stripped so a refresh doesn't replay the banner
+    expect(replaceState).toHaveBeenCalled();
+  });
 });
