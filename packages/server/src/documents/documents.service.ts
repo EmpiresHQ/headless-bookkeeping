@@ -72,6 +72,7 @@ export class DocumentsService {
         storage_path: null,
         status: 'pending',
         created_at: now,
+        claimant_id: input.claimantId ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -266,6 +267,35 @@ export class DocumentsService {
   }
 
   /**
+   * Approver action: confirm whether the claimant paid out of pocket.
+   * If paidByClaimant is false, clears claimant_id (company paid, not a personal
+   * reimbursement claim). If true, claimant_id was already set at upload time — no-op.
+   * Throws NotFoundException if the document does not exist.
+   */
+  async confirmPayment(
+    documentId: number,
+    paidByClaimant: boolean,
+  ): Promise<void> {
+    const doc = await this.db
+      .selectFrom('document')
+      .select('id')
+      .where('id', '=', documentId)
+      .executeTakeFirst();
+    if (!doc) {
+      throw new NotFoundException(`Document ${documentId} not found`);
+    }
+
+    if (!paidByClaimant) {
+      await this.db
+        .updateTable('document')
+        .set({ claimant_id: null })
+        .where('id', '=', documentId)
+        .execute();
+    }
+    // paidByClaimant=true: claimant_id was already set at upload time; no change needed.
+  }
+
+  /**
    * Delete a document and its owned dependents (sources, OCR/artifact rows, the
    * internal OCR conversation, and the stored files). Atomic. The SPA is the
    * operator's admin surface, so the only block is data integrity: a document
@@ -396,6 +426,7 @@ export class DocumentsService {
     status: string;
     processing_since: number | null;
     created_at: number;
+    claimant_id?: number | null;
   }): Document {
     return {
       id: row.id,
@@ -407,6 +438,7 @@ export class DocumentsService {
       status: this.validateDocumentStatus(row.status),
       processing_since: row.processing_since,
       created_at: row.created_at,
+      claimant_id: row.claimant_id ?? null,
     };
   }
 

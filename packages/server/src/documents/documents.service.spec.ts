@@ -542,6 +542,113 @@ describe('DocumentsService (unit)', () => {
     });
   });
 
+  describe('upload with claimant_id', () => {
+    let claimantEntityId: number;
+
+    beforeEach(async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const entity = await db
+        .insertInto('entity')
+        .values({
+          role: 'employee',
+          country: 'EE',
+          name: 'Test Claimant',
+          goods_vs_services: 'services',
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      claimantEntityId = entity.id;
+    });
+
+    it('persists claimant_id on the document row when provided', async () => {
+      const { document } = await service.upload({
+        buffer: Buffer.from('pdf'),
+        filename: 'receipt.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+        capturedAt: null,
+        precheckJson: null,
+        claimantId: claimantEntityId,
+      });
+      expect(document.claimant_id).toBe(claimantEntityId);
+    });
+
+    it('defaults claimant_id to null when not provided', async () => {
+      const { document } = await service.upload({
+        buffer: Buffer.from('pdf2'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+        capturedAt: null,
+        precheckJson: null,
+      });
+      expect(document.claimant_id).toBeNull();
+    });
+  });
+
+  describe('confirmPayment', () => {
+    let claimantEntityId: number;
+
+    beforeEach(async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const entity = await db
+        .insertInto('entity')
+        .values({
+          role: 'employee',
+          country: 'EE',
+          name: 'Confirm Claimant',
+          goods_vs_services: 'services',
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      claimantEntityId = entity.id;
+    });
+
+    it('clears claimant_id when paid_by_claimant is false', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('r'),
+        filename: 'r.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+        capturedAt: null,
+        precheckJson: null,
+        claimantId: claimantEntityId,
+      });
+      await service.confirmPayment(doc.id, false);
+      const updated = await service.getById(doc.id);
+      expect(updated.claimant_id).toBeNull();
+    });
+
+    it('keeps claimant_id when paid_by_claimant is true', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('r2'),
+        filename: 'r2.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+        capturedAt: null,
+        precheckJson: null,
+        claimantId: claimantEntityId,
+      });
+      await service.confirmPayment(doc.id, true);
+      const updated = await service.getById(doc.id);
+      expect(updated.claimant_id).toBe(claimantEntityId);
+    });
+
+    it('throws NotFoundException for unknown document', async () => {
+      await expect(service.confirmPayment(9999, true)).rejects.toThrow(
+        'not found',
+      );
+    });
+  });
+
   describe('ios_photo_library channel', () => {
     it('stores an upload from the ios_photo_library channel', async () => {
       const result = await service.upload({
