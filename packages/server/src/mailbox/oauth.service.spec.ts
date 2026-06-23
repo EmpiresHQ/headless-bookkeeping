@@ -14,15 +14,19 @@ const settings = {
   ),
 } as any;
 
+// Minimal unsigned JWT: header.payload.signature, payload carries the claims.
+const jwt = (claims: object) =>
+  `h.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.s`;
+
 describe('OAuthService', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('builds a Gmail read-only consent URL with the callback redirect', async () => {
+  it('builds a Gmail read-only consent URL with openid+email scopes and the callback redirect', async () => {
     const url = await new OAuthService(settings).authUrl('gmail', 'state123');
     expect(url).toContain('accounts.google.com');
-    expect(url).toContain(
-      'scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly',
-    );
+    // openid+email (to read the mailbox address back) alongside read-only Gmail
+    expect(url).toContain('scope=openid+email');
+    expect(url).toContain('gmail.readonly');
     expect(url).toContain(
       'redirect_uri=https%3A%2F%2Fapp.example%2Fapi%2Fmailbox%2Foauth%2Fcallback',
     );
@@ -30,16 +34,32 @@ describe('OAuthService', () => {
     expect(url).toContain('state=state123');
   });
 
-  it('exchanges an auth code for a refresh token', async () => {
+  it('exchanges an auth code for a refresh token and the mailbox email (from id_token)', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({ refresh_token: 'rt-1' }),
+      json: async () => ({
+        refresh_token: 'rt-1',
+        id_token: jwt({ email: 'me@gmail.com' }),
+      }),
     } as any);
-    const { refreshToken } = await new OAuthService(settings).exchangeCode(
-      'gmail',
-      'authcode',
-    );
+    const { refreshToken, email } = await new OAuthService(
+      settings,
+    ).exchangeCode('gmail', 'authcode');
     expect(refreshToken).toBe('rt-1');
+    expect(email).toBe('me@gmail.com');
+  });
+
+  it('throws when the OAuth response carries no email claim', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        refresh_token: 'rt-1',
+        id_token: jwt({ sub: 'x' }),
+      }),
+    } as any);
+    await expect(
+      new OAuthService(settings).exchangeCode('gmail', 'authcode'),
+    ).rejects.toThrow(/email/i);
   });
 
   it('mints an access token from a refresh token', async () => {

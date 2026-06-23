@@ -13,22 +13,16 @@ describe('MailboxController.callback (OAuth redirect)', () => {
   beforeEach(() => {
     connectors = { create: jest.fn().mockResolvedValue({ id: 1 }) };
     oauth = {
-      exchangeCode: jest.fn().mockResolvedValue({ refreshToken: 'rt' }),
+      exchangeCode: jest
+        .fn()
+        .mockResolvedValue({ refreshToken: 'rt', email: 'me@gmail.com' }),
     };
-    controller = new MailboxController(
-      connectors as never,
-      oauth as never,
-    );
+    controller = new MailboxController(connectors as never, oauth as never);
     res = { redirect: jest.fn() };
   });
 
-  it('exchanges the code, creates an oauth connector, and redirects to the SPA', async () => {
-    const state = makeState({
-      provider: 'gmail',
-      channel: 'email_sync',
-      host: 'imap.gmail.com',
-      username: 'me@gmail.com',
-    });
+  it('exchanges the code, derives the mailbox from the OAuth identity, and redirects to the SPA', async () => {
+    const state = makeState({ provider: 'gmail', channel: 'email_sync' });
 
     await controller.callback('auth-code', state, res as unknown as Response);
 
@@ -38,7 +32,8 @@ describe('MailboxController.callback (OAuth redirect)', () => {
         channel: 'email_sync',
         authMode: 'oauth',
         provider: 'gmail',
-        username: 'me@gmail.com',
+        host: 'imap.gmail.com',
+        username: 'me@gmail.com', // from the OAuth id_token, not user input
         secret: 'rt',
       }),
     );

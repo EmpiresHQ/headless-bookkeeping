@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -58,13 +59,21 @@ export class MailboxController {
   async start(
     @Query('provider') provider: 'gmail' | 'outlook',
     @Query('channel') channel: 'email_sync' | 'email_push',
-    @Query('host') host: string,
-    @Query('username') username: string,
   ): Promise<{ url: string }> {
-    const state = Buffer.from(
-      JSON.stringify({ provider, channel, host, username }),
-    ).toString('base64url');
-    return { url: await this.oauth.authUrl(provider, state) };
+    // The mailbox address is derived from the OAuth identity in the callback —
+    // the operator does not type it. We only need provider + channel here.
+    const state = Buffer.from(JSON.stringify({ provider, channel })).toString(
+      'base64url',
+    );
+    try {
+      return { url: await this.oauth.authUrl(provider, state) };
+    } catch (e) {
+      // Most commonly: the BYO client id/secret is not configured yet. Surface
+      // a 400 with the reason instead of a raw 500.
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'OAuth start failed',
+      );
+    }
   }
 
   @Get('oauth/callback')
@@ -83,17 +92,20 @@ export class MailboxController {
       ) as {
         provider: 'gmail' | 'outlook';
         channel: 'email_sync' | 'email_push';
-        host: string;
-        username: string;
       };
-      const { refreshToken } = await this.oauth.exchangeCode(s.provider, code);
+      const { refreshToken, email } = await this.oauth.exchangeCode(
+        s.provider,
+        code,
+      );
+      const host =
+        s.provider === 'gmail' ? 'imap.gmail.com' : 'outlook.office365.com';
       await this.connectors.create({
         channel: s.channel,
         authMode: 'oauth',
         provider: s.provider,
-        host: s.host,
+        host,
         port: 993,
-        username: s.username,
+        username: email,
         secret: refreshToken,
       });
       res.redirect('/?mailbox=connected');
