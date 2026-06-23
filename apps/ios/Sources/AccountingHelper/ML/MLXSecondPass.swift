@@ -77,13 +77,12 @@ public actor MLXSecondPass: SecondPassClassifier {
     /// (check-in screens, tickets, boarding passes, confirmations, menus, chats…).
     public static let defaultPrompt =
         "You are shown one photo. Reply with exactly one word: YES or NO. "
-        + "Answer YES only if the image is a financial accounting document that records a "
-        + "purchase or payment — a store/restaurant receipt, an invoice, a bill, or a card/"
-        + "payment-terminal slip — showing itemized lines, prices, or a total amount with a "
-        + "currency. Answer NO for everything else, including hotel or airport check-in "
-        + "screens, boarding passes, event/transport tickets, order or booking confirmations, "
-        + "menus, product pages, app or web screenshots, chats, maps, and photos of people, "
-        + "food, or places."
+        + "Answer YES only if the image clearly shows at least one price or monetary amount "
+        + "with a currency symbol or code. A document without visible prices is NOT a receipt. "
+        + "Answer NO for everything else, including all medical documents, prescriptions, "
+        + "hotel or airport check-in screens, boarding passes, event/transport tickets, "
+        + "order or booking confirmations, menus, product pages, app or web screenshots, "
+        + "chats, maps, and photos of people, food, or places."
 
     public func isAccountingDocument(_ image: CGImage) async -> Bool? {
         guard let container = await ensureLoaded() else { return nil }
