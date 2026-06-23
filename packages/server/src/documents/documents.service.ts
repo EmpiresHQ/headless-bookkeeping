@@ -216,6 +216,7 @@ export class DocumentsService {
       })
       .where('id', '=', candidate.id)
       .where('status', '=', 'pending')
+      .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
         eb.or([
           eb('processing_since', 'is', null),
@@ -224,6 +225,7 @@ export class DocumentsService {
       )
       .executeTakeFirst();
 
+    if (!res) return null;
     return Number(res.numUpdatedRows) === 1 ? candidate.id : null;
   }
 

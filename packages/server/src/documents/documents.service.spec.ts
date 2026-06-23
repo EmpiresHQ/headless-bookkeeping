@@ -503,6 +503,25 @@ describe('DocumentsService (unit)', () => {
       expect(id).toBeNull();
     });
 
+    it('claims the last attempt slot and then excludes the document at the cap', async () => {
+      const id = await insertPending('cap-test', 1000, { attempts: MAX - 1 });
+
+      // First call: one slot remaining — should claim it and bump attempts to MAX.
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toBe(id);
+
+      const row = await db
+        .selectFrom('document')
+        .select('processing_attempts')
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.processing_attempts).toBe(MAX);
+
+      // Second call: document is now at the cap — must be excluded.
+      const second = await service.claimNextPending(STALE, MAX);
+      expect(second).toBeNull();
+    });
+
     it('ignores non-pending documents', async () => {
       const row = await db
         .insertInto('document')
