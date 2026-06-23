@@ -28,4 +28,10 @@ describe('isHarvestable', () => {
   it('keeps a large PDF even if disposition header is missing', () => {
     expect(isHarvestable({ ...base, disposition: null })).toBe(true);
   });
+  it('rejects a large PDF if disposition is inline', () => {
+    expect(isHarvestable({ ...base, disposition: 'inline', contentId: null })).toBe(false);
+  });
+  it('rejects an attachment with a contentId', () => {
+    expect(isHarvestable({ ...base, disposition: 'attachment', contentId: '<image@example.com>' })).toBe(false);
+  });
 });
