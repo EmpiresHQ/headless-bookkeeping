@@ -19,6 +19,7 @@ jobs:
       server: ${{ steps.f.outputs.server }}
       web: ${{ steps.f.outputs.web }}
       cli: ${{ steps.f.outputs.cli }}
+      ios: ${{ steps.f.outputs.ios }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v4
@@ -38,6 +39,9 @@ jobs:
             cli:
               - *shared
               - 'packages/cli/**'
+            ios:
+              - 'apps/ios/**'
+              - '.github/workflows/ci.yml'
 
   # One workspace test image (full `npm ci` + builds) shared by every package's
   # test/lint jobs. Built whenever ANY package (or a shared root file) changed.
@@ -136,6 +140,32 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck -w @headless-bookkeeping/server
+
+  # iOS app cross-platform logic tests (swift-testing) on macOS. Runs only when the
+  # iOS app changed. The heavy iOS device build (MLX + bundled model) lives in the
+  # separate ios.yml workflow; this keeps the iOS unit tests in the main gate.
+  ios-test:
+    runs-on: macos-26
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v6
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -scheme AccountingHelper
+      - name: Test on macOS
+        run: |
+          xcodebuild test \
+            -scheme AccountingHelper \
+            -destination 'platform=macOS' \
+            -derivedDataPath .build-macos \
+            CODE_SIGNING_ALLOWED=NO
 
   build-and-push:
     runs-on: ubuntu-latest

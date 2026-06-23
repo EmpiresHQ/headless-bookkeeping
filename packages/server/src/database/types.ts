@@ -201,6 +201,10 @@ export interface DocumentSourceTable {
   channel: string;
   source_identifier: string | null;
   received_at: number;
+  // Unix seconds the asset was captured on-device (iOS). NULL for non-mobile channels.
+  captured_at: number | null;
+  // Raw JSON string of the on-device pre-check result (scores + decision). NULL otherwise.
+  precheck_json: string | null;
 }
 
 export interface VoucherSequenceTable {

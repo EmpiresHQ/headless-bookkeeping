@@ -1,0 +1,72 @@
+name: iOS
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'apps/ios/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'apps/ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/ios
+
+jobs:
+  # NOTE: the cross-platform logic tests run in the main CI workflow (ci.yml,
+  # job `ios-test`, gated on apps/ios changes). This workflow keeps only the heavy
+  # iOS device build (MLX + bundled model) to avoid running the tests twice.
+
+  # Build the actual runnable app target. Generates the .xcodeproj from project.yml
+  # (the project is gitignored), then compiles the app for a generic iOS device
+  # with code signing disabled — the real "build the app" gate.
+  app-build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      # MLX compiles Metal kernels at build time. On Xcode 26+ the Metal Toolchain
+      # is a separately downloadable component; on older Xcode it's bundled and the
+      # flag doesn't exist — so this is best-effort and must not fail the job.
+      - name: Download Metal Toolchain (best-effort)
+        run: xcodebuild -downloadComponent MetalToolchain || echo "Metal Toolchain not downloadable on this Xcode (bundled) — continuing"
+
+      # The Qwen 3.5 VLM weights are NOT committed (gitignored). They are bundled
+      # into the .app at build time, so CI must fetch them before generating the
+      # project. Cache keyed on the fetch script so a model bump busts the cache.
+      - name: Cache Qwen model
+        uses: actions/cache@v4
+        with:
+          path: apps/ios/Models/Qwen3.5-0.8B-4bit
+          key: qwen-3.5-0.8b-4bit-${{ hashFiles('apps/ios/Scripts/fetch-qwen.sh') }}
+
+      - name: Fetch Qwen model (skips if cached)
+        run: bash Scripts/fetch-qwen.sh
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app for generic iOS device
+        run: |
+          xcodebuild build \
+            -project AccountingHelper.xcodeproj \
+            -scheme AccountingHelperApp \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath .build-device \
+            CODE_SIGNING_ALLOWED=NO \
+            -skipMacroValidation

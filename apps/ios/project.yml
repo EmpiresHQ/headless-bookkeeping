@@ -1,0 +1,97 @@
+# XcodeGen spec for the runnable iOS app target.
+#
+# The app target compiles the shared `Sources/AccountingHelper` sources directly
+# (plus the thin `@main` in `App/`) and links GRDB via SPM. The SAME sources are
+# also built as an SPM library for `swift test` (Package.swift). Resources resolve
+# via `ResourceBundle.current` (Bundle.main here, Bundle.module under SwiftPM).
+#
+#   cd apps/ios && xcodegen generate && open AccountingHelper.xcodeproj
+#
+# Then set your signing Team under Signing & Capabilities, pick your iPhone, Run.
+name: AccountingHelper
+options:
+  bundleIdPrefix: emireshq
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    from: 7.0.0
+  # MLX VLM stack for the on-device "second pass" (Qwen 3.5 vision). Metal-only, so it
+  # is added to the iOS APP target ONLY — never to Package.swift — to keep the macOS host
+  # (`swift test`) build free of MLX. swift-huggingface + swift-transformers supply the
+  # default Hub downloader + tokenizer the MLXHuggingFace macros bridge to.
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    exactVersion: 3.31.3
+  swift-huggingface:
+    url: https://github.com/huggingface/swift-huggingface.git
+    exactVersion: 0.9.0
+  swift-transformers:
+    url: https://github.com/huggingface/swift-transformers.git
+    exactVersion: 1.3.3
+
+targets:
+  AccountingHelperApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: App
+      - path: Sources/AccountingHelper
+      # Bundle the MLX Qwen 3.5 VLM weights INTO the .app as a folder reference so
+      # the on-device "second pass" loads from disk and NEVER downloads at runtime.
+      # `type: folder` preserves the directory structure (config.json + *.safetensors
+      # + tokenizer side by side, as MLX requires) under
+      # Bundle.main/Qwen3.5-0.8B-4bit. Populate it first with Scripts/fetch-qwen.sh
+      # (the weights are gitignored — only the script + this reference are committed).
+      - path: Models/Qwen3.5-0.8B-4bit
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: GRDB
+        product: GRDB
+      - package: mlx-swift-lm
+        product: MLXVLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: mlx-swift-lm
+        product: MLXHuggingFace
+      - package: swift-huggingface
+        product: HuggingFace
+      - package: swift-transformers
+        product: Tokenizers
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+        # Permission usage strings — without these the app crashes on first access.
+        NSCameraUsageDescription: "Scan the enrollment QR code shown by the web app or CLI."
+        NSPhotoLibraryUsageDescription: "Find receipts and invoices in your photo library to upload to your books."
+        # iOS Local Network privacy gate — required to reach a self-hosted server on
+        # a private LAN IP (e.g. http://192.168.x.x:3001). iOS prompts on first access.
+        NSLocalNetworkUsageDescription: "Connect to your self-hosted bookkeeping server on your local network."
+        # Dev: allow cleartext HTTP to local-network hosts (e.g. http://<mac-LAN-ip>:3001).
+        # Remove / tighten before any production/TestFlight build (use HTTPS there).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: emireshq.accountinghelper
+        PRODUCT_NAME: AccountingHelper
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+
+schemes:
+  AccountingHelperApp:
+    build:
+      targets:
+        AccountingHelperApp: all
+    run:
+      config: Debug
+    archive:
+      config: Debug
