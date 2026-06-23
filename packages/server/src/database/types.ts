@@ -192,6 +192,10 @@ export interface DocumentTable {
   // Unix seconds — set when intake workflow starts processing; cleared on
   // completion. NULL = idle (not currently in the intake pipeline).
   processing_since: Generated<number | null>;
+  // Number of times the intake worker has claimed this document for
+  // processing (migration 053). The claim query excludes documents at the
+  // attempt cap so a repeatedly-failing document cannot block the queue.
+  processing_attempts: Generated<number>;
   created_at: number;
 }
 

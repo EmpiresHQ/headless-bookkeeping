@@ -49,6 +49,7 @@ import * as m049 from './049_add_sales_invoice_document_id';
 import * as m050 from './050_create_statutory_submission_event';
 import * as m051 from './051_add_api_token_kind_lifecycle';
 import * as m052 from './052_add_document_source_ios_metadata';
+import * as m053 from './053_add_document_processing_attempts';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -101,4 +102,5 @@ export const migrations: Record<string, Migration> = {
   '050_create_statutory_submission_event': m050,
   '051_add_api_token_kind_lifecycle': m051,
   '052_add_document_source_ios_metadata': m052,
+  '053_add_document_processing_attempts': m053,
 };
