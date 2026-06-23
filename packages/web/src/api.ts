@@ -858,8 +858,6 @@ export const deleteMailboxConnector = (id: number) =>
 export const startMailboxOAuth = (params: {
   provider: 'gmail' | 'outlook';
   channel: MailboxChannel;
-  host: string;
-  username: string;
 }) =>
   apiFetch<{ url: string }>(
     `/api/mailbox/oauth/start?${new URLSearchParams(params).toString()}`,

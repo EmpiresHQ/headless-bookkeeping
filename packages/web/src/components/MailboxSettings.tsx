@@ -4,10 +4,31 @@ import {
   createMailboxConnector,
   deleteMailboxConnector,
   startMailboxOAuth,
+  getSettings,
+  setSetting,
   type MailboxConnector,
   type MailboxChannel,
   type MailboxProvider,
 } from '../api';
+
+const OAUTH_KEYS: { key: string; label: string; secret: boolean }[] = [
+  { key: 'google_oauth_client_id', label: 'Google client id', secret: false },
+  {
+    key: 'google_oauth_client_secret',
+    label: 'Google client secret',
+    secret: true,
+  },
+  {
+    key: 'microsoft_oauth_client_id',
+    label: 'Microsoft client id',
+    secret: false,
+  },
+  {
+    key: 'microsoft_oauth_client_secret',
+    label: 'Microsoft client secret',
+    secret: true,
+  },
+];
 
 const STATUS_STYLE: Record<MailboxConnector['status'], string> = {
   connected: 'text-green-700',
@@ -35,12 +56,29 @@ export function MailboxSettings() {
   const [secret, setSecret] = useState('');
   const [folder, setFolder] = useState('INBOX');
 
+  // BYO OAuth app credentials (your own Google/Microsoft client id + secret).
+  const [oauthCfg, setOauthCfg] = useState<Record<string, string>>({});
+
   const load = () =>
     getMailboxConnectors()
       .then(setConnectors)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
-  useEffect(() => void load(), []);
+  const loadOauthCfg = () =>
+    getSettings()
+      .then((list) => {
+        const map: Record<string, string> = {};
+        for (const k of OAUTH_KEYS) {
+          map[k.key] = list.find((s) => s.key === k.key)?.value ?? '';
+        }
+        setOauthCfg(map);
+      })
+      .catch(() => undefined);
+
+  useEffect(() => {
+    void load();
+    void loadOauthCfg();
+  }, []);
 
   // Read the result of an OAuth round-trip: the server callback redirects the
   // browser back to /?mailbox=connected (or ?mailbox_error=...). Surface it,
@@ -89,18 +127,30 @@ export function MailboxSettings() {
     }
   };
 
+  const saveOauthCfg = async () => {
+    setError(null);
+    setNote(null);
+    try {
+      for (const k of OAUTH_KEYS) {
+        const v = (oauthCfg[k.key] ?? '').trim();
+        if (v) await setSetting(k.key, v);
+      }
+      setNote('OAuth credentials saved.');
+    } catch (e) {
+      fail(e);
+    }
+  };
+
   const connectOAuth = async (oauthProvider: 'gmail' | 'outlook') => {
     setError(null);
-    const user = window.prompt(`${oauthProvider} address to connect:`)?.trim();
-    if (!user) return;
-    const oauthHost =
-      oauthProvider === 'gmail' ? 'imap.gmail.com' : 'outlook.office365.com';
     try {
+      // The mailbox address comes back from the provider after consent — we do
+      // not ask the operator to type it. This redirects to the provider's
+      // consent screen; the server callback creates the connector and bounces
+      // back to the SPA.
       const { url } = await startMailboxOAuth({
         provider: oauthProvider,
         channel,
-        host: oauthHost,
-        username: user,
       });
       window.location.assign(url);
     } catch (e) {
@@ -164,6 +214,43 @@ export function MailboxSettings() {
           ))}
         </ul>
       )}
+
+      <details className="rounded border px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium">
+          BYO OAuth app credentials
+        </summary>
+        <p className="mt-2 text-xs text-gray-500">
+          Connecting Gmail/Outlook uses your own OAuth app. Paste its client
+          id/secret here once (set the redirect URI in the provider console to{' '}
+          <code className="font-mono">
+            {'{public_api_url}'}/api/mailbox/oauth/callback
+          </code>
+          ). Required before the Connect buttons work.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {OAUTH_KEYS.map((k) => (
+            <label key={k.key} className="flex flex-col gap-1 text-sm">
+              <span className="text-gray-700">{k.label}</span>
+              <input
+                aria-label={k.label}
+                type={k.secret ? 'password' : 'text'}
+                value={oauthCfg[k.key] ?? ''}
+                onChange={(e) =>
+                  setOauthCfg((p) => ({ ...p, [k.key]: e.target.value }))
+                }
+                className="rounded border px-2 py-1 font-mono"
+              />
+            </label>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveOauthCfg()}
+          className="mt-3 rounded bg-black px-3 py-1 text-sm text-white"
+        >
+          Save credentials
+        </button>
+      </details>
 
       <div className="flex flex-wrap gap-2">
         <button

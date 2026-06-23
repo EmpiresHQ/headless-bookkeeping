@@ -27,6 +27,8 @@ describe('MailboxSettings', () => {
     vi.spyOn(api, 'startMailboxOAuth').mockResolvedValue({
       url: 'https://consent.example/oauth',
     });
+    vi.spyOn(api, 'getSettings').mockResolvedValue([]);
+    vi.spyOn(api, 'setSetting').mockResolvedValue({ key: 'k', value: 'v' });
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -109,30 +111,52 @@ describe('MailboxSettings', () => {
     );
   });
 
-  it('starts the Gmail OAuth flow and redirects to the consent url', async () => {
+  it('starts the Gmail OAuth flow (no email prompt) and redirects to the consent url', async () => {
     const assign = vi.fn();
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: { ...window.location, assign },
     });
-    vi.spyOn(window, 'prompt').mockReturnValue('owner@gmail.com');
+    const prompt = vi.spyOn(window, 'prompt');
 
     render(<MailboxSettings />);
     await screen.findByText(/no mailboxes connected/i);
     fireEvent.click(screen.getByRole('button', { name: /connect gmail/i }));
 
     await waitFor(() =>
-      expect(api.startMailboxOAuth).toHaveBeenCalledWith(
-        expect.objectContaining({
-          provider: 'gmail',
-          username: 'owner@gmail.com',
-          host: 'imap.gmail.com',
-          channel: 'email_sync',
-        }),
-      ),
+      expect(api.startMailboxOAuth).toHaveBeenCalledWith({
+        provider: 'gmail',
+        channel: 'email_sync',
+      }),
     );
     await waitFor(() =>
       expect(assign).toHaveBeenCalledWith('https://consent.example/oauth'),
+    );
+    // the operator is NEVER asked to type their email
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it('saves BYO OAuth client credentials', async () => {
+    render(<MailboxSettings />);
+    await screen.findByText(/no mailboxes connected/i);
+
+    fireEvent.change(screen.getByLabelText('Google client id'), {
+      target: { value: 'my-client-id.apps.googleusercontent.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Google client secret'), {
+      target: { value: 'GOCSPX-secret' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save credentials/i }));
+
+    await waitFor(() =>
+      expect(api.setSetting).toHaveBeenCalledWith(
+        'google_oauth_client_id',
+        'my-client-id.apps.googleusercontent.com',
+      ),
+    );
+    expect(api.setSetting).toHaveBeenCalledWith(
+      'google_oauth_client_secret',
+      'GOCSPX-secret',
     );
   });
 
