@@ -29,6 +29,7 @@ import {
 import { matchesOrgIban } from '../intake/iban-match';
 import { classifyDocumentClass } from '../intake/document-class';
 import { composeOutgoingConfidence } from '../intake/outgoing-confidence';
+import { ProcessingGate } from './processing-gate';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
@@ -142,6 +143,7 @@ export class IntakeWorkflowService {
     private readonly organizationService: OrganizationService,
     @Inject(forwardRef(() => BankIngestionService))
     private readonly bankIngestion: BankIngestionService,
+    private readonly gate: ProcessingGate,
   ) {}
 
   /**
@@ -177,7 +179,18 @@ export class IntakeWorkflowService {
    *   its existing outcome without creating a second finding or draft.
    * @returns IntakeWorkflowResult indicating the routing outcome.
    */
+  /**
+   * Run the full intake pipeline for one document, serialized through the
+   * ProcessingGate so only one OCR/LLM pipeline runs at a time across the whole
+   * process (worker-driven and manual triage alike).
+   */
   async process(documentId: number): Promise<IntakeWorkflowResult> {
+    return this.gate.run(() => this.processInner(documentId));
+  }
+
+  private async processInner(
+    documentId: number,
+  ): Promise<IntakeWorkflowResult> {
     // ── Idempotency guard: has this Document already routed? ─────
     // The Document status is the single source of truth for "already routed".
     const doc = await this.documents.getById(documentId);

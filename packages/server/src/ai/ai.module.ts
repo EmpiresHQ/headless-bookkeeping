@@ -17,6 +17,7 @@ import { MastraService } from './mastra.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { IntakeWorkflowService } from './intake-workflow.service';
+import { ProcessingGate } from './processing-gate';
 
 /**
  * AiModule — registers the Mastra runtime + tool layer, the Pass 2 agent
@@ -62,12 +63,14 @@ import { IntakeWorkflowService } from './intake-workflow.service';
     ProposeDraftService,
     Pass2AgentService,
     IntakeWorkflowService,
+    ProcessingGate,
   ],
   exports: [
     MastraService,
     ProposeDraftService,
     Pass2AgentService,
     IntakeWorkflowService,
+    ProcessingGate,
   ],
 })
 export class AiModule {}

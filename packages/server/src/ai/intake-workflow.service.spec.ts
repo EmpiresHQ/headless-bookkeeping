@@ -19,6 +19,7 @@ import { DocumentStorageService } from '../documents/document-storage.service';
 import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
 import { BankIngestionService } from '../bank/bank-ingestion.service';
+import { ProcessingGate } from './processing-gate';
 import { TriageResult } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
@@ -156,6 +157,7 @@ describe('IntakeWorkflowService', () => {
         PolicyService,
         DocumentsService,
         DocumentStorageService,
+        ProcessingGate,
         IntakeWorkflowService,
       ],
     }).compile();
