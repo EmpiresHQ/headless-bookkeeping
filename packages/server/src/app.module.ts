@@ -39,6 +39,7 @@ import { FixedAssetsModule } from './fixed-assets/fixed-assets.module';
 import { AnnualAccountsModule } from './annual-accounts/annual-accounts.module';
 import { StatutorySubmissionModule } from './statutory-submission/statutory-submission.module';
 import { ApiTokenGuard } from './auth/api-token.guard';
+import { MailboxModule } from './mailbox/mailbox.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     CategoriesModule,
     FixedAssetsModule,
     AnnualAccountsModule,
+    MailboxModule,
   ],
   providers: [
     {

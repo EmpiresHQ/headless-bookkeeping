@@ -15,5 +15,6 @@ import { SettingsService } from './settings.service';
   // TokensController — it would collide with AdminController's /admin/tokens routes.
   controllers: [AdminController, SettingsController],
   providers: [AdminService, SettingsService],
+  exports: [SettingsService],
 })
 export class AdminModule {}
