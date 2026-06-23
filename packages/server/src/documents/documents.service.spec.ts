@@ -433,6 +433,96 @@ describe('DocumentsService (unit)', () => {
     });
   });
 
+  describe('claimNextPending', () => {
+    const STALE = 300;
+    const MAX = 3;
+
+    async function insertPending(
+      hash: string,
+      createdAt: number,
+      opts: { processingSince?: number | null; attempts?: number } = {},
+    ): Promise<number> {
+      const row = await db
+        .insertInto('document')
+        .values({
+          hash,
+          filename: `${hash}.png`,
+          mime_type: 'image/png',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'pending',
+          created_at: createdAt,
+          processing_since: opts.processingSince ?? null,
+          processing_attempts: opts.attempts ?? 0,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    it('claims the oldest pending document (FIFO) and stamps it', async () => {
+      const older = await insertPending('a', 1000);
+      await insertPending('b', 2000);
+
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBe(older);
+
+      const row = await db
+        .selectFrom('document')
+        .select(['processing_since', 'processing_attempts'])
+        .where('id', '=', older)
+        .executeTakeFirstOrThrow();
+      expect(row.processing_since).not.toBeNull();
+      expect(row.processing_attempts).toBe(1);
+    });
+
+    it('returns null when nothing is claimable', async () => {
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBeNull();
+    });
+
+    it('skips a document whose processing_since is still fresh', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      await insertPending('fresh', 1000, { processingSince: now });
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBeNull();
+    });
+
+    it('reclaims a document whose processing_since is stale', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const stuck = await insertPending('stuck', 1000, {
+        processingSince: now - STALE - 1,
+      });
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBe(stuck);
+    });
+
+    it('excludes a document at the attempt cap', async () => {
+      await insertPending('poison', 1000, { attempts: MAX });
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBeNull();
+    });
+
+    it('ignores non-pending documents', async () => {
+      const row = await db
+        .insertInto('document')
+        .values({
+          hash: 'done',
+          filename: 'done.png',
+          mime_type: 'image/png',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'processed',
+          created_at: 1000,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('processed');
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBeNull();
+    });
+  });
+
   describe('ios_photo_library channel', () => {
     it('stores an upload from the ios_photo_library channel', async () => {
       const result = await service.upload({
