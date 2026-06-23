@@ -804,3 +804,63 @@ export interface DeviceEnrollment {
 
 export const createDeviceEnrollment = () =>
   apiFetch<DeviceEnrollment>('/api/device-enrollments', { method: 'POST' });
+
+// ── Mailbox connectors (GET|POST|DELETE /api/mailbox/connectors, OAuth start) ──
+export type MailboxChannel = 'email_sync' | 'email_push';
+export type MailboxProvider = 'gmail' | 'outlook' | 'imap';
+export type MailboxStatus =
+  | 'connected'
+  | 'auth_failed'
+  | 'disconnected'
+  | 'error';
+
+export interface MailboxConnector {
+  id: number;
+  channel: MailboxChannel;
+  auth_mode: 'password' | 'oauth';
+  provider: MailboxProvider;
+  host: string;
+  port: number;
+  username: string;
+  folder: string;
+  status: MailboxStatus;
+  last_synced_at: number | null;
+  last_error: string | null;
+}
+
+export interface CreateMailboxConnectorBody {
+  channel: MailboxChannel;
+  provider: MailboxProvider;
+  host: string;
+  port: number;
+  username: string;
+  secret: string;
+  folder?: string;
+}
+
+export const getMailboxConnectors = () =>
+  apiFetch<MailboxConnector[]>('/api/mailbox/connectors');
+
+export const createMailboxConnector = (body: CreateMailboxConnectorBody) =>
+  apiFetch<MailboxConnector>('/api/mailbox/connectors', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+// DELETE returns 200 with an empty body — use apiFetchRaw so we don't try to
+// parse JSON out of it (apiFetch always parses).
+export const deleteMailboxConnector = (id: number) =>
+  apiFetchRaw(`/api/mailbox/connectors/${id}`, { method: 'DELETE' }).then(
+    () => undefined,
+  );
+
+export const startMailboxOAuth = (params: {
+  provider: 'gmail' | 'outlook';
+  channel: MailboxChannel;
+  host: string;
+  username: string;
+}) =>
+  apiFetch<{ url: string }>(
+    `/api/mailbox/oauth/start?${new URLSearchParams(params).toString()}`,
+  );
