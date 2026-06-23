@@ -196,6 +196,10 @@ export interface DocumentTable {
   // processing (migration 053). The claim query excludes documents at the
   // attempt cap so a repeatedly-failing document cannot block the queue.
   processing_attempts: Generated<number>;
+  // Nullable FK → entity(id). Set at upload time when the sender is a known
+  // Claimant (role: employee | director). The IntakeQueueWorker reads this
+  // and passes it to IntakeWorkflowService so channel context is not lost.
+  claimant_id: number | null;
   created_at: number;
 }
 
