@@ -31,6 +31,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
 import { CreditNotesModule } from './credit-notes/credit-notes.module';
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
+import { IntakeQueueModule } from './intake-queue/intake-queue.module';
 import { InteractionModule } from './interaction/interaction.module';
 import { StatutoryReportModule } from './statutory-report/statutory-report.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -86,6 +87,7 @@ import { ApiTokenGuard } from './auth/api-token.guard';
     CreditNotesModule,
     AuthModule,
     AiModule,
+    IntakeQueueModule,
     InteractionModule,
     StatutoryReportModule,
     CategoriesModule,

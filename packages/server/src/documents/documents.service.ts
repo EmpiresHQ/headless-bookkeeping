@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
 import { triageResultSchema, TriageResult } from '../triage/types';
@@ -171,6 +171,62 @@ export class DocumentsService {
       .set({ processing_since: null })
       .where('id', '=', id)
       .execute();
+  }
+
+  /**
+   * Atomically claim the oldest claimable 'pending' document for processing.
+   *
+   * Claimable = status 'pending', attempts below the cap, and not currently
+   * in flight (processing_since NULL or older than `staleSeconds` — the latter
+   * reclaims a document stranded by a crash). On a win it stamps
+   * processing_since = now and increments processing_attempts, then returns the
+   * id. Returns null when the queue is empty or another claimer won the race.
+   */
+  async claimNextPending(
+    staleSeconds: number,
+    maxAttempts: number,
+  ): Promise<number | null> {
+    const now = Math.floor(Date.now() / 1000);
+    const cutoff = now - staleSeconds;
+
+    const candidate = await this.db
+      .selectFrom('document')
+      .select('id')
+      .where('status', '=', 'pending')
+      .where('processing_attempts', '<', maxAttempts)
+      .where((eb) =>
+        eb.or([
+          eb('processing_since', 'is', null),
+          eb('processing_since', '<', cutoff),
+        ]),
+      )
+      .orderBy('created_at', 'asc')
+      .limit(1)
+      .executeTakeFirst();
+
+    if (!candidate) {
+      return null;
+    }
+
+    const res = await this.db
+      .updateTable('document')
+      .set({
+        processing_since: now,
+        processing_attempts: sql`processing_attempts + 1`,
+      })
+      .where('id', '=', candidate.id)
+      .where('status', '=', 'pending')
+      .where('processing_attempts', '<', maxAttempts)
+      .where((eb) =>
+        eb.or([
+          eb('processing_since', 'is', null),
+          eb('processing_since', '<', cutoff),
+        ]),
+      )
+      .executeTakeFirst();
+
+    if (!res) return null;
+    return Number(res.numUpdatedRows) === 1 ? candidate.id : null;
   }
 
   /**
