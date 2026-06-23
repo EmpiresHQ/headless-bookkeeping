@@ -92,7 +92,9 @@ One transport, three credential sources:
 
 ### Reuse the serialized intake queue (Q9)
 
-Harvest goes through `DocumentsService.upload()`, which already sets `pending` and calls `kick()` for all channels. The connector **only fetches from IMAP**; the existing `IntakeQueueWorker` serializes OCR (concurrency = 1), and its poison-guard / crash-recovery / dedup apply unchanged. Email-sync adds **no** OCR worker of its own.
+Harvest goes through `DocumentsService.upload()` (sets `pending`) **and then explicitly calls `IntakeQueueWorker.kick()`** to drain promptly. NB (verified against merged main): `upload()` does **not** auto-kick — the worker self-drains via `onModuleInit` + a cron safety-sweep, so without an explicit `kick()` a harvested document would wait for the next sweep. The connector **only fetches from IMAP** and enqueues; the existing `IntakeQueueWorker` serializes OCR (concurrency = 1), and its poison-guard / crash-recovery / dedup apply unchanged. Email-sync adds **no** OCR worker of its own.
+
+**Claimant resolution gap (verified against merged main).** `claimant_id` is currently set only on the upload path that knows the sender; the email channel does **not** yet resolve `claimant_id` from the sender (the interaction-router uploads without it; `principal-resolver` returns no entity). For the claimant short-circuit to fire on **email_push**, a task must resolve `claimant_id` from the email sender (`email → Entity(role: employee|director)`) at harvest time and pass it to `upload({ claimantId })`. `email_sync` deliberately does **not** resolve it (no Principal).
 
 ### Source-aware disposition layer
 
