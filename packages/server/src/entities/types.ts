@@ -35,26 +35,20 @@ export interface EntityWithIdentifiers extends Entity {
   identifiers: EntityIdentifier[];
 }
 
-const onboardSupplierCustomerSchema = z.object({
-  role: z.enum(['supplier', 'customer']),
+// Supplier/customer require a `registrationKey`; employee/director (claimant)
+// require an `email`. Modelled as a single flat object (not a discriminated
+// union) so nestjs-zod's `createZodDto` — which needs a ZodObject — can build a
+// DTO class from it. The per-role required-field rule is enforced in
+// `EntitiesService.onboard` (which throws BadRequestException).
+export const onboardEntitySchema = z.object({
+  role: z.enum(['supplier', 'customer', 'employee', 'director']),
   country: z.string(),
   name: z.string(),
-  registrationKey: z.string(),
+  registrationKey: z.string().optional(),
   goodsVsServices: z.enum(['goods', 'services', 'unknown']).optional(),
-});
-
-const onboardClaimantSchema = z.object({
-  role: z.enum(['employee', 'director']),
-  country: z.string(),
-  name: z.string(),
-  email: z.string().email(),
+  email: z.string().email().optional(),
   tgUserId: z.string().optional(),
 });
-
-export const onboardEntitySchema = z.discriminatedUnion('role', [
-  onboardSupplierCustomerSchema,
-  onboardClaimantSchema,
-]);
 
 export type OnboardEntityInput = z.infer<typeof onboardEntitySchema>;
 export class OnboardEntityDto extends createZodDto(onboardEntitySchema) {}

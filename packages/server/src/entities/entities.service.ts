@@ -12,7 +12,6 @@ import {
   EntityIdentifier,
   EntityWithIdentifiers,
   OnboardEntityInput,
-  OnboardEntityDto,
   AddAliasDto,
   UpdateEntityDto,
 } from './types';
@@ -32,7 +31,8 @@ export class EntitiesService {
           role: dto.role,
           country: dto.country,
           name: dto.name,
-          goods_vs_services: 'goodsVsServices' in dto ? (dto.goodsVsServices ?? null) : null,
+          goods_vs_services:
+            'goodsVsServices' in dto ? (dto.goodsVsServices ?? null) : null,
           created_at: now,
           updated_at: now,
         })
@@ -40,7 +40,15 @@ export class EntitiesService {
         .executeTakeFirstOrThrow();
 
       if (dto.role === 'supplier' || dto.role === 'customer') {
-        const regKey = normalizeIdentifier('registration_key', dto.registrationKey);
+        if (!dto.registrationKey) {
+          throw new BadRequestException(
+            'registrationKey is required for supplier/customer entities',
+          );
+        }
+        const regKey = normalizeIdentifier(
+          'registration_key',
+          dto.registrationKey,
+        );
         await trx
           .insertInto('entity_identifier')
           .values({
@@ -52,6 +60,11 @@ export class EntitiesService {
           .execute();
       } else {
         // employee | director: email is the primary lookup key; tg_user_id is optional
+        if (!dto.email) {
+          throw new BadRequestException(
+            'email is required for employee/director entities',
+          );
+        }
         const identifiers: Array<{ kind: string; value: string }> = [
           { kind: 'email', value: dto.email },
         ];
@@ -60,7 +73,14 @@ export class EntitiesService {
         }
         await trx
           .insertInto('entity_identifier')
-          .values(identifiers.map((i) => ({ entity_id: row.id, kind: i.kind, value: i.value, confirmed: 1 })))
+          .values(
+            identifiers.map((i) => ({
+              entity_id: row.id,
+              kind: i.kind,
+              value: i.value,
+              confirmed: 1,
+            })),
+          )
           .execute();
       }
 
