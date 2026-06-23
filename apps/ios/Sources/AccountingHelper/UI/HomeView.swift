@@ -15,6 +15,10 @@ public struct HomeView: View {
                 Button(model.syncEnabled ? "Stop sync" : "Start sync") {
                     model.toggleSync()
                 }
+                // `.borderless` makes the button itself the tap target inside the List
+                // row; the default style lets the whole cell intercept and drop taps,
+                // so the button needs several clicks before it fires.
+                .buttonStyle(.borderless)
                 .tint(model.syncEnabled ? .red : .accentColor)
             }
             Section("Scan results") {

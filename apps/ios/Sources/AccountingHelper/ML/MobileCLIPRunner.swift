@@ -4,7 +4,12 @@ import CoreGraphics
 import CoreVideo
 
 public final class MobileCLIPRunner: ModelRunner {
-    private let model: MLModel
+    // `MLModel` is not `Sendable`, but it is immutable after load and Core ML's
+    // `prediction` is safe to call concurrently, so this runner can satisfy the
+    // `Sendable` requirement of `ModelRunner`. `nonisolated(unsafe)` opts this one
+    // stored property out of the compiler's Sendable check (asserting that safety)
+    // rather than dropping the whole type's checking.
+    private nonisolated(unsafe) let model: MLModel
 
     public init(modelURL: URL) throws {
         let compiled = try MLModel.compileModel(at: modelURL)

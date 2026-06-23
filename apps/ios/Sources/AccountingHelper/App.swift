@@ -73,10 +73,16 @@ final class RootModel {
             apiFor: { url in URLSessionAPIClient(baseURL: url) },
             keychain: kc)
         self.loginModel = LoginViewModel(auth: auth, deviceName: RootModel.deviceName())
-        self.homeModel = HomeViewModel(store: store, syncEnabled: loadedSettings.syncEnabled)
-        self.logModel = LogViewModel(store: store)
+        let home = HomeViewModel(store: store, syncEnabled: loadedSettings.syncEnabled)
+        let log = LogViewModel(store: store)
+        self.homeModel = home
+        self.logModel = log
         self.settingsModel = SettingsViewModel(store: store, settings: loadedSettings,
-                                               onSettingsChange: { AppSettingsStore.save($0) })
+                                               onSettingsChange: { AppSettingsStore.save($0) },
+                                               onReset: { [weak home, weak log] in
+                                                   home?.refresh()
+                                                   log?.refresh()
+                                               })
         // Flip to the authenticated UI immediately after a successful scan. Only
         // start scanning if sync is already enabled (otherwise the user opts in
         // via the Start sync button on Home).

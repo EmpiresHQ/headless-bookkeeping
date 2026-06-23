@@ -66,7 +66,12 @@ public struct QRScannerView: UIViewControllerRepresentable {
         public override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
             if !session.isRunning {
-                Task.detached { [session] in session.startRunning() }
+                // `startRunning()` blocks, so it must run off the main actor. The
+                // session isn't `Sendable`, but it is the only owner here and is not
+                // mutated concurrently, so the local `nonisolated(unsafe)` binding
+                // asserts it is safe to hand to the detached task.
+                nonisolated(unsafe) let session = self.session
+                Task.detached { session.startRunning() }
             }
         }
 
