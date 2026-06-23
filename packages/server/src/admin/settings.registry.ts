@@ -80,6 +80,10 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
       'QR. Must be https:// (http://localhost is allowed for dev).',
     validate: httpsOrLocalhost,
   },
+  google_oauth_client_id: { description: 'BYO Google OAuth client id for Gmail mailbox connectors', validate: nonEmpty },
+  google_oauth_client_secret: { description: 'BYO Google OAuth client secret', validate: nonEmpty },
+  microsoft_oauth_client_id: { description: 'BYO Microsoft OAuth client id for Outlook mailbox connectors', validate: nonEmpty },
+  microsoft_oauth_client_secret: { description: 'BYO Microsoft OAuth client secret', validate: nonEmpty },
 };
 
 export function isKnownSettingKey(key: string): boolean {
