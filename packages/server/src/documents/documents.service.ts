@@ -268,10 +268,15 @@ export class DocumentsService {
   }
 
   /**
-   * Approver action: confirm whether the claimant paid out of pocket.
-   * If paidByClaimant is false, clears claimant_id (company paid, not a personal
-   * reimbursement claim). If true, claimant_id was already set at upload time — no-op.
-   * Throws NotFoundException if the document does not exist.
+   * Step 1 of 2 for claimant expense approval.
+   * Sets whether the Claimant paid out of pocket.
+   *
+   * - paidByClaimant=true  → keep claimant_id; SPA then calls manual-classify
+   *                           to build the Expense from stored Pass-2 artefacts.
+   * - paidByClaimant=false → clear claimant_id; document re-routes as normal
+   *                           supplier expense (Cr AP).
+   *
+   * This method does NOT create an Expense — that is the manual-classify step.
    */
   async confirmPayment(
     documentId: number,

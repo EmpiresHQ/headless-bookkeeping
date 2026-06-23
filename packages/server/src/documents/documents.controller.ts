@@ -141,6 +141,15 @@ export class DocumentsController {
     return new StreamableFile(buffer);
   }
 
+  /**
+   * Approver action: confirm whether the Claimant paid this document from
+   * their own funds. Only reachable by API token holders (operators/approvers
+   * via the SPA); Claimants interact via Telegram/email and never hold an
+   * API token (ADR-0016).
+   *
+   * paid_by_claimant=true  → Expense will be posted to Cr CLAIMANT_PAYABLE
+   * paid_by_claimant=false → claimant_id cleared; Expense posts to Cr AP
+   */
   @Post(':id/confirm-payment')
   @ApiOperation({
     summary: 'Confirm whether the claimant paid out of pocket',

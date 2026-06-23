@@ -501,7 +501,7 @@ describe('Entity aggregate (integration)', () => {
         name: 'Alice Tamm',
         email: 'alice@acme.ee',
         tgUserId: '987654321',
-      } as any);
+      });
 
       expect(result.role).toBe('employee');
       expect(result.identifiers).toEqual(
@@ -518,7 +518,7 @@ describe('Entity aggregate (integration)', () => {
         country: 'EE',
         name: 'Bob Kask',
         email: 'bob@acme.ee',
-      } as any);
+      });
 
       expect(result.role).toBe('director');
       expect(result.identifiers).toHaveLength(1);
@@ -532,7 +532,7 @@ describe('Entity aggregate (integration)', () => {
         name: 'Alice Tamm',
         email: 'alice@acme.ee',
         tgUserId: '111222333',
-      } as any);
+      });
 
       const found = await entitiesService.resolveByIdentifier('tg_user_id', '111222333');
       expect(found).toBeDefined();

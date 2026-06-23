@@ -238,6 +238,40 @@ describe('VoucherProjectionService', () => {
       // Full gross must be expensed (no VAT split)
       const expenseLine = draft.lines.find((l) => l.is_debit && l.account_code !== 'VAT_RECEIVABLE');
       expect(expenseLine?.amount).toBe(1200);
+      // VAT code must be null when reclaim is suppressed (semantically correct for VAT return)
+      expect(expenseLine?.vat_code).toBeNull();
+    });
+
+    it('credits CLAIMANT_PAYABLE on reverse-charge when claimantId is set', async () => {
+      // Override: trigger the reverse-charge path exactly as the reverse-charge
+      // describe block does, but with a claimantId set.
+      resolveCrossBorderTreatment.mockReturnValueOnce({
+        treatment: 'reverse_charge',
+        vatCode: 'EE_REVERSE_CHARGE',
+      });
+
+      const draft = await service.project(
+        {
+          category: 'software',
+          grossAmount: 1600,
+          vatAmount: 0,
+          currency: 'EUR',
+          taxPointDate: '2026-06-01',
+          claimantId: 5,
+          supplierCountry: 'US',
+          goodsVsServices: 'services',
+        },
+        'purchase',
+      );
+
+      // Four legs: Dr expense / Dr VAT_RECEIVABLE / Cr <payable> / Cr VAT_PAYABLE
+      expect(draft.lines).toHaveLength(4);
+      const creditLine = draft.lines.find(
+        (l) => !l.is_debit && (l.account_code === 'AP' || l.account_code === 'CLAIMANT_PAYABLE'),
+      );
+      expect(creditLine?.account_code).toBe('CLAIMANT_PAYABLE');
+      // AP must not appear at all
+      expect(draft.lines.find((l) => l.account_code === 'AP')).toBeUndefined();
     });
   });
 

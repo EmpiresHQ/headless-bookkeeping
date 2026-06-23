@@ -141,6 +141,9 @@ export class VoucherProjectionService {
   ): DraftVoucherLine[] {
     const base = facts.grossAmount;
     const rcVat = Math.round(base * rate);
+    // When the reverse-charge purchase was paid by a Claimant out of pocket,
+    // the credit leg is CLAIMANT_PAYABLE (not AP) — same rule as purchaseLines().
+    const creditAccountCode = facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
     return [
       {
         account_code: mapping.accountCode,
@@ -161,7 +164,7 @@ export class VoucherProjectionService {
         is_debit: true,
       },
       {
-        account_code: 'AP',
+        account_code: creditAccountCode,
         amount: base,
         currency: facts.currency,
         base_amount: baseAmount(base),
@@ -208,6 +211,9 @@ export class VoucherProjectionService {
 
     const effectiveVatAmount = effectiveCanReclaim ? facts.vatAmount : 0;
     const effectiveNetAmount = facts.grossAmount - effectiveVatAmount;
+    // A non-nil VAT code on a zero-VAT line is semantically misleading in the
+    // VAT return. When reclaim is suppressed, clear the code on the expense leg.
+    const effectiveVatCode = effectiveCanReclaim ? mapping.vatCode : null;
 
     const creditAccountCode =
       facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
@@ -219,7 +225,7 @@ export class VoucherProjectionService {
         currency: facts.currency,
         base_amount: baseAmount(effectiveNetAmount),
         fx_rate: fxRate,
-        vat_code: mapping.vatCode,
+        vat_code: effectiveVatCode,
         is_debit: true,
       },
       ...(effectiveVatAmount > 0
