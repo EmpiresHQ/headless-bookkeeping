@@ -12,7 +12,10 @@ export class HarvestService {
     private readonly queue: IntakeQueueWorker,
   ) {}
 
-  async harvestMessage(channel: MailboxChannel, msg: FetchedMessage): Promise<number> {
+  async harvestMessage(
+    channel: MailboxChannel,
+    msg: FetchedMessage,
+  ): Promise<number> {
     let harvested = 0;
     for (const att of msg.attachments) {
       if (!isHarvestable(att)) continue;

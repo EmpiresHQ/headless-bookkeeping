@@ -5,7 +5,11 @@ import { Database } from '../database/types';
 import { decryptSecret, encryptSecret } from './secret-cipher';
 import { MailboxChannel } from './types';
 
-export type ConnectorStatus = 'connected' | 'auth_failed' | 'disconnected' | 'error';
+export type ConnectorStatus =
+  | 'connected'
+  | 'auth_failed'
+  | 'disconnected'
+  | 'error';
 export type AuthMode = 'password' | 'oauth';
 export type Provider = 'gmail' | 'outlook' | 'imap';
 

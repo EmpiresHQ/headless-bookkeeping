@@ -15,20 +15,34 @@ describe('MailboxConnectorService', () => {
 
   beforeEach(async () => {
     process.env.MAILBOX_SECRET_KEY = KEY;
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }) });
-    const migrator = new Migrator({ db, provider: { getMigrations: () => Promise.resolve(migrations) } });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
     const moduleRef = await Test.createTestingModule({
-      providers: [{ provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db }, MailboxConnectorService],
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        MailboxConnectorService,
+      ],
     }).compile();
     service = moduleRef.get(MailboxConnectorService);
   });
   afterEach(() => db.destroy());
 
   const input = {
-    channel: 'email_sync' as const, authMode: 'password' as const, provider: 'imap' as const,
-    host: 'imap.x', port: 993, username: 'me@x', secret: 'app-pass', folder: 'INBOX',
+    channel: 'email_sync' as const,
+    authMode: 'password' as const,
+    provider: 'imap' as const,
+    host: 'imap.x',
+    port: 993,
+    username: 'me@x',
+    secret: 'app-pass',
+    folder: 'INBOX',
   };
 
   it('creates a connector and never returns the secret', async () => {
@@ -40,7 +54,9 @@ describe('MailboxConnectorService', () => {
 
   it('rejects a second email_push connector', async () => {
     await service.create({ ...input, channel: 'email_push' });
-    await expect(service.create({ ...input, channel: 'email_push', username: 'b@x' })).rejects.toThrow();
+    await expect(
+      service.create({ ...input, channel: 'email_push', username: 'b@x' }),
+    ).rejects.toThrow();
   });
 
   it('advances the cursor and marks status', async () => {

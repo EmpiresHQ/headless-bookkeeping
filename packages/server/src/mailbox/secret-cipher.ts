@@ -2,7 +2,10 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 function keyBuf(keyHex: string): Buffer {
   const buf = Buffer.from(keyHex, 'hex');
-  if (buf.length !== 32) throw new Error('MAILBOX_SECRET_KEY must be a 32-byte hex string (64 hex chars)');
+  if (buf.length !== 32)
+    throw new Error(
+      'MAILBOX_SECRET_KEY must be a 32-byte hex string (64 hex chars)',
+    );
   return buf;
 }
 
@@ -17,7 +20,14 @@ export function encryptSecret(plain: string, keyHex: string): string {
 export function decryptSecret(cipher: string, keyHex: string): string {
   const [ivB, tagB, ctB] = cipher.split('.');
   if (!ivB || !tagB || !ctB) throw new Error('malformed cipher');
-  const decipher = createDecipheriv('aes-256-gcm', keyBuf(keyHex), Buffer.from(ivB, 'base64url'));
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    keyBuf(keyHex),
+    Buffer.from(ivB, 'base64url'),
+  );
   decipher.setAuthTag(Buffer.from(tagB, 'base64url'));
-  return Buffer.concat([decipher.update(Buffer.from(ctB, 'base64url')), decipher.final()]).toString('utf8');
+  return Buffer.concat([
+    decipher.update(Buffer.from(ctB, 'base64url')),
+    decipher.final(),
+  ]).toString('utf8');
 }

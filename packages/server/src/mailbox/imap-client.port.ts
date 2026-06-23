@@ -27,5 +27,9 @@ export abstract class ImapClient {
     sinceUid: number,
   ): Promise<{ uidvalidity: number; messages: FetchedMessage[] }>;
 
-  abstract idle(conn: ImapConnectionConfig, folder: string, onNew: () => void): Promise<IdleHandle>;
+  abstract idle(
+    conn: ImapConnectionConfig,
+    folder: string,
+    onNew: () => void,
+  ): Promise<IdleHandle>;
 }

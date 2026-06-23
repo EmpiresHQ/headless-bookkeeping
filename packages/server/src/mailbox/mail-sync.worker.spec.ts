@@ -20,13 +20,23 @@ describe('MailSyncWorker.syncOnce', () => {
 
   beforeEach(async () => {
     process.env.MAILBOX_SECRET_KEY = KEY;
-    db = new Kysely<Database>({ dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }) });
-    const migrator = new Migrator({ db, provider: { getMigrations: () => Promise.resolve(migrations) } });
+    db = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: new SqliteDb(':memory:') }),
+    });
+    const migrator = new Migrator({
+      db,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
     harvested = [];
     imap = { fetchSince: jest.fn(), idle: jest.fn() };
-    const harvest = { harvestMessage: jest.fn(async (_ch: string, m: { uid: number }) => { harvested.push(m.uid); return 1; }) };
+    const harvest = {
+      harvestMessage: jest.fn(async (_ch: string, m: { uid: number }) => {
+        harvested.push(m.uid);
+        return 1;
+      }),
+    };
     const oauth = { accessToken: jest.fn(async () => 'at') };
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -43,11 +53,26 @@ describe('MailSyncWorker.syncOnce', () => {
   });
   afterEach(() => db.destroy());
 
-  const mk = () => connectors.create({ channel: 'email_sync', authMode: 'password', provider: 'imap', host: 'h', port: 993, username: 'u', secret: 'p' });
+  const mk = () =>
+    connectors.create({
+      channel: 'email_sync',
+      authMode: 'password',
+      provider: 'imap',
+      host: 'h',
+      port: 993,
+      username: 'u',
+      secret: 'p',
+    });
 
   it('harvests new messages in order and advances the cursor', async () => {
     const c = await mk();
-    imap.fetchSince.mockResolvedValue({ uidvalidity: 100, messages: [{ uid: 4, subject: '', bodyText: '', attachments: [] }, { uid: 5, subject: '', bodyText: '', attachments: [] }] });
+    imap.fetchSince.mockResolvedValue({
+      uidvalidity: 100,
+      messages: [
+        { uid: 4, subject: '', bodyText: '', attachments: [] },
+        { uid: 5, subject: '', bodyText: '', attachments: [] },
+      ],
+    });
     await worker.syncOnce(c.id);
     expect(harvested).toEqual([4, 5]);
     const [row] = await connectors.list();
@@ -59,17 +84,22 @@ describe('MailSyncWorker.syncOnce', () => {
   it('re-baselines (no harvest) when uidvalidity changes', async () => {
     const c = await mk();
     await connectors.advanceCursor(c.id, 100, 5);
-    imap.fetchSince.mockResolvedValue({ uidvalidity: 999, messages: [{ uid: 1, subject: '', bodyText: '', attachments: [] }] });
+    imap.fetchSince.mockResolvedValue({
+      uidvalidity: 999,
+      messages: [{ uid: 1, subject: '', bodyText: '', attachments: [] }],
+    });
     await worker.syncOnce(c.id);
-    expect(harvested).toEqual([]);                 // history not re-harvested
+    expect(harvested).toEqual([]); // history not re-harvested
     const [row] = await connectors.list();
     expect(row.uidvalidity).toBe(999);
-    expect(row.last_uid).toBe(1);                  // cursor rebased to current max
+    expect(row.last_uid).toBe(1); // cursor rebased to current max
   });
 
   it('marks auth_failed when the transport throws an auth error', async () => {
     const c = await mk();
-    imap.fetchSince.mockRejectedValue(new Error('AUTHENTICATIONFAILED bad token'));
+    imap.fetchSince.mockRejectedValue(
+      new Error('AUTHENTICATIONFAILED bad token'),
+    );
     await worker.syncOnce(c.id);
     const [row] = await connectors.list();
     expect(row.status).toBe('auth_failed');
@@ -95,7 +125,7 @@ describe('MailSyncWorker.syncOnce', () => {
     });
 
     it('marks all connectors auth_failed and skips sync when key is missing', async () => {
-      const c = await mk();
+      await mk();
       delete process.env.MAILBOX_SECRET_KEY;
       await worker.onModuleInit();
       expect(imap.fetchSince).not.toHaveBeenCalled();
@@ -105,7 +135,7 @@ describe('MailSyncWorker.syncOnce', () => {
     });
 
     it('marks all connectors auth_failed and skips sync when key is wrong length', async () => {
-      const c = await mk();
+      await mk();
       process.env.MAILBOX_SECRET_KEY = 'bad';
       await worker.onModuleInit();
       expect(imap.fetchSince).not.toHaveBeenCalled();
