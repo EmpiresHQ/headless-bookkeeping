@@ -46,6 +46,8 @@ sudo mkdir -p /opt/headless-bookkeeping        # = DEPLOY_PATH
 cd /opt/headless-bookkeeping
 $EDITOR .env     # TS_AUTHKEY, TS_HOSTNAME, SITE_DOMAIN, ACME_EMAIL,
                  # CLOUDFLARE_API_TOKEN, DOCKER_IMAGE
+                 # MAILBOX_SECRET_KEY  ← see §9 (required for email intake;
+                 #   `openssl rand -hex 32`). Without it, adding a mailbox 500s.
 # bring it up once (or let CI do it), then read the sidecar's tailnet IP:
 docker compose --env-file .env up -d --build
 docker compose exec tailscale tailscale ip -4      # → 100.x.y.z
@@ -91,3 +93,57 @@ docker compose ps
 docker compose logs -f caddy app
 docker compose restart app
 ```
+
+## 9. Email intake — connecting a mailbox (Gmail / Outlook / IMAP)
+
+The server can harvest invoice attachments from mailboxes you connect in
+**Settings → Mail intake** in the operator SPA. Two one-time prerequisites, then
+connect via OAuth (Gmail/Outlook) or an IMAP app-password.
+
+### 9.1 Required server config
+
+- **`MAILBOX_SECRET_KEY`** (env, in `DEPLOY_PATH/.env`) — a 32-byte hex key used
+  to encrypt stored mailbox credentials at rest. **Mandatory**: without it,
+  adding any connector fails. Generate once and keep it stable:
+  ```bash
+  openssl rand -hex 32      # 64 hex chars → MAILBOX_SECRET_KEY=...
+  ```
+  > ⚠️ Rotating or losing this key makes every stored credential undecryptable —
+  > all connectors must be deleted and re-connected. Back it up with your `.env`.
+- **`public_api_url`** (app setting, not env) — your public `https://<domain>`.
+  Set it in **Settings → Mobile enrollment → Public API URL**. It is the base of
+  the OAuth redirect URI, so it must match what you register with Google/Microsoft.
+
+### 9.2 Bring your own Google OAuth app (Gmail)
+
+This is a **BYO-app** flow — you use your own Google Cloud OAuth client, the
+deployment never ships shared credentials.
+
+1. **Google Cloud Console** → create/select a project.
+2. **APIs & Services → Library** → enable the **Gmail API**.
+3. **APIs & Services → OAuth consent screen**:
+   - User type **External**; fill the app name + your support email.
+   - **Scopes** → add `.../auth/gmail.readonly`, `openid`, and `email`.
+   - **Test users** → add the Google account(s) you'll connect (required while
+     the app is in *Testing*; otherwise consent is refused).
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type **Web application**.
+   - **Authorized redirect URI** → exactly:
+     `https://<your SITE_DOMAIN>/api/mailbox/oauth/callback`
+   - Create → copy the **Client ID** and **Client secret**.
+5. In the SPA: **Settings → Mail intake → BYO OAuth app credentials** → paste the
+   **Google client id** + **secret** → **Save credentials**.
+6. Click **Connect Gmail** → Google consent → you're redirected back with
+   *"Mailbox connected"* and the mailbox appears in the list. The mailbox address
+   is read from the OAuth identity — you never type it.
+
+**Outlook** is the same shape via **Azure Portal → App registrations**: add a Web
+redirect URI `https://<domain>/api/mailbox/oauth/callback`, API permissions
+`IMAP.AccessAsUser.All` + `openid` + `email` (+ `offline_access`), then paste the
+**Microsoft client id/secret** in the same panel and click **Connect Outlook**.
+
+### 9.3 Plain IMAP (no OAuth)
+
+For any other provider, use **Add IMAP mailbox (app password)**: host/port,
+username, and an **app-specific password** (not your login password). Still
+requires `MAILBOX_SECRET_KEY` (the password is encrypted with it).

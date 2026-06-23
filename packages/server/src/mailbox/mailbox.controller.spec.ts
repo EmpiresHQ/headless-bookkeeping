@@ -13,22 +13,16 @@ describe('MailboxController.callback (OAuth redirect)', () => {
   beforeEach(() => {
     connectors = { create: jest.fn().mockResolvedValue({ id: 1 }) };
     oauth = {
-      exchangeCode: jest.fn().mockResolvedValue({ refreshToken: 'rt' }),
+      exchangeCode: jest
+        .fn()
+        .mockResolvedValue({ refreshToken: 'rt', email: 'me@gmail.com' }),
     };
-    controller = new MailboxController(
-      connectors as never,
-      oauth as never,
-    );
+    controller = new MailboxController(connectors as never, oauth as never);
     res = { redirect: jest.fn() };
   });
 
-  it('exchanges the code, creates an oauth connector, and redirects to the SPA', async () => {
-    const state = makeState({
-      provider: 'gmail',
-      channel: 'email_sync',
-      host: 'imap.gmail.com',
-      username: 'me@gmail.com',
-    });
+  it('exchanges the code, derives the mailbox from the OAuth identity, and redirects to the SPA', async () => {
+    const state = makeState({ provider: 'gmail', channel: 'email_sync' });
 
     await controller.callback('auth-code', state, res as unknown as Response);
 
@@ -38,7 +32,8 @@ describe('MailboxController.callback (OAuth redirect)', () => {
         channel: 'email_sync',
         authMode: 'oauth',
         provider: 'gmail',
-        username: 'me@gmail.com',
+        host: 'imap.gmail.com',
+        username: 'me@gmail.com', // from the OAuth id_token, not user input
         secret: 'rt',
       }),
     );
@@ -69,5 +64,30 @@ describe('MailboxController.callback (OAuth redirect)', () => {
 
     expect(res.redirect).toHaveBeenCalledTimes(1);
     expect(res.redirect.mock.calls[0][0]).toMatch(/^\/\?mailbox_error=/);
+  });
+
+  const passwordDto = {
+    channel: 'email_sync' as const,
+    provider: 'imap' as const,
+    host: 'imap.x',
+    port: 993,
+    username: 'me@x',
+    secret: 's',
+  };
+
+  it('translates a missing MAILBOX_SECRET_KEY into a clear, actionable error', async () => {
+    connectors.create.mockRejectedValue(
+      new Error('MAILBOX_SECRET_KEY is not set'),
+    );
+    await expect(controller.create(passwordDto)).rejects.toThrow(
+      /MAILBOX_SECRET_KEY is not configured/i,
+    );
+  });
+
+  it('surfaces other create failures as a 400 with the reason', async () => {
+    connectors.create.mockRejectedValue(
+      new Error('UNIQUE constraint failed: mailbox_connector.channel'),
+    );
+    await expect(controller.create(passwordDto)).rejects.toThrow(/UNIQUE/);
   });
 });

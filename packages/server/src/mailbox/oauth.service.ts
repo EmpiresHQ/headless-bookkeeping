@@ -4,22 +4,42 @@ import { SettingsService } from '../admin/settings.service';
 
 type Prov = 'gmail' | 'outlook';
 
+// `openid email` is requested alongside the IMAP scope so the token response
+// carries an id_token we can read the mailbox address from — the operator never
+// types their own email; it comes back from the provider after consent.
 const CFG = {
   gmail: {
     auth: 'https://accounts.google.com/o/oauth2/v2/auth',
     token: 'https://oauth2.googleapis.com/token',
-    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    scope: 'openid email https://www.googleapis.com/auth/gmail.readonly',
     idKey: 'google_oauth_client_id',
     secretKey: 'google_oauth_client_secret',
   },
   outlook: {
     auth: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
     token: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    scope: 'https://outlook.office365.com/IMAP.AccessAsUser.All offline_access',
+    scope:
+      'openid email offline_access https://outlook.office365.com/IMAP.AccessAsUser.All',
     idKey: 'microsoft_oauth_client_id',
     secretKey: 'microsoft_oauth_client_secret',
   },
 } as const;
+
+// Read the mailbox address from an OIDC id_token (the JWT payload). The token
+// comes directly from the provider's token endpoint over server-to-server TLS,
+// so we trust it without re-verifying the signature.
+export function emailFromIdToken(idToken: string | undefined): string | null {
+  const payload = idToken?.split('.')[1];
+  if (!payload) return null;
+  try {
+    const claims = JSON.parse(
+      Buffer.from(payload, 'base64url').toString('utf8'),
+    ) as { email?: string; preferred_username?: string; upn?: string };
+    return claims.email ?? claims.preferred_username ?? claims.upn ?? null;
+  } catch {
+    return null;
+  }
+}
 
 @Injectable()
 export class OAuthService {
@@ -57,7 +77,7 @@ export class OAuthService {
   async exchangeCode(
     provider: Prov,
     code: string,
-  ): Promise<{ refreshToken: string }> {
+  ): Promise<{ refreshToken: string; email: string }> {
     const c = await this.cfg(provider);
     const res = await fetch(c.token, {
       method: 'POST',
@@ -71,10 +91,18 @@ export class OAuthService {
       }),
     });
     if (!res.ok) throw new Error(`OAuth code exchange failed: ${res.status}`);
-    const j = (await res.json()) as { refresh_token?: string };
+    const j = (await res.json()) as {
+      refresh_token?: string;
+      id_token?: string;
+    };
     if (!j.refresh_token)
       throw new Error('OAuth response missing refresh_token');
-    return { refreshToken: j.refresh_token };
+    const email = emailFromIdToken(j.id_token);
+    if (!email)
+      throw new Error(
+        'OAuth response did not include an email address (the app must request the openid+email scopes)',
+      );
+    return { refreshToken: j.refresh_token, email };
   }
 
   async accessToken(provider: Prov, refreshToken: string): Promise<string> {
