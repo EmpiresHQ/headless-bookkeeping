@@ -71,21 +71,21 @@ export class IntakeQueueWorker implements OnModuleInit, OnModuleDestroy {
     try {
       do {
         this.rerun = false;
-        let id: number | null;
+        let claimed: { id: number; claimant_id: number | null } | null;
         while (
-          (id = await this.documents.claimNextPending(
+          (claimed = await this.documents.claimNextPending(
             STALE_SECONDS,
             MAX_ATTEMPTS,
           )) !== null
         ) {
           try {
-            await this.workflow.process(id);
+            await this.workflow.process(claimed.id, claimed.claimant_id);
           } catch (err) {
             // process()'s own finally cleared processing_since; the attempt
             // counter (bumped at claim) bounds retries. Log and move on — one
             // bad document must not stop the queue.
             this.logger.error(
-              `Intake processing failed for document ${id}: ${
+              `Intake processing failed for document ${claimed.id}: ${
                 err instanceof Error ? err.message : String(err)
               }`,
             );

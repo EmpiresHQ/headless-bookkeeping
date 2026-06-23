@@ -64,6 +64,7 @@ export class DocumentsController {
       assetLocalId?: string;
       capturedAt?: string;
       precheck?: string;
+      claimant_id?: string; // multipart form sends strings
     },
   ): Promise<{ document: Document; deduplicated: boolean }> {
     let precheckJson: string | null = null;
@@ -93,6 +94,7 @@ export class DocumentsController {
       sourceIdentifier: body.assetLocalId ?? null,
       capturedAt,
       precheckJson,
+      claimantId: body.claimant_id ? Number(body.claimant_id) : null,
     });
 
     return { document: result.document, deduplicated: result.deduplicated };
@@ -137,6 +139,33 @@ export class DocumentsController {
       'Content-Disposition': `attachment; filename="${filename}"`,
     });
     return new StreamableFile(buffer);
+  }
+
+  /**
+   * Approver action: confirm whether the Claimant paid this document from
+   * their own funds. Only reachable by API token holders (operators/approvers
+   * via the SPA); Claimants interact via Telegram/email and never hold an
+   * API token (ADR-0016).
+   *
+   * paid_by_claimant=true  → Expense will be posted to Cr CLAIMANT_PAYABLE
+   * paid_by_claimant=false → claimant_id cleared; Expense posts to Cr AP
+   */
+  @Post(':id/confirm-payment')
+  @ApiOperation({
+    summary: 'Confirm whether the claimant paid out of pocket',
+    description:
+      'Approver action point: sets or clears claimant_id based on payment confirmation.',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async confirmPayment(
+    @Param('id') id: string,
+    @Body() body: { paid_by_claimant: boolean },
+  ): Promise<void> {
+    await this.documentsService.confirmPayment(
+      Number(id),
+      body.paid_by_claimant,
+    );
   }
 
   @Delete(':id')

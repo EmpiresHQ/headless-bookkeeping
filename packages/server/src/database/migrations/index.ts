@@ -50,6 +50,10 @@ import * as m050 from './050_create_statutory_submission_event';
 import * as m051 from './051_add_api_token_kind_lifecycle';
 import * as m052 from './052_add_document_source_ios_metadata';
 import * as m053 from './053_add_document_processing_attempts';
+import * as m054 from './054_widen_entity_role_add_tg_user_id';
+import * as m055 from './055_add_document_claimant_id';
+import * as m056 from './056_add_expense_claimant_fields';
+import * as m057 from './057_seed_claimant_payable_account';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -103,4 +107,8 @@ export const migrations: Record<string, Migration> = {
   '051_add_api_token_kind_lifecycle': m051,
   '052_add_document_source_ios_metadata': m052,
   '053_add_document_processing_attempts': m053,
+  '054_widen_entity_role_add_tg_user_id': m054,
+  '055_add_document_claimant_id': m055,
+  '056_add_expense_claimant_fields': m056,
+  '057_seed_claimant_payable_account': m057,
 };

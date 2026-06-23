@@ -278,6 +278,8 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
         triageResult,
         docId,
+        undefined,
+        undefined,
       );
 
       // No AuditFinding should be created.
@@ -1118,11 +1120,12 @@ describe('IntakeWorkflowService', () => {
 
       const result = await service.resolveSupplier(docId, 3);
 
-      // proposeDraft called with the stored triage, doc id, and explicit supplier id.
+      // proposeDraft called with the stored triage, doc id, explicit supplier id, and claimant_id from the doc.
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
         triage,
         docId,
         3,
+        null,
       );
       // Document moved to triaged.
       const doc = await documentsService.getById(docId);
@@ -1241,6 +1244,34 @@ describe('IntakeWorkflowService', () => {
         'phone',
         '+1 555 0000',
       );
+    });
+  });
+
+  describe('claimant routing', () => {
+    it('routes to needs_triage after Pass-2 completes when claimantId is set', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ confidence: 0.94 }),
+      });
+
+      const result = await service.process(docId, 5);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toContain('Claimant');
+        expect(result.reason).toContain('5');
+      }
+
+      // Verify the audit finding was created
+      const findings = await db.selectFrom('audit_finding').selectAll().execute();
+      expect(findings.length).toBeGreaterThan(0);
+
+      // proposeDraft must NOT be called — routing was overridden before it
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
     });
   });
 

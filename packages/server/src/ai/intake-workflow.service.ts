@@ -186,12 +186,13 @@ export class IntakeWorkflowService {
    * ProcessingGate so only one OCR/LLM pipeline runs at a time across the whole
    * process (worker-driven and manual triage alike).
    */
-  async process(documentId: number): Promise<IntakeWorkflowResult> {
-    return this.gate.run(() => this.processInner(documentId));
+  async process(documentId: number, claimantId?: number | null): Promise<IntakeWorkflowResult> {
+    return this.gate.run(() => this.processInner(documentId, claimantId));
   }
 
   private async processInner(
     documentId: number,
+    claimantId?: number | null,
   ): Promise<IntakeWorkflowResult> {
     // ── Idempotency guard: has this Document already routed? ─────
     // The Document status is the single source of truth for "already routed".
@@ -287,12 +288,22 @@ export class IntakeWorkflowService {
         ibanMatched,
       });
 
+      // Claimant override: runs AFTER Pass-2 so all artefacts (amounts, supplier,
+      // company_addressed_receipt) are stored before routing to needs_triage.
+      // Approver must confirm payment regardless of AI confidence.
+      if (claimantId != null) {
+        return this.routeNeedsTriage(
+          documentId,
+          `Document submitted by Claimant (entity ${claimantId}) — approver must confirm payment.`,
+        );
+      }
+
       switch (documentClass.route) {
         // `return await` (not a bare `return`) so a rejection from a routing
         // helper is caught by the safety-net catch below rather than escaping
         // and stranding the document in `pending` (ADR-0024).
         case 'expense':
-          return await this.routeExpense(documentId, triageResult);
+          return await this.routeExpense(documentId, triageResult, claimantId);
         case 'sales_invoice':
           return await this.routeSalesInvoice(
             documentId,
@@ -334,6 +345,7 @@ export class IntakeWorkflowService {
   private async routeExpense(
     documentId: number,
     triageResult: TriageResult,
+    claimantId?: number | null,
   ): Promise<IntakeWorkflowResult> {
     // ── Kind-level routing within the expense (incoming) path ──────
     // This handles ALL incoming kinds (new_expense / unknown / correction /
@@ -362,6 +374,8 @@ export class IntakeWorkflowService {
           const outcome = await this.proposeDraft.proposeDraft(
             triageResult,
             documentId,
+            undefined,
+            claimantId,
           );
           if (outcome.outcome === 'supplier-unresolved') {
             this.logger.warn(
@@ -609,6 +623,7 @@ export class IntakeWorkflowService {
       triageResult,
       documentId,
       supplierEntityId,
+      doc.claimant_id,
     );
     if (outcome.outcome === 'supplier-unresolved') {
       // Defensive: an explicit supplier id must resolve.

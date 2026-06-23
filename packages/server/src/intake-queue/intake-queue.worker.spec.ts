@@ -13,7 +13,7 @@ function makeDeps(docs: FakeDoc[]) {
       const next = docs.find((d) => !d.done && d.attempts < max);
       if (!next) return null;
       next.attempts += 1;
-      return next.id;
+      return { id: next.id, claimant_id: null };
     }),
   };
 
@@ -100,6 +100,28 @@ describe('IntakeQueueWorker', () => {
 
     await Promise.all([worker.kick(), worker.kick(), worker.kick()]);
     expect(deps.processed).toEqual([1]); // processed exactly once
+  });
+
+  it('passes claimant_id from the claimed document to workflow.process', async () => {
+    const processedWith: Array<{ id: number; claimantId: number | null | undefined }> = [];
+
+    const mockDocs = {
+      claimNextPending: jest.fn()
+        .mockResolvedValueOnce({ id: 42, claimant_id: 7 })
+        .mockResolvedValue(null),
+    } as any;
+
+    const mockWorkflow = {
+      process: jest.fn().mockImplementation((id: number, claimantId?: number | null) => {
+        processedWith.push({ id, claimantId });
+        return Promise.resolve({ status: 'needs_triage' });
+      }),
+    } as any;
+
+    const worker = new IntakeQueueWorker(mockDocs, mockWorkflow);
+    await worker.drainLoop();
+
+    expect(processedWith).toEqual([{ id: 42, claimantId: 7 }]);
   });
 });
 

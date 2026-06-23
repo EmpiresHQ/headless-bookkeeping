@@ -72,6 +72,7 @@ export class DocumentsService {
         storage_path: null,
         status: 'pending',
         created_at: now,
+        claimant_id: input.claimantId ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -185,13 +186,13 @@ export class DocumentsService {
   async claimNextPending(
     staleSeconds: number,
     maxAttempts: number,
-  ): Promise<number | null> {
+  ): Promise<{ id: number; claimant_id: number | null } | null> {
     const now = Math.floor(Date.now() / 1000);
     const cutoff = now - staleSeconds;
 
     const candidate = await this.db
       .selectFrom('document')
-      .select('id')
+      .select(['id', 'claimant_id'])
       .where('status', '=', 'pending')
       .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
@@ -226,7 +227,8 @@ export class DocumentsService {
       .executeTakeFirst();
 
     if (!res) return null;
-    return Number(res.numUpdatedRows) === 1 ? candidate.id : null;
+    if (Number(res.numUpdatedRows) !== 1) return null;
+    return { id: candidate.id, claimant_id: candidate.claimant_id ?? null };
   }
 
   /**
@@ -263,6 +265,40 @@ export class DocumentsService {
       return null;
     }
     return triageResultSchema.parse(JSON.parse(row.pending_triage_result));
+  }
+
+  /**
+   * Step 1 of 2 for claimant expense approval.
+   * Sets whether the Claimant paid out of pocket.
+   *
+   * - paidByClaimant=true  → keep claimant_id; SPA then calls manual-classify
+   *                           to build the Expense from stored Pass-2 artefacts.
+   * - paidByClaimant=false → clear claimant_id; document re-routes as normal
+   *                           supplier expense (Cr AP).
+   *
+   * This method does NOT create an Expense — that is the manual-classify step.
+   */
+  async confirmPayment(
+    documentId: number,
+    paidByClaimant: boolean,
+  ): Promise<void> {
+    const doc = await this.db
+      .selectFrom('document')
+      .select('id')
+      .where('id', '=', documentId)
+      .executeTakeFirst();
+    if (!doc) {
+      throw new NotFoundException(`Document ${documentId} not found`);
+    }
+
+    if (!paidByClaimant) {
+      await this.db
+        .updateTable('document')
+        .set({ claimant_id: null })
+        .where('id', '=', documentId)
+        .execute();
+    }
+    // paidByClaimant=true: claimant_id was already set at upload time; no change needed.
   }
 
   /**
@@ -396,6 +432,7 @@ export class DocumentsService {
     status: string;
     processing_since: number | null;
     created_at: number;
+    claimant_id?: number | null;
   }): Document {
     return {
       id: row.id,
@@ -407,6 +444,7 @@ export class DocumentsService {
       status: this.validateDocumentStatus(row.status),
       processing_since: row.processing_since,
       created_at: row.created_at,
+      claimant_id: row.claimant_id ?? null,
     };
   }
 

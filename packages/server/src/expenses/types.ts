@@ -20,6 +20,8 @@ export interface Expense {
   asset_name: string | null;
   asset_useful_life_years: number | null;
   asset_residual_value_minor: number | null;
+  claimant_id: number | null;
+  company_addressed_receipt: boolean | null;
   created_at: number;
   updated_at: number;
 }
@@ -44,6 +46,8 @@ export const createExpenseSchema = z.object({
     .nonnegative()
     .nullable()
     .optional(),
+  claimant_id: z.number().int().positive().nullable().optional(),
+  company_addressed_receipt: z.boolean().nullable().optional(),
 });
 
 export class CreateExpenseDto extends createZodDto(createExpenseSchema) {}

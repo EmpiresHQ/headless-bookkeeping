@@ -38,6 +38,9 @@ export interface Document {
   // completion. NULL = idle (not currently in the intake pipeline).
   processing_since: number | null;
   created_at: number;
+  // Set at upload time when the document was paid out-of-pocket by a claimant.
+  // Cleared by confirmPayment() if the approver decides it was not a personal expense.
+  claimant_id: number | null;
 }
 
 export interface DocumentSource {
@@ -64,6 +67,8 @@ export interface UploadDocumentInput {
   capturedAt?: number | null;
   // Raw JSON string of the on-device pre-check result. Optional.
   precheckJson?: string | null;
+  // FK to entity.id — set when the document was paid out-of-pocket by a claimant.
+  claimantId?: number | null;
 }
 
 export interface UploadDocumentResult {

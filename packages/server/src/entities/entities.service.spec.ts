@@ -493,6 +493,53 @@ describe('Entity aggregate (integration)', () => {
     });
   });
 
+  describe('claimant onboarding (employee/director)', () => {
+    it('creates an employee entity with email and tg_user_id identifiers', async () => {
+      const result = await entitiesService.onboard({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice Tamm',
+        email: 'alice@acme.ee',
+        tgUserId: '987654321',
+      });
+
+      expect(result.role).toBe('employee');
+      expect(result.identifiers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'email', value: 'alice@acme.ee' }),
+          expect.objectContaining({ kind: 'tg_user_id', value: '987654321' }),
+        ]),
+      );
+    });
+
+    it('creates an employee entity with email only (tg_user_id optional)', async () => {
+      const result = await entitiesService.onboard({
+        role: 'director',
+        country: 'EE',
+        name: 'Bob Kask',
+        email: 'bob@acme.ee',
+      });
+
+      expect(result.role).toBe('director');
+      expect(result.identifiers).toHaveLength(1);
+      expect(result.identifiers[0]).toMatchObject({ kind: 'email', value: 'bob@acme.ee' });
+    });
+
+    it('resolves employee by tg_user_id', async () => {
+      await entitiesService.onboard({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice Tamm',
+        email: 'alice@acme.ee',
+        tgUserId: '111222333',
+      });
+
+      const found = await entitiesService.resolveByIdentifier('tg_user_id', '111222333');
+      expect(found).toBeDefined();
+      expect(found!.role).toBe('employee');
+    });
+  });
+
   describe('onboard normalizes the registration key', () => {
     it('stores the registration key in canonical (normalized) form', async () => {
       const s = await entitiesService.onboard({
