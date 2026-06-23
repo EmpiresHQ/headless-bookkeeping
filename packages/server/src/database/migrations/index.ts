@@ -50,6 +50,7 @@ import * as m050 from './050_create_statutory_submission_event';
 import * as m051 from './051_add_api_token_kind_lifecycle';
 import * as m052 from './052_add_document_source_ios_metadata';
 import * as m053 from './053_add_document_processing_attempts';
+import * as m054 from './054_widen_entity_role_add_tg_user_id';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -103,4 +104,5 @@ export const migrations: Record<string, Migration> = {
   '051_add_api_token_kind_lifecycle': m051,
   '052_add_document_source_ios_metadata': m052,
   '053_add_document_processing_attempts': m053,
+  '054_widen_entity_role_add_tg_user_id': m054,
 };
