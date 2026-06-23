@@ -697,6 +697,7 @@ describe('IntakeWorkflowService', () => {
           status: 'pending',
           processing_since: null,
           created_at: 0,
+          claimant_id: null,
         });
       const getFileSpy = jest
         .spyOn(documentsService, 'getFile')
@@ -746,6 +747,7 @@ describe('IntakeWorkflowService', () => {
           status: 'pending',
           processing_since: null,
           created_at: 0,
+          claimant_id: null,
         });
 
       const res = await service.process(docId);
