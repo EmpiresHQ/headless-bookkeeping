@@ -75,4 +75,49 @@ describe('MailSyncWorker.syncOnce', () => {
     expect(row.status).toBe('auth_failed');
     expect(row.last_error).toContain('AUTHENTICATION');
   });
+
+  it('keeps prior last_uid when uidvalidity changes but messages is empty', async () => {
+    const c = await mk();
+    await connectors.advanceCursor(c.id, 100, 5);
+    imap.fetchSince.mockResolvedValue({ uidvalidity: 999, messages: [] });
+    await worker.syncOnce(c.id);
+    expect(harvested).toEqual([]);
+    const [row] = await connectors.list();
+    expect(row.uidvalidity).toBe(999);
+    expect(row.last_uid).toBe(5); // NOT 0 — avoids full-folder re-fetch on next sync
+  });
+
+  describe('onModuleInit key fail-fast', () => {
+    const VALID_KEY = '0'.repeat(64);
+
+    afterEach(() => {
+      process.env.MAILBOX_SECRET_KEY = VALID_KEY;
+    });
+
+    it('marks all connectors auth_failed and skips sync when key is missing', async () => {
+      const c = await mk();
+      delete process.env.MAILBOX_SECRET_KEY;
+      await worker.onModuleInit();
+      expect(imap.fetchSince).not.toHaveBeenCalled();
+      const [row] = await connectors.list();
+      expect(row.status).toBe('auth_failed');
+      expect(row.last_error).toContain('MAILBOX_SECRET_KEY missing or invalid');
+    });
+
+    it('marks all connectors auth_failed and skips sync when key is wrong length', async () => {
+      const c = await mk();
+      process.env.MAILBOX_SECRET_KEY = 'bad';
+      await worker.onModuleInit();
+      expect(imap.fetchSince).not.toHaveBeenCalled();
+      const [row] = await connectors.list();
+      expect(row.status).toBe('auth_failed');
+    });
+
+    it('does nothing when there are no connectors and key is missing (keyless boot)', async () => {
+      delete process.env.MAILBOX_SECRET_KEY;
+      // no connectors created — should complete silently
+      await expect(worker.onModuleInit()).resolves.toBeUndefined();
+      expect(imap.fetchSince).not.toHaveBeenCalled();
+    });
+  });
 });

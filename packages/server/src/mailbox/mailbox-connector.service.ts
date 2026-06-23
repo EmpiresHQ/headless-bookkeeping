@@ -64,6 +64,12 @@ const PUBLIC = [
   'updated_at',
 ] as const;
 
+/**
+ * Manages mailbox connector rows. Connector secrets (passwords / OAuth refresh tokens) are
+ * encrypted at rest with AES-256-GCM using MAILBOX_SECRET_KEY (32-byte hex, 64 chars).
+ * The key is required to read any stored credential. Rotating or losing MAILBOX_SECRET_KEY
+ * invalidates every stored secret — all connectors must be deleted and re-enrolled afterward.
+ */
 @Injectable()
 export class MailboxConnectorService {
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}

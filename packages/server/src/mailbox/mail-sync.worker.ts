@@ -21,7 +21,20 @@ export class MailSyncWorker implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     // Best-effort: catch-up + open IDLE per connector. Skipped cleanly under test
     // if no connectors exist. Live IDLE is the unit-untested edge.
-    for (const c of await this.connectors.list()) {
+    const connectors = await this.connectors.list();
+    if (connectors.length > 0) {
+      const keyValid = Buffer.from(process.env.MAILBOX_SECRET_KEY ?? '', 'hex').length === 32;
+      if (!keyValid) {
+        this.logger.error(
+          `MAILBOX_SECRET_KEY is missing or not a 32-byte hex string; ${connectors.length} mailbox connector(s) cannot sync until it is restored. Rotating this key invalidates all stored credentials — connectors must be re-enrolled.`,
+        );
+        for (const c of connectors) {
+          await this.connectors.markStatus(c.id, 'auth_failed', 'MAILBOX_SECRET_KEY missing or invalid');
+        }
+        return;
+      }
+    }
+    for (const c of connectors) {
       await this.syncOnce(c.id).catch((e) => this.logger.warn(`initial sync ${c.id}: ${e}`));
       await this.openIdle(c.id).catch((e) => this.logger.warn(`idle ${c.id}: ${e}`));
     }
@@ -46,7 +59,9 @@ export class MailSyncWorker implements OnModuleInit {
       if (conn.uidvalidity !== null && conn.uidvalidity !== uidvalidity) {
         // Mailbox renumbered — re-baseline forward, do NOT re-harvest history.
         // Use the max UID from the new fetch (ignoring the old cursor from the old namespace).
-        const maxUid = messages.reduce((m, x) => Math.max(m, x.uid), 0);
+        const maxUid = messages.length > 0
+          ? messages.reduce((m, x) => Math.max(m, x.uid), 0)
+          : conn.last_uid; // renumbered mailbox returned nothing: keep prior cursor, don't reset to 0 (avoids a full-folder re-fetch)
         await this.connectors.advanceCursor(connectorId, uidvalidity, maxUid);
         return;
       }
