@@ -464,8 +464,8 @@ describe('DocumentsService (unit)', () => {
       const older = await insertPending('a', 1000);
       await insertPending('b', 2000);
 
-      const id = await service.claimNextPending(STALE, MAX);
-      expect(id).toBe(older);
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toEqual({ id: older, claimant_id: null });
 
       const row = await db
         .selectFrom('document')
@@ -493,8 +493,8 @@ describe('DocumentsService (unit)', () => {
       const stuck = await insertPending('stuck', 1000, {
         processingSince: now - STALE - 1,
       });
-      const id = await service.claimNextPending(STALE, MAX);
-      expect(id).toBe(stuck);
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toEqual({ id: stuck, claimant_id: null });
     });
 
     it('excludes a document at the attempt cap', async () => {
@@ -508,7 +508,7 @@ describe('DocumentsService (unit)', () => {
 
       // First call: one slot remaining — should claim it and bump attempts to MAX.
       const claimed = await service.claimNextPending(STALE, MAX);
-      expect(claimed).toBe(id);
+      expect(claimed).toEqual({ id, claimant_id: null });
 
       const row = await db
         .selectFrom('document')

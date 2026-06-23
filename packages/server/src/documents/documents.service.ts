@@ -186,13 +186,13 @@ export class DocumentsService {
   async claimNextPending(
     staleSeconds: number,
     maxAttempts: number,
-  ): Promise<number | null> {
+  ): Promise<{ id: number; claimant_id: number | null } | null> {
     const now = Math.floor(Date.now() / 1000);
     const cutoff = now - staleSeconds;
 
     const candidate = await this.db
       .selectFrom('document')
-      .select('id')
+      .select(['id', 'claimant_id'])
       .where('status', '=', 'pending')
       .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
@@ -227,7 +227,8 @@ export class DocumentsService {
       .executeTakeFirst();
 
     if (!res) return null;
-    return Number(res.numUpdatedRows) === 1 ? candidate.id : null;
+    if (Number(res.numUpdatedRows) !== 1) return null;
+    return { id: candidate.id, claimant_id: candidate.claimant_id ?? null };
   }
 
   /**
