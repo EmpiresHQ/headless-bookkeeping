@@ -8,6 +8,7 @@ import { migrations } from '../database/migrations';
 import {
   IntakeWorkflowService,
   unimplementedKindReason,
+  notADocumentReason,
 } from './intake-workflow.service';
 import { OcrService } from '../triage/ocr.service';
 import { Pass2AgentService } from './pass2-agent.service';
@@ -429,6 +430,56 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain("'duplicate'");
         expect(result.reason).not.toContain('could not classify');
       }
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+    });
+
+    it('routes not_a_document kind to needs_triage WITHOUT building a voucher', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        // Junk classified by the relevance gate: even at high confidence it must
+        // NOT reach proposeDraft / the posting pipeline (where it would blow up in
+        // structural validation). It is filtered out before any voucher attempt.
+        result: sampleTriageResult({
+          kind: 'not_a_document',
+          confidence: 0.97,
+        }),
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toBe(notADocumentReason());
+        // Distinct from low-confidence / genuinely-unknown / unimplemented routes.
+        expect(result.reason).not.toContain('below threshold');
+        expect(result.reason).not.toContain('could not classify');
+        expect(result.reason).not.toContain('not yet implemented');
+        expect(result.failure).toBeUndefined();
+      }
+      // The whole point: junk never reaches voucher building.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+      expect(mockProposeDraft.proposeSalesInvoiceDraft).not.toHaveBeenCalled();
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('deterministic pre-filter: empty OCR text routes to not_a_document WITHOUT calling Pass 2', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: '   \n  ',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toBe(notADocumentReason());
+      }
+      // No content → no point spending an LLM call on it.
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
 

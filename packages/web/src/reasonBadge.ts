@@ -11,6 +11,7 @@ export type ReasonType =
   | 'category_unresolved'
   | 'ocr_failed'
   | 'unimplemented'
+  | 'not_a_document'
   | 'unknown';
 
 export function reasonBadge(
@@ -29,6 +30,8 @@ export function reasonBadge(
       return '✗ OCR failed';
     case 'unimplemented':
       return 'ℹ Not yet implemented';
+    case 'not_a_document':
+      return '🗑 Not a document';
     default:
       return '⚠ Needs review';
   }

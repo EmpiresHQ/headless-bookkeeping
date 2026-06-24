@@ -38,6 +38,14 @@ describe('IntakeView', () => {
       id: 6,
       status: 'processed',
     });
+    // DocumentThumb (rendered per row) loads the preview as a blob: URL and
+    // mints a signed file URL on click — stub both so jsdom never hits fetch.
+    vi.spyOn(api, 'fetchDocumentPreviewObjectUrl').mockResolvedValue(
+      'blob:preview',
+    );
+    vi.spyOn(api, 'getSignedDocumentUrl').mockResolvedValue({
+      url: '/api/documents/7/shared?exp=1&sig=ab',
+    });
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -309,8 +317,10 @@ describe('IntakeView', () => {
 
     render(<IntakeView />);
     await screen.findByText('low-confidence.pdf');
-    const img = screen.getByRole('img', { name: /preview/i });
-    expect(img).toHaveAttribute('src', '/api/documents/7/preview');
+    // The preview loads asynchronously into a blob: URL (Bearer-only endpoint),
+    // so the img appears after the fetch resolves.
+    const img = await screen.findByRole('img', { name: /preview/i });
+    expect(img).toHaveAttribute('src', 'blob:preview');
   });
 
   it('thumbnail shows fallback icon when preview fetch fails', async () => {
@@ -319,7 +329,7 @@ describe('IntakeView', () => {
 
     render(<IntakeView />);
     await screen.findByText('low-confidence.pdf');
-    const img = screen.getByRole('img', { name: /preview/i });
+    const img = await screen.findByRole('img', { name: /preview/i });
     fireEvent.error(img);
     await waitFor(() =>
       expect(screen.getByLabelText('no preview')).toBeInTheDocument(),
@@ -375,7 +385,7 @@ describe('IntakeView', () => {
 
     render(<IntakeView />);
     await screen.findByText('invoice.pdf');
-    const img = screen.getByRole('img', { name: /preview/i });
-    expect(img).toHaveAttribute('src', '/api/documents/5/preview');
+    const img = await screen.findByRole('img', { name: /preview/i });
+    expect(img).toHaveAttribute('src', 'blob:preview');
   });
 });

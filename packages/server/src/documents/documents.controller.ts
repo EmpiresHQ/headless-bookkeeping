@@ -4,6 +4,7 @@ import {
   Post,
   Delete,
   Param,
+  Query,
   Body,
   Res,
   StreamableFile,
@@ -12,6 +13,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,6 +26,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { DocumentsService } from './documents.service';
+import { DocumentUrlSignerService } from './document-url-signer.service';
+import { Public } from '../auth/api-token.guard';
 import {
   Document,
   DocumentArchiveRow,
@@ -34,7 +38,10 @@ import {
 @ApiTags('documents')
 @Controller('api/documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly urlSigner: DocumentUrlSignerService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -143,6 +150,60 @@ export class DocumentsController {
     res.set({
       'Content-Type': mimeType,
       'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
+  /**
+   * Mint a short-lived, signed URL for a document's file. Bearer-protected (the
+   * caller must already be an authenticated operator) — it hands back a
+   * token-free link the browser can open directly or the operator can copy and
+   * share. The link points at the @Public `/shared` route and self-expires.
+   */
+  @Get(':id/signed-url')
+  @ApiOperation({
+    summary: 'Mint a signed, shareable URL for a document file',
+    description:
+      'Returns a short-lived URL that streams the file without an API token (valid ~1h).',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async getSignedUrl(@Param('id') id: string): Promise<{ url: string }> {
+    // Touch the document so a missing id 404s here (Bearer side) rather than
+    // minting a link to nothing.
+    await this.documentsService.getById(Number(id));
+    return { url: await this.urlSigner.buildSharedUrl(Number(id)) };
+  }
+
+  /**
+   * Stream a document's file via a signed URL — NO API token required. The
+   * `exp`/`sig` query params (minted by {@link getSignedUrl}) authorize this one
+   * document for a bounded window; an absent, tampered, or expired signature is
+   * rejected. This is the only token-free path to document bytes.
+   */
+  @Public()
+  @Get(':id/shared')
+  @ApiOperation({
+    summary: "Download a document's file via a signed URL",
+    description:
+      'Streams the file when the exp/sig signature is valid and unexpired. No API token.',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async getSharedDocumentFile(
+    @Param('id') id: string,
+    @Query('exp') exp: string,
+    @Query('sig') sig: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const ok = await this.urlSigner.verify(Number(id), Number(exp), sig);
+    if (!ok) {
+      throw new UnauthorizedException('Invalid or expired document link');
+    }
+    const { buffer, filename, mimeType } = await this.documentsService.getFile(
+      Number(id),
+    );
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `inline; filename="${filename}"`,
     });
     return new StreamableFile(buffer);
   }
