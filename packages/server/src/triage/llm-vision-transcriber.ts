@@ -8,7 +8,7 @@ export interface OcrImage {
   mimeType: string;
 }
 
-const REQUEST_TIMEOUT_MS = 120_000;
+const REQUEST_TIMEOUT_MS = 600_000;
 
 interface ChatCompletionResponse {
   choices?: { message?: { content?: string } }[];
