@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { LoggerModule } from 'nestjs-pino';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { SqliteConstraintFilter } from './common/filters/sqlite-constraint.filter';
@@ -43,6 +44,28 @@ import { MailboxModule } from './mailbox/mailbox.module';
 
 @Module({
   imports: [
+    // Pino logger — must be first so every other module's lifecycle logs
+    // (including DatabaseModule migrations) route through pino. In dev,
+    // pino-pretty gives colourised, human-readable output; in production
+    // raw JSON goes to stdout for log aggregation. pino-http auto-logs
+    // every request/response (method, url, status, responseTime).
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env.NODE_ENV !== 'production' ? 'debug' : 'info',
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: {
+                  colorize: true,
+                  translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
+                  ignore: 'pid,hostname',
+                },
+              }
+            : undefined,
+        autoLogging: true,
+      },
+    }),
     ServeStaticModule.forRoot({
       // Built SPA from the @headless-bookkeeping/web package, resolved via node
       // module resolution (cwd-independent; the server depends on web).

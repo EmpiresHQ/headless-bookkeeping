@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import {
@@ -46,6 +46,8 @@ async function parseMessage(source: Buffer): Promise<{
 
 @Injectable()
 export class ImapflowImapClient extends ImapClient {
+  private readonly logger = new Logger(ImapflowImapClient.name);
+
   async fetchSince(
     conn: ImapConnectionConfig,
     folder: string,
@@ -94,7 +96,7 @@ export class ImapflowImapClient extends ImapClient {
     c.on('exists', () => onNew());
     // imapflow auto-renews IDLE; kick once to enter IDLE state
     void c.idle().catch((err) => {
-      console.error(`[mailbox] IDLE failed for ${folder}:`, err);
+      this.logger.error(`[mailbox] IDLE failed for ${folder}:`, err);
     });
     return {
       close: async () => {
