@@ -41,6 +41,7 @@ services:
       - ACME_EMAIL=${ACME_EMAIL}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       - SITE_DOMAIN=${SITE_DOMAIN}
+      - LOGS_DOMAIN=${LOGS_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -50,6 +51,14 @@ services:
       - tailscale
     network_mode: service:tailscale
     restart: unless-stopped
+
+  dozzle:
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - internal
 
   app:
     # Prebuilt image from the registry (CI builds & pushes on push to main). The
