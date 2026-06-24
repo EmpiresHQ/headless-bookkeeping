@@ -151,6 +151,11 @@ export interface ExpenseTable {
   // true → normal VAT reclaim; false | null → NULL_VAT_CODE (conservative).
   // Stored as INTEGER (0/1/null) per SQLite boolean convention.
   company_addressed_receipt: number | null;
+  // LLM classification facts preserved from triage (migration 060, ADR-0039).
+  // Stored so Details can render them without re-invoking the model.
+  ai_confidence: number | null;
+  ai_document_type: string | null;
+  ai_kind: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -208,6 +213,9 @@ export interface DocumentTable {
   // Claimant (role: employee | director). The IntakeQueueWorker reads this
   // and passes it to IntakeWorkflowService so channel context is not lost.
   claimant_id: number | null;
+  // Relative path to the rendered thumbnail (migration 060).
+  // NULL = not yet rendered; triggers lazy fallback in the triage UI.
+  preview_path: string | null;
   created_at: number;
 }
 

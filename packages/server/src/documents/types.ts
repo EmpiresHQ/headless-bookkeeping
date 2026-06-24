@@ -43,6 +43,9 @@ export interface Document {
   // Set at upload time when the document was paid out-of-pocket by a claimant.
   // Cleared by confirmPayment() if the approver decides it was not a personal expense.
   claimant_id: number | null;
+  // Relative path to the rendered thumbnail (migration 060).
+  // NULL = not yet rendered; triggers lazy fallback in the triage UI.
+  preview_path: string | null;
 }
 
 export interface DocumentSource {
