@@ -19,6 +19,9 @@ function buildClient(conn: ImapConnectionConfig): ImapFlow {
     secure: true,
     auth,
     logger: false,
+    connectionTimeout: 15000,  // 15s to establish TCP+TLS
+    greetingTimeout: 10000,    // 10s for server greeting after connect
+    socketTimeout: 30000,      // 30s idle before declaring connection dead
   });
 }
 
@@ -44,6 +47,20 @@ async function parseMessage(source: Buffer): Promise<{
   };
 }
 
+const OPERATION_TIMEOUT_MS = 60_000; // 60s hard cap for any IMAP operation
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`IMAP operation timed out after ${ms}ms`)),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 @Injectable()
 export class ImapflowImapClient extends ImapClient {
   private readonly logger = new Logger(ImapflowImapClient.name);
@@ -54,7 +71,7 @@ export class ImapflowImapClient extends ImapClient {
     sinceUid: number,
   ): Promise<{ uidvalidity: number; messages: FetchedMessage[] }> {
     const c = buildClient(conn);
-    await c.connect();
+    await withTimeout(c.connect(), OPERATION_TIMEOUT_MS);
     try {
       const lock = await c.getMailboxLock(folder, { readOnly: true });
       try {
@@ -85,14 +102,36 @@ export class ImapflowImapClient extends ImapClient {
     }
   }
 
+  async getLatestUid(
+    conn: ImapConnectionConfig,
+    folder: string,
+  ): Promise<{ uidvalidity: number; latestUid: number }> {
+    const c = buildClient(conn);
+    await withTimeout(c.connect(), OPERATION_TIMEOUT_MS);
+    try {
+      const lock = await c.getMailboxLock(folder, { readOnly: true });
+      try {
+        const mb = c.mailbox as { uidValidity: bigint; uidNext: number };
+        return {
+          uidvalidity: Number(mb.uidValidity),
+          latestUid: Math.max(0, mb.uidNext - 1),
+        };
+      } finally {
+        lock.release();
+      }
+    } finally {
+      await c.logout();
+    }
+  }
+
   async idle(
     conn: ImapConnectionConfig,
     folder: string,
     onNew: () => void,
   ): Promise<IdleHandle> {
     const c = buildClient(conn);
-    await c.connect();
-    await c.mailboxOpen(folder, { readOnly: true });
+    await withTimeout(c.connect(), OPERATION_TIMEOUT_MS);
+    await withTimeout(c.mailboxOpen(folder, { readOnly: true }), OPERATION_TIMEOUT_MS);
     c.on('exists', () => onNew());
     // imapflow auto-renews IDLE; kick once to enter IDLE state
     void c.idle().catch((err) => {

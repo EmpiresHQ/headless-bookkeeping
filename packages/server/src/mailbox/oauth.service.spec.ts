@@ -24,9 +24,10 @@ describe('OAuthService', () => {
   it('builds a Gmail read-only consent URL with openid+email scopes and the callback redirect', async () => {
     const url = await new OAuthService(settings).authUrl('gmail', 'state123');
     expect(url).toContain('accounts.google.com');
-    // openid+email (to read the mailbox address back) alongside read-only Gmail
+    // openid+email alongside the IMAP scope (https://mail.google.com/ is required
+    // for XOAUTH2; gmail.readonly only covers the REST API and is rejected by IMAP)
     expect(url).toContain('scope=openid+email');
-    expect(url).toContain('gmail.readonly');
+    expect(url).toContain('mail.google.com');
     expect(url).toContain(
       'redirect_uri=https%3A%2F%2Fapp.example%2Fapi%2Fmailbox%2Foauth%2Fcallback',
     );

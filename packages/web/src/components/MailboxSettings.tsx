@@ -4,6 +4,7 @@ import {
   createMailboxConnector,
   deleteMailboxConnector,
   startMailboxOAuth,
+  syncMailboxConnector,
   getSettings,
   setSetting,
   type MailboxConnector,
@@ -46,6 +47,7 @@ export function MailboxSettings() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState<number | null>(null);
 
   // IMAP + app-password form
   const [channel, setChannel] = useState<MailboxChannel>('email_sync');
@@ -58,6 +60,7 @@ export function MailboxSettings() {
 
   // BYO OAuth app credentials (your own Google/Microsoft client id + secret).
   const [oauthCfg, setOauthCfg] = useState<Record<string, string>>({});
+  const [initialFetchCount, setInitialFetchCount] = useState('200');
 
   const load = () =>
     getMailboxConnectors()
@@ -72,6 +75,8 @@ export function MailboxSettings() {
           map[k.key] = list.find((s) => s.key === k.key)?.value ?? '';
         }
         setOauthCfg(map);
+        const fetchCount = list.find((s) => s.key === 'mailbox_initial_fetch_count')?.value;
+        if (fetchCount !== undefined) setInitialFetchCount(fetchCount);
       })
       .catch(() => undefined);
 
@@ -141,6 +146,17 @@ export function MailboxSettings() {
     }
   };
 
+  const saveSyncSettings = async () => {
+    setError(null);
+    setNote(null);
+    try {
+      await setSetting('mailbox_initial_fetch_count', String(Math.max(0, Number(initialFetchCount) || 0)));
+      setNote('Sync settings saved.');
+    } catch (e) {
+      fail(e);
+    }
+  };
+
   const connectOAuth = async (oauthProvider: 'gmail' | 'outlook') => {
     setError(null);
     try {
@@ -165,6 +181,22 @@ export function MailboxSettings() {
       await load();
     } catch (e) {
       fail(e);
+    }
+  };
+
+  const sync = async (id: number) => {
+    setError(null);
+    setSyncing(id);
+    try {
+      const updated = await syncMailboxConnector(id);
+      setConnectors((prev) =>
+        prev ? prev.map((c) => (c.id === id ? updated : c)) : [updated],
+      );
+    } catch (e) {
+      fail(e);
+      await load();
+    } finally {
+      setSyncing(null);
     }
   };
 
@@ -202,18 +234,59 @@ export function MailboxSettings() {
                   {c.last_error ? ` · ${c.last_error}` : ''}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void remove(c.id)}
-                aria-label={`Remove ${c.username}`}
-                className="shrink-0 text-sm text-gray-600 hover:underline"
-              >
-                Remove
-              </button>
+              <div className="flex shrink-0 gap-3">
+                <button
+                  type="button"
+                  onClick={() => void sync(c.id)}
+                  disabled={syncing === c.id}
+                  aria-label={`Sync ${c.username}`}
+                  className="text-sm text-gray-600 hover:underline disabled:opacity-50"
+                >
+                  {syncing === c.id ? 'Syncing…' : 'Sync'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void remove(c.id)}
+                  aria-label={`Remove ${c.username}`}
+                  className="text-sm text-gray-600 hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      <details className="rounded border px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium">
+          Sync settings
+        </summary>
+        <div className="mt-3 flex flex-col gap-1 text-sm">
+          <label className="flex flex-col gap-1">
+            <span className="text-gray-700">Initial fetch count</span>
+            <span className="text-xs text-gray-500">
+              How many recent messages to harvest when a mailbox is first connected.
+              0 = start from now, skip all history.
+            </span>
+            <input
+              aria-label="Initial fetch count"
+              type="number"
+              min="0"
+              value={initialFetchCount}
+              onChange={(e) => setInitialFetchCount(e.target.value)}
+              className="w-32 rounded border px-2 py-1 font-mono"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveSyncSettings()}
+          className="mt-3 rounded bg-black px-3 py-1 text-sm text-white"
+        >
+          Save
+        </button>
+      </details>
 
       <details className="rounded border px-3 py-2">
         <summary className="cursor-pointer text-sm font-medium">

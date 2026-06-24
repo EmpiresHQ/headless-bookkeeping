@@ -8,24 +8,29 @@ import {
 } from './imap-client.port';
 import { HarvestService } from './harvest.service';
 import { OAuthService } from './oauth.service';
+import { SettingsService } from '../admin/settings.service';
 
 // Bounded connect retries for a transient IMAP failure. 5 attempts with
 // exponential backoff (1s, 2s, 4s, 8s between them); after the last the
 // connector is marked `error`.
 const MAX_CONNECT_ATTEMPTS = 5;
 const BASE_BACKOFF_MS = 1000;
+// How many recent messages to harvest on first connect (when last_uid=0).
+// The operator can override this via the mailbox_initial_fetch_count setting.
+const DEFAULT_INITIAL_FETCH_COUNT = 0;
 
 @Injectable()
 export class MailSyncWorker implements OnModuleInit {
   private readonly logger = new Logger(MailSyncWorker.name);
   private readonly idleHandles = new Map<number, IdleHandle>();
-  private readonly inFlight = new Set<number>();
+  private readonly inFlight = new Map<number, Promise<void>>();
 
   constructor(
     private readonly connectors: MailboxConnectorService,
     private readonly imap: ImapClient,
     @Inject('HARVEST') private readonly harvest: HarvestService,
     @Inject('OAUTH') private readonly oauth: OAuthService,
+    private readonly settings: SettingsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -53,6 +58,9 @@ export class MailSyncWorker implements OnModuleInit {
     // would block onModuleInit and stall NestJS startup (the HTTP listener never
     // binds). Kick each connector off in the background — the @Cron sweep is the
     // backstop and openIdle reconnects on its own.
+    this.logger.log(
+      `startup: kicking off initial sync for ${connectors.length} connector(s)`,
+    );
     for (const c of connectors) {
       void this.syncOnce(c.id)
         .then(() => this.openIdle(c.id))
@@ -62,7 +70,9 @@ export class MailSyncWorker implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_30_MINUTES)
   async sweep(): Promise<void> {
-    for (const c of await this.connectors.list()) {
+    const connectors = await this.connectors.list();
+    this.logger.log(`sweep: checking ${connectors.length} connector(s)`);
+    for (const c of connectors) {
       await this.syncOnce(c.id).catch((e) =>
         this.logger.warn(`sweep ${c.id}: ${e}`),
       );
@@ -70,13 +80,27 @@ export class MailSyncWorker implements OnModuleInit {
   }
 
   async syncOnce(connectorId: number): Promise<void> {
-    if (this.inFlight.has(connectorId)) return; // single-flight guard per connector
-    this.inFlight.add(connectorId);
+    const running = this.inFlight.get(connectorId);
+    if (running) return running; // coalesce: wait for the in-flight sync to finish
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => { resolve = r; });
+    this.inFlight.set(connectorId, promise);
     try {
       const [conn] = (await this.connectors.list()).filter(
         (c) => c.id === connectorId,
       );
       if (!conn) return;
+      this.logger.log(
+        `sync start connector=${connectorId} (${conn.username}) last_uid=${conn.last_uid}`,
+      );
+
+      // First-time sync: baseline cursor + harvest last N messages only.
+      // Avoids downloading the entire mailbox history (could be 100k+ messages).
+      if (conn.last_uid === 0) {
+        await this.initialSync(connectorId, conn);
+        return;
+      }
+
       // Connect + fetch with bounded retries & backoff. Transient failures
       // (network, timeout, server busy) are retried; auth failures fail fast.
       const { uidvalidity, messages } = await this.withConnectRetry(
@@ -94,6 +118,9 @@ export class MailSyncWorker implements OnModuleInit {
           messages.length > 0
             ? messages.reduce((m, x) => Math.max(m, x.uid), 0)
             : conn.last_uid; // renumbered mailbox returned nothing: keep prior cursor, don't reset to 0 (avoids a full-folder re-fetch)
+        this.logger.warn(
+          `connector=${connectorId} uidvalidity changed — re-baselined to uid=${maxUid}`,
+        );
         await this.connectors.advanceCursor(connectorId, uidvalidity, maxUid);
         return;
       }
@@ -103,21 +130,84 @@ export class MailSyncWorker implements OnModuleInit {
         await this.harvest.harvestMessage(conn.channel, msg);
         lastUid = Math.max(lastUid, msg.uid);
       }
+      this.logger.log(
+        `sync done connector=${connectorId} harvested=${messages.length} last_uid=${lastUid}`,
+      );
       await this.connectors.advanceCursor(connectorId, uidvalidity, lastUid);
     } catch (err) {
       // All retries exhausted (or an auth failure failed fast): drop the
       // connector into an error state with the reason so the operator sees it.
+      const status = this.isAuthError(err) ? 'auth_failed' : 'error';
+      const detail = this.describeError(err);
+      this.logger.error(
+        `sync failed connector=${connectorId} status=${status} error=${detail}`,
+      );
       const msg = err instanceof Error ? err.message : String(err);
-      const status = this.isAuthError(msg) ? 'auth_failed' : 'error';
       await this.connectors.markStatus(connectorId, status, msg);
     } finally {
       this.inFlight.delete(connectorId);
+      resolve();
     }
   }
 
-  private isAuthError(msg: string): boolean {
-    // OAuth refresh failures ("OAuth refresh failed") match /auth/ too.
+  private async initialSync(
+    connectorId: number,
+    conn: Awaited<ReturnType<MailboxConnectorService['list']>>[number],
+  ): Promise<void> {
+    const { uidvalidity, latestUid } = await this.withConnectRetry(
+      connectorId,
+      async () => {
+        const cfg = await this.connection(connectorId);
+        return this.imap.getLatestUid(cfg, conn.folder);
+      },
+    );
+
+    const raw = await this.settings.get('mailbox_initial_fetch_count').catch(() => null);
+    const count = Math.max(0, Number(raw ?? DEFAULT_INITIAL_FETCH_COUNT));
+    const sinceUid = count > 0 ? Math.max(0, latestUid - count) : latestUid;
+
+    let harvested = 0;
+    if (sinceUid < latestUid && count > 0) {
+      const { messages } = await this.withConnectRetry(connectorId, async () => {
+        const cfg = await this.connection(connectorId);
+        return this.imap.fetchSince(cfg, conn.folder, sinceUid);
+      });
+      for (const msg of messages.sort((a, b) => a.uid - b.uid)) {
+        await this.harvest.harvestMessage(conn.channel, msg);
+      }
+      harvested = messages.length;
+    }
+
+    this.logger.log(
+      `baseline connector=${connectorId} latestUid=${latestUid} harvested=${harvested} initial_fetch_count=${count}`,
+    );
+    await this.connectors.advanceCursor(connectorId, uidvalidity, latestUid);
+  }
+
+  private isAuthError(err: unknown): boolean {
+    // imapflow sets authenticationFailed=true on XOAUTH2/LOGIN rejections.
+    if (
+      err &&
+      typeof err === 'object' &&
+      (err as Record<string, unknown>).authenticationFailed
+    )
+      return true;
+    const msg = err instanceof Error ? err.message : String(err);
+    // OAuth refresh failures ("OAuth refresh failed") also match /auth/.
     return /auth|token|credential|login|password/i.test(msg);
+  }
+
+  private describeError(err: unknown): string {
+    if (!err || typeof err !== 'object') return String(err);
+    const e = err as Record<string, unknown>;
+    const parts: string[] = [err instanceof Error ? err.message : String(err)];
+    if (e.serverResponseCode) parts.push(`code=${e.serverResponseCode}`);
+    if (e.response) parts.push(`response=${e.response}`);
+    if (e.oauthError)
+      parts.push(
+        `oauthError=${typeof e.oauthError === 'object' ? JSON.stringify(e.oauthError) : e.oauthError}`,
+      );
+    return parts.join(' | ');
   }
 
   private delay(ms: number): Promise<void> {
@@ -141,12 +231,12 @@ export class MailSyncWorker implements OnModuleInit {
         return await fn();
       } catch (e) {
         lastErr = e;
-        const msg = e instanceof Error ? e.message : String(e);
-        if (this.isAuthError(msg)) throw e; // fail fast — do not retry auth errors
+        if (this.isAuthError(e)) throw e; // fail fast — do not retry auth errors
         if (attempt < MAX_CONNECT_ATTEMPTS) {
           const backoff = BASE_BACKOFF_MS * 2 ** (attempt - 1);
+          const desc = e instanceof Error ? e.message : String(e);
           this.logger.warn(
-            `mailbox ${connectorId} connect attempt ${attempt}/${MAX_CONNECT_ATTEMPTS} failed (${msg}); retrying in ${backoff}ms`,
+            `mailbox ${connectorId} connect attempt ${attempt}/${MAX_CONNECT_ATTEMPTS} failed (${desc}); retrying in ${backoff}ms`,
           );
           await this.delay(backoff);
         }
@@ -176,6 +266,11 @@ export class MailSyncWorker implements OnModuleInit {
       username: conn.username,
       password: secret,
     };
+  }
+
+  async connectAndSync(connectorId: number): Promise<void> {
+    await this.syncOnce(connectorId);
+    await this.openIdle(connectorId);
   }
 
   private async openIdle(connectorId: number): Promise<void> {

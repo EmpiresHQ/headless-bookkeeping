@@ -19,6 +19,7 @@ describe('MailboxController.callback auth', () => {
 describe('MailboxController.callback (OAuth redirect)', () => {
   let connectors: { create: jest.Mock };
   let oauth: { exchangeCode: jest.Mock };
+  let worker: { connectAndSync: jest.Mock };
   let controller: MailboxController;
   let res: { redirect: jest.Mock };
 
@@ -29,7 +30,12 @@ describe('MailboxController.callback (OAuth redirect)', () => {
         .fn()
         .mockResolvedValue({ refreshToken: 'rt', email: 'me@gmail.com' }),
     };
-    controller = new MailboxController(connectors as never, oauth as never);
+    worker = { connectAndSync: jest.fn().mockResolvedValue(undefined) };
+    controller = new MailboxController(
+      connectors as never,
+      oauth as never,
+      worker as never,
+    );
     res = { redirect: jest.fn() };
   });
 
