@@ -32,7 +32,8 @@ export interface ComputeSplitParams {
 export interface MonthSegment {
   month: string; // 'YYYY-MM'
   days: number;
-  taxFreeDays: number;
+  /** Days at the high rate (75€/day, ≤15/month). NOT all tax-free days — use days - fallbackDays for that. */
+  highRateDays: number;
   /** Days beyond the 15/month high-rate quota, paid at 40€/day — still 100% tax-free (TuMS) */
   fallbackDays: number;
   taxFreeAmount: number; // cents
@@ -124,6 +125,10 @@ export class AllowanceLimitService {
       );
       const nextMonthStart = nextMonthDate.toISOString().slice(0, 10);
 
+      // Accumulation is anchored on period_start. A multi-month allowance (period_start
+      // in June, period_end in July) would have all its days counted against the June
+      // quota. To avoid overcounting, multi-month trips must be stored as per-month split
+      // rows (one Allowance per calendar-month segment), not as a single spanning row.
       const accRow = await this.db
         .selectFrom('allowance')
         .select(({ fn }) => [fn.sum<number>('days').as('total')])
@@ -155,7 +160,7 @@ export class AllowanceLimitService {
       breakdown.push({
         month: monthKey,
         days: segDays,
-        taxFreeDays: highDays,
+        highRateDays: highDays,
         fallbackDays: lowDays,
         taxFreeAmount: segTaxFree,
         taxableAmount: segTaxable,
