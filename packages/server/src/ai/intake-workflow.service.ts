@@ -192,6 +192,9 @@ export class IntakeWorkflowService {
    * OCR text with classification: null. A missing OCR artifact returns the OCR
    * failure shape with classification: null.
    */
+  // Not gated: details() is read-only and does not run the OCR/LLM pipeline,
+  // so it does not need ProcessingGate serialization (unlike process() which
+  // does gate its inner pipeline to prevent concurrent runs).
   async details(documentId: number): Promise<DocumentDebug> {
     const ocr = await this.ocrService.transcribe(documentId);
     if (!ocr.ok) {

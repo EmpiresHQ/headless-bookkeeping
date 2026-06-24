@@ -7,21 +7,9 @@ import {
   type DocumentDetails,
 } from '../api';
 import { reasonBadge } from '../reasonBadge';
+import { relativeTime } from '../relativeTime';
 import { Table, type Column } from './Table';
 import { DocumentThumb } from './DocumentThumb';
-
-// ── Relative-time helper ────────────────────────────────────────────────────
-
-/** Format a Unix-seconds timestamp as a relative string ("2h ago", "3d ago"). */
-function relativeTime(unixSecs: number): string {
-  const diff = Math.floor(Date.now() / 1000) - unixSecs;
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d ago`;
-  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))}mo ago`;
-  return `${Math.floor(diff / (86400 * 365))}y ago`;
-}
 
 // ── Channel labels ──────────────────────────────────────────────────────────
 
@@ -207,7 +195,7 @@ export function DocumentsView() {
       cell: (d) => (
         <div className="space-y-0.5">
           <span>{d.status}</span>
-          {d.status === 'needs_triage' && d.reason_type && (
+          {d.reason_type && (
             <span className="block text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
               {reasonBadge(d.reason_type)}
             </span>

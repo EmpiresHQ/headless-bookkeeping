@@ -170,6 +170,23 @@ describe('DocumentsService (unit)', () => {
       expect(renderMock).toHaveBeenCalledTimes(1);
     });
 
+    it('upload succeeds and preview_path is null when renderer rejects', async () => {
+      renderMock.mockRejectedValueOnce(new Error('boom'));
+
+      const result = await service.upload({
+        buffer: Buffer.from('renderer-throw bytes'),
+        filename: 'throw.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      expect(result.deduplicated).toBe(false);
+      expect(result.document.preview_path).toBeNull();
+      // Upload must succeed despite the renderer rejection.
+      await expect(service.getById(result.document.id)).resolves.toBeTruthy();
+    });
+
     it('does NOT call renderer on dedup hit (existing preview preserved)', async () => {
       const buffer = Buffer.from('dedup preview bytes');
 
@@ -384,6 +401,39 @@ describe('DocumentsService (unit)', () => {
           currency: 'EUR',
           tax_point_date: '2026-05-01',
           status: 'draft',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(
+        service.deleteDocument(document.id),
+      ).resolves.toBeUndefined();
+      // Row gone.
+      await expect(service.getById(document.id)).rejects.toThrow(
+        NotFoundException,
+      );
+      // File gone.
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
+    });
+
+    it('allows deletion when the linked expense is pending (row and file removed)', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'pending',
           voucher_id: null,
           document_vat_marking: null,
           created_at: now,
@@ -1170,6 +1220,50 @@ describe('DocumentsService (unit)', () => {
       expect(docRows).toHaveLength(1);
       // Channel should be from the LATEST source (email, received_at is higher)
       expect(docRows[0].channel).toBe('email');
+    });
+
+    it('yields exactly one row when a second document_source is inserted directly (non-dedup path)', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const docRow = await db
+        .insertInto('document')
+        .values({
+          hash: 'hash-direct-multi',
+          filename: 'direct-multi.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'pending',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'email',
+          source_identifier: 'msg-1',
+          received_at: now - 100,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'telegram',
+          source_identifier: 'tg-1',
+          received_at: now,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+
+      const rows = await service.listArchiveRows();
+      const docRows = rows.filter((r) => r.id === docRow.id);
+      expect(docRows).toHaveLength(1);
+      expect(docRows[0].channel).toBe('telegram'); // latest channel (highest received_at)
     });
 
     it('does not throw and returns channel=email_sync for a mailbox-harvested document', async () => {

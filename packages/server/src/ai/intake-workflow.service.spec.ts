@@ -940,8 +940,11 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain('transient');
         expect(result.finding.finding_type).toBe('needs_triage');
       }
+      // OCR transcribe WAS called (Pass 1 ran and returned the failure).
+      expect(mockOcrService.transcribe).toHaveBeenCalledWith(docId);
       // Pass 2 must NOT run when Pass 1 failed — the failure short-circuits.
       expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+      // No draft proposed on OCR failure.
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
 
       // The Document still moves to needs_triage (durable wait, ADR-0024).

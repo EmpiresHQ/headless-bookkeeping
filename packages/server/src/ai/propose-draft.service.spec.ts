@@ -1044,4 +1044,55 @@ describe('ProposeDraftService (integration)', () => {
       expect(out.outcome).toBe('duplicate-number');
     });
   });
+
+  describe('manualClassifyDraft', () => {
+    it('leaves ai_confidence, ai_document_type, ai_kind NULL (no LLM classification)', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Manual Supplier OÜ',
+        registrationKey: 'EE123456789',
+      });
+
+      const docId = await db
+        .insertInto('document')
+        .values({
+          hash: 'manual-classify-test-hash',
+          filename: 'manual-classify.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          status: 'needs_triage',
+          claimant_id: null,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+
+      const result = await service.manualClassifyDraft(docId, {
+        supplier_id: supplier.id,
+        category: 'transport',
+        document_vat_marking: null,
+        gross_amount: 2000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+      });
+
+      expect(result.outcome).toBe('draft');
+
+      const row = await db
+        .selectFrom('expense')
+        .select(['ai_confidence', 'ai_document_type', 'ai_kind'])
+        .where('id', '=', result.expenseId)
+        .executeTakeFirstOrThrow();
+
+      // manualClassifyDraft builds a synthetic provenance (no LLM),
+      // so these fields must remain NULL on the created Expense.
+      expect(row.ai_confidence).toBeNull();
+      expect(row.ai_document_type).toBeNull();
+      expect(row.ai_kind).toBeNull();
+    });
+  });
 });
