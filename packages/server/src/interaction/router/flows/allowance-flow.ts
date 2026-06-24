@@ -114,12 +114,11 @@ export class AllowanceFlow {
     if (type === 'phone' || type === 'internet' || type === 'health') {
       const missing: string[] = [];
       if (!fields['input_amount']) missing.push('input_amount');
-      if (!fields['period_start']) missing.push('period_start');
 
       if (missing.length > 0) {
         return {
           handled: true,
-          reply: `To create a ${type} allowance I need: input_amount, period_start. Please provide the missing fields: ${missing.join(', ')}.`,
+          reply: `To create a ${type} allowance I need: input_amount. Please provide the missing fields: ${missing.join(', ')}.`,
         };
       }
 

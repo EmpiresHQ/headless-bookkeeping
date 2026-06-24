@@ -11,7 +11,7 @@ export type RoutedIntent =
   | {
       kind: 'action';
       actionIntent: ActionIntent;
-      fields: Record<string, string>;
+      fields?: Record<string, string>;
     }
   | { kind: 'report'; reportKind: string }
   | { kind: 'reconciliation' }
