@@ -4,6 +4,7 @@ import {
   createMailboxConnector,
   deleteMailboxConnector,
   startMailboxOAuth,
+  syncMailboxConnector,
   getSettings,
   setSetting,
   type MailboxConnector,
@@ -46,6 +47,7 @@ export function MailboxSettings() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState<number | null>(null);
 
   // IMAP + app-password form
   const [channel, setChannel] = useState<MailboxChannel>('email_sync');
@@ -168,6 +170,28 @@ export function MailboxSettings() {
     }
   };
 
+  const sync = async (id: number) => {
+    setError(null);
+    setSyncing(id);
+    try {
+      await syncMailboxConnector(id);
+      // Poll until last_synced_at changes (max ~10s)
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const updated = await getMailboxConnectors();
+        setConnectors(updated);
+        const c = updated.find((x) => x.id === id);
+        if (c && c.last_synced_at !== null) break;
+        if (c && c.status === 'error') break;
+        if (c && c.status === 'auth_failed') break;
+      }
+    } catch (e) {
+      fail(e);
+    } finally {
+      setSyncing(null);
+    }
+  };
+
   return (
     <section className="space-y-4">
       <h2 className="font-semibold">Mail intake</h2>
@@ -202,14 +226,25 @@ export function MailboxSettings() {
                   {c.last_error ? ` · ${c.last_error}` : ''}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void remove(c.id)}
-                aria-label={`Remove ${c.username}`}
-                className="shrink-0 text-sm text-gray-600 hover:underline"
-              >
-                Remove
-              </button>
+              <div className="flex shrink-0 gap-3">
+                <button
+                  type="button"
+                  onClick={() => void sync(c.id)}
+                  disabled={syncing === c.id}
+                  aria-label={`Sync ${c.username}`}
+                  className="text-sm text-gray-600 hover:underline disabled:opacity-50"
+                >
+                  {syncing === c.id ? 'Syncing…' : 'Sync'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void remove(c.id)}
+                  aria-label={`Remove ${c.username}`}
+                  className="text-sm text-gray-600 hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
             </li>
           ))}
         </ul>

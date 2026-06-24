@@ -866,3 +866,8 @@ export const startMailboxOAuth = (params: {
   apiFetch<{ url: string }>(
     `/api/mailbox/oauth/start?${new URLSearchParams(params).toString()}`,
   );
+
+export const syncMailboxConnector = (id: number) =>
+  apiFetchRaw(`/api/mailbox/connectors/${id}/sync`, { method: 'POST' }).then(
+    () => undefined,
+  );

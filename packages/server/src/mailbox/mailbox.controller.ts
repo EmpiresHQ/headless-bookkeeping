@@ -81,6 +81,14 @@ export class MailboxController {
     await this.connectors.remove(Number(id));
   }
 
+  @Post('connectors/:id/sync')
+  @ApiOperation({ summary: 'Trigger an immediate sync for a connector' })
+  async sync(@Param('id') id: string): Promise<void> {
+    void this.worker
+      .connectAndSync(Number(id))
+      .catch((e) => this.logger.warn(`manual sync ${id}: ${e}`));
+  }
+
   @Get('oauth/start')
   @ApiOperation({ summary: 'Begin BYO-OAuth consent for a mailbox connector' })
   async start(
