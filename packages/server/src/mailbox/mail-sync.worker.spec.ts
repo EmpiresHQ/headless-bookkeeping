@@ -81,6 +81,15 @@ describe('MailSyncWorker.syncOnce', () => {
     expect(row.status).toBe('connected');
   });
 
+  it('does not block startup on a hanging mailbox (onModuleInit fire-and-forgets IMAP)', async () => {
+    await mk();
+    // fetchSince never resolves — a slow/unreachable IMAP server at boot time.
+    imap.fetchSince.mockReturnValue(new Promise<never>(() => {}));
+    // onModuleInit must resolve promptly instead of awaiting the hung sync,
+    // otherwise NestJS bootstrap stalls and the HTTP listener never binds.
+    await expect(worker.onModuleInit()).resolves.toBeUndefined();
+  });
+
   it('re-baselines (no harvest) when uidvalidity changes', async () => {
     const c = await mk();
     await connectors.advanceCursor(c.id, 100, 5);
@@ -104,6 +113,35 @@ describe('MailSyncWorker.syncOnce', () => {
     const [row] = await connectors.list();
     expect(row.status).toBe('auth_failed');
     expect(row.last_error).toContain('AUTHENTICATION');
+  });
+
+  it('retries a transient connect failure 5× with backoff, then marks the connector error', async () => {
+    const c = await mk();
+    imap.fetchSince.mockRejectedValue(new Error('ECONNREFUSED'));
+    const delaySpy = jest
+      .spyOn(worker as unknown as { delay(ms: number): Promise<void> }, 'delay')
+      .mockResolvedValue(undefined); // no real backoff waits in the test
+    await worker.syncOnce(c.id);
+    expect(imap.fetchSince).toHaveBeenCalledTimes(5);
+    expect(delaySpy).toHaveBeenCalledTimes(4); // backoff between the 5 attempts
+    const [row] = await connectors.list();
+    expect(row.status).toBe('error');
+    expect(row.last_error).toContain('ECONNREFUSED');
+  });
+
+  it('does not retry an auth failure — fails fast to auth_failed', async () => {
+    const c = await mk();
+    imap.fetchSince.mockRejectedValue(
+      new Error('AUTHENTICATIONFAILED bad token'),
+    );
+    const delaySpy = jest
+      .spyOn(worker as unknown as { delay(ms: number): Promise<void> }, 'delay')
+      .mockResolvedValue(undefined);
+    await worker.syncOnce(c.id);
+    expect(imap.fetchSince).toHaveBeenCalledTimes(1); // no retries
+    expect(delaySpy).not.toHaveBeenCalled();
+    const [row] = await connectors.list();
+    expect(row.status).toBe('auth_failed');
   });
 
   it('keeps prior last_uid when uidvalidity changes but messages is empty', async () => {

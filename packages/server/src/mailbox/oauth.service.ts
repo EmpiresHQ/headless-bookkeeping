@@ -51,7 +51,13 @@ export class OAuthService {
     const clientSecret = await this.settings.get(c.secretKey);
     if (!clientId)
       throw new Error(`OAuth client id for ${provider} is not configured`);
-    const base = (await this.settings.get('public_api_url')) ?? '';
+    // Strip any trailing slash from public_api_url, else a configured
+    // `https://host/` yields `https://host//api/...` — a redirect_uri that
+    // won't match what's registered with Google/Microsoft (redirect_uri_mismatch).
+    const base = ((await this.settings.get('public_api_url')) ?? '').replace(
+      /\/+$/,
+      '',
+    );
     return {
       ...c,
       clientId,
