@@ -8,6 +8,7 @@ import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { EntitiesService } from '../entities/entities.service';
+import { DocumentsService } from '../documents/documents.service';
 import { UpdateOrganizationDto } from '../organization/types';
 
 export interface CliIo {
@@ -24,6 +25,7 @@ export interface CliDeps {
   expenses: ExpensesService;
   salesInvoices: SalesInvoicesService;
   entities: EntitiesService;
+  documents: DocumentsService;
   db: Kysely<Database>;
 }
 
@@ -44,6 +46,7 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
     expenses,
     salesInvoices,
     entities,
+    documents,
     db,
   } = deps;
 
@@ -287,6 +290,21 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
           .demandCommand(1, 'Specify an entity subcommand')
           .strict(),
       )
+      // ── document: retry stuck intake documents ──────────────────────
+      .command('document', 'Manage intake documents', (d) =>
+        d
+          .command(
+            'retry <id>',
+            'Reset a needs_triage document back to pending so the intake queue re-picks it',
+            numericId('document retry'),
+            async (argv) => {
+              await documents.reprocessDocument(argv.id as number);
+              io.err(`document ${argv.id} reset to pending\n`);
+            },
+          )
+          .demandCommand(1, 'Specify a document subcommand')
+          .strict(),
+      )
       // ── reset: wipe all data (development only) ──────────────────
       .command(
         'reset',
@@ -372,7 +390,7 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
       )
       .demandCommand(
         1,
-        'Specify a command (token | org | period | expense | invoice | entity | reset)',
+        'Specify a command (token | org | period | expense | invoice | entity | document | reset)',
       )
       .strict()
       .exitProcess(false)
