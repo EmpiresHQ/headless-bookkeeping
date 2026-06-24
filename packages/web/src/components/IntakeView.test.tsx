@@ -98,7 +98,7 @@ describe('IntakeView', () => {
 
   it('expands row on click and shows manual form for low_confidence', async () => {
     vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
-    vi.spyOn(api, 'getDocumentDebug').mockResolvedValue({
+    vi.spyOn(api, 'getDocumentReclassify').mockResolvedValue({
       document_id: 7,
       ocr: { ok: false, category: 'unreadable', detail: 'blur' },
       classification: null,
@@ -299,5 +299,83 @@ describe('IntakeView', () => {
         }),
       );
     });
+  });
+
+  // ── Task 10: thumbnails + ?expand deep-link ───────────────────────────────
+
+  it('needs_triage row renders a thumbnail with preview src', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+
+    render(<IntakeView />);
+    await screen.findByText('low-confidence.pdf');
+    const img = screen.getByRole('img', { name: /preview/i });
+    expect(img).toHaveAttribute('src', '/api/documents/7/preview');
+  });
+
+  it('thumbnail shows fallback icon when preview fetch fails', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+
+    render(<IntakeView />);
+    await screen.findByText('low-confidence.pdf');
+    const img = screen.getByRole('img', { name: /preview/i });
+    fireEvent.error(img);
+    await waitFor(() =>
+      expect(screen.getByLabelText('no preview')).toBeInTheDocument(),
+    );
+  });
+
+  it('opens needs_triage row when ?expand=:id matches on mount', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+    vi.spyOn(api, 'getDocumentReclassify').mockResolvedValue({
+      document_id: 7,
+      ocr: { ok: false, category: 'unreadable', detail: 'blur' },
+      classification: null,
+    });
+    vi.spyOn(api, 'getCategories').mockResolvedValue([]);
+    vi.spyOn(api, 'getEntities').mockResolvedValue([]);
+
+    try {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, search: '?expand=7' },
+        writable: true,
+        configurable: true,
+      });
+
+      render(<IntakeView />);
+      expect(
+        await screen.findByText(/manual classification/i),
+      ).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, search: window.location.search },
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
+
+  it('does not expand row without ?expand query param', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
+
+    render(<IntakeView />);
+    await screen.findByText('low-confidence.pdf');
+
+    expect(
+      screen.queryByText(/manual classification/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('pending document row renders a thumbnail', async () => {
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([doc]);
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([]);
+
+    render(<IntakeView />);
+    await screen.findByText('invoice.pdf');
+    const img = screen.getByRole('img', { name: /preview/i });
+    expect(img).toHaveAttribute('src', '/api/documents/5/preview');
   });
 });

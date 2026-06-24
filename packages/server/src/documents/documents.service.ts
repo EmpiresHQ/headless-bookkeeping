@@ -7,10 +7,17 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
-import { triageResultSchema, TriageResult } from '../triage/types';
+import {
+  triageResultSchema,
+  TriageResult,
+  classifyReasonType,
+} from '../triage/types';
+import type { ExpenseStatus } from '../expenses/types';
 import { DocumentStorageService } from './document-storage.service';
+import { PreviewRenderer } from './preview-renderer';
 import {
   Document,
+  DocumentArchiveRow,
   DocumentSource,
   DocumentWithSources,
   DocumentStatus,
@@ -28,6 +35,7 @@ export class DocumentsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly storage: DocumentStorageService,
+    private readonly previewRenderer: PreviewRenderer,
   ) {}
 
   async upload(input: UploadDocumentInput): Promise<UploadDocumentResult> {
@@ -89,6 +97,23 @@ export class DocumentsService {
       .where('id', '=', docRow.id)
       .execute();
 
+    // Render thumbnail early — decoupled from OCR. Failure is non-fatal:
+    // preview_path stays NULL and the upload response is not affected.
+    const partialDoc = this.mapDocumentRow({
+      ...docRow,
+      storage_path: storagePath,
+    });
+    const previewPath = await this.previewRenderer
+      .render(partialDoc, input.buffer)
+      .catch(() => null);
+    if (previewPath !== null) {
+      await this.db
+        .updateTable('document')
+        .set({ preview_path: previewPath })
+        .where('id', '=', docRow.id)
+        .execute();
+    }
+
     const { channel, sourceIdentifier } = input;
     await this.db
       .insertInto('document_source')
@@ -103,7 +128,11 @@ export class DocumentsService {
       .execute();
 
     return {
-      document: this.mapDocumentRow({ ...docRow, storage_path: storagePath }),
+      document: this.mapDocumentRow({
+        ...docRow,
+        storage_path: storagePath,
+        preview_path: previewPath ?? null,
+      }),
       deduplicated: false,
     };
   }
@@ -115,6 +144,112 @@ export class DocumentsService {
       .orderBy('id', 'desc')
       .execute();
     return rows.map((r) => this.mapDocumentRow(r));
+  }
+
+  /**
+   * Return the enriched archive view used by GET /api/documents.
+   *
+   * Each document yields EXACTLY ONE row: multiplicity is guarded by
+   * - joining the latest expense via `e.id = MAX(e2.id WHERE e2.document_id = d.id)`
+   * - selecting the latest source channel via a correlated scalar sub-select
+   *
+   * Joins:
+   *  - LEFT JOIN expense (latest by id)  → expense_id, expense_status
+   *  - LEFT JOIN entity as supplier      → supplier_name
+   *  - LEFT JOIN entity as claimant      → claimant_name
+   *  - LEFT JOIN audit_finding           → reason (needs_triage/open only)
+   *  - correlated scalar sub-select      → channel (latest source)
+   */
+  async listArchiveRows(): Promise<DocumentArchiveRow[]> {
+    const rows = await this.db
+      .selectFrom('document as d')
+      // Guard multiplicity: join only the single latest expense per document.
+      // The ON condition pins e.id to MAX(e2.id) for this document, so even if
+      // multiple expense rows reference d.id we join at most one.
+      .leftJoin('expense as e', (join) =>
+        join.onRef('e.document_id', '=', 'd.id').on((eb) =>
+          eb(
+            'e.id',
+            '=',
+            eb
+              .selectFrom('expense as e2')
+              .select(sql<number>`MAX(e2.id)`.as('m'))
+              .whereRef('e2.document_id', '=', 'd.id'),
+          ),
+        ),
+      )
+      // Supplier entity for the linked expense
+      .leftJoin('entity as supplier', 'supplier.id', 'e.supplier_id')
+      // Claimant entity for the linked expense
+      .leftJoin('entity as claimant', 'claimant.id', 'e.claimant_id')
+      // Open needs_triage audit_finding for the document
+      .leftJoin('audit_finding as af', (join) =>
+        join
+          .onRef('af.referenced_object_id', '=', 'd.id')
+          .on('af.referenced_object_type', '=', 'document')
+          .on('af.finding_type', '=', 'needs_triage')
+          .on('af.status', '=', 'open'),
+      )
+      .select([
+        'd.id',
+        'd.hash',
+        'd.filename',
+        'd.mime_type',
+        'd.size_bytes',
+        'd.storage_path',
+        'd.status',
+        'd.processing_since',
+        'd.created_at',
+        'd.claimant_id',
+        'd.preview_path',
+        // Expense
+        'e.id as expense_id',
+        'e.status as expense_status',
+        // Entity names
+        'supplier.name as supplier_name',
+        'claimant.name as claimant_name',
+        // Audit finding reason
+        'af.description as reason',
+        // Latest channel: correlated scalar sub-select — returns ONE value per
+        // document row, guarding multiplicity from the sources side.
+        sql<string | null>`(
+          SELECT ds.channel
+          FROM document_source AS ds
+          WHERE ds.document_id = d.id
+          ORDER BY ds.received_at DESC, ds.id DESC
+          LIMIT 1
+        )`.as('channel'),
+      ])
+      .orderBy('d.id', 'desc')
+      .execute();
+
+    return rows.map((r) => {
+      const reason = r.reason ?? null;
+      const reason_type = reason !== null ? classifyReasonType(reason) : null;
+      return {
+        id: r.id,
+        hash: r.hash,
+        filename: r.filename,
+        mime_type: r.mime_type,
+        size_bytes: r.size_bytes,
+        storage_path: r.storage_path,
+        status: this.validateDocumentStatus(r.status),
+        processing_since: r.processing_since,
+        created_at: r.created_at,
+        claimant_id: r.claimant_id ?? null,
+        preview_path: r.preview_path ?? null,
+        channel: r.channel != null ? this.validateChannel(r.channel) : null,
+        reason,
+        reason_type,
+        expense_id: r.expense_id ?? null,
+        supplier_name: r.supplier_name ?? null,
+        claimant_name: r.claimant_name ?? null,
+        expense_status:
+          r.expense_status != null
+            ? this.validateExpenseStatus(r.expense_status)
+            : null,
+      };
+    });
   }
 
   async getById(id: number): Promise<Document> {
@@ -145,6 +280,53 @@ export class DocumentsService {
     }
     const buffer = await this.storage.readFile(doc.storage_path);
     return { buffer, filename: doc.filename, mimeType: doc.mime_type };
+  }
+
+  /**
+   * Return the thumbnail PNG bytes and the document hash (for ETag) for a
+   * document.
+   *
+   * - If `preview_path` is already set: read the stored bytes directly.
+   * - If `preview_path` is NULL: invoke PreviewRenderer to render once,
+   *   persist the path to the DB row (lazy self-heal for pre-existing docs),
+   *   then read and return the bytes.
+   * - If render returns null (non-visual file): throw NotFoundException so the
+   *   UI shows its fallback icon.
+   *
+   * Throws NotFoundException for an unknown document id.
+   */
+  async getPreview(id: number): Promise<{ buffer: Buffer; hash: string }> {
+    const doc = await this.getById(id);
+
+    if (doc.preview_path) {
+      const buffer = await this.storage.readFile(doc.preview_path);
+      return { buffer, hash: doc.hash };
+    }
+
+    // Lazy render: read stored bytes then render.
+    if (!doc.storage_path) {
+      throw new NotFoundException(
+        `Document ${id} has no stored file to render`,
+      );
+    }
+    const rawBytes = await this.storage.readFile(doc.storage_path);
+    const previewPath = await this.previewRenderer.render(doc, rawBytes);
+
+    if (previewPath === null) {
+      throw new NotFoundException(
+        `Document ${id} cannot be rendered as a preview`,
+      );
+    }
+
+    // Persist the path so subsequent requests skip the render.
+    await this.db
+      .updateTable('document')
+      .set({ preview_path: previewPath })
+      .where('id', '=', id)
+      .execute();
+
+    const buffer = await this.storage.readFile(previewPath);
+    return { buffer, hash: doc.hash };
   }
 
   async setStatus(id: number, status: DocumentStatus): Promise<void> {
@@ -342,12 +524,15 @@ export class DocumentsService {
 
       const expense = await trx
         .selectFrom('expense')
-        .select('id')
+        .select(['id', 'status'])
         .where('document_id', '=', id)
         .executeTakeFirst();
-      if (expense) {
+      if (
+        expense &&
+        (expense.status === 'posted' || expense.status === 'reversed')
+      ) {
         throw new ConflictException(
-          `Document ${id} is attached to expense #${expense.id} and cannot be deleted`,
+          `Document ${id} is evidence for expense #${expense.id} (${expense.status}) — reverse the expense before deleting`,
         );
       }
       // The SPA is the operator's admin surface — a document can always be
@@ -455,6 +640,7 @@ export class DocumentsService {
     processing_since: number | null;
     created_at: number;
     claimant_id?: number | null;
+    preview_path?: string | null;
   }): Document {
     return {
       id: row.id,
@@ -467,6 +653,7 @@ export class DocumentsService {
       processing_since: row.processing_since,
       created_at: row.created_at,
       claimant_id: row.claimant_id ?? null,
+      preview_path: row.preview_path ?? null,
     };
   }
 
@@ -509,10 +696,24 @@ export class DocumentsService {
       channel === 'telegram' ||
       channel === 'email' ||
       channel === 'drive' ||
-      channel === 'ios_photo_library'
+      channel === 'ios_photo_library' ||
+      channel === 'email_sync' ||
+      channel === 'email_push'
     ) {
       return channel;
     }
     throw new Error(`Invalid channel: ${channel}`);
+  }
+
+  private validateExpenseStatus(status: string): ExpenseStatus {
+    if (
+      status === 'draft' ||
+      status === 'pending' ||
+      status === 'posted' ||
+      status === 'reversed'
+    ) {
+      return status;
+    }
+    throw new Error(`Invalid expense status: ${status}`);
   }
 }

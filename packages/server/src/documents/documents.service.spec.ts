@@ -11,6 +11,7 @@ import {
   DocumentStorageService,
   DOCUMENT_STORAGE_ROOT,
 } from './document-storage.service';
+import { PreviewRenderer } from './preview-renderer';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 
@@ -18,6 +19,9 @@ describe('DocumentsService (unit)', () => {
   let service: DocumentsService;
   let db: Kysely<Database>;
   let storageRoot: string;
+  // Stub returned by default: render returns null (no-op, non-fatal).
+  // Individual tests can override renderMock.mockResolvedValueOnce().
+  let renderMock: jest.Mock;
 
   beforeEach(async () => {
     storageRoot = join('/tmp', 'doc-test', `${Date.now()}`);
@@ -36,11 +40,17 @@ describe('DocumentsService (unit)', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
+    renderMock = jest.fn().mockResolvedValue(null);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         { provide: DOCUMENT_STORAGE_ROOT, useValue: storageRoot },
         DocumentStorageService,
+        {
+          provide: PreviewRenderer,
+          useValue: { render: renderMock },
+        },
         DocumentsService,
       ],
     }).compile();
@@ -119,6 +129,92 @@ describe('DocumentsService (unit)', () => {
       expect(hydrated.sources.length).toBe(2);
       expect(hydrated.sources.map((s) => s.channel)).toContain('upload');
       expect(hydrated.sources.map((s) => s.channel)).toContain('email');
+    });
+
+    it('sets preview_path when renderer returns a path (new document)', async () => {
+      renderMock.mockResolvedValueOnce('1/previews/abc123.png');
+
+      const result = await service.upload({
+        buffer: Buffer.from('pdf bytes'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      expect(result.deduplicated).toBe(false);
+      expect(result.document.preview_path).toBe('1/previews/abc123.png');
+      expect(renderMock).toHaveBeenCalledTimes(1);
+
+      // Verify DB row was actually updated.
+      const row = await db
+        .selectFrom('document')
+        .select('preview_path')
+        .where('id', '=', result.document.id)
+        .executeTakeFirstOrThrow();
+      expect(row.preview_path).toBe('1/previews/abc123.png');
+    });
+
+    it('leaves preview_path NULL when renderer returns null (unsupported/failed), upload still succeeds', async () => {
+      // renderMock already returns null by default.
+      const result = await service.upload({
+        buffer: Buffer.from('unknown bytes'),
+        filename: 'weird.xyz',
+        mimeType: 'application/octet-stream',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      expect(result.deduplicated).toBe(false);
+      expect(result.document.preview_path).toBeNull();
+      expect(renderMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('upload succeeds and preview_path is null when renderer rejects', async () => {
+      renderMock.mockRejectedValueOnce(new Error('boom'));
+
+      const result = await service.upload({
+        buffer: Buffer.from('renderer-throw bytes'),
+        filename: 'throw.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      expect(result.deduplicated).toBe(false);
+      expect(result.document.preview_path).toBeNull();
+      // Upload must succeed despite the renderer rejection.
+      await expect(service.getById(result.document.id)).resolves.toBeTruthy();
+    });
+
+    it('does NOT call renderer on dedup hit (existing preview preserved)', async () => {
+      const buffer = Buffer.from('dedup preview bytes');
+
+      // First upload: renderer returns a preview path.
+      renderMock.mockResolvedValueOnce('1/previews/deadbeef.png');
+      const first = await service.upload({
+        buffer,
+        filename: 'orig.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      expect(first.document.preview_path).toBe('1/previews/deadbeef.png');
+      expect(renderMock).toHaveBeenCalledTimes(1);
+
+      renderMock.mockClear();
+
+      // Second upload (dedup): renderer must NOT be called again.
+      const second = await service.upload({
+        buffer,
+        filename: 'orig.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email',
+        sourceIdentifier: null,
+      });
+      expect(second.deduplicated).toBe(true);
+      expect(second.document.preview_path).toBe('1/previews/deadbeef.png');
+      expect(renderMock).not.toHaveBeenCalled();
     });
   });
 
@@ -228,8 +324,71 @@ describe('DocumentsService (unit)', () => {
       await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
     });
 
-    it('refuses (409) to delete a document attached to an expense', async () => {
+    it('refuses (409) when the linked expense is posted — row and file survive', async () => {
       const { document } = await upload();
+      const path = document.storage_path!;
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'posted',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Row survives.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      // File survives.
+      await expect(fs.readFile(join(storageRoot, path))).resolves.toBeTruthy();
+    });
+
+    it('refuses (409) when the linked expense is reversed — row and file survive', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'reversed',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Row survives.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      // File survives.
+      await expect(fs.readFile(join(storageRoot, path))).resolves.toBeTruthy();
+    });
+
+    it('allows deletion when the linked expense is draft (row and file removed)', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
       const now = Math.floor(Date.now() / 1000);
       await db
         .insertInto('expense')
@@ -249,11 +408,63 @@ describe('DocumentsService (unit)', () => {
         })
         .execute();
 
-      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
-        ConflictException,
+      await expect(
+        service.deleteDocument(document.id),
+      ).resolves.toBeUndefined();
+      // Row gone.
+      await expect(service.getById(document.id)).rejects.toThrow(
+        NotFoundException,
       );
-      // Still present.
-      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      // File gone.
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
+    });
+
+    it('allows deletion when the linked expense is pending (row and file removed)', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'pending',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(
+        service.deleteDocument(document.id),
+      ).resolves.toBeUndefined();
+      // Row gone.
+      await expect(service.getById(document.id)).rejects.toThrow(
+        NotFoundException,
+      );
+      // File gone.
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
+    });
+
+    it('allows deletion when no expense exists (row and file removed)', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+
+      await expect(
+        service.deleteDocument(document.id),
+      ).resolves.toBeUndefined();
+      // Row gone.
+      await expect(service.getById(document.id)).rejects.toThrow(
+        NotFoundException,
+      );
+      // File gone.
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
     });
 
     it('throws NotFoundException for a missing document', async () => {
@@ -646,6 +857,432 @@ describe('DocumentsService (unit)', () => {
       await expect(service.confirmPayment(9999, true)).rejects.toThrow(
         'not found',
       );
+    });
+  });
+
+  describe('getPreview', () => {
+    let storageService: DocumentStorageService;
+
+    beforeEach(() => {
+      storageService = new DocumentStorageService(storageRoot);
+    });
+
+    it('(a) streams stored bytes without calling renderer when preview_path is set', async () => {
+      const rawBuffer = Buffer.from('fake png bytes');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('pdf content'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      // Write a preview file into storage and set preview_path.
+      await storageService.saveFile(
+        doc.id,
+        `previews/${doc.hash}.png`,
+        rawBuffer,
+      );
+      await db
+        .updateTable('document')
+        .set({ preview_path: `${doc.id}/previews/${doc.hash}.png` })
+        .where('id', '=', doc.id)
+        .execute();
+
+      renderMock.mockClear();
+      const result = await service.getPreview(doc.id);
+
+      expect(result.buffer).toEqual(rawBuffer);
+      expect(result.hash).toBe(doc.hash);
+      expect(renderMock).not.toHaveBeenCalled();
+    });
+
+    it('(b) renders, persists path, and streams bytes when preview_path is NULL', async () => {
+      const pngBytes = Buffer.from('rendered png');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('pdf content 2'),
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      // Verify preview_path is NULL (default mock returns null at upload).
+      const rowBefore = await db
+        .selectFrom('document')
+        .select('preview_path')
+        .where('id', '=', doc.id)
+        .executeTakeFirstOrThrow();
+      expect(rowBefore.preview_path).toBeNull();
+
+      // Clear calls accumulated during upload before testing getPreview.
+      renderMock.mockClear();
+
+      // Stub render: write file to storage and return relative path.
+      const expectedPath = `${doc.id}/previews/${doc.hash}.png`;
+      renderMock.mockImplementationOnce(
+        async (d: { id: number; hash: string }) => {
+          await storageService.saveFile(
+            d.id,
+            `previews/${d.hash}.png`,
+            pngBytes,
+          );
+          return expectedPath;
+        },
+      );
+
+      const result = await service.getPreview(doc.id);
+
+      expect(result.buffer).toEqual(pngBytes);
+      expect(result.hash).toBe(doc.hash);
+      // Re-query to assert the DB row was persisted.
+      const rowAfter = await db
+        .selectFrom('document')
+        .select('preview_path')
+        .where('id', '=', doc.id)
+        .executeTakeFirstOrThrow();
+      expect(rowAfter.preview_path).toBe(expectedPath);
+      expect(renderMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('(c) throws NotFoundException when render returns null (non-visual file)', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('binary blob'),
+        filename: 'data.bin',
+        mimeType: 'application/octet-stream',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      // renderMock returns null by default; preview_path stays NULL.
+
+      await expect(service.getPreview(doc.id)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('(d) throws NotFoundException for a missing document id', async () => {
+      await expect(service.getPreview(9999)).rejects.toThrow(NotFoundException);
+    });
+
+    it('(e) throws NotFoundException when preview_path is NULL and storage_path is NULL', async () => {
+      // Insert a document with both paths null (e.g. a pre-existing doc that
+      // never completed storage, or a row inserted before the storage write).
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'null-storage-hash',
+          filename: 'orphan.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 0,
+          storage_path: null,
+          status: 'pending',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      // Ensure preview_path is also null (it is by default, but be explicit).
+      await db
+        .updateTable('document')
+        .set({ preview_path: null })
+        .where('id', '=', doc.id)
+        .execute();
+
+      await expect(service.getPreview(doc.id)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // listArchiveRows — enriched archive view
+  // ---------------------------------------------------------------------------
+  describe('listArchiveRows', () => {
+    async function insertEntity(
+      name: string,
+      role = 'supplier',
+    ): Promise<number> {
+      const now = Math.floor(Date.now() / 1000);
+      const row = await db
+        .insertInto('entity')
+        .values({
+          role,
+          country: 'EE',
+          name,
+          goods_vs_services: 'services',
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    async function insertExpense(
+      documentId: number,
+      opts: {
+        supplierId?: number | null;
+        claimantId?: number | null;
+        status?: string;
+      } = {},
+    ): Promise<number> {
+      const now = Math.floor(Date.now() / 1000);
+      const row = await db
+        .insertInto('expense')
+        .values({
+          document_id: documentId,
+          supplier_id: opts.supplierId ?? null,
+          claimant_id: opts.claimantId ?? null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: opts.status ?? 'draft',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    async function insertAuditFinding(
+      documentId: number,
+      description: string,
+    ): Promise<void> {
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('audit_finding')
+        .values({
+          severity: 'medium',
+          finding_type: 'needs_triage',
+          description,
+          referenced_object_type: 'document',
+          referenced_object_id: documentId,
+          status: 'open',
+          created_at: now,
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
+        })
+        .execute();
+    }
+
+    it('returns created_at and channel for a simple document', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('simple doc'),
+        filename: 'simple.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.created_at).toBe(doc.created_at);
+      expect(row!.channel).toBe('upload');
+      expect(row!.reason).toBeNull();
+      expect(row!.reason_type).toBeNull();
+      expect(row!.expense_id).toBeNull();
+      expect(row!.supplier_name).toBeNull();
+      expect(row!.claimant_name).toBeNull();
+      expect(row!.expense_status).toBeNull();
+    });
+
+    it('returns supplier_name and expense_id for a document linked to an expense', async () => {
+      const supplierId = await insertEntity('Acme OÜ', 'supplier');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('supplier doc'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email',
+        sourceIdentifier: null,
+      });
+      const expId = await insertExpense(doc.id, {
+        supplierId,
+        status: 'posted',
+      });
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.expense_id).toBe(expId);
+      expect(row!.supplier_name).toBe('Acme OÜ');
+      expect(row!.expense_status).toBe('posted');
+      expect(row!.claimant_name).toBeNull();
+    });
+
+    it('returns claimant_name for a claimant-paid expense', async () => {
+      const supplierId = await insertEntity('Shop OÜ', 'supplier');
+      const claimantId = await insertEntity('Alice', 'employee');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('claimant doc'),
+        filename: 'receipt.pdf',
+        mimeType: 'application/pdf',
+        channel: 'telegram',
+        sourceIdentifier: null,
+      });
+      await insertExpense(doc.id, {
+        supplierId,
+        claimantId,
+        status: 'pending',
+      });
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.supplier_name).toBe('Shop OÜ');
+      expect(row!.claimant_name).toBe('Alice');
+      expect(row!.expense_status).toBe('pending');
+    });
+
+    it('returns reason and reason_type for a needs_triage document', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const docRow = await db
+        .insertInto('document')
+        .values({
+          hash: 'hash-needs-triage',
+          filename: 'ocr-fail.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'upload',
+          source_identifier: null,
+          received_at: now,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+      await insertAuditFinding(
+        docRow.id,
+        'OCR classification failed: low confidence',
+      );
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === docRow.id);
+      expect(row).toBeDefined();
+      expect(row!.reason).toBe('OCR classification failed: low confidence');
+      expect(row!.reason_type).toBe('low_confidence');
+    });
+
+    it('returns null reason/reason_type for a non-needs_triage document', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('normal doc'),
+        filename: 'normal.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      // No audit_finding → reason should be null
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.reason).toBeNull();
+      expect(row!.reason_type).toBeNull();
+    });
+
+    it('yields exactly one row per document when the document has multiple sources', async () => {
+      const buffer = Buffer.from('multi-source');
+      const first = await service.upload({
+        buffer,
+        filename: 'multi.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      // Second upload deduplicates → adds a second document_source row
+      await service.upload({
+        buffer,
+        filename: 'multi.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email',
+        sourceIdentifier: 'msg-xyz',
+      });
+
+      const rows = await service.listArchiveRows();
+      const docRows = rows.filter((r) => r.id === first.document.id);
+      // Exactly ONE row despite two sources
+      expect(docRows).toHaveLength(1);
+      // Channel should be from the LATEST source (email, received_at is higher)
+      expect(docRows[0].channel).toBe('email');
+    });
+
+    it('yields exactly one row when a second document_source is inserted directly (non-dedup path)', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const docRow = await db
+        .insertInto('document')
+        .values({
+          hash: 'hash-direct-multi',
+          filename: 'direct-multi.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'pending',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'email',
+          source_identifier: 'msg-1',
+          received_at: now - 100,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'telegram',
+          source_identifier: 'tg-1',
+          received_at: now,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+
+      const rows = await service.listArchiveRows();
+      const docRows = rows.filter((r) => r.id === docRow.id);
+      expect(docRows).toHaveLength(1);
+      expect(docRows[0].channel).toBe('telegram'); // latest channel (highest received_at)
+    });
+
+    it('does not throw and returns channel=email_sync for a mailbox-harvested document', async () => {
+      // Regression: validateChannel previously only accepted upload|telegram|email|drive|ios_photo_library
+      // and would throw on email_sync / email_push, causing GET /api/documents to 500.
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('mailbox-harvested'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email_sync',
+        sourceIdentifier: 'imap-uid-42',
+      });
+
+      // Must not throw — previously validateChannel threw on 'email_sync'
+      const rows = await service.listArchiveRows();
+
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.channel).toBe('email_sync');
     });
   });
 

@@ -82,6 +82,39 @@ export interface DocumentRow {
   created_at: number;
 }
 
+export type DocumentChannel =
+  | 'upload'
+  | 'telegram'
+  | 'email'
+  | 'drive'
+  | 'ios_photo_library'
+  | 'email_sync'
+  | 'email_push';
+
+export type TriageReasonType =
+  | 'supplier_unresolved'
+  | 'outgoing_invoice'
+  | 'low_confidence'
+  | 'category_unresolved'
+  | 'ocr_failed'
+  | 'unimplemented'
+  | 'unknown';
+
+/**
+ * Enriched archive row returned by GET /api/documents (Task 6).
+ * Extends DocumentRow with linkage, channel, and triage reason.
+ */
+export interface DocumentArchiveRow extends DocumentRow {
+  preview_path: string | null;
+  channel: DocumentChannel | null;
+  reason: string | null;
+  reason_type: TriageReasonType | null;
+  expense_id: number | null;
+  supplier_name: string | null;
+  claimant_name: string | null;
+  expense_status: string | null;
+}
+
 export interface ReportingPeriod {
   id: number;
   name: string;
@@ -120,7 +153,7 @@ export const getInvoices = () =>
     (r) => r.invoices,
   );
 export const getDocuments = () =>
-  apiFetch<{ documents: DocumentRow[] }>('/api/documents').then(
+  apiFetch<{ documents: DocumentArchiveRow[] }>('/api/documents').then(
     (r) => r.documents,
   );
 
@@ -135,7 +168,7 @@ export const getCategories = () =>
     (r) => r.categories,
   );
 
-// ── Document debug (OCR + LLM classification) ─────────────────────────────
+// ── Document details (OCR + persisted classification — no LLM re-run) ────────
 export interface DebugTriageResult {
   kind: string;
   document_type: string;
@@ -145,10 +178,13 @@ export interface DebugTriageResult {
   tax_point_date: string;
   category: string;
   document_vat_marking: string | null;
+  supplier_invoice_number: string | null;
   confidence: number;
 }
 
-export interface DocumentDebug {
+/** Read-only details for a document: cached OCR + classification from the
+ *  linked Expense. Never re-invokes the LLM (ADR-0039). */
+export interface DocumentDetails {
   document_id: number;
   ocr:
     | { ok: true; markdown: string }
@@ -159,8 +195,14 @@ export interface DocumentDebug {
     | null;
 }
 
-export const getDocumentDebug = (id: number) =>
-  apiFetch<DocumentDebug>(`/api/documents/${id}/debug`);
+export const getDocumentDetails = (id: number) =>
+  apiFetch<DocumentDetails>(`/api/documents/${id}/details`);
+
+/** Re-run OCR+LLM classification for a needs_triage document.
+ *  Use in the /intake work queue to pre-fill the manual-triage form.
+ *  Never call from read-only views — use getDocumentDetails instead. */
+export const getDocumentReclassify = (id: number) =>
+  apiFetch<DocumentDetails>(`/api/documents/${id}/reclassify`);
 
 export const deleteDocument = (id: number) =>
   apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });
