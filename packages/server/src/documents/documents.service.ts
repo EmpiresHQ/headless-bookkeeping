@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import { Database } from '../database/types';
 import { triageResultSchema, TriageResult } from '../triage/types';
 import { DocumentStorageService } from './document-storage.service';
+import { PreviewRenderer } from './preview-renderer';
 import {
   Document,
   DocumentSource,
@@ -28,6 +29,7 @@ export class DocumentsService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly storage: DocumentStorageService,
+    private readonly previewRenderer: PreviewRenderer,
   ) {}
 
   async upload(input: UploadDocumentInput): Promise<UploadDocumentResult> {
@@ -89,6 +91,18 @@ export class DocumentsService {
       .where('id', '=', docRow.id)
       .execute();
 
+    // Render thumbnail early — decoupled from OCR. Failure is non-fatal:
+    // preview_path stays NULL and the upload response is not affected.
+    const partialDoc = this.mapDocumentRow({ ...docRow, storage_path: storagePath });
+    const previewPath = await this.previewRenderer.render(partialDoc, input.buffer).catch(() => null);
+    if (previewPath !== null) {
+      await this.db
+        .updateTable('document')
+        .set({ preview_path: previewPath })
+        .where('id', '=', docRow.id)
+        .execute();
+    }
+
     const { channel, sourceIdentifier } = input;
     await this.db
       .insertInto('document_source')
@@ -103,7 +117,11 @@ export class DocumentsService {
       .execute();
 
     return {
-      document: this.mapDocumentRow({ ...docRow, storage_path: storagePath }),
+      document: this.mapDocumentRow({
+        ...docRow,
+        storage_path: storagePath,
+        preview_path: previewPath ?? null,
+      }),
       deduplicated: false,
     };
   }
@@ -455,6 +473,7 @@ export class DocumentsService {
     processing_since: number | null;
     created_at: number;
     claimant_id?: number | null;
+    preview_path?: string | null;
   }): Document {
     return {
       id: row.id,
@@ -467,6 +486,7 @@ export class DocumentsService {
       processing_since: row.processing_since,
       created_at: row.created_at,
       claimant_id: row.claimant_id ?? null,
+      preview_path: row.preview_path ?? null,
     };
   }
 

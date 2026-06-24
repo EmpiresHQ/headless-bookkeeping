@@ -16,6 +16,7 @@ import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
+import { PreviewRenderer } from '../documents/preview-renderer';
 import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
 import { BankIngestionService } from '../bank/bank-ingestion.service';
@@ -155,8 +156,9 @@ describe('IntakeWorkflowService', () => {
         { provide: BankIngestionService, useValue: mockBankIngestion },
         AuditFindingsService,
         PolicyService,
-        DocumentsService,
         DocumentStorageService,
+        { provide: PreviewRenderer, useValue: { render: jest.fn().mockResolvedValue(null) } },
+        DocumentsService,
         ProcessingGate,
         IntakeWorkflowService,
       ],

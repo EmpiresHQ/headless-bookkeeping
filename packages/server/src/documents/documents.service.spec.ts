@@ -11,6 +11,7 @@ import {
   DocumentStorageService,
   DOCUMENT_STORAGE_ROOT,
 } from './document-storage.service';
+import { PreviewRenderer } from './preview-renderer';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 
@@ -18,6 +19,9 @@ describe('DocumentsService (unit)', () => {
   let service: DocumentsService;
   let db: Kysely<Database>;
   let storageRoot: string;
+  // Stub returned by default: render returns null (no-op, non-fatal).
+  // Individual tests can override renderMock.mockResolvedValueOnce().
+  let renderMock: jest.Mock;
 
   beforeEach(async () => {
     storageRoot = join('/tmp', 'doc-test', `${Date.now()}`);
@@ -36,11 +40,17 @@ describe('DocumentsService (unit)', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
+    renderMock = jest.fn().mockResolvedValue(null);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         { provide: DOCUMENT_STORAGE_ROOT, useValue: storageRoot },
         DocumentStorageService,
+        {
+          provide: PreviewRenderer,
+          useValue: { render: renderMock },
+        },
         DocumentsService,
       ],
     }).compile();
@@ -119,6 +129,75 @@ describe('DocumentsService (unit)', () => {
       expect(hydrated.sources.length).toBe(2);
       expect(hydrated.sources.map((s) => s.channel)).toContain('upload');
       expect(hydrated.sources.map((s) => s.channel)).toContain('email');
+    });
+
+    it('sets preview_path when renderer returns a path (new document)', async () => {
+      renderMock.mockResolvedValueOnce('1/previews/abc123.png');
+
+      const result = await service.upload({
+        buffer: Buffer.from('pdf bytes'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      expect(result.deduplicated).toBe(false);
+      expect(result.document.preview_path).toBe('1/previews/abc123.png');
+      expect(renderMock).toHaveBeenCalledTimes(1);
+
+      // Verify DB row was actually updated.
+      const row = await db
+        .selectFrom('document')
+        .select('preview_path')
+        .where('id', '=', result.document.id)
+        .executeTakeFirstOrThrow();
+      expect(row.preview_path).toBe('1/previews/abc123.png');
+    });
+
+    it('leaves preview_path NULL when renderer returns null (unsupported/failed), upload still succeeds', async () => {
+      // renderMock already returns null by default.
+      const result = await service.upload({
+        buffer: Buffer.from('unknown bytes'),
+        filename: 'weird.xyz',
+        mimeType: 'application/octet-stream',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      expect(result.deduplicated).toBe(false);
+      expect(result.document.preview_path).toBeNull();
+      expect(renderMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT call renderer on dedup hit (existing preview preserved)', async () => {
+      const buffer = Buffer.from('dedup preview bytes');
+
+      // First upload: renderer returns a preview path.
+      renderMock.mockResolvedValueOnce('1/previews/deadbeef.png');
+      const first = await service.upload({
+        buffer,
+        filename: 'orig.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      expect(first.document.preview_path).toBe('1/previews/deadbeef.png');
+      expect(renderMock).toHaveBeenCalledTimes(1);
+
+      renderMock.mockClear();
+
+      // Second upload (dedup): renderer must NOT be called again.
+      const second = await service.upload({
+        buffer,
+        filename: 'orig.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email',
+        sourceIdentifier: null,
+      });
+      expect(second.deduplicated).toBe(true);
+      expect(second.document.preview_path).toBe('1/previews/deadbeef.png');
+      expect(renderMock).not.toHaveBeenCalled();
     });
   });
 
