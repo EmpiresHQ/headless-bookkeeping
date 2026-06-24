@@ -19,7 +19,7 @@ const BASE_BACKOFF_MS = 1000;
 export class MailSyncWorker implements OnModuleInit {
   private readonly logger = new Logger(MailSyncWorker.name);
   private readonly idleHandles = new Map<number, IdleHandle>();
-  private readonly inFlight = new Set<number>();
+  private readonly inFlight = new Map<number, Promise<void>>();
 
   constructor(
     private readonly connectors: MailboxConnectorService,
@@ -75,8 +75,11 @@ export class MailSyncWorker implements OnModuleInit {
   }
 
   async syncOnce(connectorId: number): Promise<void> {
-    if (this.inFlight.has(connectorId)) return; // single-flight guard per connector
-    this.inFlight.add(connectorId);
+    const running = this.inFlight.get(connectorId);
+    if (running) return running; // coalesce: wait for the in-flight sync to finish
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => { resolve = r; });
+    this.inFlight.set(connectorId, promise);
     try {
       const [conn] = (await this.connectors.list()).filter(
         (c) => c.id === connectorId,
@@ -130,6 +133,7 @@ export class MailSyncWorker implements OnModuleInit {
       await this.connectors.markStatus(connectorId, status, msg);
     } finally {
       this.inFlight.delete(connectorId);
+      resolve();
     }
   }
 
