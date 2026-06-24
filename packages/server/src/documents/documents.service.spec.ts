@@ -825,6 +825,34 @@ describe('DocumentsService (unit)', () => {
     it('(d) throws NotFoundException for a missing document id', async () => {
       await expect(service.getPreview(9999)).rejects.toThrow(NotFoundException);
     });
+
+    it('(e) throws NotFoundException when preview_path is NULL and storage_path is NULL', async () => {
+      // Insert a document with both paths null (e.g. a pre-existing doc that
+      // never completed storage, or a row inserted before the storage write).
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'null-storage-hash',
+          filename: 'orphan.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 0,
+          storage_path: null,
+          status: 'pending',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      // Ensure preview_path is also null (it is by default, but be explicit).
+      await db
+        .updateTable('document')
+        .set({ preview_path: null })
+        .where('id', '=', doc.id)
+        .execute();
+
+      await expect(service.getPreview(doc.id)).rejects.toThrow(NotFoundException);
+    });
   });
 
   describe('ios_photo_library channel', () => {
