@@ -174,19 +174,13 @@ export function MailboxSettings() {
     setError(null);
     setSyncing(id);
     try {
-      await syncMailboxConnector(id);
-      // Poll until last_synced_at changes (max ~10s)
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 1000));
-        const updated = await getMailboxConnectors();
-        setConnectors(updated);
-        const c = updated.find((x) => x.id === id);
-        if (c && c.last_synced_at !== null) break;
-        if (c && c.status === 'error') break;
-        if (c && c.status === 'auth_failed') break;
-      }
+      const updated = await syncMailboxConnector(id);
+      setConnectors((prev) =>
+        prev ? prev.map((c) => (c.id === id ? updated : c)) : [updated],
+      );
     } catch (e) {
       fail(e);
+      await load();
     } finally {
       setSyncing(null);
     }

@@ -82,11 +82,13 @@ export class MailboxController {
   }
 
   @Post('connectors/:id/sync')
-  @ApiOperation({ summary: 'Trigger an immediate sync for a connector' })
-  async sync(@Param('id') id: string): Promise<void> {
-    void this.worker
-      .connectAndSync(Number(id))
-      .catch((e) => this.logger.warn(`manual sync ${id}: ${e}`));
+  @ApiOperation({ summary: 'Trigger an immediate sync for a connector and return updated state' })
+  async sync(@Param('id') id: string): Promise<MailboxConnector> {
+    await this.worker.syncOnce(Number(id));
+    const connectors = await this.connectors.list();
+    const conn = connectors.find((c) => c.id === Number(id));
+    if (!conn) throw new BadRequestException(`Connector ${id} not found`);
+    return conn;
   }
 
   @Get('oauth/start')

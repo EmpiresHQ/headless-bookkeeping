@@ -868,6 +868,6 @@ export const startMailboxOAuth = (params: {
   );
 
 export const syncMailboxConnector = (id: number) =>
-  apiFetchRaw(`/api/mailbox/connectors/${id}/sync`, { method: 'POST' }).then(
-    () => undefined,
-  );
+  apiFetch<MailboxConnector>(`/api/mailbox/connectors/${id}/sync`, {
+    method: 'POST',
+  });
