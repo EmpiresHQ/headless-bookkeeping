@@ -37,10 +37,22 @@ export class TriageController {
     return this.triageService.route(Number(id));
   }
 
+  @Get('api/documents/:id/details')
+  @ApiOperation({
+    summary: "Document details (OCR + classification)",
+    description:
+      'Return the cached OCR text and classification from the linked Expense. Never re-invokes the LLM (ADR-0039).',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async documentDetails(@Param('id') id: string): Promise<DocumentDebug> {
+    return this.triageService.details(Number(id));
+  }
+
   @Get('api/documents/:id/debug')
   @ApiOperation({
-    summary: "Debug a document's triage",
+    summary: "Debug a document's triage (deprecated — use /details)",
     description: 'Return triage debug detail for a document.',
+    deprecated: true,
   })
   @ApiParam({ name: 'id', description: 'Document id' })
   async debugDocument(@Param('id') id: string): Promise<DocumentDebug> {

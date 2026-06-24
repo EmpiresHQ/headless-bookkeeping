@@ -7,6 +7,9 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import { InjectKysely } from 'nestjs-kysely';
+import { Kysely } from 'kysely';
+import { Database } from '../database/types';
 import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
 import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
 import {
@@ -144,6 +147,7 @@ export class IntakeWorkflowService {
     @Inject(forwardRef(() => BankIngestionService))
     private readonly bankIngestion: BankIngestionService,
     private readonly gate: ProcessingGate,
+    @InjectKysely() private readonly db: Kysely<Database>,
   ) {}
 
   /**
@@ -151,6 +155,8 @@ export class IntakeWorkflowService {
    * classifies the document as, WITHOUT routing or changing the document's
    * status. OCR is idempotent (returns the stored markdown); Pass-2 is re-run
    * so the operator can see the raw classification (e.g. why kind='correction').
+   * @deprecated Use {@link details} instead — it reads from persisted Expense
+   *   data and never re-invokes the LLM (ADR-0039).
    */
   async debug(documentId: number): Promise<DocumentDebug> {
     return this.gate.run(async () => {
@@ -171,6 +177,84 @@ export class IntakeWorkflowService {
           : { ok: false, category: pass2.category, detail: pass2.detail },
       };
     });
+  }
+
+  /**
+   * Read-only details: returns the cached OCR markdown (via ocrService.transcribe,
+   * which is idempotent — reads from the stored ocr_markdown artifact) and the
+   * classification facts from the linked draft Expense. NEVER re-invokes
+   * pass2Agent (ADR-0039). The classification fields are sourced from the Expense
+   * columns: ai_kind → kind, ai_document_type → document_type,
+   * ai_confidence → confidence; the remaining fields (amounts, category, etc.)
+   * come from the Expense's own columns.
+   *
+   * A document with no linked Expense (e.g. needs_triage or OCR-only) returns
+   * OCR text with classification: null. A missing OCR artifact returns the OCR
+   * failure shape with classification: null.
+   */
+  async details(documentId: number): Promise<DocumentDebug> {
+    const ocr = await this.ocrService.transcribe(documentId);
+    if (!ocr.ok) {
+      return {
+        document_id: documentId,
+        ocr: { ok: false, category: ocr.category, detail: ocr.detail },
+        classification: null,
+      };
+    }
+
+    // Read classification from the linked draft Expense — never re-run the LLM.
+    const expense = await this.db
+      .selectFrom('expense')
+      .where('document_id', '=', documentId)
+      .select([
+        'category',
+        'gross_amount',
+        'vat_amount',
+        'currency',
+        'tax_point_date',
+        'document_vat_marking',
+        'supplier_invoice_number',
+        'ai_confidence',
+        'ai_document_type',
+        'ai_kind',
+      ])
+      .executeTakeFirst();
+
+    if (!expense) {
+      return {
+        document_id: documentId,
+        ocr: { ok: true, markdown: ocr.markdown },
+        classification: null,
+      };
+    }
+
+    return {
+      document_id: documentId,
+      ocr: { ok: true, markdown: ocr.markdown },
+      classification: {
+        ok: true,
+        result: {
+          kind: (expense.ai_kind ?? 'unknown') as TriageResult['kind'],
+          document_type: (expense.ai_document_type ??
+            'other') as TriageResult['document_type'],
+          confidence: expense.ai_confidence ?? 0,
+          gross_amount: expense.gross_amount,
+          vat_amount: expense.vat_amount,
+          currency: expense.currency,
+          tax_point_date: expense.tax_point_date,
+          category: expense.category,
+          document_vat_marking: expense.document_vat_marking,
+          supplier_invoice_number: expense.supplier_invoice_number,
+          // Fields not stored on the Expense — supply safe defaults.
+          outgoing_signals: {
+            org_name_is_issuer: false,
+            org_vat_is_issuer: false,
+            has_buyer_block: false,
+            self_identifies_as_invoice: false,
+          },
+        },
+      },
+    };
   }
 
   /**

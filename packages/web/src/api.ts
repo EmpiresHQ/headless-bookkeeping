@@ -135,7 +135,7 @@ export const getCategories = () =>
     (r) => r.categories,
   );
 
-// ── Document debug (OCR + LLM classification) ─────────────────────────────
+// ── Document details (OCR + persisted classification — no LLM re-run) ────────
 export interface DebugTriageResult {
   kind: string;
   document_type: string;
@@ -148,7 +148,9 @@ export interface DebugTriageResult {
   confidence: number;
 }
 
-export interface DocumentDebug {
+/** Read-only details for a document: cached OCR + classification from the
+ *  linked Expense. Never re-invokes the LLM (ADR-0039). */
+export interface DocumentDetails {
   document_id: number;
   ocr:
     | { ok: true; markdown: string }
@@ -159,8 +161,15 @@ export interface DocumentDebug {
     | null;
 }
 
+/** @deprecated Use DocumentDetails */
+export type DocumentDebug = DocumentDetails;
+
+export const getDocumentDetails = (id: number) =>
+  apiFetch<DocumentDetails>(`/api/documents/${id}/details`);
+
+/** @deprecated Use getDocumentDetails */
 export const getDocumentDebug = (id: number) =>
-  apiFetch<DocumentDebug>(`/api/documents/${id}/debug`);
+  apiFetch<DocumentDetails>(`/api/documents/${id}/debug`);
 
 export const deleteDocument = (id: number) =>
   apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });

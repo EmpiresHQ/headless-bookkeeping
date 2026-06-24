@@ -106,13 +106,27 @@ export class TriageService {
     };
   }
 
-  /** Read-only OCR + LLM-classification snapshot for debugging a document. */
+  /** Read-only OCR + LLM-classification snapshot for debugging a document.
+   * @deprecated Use {@link details} instead.
+   */
   async debug(documentId: number): Promise<DocumentDebug> {
     const doc = await this.documents.getById(documentId);
     if (!doc) {
       throw new NotFoundException(`Document ${documentId} not found`);
     }
     return this.workflow.debug(documentId);
+  }
+
+  /**
+   * Read-only details: OCR from cache + classification from the linked draft
+   * Expense. NEVER re-invokes the LLM (ADR-0039).
+   */
+  async details(documentId: number): Promise<DocumentDebug> {
+    const doc = await this.documents.getById(documentId);
+    if (!doc) {
+      throw new NotFoundException(`Document ${documentId} not found`);
+    }
+    return this.workflow.details(documentId);
   }
 
   /** Operator-facing view of a supplier-unresolved document (404 if none). */

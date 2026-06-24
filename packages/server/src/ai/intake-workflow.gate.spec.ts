@@ -23,6 +23,7 @@ describe('IntakeWorkflowService.process gating', () => {
       {} as never, // organizationService
       {} as never, // bankIngestion
       gate,
+      {} as never, // db
     );
 
     await expect(service.process(1)).rejects.toThrow('sentinel');
@@ -52,6 +53,7 @@ describe('IntakeWorkflowService.debug gating', () => {
       {} as never, // organizationService
       {} as never, // bankIngestion
       gate,
+      {} as never, // db
     );
 
     await expect(service.debug(1)).rejects.toThrow('debug-sentinel');
