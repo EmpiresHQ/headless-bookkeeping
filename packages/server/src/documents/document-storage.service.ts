@@ -1,6 +1,6 @@
 import { Injectable, Inject, Optional } from '@nestjs/common';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { dataDir } from '../common/paths';
 
 export const DOCUMENT_STORAGE_ROOT = Symbol('DOCUMENT_STORAGE_ROOT');
@@ -26,9 +26,8 @@ export class DocumentStorageService {
     filename: string,
     buffer: Buffer,
   ): Promise<string> {
-    const dir = join(this.root, String(id));
-    await fs.mkdir(dir, { recursive: true });
-    const filePath = join(dir, filename);
+    const filePath = join(this.root, String(id), filename);
+    await fs.mkdir(dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, buffer);
     return join(String(id), filename);
   }
