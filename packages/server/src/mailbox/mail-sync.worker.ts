@@ -17,7 +17,7 @@ const MAX_CONNECT_ATTEMPTS = 5;
 const BASE_BACKOFF_MS = 1000;
 // How many recent messages to harvest on first connect (when last_uid=0).
 // The operator can override this via the mailbox_initial_fetch_count setting.
-const DEFAULT_INITIAL_FETCH_COUNT = 200;
+const DEFAULT_INITIAL_FETCH_COUNT = 0;
 
 @Injectable()
 export class MailSyncWorker implements OnModuleInit {
