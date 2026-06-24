@@ -9,6 +9,7 @@ import {
   type NeedsTriageItem,
   type TriageOutcome,
 } from '../api';
+import { reasonBadge } from '../reasonBadge';
 import { TriageManualInvoiceForm } from './TriageManualInvoiceForm';
 import { Table, type Column } from './Table';
 import { ResolveSupplierForm } from './ResolveSupplierForm';
@@ -21,25 +22,6 @@ function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'bank_statement')
     return `Bank import started (job #${o.job_id})`;
   return `→ needs triage: ${o.reason}`;
-}
-
-function reasonBadge(item: NeedsTriageItem): string {
-  switch (item.reason_type) {
-    case 'supplier_unresolved':
-      return '⚠ Unknown supplier';
-    case 'outgoing_invoice':
-      return '⚠ Outgoing invoice';
-    case 'low_confidence':
-      return '⚠ Low AI confidence';
-    case 'category_unresolved':
-      return '⚠ Unknown category';
-    case 'ocr_failed':
-      return '✗ OCR failed';
-    case 'unimplemented':
-      return 'ℹ Not yet implemented';
-    default:
-      return '⚠ Needs review';
-  }
 }
 
 export function IntakeView() {
@@ -216,7 +198,7 @@ export function IntakeView() {
                       </span>
                       <span>{item.filename}</span>
                       <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                        {reasonBadge(item)}
+                        {reasonBadge(item.reason_type)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">

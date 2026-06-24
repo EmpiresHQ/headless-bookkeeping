@@ -82,6 +82,39 @@ export interface DocumentRow {
   created_at: number;
 }
 
+export type DocumentChannel =
+  | 'upload'
+  | 'telegram'
+  | 'email'
+  | 'drive'
+  | 'ios_photo_library'
+  | 'email_sync'
+  | 'email_push';
+
+export type TriageReasonType =
+  | 'supplier_unresolved'
+  | 'outgoing_invoice'
+  | 'low_confidence'
+  | 'category_unresolved'
+  | 'ocr_failed'
+  | 'unimplemented'
+  | 'unknown';
+
+/**
+ * Enriched archive row returned by GET /api/documents (Task 6).
+ * Extends DocumentRow with linkage, channel, and triage reason.
+ */
+export interface DocumentArchiveRow extends DocumentRow {
+  preview_path: string | null;
+  channel: DocumentChannel | null;
+  reason: string | null;
+  reason_type: TriageReasonType | null;
+  expense_id: number | null;
+  supplier_name: string | null;
+  claimant_name: string | null;
+  expense_status: string | null;
+}
+
 export interface ReportingPeriod {
   id: number;
   name: string;
@@ -120,7 +153,7 @@ export const getInvoices = () =>
     (r) => r.invoices,
   );
 export const getDocuments = () =>
-  apiFetch<{ documents: DocumentRow[] }>('/api/documents').then(
+  apiFetch<{ documents: DocumentArchiveRow[] }>('/api/documents').then(
     (r) => r.documents,
   );
 
@@ -162,9 +195,6 @@ export interface DocumentDetails {
     | null;
 }
 
-/** @deprecated Use DocumentDetails */
-export type DocumentDebug = DocumentDetails;
-
 export const getDocumentDetails = (id: number) =>
   apiFetch<DocumentDetails>(`/api/documents/${id}/details`);
 
@@ -173,10 +203,6 @@ export const getDocumentDetails = (id: number) =>
  *  Never call from read-only views — use getDocumentDetails instead. */
 export const getDocumentReclassify = (id: number) =>
   apiFetch<DocumentDetails>(`/api/documents/${id}/reclassify`);
-
-/** @deprecated Use getDocumentDetails */
-export const getDocumentDebug = (id: number) =>
-  apiFetch<DocumentDetails>(`/api/documents/${id}/debug`);
 
 export const deleteDocument = (id: number) =>
   apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });
