@@ -58,6 +58,11 @@ export class AllowanceService {
         );
       }
 
+      const trip = await this.tripService.findBusinessTrip(dto.tripId);
+      if (!trip) {
+        throw new NotFoundException(`Business trip ${dto.tripId} not found`);
+      }
+
       // Duplicate guard — enforced at service layer (no UNIQUE constraint in DB)
       const existing = await this.db
         .selectFrom('allowance')
@@ -73,11 +78,6 @@ export class AllowanceService {
         throw new ConflictException(
           'A daily_allowance already exists for this trip',
         );
-      }
-
-      const trip = await this.tripService.findBusinessTrip(dto.tripId);
-      if (!trip) {
-        throw new NotFoundException(`Business trip ${dto.tripId} not found`);
       }
 
       periodStart = trip.departure_date;

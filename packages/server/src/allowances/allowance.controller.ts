@@ -27,7 +27,7 @@ const createAllowanceSchema = z.object({
   claimant_id: z.number().int().positive(),
   trip_id: z.number().int().positive().optional(),
   days: z.number().int().positive().optional(),
-  km: z.number().positive().optional(),
+  km: z.number().int().positive().optional(),
   input_amount: z.number().int().nonnegative().optional(),
   route_description: z.string().optional(),
   period_start: z.string().regex(DATE_REGEX).optional(),
