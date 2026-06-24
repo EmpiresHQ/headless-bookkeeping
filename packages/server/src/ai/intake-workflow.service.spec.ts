@@ -16,6 +16,7 @@ import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
+import { PreviewRenderer } from '../documents/preview-renderer';
 import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
 import { BankIngestionService } from '../bank/bank-ingestion.service';
@@ -155,8 +156,12 @@ describe('IntakeWorkflowService', () => {
         { provide: BankIngestionService, useValue: mockBankIngestion },
         AuditFindingsService,
         PolicyService,
-        DocumentsService,
         DocumentStorageService,
+        {
+          provide: PreviewRenderer,
+          useValue: { render: jest.fn().mockResolvedValue(null) },
+        },
+        DocumentsService,
         ProcessingGate,
         IntakeWorkflowService,
       ],
@@ -202,36 +207,79 @@ describe('IntakeWorkflowService', () => {
     await db.destroy();
   });
 
-  describe('debug', () => {
-    it('returns the OCR markdown + the LLM classification, leaving status untouched', async () => {
+  describe('details (read-only, no LLM)', () => {
+    it('returns stored OCR + Expense-derived classification for a triaged doc; pass2Agent is NEVER called', async () => {
       const docId = await seedDocument();
       mockOcrService.transcribe.mockResolvedValue({
         ok: true,
-        markdown: '# Credit note\nRefund for invoice 100',
-      });
-      mockPass2Agent.classify.mockResolvedValue({
-        ok: true,
-        result: sampleTriageResult({ kind: 'correction', confidence: 0.88 }),
+        markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
       });
 
-      const debug = await service.debug(docId);
+      // Seed a draft Expense linked to the document with AI classification facts.
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: docId,
+          category: 'transport',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+          status: 'draft',
+          document_vat_marking: '23%',
+          supplier_invoice_number: null,
+          ai_confidence: 0.94,
+          ai_document_type: 'receipt',
+          ai_kind: 'new_expense',
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
 
-      expect(debug.document_id).toBe(docId);
-      expect(debug.ocr).toEqual({
+      const details = await service.details(docId);
+
+      expect(details.document_id).toBe(docId);
+      expect(details.ocr).toEqual({
         ok: true,
-        markdown: '# Credit note\nRefund for invoice 100',
+        markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
       });
-      expect(debug.classification?.ok).toBe(true);
-      if (debug.classification?.ok) {
-        expect(debug.classification.result.kind).toBe('correction');
-        expect(debug.classification.result.confidence).toBe(0.88);
+      expect(details.classification).not.toBeNull();
+      expect(details.classification?.ok).toBe(true);
+      if (details.classification?.ok) {
+        expect(details.classification.result.kind).toBe('new_expense');
+        expect(details.classification.result.document_type).toBe('receipt');
+        expect(details.classification.result.confidence).toBe(0.94);
+        expect(details.classification.result.gross_amount).toBe(1525);
+        expect(details.classification.result.vat_amount).toBe(285);
+        expect(details.classification.result.currency).toBe('EUR');
+        expect(details.classification.result.tax_point_date).toBe('2026-03-15');
+        expect(details.classification.result.category).toBe('transport');
+        expect(details.classification.result.document_vat_marking).toBe('23%');
       }
-      // Read-only: the document is not routed.
+      // pass2Agent must NEVER be called — this is the key contract.
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+      // Read-only: document status unchanged.
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('pending');
     });
 
-    it('reports an OCR failure and skips classification', async () => {
+    it('returns OCR + classification: null when no linked Expense exists', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: '# Unknown doc',
+      });
+
+      const details = await service.details(docId);
+
+      expect(details.document_id).toBe(docId);
+      expect(details.ocr).toEqual({ ok: true, markdown: '# Unknown doc' });
+      expect(details.classification).toBeNull();
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+    });
+
+    it('returns OCR failure shape and classification: null when OCR artifact is missing', async () => {
       const docId = await seedDocument();
       mockOcrService.transcribe.mockResolvedValue({
         ok: false,
@@ -239,14 +287,15 @@ describe('IntakeWorkflowService', () => {
         detail: 'bad scan',
       });
 
-      const debug = await service.debug(docId);
+      const details = await service.details(docId);
 
-      expect(debug.ocr).toEqual({
+      expect(details.document_id).toBe(docId);
+      expect(details.ocr).toEqual({
         ok: false,
         category: 'unreadable',
         detail: 'bad scan',
       });
-      expect(debug.classification).toBeNull();
+      expect(details.classification).toBeNull();
       expect(mockPass2Agent.classify).not.toHaveBeenCalled();
     });
   });
@@ -698,6 +747,7 @@ describe('IntakeWorkflowService', () => {
           processing_since: null,
           created_at: 0,
           claimant_id: null,
+          preview_path: null,
         });
       const getFileSpy = jest
         .spyOn(documentsService, 'getFile')
@@ -748,6 +798,7 @@ describe('IntakeWorkflowService', () => {
           processing_since: null,
           created_at: 0,
           claimant_id: null,
+          preview_path: null,
         });
 
       const res = await service.process(docId);
@@ -889,8 +940,11 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain('transient');
         expect(result.finding.finding_type).toBe('needs_triage');
       }
+      // OCR transcribe WAS called (Pass 1 ran and returned the failure).
+      expect(mockOcrService.transcribe).toHaveBeenCalledWith(docId);
       // Pass 2 must NOT run when Pass 1 failed — the failure short-circuits.
       expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+      // No draft proposed on OCR failure.
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
 
       // The Document still moves to needs_triage (durable wait, ADR-0024).

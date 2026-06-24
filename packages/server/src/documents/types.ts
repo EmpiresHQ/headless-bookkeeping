@@ -1,3 +1,6 @@
+import type { TriageReasonType } from '../triage/types';
+import type { ExpenseStatus } from '../expenses/types';
+
 /**
  * Document lifecycle status — the kernel-owned state machine for an intake
  * Document (ADR-0010, ADR-0024).
@@ -43,6 +46,9 @@ export interface Document {
   // Set at upload time when the document was paid out-of-pocket by a claimant.
   // Cleared by confirmPayment() if the approver decides it was not a personal expense.
   claimant_id: number | null;
+  // Relative path to the rendered thumbnail (migration 060).
+  // NULL = not yet rendered; triggers lazy fallback in the triage UI.
+  preview_path: string | null;
 }
 
 export interface DocumentSource {
@@ -57,6 +63,30 @@ export interface DocumentSource {
 
 export interface DocumentWithSources extends Document {
   sources: DocumentSource[];
+}
+
+/**
+ * Archive row returned by GET /api/documents — the Document fields enriched with
+ * the latest source channel, linked expense data, and the needs_triage reason.
+ */
+export interface DocumentArchiveRow extends Document {
+  /** Channel from the latest document_source row (by received_at/id). Null if no sources. */
+  channel: Channel | null;
+  /** AuditFinding description for an open needs_triage finding; null otherwise. */
+  reason: string | null;
+  /**
+   * Classified reason type (same union as NeedsTriageItem.reason_type); null when reason is null.
+   * Type mirrors triage/types.ts TriageReasonType — kept in sync via classifyReasonType import.
+   */
+  reason_type: TriageReasonType | null;
+  /** The linked expense id (latest expense by id), or null if no expense. */
+  expense_id: number | null;
+  /** Supplier entity name on the linked expense, or null. */
+  supplier_name: string | null;
+  /** Claimant entity name on the linked expense (employee who paid out-of-pocket), or null. */
+  claimant_name: string | null;
+  /** Expense status ('draft'|'pending'|'posted'|'reversed'), or null if no expense. */
+  expense_status: ExpenseStatus | null;
 }
 
 export interface UploadDocumentInput {

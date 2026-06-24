@@ -8,6 +8,7 @@ import { Test } from '@nestjs/testing';
 import { MailboxConnectorService } from './mailbox-connector.service';
 import { MailSyncWorker } from './mail-sync.worker';
 import { ImapClient } from './imap-client.port';
+import { SettingsService } from '../admin/settings.service';
 
 const KEY = '0'.repeat(64);
 
@@ -15,7 +16,7 @@ describe('MailSyncWorker.syncOnce', () => {
   let db: Kysely<Database>;
   let connectors: MailboxConnectorService;
   let worker: MailSyncWorker;
-  let imap: { fetchSince: jest.Mock; idle: jest.Mock };
+  let imap: { fetchSince: jest.Mock; getLatestUid: jest.Mock; idle: jest.Mock };
   let harvested: number[];
 
   beforeEach(async () => {
@@ -30,7 +31,11 @@ describe('MailSyncWorker.syncOnce', () => {
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
     harvested = [];
-    imap = { fetchSince: jest.fn(), idle: jest.fn() };
+    imap = {
+      fetchSince: jest.fn(),
+      getLatestUid: jest.fn(async () => ({ uidvalidity: 1, latestUid: 0 })),
+      idle: jest.fn(),
+    };
     const harvest = {
       harvestMessage: jest.fn(async (_ch: string, m: { uid: number }) => {
         harvested.push(m.uid);
@@ -45,6 +50,7 @@ describe('MailSyncWorker.syncOnce', () => {
         { provide: ImapClient, useValue: imap },
         { provide: 'HARVEST', useValue: harvest },
         { provide: 'OAUTH', useValue: oauth },
+        { provide: SettingsService, useValue: { get: jest.fn(async () => null) } },
         MailSyncWorker,
       ],
     }).compile();
@@ -66,6 +72,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('harvests new messages in order and advances the cursor', async () => {
     const c = await mk();
+    // Advance past baseline so syncOnce takes the incremental path (last_uid > 0).
+    await connectors.advanceCursor(c.id, 100, 3);
     imap.fetchSince.mockResolvedValue({
       uidvalidity: 100,
       messages: [
@@ -79,6 +87,15 @@ describe('MailSyncWorker.syncOnce', () => {
     expect(row.uidvalidity).toBe(100);
     expect(row.last_uid).toBe(5);
     expect(row.status).toBe('connected');
+  });
+
+  it('does not block startup on a hanging mailbox (onModuleInit fire-and-forgets IMAP)', async () => {
+    await mk();
+    // getLatestUid never resolves — simulates a slow/unreachable IMAP server at boot time.
+    imap.getLatestUid.mockReturnValue(new Promise<never>(() => {}));
+    // onModuleInit must resolve promptly instead of awaiting the hung sync,
+    // otherwise NestJS bootstrap stalls and the HTTP listener never binds.
+    await expect(worker.onModuleInit()).resolves.toBeUndefined();
   });
 
   it('re-baselines (no harvest) when uidvalidity changes', async () => {
@@ -97,6 +114,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('marks auth_failed when the transport throws an auth error', async () => {
     const c = await mk();
+    // Advance past baseline so error comes from fetchSince (incremental path).
+    await connectors.advanceCursor(c.id, 100, 3);
     imap.fetchSince.mockRejectedValue(
       new Error('AUTHENTICATIONFAILED bad token'),
     );
@@ -104,6 +123,39 @@ describe('MailSyncWorker.syncOnce', () => {
     const [row] = await connectors.list();
     expect(row.status).toBe('auth_failed');
     expect(row.last_error).toContain('AUTHENTICATION');
+  });
+
+  it('retries a transient connect failure 5× with backoff, then marks the connector error', async () => {
+    const c = await mk();
+    // Advance past baseline so retries come from fetchSince (incremental path).
+    await connectors.advanceCursor(c.id, 100, 3);
+    imap.fetchSince.mockRejectedValue(new Error('ECONNREFUSED'));
+    const delaySpy = jest
+      .spyOn(worker as unknown as { delay(ms: number): Promise<void> }, 'delay')
+      .mockResolvedValue(undefined); // no real backoff waits in the test
+    await worker.syncOnce(c.id);
+    expect(imap.fetchSince).toHaveBeenCalledTimes(5);
+    expect(delaySpy).toHaveBeenCalledTimes(4); // backoff between the 5 attempts
+    const [row] = await connectors.list();
+    expect(row.status).toBe('error');
+    expect(row.last_error).toContain('ECONNREFUSED');
+  });
+
+  it('does not retry an auth failure — fails fast to auth_failed', async () => {
+    const c = await mk();
+    // Advance past baseline so error comes from fetchSince (incremental path).
+    await connectors.advanceCursor(c.id, 100, 3);
+    imap.fetchSince.mockRejectedValue(
+      new Error('AUTHENTICATIONFAILED bad token'),
+    );
+    const delaySpy = jest
+      .spyOn(worker as unknown as { delay(ms: number): Promise<void> }, 'delay')
+      .mockResolvedValue(undefined);
+    await worker.syncOnce(c.id);
+    expect(imap.fetchSince).toHaveBeenCalledTimes(1); // no retries
+    expect(delaySpy).not.toHaveBeenCalled();
+    const [row] = await connectors.list();
+    expect(row.status).toBe('auth_failed');
   });
 
   it('keeps prior last_uid when uidvalidity changes but messages is empty', async () => {

@@ -24,7 +24,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { DocumentsService } from './documents.service';
-import { Document, DocumentWithSources, Channel } from './types';
+import {
+  Document,
+  DocumentArchiveRow,
+  DocumentWithSources,
+  Channel,
+} from './types';
 
 @ApiTags('documents')
 @Controller('api/documents')
@@ -103,10 +108,11 @@ export class DocumentsController {
   @Get()
   @ApiOperation({
     summary: 'List documents',
-    description: 'Return all source documents.',
+    description:
+      'Return all source documents enriched with linked expense, triage reason, and latest channel.',
   })
-  async listDocuments(): Promise<{ documents: Document[] }> {
-    return { documents: await this.documentsService.list() };
+  async listDocuments(): Promise<{ documents: DocumentArchiveRow[] }> {
+    return { documents: await this.documentsService.listArchiveRows() };
   }
 
   @Get(':id')
@@ -137,6 +143,35 @@ export class DocumentsController {
     res.set({
       'Content-Type': mimeType,
       'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
+  /**
+   * Stream the thumbnail PNG for a document.
+   *
+   * If `preview_path` is NULL (pre-existing or render-failed doc), renders
+   * once via PreviewRenderer, persists the path, then streams — so old
+   * documents self-heal on first view with no backfill job.
+   *
+   * Returns 404 for non-visual files (render → null) or missing docs.
+   * Sets ETag = document hash so the browser caches across reloads.
+   */
+  @Get(':id/preview')
+  @ApiOperation({
+    summary: "Stream a document's thumbnail PNG",
+    description:
+      'Returns a ~256px PNG thumbnail. Renders lazily on first request if not yet cached.',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async getDocumentPreview(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, hash } = await this.documentsService.getPreview(Number(id));
+    res.set({
+      'Content-Type': 'image/png',
+      ETag: `"${hash}"`,
     });
     return new StreamableFile(buffer);
   }

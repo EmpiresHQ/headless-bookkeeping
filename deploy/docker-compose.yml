@@ -41,6 +41,7 @@ services:
       - ACME_EMAIL=${ACME_EMAIL}
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       - SITE_DOMAIN=${SITE_DOMAIN}
+      - LOGS_DOMAIN=${LOGS_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -51,6 +52,14 @@ services:
     network_mode: service:tailscale
     restart: unless-stopped
 
+  dozzle:
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - internal
+
   app:
     # Prebuilt image from the registry (CI builds & pushes on push to main). The
     # VPS only pulls. APP_IMAGE_TAG is set by the deploy workflow to the commit
@@ -58,6 +67,10 @@ services:
     image: ${DOCKER_IMAGE}:${APP_IMAGE_TAG:-latest}
     environment:
       - NODE_ENV=production
+      # 32-byte hex key that encrypts stored mailbox credentials at rest
+      # (email intake). Required to add any mailbox connector — without it the
+      # API 500s on connect. Generate once: `openssl rand -hex 32`. See README §9.
+      - MAILBOX_SECRET_KEY=${MAILBOX_SECRET_KEY}
     volumes:
       # Hash-chained ledger (app.sqlite) + uploaded documents. The ONE thing to
       # back up. Resolved next to this compose file → DEPLOY_PATH/data on the VPS.

@@ -37,13 +37,28 @@ export class TriageController {
     return this.triageService.route(Number(id));
   }
 
-  @Get('api/documents/:id/debug')
+  @Get('api/documents/:id/details')
   @ApiOperation({
-    summary: "Debug a document's triage",
-    description: 'Return triage debug detail for a document.',
+    summary: 'Document details (OCR + classification)',
+    description:
+      'Return the cached OCR text and classification from the linked Expense. Never re-invokes the LLM (ADR-0039).',
   })
   @ApiParam({ name: 'id', description: 'Document id' })
-  async debugDocument(@Param('id') id: string): Promise<DocumentDebug> {
+  async documentDetails(@Param('id') id: string): Promise<DocumentDebug> {
+    return this.triageService.details(Number(id));
+  }
+
+  @Get('api/documents/:id/reclassify')
+  @ApiOperation({
+    summary: 'Re-run OCR+LLM classification (work-queue manual-triage prefill)',
+    description:
+      'Re-invoke the full OCR + LLM classification pipeline for a document. ' +
+      'Intended for the /intake work queue where an operator is manually triaging ' +
+      'a needs_triage document that has no persisted Expense yet. ' +
+      'Always re-runs the AI — do not call from read-only views (use /details instead).',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async reclassifyDocument(@Param('id') id: string): Promise<DocumentDebug> {
     return this.triageService.debug(Number(id));
   }
 

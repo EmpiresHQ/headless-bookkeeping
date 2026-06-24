@@ -16,6 +16,7 @@ import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
+import { PreviewRenderer } from '../documents/preview-renderer';
 import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { TriageService } from './triage.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
@@ -90,8 +91,12 @@ describe('TriageService (integration)', () => {
           },
         },
         SalesInvoicesService,
-        DocumentsService,
         DocumentStorageService,
+        {
+          provide: PreviewRenderer,
+          useValue: { render: jest.fn().mockResolvedValue(null) },
+        },
+        DocumentsService,
         { provide: IntakeWorkflowService, useValue: mockWorkflow },
         TriageService,
       ],

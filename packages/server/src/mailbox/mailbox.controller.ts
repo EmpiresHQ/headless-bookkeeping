@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   InternalServerErrorException,
+  Logger,
   Param,
   Post,
   Query,
@@ -12,18 +13,23 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/api-token.guard';
 import {
   MailboxConnectorService,
   MailboxConnector,
 } from './mailbox-connector.service';
 import { OAuthService } from './oauth.service';
+import { MailSyncWorker } from './mail-sync.worker';
 
 @ApiTags('mailbox')
 @Controller('api/mailbox')
 export class MailboxController {
+  private readonly logger = new Logger(MailboxController.name);
+
   constructor(
     private readonly connectors: MailboxConnectorService,
     private readonly oauth: OAuthService,
+    private readonly worker: MailSyncWorker,
   ) {}
 
   @Get('connectors')
@@ -47,7 +53,14 @@ export class MailboxController {
     },
   ): Promise<MailboxConnector> {
     try {
-      return await this.connectors.create({ ...dto, authMode: 'password' });
+      const connector = await this.connectors.create({
+        ...dto,
+        authMode: 'password',
+      });
+      void this.worker
+        .connectAndSync(connector.id)
+        .catch((e) => this.logger.warn(`initial sync ${connector.id}: ${e}`));
+      return connector;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'failed to create connector';
       // The credential cannot be encrypted without the server key. Nest hides
@@ -66,6 +79,16 @@ export class MailboxController {
   @ApiOperation({ summary: 'Remove a connector' })
   async remove(@Param('id') id: string): Promise<void> {
     await this.connectors.remove(Number(id));
+  }
+
+  @Post('connectors/:id/sync')
+  @ApiOperation({ summary: 'Trigger an immediate sync for a connector and return updated state' })
+  async sync(@Param('id') id: string): Promise<MailboxConnector> {
+    await this.worker.syncOnce(Number(id));
+    const connectors = await this.connectors.list();
+    const conn = connectors.find((c) => c.id === Number(id));
+    if (!conn) throw new BadRequestException(`Connector ${id} not found`);
+    return conn;
   }
 
   @Get('oauth/start')
@@ -90,6 +113,7 @@ export class MailboxController {
     }
   }
 
+  @Public() // hit by the user's browser after provider consent — no Bearer token
   @Get('oauth/callback')
   @ApiOperation({
     summary:
@@ -113,7 +137,7 @@ export class MailboxController {
       );
       const host =
         s.provider === 'gmail' ? 'imap.gmail.com' : 'outlook.office365.com';
-      await this.connectors.create({
+      const connector = await this.connectors.create({
         channel: s.channel,
         authMode: 'oauth',
         provider: s.provider,
@@ -122,6 +146,9 @@ export class MailboxController {
         username: email,
         secret: refreshToken,
       });
+      void this.worker
+        .connectAndSync(connector.id)
+        .catch((e) => this.logger.warn(`initial sync ${connector.id}: ${e}`));
       res.redirect('/?mailbox=connected');
     } catch (e) {
       // A bad/expired code, malformed state, or a duplicate email_push must not

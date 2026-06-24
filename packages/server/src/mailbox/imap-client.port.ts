@@ -27,6 +27,12 @@ export abstract class ImapClient {
     sinceUid: number,
   ): Promise<{ uidvalidity: number; messages: FetchedMessage[] }>;
 
+  /** Return current uidvalidity and the latest assigned UID without fetching any messages. */
+  abstract getLatestUid(
+    conn: ImapConnectionConfig,
+    folder: string,
+  ): Promise<{ uidvalidity: number; latestUid: number }>;
+
   abstract idle(
     conn: ImapConnectionConfig,
     folder: string,

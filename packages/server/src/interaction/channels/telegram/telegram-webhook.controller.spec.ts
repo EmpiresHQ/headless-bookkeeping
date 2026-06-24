@@ -13,6 +13,7 @@ import {
   DocumentStorageService,
   DOCUMENT_STORAGE_ROOT,
 } from '../../../documents/document-storage.service';
+import { PreviewRenderer } from '../../../documents/preview-renderer';
 import { InteractionConfigService } from '../../config/interaction-config.service';
 import { PrincipalResolverService } from '../../principal/principal-resolver.service';
 import { IntentClassifierService } from '../../router/intent-classifier.service';
@@ -68,6 +69,10 @@ describe('TelegramWebhookController (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         { provide: DOCUMENT_STORAGE_ROOT, useValue: storageRoot },
         DocumentStorageService,
+        {
+          provide: PreviewRenderer,
+          useValue: { render: jest.fn().mockResolvedValue(null) },
+        },
         ConversationsService,
         DocumentsService,
         InteractionConfigService,

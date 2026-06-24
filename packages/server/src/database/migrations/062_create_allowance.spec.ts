@@ -420,7 +420,7 @@ describe('Migration 061: create allowance table', () => {
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
-    const { error } = await migrator.migrateTo('060_create_business_trip');
+    const { error } = await migrator.migrateTo('061_create_business_trip');
     expect(error).toBeUndefined();
 
     const result = await sql<{
