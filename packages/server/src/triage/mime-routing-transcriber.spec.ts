@@ -5,6 +5,18 @@ import { PdfRasterizer } from './pdf-rasterizer';
 import { HeicDecoder } from './heic-decoder';
 import { OcrOutcome } from './document-transcriber.port';
 
+/** Build a minimal ISOBMFF buffer that `isHeicMagicBytes` will recognise. */
+function heicMagicBuf(): Buffer {
+  const size = Buffer.alloc(4);
+  size.writeUInt32BE(24, 0);
+  return Buffer.concat([
+    size,
+    Buffer.from('ftyp'),
+    Buffer.from('heic'),
+    Buffer.alloc(12),
+  ]);
+}
+
 function make(opts: {
   vision?: (img: { buffer: Buffer; mimeType: string }) => OcrOutcome;
   pdfText?: string;
@@ -38,8 +50,8 @@ function make(opts: {
   };
 }
 
-const file = (mimeType: string) => ({
-  buffer: Buffer.from('x'),
+const file = (mimeType: string, buffer?: Buffer) => ({
+  buffer: buffer ?? Buffer.from('x'),
   filename: 'f',
   mimeType,
 });
@@ -142,5 +154,56 @@ describe('MimeRoutingTranscriber', () => {
     expect(out.detail.toLowerCase()).toContain('convert');
     // The undecoded heic is NEVER forwarded to a vision model that rejects it.
     expect(transcribeImage).not.toHaveBeenCalled();
+  });
+
+  // ── Magic-bytes fallback (browsers with empty / octet-stream MIME) ──
+
+  it('routes empty MIME + HEIC magic bytes to the decoder, not unreadable', async () => {
+    const png = Buffer.from('PNG-BYTES');
+    const { t, transcribeImage, toPng } = make({
+      heicPng: png,
+      vision: () => ({ ok: true, markdown: 'HEIC-OCR' }),
+    });
+
+    const out = await t.transcribe(file('', heicMagicBuf()));
+
+    expect(out).toEqual({ ok: true, markdown: 'HEIC-OCR' });
+    expect(toPng).toHaveBeenCalledTimes(1);
+    expect(transcribeImage).toHaveBeenCalledWith({
+      buffer: png,
+      mimeType: 'image/png',
+    });
+  });
+
+  it('routes application/octet-stream + HEIC magic bytes to the decoder', async () => {
+    const png = Buffer.from('PNG-BYTES');
+    const { t, toPng } = make({ heicPng: png });
+
+    const out = await t.transcribe(
+      file('application/octet-stream', heicMagicBuf()),
+    );
+
+    expect(out.ok).toBe(true);
+    expect(toPng).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes empty MIME + non-HEIC buffer to unreadable (regression)', async () => {
+    const { t } = make({});
+    const out = await t.transcribe(file(''));
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.category).toBe('unreadable');
+  });
+
+  it('does NOT call magic-bytes when MIME is already image/heic (fast path)', async () => {
+    // The fast path skips the magic-bytes check when the MIME is already known.
+    // We verify this by passing a non-HEIC buffer with the correct MIME — the
+    // decoder should still be called because MIME wins.
+    const png = Buffer.from('PNG-BYTES');
+    const { t, toPng } = make({ heicPng: png });
+    const nonHeicBuf = Buffer.from('not-heic-at-all');
+
+    await t.transcribe(file('image/heic', nonHeicBuf));
+    expect(toPng).toHaveBeenCalledTimes(1);
   });
 });

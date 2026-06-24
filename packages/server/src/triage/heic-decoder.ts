@@ -8,6 +8,47 @@ import { tmpdir } from 'os';
 const execFileAsync = promisify(execFile);
 
 /**
+ * ISOBMFF major brands that identify a HEIC/HEIF image.
+ * The "ftyp" box at offset 4 carries one of these four-char codes at offset 8.
+ *
+ * `heic` / `heix` — still HEIC images (HEVC-coded)
+ * `mif1` / `msf1` — HEIF multi-image / sequence
+ * `hevc` / `hevx` — raw HEVC bitstreams (less common as photos)
+ */
+const HEIC_BRANDS = new Set([
+  'heic',
+  'heix',
+  'hevc',
+  'hevx',
+  'mif1',
+  'msf1',
+]);
+
+/**
+ * Pure, synchronous magic-bytes check: is `buf` a HEIC/HEIF image?
+ *
+ * Detects ISOBMFF files where the "ftyp" box (bytes 4–7) carries one of the
+ * known HEIC/HEIF major brands (bytes 8–11).  Returns `false` when the buffer
+ * is too short or the signatures don't match — it never throws.
+ *
+ * This is the definitive server-side fallback for browsers / clients that cannot
+ * resolve the correct MIME type (Chrome/Firefox on desktop return an empty
+ * string for HEIC, and even the iOS app may send `application/octet-stream` when
+ * the UTI mapping misfires).  Without it the {@link MimeRoutingTranscriber}
+ * routes the file to "unreadable" without ever calling the decoder.
+ */
+export function isHeicMagicBytes(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  // ISOBMFF: 4-byte size (bytes 0–3) is BE u32 but we don't need to parse it.
+  if (buf[4] !== 0x66) return false; // 'f'
+  if (buf[5] !== 0x74) return false; // 't'
+  if (buf[6] !== 0x79) return false; // 'y'
+  if (buf[7] !== 0x70) return false; // 'p'
+  const brand = buf.subarray(8, 12).toString('ascii');
+  return HEIC_BRANDS.has(brand);
+}
+
+/**
  * Candidate HEIC→PNG transcoders, tried in order until one produces output.
  * libheif's `heif-convert` is what the Docker image ships (libheif-tools);
  * `sips` is the macOS-native fallback for local dev; ImageMagick covers the

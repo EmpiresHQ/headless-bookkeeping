@@ -7,7 +7,7 @@ import {
 import { LlmVisionTranscriber } from './llm-vision-transcriber';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PdfRasterizer } from './pdf-rasterizer';
-import { HeicDecoder } from './heic-decoder';
+import { HeicDecoder, isHeicMagicBytes } from './heic-decoder';
 
 /** A born-digital text layer shorter than this is treated as "no real text"
  *  (a scanned PDF whose only glyphs are noise) → OCR fallback. */
@@ -35,11 +35,21 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
   async transcribe(file: TranscribableFile): Promise<OcrOutcome> {
     const mime = file.mimeType.toLowerCase();
 
+    // Detect HEIC/HEIF by MIME type OR by magic bytes.  The browser-reported
+    // MIME is unreliable: Chrome/Firefox on desktop return an empty string for
+    // HEIC files, and even the iOS app may send `application/octet-stream` when
+    // the UTI mapping misfires.  The magic-bytes check is the definitive
+    // server-side fallback — it is pure, synchronous, and never throws.
+    const mimeIsHeic = mime === 'image/heic' || mime === 'image/heif';
+    const magicIsHeic =
+      !mimeIsHeic && isHeicMagicBytes(file.buffer);
+    const isHeic = mimeIsHeic || magicIsHeic;
+
     // HEIC/HEIF (default iPhone capture) is an image/* the vision provider can
     // NOT decode — transcode to PNG first, like a scanned PDF is rasterised. A
     // decode failure is surfaced with an actionable hint rather than silently
     // forwarded to a model that would reject it.
-    if (mime === 'image/heic' || mime === 'image/heif') {
+    if (isHeic) {
       const png = await this.heic.toPng(file.buffer);
       if (!png) {
         return {
