@@ -337,21 +337,32 @@ describe('IntakeView', () => {
     vi.spyOn(api, 'getCategories').mockResolvedValue([]);
     vi.spyOn(api, 'getEntities').mockResolvedValue([]);
 
-    const originalSearch = window.location.search;
-    Object.defineProperty(window, 'location', {
-      value: { ...window.location, search: '?expand=7' },
-      writable: true,
-      configurable: true,
-    });
+    try {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, search: '?expand=7' },
+        writable: true,
+        configurable: true,
+      });
+
+      render(<IntakeView />);
+      expect(await screen.findByText(/manual classification/i)).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, search: window.location.search },
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
+
+  it('does not expand row without ?expand query param', async () => {
+    vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
+    vi.spyOn(api, 'getTriagePending').mockResolvedValue([]);
 
     render(<IntakeView />);
-    expect(await screen.findByText(/manual classification/i)).toBeInTheDocument();
+    await screen.findByText('low-confidence.pdf');
 
-    Object.defineProperty(window, 'location', {
-      value: { ...window.location, search: originalSearch },
-      writable: true,
-      configurable: true,
-    });
+    expect(screen.queryByText(/manual classification/i)).not.toBeInTheDocument();
   });
 
   it('pending document row renders a thumbnail', async () => {
