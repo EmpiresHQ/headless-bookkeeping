@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   InternalServerErrorException,
+  Logger,
   Param,
   Post,
   Query,
@@ -18,13 +19,17 @@ import {
   MailboxConnector,
 } from './mailbox-connector.service';
 import { OAuthService } from './oauth.service';
+import { MailSyncWorker } from './mail-sync.worker';
 
 @ApiTags('mailbox')
 @Controller('api/mailbox')
 export class MailboxController {
+  private readonly logger = new Logger(MailboxController.name);
+
   constructor(
     private readonly connectors: MailboxConnectorService,
     private readonly oauth: OAuthService,
+    private readonly worker: MailSyncWorker,
   ) {}
 
   @Get('connectors')
@@ -48,7 +53,14 @@ export class MailboxController {
     },
   ): Promise<MailboxConnector> {
     try {
-      return await this.connectors.create({ ...dto, authMode: 'password' });
+      const connector = await this.connectors.create({
+        ...dto,
+        authMode: 'password',
+      });
+      void this.worker
+        .connectAndSync(connector.id)
+        .catch((e) => this.logger.warn(`initial sync ${connector.id}: ${e}`));
+      return connector;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'failed to create connector';
       // The credential cannot be encrypted without the server key. Nest hides
@@ -115,7 +127,7 @@ export class MailboxController {
       );
       const host =
         s.provider === 'gmail' ? 'imap.gmail.com' : 'outlook.office365.com';
-      await this.connectors.create({
+      const connector = await this.connectors.create({
         channel: s.channel,
         authMode: 'oauth',
         provider: s.provider,
@@ -124,6 +136,9 @@ export class MailboxController {
         username: email,
         secret: refreshToken,
       });
+      void this.worker
+        .connectAndSync(connector.id)
+        .catch((e) => this.logger.warn(`initial sync ${connector.id}: ${e}`));
       res.redirect('/?mailbox=connected');
     } catch (e) {
       // A bad/expired code, malformed state, or a duplicate email_push must not

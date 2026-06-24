@@ -53,6 +53,9 @@ export class MailSyncWorker implements OnModuleInit {
     // would block onModuleInit and stall NestJS startup (the HTTP listener never
     // binds). Kick each connector off in the background — the @Cron sweep is the
     // backstop and openIdle reconnects on its own.
+    this.logger.log(
+      `startup: kicking off initial sync for ${connectors.length} connector(s)`,
+    );
     for (const c of connectors) {
       void this.syncOnce(c.id)
         .then(() => this.openIdle(c.id))
@@ -62,7 +65,9 @@ export class MailSyncWorker implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_30_MINUTES)
   async sweep(): Promise<void> {
-    for (const c of await this.connectors.list()) {
+    const connectors = await this.connectors.list();
+    this.logger.log(`sweep: checking ${connectors.length} connector(s)`);
+    for (const c of connectors) {
       await this.syncOnce(c.id).catch((e) =>
         this.logger.warn(`sweep ${c.id}: ${e}`),
       );
@@ -77,6 +82,9 @@ export class MailSyncWorker implements OnModuleInit {
         (c) => c.id === connectorId,
       );
       if (!conn) return;
+      this.logger.log(
+        `sync start connector=${connectorId} (${conn.username}) last_uid=${conn.last_uid}`,
+      );
       // Connect + fetch with bounded retries & backoff. Transient failures
       // (network, timeout, server busy) are retried; auth failures fail fast.
       const { uidvalidity, messages } = await this.withConnectRetry(
@@ -94,6 +102,9 @@ export class MailSyncWorker implements OnModuleInit {
           messages.length > 0
             ? messages.reduce((m, x) => Math.max(m, x.uid), 0)
             : conn.last_uid; // renumbered mailbox returned nothing: keep prior cursor, don't reset to 0 (avoids a full-folder re-fetch)
+        this.logger.warn(
+          `connector=${connectorId} uidvalidity changed — re-baselined to uid=${maxUid}`,
+        );
         await this.connectors.advanceCursor(connectorId, uidvalidity, maxUid);
         return;
       }
@@ -103,12 +114,18 @@ export class MailSyncWorker implements OnModuleInit {
         await this.harvest.harvestMessage(conn.channel, msg);
         lastUid = Math.max(lastUid, msg.uid);
       }
+      this.logger.log(
+        `sync done connector=${connectorId} harvested=${messages.length} last_uid=${lastUid}`,
+      );
       await this.connectors.advanceCursor(connectorId, uidvalidity, lastUid);
     } catch (err) {
       // All retries exhausted (or an auth failure failed fast): drop the
       // connector into an error state with the reason so the operator sees it.
       const msg = err instanceof Error ? err.message : String(err);
       const status = this.isAuthError(msg) ? 'auth_failed' : 'error';
+      this.logger.error(
+        `sync failed connector=${connectorId} status=${status} error=${msg}`,
+      );
       await this.connectors.markStatus(connectorId, status, msg);
     } finally {
       this.inFlight.delete(connectorId);
@@ -176,6 +193,11 @@ export class MailSyncWorker implements OnModuleInit {
       username: conn.username,
       password: secret,
     };
+  }
+
+  async connectAndSync(connectorId: number): Promise<void> {
+    await this.syncOnce(connectorId);
+    await this.openIdle(connectorId);
   }
 
   private async openIdle(connectorId: number): Promise<void> {
