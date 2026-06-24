@@ -30,6 +30,7 @@ export interface DraftVoucherLine {
   fx_rate: number;
   vat_code?: string | null;
   is_debit: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 export interface DraftVoucher {
