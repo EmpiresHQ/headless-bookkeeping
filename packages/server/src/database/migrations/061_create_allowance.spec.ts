@@ -107,6 +107,53 @@ describe('Migration 061: create allowance table', () => {
     ).rejects.toThrow();
   });
 
+  it('accepts valid trip_id FK pointing at an existing business_trip', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const entity = await db
+      .insertInto('entity')
+      .values({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice Tamm',
+        goods_vs_services: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const trip = await db
+      .insertInto('business_trip')
+      .values({
+        claimant_id: entity.id,
+        departure_date: '2026-06-01',
+        return_date: '2026-06-05',
+        destination_country: 'FR',
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const allowance = await db
+      .insertInto('allowance')
+      .values({
+        claimant_id: entity.id,
+        trip_id: trip.id,
+        type: 'accommodation',
+        gross_amount: 10000,
+        tax_free_amount: 10000,
+        taxable_amount: 0,
+        period_start: '2026-06-01',
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    expect(allowance.trip_id).toBe(trip.id);
+  });
+
   it('allows trip_id to be null (standalone allowance)', async () => {
     const now = Math.floor(Date.now() / 1000);
     const entity = await db

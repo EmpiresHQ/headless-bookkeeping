@@ -611,11 +611,11 @@ export interface AllowanceTable {
   gross_amount: number;
   tax_free_amount: number;
   taxable_amount: number;
-  currency: string;
+  currency: Generated<string>;
   breakdown: string | null;
   period_start: string;
   period_end: string | null;
-  status: string;
+  status: Generated<string>;
   voucher_id: number | null;
   created_at: number;
   updated_at: number;
