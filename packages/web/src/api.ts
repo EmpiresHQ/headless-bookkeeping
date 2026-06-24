@@ -377,7 +377,7 @@ export const completeDocument = (id: number) =>
 
 /** Re-queue a needs_triage document for a fresh OCR + classification run. */
 export const retryDocument = (id: number) =>
-  apiFetch<void>(`/api/documents/${id}/retry`, { method: 'POST' });
+  apiFetch<{ ok: true }>(`/api/documents/${id}/retry`, { method: 'POST' });
 
 export interface NeedsTriageItem {
   id: number;
