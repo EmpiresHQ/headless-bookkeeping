@@ -298,10 +298,13 @@ export class NullCountryPlugin implements CountryPlugin {
     _year: number,
     opts: { domestic: boolean },
   ): AllowanceRates {
+    // Rates are uniform across years until a future TuMS amendment changes them.
     if (type === 'daily_allowance') {
       if (opts.domestic) {
         // TODO: verify Estonian domestic päevaraha rates against TuMS § 22
         // Placeholder: treat as 40 €/day fully taxable (conservative until confirmed)
+        // monthlyTaxFreeCeiling: 0 means fully taxable (zero tax-free cents), not employer-defined (null).
+        // Conservative placeholder until TuMS § 22 domestic rates are verified.
         return { ratePerUnit: 0, monthlyTaxFreeCeiling: 0 };
       }
       // Estonian foreign päevaraha — TuMS § 21(3), effective 2025-07-05
