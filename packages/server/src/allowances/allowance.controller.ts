@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Query,
+  HttpCode,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -88,5 +89,11 @@ export class AllowanceController {
     const allowance = await this.service.findAllowance(id);
     if (!allowance) throw new NotFoundException(`Allowance ${id} not found`);
     return allowance;
+  }
+
+  @Post(':id/submit')
+  @HttpCode(204)
+  async submit(@Param('id', ParseIntPipe) id: number) {
+    await this.service.submitAllowance(id);
   }
 }

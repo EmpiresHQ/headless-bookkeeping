@@ -13,6 +13,10 @@ import { ValidationError } from '../ledger/posting/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
+import { AllowanceLimitService } from '../allowances/allowance-limit.service';
+import { AllowanceProjectionService } from '../allowances/allowance-projection.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
+import type { AllowanceType } from '../plugins/allowance-rates.types';
 import {
   Approval,
   ApprovalStatus,
@@ -47,6 +51,9 @@ export class ApprovalsService {
     private readonly expensesService: ExpensesService,
     private readonly salesInvoicesService: SalesInvoicesService,
     private readonly reconciliationService: ReconciliationService,
+    private readonly allowanceLimitService: AllowanceLimitService,
+    private readonly allowanceProjectionService: AllowanceProjectionService,
+    private readonly orgContextResolver: OrgContextResolver,
   ) {}
 
   // ── Create ──────────────────────────────────────────────────────
@@ -65,6 +72,14 @@ export class ApprovalsService {
     if (dto.object_type === 'reconciliation_match') {
       throw new BadRequestException(
         'reconciliation_match approvals are created by the reconciliation engine, not here',
+      );
+    }
+    // Allowance approvals are created by AllowanceService.submitAllowance() which
+    // inserts the approval row directly and manages the draft→needs_triage transition.
+    // Reject attempts to create them through this endpoint to avoid double-creating.
+    if (dto.object_type === 'allowance') {
+      throw new BadRequestException(
+        'allowance approvals are created by AllowanceService.submitAllowance(), not here',
       );
     }
     const objectType = dto.object_type;
@@ -157,6 +172,13 @@ export class ApprovalsService {
       return this.approveReconciliationMatch(approval, approvedBy);
     }
 
+    // For allowances: recalculate the split before generating the draft voucher.
+    // This ensures the posted voucher reflects the correct tax-free/taxable split
+    // accounting for other allowances posted in the same period.
+    if (approval.object_type === 'allowance') {
+      await this.recalculateAndUpdateAllowanceSplit(approval.object_id);
+    }
+
     // Generate the draft voucher BEFORE the transaction to avoid deadlock
     // (generateDraftVoucher uses this.db, not the transaction handle).
     const draft = await this.generateDraftVoucher(
@@ -184,21 +206,23 @@ export class ApprovalsService {
 
     const now = Math.floor(Date.now() / 1000);
 
+    // Allowances use needs_triage as their pre-approval status; all other types use pending.
+    const fromStatus = approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
+
     // Post the voucher and update everything atomically. The idempotency claim
-    // is THE single status-transition seam, with `pending` as the expected
-    // prior status (ADR-0006 / ADR-0021) — the same guarantee the auto-post
-    // path gets with `draft`. The pending → posted transition co-writes
+    // is THE single status-transition seam, with the correct prior status for
+    // the object type (ADR-0006 / ADR-0021). The transition co-writes
     // voucher_id once the voucher exists.
     const voucher = await this.db.transaction().execute(async (trx) => {
       await this.statusTransition.transition(
         trx,
-        approval.object_type as 'expense' | 'sales_invoice',
+        approval.object_type as 'expense' | 'sales_invoice' | 'allowance',
         approval.object_id,
-        'pending',
+        fromStatus,
         'posted',
         {
           conflictMessage: (actual) =>
-            `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected pending`,
+            `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected ${fromStatus}`,
         },
       );
 
@@ -210,7 +234,7 @@ export class ApprovalsService {
 
       // Re-point the now-posted object at its voucher.
       await trx
-        .updateTable(approval.object_type)
+        .updateTable(approval.object_type as 'expense' | 'sales_invoice' | 'allowance')
         .set({ voucher_id: voucher.id, updated_at: now })
         .where('id', '=', approval.object_id)
         .execute();
@@ -296,19 +320,22 @@ export class ApprovalsService {
 
     const now = Math.floor(Date.now() / 1000);
 
+    // Allowances use needs_triage as their pre-approval status; all other types use pending.
+    const fromStatusForReject = approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
+
     await this.db.transaction().execute(async (trx) => {
       // Return business object to draft via the single status-transition seam
-      // (pending → draft, ADR-0006). The guarded transition rejects an illegal
-      // flip and atomically claims only from `pending`.
+      // (ADR-0006). The guarded transition rejects an illegal flip and atomically
+      // claims only from the expected prior status.
       await this.statusTransition.transition(
         trx,
-        approval.object_type as 'expense' | 'sales_invoice',
+        approval.object_type as 'expense' | 'sales_invoice' | 'allowance',
         approval.object_id,
-        'pending',
+        fromStatusForReject,
         'draft',
         {
           conflictMessage: (actual) =>
-            `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected pending`,
+            `${this.label(approval.object_type)} ${approval.object_id} is ${actual}, expected ${fromStatusForReject}`,
         },
       );
 
@@ -413,6 +440,68 @@ export class ApprovalsService {
     return { approval: await this.getApprovalById(approval.id), voucher: null };
   }
 
+  /**
+   * Recalculate the tax-free/taxable split for an allowance at approval time.
+   *
+   * At submit time the split was preliminary (based on the cumulative picture
+   * at that moment). By the time a human approves, other allowances may have
+   * been approved in the same month, shifting how much of the annual limit
+   * has been consumed. This method re-runs computeSplit with excludeAllowanceId
+   * so the allowance sees the correct remaining limit and updates the row.
+   */
+  private async recalculateAndUpdateAllowanceSplit(
+    allowanceId: number,
+  ): Promise<void> {
+    const allowance = await this.db
+      .selectFrom('allowance')
+      .selectAll()
+      .where('id', '=', allowanceId)
+      .executeTakeFirstOrThrow();
+
+    const { organization } = await this.orgContextResolver.resolve();
+
+    const trip = allowance.trip_id
+      ? await this.db
+          .selectFrom('business_trip')
+          .selectAll()
+          .where('id', '=', allowance.trip_id)
+          .executeTakeFirst()
+      : null;
+
+    const domestic = trip
+      ? trip.destination_country === organization.country
+      : false;
+
+    const freshSplit = await this.allowanceLimitService.computeSplit({
+      claimantId: allowance.claimant_id,
+      type: allowance.type as AllowanceType,
+      days: allowance.days ?? undefined,
+      km: allowance.km ?? undefined,
+      inputAmount: allowance.input_amount ?? undefined,
+      periodStart: allowance.period_start,
+      periodEnd: allowance.period_end ?? undefined,
+      domestic,
+      year: new Date(allowance.period_start).getUTCFullYear(),
+      excludeAllowanceId: allowance.id,
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .updateTable('allowance')
+      .set({
+        gross_amount: freshSplit.grossAmount,
+        tax_free_amount: freshSplit.taxFreeAmount,
+        taxable_amount: freshSplit.taxableAmount,
+        breakdown:
+          freshSplit.breakdown.length > 0
+            ? JSON.stringify(freshSplit.breakdown)
+            : null,
+        updated_at: now,
+      })
+      .where('id', '=', allowanceId)
+      .execute();
+  }
+
   private async getApprovalById(id: number): Promise<Approval> {
     const row = await this.db
       .selectFrom('approval')
@@ -436,6 +525,14 @@ export class ApprovalsService {
         return this.expensesService.generateDraftVoucher(objectId);
       case 'sales_invoice':
         return this.salesInvoicesService.generateDraftVoucher(objectId);
+      case 'allowance': {
+        const allowance = await this.db
+          .selectFrom('allowance')
+          .selectAll()
+          .where('id', '=', objectId)
+          .executeTakeFirstOrThrow();
+        return this.allowanceProjectionService.project(allowance);
+      }
       default:
         throw new BadRequestException(
           `Unknown object type: ${String(objectType)}`,
@@ -453,7 +550,7 @@ export class ApprovalsService {
 
     // Look up the business object to find its voucher_id
     const row = await this.db
-      .selectFrom(approval.object_type)
+      .selectFrom(approval.object_type as 'expense' | 'sales_invoice' | 'allowance')
       .select('voucher_id')
       .where('id', '=', approval.object_id)
       .executeTakeFirst();
@@ -501,6 +598,8 @@ export class ApprovalsService {
         return 'Expense';
       case 'sales_invoice':
         return 'SalesInvoice';
+      case 'allowance':
+        return 'Allowance';
       case 'reconciliation_match':
         return 'ReconciliationMatch';
     }

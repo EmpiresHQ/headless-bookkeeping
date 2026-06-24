@@ -14,6 +14,8 @@ import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { seedEntity } from '../../test/helpers/seed-entity';
 
 describe('AllowanceService', () => {
@@ -44,6 +46,8 @@ describe('AllowanceService', () => {
         BusinessTripService,
         OrganizationService,
         OrgContextResolver,
+        AuditFindingsService,
+        StatusTransitionService,
         AllowanceService,
       ],
     }).compile();
@@ -236,6 +240,83 @@ describe('AllowanceService', () => {
       const results = await service.listAllowances({ tripId: trip1.id });
       expect(results).toHaveLength(1);
       expect(results[0].trip_id).toBe(trip1.id);
+    });
+  });
+
+  describe('submitAllowance', () => {
+    it('transitions status from draft to needs_triage', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const allowance = await service.createAllowance({
+        claimantId: claimant.id,
+        type: 'mileage',
+        km: 100,
+        periodStart: '2026-06-20',
+      });
+
+      await service.submitAllowance(allowance.id);
+
+      const updated = await service.findAllowance(allowance.id);
+      expect(updated?.status).toBe('needs_triage');
+    });
+
+    it('creates an AuditFinding when submitted', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const allowance = await service.createAllowance({
+        claimantId: claimant.id,
+        type: 'mileage',
+        km: 100,
+        periodStart: '2026-06-20',
+      });
+
+      await service.submitAllowance(allowance.id);
+
+      const findings = await db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .where('referenced_object_type', '=', 'allowance')
+        .where('referenced_object_id', '=', allowance.id)
+        .execute();
+      expect(findings).toHaveLength(1);
+      expect(findings[0].finding_type).toBe('needs_triage');
+      expect(findings[0].severity).toBe('medium');
+    });
+
+    it('creates a pending Approval when submitted', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const allowance = await service.createAllowance({
+        claimantId: claimant.id,
+        type: 'mileage',
+        km: 100,
+        periodStart: '2026-06-20',
+      });
+
+      await service.submitAllowance(allowance.id);
+
+      const approvals = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'allowance')
+        .where('object_id', '=', allowance.id)
+        .execute();
+      expect(approvals).toHaveLength(1);
+      expect(approvals[0].status).toBe('pending');
+      expect(approvals[0].requested_by).toBe('claimant');
+    });
+
+    it('throws ConflictException when submitted twice', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const allowance = await service.createAllowance({
+        claimantId: claimant.id,
+        type: 'mileage',
+        km: 100,
+        periodStart: '2026-06-20',
+      });
+
+      await service.submitAllowance(allowance.id);
+
+      await expect(service.submitAllowance(allowance.id)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 });

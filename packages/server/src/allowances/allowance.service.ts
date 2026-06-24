@@ -10,6 +10,8 @@ import { Database } from '../database/types';
 import { AllowanceLimitService } from './allowance-limit.service';
 import { BusinessTripService } from './business-trip.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import type { AllowanceType } from '../plugins/allowance-rates.types';
 
 // ---------------------------------------------------------------------------
@@ -41,6 +43,8 @@ export class AllowanceService {
     private readonly limitService: AllowanceLimitService,
     private readonly tripService: BusinessTripService,
     private readonly orgContextResolver: OrgContextResolver,
+    private readonly auditFindingsService: AuditFindingsService,
+    private readonly statusTransition: StatusTransitionService,
   ) {}
 
   async createAllowance(dto: CreateAllowanceDto) {
@@ -165,5 +169,72 @@ export class AllowanceService {
       q = q.where('trip_id', '=', filters.tripId);
     }
     return q.orderBy('created_at', 'desc').execute();
+  }
+
+  /**
+   * Submit an allowance for approver review.
+   *
+   * Atomically:
+   * 1. Validates status is 'draft' (409 if not).
+   * 2. Creates an AuditFinding (finding_type='needs_triage', severity='medium').
+   * 3. Inserts a pending Approval row directly (bypassing ApprovalsService to
+   *    avoid circular DI — allowances have a different status machine).
+   * 4. Transitions status draft → needs_triage via StatusTransitionService.
+   */
+  async submitAllowance(id: number): Promise<void> {
+    const allowance = await this.findAllowance(id);
+    if (!allowance) {
+      throw new NotFoundException(`Allowance ${id} not found`);
+    }
+    if (allowance.status !== 'draft') {
+      throw new ConflictException(
+        `Allowance ${id} is ${allowance.status}, expected draft`,
+      );
+    }
+
+    // Create AuditFinding outside the transaction (AuditFindingsService uses this.db).
+    await this.auditFindingsService.create({
+      finding_type: 'needs_triage',
+      severity: 'medium',
+      description: 'Allowance requires approver confirmation',
+      referenced_object_type: 'allowance',
+      referenced_object_id: id,
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await this.db.transaction().execute(async (trx) => {
+      // Insert approval row directly — do NOT call ApprovalsService.createApproval()
+      // to avoid circular DI and because that method runs draft→pending which is
+      // wrong for the allowance status machine (allowances skip 'pending' entirely).
+      await trx
+        .insertInto('approval')
+        .values({
+          object_type: 'allowance',
+          object_id: id,
+          status: 'pending',
+          requested_by: 'claimant',
+          approved_by: null,
+          rejected_reason: null,
+          policy_reason: 'Allowances always require approver confirmation',
+          superseded_by: null,
+          created_at: now,
+          resolved_at: null,
+        })
+        .execute();
+
+      // Transition draft → needs_triage via the guarded seam.
+      await this.statusTransition.transition(
+        trx,
+        'allowance',
+        id,
+        'draft',
+        'needs_triage',
+        {
+          conflictMessage: (actual) =>
+            `Allowance ${id} is ${actual}, expected draft`,
+        },
+      );
+    });
   }
 }

@@ -25,6 +25,11 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { ApprovalsController } from './approvals.controller';
 import { ApprovalsService } from './approvals.service';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
+import { AllowanceLimitService } from '../allowances/allowance-limit.service';
+import { AllowanceProjectionService } from '../allowances/allowance-projection.service';
+import { BusinessTripService } from '../allowances/business-trip.service';
+import { AllowanceService } from '../allowances/allowance.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
 
@@ -76,6 +81,11 @@ describe('ApprovalsController (integration)', () => {
             discardDraftMatch: jest.fn(),
           },
         },
+        AllowanceLimitService,
+        AllowanceProjectionService,
+        BusinessTripService,
+        AuditFindingsService,
+        AllowanceService,
         ApprovalsService,
         {
           provide: CategoryService,

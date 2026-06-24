@@ -58,6 +58,7 @@ import * as m058 from './058_create_mailbox_connector';
 import * as m059 from './059_widen_document_source_channel';
 import * as m060 from './060_create_business_trip';
 import * as m061 from './061_create_allowance';
+import * as m062 from './062_approval_object_type_allowance';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -119,4 +120,5 @@ export const migrations: Record<string, Migration> = {
   '059_widen_document_source_channel': m059,
   '060_create_business_trip': m060,
   '061_create_allowance': m061,
+  '062_approval_object_type_allowance': m062,
 };
