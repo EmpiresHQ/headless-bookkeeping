@@ -365,4 +365,137 @@ describe('Intake E2E (document → draft → pipeline)', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('medium');
   });
+
+  // ── scenario 4: OCR-fail → retry → reprocess ───────────────────
+  // Regression: clicking Retry in the SPA should reset the document to
+  // pending so the intake queue re-picks it, and the AuditFinding
+  // description should update to reflect the NEW failure reason (not the
+  // stale original).
+
+  it('scenario 4: OCR-fail → retry endpoint resets to pending, finding updates on re-route', async () => {
+    // 1. Upload a HEIC file (with real magic bytes) — MIME empty to simulate
+    //    Chrome/Firefox which don't recognise HEIC.
+    const heicMagic = Buffer.alloc(24);
+    heicMagic.writeUInt32BE(24, 0);
+    heicMagic.write('ftyp', 4, 'ascii');
+    heicMagic.write('heic', 8, 'ascii');
+
+    const upload = await request(app.getHttpServer())
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .attach('file', heicMagic, 'IMG_2121.HEIC')
+      .expect(201)
+      .then((r) => r.body as { document: { id: number } });
+    const docId = upload.document.id;
+
+    // 2. Triage — OCR stub returns ok, but faux Pass-2 returns 'unknown'
+    //    for files not matching 'receipt' or 'invoice'. The document goes
+    //    to needs_triage.
+    const triage1 = await request(app.getHttpServer())
+      .post(`/api/documents/${docId}/triage`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .then((r) => r.body as { kind: string; reason: string });
+    expect(triage1.kind).toBe('unknown');
+
+    // 3. Verify document is in needs_triage.
+    const doc1 = await db
+      .selectFrom('document')
+      .select(['status', 'processing_attempts'])
+      .where('id', '=', docId)
+      .executeTakeFirst();
+    expect(doc1?.status).toBe('needs_triage');
+
+    // 4. Verify AuditFinding exists with the original reason.
+    const finding1 = await db
+      .selectFrom('audit_finding')
+      .selectAll()
+      .where('finding_type', '=', 'needs_triage')
+      .where('referenced_object_id', '=', docId)
+      .where('status', '=', 'open')
+      .executeTakeFirst();
+    expect(finding1).toBeDefined();
+
+    // 5. Call the retry endpoint — resets to pending.
+    await request(app.getHttpServer())
+      .post(`/api/documents/${docId}/retry`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200)
+      .then((r) => r.body as { ok: true });
+
+    // 6. Verify document is back to pending with attempts reset.
+    const doc2 = await db
+      .selectFrom('document')
+      .select(['status', 'processing_attempts', 'processing_since'])
+      .where('id', '=', docId)
+      .executeTakeFirst();
+    expect(doc2?.status).toBe('pending');
+    expect(doc2?.processing_attempts).toBe(0);
+    expect(doc2?.processing_since).toBeNull();
+
+    // 7. Triage again — simulates the intake queue picking it up.
+    //    The document goes back to needs_triage with the same reason.
+    const triage2 = await request(app.getHttpServer())
+      .post(`/api/documents/${docId}/triage`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .then((r) => r.body as { kind: string; reason: string });
+    expect(triage2.kind).toBe('unknown');
+
+    // 8. Verify the AuditFinding was REUSED (not duplicated) but its
+    //    description was UPDATED (not stale).
+    const findings = await db
+      .selectFrom('audit_finding')
+      .selectAll()
+      .where('finding_type', '=', 'needs_triage')
+      .where('referenced_object_id', '=', docId)
+      .where('status', '=', 'open')
+      .execute();
+    expect(findings).toHaveLength(1); // no duplicate
+    // The description should still be the same reason text (both routed
+    // to 'unknown'), but the point is it was WRITTEN, not stale.
+    expect(findings[0].description).toBe(triage2.reason);
+
+    // 9. Verify document is back in needs_triage.
+    const doc3 = await db
+      .selectFrom('document')
+      .select('status')
+      .where('id', '=', docId)
+      .executeTakeFirst();
+    expect(doc3?.status).toBe('needs_triage');
+  });
+
+  it('retry endpoint is a no-op on a non-needs_triage document', async () => {
+    // Upload and triage a receipt → goes to triaged (draft proposed).
+    const upload = await request(app.getHttpServer())
+      .post('/api/documents')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .attach('file', buf('receipt-content'), 'receipt.pdf')
+      .expect(201)
+      .then((r) => r.body as { document: { id: number } });
+    const docId = upload.document.id;
+
+    await request(app.getHttpServer())
+      .post(`/api/documents/${docId}/triage`)
+      .set('Authorization', `Bearer ${apiToken}`);
+
+    // Document should be triaged, not needs_triage.
+    const doc = await db
+      .selectFrom('document')
+      .select('status')
+      .where('id', '=', docId)
+      .executeTakeFirst();
+    expect(doc?.status).toBe('triaged');
+
+    // Retry should succeed (200) but NOT change the status.
+    await request(app.getHttpServer())
+      .post(`/api/documents/${docId}/retry`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200);
+
+    const docAfter = await db
+      .selectFrom('document')
+      .select('status')
+      .where('id', '=', docId)
+      .executeTakeFirst();
+    expect(docAfter?.status).toBe('triaged'); // unchanged
+  });
 });

@@ -3,6 +3,7 @@ import { LlmVisionTranscriber } from './llm-vision-transcriber';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PdfRasterizer } from './pdf-rasterizer';
 import { HeicDecoder } from './heic-decoder';
+import { ImageScaler } from './image-scaler';
 import { OcrOutcome } from './document-transcriber.port';
 
 /** Build a minimal ISOBMFF buffer that `isHeicMagicBytes` will recognise. */
@@ -41,8 +42,13 @@ function make(opts: {
   const pdfText = { extract } as unknown as PdfTextExtractor;
   const raster = { toPngPages } as unknown as PdfRasterizer;
   const heic = { toPng } as unknown as HeicDecoder;
+  const scaler = {
+    downscale: jest.fn((buf: Buffer, mt: string) =>
+      Promise.resolve({ buffer: buf, mimeType: mt }),
+    ),
+  } as unknown as ImageScaler;
   return {
-    t: new MimeRoutingTranscriber(vision, pdfText, raster, heic),
+    t: new MimeRoutingTranscriber(vision, pdfText, raster, heic, scaler),
     transcribeImage,
     extract,
     toPngPages,

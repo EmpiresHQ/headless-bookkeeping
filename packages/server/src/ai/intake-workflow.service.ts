@@ -803,6 +803,11 @@ export class IntakeWorkflowService {
         referenced_object_type: 'document',
         referenced_object_id: documentId,
       });
+    } else {
+      // Update the description so a retry that fails for a DIFFERENT reason
+      // surfaces the new reason to the operator, not the stale original.
+      await this.auditFindings.updateDescription(finding.id, reason);
+      finding = { ...finding, description: reason };
     }
 
     await this.transitionDocument(documentId, 'needs_triage');

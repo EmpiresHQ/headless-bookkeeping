@@ -191,6 +191,7 @@ export class DocumentsController {
       'Resets a needs_triage document to pending so the intake queue re-picks it.',
   })
   @ApiParam({ name: 'id', description: 'Document id' })
+  @HttpCode(HttpStatus.OK)
   async retryDocument(@Param('id') id: string): Promise<{ ok: true }> {
     await this.documentsService.reprocessDocument(Number(id));
     return { ok: true };
