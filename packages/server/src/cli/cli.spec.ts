@@ -15,6 +15,8 @@ import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { EntitiesService } from '../entities/entities.service';
 import { DocumentsService } from '../documents/documents.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
+import { PreviewRenderer } from '../documents/preview-renderer';
+import { HeicDecoder } from '../triage/heic-decoder';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
@@ -92,7 +94,14 @@ describe('admin CLI (yargs)', () => {
       ),
       salesInvoices: new SalesInvoicesService(db, noProjection),
       entities: new EntitiesService(db),
-      documents: new DocumentsService(db, new DocumentStorageService(undefined)),
+      documents: new DocumentsService(
+        db,
+        new DocumentStorageService(undefined),
+        new PreviewRenderer(
+          new DocumentStorageService(undefined),
+          new HeicDecoder(),
+        ),
+      ),
       db,
     };
   });
