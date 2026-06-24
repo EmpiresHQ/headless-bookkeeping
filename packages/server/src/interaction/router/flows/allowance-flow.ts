@@ -87,11 +87,11 @@ export class AllowanceFlow {
         };
       }
 
-      const km = parseFloat(fields['km']);
+      const km = parseInt(fields['km'], 10);
       if (isNaN(km) || km <= 0) {
         return {
           handled: true,
-          reply: 'The km value must be a positive number.',
+          reply: 'Please provide km as a positive whole number.',
         };
       }
 
@@ -122,11 +122,11 @@ export class AllowanceFlow {
         };
       }
 
-      const inputAmount = parseFloat(fields['input_amount']);
+      const inputAmount = parseInt(fields['input_amount'], 10);
       if (isNaN(inputAmount) || inputAmount <= 0) {
         return {
           handled: true,
-          reply: 'The input_amount value must be a positive number.',
+          reply: 'Please provide input_amount as a positive whole number.',
         };
       }
 

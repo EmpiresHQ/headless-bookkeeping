@@ -42,6 +42,7 @@ describe('Migration 061: create allowance table', () => {
     await expect(
       db
         .insertInto('allowance')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           type: 'accommodation',
           gross_amount: 10000,
@@ -206,6 +207,7 @@ describe('Migration 061: create allowance table', () => {
     await expect(
       db
         .insertInto('allowance')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           gross_amount: 10000,
@@ -237,6 +239,7 @@ describe('Migration 061: create allowance table', () => {
     await expect(
       db
         .insertInto('allowance')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           type: 'accommodation',
@@ -268,6 +271,7 @@ describe('Migration 061: create allowance table', () => {
     await expect(
       db
         .insertInto('allowance')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           type: 'accommodation',
@@ -299,6 +303,7 @@ describe('Migration 061: create allowance table', () => {
     await expect(
       db
         .insertInto('allowance')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           type: 'accommodation',
@@ -330,6 +335,7 @@ describe('Migration 061: create allowance table', () => {
     await expect(
       db
         .insertInto('allowance')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           type: 'accommodation',

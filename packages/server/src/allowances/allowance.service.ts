@@ -232,6 +232,7 @@ export class AllowanceService {
           description: 'Allowance requires approver confirmation',
           referenced_object_type: 'allowance',
           referenced_object_id: id,
+          status: 'open',
           created_at: now,
         })
         .execute();

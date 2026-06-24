@@ -41,6 +41,7 @@ describe('Migration 060: create business_trip table', () => {
     await expect(
       db
         .insertInto('business_trip')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           departure_date: '2026-06-01',
           return_date: '2026-06-05',
@@ -118,6 +119,7 @@ describe('Migration 060: create business_trip table', () => {
     await expect(
       db
         .insertInto('business_trip')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           return_date: '2026-06-05',
@@ -147,6 +149,7 @@ describe('Migration 060: create business_trip table', () => {
     await expect(
       db
         .insertInto('business_trip')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           departure_date: '2026-06-01',
@@ -176,6 +179,7 @@ describe('Migration 060: create business_trip table', () => {
     await expect(
       db
         .insertInto('business_trip')
+        // @ts-expect-error intentionally incomplete insert to test NOT NULL constraint
         .values({
           claimant_id: entity.id,
           departure_date: '2026-06-01',
