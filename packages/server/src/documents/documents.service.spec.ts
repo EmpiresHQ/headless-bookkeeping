@@ -1139,6 +1139,26 @@ describe('DocumentsService (unit)', () => {
       // Channel should be from the LATEST source (email, received_at is higher)
       expect(docRows[0].channel).toBe('email');
     });
+
+
+    it('does not throw and returns channel=email_sync for a mailbox-harvested document', async () => {
+      // Regression: validateChannel previously only accepted upload|telegram|email|drive|ios_photo_library
+      // and would throw on email_sync / email_push, causing GET /api/documents to 500.
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('mailbox-harvested'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email_sync',
+        sourceIdentifier: 'imap-uid-42',
+      });
+
+      // Must not throw — previously validateChannel threw on 'email_sync'
+      const rows = await service.listArchiveRows();
+
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.channel).toBe('email_sync');
+    });
   });
 
   describe('ios_photo_library channel', () => {

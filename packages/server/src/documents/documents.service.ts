@@ -681,7 +681,9 @@ export class DocumentsService {
       channel === 'telegram' ||
       channel === 'email' ||
       channel === 'drive' ||
-      channel === 'ios_photo_library'
+      channel === 'ios_photo_library' ||
+      channel === 'email_sync' ||
+      channel === 'email_push'
     ) {
       return channel;
     }

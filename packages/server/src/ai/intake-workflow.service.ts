@@ -151,12 +151,12 @@ export class IntakeWorkflowService {
   ) {}
 
   /**
-   * Read-only debug: return what Pass-1 transcribed and what Pass-2 (the LLM)
-   * classifies the document as, WITHOUT routing or changing the document's
-   * status. OCR is idempotent (returns the stored markdown); Pass-2 is re-run
-   * so the operator can see the raw classification (e.g. why kind='correction').
-   * @deprecated Use {@link details} instead — it reads from persisted Expense
-   *   data and never re-invokes the LLM (ADR-0039).
+   * Re-classification path for the manual-triage work queue: re-runs OCR +
+   * LLM (Pass-1 + Pass-2) for a given document so the operator sees a fresh
+   * classification when filling the TriageManualForm. Unlike {@link details},
+   * which reads persisted Expense data without re-invoking the LLM (ADR-0039),
+   * this method deliberately re-runs the full AI pipeline to give the operator
+   * up-to-date signal. Does NOT route or change the document's status.
    */
   async debug(documentId: number): Promise<DocumentDebug> {
     return this.gate.run(async () => {
