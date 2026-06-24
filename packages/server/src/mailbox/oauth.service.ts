@@ -11,7 +11,7 @@ const CFG = {
   gmail: {
     auth: 'https://accounts.google.com/o/oauth2/v2/auth',
     token: 'https://oauth2.googleapis.com/token',
-    scope: 'openid email https://www.googleapis.com/auth/gmail.readonly',
+    scope: 'openid email https://mail.google.com/',
     idKey: 'google_oauth_client_id',
     secretKey: 'google_oauth_client_secret',
   },
