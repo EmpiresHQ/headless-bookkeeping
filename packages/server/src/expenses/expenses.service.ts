@@ -46,6 +46,9 @@ export class ExpensesService {
             : dto.company_addressed_receipt === false
               ? 0
               : null,
+        ai_confidence: dto.ai_confidence ?? null,
+        ai_document_type: dto.ai_document_type ?? null,
+        ai_kind: dto.ai_kind ?? null,
         status: 'draft',
         voucher_id: null,
         created_at: now,
@@ -395,6 +398,9 @@ export class ExpensesService {
     asset_residual_value_minor: number | null;
     claimant_id?: number | null;
     company_addressed_receipt?: number | null;
+    ai_confidence?: number | null;
+    ai_document_type?: string | null;
+    ai_kind?: string | null;
     created_at: number;
     updated_at: number;
   }): Expense {
@@ -420,6 +426,9 @@ export class ExpensesService {
         row.company_addressed_receipt === undefined
           ? null
           : Boolean(row.company_addressed_receipt),
+      ai_confidence: row.ai_confidence ?? null,
+      ai_document_type: row.ai_document_type ?? null,
+      ai_kind: row.ai_kind ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

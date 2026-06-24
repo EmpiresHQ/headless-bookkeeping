@@ -754,6 +754,45 @@ describe('ProposeDraftService (integration)', () => {
       expect(outcome.outcome).toBe('category-unresolved');
     });
 
+    it('persists ai_confidence, ai_document_type, ai_kind from the classification onto the Expense row', async () => {
+      // Seed a document row so document_id FK is satisfied.
+      const docId = await db
+        .insertInto('document')
+        .values({
+          hash: 'ai-fields-test-hash',
+          filename: 'ai-fields-test.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          status: 'pending',
+          claimant_id: null,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        confidence: 0.87,
+        document_type: 'invoice',
+        kind: 'new_expense',
+      };
+
+      const result = expectDraft(
+        await service.proposeDraft(triageResult, docId),
+      );
+
+      const row = await db
+        .selectFrom('expense')
+        .select(['ai_confidence', 'ai_document_type', 'ai_kind'])
+        .where('id', '=', result.expenseId)
+        .executeTakeFirstOrThrow();
+
+      expect(row.ai_confidence).toBe(0.87);
+      expect(row.ai_document_type).toBe('invoice');
+      expect(row.ai_kind).toBe('new_expense');
+    });
+
     it('propagates claimant_id to the created Expense when provided', async () => {
       const entitiesService = module.get(EntitiesService);
 

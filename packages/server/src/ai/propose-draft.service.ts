@@ -258,6 +258,11 @@ export class ProposeDraftService {
       supplier_invoice_number: triageResult.supplier_invoice_number,
       claimant_id: claimantId ?? null,
       company_addressed_receipt: triageResult.company_addressed_receipt ?? null,
+      // Persist LLM classification facts so Details (Task 7) can render them
+      // without re-invoking the model (ADR-0039).
+      ai_confidence: triageResult.confidence,
+      ai_document_type: triageResult.document_type,
+      ai_kind: triageResult.kind,
     };
 
     const expense = await this.expensesService.createExpense(createExpenseDto);

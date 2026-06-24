@@ -22,6 +22,10 @@ export interface Expense {
   asset_residual_value_minor: number | null;
   claimant_id: number | null;
   company_addressed_receipt: boolean | null;
+  // LLM classification facts preserved from triage (ADR-0039).
+  ai_confidence: number | null;
+  ai_document_type: string | null;
+  ai_kind: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -48,6 +52,9 @@ export const createExpenseSchema = z.object({
     .optional(),
   claimant_id: z.number().int().positive().nullable().optional(),
   company_addressed_receipt: z.boolean().nullable().optional(),
+  ai_confidence: z.number().min(0).max(1).nullable().optional(),
+  ai_document_type: z.string().nullable().optional(),
+  ai_kind: z.string().nullable().optional(),
 });
 
 export class CreateExpenseDto extends createZodDto(createExpenseSchema) {}
