@@ -414,7 +414,6 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .where('status', '=', 'open')
       .executeTakeFirst();
     expect(finding1).toBeDefined();
-    const originalDescription = finding1!.description;
 
     // 5. Call the retry endpoint — resets to pending.
     await request(app.getHttpServer())

@@ -8,6 +8,7 @@ import { LlmVisionTranscriber } from './llm-vision-transcriber';
 import { PdfTextExtractor } from './pdf-text-extractor';
 import { PdfRasterizer } from './pdf-rasterizer';
 import { HeicDecoder, isHeicMagicBytes } from './heic-decoder';
+import { ImageScaler } from './image-scaler';
 
 /** A born-digital text layer shorter than this is treated as "no real text"
  *  (a scanned PDF whose only glyphs are noise) → OCR fallback. */
@@ -28,8 +29,19 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
     private readonly pdfText: PdfTextExtractor,
     private readonly rasterizer: PdfRasterizer,
     private readonly heic: HeicDecoder,
+    private readonly scaler: ImageScaler,
   ) {
     super();
+  }
+
+  /** Downscale then send to vision — shared by all image paths. */
+  private async ocrImage(
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<OcrOutcome> {
+    const { buffer: scaled, mimeType: mt } =
+      await this.scaler.downscale(buffer, mimeType);
+    return this.vision.transcribeImage({ buffer: scaled, mimeType: mt });
   }
 
   async transcribe(file: TranscribableFile): Promise<OcrOutcome> {
@@ -58,17 +70,11 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
           detail: `HEIC/HEIF image could not be decoded for OCR (${file.mimeType}). Convert it to PDF or JPG and re-upload.`,
         };
       }
-      return this.vision.transcribeImage({
-        buffer: png,
-        mimeType: 'image/png',
-      });
+      return this.ocrImage(png, 'image/png');
     }
 
     if (mime.startsWith('image/')) {
-      return this.vision.transcribeImage({
-        buffer: file.buffer,
-        mimeType: file.mimeType,
-      });
+      return this.ocrImage(file.buffer, file.mimeType);
     }
 
     if (mime === 'application/pdf') {
@@ -102,10 +108,7 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
     const markdowns: string[] = [];
     let firstFailure: OcrOutcome | null = null;
     for (const page of pages) {
-      const out = await this.vision.transcribeImage({
-        buffer: page,
-        mimeType: 'image/png',
-      });
+      const out = await this.ocrImage(page, 'image/png');
       if (out.ok) markdowns.push(out.markdown);
       else if (!firstFailure) firstFailure = out;
     }
