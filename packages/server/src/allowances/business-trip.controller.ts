@@ -6,6 +6,8 @@ import {
   Param,
   ParseIntPipe,
   Query,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { BusinessTripService } from './business-trip.service';
@@ -36,13 +38,17 @@ export class BusinessTripController {
 
   @Get()
   list(@Query('claimant_id') claimantId?: string) {
-    return this.service.listBusinessTrips(
-      claimantId ? parseInt(claimantId, 10) : undefined,
-    );
+    const parsed = claimantId !== undefined ? parseInt(claimantId, 10) : undefined;
+    if (parsed !== undefined && (isNaN(parsed) || parsed <= 0)) {
+      throw new BadRequestException('claimant_id must be a positive integer');
+    }
+    return this.service.listBusinessTrips(parsed);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findBusinessTrip(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const trip = await this.service.findBusinessTrip(id);
+    if (!trip) throw new NotFoundException(`Business trip ${id} not found`);
+    return trip;
   }
 }

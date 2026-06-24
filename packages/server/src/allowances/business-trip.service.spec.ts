@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
+import { UnprocessableEntityException } from '@nestjs/common';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
@@ -78,7 +79,7 @@ describe('BusinessTripService', () => {
           returnDate: '2026-06-10',
           destinationCountry: 'DE',
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(UnprocessableEntityException);
     });
   });
 
@@ -101,6 +102,11 @@ describe('BusinessTripService', () => {
       expect(found).toBeDefined();
       expect(found?.id).toBe(created.id);
       expect(found?.purpose).toBe('Meeting');
+    });
+
+    it('returns undefined for non-existent id', async () => {
+      const result = await service.findBusinessTrip(99999);
+      expect(result).toBeUndefined();
     });
   });
 
