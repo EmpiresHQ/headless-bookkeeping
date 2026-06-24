@@ -16,7 +16,7 @@ describe('ImageScaler', () => {
     expect(result.mimeType).toBe('image/png');
   });
 
-  it('downscales a large image to ≤2048px and re-encodes as JPEG', async () => {
+  it('downscales a large image to ≤1024px and re-encodes as JPEG', async () => {
     const large = await sharp({
       create: { width: 4000, height: 3000, channels: 3, background: 'blue' },
     })
@@ -28,8 +28,8 @@ describe('ImageScaler', () => {
     expect(result.mimeType).toBe('image/jpeg');
 
     const meta = await sharp(result.buffer).metadata();
-    expect(meta.width).toBeLessThanOrEqual(2048);
-    expect(meta.height).toBeLessThanOrEqual(2048);
+    expect(meta.width).toBeLessThanOrEqual(1024);
+    expect(meta.height).toBeLessThanOrEqual(1024);
     // JPEG magic bytes
     expect(result.buffer[0]).toBe(0xff);
     expect(result.buffer[1]).toBe(0xd8);
@@ -45,8 +45,8 @@ describe('ImageScaler', () => {
 
     const result = await scaler.downscale(large, 'image/png');
     const meta = await sharp(result.buffer).metadata();
-    expect(meta.width).toBe(2048);
-    expect(meta.height).toBeLessThan(2048); // 3024 * (2048/4032) ≈ 1536
+    expect(meta.width).toBe(1024);
+    expect(meta.height).toBeLessThan(1024); // 3024 * (1024/4032) ≈ 768
   });
 
   it('returns the original on a non-image buffer (never throws)', async () => {

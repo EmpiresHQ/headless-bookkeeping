@@ -7,8 +7,9 @@ import sharp from 'sharp';
  * to PNG they can be 15–20 MB, and base64 encoding adds ~33 %.  Most
  * OpenAI-compatible vision endpoints reject payloads over 4–20 MB.
  *
- * 2048 px is enough resolution for OCR to read printed text reliably while
- * keeping the JPEG under ~500 KB.
+ * 1024 px keeps the JPEG small (faster OCR, well under endpoint payload limits)
+ * at the cost of some resolution on dense small print — the `ocr-perf` tuning
+ * (was 2048).
  */
 const MAX_DIMENSION = 1024;
 const JPEG_QUALITY = 85;
