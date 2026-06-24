@@ -78,7 +78,12 @@ export type OutgoingSignals = z.infer<typeof outgoingSignalsSchema>;
  * - 'new_sales_invoice': create a sales (outgoing) invoice draft.
  * - 'correction': modify an existing business object (wired in Task 43).
  * - 'duplicate': flag as a likely duplicate (wired in Task 43).
- * - 'unknown': cannot classify — hold for human review.
+ * - 'not_a_document': the file is NOT a business accounting document at all
+ *   (spam, marketing, personal correspondence, a blank/garbled page, an
+ *   unrelated screenshot/PDF). The relevance gate: such a file must be filtered
+ *   out BEFORE any voucher attempt — never booked — and held for human review.
+ * - 'unknown': it looks like a document but cannot be classified — hold for
+ *   human review.
  */
 export const triageResultSchema = z.object({
   // Booking-critical fields stay REQUIRED — if the model omits them the document
@@ -88,6 +93,7 @@ export const triageResultSchema = z.object({
     'new_sales_invoice',
     'correction',
     'duplicate',
+    'not_a_document',
     'unknown',
   ]),
   gross_amount: z.number().int(),
@@ -219,6 +225,7 @@ export type TriageReasonType =
   | 'category_unresolved'
   | 'ocr_failed'
   | 'unimplemented'
+  | 'not_a_document'
   | 'unknown';
 
 export interface NeedsTriageItem {
@@ -235,6 +242,11 @@ export function classifyReasonType(description: string): TriageReasonType {
   // marker, so the SPA can reach the manual classify-as-sales-invoice form.
   if (description.toLowerCase().includes('outgoing invoice'))
     return 'outgoing_invoice';
+  // Relevance gate: the file was judged not to be a business accounting document
+  // at all. Checked before the supplier/confidence buckets because its reason
+  // text is intentionally distinct (notADocumentReason()).
+  if (description.toLowerCase().includes('not a business accounting document'))
+    return 'not_a_document';
   if (description.includes('supplier')) return 'supplier_unresolved';
   if (
     description.includes('confidence') ||

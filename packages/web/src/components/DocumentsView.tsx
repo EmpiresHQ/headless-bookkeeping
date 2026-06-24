@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getDocuments,
   getDocumentDetails,
   deleteDocument,
+  retryDocument,
+  openSignedDocument,
+  copyDocumentShareLink,
   type DocumentArchiveRow,
   type DocumentDetails,
 } from '../api';
@@ -10,6 +14,7 @@ import { reasonBadge } from '../reasonBadge';
 import { relativeTime } from '../relativeTime';
 import { Table, type Column } from './Table';
 import { DocumentThumb } from './DocumentThumb';
+import { TriagePanel } from './TriagePanel';
 
 // ── Channel labels ──────────────────────────────────────────────────────────
 
@@ -148,6 +153,12 @@ export function DocumentsView() {
   };
 
   const openDetails = async (id: number) => {
+    // Toggle: clicking Details on the already-open row collapses it.
+    if (selected === id) {
+      setSelected(null);
+      setDetails(null);
+      return;
+    }
     setSelected(id);
     setDetails(null);
     setDetailsBusy(true);
@@ -158,6 +169,31 @@ export function DocumentsView() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setDetailsBusy(false);
+    }
+  };
+
+  const closeDetails = () => {
+    setSelected(null);
+    setDetails(null);
+  };
+
+  // A triage form (or Retry) resolved the document — collapse and reload so the
+  // row reflects its new status.
+  const onTriageDone = () => {
+    closeDetails();
+    void load();
+  };
+
+  const onRetry = async (d: DocumentArchiveRow) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await retryDocument(d.id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -174,8 +210,10 @@ export function DocumentsView() {
       cell: (d) => (
         <a
           href={`/api/documents/${d.id}/file`}
-          target="_blank"
-          rel="noreferrer"
+          onClick={(e) => {
+            e.preventDefault();
+            void openSignedDocument(d.id);
+          }}
           className="text-blue-600 hover:underline"
         >
           {d.filename}
@@ -230,19 +268,46 @@ export function DocumentsView() {
             <div className="space-x-3 whitespace-nowrap">
               <a
                 href={`/api/documents/${d.id}/file`}
-                target="_blank"
-                rel="noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void openSignedDocument(d.id);
+                }}
                 className="text-blue-600 hover:underline"
               >
                 View
               </a>
+              <button
+                type="button"
+                onClick={() => {
+                  void copyDocumentShareLink(d.id)
+                    .then(() => setError(null))
+                    .catch((e) =>
+                      setError(e instanceof Error ? e.message : String(e)),
+                    );
+                }}
+                title="Copy a token-free shareable link (expires in ~1h)"
+                className="text-blue-600 hover:underline"
+              >
+                Copy link
+              </button>
+              {d.status === 'needs_triage' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onRetry(d)}
+                  title="Re-run OCR + classification"
+                  className="text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  Retry
+                </button>
+              )}
               {showIntake && (
-                <a
-                  href={`/intake?expand=${d.id}`}
+                <Link
+                  to={`/intake?expand=${d.id}`}
                   className="text-blue-600 hover:underline"
                 >
                   Open in Intake
-                </a>
+                </Link>
               )}
               <button
                 type="button"
@@ -250,7 +315,7 @@ export function DocumentsView() {
                 onClick={() => void openDetails(d.id)}
                 className="text-blue-600 hover:underline disabled:opacity-50"
               >
-                Details
+                {selected === d.id ? 'Hide' : 'Details'}
               </button>
               <button
                 type="button"
@@ -273,40 +338,60 @@ export function DocumentsView() {
             </div>
           );
         }}
-      />
-
-      {selected !== null && (
-        <section className="space-y-3 border rounded p-3 bg-gray-50">
-          <h2 className="font-medium text-gray-700">
-            Details — document #{selected}
-          </h2>
-          {detailsBusy && <p className="text-gray-500">Loading…</p>}
-          {details && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1">
-                <h3 className="text-xs font-medium text-gray-500 uppercase">
-                  Classification
-                </h3>
-                <ClassificationPanel details={details} />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-xs font-medium text-gray-500 uppercase">
-                  OCR text
-                </h3>
-                {details.ocr.ok ? (
-                  <pre className="text-xs whitespace-pre-wrap bg-white border rounded p-2 max-h-80 overflow-auto">
-                    {details.ocr.markdown}
-                  </pre>
-                ) : (
-                  <p className="text-red-600">
-                    OCR failed ({details.ocr.category}): {details.ocr.detail}
-                  </p>
-                )}
-              </div>
+        // Details + triage open INLINE directly beneath the selected row (not in
+        // a panel below the whole list), so the operator sees them next to the
+        // record they clicked.
+        expandedRow={(d) => {
+          if (selected !== d.id) return null;
+          return (
+            <div className="space-y-3">
+              <h2 className="font-medium text-gray-700">
+                Details — document #{d.id}
+              </h2>
+              {detailsBusy && <p className="text-gray-500">Loading…</p>}
+              {details && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-medium text-gray-500 uppercase">
+                      Classification
+                    </h3>
+                    <ClassificationPanel details={details} />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-medium text-gray-500 uppercase">
+                      OCR text
+                    </h3>
+                    {details.ocr.ok ? (
+                      <pre className="text-xs whitespace-pre-wrap bg-white border rounded p-2 max-h-80 overflow-auto">
+                        {details.ocr.markdown}
+                      </pre>
+                    ) : (
+                      <p className="text-red-600">
+                        OCR failed ({details.ocr.category}):{' '}
+                        {details.ocr.detail}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {d.status === 'needs_triage' && (
+                <div className="space-y-1 border-t pt-3">
+                  <h3 className="text-xs font-medium text-gray-500 uppercase">
+                    Triage
+                  </h3>
+                  <TriagePanel
+                    documentId={d.id}
+                    reasonType={d.reason_type}
+                    reason={d.reason}
+                    onDone={onTriageDone}
+                    onCancel={closeDetails}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </section>
-      )}
+          );
+        }}
+      />
     </div>
   );
 }

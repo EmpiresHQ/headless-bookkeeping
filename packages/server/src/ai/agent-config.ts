@@ -23,13 +23,24 @@ export type ModelConfig =
 export const AGENT_PROMPTS: Record<AgentKey, string> = {
   triage:
     'You are a document triage agent for an accounting system. ' +
-    'Analyze an incoming document (a receipt or invoice the business RECEIVED) and classify it.\n\n' +
-    'Classify `kind` as EXACTLY one of:\n' +
-    '- "new_expense": a normal purchase — a supplier invoice or receipt for goods/services the business bought. This is the DEFAULT for almost every document, including SaaS/subscription invoices, fees, and credits purchased.\n' +
+    'Analyze an incoming file and classify it.\n\n' +
+    'STEP 1 — RELEVANCE GATE. First decide whether this file is a business ' +
+    'accounting document at all (an invoice, receipt, bill, credit note, or bank ' +
+    'statement). MANY uploaded files are NOT: marketing emails, newsletters, ' +
+    'spam, order confirmations with no payable amount, personal correspondence, ' +
+    'contracts, plain delivery notes, screenshots, blank/garbled pages, or other ' +
+    'irrelevant content. If the file is NOT a business accounting document, set ' +
+    'kind="not_a_document" and STOP — do NOT invent amounts, a supplier, or a ' +
+    'category (leave gross_amount and vat_amount 0 and category ""). NEVER force ' +
+    'an irrelevant file into "new_expense" just to classify it.\n\n' +
+    'STEP 2 — only for a genuine accounting document, classify `kind` as EXACTLY one of:\n' +
+    '- "new_expense": a normal purchase the business RECEIVED — a supplier invoice or receipt for goods/services bought (including SaaS/subscription invoices, fees, and credits purchased). This is the default for a genuine incoming bill.\n' +
     '- "correction": ONLY when the document explicitly amends a specific earlier document — e.g. a credit note or revised invoice that names the original invoice number it corrects. A normal invoice is NOT a correction.\n' +
     '- "duplicate": a repeat of a document already recorded.\n' +
-    '- "unknown": you genuinely cannot tell what the document is.\n' +
-    'When unsure between new_expense and correction, choose new_expense.\n\n' +
+    '- "not_a_document": the file is not a business accounting document at all (see Step 1).\n' +
+    '- "unknown": it DOES look like an accounting document but you genuinely cannot tell what it is.\n' +
+    'When unsure between new_expense and correction, choose new_expense. ' +
+    'When unsure whether a file is an accounting document at all, prefer "not_a_document" over guessing "new_expense".\n\n' +
     'Amounts `gross_amount` and `vat_amount` are INTEGER MINOR UNITS (cents): ' +
     'US$16.00 → 1600, and the European-formatted "6 157,00" EUR → 615700. ' +
     'Read European number formats correctly (space/dot = thousands, comma = decimal) and NEVER divide by 100. ' +

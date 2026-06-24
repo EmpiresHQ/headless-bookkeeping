@@ -98,6 +98,7 @@ export type TriageReasonType =
   | 'category_unresolved'
   | 'ocr_failed'
   | 'unimplemented'
+  | 'not_a_document'
   | 'unknown';
 
 /**
@@ -421,6 +422,56 @@ export const completeDocument = (id: number) =>
 export const retryDocument = (id: number) =>
   apiFetch<{ ok: true }>(`/api/documents/${id}/retry`, { method: 'POST' });
 
+/**
+ * Mint a short-lived, token-free URL for a document's file. The raw
+ * `/api/documents/:id/file` endpoint is Bearer-only, so a plain <a href> the
+ * browser navigates to (or a link you copy/share) cannot open it — the token
+ * lives in localStorage, not a cookie. This returns a signed `/shared` URL that
+ * streams the file without a token for a bounded window (~1h).
+ */
+export const getSignedDocumentUrl = (id: number) =>
+  apiFetch<{ url: string }>(`/api/documents/${id}/signed-url`);
+
+/**
+ * Fetch a document's preview PNG as an object URL. The /preview endpoint needs
+ * the Bearer header, which an <img src> cannot send — so we fetch the bytes
+ * (token attached) and hand back a blob: URL. The CALLER must revoke it with
+ * URL.revokeObjectURL when the image unmounts.
+ */
+export async function fetchDocumentPreviewObjectUrl(
+  id: number,
+): Promise<string> {
+  const res = await apiFetchRaw(`/api/documents/${id}/preview`);
+  return URL.createObjectURL(await res.blob());
+}
+
+/**
+ * Open a document's file in a new tab via a freshly-minted signed URL. Opens a
+ * blank tab synchronously (inside the click gesture, so the popup blocker does
+ * not eat it), then points it at the token-free /shared link once minted.
+ */
+export async function openSignedDocument(id: number): Promise<void> {
+  const tab = window.open('', '_blank', 'noreferrer');
+  try {
+    const { url } = await getSignedDocumentUrl(id);
+    if (tab) tab.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    tab?.close();
+    throw e;
+  }
+}
+
+/**
+ * Copy a token-free shareable link to a document's file onto the clipboard.
+ * Prefixes the current origin so the copied URL is absolute and openable
+ * anywhere the link's bounded lifetime allows.
+ */
+export async function copyDocumentShareLink(id: number): Promise<void> {
+  const { url } = await getSignedDocumentUrl(id);
+  await navigator.clipboard.writeText(`${window.location.origin}${url}`);
+}
+
 export interface NeedsTriageItem {
   id: number;
   filename: string;
@@ -433,6 +484,7 @@ export interface NeedsTriageItem {
     | 'category_unresolved'
     | 'ocr_failed'
     | 'unimplemented'
+    | 'not_a_document'
     | 'unknown';
 }
 

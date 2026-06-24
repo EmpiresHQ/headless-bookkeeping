@@ -47,6 +47,19 @@ export function unimplementedKindReason(
 }
 
 /**
+ * The needs_triage reason for a file the relevance gate judged is NOT a business
+ * accounting document (spam, marketing, personal correspondence, a blank/garbled
+ * page, an unrelated screenshot). Phrased with the stable marker "not a business
+ * accounting document" so classifyReasonType tags it `not_a_document`. Such a
+ * file is filtered out BEFORE any voucher attempt — it must never reach
+ * proposeDraft / the posting pipeline, where it would fail structural validation
+ * and surface as a confusing "Unexpected error during intake".
+ */
+export function notADocumentReason(): string {
+  return 'Not a business accounting document — the file does not look like an invoice, receipt, or statement, so intake did not attempt to book it. Held for human review (delete it or classify it manually).';
+}
+
+/**
  * Which pass failed, and why, when a needs_triage route was driven by a typed
  * pass failure. The two intake passes — Pass 1 (OCR transcription) and Pass 2
  * (agent classification) — surface failures through the SAME shape, so the
@@ -334,6 +347,19 @@ export class IntakeWorkflowService {
       const markdown = ocr.markdown;
       this.logger.debug(`Pass 1 complete for document ${documentId}`);
 
+      // ── Deterministic relevance pre-filter ─────────────────────
+      // OCR succeeded but produced no readable text (a blank scan, an image with
+      // no words). There is nothing to classify, so don't spend an LLM call on
+      // it — route straight to human review as "not a document". This is the
+      // cheap, no-LLM half of the relevance gate; the LLM verdict (kind ===
+      // 'not_a_document') is the content-aware half, handled after Pass 2.
+      if (markdown.trim().length === 0) {
+        this.logger.warn(
+          `Document ${documentId} produced empty OCR text — routing to needs_triage as not-a-document`,
+        );
+        return this.routeNeedsTriage(documentId, notADocumentReason());
+      }
+
       // ── Org identity + deterministic direction gate ────────────
       // Computed BEFORE Pass 2 so the agent can extract direction-appropriate
       // fields. The IBAN match alone decides direction; the agent's
@@ -368,6 +394,19 @@ export class IntakeWorkflowService {
       this.logger.debug(
         `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
       );
+
+      // ── Relevance gate (content-aware) ─────────────────────────
+      // The agent judged this file is not a business accounting document at all.
+      // Filter it out HERE — before document-class routing and any voucher
+      // attempt — so junk never reaches proposeDraft / the posting pipeline
+      // (where it fails structural validation and surfaces as a confusing
+      // "Unexpected error during intake"). High confidence does NOT post it.
+      if (triageResult.kind === 'not_a_document') {
+        this.logger.warn(
+          `Document ${documentId} classified as not_a_document — routing to needs_triage (relevance gate)`,
+        );
+        return this.routeNeedsTriage(documentId, notADocumentReason());
+      }
 
       // ── Deterministic document-class routing — the ONE place ────
       // Direction + document type decide WHICH intake route owns this document.

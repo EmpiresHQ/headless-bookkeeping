@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { fetchDocumentPreviewObjectUrl, openSignedDocument } from '../api';
 
 interface Props {
   id: number;
@@ -9,16 +10,41 @@ interface Props {
 
 export function DocumentThumb({ id, preview_path }: Props) {
   const [errored, setErrored] = useState(preview_path === null);
-  const fileUrl = `/api/documents/${id}/file`;
+  // The /preview endpoint is Bearer-only, so an <img src> cannot load it.
+  // Fetch the bytes (token attached) into a blob: URL and revoke it on unmount.
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (preview_path === null) return; // known-absent → fallback, no request
+    let revoked = false;
+    let objectUrl: string | null = null;
+    fetchDocumentPreviewObjectUrl(id)
+      .then((url) => {
+        if (revoked) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setSrc(url);
+      })
+      .catch(() => setErrored(true));
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, preview_path]);
+
+  // The file endpoint is Bearer-only too. Mint a signed, token-free URL on
+  // click and open it (see openSignedDocument).
+  function openFile(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    void openSignedDocument(id);
+  }
 
   return (
-    <a
-      href={fileUrl}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {errored ? (
+    <a href={`/api/documents/${id}/file`} onClick={openFile} title="Open file">
+      {errored || !src ? (
         <span
           aria-label="no preview"
           className="inline-flex items-center justify-center w-10 h-10 bg-gray-100 rounded text-gray-400 text-xs"
@@ -27,7 +53,7 @@ export function DocumentThumb({ id, preview_path }: Props) {
         </span>
       ) : (
         <img
-          src={`/api/documents/${id}/preview`}
+          src={src}
           alt="preview"
           aria-label="preview"
           width={48}

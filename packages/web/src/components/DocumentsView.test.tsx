@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render as rtlRender,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import { DocumentsView } from './DocumentsView';
+
+// DocumentsView renders react-router <Link>s ("Open in Intake"), so every
+// render needs a Router context.
+const render = (ui: ReactElement) =>
+  rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 import * as api from '../api';
 import type { DocumentArchiveRow, DocumentDetails } from '../api';
 
@@ -8,6 +20,11 @@ vi.mock('../api', () => ({
   getDocuments: vi.fn(),
   getDocumentDetails: vi.fn(),
   deleteDocument: vi.fn(),
+  retryDocument: vi.fn(),
+  // DocumentThumb (rendered per row) + the Filename/View/Copy actions call these.
+  fetchDocumentPreviewObjectUrl: vi.fn().mockResolvedValue('blob:preview'),
+  openSignedDocument: vi.fn().mockResolvedValue(undefined),
+  copyDocumentShareLink: vi.fn().mockResolvedValue(undefined),
 }));
 
 /** A minimal archive row for a pending doc (no linkage). */
@@ -111,16 +128,24 @@ describe('DocumentsView', () => {
     vi.mocked(api.getDocuments).mockResolvedValue([pendingDoc]);
     vi.mocked(api.getDocumentDetails).mockResolvedValue(sampleDetails);
     vi.mocked(api.deleteDocument).mockResolvedValue({ deleted: 1 });
+    // Re-establish each test (afterEach's restoreAllMocks resets these too).
+    vi.mocked(api.fetchDocumentPreviewObjectUrl).mockResolvedValue(
+      'blob:preview',
+    );
+    vi.mocked(api.openSignedDocument).mockResolvedValue(undefined);
+    vi.mocked(api.copyDocumentShareLink).mockResolvedValue(undefined);
   });
   afterEach(() => vi.restoreAllMocks());
 
   // ── Thumbnail ────────────────────────────────────────────────────────────
 
-  it('renders thumbnail img with preview URL when preview_path is set', async () => {
+  it('renders thumbnail img from the fetched blob URL when preview_path is set', async () => {
     render(<DocumentsView />);
     await screen.findByText('receipt.pdf');
-    const img = screen.getByRole('img', { name: /preview/i });
-    expect(img).toHaveAttribute('src', '/api/documents/1/preview');
+    // The preview endpoint is Bearer-only, so the bytes are fetched and turned
+    // into a blob: URL (mocked here) rather than an <img src> hitting the API.
+    const img = await screen.findByRole('img', { name: /preview/i });
+    expect(img).toHaveAttribute('src', 'blob:preview');
   });
 
   it('shows a fallback icon when the thumbnail img errors (preview fetch fails)', async () => {
@@ -128,7 +153,7 @@ describe('DocumentsView', () => {
     render(<DocumentsView />);
     await screen.findByText('receipt.pdf');
     // There is an img element; trigger its error event to simulate 404
-    const img = screen.getByRole('img', { name: /preview/i });
+    const img = await screen.findByRole('img', { name: /preview/i });
     fireEvent.error(img);
     // After error, a fallback icon (aria-label="no preview") should appear
     await waitFor(() =>
@@ -148,13 +173,11 @@ describe('DocumentsView', () => {
     expect(screen.getByLabelText('no preview')).toBeInTheDocument();
   });
 
-  it('clicking filename opens the file URL in a new tab', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+  it('clicking filename opens the file via a signed URL (not a raw token-bound link)', async () => {
     render(<DocumentsView />);
     const link = await screen.findByRole('link', { name: /receipt\.pdf/i });
-    expect(link).toHaveAttribute('href', '/api/documents/1/file');
-    expect(link).toHaveAttribute('target', '_blank');
-    openSpy.mockRestore();
+    fireEvent.click(link);
+    expect(api.openSignedDocument).toHaveBeenCalledWith(1);
   });
 
   // ── Added (relative time) ────────────────────────────────────────────────
@@ -295,6 +318,25 @@ describe('DocumentsView', () => {
 
     expect(await screen.findByText(/Total: 100\.00/)).toBeInTheDocument();
     expect(api.getDocumentDetails).toHaveBeenCalledWith(1);
+  });
+
+  // ── Triage inline (reuse of the Intake triage forms) ─────────────────────
+
+  it('shows Retry for a needs_triage doc and calls retryDocument', async () => {
+    vi.mocked(api.getDocuments).mockResolvedValue([needsTriageDoc]);
+    render(<DocumentsView />);
+    await screen.findByText('invoice.jpg');
+    fireEvent.click(screen.getByRole('button', { name: /^retry$/i }));
+    await waitFor(() => expect(api.retryDocument).toHaveBeenCalledWith(2));
+  });
+
+  it('expanding a needs_triage doc shows the inline Triage panel', async () => {
+    vi.mocked(api.getDocuments).mockResolvedValue([needsTriageDoc]);
+    render(<DocumentsView />);
+    await screen.findByText('invoice.jpg');
+    fireEvent.click(screen.getByRole('button', { name: /details/i }));
+    // The Details + actionable Triage form open inline beneath the row.
+    expect(await screen.findByText('Triage')).toBeInTheDocument();
   });
 
   // ── Columns: Size and Type are removed ───────────────────────────────────

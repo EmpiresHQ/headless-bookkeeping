@@ -10,11 +10,8 @@ import {
   type TriageOutcome,
 } from '../api';
 import { reasonBadge } from '../reasonBadge';
-import { TriageManualInvoiceForm } from './TriageManualInvoiceForm';
 import { Table, type Column } from './Table';
-import { ResolveSupplierForm } from './ResolveSupplierForm';
-import { TriageManualForm } from './TriageManualForm';
-import { TriageOcrFailedForm } from './TriageOcrFailedForm';
+import { TriagePanel } from './TriagePanel';
 import { DocumentThumb } from './DocumentThumb';
 
 function outcomeLabel(o: TriageOutcome): string {
@@ -231,43 +228,13 @@ export function IntakeView() {
                   </div>
 
                   {isExpanded && (
-                    <>
-                      {item.reason_type === 'supplier_unresolved' && (
-                        <ResolveSupplierForm
-                          documentId={item.id}
-                          onDone={onFormDone}
-                          onCancel={() => setExpandedId(null)}
-                        />
-                      )}
-                      {(item.reason_type === 'low_confidence' ||
-                        item.reason_type === 'category_unresolved') && (
-                        <TriageManualForm
-                          documentId={item.id}
-                          onDone={onFormDone}
-                          onCancel={() => setExpandedId(null)}
-                        />
-                      )}
-                      {item.reason_type === 'ocr_failed' && (
-                        <TriageOcrFailedForm
-                          documentId={item.id}
-                          onDone={onFormDone}
-                          onCancel={() => setExpandedId(null)}
-                        />
-                      )}
-                      {item.reason_type === 'outgoing_invoice' && (
-                        <TriageManualInvoiceForm
-                          documentId={item.id}
-                          onDone={onFormDone}
-                          onCancel={() => setExpandedId(null)}
-                        />
-                      )}
-                      {(item.reason_type === 'unimplemented' ||
-                        item.reason_type === 'unknown') && (
-                        <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500">
-                          {item.reason}
-                        </div>
-                      )}
-                    </>
+                    <TriagePanel
+                      documentId={item.id}
+                      reasonType={item.reason_type}
+                      reason={item.reason}
+                      onDone={onFormDone}
+                      onCancel={() => setExpandedId(null)}
+                    />
                   )}
                 </div>
               );
