@@ -123,10 +123,10 @@ describe('DocumentsView', () => {
     expect(img).toHaveAttribute('src', '/api/documents/1/preview');
   });
 
-  it('shows a fallback icon when the thumbnail img errors (no preview)', async () => {
-    vi.mocked(api.getDocuments).mockResolvedValue([needsTriageDoc]);
+  it('shows a fallback icon when the thumbnail img errors (preview fetch fails)', async () => {
+    // Use a doc with preview_path set, but simulate the fetch failing
     render(<DocumentsView />);
-    await screen.findByText('invoice.jpg');
+    await screen.findByText('receipt.pdf');
     // There is an img element; trigger its error event to simulate 404
     const img = screen.getByRole('img', { name: /preview/i });
     fireEvent.error(img);
@@ -134,6 +134,16 @@ describe('DocumentsView', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('no preview')).toBeInTheDocument(),
     );
+  });
+
+  it('renders fallback icon directly when preview_path is null (no img fetch)', async () => {
+    vi.mocked(api.getDocuments).mockResolvedValue([needsTriageDoc]);
+    render(<DocumentsView />);
+    await screen.findByText('invoice.jpg');
+    // When preview_path is null, no img element should exist at all
+    expect(screen.queryByRole('img', { name: /preview/i })).not.toBeInTheDocument();
+    // The fallback icon must be rendered
+    expect(screen.getByLabelText('no preview')).toBeInTheDocument();
   });
 
   it('clicking filename opens the file URL in a new tab', async () => {

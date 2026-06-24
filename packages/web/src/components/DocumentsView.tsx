@@ -27,7 +27,7 @@ function relativeTime(unixSecs: number): string {
 function channelLabel(channel: string | null): string {
   switch (channel) {
     case 'telegram':
-      return '✈ telegram';
+      return '💬 telegram';
     case 'email':
     case 'email_sync':
     case 'email_push':
@@ -46,7 +46,7 @@ function channelLabel(channel: string | null): string {
 // ── Thumbnail cell ──────────────────────────────────────────────────────────
 
 function ThumbCell({ doc }: { doc: DocumentArchiveRow }) {
-  const [errored, setErrored] = useState(false);
+  const [errored, setErrored] = useState(!doc.preview_path);
   const fileUrl = `/api/documents/${doc.id}/file`;
 
   return (
@@ -58,7 +58,7 @@ function ThumbCell({ doc }: { doc: DocumentArchiveRow }) {
         >
           📄
         </span>
-      ) : (
+      ) : doc.preview_path ? (
         <img
           src={`/api/documents/${doc.id}/preview`}
           alt="preview"
@@ -68,7 +68,7 @@ function ThumbCell({ doc }: { doc: DocumentArchiveRow }) {
           className="w-10 h-10 object-cover rounded border border-gray-200"
           onError={() => setErrored(true)}
         />
-      )}
+      ) : null}
     </a>
   );
 }
@@ -297,6 +297,11 @@ export function DocumentsView() {
                   locked
                     ? `Cannot delete: expense is ${d.expense_status}`
                     : undefined
+                }
+                aria-label={
+                  locked
+                    ? `Cannot delete — linked expense is ${d.expense_status}`
+                    : 'Delete document'
                 }
                 onClick={() => void onDelete(d)}
                 className="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
