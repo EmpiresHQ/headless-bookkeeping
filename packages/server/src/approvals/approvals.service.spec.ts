@@ -31,11 +31,14 @@ import { AllowanceService } from '../allowances/allowance.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
+import { seedEntity } from '../../test/helpers/seed-entity';
 
 describe('ApprovalsService (integration)', () => {
   let db: Kysely<Database>;
   let service: ApprovalsService;
   let expensesService: ExpensesService;
+  let allowanceService: AllowanceService;
+  let tripService: BusinessTripService;
   let reconciliationStub: {
     activateMatch: jest.Mock;
     discardDraftMatch: jest.Mock;
@@ -103,6 +106,8 @@ describe('ApprovalsService (integration)', () => {
 
     service = module.get(ApprovalsService);
     expensesService = module.get(ExpensesService);
+    allowanceService = module.get(AllowanceService);
+    tripService = module.get(BusinessTripService);
   });
 
   afterEach(async () => {
@@ -526,6 +531,89 @@ describe('ApprovalsService (integration)', () => {
       const pending = await service.listPendingApprovals();
       expect(pending).toHaveLength(1);
       expect(pending[0].status).toBe('pending');
+    });
+  });
+
+  // ── allowance approvals ──────────────────────────────────────────
+  //
+  // The key invariant: split is recalculated at approval time, not at
+  // creation time.  This catches the race where two allowances are
+  // created simultaneously (each seeing 0 accumulated days) and one
+  // would otherwise overclaim the high-rate quota.
+
+  describe('allowance approvals', () => {
+    it('recalculates split at approval when another allowance has accumulated days in the same month', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const now = Math.floor(Date.now() / 1000);
+
+      // Create trip B (June 13–18 = 6 days, foreign destination → high-rate päevaraha applies)
+      const tripB = await tripService.createBusinessTrip({
+        claimantId: claimant.id,
+        departureDate: '2026-06-13',
+        returnDate: '2026-06-18',
+        destinationCountry: 'DE',
+      });
+
+      // Create allowance B via service — at this point allowance A is NOT yet in DB,
+      // so accumulated June days = 0 → all 6 days at high rate → gross = 6 × 7500 = 45000
+      const allowanceB = await allowanceService.createAllowance({
+        claimantId: claimant.id,
+        tripId: tripB.id,
+        type: 'daily_allowance',
+      });
+      expect(allowanceB.gross_amount).toBe(45000); // pre-condition: 6 × 7500
+
+      // Seed allowance A directly (simulating a concurrent allowance that landed in DB
+      // after B was created but before B is approved).
+      // 12 days in June — will consume 12 of the 15 monthly high-rate quota.
+      await db
+        .insertInto('allowance')
+        .values({
+          claimant_id: claimant.id,
+          trip_id: null,
+          type: 'daily_allowance',
+          days: 12,
+          km: null,
+          input_amount: null,
+          route_description: null,
+          gross_amount: 90000, // 12 × 7500
+          tax_free_amount: 90000,
+          taxable_amount: 0,
+          breakdown: null,
+          period_start: '2026-06-01',
+          period_end: '2026-06-12',
+          voucher_id: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      // Submit B → needs_triage; creates a pending approval row
+      await allowanceService.submitAllowance(allowanceB.id);
+
+      const pendingApproval = await db
+        .selectFrom('approval')
+        .selectAll()
+        .where('object_type', '=', 'allowance')
+        .where('object_id', '=', allowanceB.id)
+        .where('status', '=', 'pending')
+        .executeTakeFirstOrThrow();
+
+      // Approve B → recalculation sees accumulated=12 (from A) plus excludes B itself
+      // → remaining high-rate days = 15 − 12 = 3
+      // → B split: 3 × 7500 (high-rate) + 3 × 4000 (fallback) = 22500 + 12000 = 34500
+      await service.approveApproval(pendingApproval.id, 'approver@test.com');
+
+      const reloaded = await db
+        .selectFrom('allowance')
+        .selectAll()
+        .where('id', '=', allowanceB.id)
+        .executeTakeFirstOrThrow();
+
+      expect(reloaded.gross_amount).toBe(34500);
+      expect(reloaded.tax_free_amount).toBe(34500);
+      expect(reloaded.taxable_amount).toBe(0);
+      expect(reloaded.status).toBe('posted');
     });
   });
 

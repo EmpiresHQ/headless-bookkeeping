@@ -10,7 +10,6 @@ import { Database } from '../database/types';
 import { AllowanceLimitService } from './allowance-limit.service';
 import { BusinessTripService } from './business-trip.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
-import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import type { AllowanceType } from '../plugins/allowance-rates.types';
 
@@ -43,7 +42,6 @@ export class AllowanceService {
     private readonly limitService: AllowanceLimitService,
     private readonly tripService: BusinessTripService,
     private readonly orgContextResolver: OrgContextResolver,
-    private readonly auditFindingsService: AuditFindingsService,
     private readonly statusTransition: StatusTransitionService,
   ) {}
 
@@ -192,21 +190,42 @@ export class AllowanceService {
       );
     }
 
-    // Create AuditFinding outside the transaction (AuditFindingsService uses this.db).
-    await this.auditFindingsService.create({
-      finding_type: 'needs_triage',
-      severity: 'medium',
-      description: 'Allowance requires approver confirmation',
-      referenced_object_type: 'allowance',
-      referenced_object_id: id,
-    });
+    // Guard: prevent duplicate pending approvals (e.g. re-submit after a transient failure).
+    const existingPending = await this.db
+      .selectFrom('approval')
+      .select('id')
+      .where('object_type', '=', 'allowance')
+      .where('object_id', '=', id)
+      .where('status', '=', 'pending')
+      .executeTakeFirst();
+    if (existingPending) {
+      throw new ConflictException(
+        `Allowance ${id} already has a pending approval`,
+      );
+    }
 
     const now = Math.floor(Date.now() / 1000);
 
+    // All three side-effects are atomic: AuditFinding + Approval + status transition.
     await this.db.transaction().execute(async (trx) => {
+      // Insert audit_finding directly via trx to keep the operation atomic.
+      // AuditFindingsService.create() uses this.db and cannot participate in a
+      // caller-supplied transaction, so we bypass it here and use the raw insert.
+      await trx
+        .insertInto('audit_finding')
+        .values({
+          finding_type: 'needs_triage',
+          severity: 'medium',
+          description: 'Allowance requires approver confirmation',
+          referenced_object_type: 'allowance',
+          referenced_object_id: id,
+          created_at: now,
+        })
+        .execute();
+
       // Insert approval row directly — do NOT call ApprovalsService.createApproval()
       // to avoid circular DI and because that method runs draft→pending which is
-      // wrong for the allowance status machine (allowances skip 'pending' entirely).
+      // wrong for the allowance status machine (allowances use needs_triage).
       await trx
         .insertInto('approval')
         .values({
