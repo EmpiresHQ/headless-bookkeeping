@@ -117,10 +117,11 @@ describe('AllowanceLimitService', () => {
         year: 2026,
       });
 
-      // 2 days at 75€ (remaining quota) + 3 days at 40€ (fallback, taxable)
-      expect(split.taxFreeAmount).toBe(2 * 7500); // 15000
-      expect(split.taxableAmount).toBe(3 * 4000); // 12000
-      expect(split.grossAmount).toBe(split.taxFreeAmount + split.taxableAmount);
+      // 2 days at 75€ (remaining quota) + 3 days at 40€ (fallback rate) — ALL tax-free for päevaraha
+      const expectedGross = 2 * 7500 + 3 * 4000; // 15000 + 12000 = 27000
+      expect(split.grossAmount).toBe(expectedGross);
+      expect(split.taxFreeAmount).toBe(expectedGross); // all tax-free for päevaraha
+      expect(split.taxableAmount).toBe(0);
     });
 
     it('handles trip spanning two calendar months', async () => {

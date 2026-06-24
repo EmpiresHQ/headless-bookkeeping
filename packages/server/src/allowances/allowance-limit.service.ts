@@ -33,9 +33,10 @@ export interface MonthSegment {
   month: string; // 'YYYY-MM'
   days: number;
   taxFreeDays: number;
-  taxableDays: number;
+  /** Days beyond the 15/month high-rate quota, paid at 40€/day — still 100% tax-free (TuMS) */
+  fallbackDays: number;
   taxFreeAmount: number; // cents
-  taxableAmount: number; // cents
+  taxableAmount: number; // cents — always 0 for daily_allowance; only mileage can have taxable
   accumulatedDaysBefore: number;
 }
 
@@ -142,17 +143,20 @@ export class AllowanceLimitService {
       const highDays = Math.min(segDays, remaining);
       const lowDays = segDays - highDays;
 
-      // High-rate days (within 15/month) are tax-free.
-      // Fallback-rate days (beyond 15/month) go into taxableAmount per the statutory split.
-      const segTaxFree = highDays * ratePerUnit;
-      const segTaxable = lowDays * fallbackRatePerUnit;
-      const segGross = segTaxFree + segTaxable;
+      // Both the high-rate (75€/day, first 15 days/month) and the fallback-rate
+      // (40€/day, beyond 15 days/month) are 100% tax-free statutory rates under TuMS.
+      // taxableAmount is always 0 for daily_allowance.
+      const segHighRateAmount = highDays * ratePerUnit;
+      const segFallbackAmount = lowDays * fallbackRatePerUnit;
+      const segGross = segHighRateAmount + segFallbackAmount;
+      const segTaxFree = segGross;
+      const segTaxable = 0;
 
       breakdown.push({
         month: monthKey,
         days: segDays,
         taxFreeDays: highDays,
-        taxableDays: lowDays,
+        fallbackDays: lowDays,
         taxFreeAmount: segTaxFree,
         taxableAmount: segTaxable,
         accumulatedDaysBefore: accDays,
