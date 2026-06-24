@@ -56,6 +56,8 @@ import * as m056 from './056_add_expense_claimant_fields';
 import * as m057 from './057_seed_claimant_payable_account';
 import * as m058 from './058_create_mailbox_connector';
 import * as m059 from './059_widen_document_source_channel';
+import * as m060 from './060_create_business_trip';
+import * as m061 from './061_create_allowance';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -115,4 +117,6 @@ export const migrations: Record<string, Migration> = {
   '057_seed_claimant_payable_account': m057,
   '058_create_mailbox_connector': m058,
   '059_widen_document_source_channel': m059,
+  '060_create_business_trip': m060,
+  '061_create_allowance': m061,
 };
