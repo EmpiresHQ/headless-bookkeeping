@@ -8,6 +8,7 @@ import {
 } from '../api';
 import { reasonBadge } from '../reasonBadge';
 import { Table, type Column } from './Table';
+import { DocumentThumb } from './DocumentThumb';
 
 // ── Relative-time helper ────────────────────────────────────────────────────
 
@@ -41,36 +42,6 @@ function channelLabel(channel: string | null): string {
     default:
       return channel ?? '—';
   }
-}
-
-// ── Thumbnail cell ──────────────────────────────────────────────────────────
-
-function ThumbCell({ doc }: { doc: DocumentArchiveRow }) {
-  const [errored, setErrored] = useState(!doc.preview_path);
-  const fileUrl = `/api/documents/${doc.id}/file`;
-
-  return (
-    <a href={fileUrl} target="_blank" rel="noreferrer">
-      {errored ? (
-        <span
-          aria-label="no preview"
-          className="inline-flex items-center justify-center w-10 h-10 bg-gray-100 rounded text-gray-400 text-xs"
-        >
-          📄
-        </span>
-      ) : doc.preview_path ? (
-        <img
-          src={`/api/documents/${doc.id}/preview`}
-          alt="preview"
-          aria-label="preview"
-          width={48}
-          height={48}
-          className="w-10 h-10 object-cover rounded border border-gray-200"
-          onError={() => setErrored(true)}
-        />
-      ) : null}
-    </a>
-  );
 }
 
 // ── Linked cell ─────────────────────────────────────────────────────────────
@@ -207,7 +178,7 @@ export function DocumentsView() {
   const columns: Column<DocumentArchiveRow>[] = [
     {
       header: 'Thumb',
-      cell: (d) => <ThumbCell doc={d} />,
+      cell: (d) => <DocumentThumb id={d.id} preview_path={d.preview_path} />,
     },
     {
       header: 'Filename',

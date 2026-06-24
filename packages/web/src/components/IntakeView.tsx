@@ -15,6 +15,7 @@ import { Table, type Column } from './Table';
 import { ResolveSupplierForm } from './ResolveSupplierForm';
 import { TriageManualForm } from './TriageManualForm';
 import { TriageOcrFailedForm } from './TriageOcrFailedForm';
+import { DocumentThumb } from './DocumentThumb';
 
 function outcomeLabel(o: TriageOutcome): string {
   if (o.kind === 'expense') return `→ draft expense #${o.expense_id}`;
@@ -47,6 +48,15 @@ export function IntakeView() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const expandId = params.get('expand');
+    if (expandId !== null) {
+      const id = Number(expandId);
+      if (!Number.isNaN(id)) setExpandedId(id);
+    }
   }, []);
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -103,6 +113,7 @@ export function IntakeView() {
   };
 
   const pendingColumns: Column<DocumentRow>[] = [
+    { header: 'Thumb', cell: (d) => <DocumentThumb id={d.id} /> },
     { header: 'ID', cell: (d) => d.id },
     { header: 'Filename', cell: (d) => d.filename },
     {
@@ -193,6 +204,7 @@ export function IntakeView() {
                     onClick={() => setExpandedId(isExpanded ? null : item.id)}
                   >
                     <div className="flex items-center gap-3">
+                      <DocumentThumb id={item.id} />
                       <span className="text-gray-400 text-xs w-6">
                         {item.id}
                       </span>
