@@ -1,3 +1,6 @@
+import type { TriageReasonType } from '../triage/types';
+import type { ExpenseStatus } from '../expenses/types';
+
 /**
  * Document lifecycle status — the kernel-owned state machine for an intake
  * Document (ADR-0010, ADR-0024).
@@ -75,15 +78,7 @@ export interface DocumentArchiveRow extends Document {
    * Classified reason type (same union as NeedsTriageItem.reason_type); null when reason is null.
    * Type mirrors triage/types.ts TriageReasonType — kept in sync via classifyReasonType import.
    */
-  reason_type:
-    | 'supplier_unresolved'
-    | 'outgoing_invoice'
-    | 'low_confidence'
-    | 'category_unresolved'
-    | 'ocr_failed'
-    | 'unimplemented'
-    | 'unknown'
-    | null;
+  reason_type: TriageReasonType | null;
   /** The linked expense id (latest expense by id), or null if no expense. */
   expense_id: number | null;
   /** Supplier entity name on the linked expense, or null. */
@@ -91,7 +86,7 @@ export interface DocumentArchiveRow extends Document {
   /** Claimant entity name on the linked expense (employee who paid out-of-pocket), or null. */
   claimant_name: string | null;
   /** Expense status ('draft'|'pending'|'posted'|'reversed'), or null if no expense. */
-  expense_status: string | null;
+  expense_status: ExpenseStatus | null;
 }
 
 export interface UploadDocumentInput {

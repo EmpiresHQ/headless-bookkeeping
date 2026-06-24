@@ -8,6 +8,7 @@ import { Kysely, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
 import { triageResultSchema, TriageResult, classifyReasonType } from '../triage/types';
+import type { ExpenseStatus } from '../expenses/types';
 import { DocumentStorageService } from './document-storage.service';
 import { PreviewRenderer } from './preview-renderer';
 import {
@@ -236,7 +237,7 @@ export class DocumentsService {
         expense_id: r.expense_id ?? null,
         supplier_name: r.supplier_name ?? null,
         claimant_name: r.claimant_name ?? null,
-        expense_status: r.expense_status ?? null,
+        expense_status: r.expense_status != null ? this.validateExpenseStatus(r.expense_status) : null,
       };
     });
   }
@@ -685,5 +686,17 @@ export class DocumentsService {
       return channel;
     }
     throw new Error(`Invalid channel: ${channel}`);
+  }
+
+  private validateExpenseStatus(status: string): ExpenseStatus {
+    if (
+      status === 'draft' ||
+      status === 'pending' ||
+      status === 'posted' ||
+      status === 'reversed'
+    ) {
+      return status;
+    }
+    throw new Error(`Invalid expense status: ${status}`);
   }
 }
