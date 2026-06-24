@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { Database } from '../database/types';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import type { AllowanceType } from '../plugins/allowance-rates.types';
@@ -114,34 +114,27 @@ export class AllowanceLimitService {
       const segDays = Math.round(seg.days * scaleFactor);
       const monthKey = seg.month; // 'YYYY-MM'
 
-      // Query accumulated days for this calendar month
-      const monthStart = seg.monthStart;
-      const nextMonthDate = new Date(
-        Date.UTC(
-          parseInt(monthKey.slice(0, 4), 10),
-          parseInt(monthKey.slice(5, 7), 10), // month+1 (0-based: segment month was m-1, so monthKey slice gives 1-based)
-          1,
-        ),
-      );
-      const nextMonthStart = nextMonthDate.toISOString().slice(0, 10);
+      // Query accumulated days already used for THIS calendar month. Sum the
+      // per-month day counts stored in each allowance's `breakdown` JSON via
+      // SQLite json_each — NOT the top-level `days` column anchored on
+      // period_start. A trip spanning June→July is one row with period_start in
+      // June and a `breakdown` carrying both [{month:'2026-06',days:..},
+      // {month:'2026-07',days:..}]; bucketing by period_start would credit all
+      // its days to June and miss the July days entirely (under-counting July's
+      // consumed quota). json_each($.month) attributes each segment's days to
+      // its own calendar month.
+      const excludeId = excludeAllowanceId ?? null;
+      const accRow = await sql<{ accumulated_days: number }>`
+        SELECT COALESCE(SUM(CAST(json_extract(b.value, '$.days') AS INTEGER)), 0) AS accumulated_days
+        FROM allowance a, json_each(a.breakdown) b
+        WHERE a.claimant_id = ${claimantId}
+          AND a.type = 'daily_allowance'
+          AND a.status NOT IN ('rejected', 'cancelled', 'draft')
+          AND json_extract(b.value, '$.month') = ${monthKey}
+          AND (${excludeId} IS NULL OR a.id != ${excludeId})
+      `.execute(this.db);
 
-      // Accumulation is anchored on period_start. A multi-month allowance (period_start
-      // in June, period_end in July) would have all its days counted against the June
-      // quota. To avoid overcounting, multi-month trips must be stored as per-month split
-      // rows (one Allowance per calendar-month segment), not as a single spanning row.
-      const accRow = await this.db
-        .selectFrom('allowance')
-        .select(({ fn }) => [fn.sum<number>('days').as('total')])
-        .where('claimant_id', '=', claimantId)
-        .where('type', '=', 'daily_allowance')
-        .where('period_start', '>=', monthStart)
-        .where('period_start', '<', nextMonthStart)
-        .where('status', '!=', 'rejected')
-        .where('status', '!=', 'cancelled')
-        .where('id', '!=', excludeAllowanceId ?? -1)
-        .executeTakeFirst();
-
-      const accDays = Number(accRow?.total ?? 0) || 0;
+      const accDays = Number(accRow.rows[0]?.accumulated_days ?? 0) || 0;
 
       // How many high-rate days remain for this month?
       const remaining = Math.max(0, highRateDaysPerMonth - accDays);

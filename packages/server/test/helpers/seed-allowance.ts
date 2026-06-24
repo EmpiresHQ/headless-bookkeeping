@@ -14,6 +14,12 @@ export interface SeedAllowanceInput {
   periodEnd?: string;
   status?: string;
   tripId?: number;
+  /**
+   * Per-month breakdown JSON (the daily_allowance accumulation query reads
+   * day counts from here via json_each, not the top-level `days` column).
+   * Pass an array of segments; it is JSON-stringified into the breakdown column.
+   */
+  breakdown?: Array<Record<string, unknown>>;
 }
 
 /**
@@ -40,7 +46,7 @@ export async function seedAllowance(
       gross_amount: grossAmount,
       tax_free_amount: input.taxFreeAmount,
       taxable_amount: input.taxableAmount,
-      breakdown: null,
+      breakdown: input.breakdown ? JSON.stringify(input.breakdown) : null,
       period_start: input.periodStart,
       period_end: input.periodEnd ?? null,
       status: input.status ?? 'posted',

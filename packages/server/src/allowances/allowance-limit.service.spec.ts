@@ -105,6 +105,7 @@ describe('AllowanceLimitService', () => {
         periodStart: '2026-06-01',
         periodEnd: '2026-06-13',
         status: 'posted',
+        breakdown: [{ month: '2026-06', days: 13 }],
       });
 
       const split = await service.computeSplit({
@@ -122,6 +123,51 @@ describe('AllowanceLimitService', () => {
       expect(split.grossAmount).toBe(expectedGross);
       expect(split.taxFreeAmount).toBe(expectedGross); // all tax-free for päevaraha
       expect(split.taxableAmount).toBe(0);
+    });
+
+    it('counts July days correctly for a prior trip spanning June→July', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+
+      // Prior allowance A: a single trip-spanning row, June 24 → July 4.
+      // splitByMonth → June: 7 days (24–30), July: 4 days (1–4).
+      // period_start is in June, but the breakdown carries the per-month days.
+      // The buggy implementation bucketed the whole trip by period_start and
+      // credited all 11 days to June, leaving July's consumed quota at 0.
+      await seedAllowance(db, {
+        claimantId: claimant.id,
+        type: 'daily_allowance',
+        taxFreeDays: 11,
+        taxFreeAmount: 11 * 7500,
+        taxableAmount: 0,
+        periodStart: '2026-06-24',
+        periodEnd: '2026-07-04',
+        status: 'needs_triage',
+        breakdown: [
+          { month: '2026-06', days: 7 },
+          { month: '2026-07', days: 4 },
+        ],
+      });
+
+      // New daily_allowance entirely in July for the same claimant.
+      const split = await service.computeSplit({
+        claimantId: claimant.id,
+        type: 'daily_allowance',
+        days: 5,
+        periodStart: '2026-07-10',
+        periodEnd: '2026-07-14',
+        domestic: false,
+        year: 2026,
+      });
+
+      expect(split.breakdown).toHaveLength(1);
+      const julySeg = split.breakdown[0];
+      expect(julySeg.month).toBe('2026-07');
+      // The 4 July days from allowance A must be visible here — NOT 0 (the bug)
+      // and NOT 11 (the full trip).
+      expect(julySeg.accumulatedDaysBefore).toBe(4);
+      // 4 already used, 5 new → all 5 still within the 15-day high-rate quota.
+      expect(julySeg.highRateDays).toBe(5);
+      expect(julySeg.fallbackDays).toBe(0);
     });
 
     it('handles trip spanning two calendar months', async () => {

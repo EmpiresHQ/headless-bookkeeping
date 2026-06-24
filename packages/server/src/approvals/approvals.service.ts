@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { Kysely } from 'kysely';
+import { Kysely, Transaction } from 'kysely';
 import { Database } from '../database/types';
 import { PostingService } from '../ledger/posting/posting.service';
 import { StatusTransitionService } from '../ledger/status/status-transition.service';
@@ -506,7 +506,7 @@ export class ApprovalsService {
     allowanceId: number,
     split: { grossAmount: number; taxFreeAmount: number; taxableAmount: number; breakdown: unknown[] },
     now: number,
-    trx: Kysely<Database>,
+    trx: Transaction<Database>,
   ): Promise<void> {
     await trx
       .updateTable('allowance')

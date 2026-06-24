@@ -579,9 +579,12 @@ describe('ApprovalsService (integration)', () => {
           gross_amount: 90000, // 12 × 7500
           tax_free_amount: 90000,
           taxable_amount: 0,
-          breakdown: null,
+          // Accumulated June days are read from the breakdown JSON via json_each,
+          // not the top-level `days` column.
+          breakdown: JSON.stringify([{ month: '2026-06', days: 12 }]),
           period_start: '2026-06-01',
           period_end: '2026-06-12',
+          status: 'posted',
           voucher_id: null,
           created_at: now,
           updated_at: now,

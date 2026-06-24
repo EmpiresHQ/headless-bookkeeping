@@ -1,4 +1,4 @@
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
@@ -25,8 +25,22 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('created_at', 'integer', (col) => col.notNull())
     .addColumn('updated_at', 'integer', (col) => col.notNull())
     .execute();
+
+  // Enforce at most one trip-linked allowance of a given type per claimant.
+  // Partial index (WHERE trip_id IS NOT NULL): non-trip allowances (phone,
+  // internet, health, ad-hoc mileage) carry trip_id = NULL and SQLite treats
+  // each NULL as distinct, so a full 3-column UNIQUE would permit duplicate
+  // NULL-trip rows anyway. The partial index constrains only trip-linked rows,
+  // leaving NULL-trip allowances unconstrained (multiple phone allowances
+  // across months are legitimate).
+  await sql`
+    CREATE UNIQUE INDEX idx_allowance_unique_per_trip
+    ON allowance(claimant_id, type, trip_id)
+    WHERE trip_id IS NOT NULL
+  `.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
+  await sql`DROP INDEX IF EXISTS idx_allowance_unique_per_trip`.execute(db);
   await db.schema.dropTable('allowance').execute();
 }

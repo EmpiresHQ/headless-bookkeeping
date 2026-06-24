@@ -155,6 +155,107 @@ describe('Migration 061: create allowance table', () => {
     expect(allowance.trip_id).toBe(trip.id);
   });
 
+  it('enforces UNIQUE(claimant_id, type, trip_id) for trip-linked allowances', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const entity = await db
+      .insertInto('entity')
+      .values({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice Tamm',
+        goods_vs_services: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const trip = await db
+      .insertInto('business_trip')
+      .values({
+        claimant_id: entity.id,
+        departure_date: '2026-06-01',
+        return_date: '2026-06-05',
+        destination_country: 'FR',
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    // First allowance for this (claimant, type, trip) — inserts fine.
+    await db
+      .insertInto('allowance')
+      .values({
+        claimant_id: entity.id,
+        trip_id: trip.id,
+        type: 'daily_allowance',
+        gross_amount: 10000,
+        tax_free_amount: 10000,
+        taxable_amount: 0,
+        period_start: '2026-06-01',
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
+
+    // Second allowance with the same (claimant, type, trip) — rejected by the
+    // partial UNIQUE index.
+    await expect(
+      db
+        .insertInto('allowance')
+        .values({
+          claimant_id: entity.id,
+          trip_id: trip.id,
+          type: 'daily_allowance',
+          gross_amount: 20000,
+          tax_free_amount: 20000,
+          taxable_amount: 0,
+          period_start: '2026-06-01',
+          created_at: now,
+          updated_at: now,
+        })
+        .execute(),
+    ).rejects.toThrow();
+  });
+
+  it('allows duplicate (claimant, type) when trip_id IS NULL (partial index)', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const entity = await db
+      .insertInto('entity')
+      .values({
+        role: 'employee',
+        country: 'EE',
+        name: 'Alice Tamm',
+        goods_vs_services: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    const insertPhone = (periodStart: string) =>
+      db
+        .insertInto('allowance')
+        .values({
+          claimant_id: entity.id,
+          trip_id: null,
+          type: 'phone',
+          gross_amount: 5000,
+          tax_free_amount: 5000,
+          taxable_amount: 0,
+          period_start: periodStart,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+    // Two NULL-trip phone allowances across months are legitimate — the partial
+    // index does not constrain them.
+    await insertPhone('2026-06-01');
+    await expect(insertPhone('2026-07-01')).resolves.toBeDefined();
+  });
+
   it('allows trip_id to be null (standalone allowance)', async () => {
     const now = Math.floor(Date.now() / 1000);
     const entity = await db
