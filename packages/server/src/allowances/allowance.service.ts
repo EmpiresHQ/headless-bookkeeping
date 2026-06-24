@@ -208,6 +208,19 @@ export class AllowanceService {
 
     // All three side-effects are atomic: AuditFinding + Approval + status transition.
     await this.db.transaction().execute(async (trx) => {
+      // Re-read status inside the transaction so the check is atomic with the
+      // transition — the outer check above is a fast-path early exit only.
+      const current = await trx
+        .selectFrom('allowance')
+        .select('status')
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      if (current.status !== 'draft') {
+        throw new ConflictException(
+          `Allowance ${id} is ${current.status}, expected draft`,
+        );
+      }
+
       // Insert audit_finding directly via trx to keep the operation atomic.
       // AuditFindingsService.create() uses this.db and cannot participate in a
       // caller-supplied transaction, so we bypass it here and use the raw insert.

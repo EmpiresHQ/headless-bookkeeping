@@ -172,12 +172,13 @@ export class ApprovalsService {
       return this.approveReconciliationMatch(approval, approvedBy);
     }
 
-    // For allowances: recalculate the split before generating the draft voucher.
-    // This ensures the posted voucher reflects the correct tax-free/taxable split
-    // accounting for other allowances posted in the same period.
-    if (approval.object_type === 'allowance') {
-      await this.recalculateAndUpdateAllowanceSplit(approval.object_id);
-    }
+    // For allowances: compute the fresh split BEFORE the transaction (reads only —
+    // avoids deadlock with SQLite's single-writer model, same reason generateDraftVoucher
+    // is also pre-transaction). The write is applied inside the transaction below.
+    const freshAllowanceSplit =
+      approval.object_type === 'allowance'
+        ? await this.computeAllowanceSplit(approval.object_id)
+        : null;
 
     // Generate the draft voucher BEFORE the transaction to avoid deadlock
     // (generateDraftVoucher uses this.db, not the transaction handle).
@@ -214,6 +215,13 @@ export class ApprovalsService {
     // the object type (ADR-0006 / ADR-0021). The transition co-writes
     // voucher_id once the voucher exists.
     const voucher = await this.db.transaction().execute(async (trx) => {
+      // For allowances: persist the recalculated split inside the posting
+      // transaction so the allowance row and posted voucher are always consistent.
+      // The split was computed above (pre-transaction) to avoid SQLite deadlock.
+      if (freshAllowanceSplit) {
+        await this.applyAllowanceSplit(approval.object_id, freshAllowanceSplit, now, trx);
+      }
+
       await this.statusTransition.transition(
         trx,
         approval.object_type as 'expense' | 'sales_invoice' | 'allowance',
@@ -441,17 +449,23 @@ export class ApprovalsService {
   }
 
   /**
-   * Recalculate the tax-free/taxable split for an allowance at approval time.
+   * Compute (but do NOT write) the refreshed tax-free/taxable split for an
+   * allowance at approval time. Read-only — safe to call before a transaction.
    *
    * At submit time the split was preliminary (based on the cumulative picture
    * at that moment). By the time a human approves, other allowances may have
    * been approved in the same month, shifting how much of the annual limit
-   * has been consumed. This method re-runs computeSplit with excludeAllowanceId
-   * so the allowance sees the correct remaining limit and updates the row.
+   * has been consumed. Re-runs computeSplit with excludeAllowanceId so the
+   * allowance sees the correct remaining limit.
+   *
+   * Call {@link applyAllowanceSplit} inside the posting transaction to persist.
    */
-  private async recalculateAndUpdateAllowanceSplit(
-    allowanceId: number,
-  ): Promise<void> {
+  private async computeAllowanceSplit(allowanceId: number): Promise<{
+    grossAmount: number;
+    taxFreeAmount: number;
+    taxableAmount: number;
+    breakdown: unknown[];
+  }> {
     const allowance = await this.db
       .selectFrom('allowance')
       .selectAll()
@@ -472,7 +486,9 @@ export class ApprovalsService {
       ? trip.destination_country === organization.country
       : false;
 
-    const freshSplit = await this.allowanceLimitService.computeSplit({
+    // computeSplit reads accumulated days from OTHER allowances (this.db) — not
+    // the one being updated — so it correctly sees committed state.
+    return this.allowanceLimitService.computeSplit({
       claimantId: allowance.claimant_id,
       type: allowance.type as AllowanceType,
       days: allowance.days ?? undefined,
@@ -484,17 +500,28 @@ export class ApprovalsService {
       year: new Date(allowance.period_start).getUTCFullYear(),
       excludeAllowanceId: allowance.id,
     });
+  }
 
-    const now = Math.floor(Date.now() / 1000);
-    await this.db
+  /**
+   * Write the pre-computed split to the allowance row using the supplied
+   * transaction handle. Must be called inside the posting transaction so the
+   * split update is atomic with the status transition and voucher post.
+   */
+  private async applyAllowanceSplit(
+    allowanceId: number,
+    split: { grossAmount: number; taxFreeAmount: number; taxableAmount: number; breakdown: unknown[] },
+    now: number,
+    trx: Kysely<Database>,
+  ): Promise<void> {
+    await trx
       .updateTable('allowance')
       .set({
-        gross_amount: freshSplit.grossAmount,
-        tax_free_amount: freshSplit.taxFreeAmount,
-        taxable_amount: freshSplit.taxableAmount,
+        gross_amount: split.grossAmount,
+        tax_free_amount: split.taxFreeAmount,
+        taxable_amount: split.taxableAmount,
         breakdown:
-          freshSplit.breakdown.length > 0
-            ? JSON.stringify(freshSplit.breakdown)
+          split.breakdown.length > 0
+            ? JSON.stringify(split.breakdown)
             : null,
         updated_at: now,
       })

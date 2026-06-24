@@ -44,7 +44,7 @@ export interface Approval {
  * DTO for creating a new approval.
  */
 export const createApprovalSchema = z.object({
-  object_type: z.enum(['expense', 'sales_invoice', 'allowance', 'reconciliation_match']),
+  object_type: z.enum(['expense', 'sales_invoice', 'reconciliation_match']),
   object_id: z.number().int(),
   requested_by: z.string(),
   reason: z.string(),
