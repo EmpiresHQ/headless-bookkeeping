@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  getDocumentDebug,
+  getDocumentReclassify,
   manualClassify,
   getCategories,
   getEntities,
@@ -50,7 +50,7 @@ export function TriageManualForm({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([getDocumentDebug(documentId), getCategories(), getEntities()])
+    Promise.all([getDocumentReclassify(documentId), getCategories(), getEntities()])
       .then(([debug, cats, entities]) => {
         if (cancelled) return;
         setCategories(cats);

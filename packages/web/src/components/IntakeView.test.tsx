@@ -98,7 +98,7 @@ describe('IntakeView', () => {
 
   it('expands row on click and shows manual form for low_confidence', async () => {
     vi.spyOn(api, 'getNeedsTriageItems').mockResolvedValue([triageItem]);
-    vi.spyOn(api, 'getDocumentDebug').mockResolvedValue({
+    vi.spyOn(api, 'getDocumentReclassify').mockResolvedValue({
       document_id: 7,
       ocr: { ok: false, category: 'unreadable', detail: 'blur' },
       classification: null,

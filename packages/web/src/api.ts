@@ -145,6 +145,7 @@ export interface DebugTriageResult {
   tax_point_date: string;
   category: string;
   document_vat_marking: string | null;
+  supplier_invoice_number: string | null;
   confidence: number;
 }
 
@@ -166,6 +167,12 @@ export type DocumentDebug = DocumentDetails;
 
 export const getDocumentDetails = (id: number) =>
   apiFetch<DocumentDetails>(`/api/documents/${id}/details`);
+
+/** Re-run OCR+LLM classification for a needs_triage document.
+ *  Use in the /intake work queue to pre-fill the manual-triage form.
+ *  Never call from read-only views — use getDocumentDetails instead. */
+export const getDocumentReclassify = (id: number) =>
+  apiFetch<DocumentDetails>(`/api/documents/${id}/reclassify`);
 
 /** @deprecated Use getDocumentDetails */
 export const getDocumentDebug = (id: number) =>

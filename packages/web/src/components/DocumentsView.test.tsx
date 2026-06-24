@@ -36,6 +36,7 @@ describe('DocumentsView', () => {
           tax_point_date: '2026-05-01',
           category: 'refund',
           document_vat_marking: '23%',
+          supplier_invoice_number: null,
           confidence: 0.88,
         },
       },
