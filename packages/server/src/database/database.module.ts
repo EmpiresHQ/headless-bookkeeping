@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { KyselyModule, InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -10,6 +10,7 @@ import { migrations } from './migrations';
 import { dataDir } from '../common/paths';
 
 class MigrationRunner implements OnModuleInit {
+  private readonly logger = new Logger(MigrationRunner.name);
   constructor(@InjectKysely() private readonly db: Kysely<DBType>) {}
 
   async onModuleInit() {
@@ -24,15 +25,17 @@ class MigrationRunner implements OnModuleInit {
 
     results?.forEach((it) => {
       if (it.status === 'Success') {
-        console.log(`migration "${it.migrationName}" executed successfully`);
+        this.logger.log(`migration "${it.migrationName}" executed successfully`);
       } else if (it.status === 'Error') {
-        console.error(`failed to execute migration "${it.migrationName}"`);
+        this.logger.error(
+          `failed to execute migration "${it.migrationName}"`,
+        );
       }
     });
 
     if (error) {
-      console.error('failed to migrate');
-      console.error(error);
+      this.logger.error('failed to migrate');
+      this.logger.error(error);
       throw error instanceof Error ? error : new Error('Migration failed');
     }
   }
