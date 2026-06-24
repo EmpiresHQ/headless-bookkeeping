@@ -58,6 +58,10 @@ services:
     image: ${DOCKER_IMAGE}:${APP_IMAGE_TAG:-latest}
     environment:
       - NODE_ENV=production
+      # 32-byte hex key that encrypts stored mailbox credentials at rest
+      # (email intake). Required to add any mailbox connector — without it the
+      # API 500s on connect. Generate once: `openssl rand -hex 32`. See README §9.
+      - MAILBOX_SECRET_KEY=${MAILBOX_SECRET_KEY}
     volumes:
       # Hash-chained ledger (app.sqlite) + uploaded documents. The ONE thing to
       # back up. Resolved next to this compose file → DEPLOY_PATH/data on the VPS.
