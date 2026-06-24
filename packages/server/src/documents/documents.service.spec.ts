@@ -855,6 +855,218 @@ describe('DocumentsService (unit)', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // listArchiveRows — enriched archive view
+  // ---------------------------------------------------------------------------
+  describe('listArchiveRows', () => {
+    async function insertEntity(name: string, role = 'supplier'): Promise<number> {
+      const now = Math.floor(Date.now() / 1000);
+      const row = await db
+        .insertInto('entity')
+        .values({
+          role,
+          country: 'EE',
+          name,
+          goods_vs_services: 'services',
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    async function insertExpense(
+      documentId: number,
+      opts: {
+        supplierId?: number | null;
+        claimantId?: number | null;
+        status?: string;
+      } = {},
+    ): Promise<number> {
+      const now = Math.floor(Date.now() / 1000);
+      const row = await db
+        .insertInto('expense')
+        .values({
+          document_id: documentId,
+          supplier_id: opts.supplierId ?? null,
+          claimant_id: opts.claimantId ?? null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: opts.status ?? 'draft',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    async function insertAuditFinding(documentId: number, description: string): Promise<void> {
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('audit_finding')
+        .values({
+          severity: 'medium',
+          finding_type: 'needs_triage',
+          description,
+          referenced_object_type: 'document',
+          referenced_object_id: documentId,
+          status: 'open',
+          created_at: now,
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
+        })
+        .execute();
+    }
+
+    it('returns created_at and channel for a simple document', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('simple doc'),
+        filename: 'simple.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.created_at).toBe(doc.created_at);
+      expect(row!.channel).toBe('upload');
+      expect(row!.reason).toBeNull();
+      expect(row!.reason_type).toBeNull();
+      expect(row!.expense_id).toBeNull();
+      expect(row!.supplier_name).toBeNull();
+      expect(row!.claimant_name).toBeNull();
+      expect(row!.expense_status).toBeNull();
+    });
+
+    it('returns supplier_name and expense_id for a document linked to an expense', async () => {
+      const supplierId = await insertEntity('Acme OÜ', 'supplier');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('supplier doc'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email',
+        sourceIdentifier: null,
+      });
+      const expId = await insertExpense(doc.id, { supplierId, status: 'posted' });
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.expense_id).toBe(expId);
+      expect(row!.supplier_name).toBe('Acme OÜ');
+      expect(row!.expense_status).toBe('posted');
+      expect(row!.claimant_name).toBeNull();
+    });
+
+    it('returns claimant_name for a claimant-paid expense', async () => {
+      const supplierId = await insertEntity('Shop OÜ', 'supplier');
+      const claimantId = await insertEntity('Alice', 'employee');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('claimant doc'),
+        filename: 'receipt.pdf',
+        mimeType: 'application/pdf',
+        channel: 'telegram',
+        sourceIdentifier: null,
+      });
+      await insertExpense(doc.id, { supplierId, claimantId, status: 'pending' });
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.supplier_name).toBe('Shop OÜ');
+      expect(row!.claimant_name).toBe('Alice');
+      expect(row!.expense_status).toBe('pending');
+    });
+
+    it('returns reason and reason_type for a needs_triage document', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const docRow = await db
+        .insertInto('document')
+        .values({
+          hash: 'hash-needs-triage',
+          filename: 'ocr-fail.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'upload',
+          source_identifier: null,
+          received_at: now,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+      await insertAuditFinding(docRow.id, 'OCR classification failed: low confidence');
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === docRow.id);
+      expect(row).toBeDefined();
+      expect(row!.reason).toBe('OCR classification failed: low confidence');
+      expect(row!.reason_type).toBe('low_confidence');
+    });
+
+    it('returns null reason/reason_type for a non-needs_triage document', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('normal doc'),
+        filename: 'normal.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      // No audit_finding → reason should be null
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === doc.id);
+      expect(row).toBeDefined();
+      expect(row!.reason).toBeNull();
+      expect(row!.reason_type).toBeNull();
+    });
+
+    it('yields exactly one row per document when the document has multiple sources', async () => {
+      const buffer = Buffer.from('multi-source');
+      const first = await service.upload({
+        buffer,
+        filename: 'multi.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      // Second upload deduplicates → adds a second document_source row
+      await service.upload({
+        buffer,
+        filename: 'multi.pdf',
+        mimeType: 'application/pdf',
+        channel: 'email',
+        sourceIdentifier: 'msg-xyz',
+      });
+
+      const rows = await service.listArchiveRows();
+      const docRows = rows.filter((r) => r.id === first.document.id);
+      // Exactly ONE row despite two sources
+      expect(docRows).toHaveLength(1);
+      // Channel should be from the LATEST source (email, received_at is higher)
+      expect(docRows[0].channel).toBe('email');
+    });
+  });
+
   describe('ios_photo_library channel', () => {
     it('stores an upload from the ios_photo_library channel', async () => {
       const result = await service.upload({

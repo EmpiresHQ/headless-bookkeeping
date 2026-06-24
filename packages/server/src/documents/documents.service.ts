@@ -7,11 +7,12 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
-import { triageResultSchema, TriageResult } from '../triage/types';
+import { triageResultSchema, TriageResult, classifyReasonType } from '../triage/types';
 import { DocumentStorageService } from './document-storage.service';
 import { PreviewRenderer } from './preview-renderer';
 import {
   Document,
+  DocumentArchiveRow,
   DocumentSource,
   DocumentWithSources,
   DocumentStatus,
@@ -133,6 +134,111 @@ export class DocumentsService {
       .orderBy('id', 'desc')
       .execute();
     return rows.map((r) => this.mapDocumentRow(r));
+  }
+
+  /**
+   * Return the enriched archive view used by GET /api/documents.
+   *
+   * Each document yields EXACTLY ONE row: multiplicity is guarded by
+   * - joining the latest expense via `e.id = MAX(e2.id WHERE e2.document_id = d.id)`
+   * - selecting the latest source channel via a correlated scalar sub-select
+   *
+   * Joins:
+   *  - LEFT JOIN expense (latest by id)  → expense_id, expense_status
+   *  - LEFT JOIN entity as supplier      → supplier_name
+   *  - LEFT JOIN entity as claimant      → claimant_name
+   *  - LEFT JOIN audit_finding           → reason (needs_triage/open only)
+   *  - correlated scalar sub-select      → channel (latest source)
+   */
+  async listArchiveRows(): Promise<DocumentArchiveRow[]> {
+    const rows = await this.db
+      .selectFrom('document as d')
+      // Guard multiplicity: join only the single latest expense per document.
+      // The ON condition pins e.id to MAX(e2.id) for this document, so even if
+      // multiple expense rows reference d.id we join at most one.
+      .leftJoin('expense as e', (join) =>
+        join
+          .onRef('e.document_id', '=', 'd.id')
+          .on((eb) =>
+            eb(
+              'e.id',
+              '=',
+              eb
+                .selectFrom('expense as e2')
+                .select(sql<number>`MAX(e2.id)`.as('m'))
+                .whereRef('e2.document_id', '=', 'd.id'),
+            ),
+          ),
+      )
+      // Supplier entity for the linked expense
+      .leftJoin('entity as supplier', 'supplier.id', 'e.supplier_id')
+      // Claimant entity for the linked expense
+      .leftJoin('entity as claimant', 'claimant.id', 'e.claimant_id')
+      // Open needs_triage audit_finding for the document
+      .leftJoin('audit_finding as af', (join) =>
+        join
+          .onRef('af.referenced_object_id', '=', 'd.id')
+          .on('af.referenced_object_type', '=', 'document')
+          .on('af.finding_type', '=', 'needs_triage')
+          .on('af.status', '=', 'open'),
+      )
+      .select([
+        'd.id',
+        'd.hash',
+        'd.filename',
+        'd.mime_type',
+        'd.size_bytes',
+        'd.storage_path',
+        'd.status',
+        'd.processing_since',
+        'd.created_at',
+        'd.claimant_id',
+        'd.preview_path',
+        // Expense
+        'e.id as expense_id',
+        'e.status as expense_status',
+        // Entity names
+        'supplier.name as supplier_name',
+        'claimant.name as claimant_name',
+        // Audit finding reason
+        'af.description as reason',
+        // Latest channel: correlated scalar sub-select — returns ONE value per
+        // document row, guarding multiplicity from the sources side.
+        sql<string | null>`(
+          SELECT ds.channel
+          FROM document_source AS ds
+          WHERE ds.document_id = d.id
+          ORDER BY ds.received_at DESC, ds.id DESC
+          LIMIT 1
+        )`.as('channel'),
+      ])
+      .orderBy('d.id', 'desc')
+      .execute();
+
+    return rows.map((r) => {
+      const reason = r.reason ?? null;
+      const reason_type = reason !== null ? classifyReasonType(reason) : null;
+      return {
+        id: r.id,
+        hash: r.hash,
+        filename: r.filename,
+        mime_type: r.mime_type,
+        size_bytes: r.size_bytes,
+        storage_path: r.storage_path,
+        status: this.validateDocumentStatus(r.status),
+        processing_since: r.processing_since,
+        created_at: r.created_at,
+        claimant_id: r.claimant_id ?? null,
+        preview_path: r.preview_path ?? null,
+        channel: r.channel != null ? this.validateChannel(r.channel) : null,
+        reason,
+        reason_type,
+        expense_id: r.expense_id ?? null,
+        supplier_name: r.supplier_name ?? null,
+        claimant_name: r.claimant_name ?? null,
+        expense_status: r.expense_status ?? null,
+      };
+    });
   }
 
   async getById(id: number): Promise<Document> {

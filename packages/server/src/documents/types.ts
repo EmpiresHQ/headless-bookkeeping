@@ -62,6 +62,38 @@ export interface DocumentWithSources extends Document {
   sources: DocumentSource[];
 }
 
+/**
+ * Archive row returned by GET /api/documents — the Document fields enriched with
+ * the latest source channel, linked expense data, and the needs_triage reason.
+ */
+export interface DocumentArchiveRow extends Document {
+  /** Channel from the latest document_source row (by received_at/id). Null if no sources. */
+  channel: Channel | null;
+  /** AuditFinding description for an open needs_triage finding; null otherwise. */
+  reason: string | null;
+  /**
+   * Classified reason type (same union as NeedsTriageItem.reason_type); null when reason is null.
+   * Type mirrors triage/types.ts TriageReasonType — kept in sync via classifyReasonType import.
+   */
+  reason_type:
+    | 'supplier_unresolved'
+    | 'outgoing_invoice'
+    | 'low_confidence'
+    | 'category_unresolved'
+    | 'ocr_failed'
+    | 'unimplemented'
+    | 'unknown'
+    | null;
+  /** The linked expense id (latest expense by id), or null if no expense. */
+  expense_id: number | null;
+  /** Supplier entity name on the linked expense, or null. */
+  supplier_name: string | null;
+  /** Claimant entity name on the linked expense (employee who paid out-of-pocket), or null. */
+  claimant_name: string | null;
+  /** Expense status ('draft'|'pending'|'posted'|'reversed'), or null if no expense. */
+  expense_status: string | null;
+}
+
 export interface UploadDocumentInput {
   buffer: Buffer;
   filename: string;
