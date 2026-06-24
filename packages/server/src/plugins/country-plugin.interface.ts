@@ -1,4 +1,5 @@
 import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
+import type { AllowanceType, AllowanceRates } from './allowance-rates.types';
 import type {
   StatutoryReportInput,
   StatutoryReportResult,
@@ -387,4 +388,23 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * overridable per asset at intake (ADR-0035).
    */
   getFixedAssetDefaults(assetClass: AssetClass): FixedAssetDefaults;
+
+  /**
+   * Returns statutory allowance rates for the given type, year, and trip context.
+   * Rates may differ between domestic and foreign trips (e.g. Estonian päevaraha).
+   * For employer-defined types (phone, internet, health), returns ratePerUnit=0 and
+   * monthlyTaxFreeCeiling=null — no statutory limit.
+   */
+  getAllowanceRates(
+    type: AllowanceType,
+    year: number,
+    opts: { domestic: boolean },
+  ): AllowanceRates;
+
+  /**
+   * Returns the debit account code for the tax-free portion of this allowance type.
+   * The kernel does not hard-code travel or vehicle accounts — the plugin owns the mapping.
+   * Per ADR-0002.
+   */
+  getAllowanceAccount(type: AllowanceType): string;
 }
