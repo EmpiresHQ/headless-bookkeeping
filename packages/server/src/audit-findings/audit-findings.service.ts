@@ -209,6 +209,24 @@ export class AuditFindingsService {
   }
 
   /**
+   * Update the description of an open finding. Used when a document is
+   * re-routed to needs_triage after a retry — the old description would
+   * otherwise stay stale, showing the ORIGINAL failure reason to the
+   * operator even though the re-run may have failed for a different reason.
+   */
+  async updateDescription(
+    id: number,
+    description: string,
+  ): Promise<void> {
+    await this.db
+      .updateTable('audit_finding')
+      .set({ description })
+      .where('id', '=', id)
+      .where('status', '=', 'open')
+      .execute();
+  }
+
+  /**
    * Get all open findings (used by SecretaryAgent), severity-ranked.
    */
   async getOpenFindings(): Promise<AuditFinding[]> {
