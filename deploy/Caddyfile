@@ -15,3 +15,12 @@
 		format json
 	}
 }
+
+{$LOGS_DOMAIN} {
+	reverse_proxy dozzle:8080
+	encode gzip
+	log {
+		output stdout
+		format json
+	}
+}
