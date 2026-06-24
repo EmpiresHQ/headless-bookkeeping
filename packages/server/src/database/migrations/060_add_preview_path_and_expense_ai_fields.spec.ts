@@ -118,7 +118,9 @@ describe('Migration 060: document.preview_path + expense AI classification field
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
-    const { error } = await migrator.migrateTo('059_widen_document_source_channel');
+    const { error } = await migrator.migrateTo(
+      '059_widen_document_source_channel',
+    );
     expect(error).toBeUndefined();
 
     const docCols = await sql<{

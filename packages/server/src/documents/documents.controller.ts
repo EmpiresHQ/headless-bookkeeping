@@ -24,7 +24,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { DocumentsService } from './documents.service';
-import { Document, DocumentArchiveRow, DocumentWithSources, Channel } from './types';
+import {
+  Document,
+  DocumentArchiveRow,
+  DocumentWithSources,
+  Channel,
+} from './types';
 
 @ApiTags('documents')
 @Controller('api/documents')
@@ -103,7 +108,8 @@ export class DocumentsController {
   @Get()
   @ApiOperation({
     summary: 'List documents',
-    description: 'Return all source documents enriched with linked expense, triage reason, and latest channel.',
+    description:
+      'Return all source documents enriched with linked expense, triage reason, and latest channel.',
   })
   async listDocuments(): Promise<{ documents: DocumentArchiveRow[] }> {
     return { documents: await this.documentsService.listArchiveRows() };

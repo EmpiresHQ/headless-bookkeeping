@@ -50,7 +50,11 @@ export function TriageManualForm({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([getDocumentReclassify(documentId), getCategories(), getEntities()])
+    Promise.all([
+      getDocumentReclassify(documentId),
+      getCategories(),
+      getEntities(),
+    ])
       .then(([debug, cats, entities]) => {
         if (cancelled) return;
         setCategories(cats);

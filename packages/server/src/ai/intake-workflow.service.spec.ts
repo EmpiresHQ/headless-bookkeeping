@@ -157,7 +157,10 @@ describe('IntakeWorkflowService', () => {
         AuditFindingsService,
         PolicyService,
         DocumentStorageService,
-        { provide: PreviewRenderer, useValue: { render: jest.fn().mockResolvedValue(null) } },
+        {
+          provide: PreviewRenderer,
+          useValue: { render: jest.fn().mockResolvedValue(null) },
+        },
         DocumentsService,
         ProcessingGate,
         IntakeWorkflowService,

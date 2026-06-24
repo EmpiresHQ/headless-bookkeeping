@@ -80,7 +80,10 @@ describe('InteractionRouterService (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         { provide: DOCUMENT_STORAGE_ROOT, useValue: storageRoot },
         DocumentStorageService,
-        { provide: PreviewRenderer, useValue: { render: jest.fn().mockResolvedValue(null) } },
+        {
+          provide: PreviewRenderer,
+          useValue: { render: jest.fn().mockResolvedValue(null) },
+        },
         ConversationsService,
         DocumentsService,
         InteractionConfigService,

@@ -391,9 +391,13 @@ describe('DocumentsService (unit)', () => {
         })
         .execute();
 
-      await expect(service.deleteDocument(document.id)).resolves.toBeUndefined();
+      await expect(
+        service.deleteDocument(document.id),
+      ).resolves.toBeUndefined();
       // Row gone.
-      await expect(service.getById(document.id)).rejects.toThrow(NotFoundException);
+      await expect(service.getById(document.id)).rejects.toThrow(
+        NotFoundException,
+      );
       // File gone.
       await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
     });
@@ -402,9 +406,13 @@ describe('DocumentsService (unit)', () => {
       const { document } = await upload();
       const path = document.storage_path!;
 
-      await expect(service.deleteDocument(document.id)).resolves.toBeUndefined();
+      await expect(
+        service.deleteDocument(document.id),
+      ).resolves.toBeUndefined();
       // Row gone.
-      await expect(service.getById(document.id)).rejects.toThrow(NotFoundException);
+      await expect(service.getById(document.id)).rejects.toThrow(
+        NotFoundException,
+      );
       // File gone.
       await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
     });
@@ -820,7 +828,11 @@ describe('DocumentsService (unit)', () => {
       });
 
       // Write a preview file into storage and set preview_path.
-      await storageService.saveFile(doc.id, `previews/${doc.hash}.png`, rawBuffer);
+      await storageService.saveFile(
+        doc.id,
+        `previews/${doc.hash}.png`,
+        rawBuffer,
+      );
       await db
         .updateTable('document')
         .set({ preview_path: `${doc.id}/previews/${doc.hash}.png` })
@@ -893,7 +905,9 @@ describe('DocumentsService (unit)', () => {
       });
       // renderMock returns null by default; preview_path stays NULL.
 
-      await expect(service.getPreview(doc.id)).rejects.toThrow(NotFoundException);
+      await expect(service.getPreview(doc.id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('(d) throws NotFoundException for a missing document id', async () => {
@@ -925,7 +939,9 @@ describe('DocumentsService (unit)', () => {
         .where('id', '=', doc.id)
         .execute();
 
-      await expect(service.getPreview(doc.id)).rejects.toThrow(NotFoundException);
+      await expect(service.getPreview(doc.id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -933,7 +949,10 @@ describe('DocumentsService (unit)', () => {
   // listArchiveRows — enriched archive view
   // ---------------------------------------------------------------------------
   describe('listArchiveRows', () => {
-    async function insertEntity(name: string, role = 'supplier'): Promise<number> {
+    async function insertEntity(
+      name: string,
+      role = 'supplier',
+    ): Promise<number> {
       const now = Math.floor(Date.now() / 1000);
       const row = await db
         .insertInto('entity')
@@ -981,7 +1000,10 @@ describe('DocumentsService (unit)', () => {
       return row.id;
     }
 
-    async function insertAuditFinding(documentId: number, description: string): Promise<void> {
+    async function insertAuditFinding(
+      documentId: number,
+      description: string,
+    ): Promise<void> {
       const now = Math.floor(Date.now() / 1000);
       await db
         .insertInto('audit_finding')
@@ -1032,7 +1054,10 @@ describe('DocumentsService (unit)', () => {
         channel: 'email',
         sourceIdentifier: null,
       });
-      const expId = await insertExpense(doc.id, { supplierId, status: 'posted' });
+      const expId = await insertExpense(doc.id, {
+        supplierId,
+        status: 'posted',
+      });
 
       const rows = await service.listArchiveRows();
       const row = rows.find((r) => r.id === doc.id);
@@ -1053,7 +1078,11 @@ describe('DocumentsService (unit)', () => {
         channel: 'telegram',
         sourceIdentifier: null,
       });
-      await insertExpense(doc.id, { supplierId, claimantId, status: 'pending' });
+      await insertExpense(doc.id, {
+        supplierId,
+        claimantId,
+        status: 'pending',
+      });
 
       const rows = await service.listArchiveRows();
       const row = rows.find((r) => r.id === doc.id);
@@ -1089,7 +1118,10 @@ describe('DocumentsService (unit)', () => {
           precheck_json: null,
         })
         .execute();
-      await insertAuditFinding(docRow.id, 'OCR classification failed: low confidence');
+      await insertAuditFinding(
+        docRow.id,
+        'OCR classification failed: low confidence',
+      );
 
       const rows = await service.listArchiveRows();
       const row = rows.find((r) => r.id === docRow.id);
@@ -1139,7 +1171,6 @@ describe('DocumentsService (unit)', () => {
       // Channel should be from the LATEST source (email, received_at is higher)
       expect(docRows[0].channel).toBe('email');
     });
-
 
     it('does not throw and returns channel=email_sync for a mailbox-harvested document', async () => {
       // Regression: validateChannel previously only accepted upload|telegram|email|drive|ios_photo_library

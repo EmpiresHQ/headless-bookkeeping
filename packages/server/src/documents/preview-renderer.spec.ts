@@ -8,7 +8,6 @@
  *  4. Unsupported mime / corrupt bytes → null, never throws
  */
 import { execFileSync } from 'child_process';
-import { readFileSync } from 'fs';
 import { join } from 'path';
 import sharp from 'sharp';
 import { PreviewRenderer } from './preview-renderer';
@@ -94,7 +93,11 @@ function makeDoc(overrides: Partial<Document> = {}): Document {
 class StubStorage {
   readonly saved = new Map<string, Buffer>();
 
-  async saveFile(id: number, filename: string, buffer: Buffer): Promise<string> {
+  async saveFile(
+    id: number,
+    filename: string,
+    buffer: Buffer,
+  ): Promise<string> {
     const path = join(String(id), filename);
     this.saved.set(path, buffer);
     return path;
@@ -173,7 +176,8 @@ describe('PreviewRenderer', () => {
   // ── Thumbnail path is content-addressed (stable on re-render) ────────────
   it('produces the same path for the same document hash regardless of filename', async () => {
     const bytes = await smallPng();
-    const hash = 'aabbccdd1122334455667788aabbccdd1122334455667788aabbccdd1122334455';
+    const hash =
+      'aabbccdd1122334455667788aabbccdd1122334455667788aabbccdd1122334455';
     const doc1 = makeDoc({ hash, mime_type: 'image/png', filename: 'a.png' });
     const doc2 = makeDoc({ hash, mime_type: 'image/png', filename: 'b.png' });
 
@@ -254,7 +258,10 @@ describe('PreviewRenderer', () => {
   maybePdf('PDF (requires poppler pdftoppm)', () => {
     it('renders page 1 of a PDF to a PNG thumbnail and returns relative path', async () => {
       const bytes = blankPdf();
-      const doc = makeDoc({ mime_type: 'application/pdf', filename: 'doc.pdf' });
+      const doc = makeDoc({
+        mime_type: 'application/pdf',
+        filename: 'doc.pdf',
+      });
 
       const path = await renderer.render(doc, bytes);
 
@@ -273,7 +280,10 @@ describe('PreviewRenderer', () => {
     });
 
     it('returns null for a corrupt PDF buffer without throwing', async () => {
-      const doc = makeDoc({ mime_type: 'application/pdf', filename: 'bad.pdf' });
+      const doc = makeDoc({
+        mime_type: 'application/pdf',
+        filename: 'bad.pdf',
+      });
       const path = await renderer.render(doc, Buffer.from('%PDF-garbage'));
       expect(path).toBeNull();
     });

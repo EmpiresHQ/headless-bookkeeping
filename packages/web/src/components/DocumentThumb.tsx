@@ -12,7 +12,12 @@ export function DocumentThumb({ id, preview_path }: Props) {
   const fileUrl = `/api/documents/${id}/file`;
 
   return (
-    <a href={fileUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+    <a
+      href={fileUrl}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+    >
       {errored ? (
         <span
           aria-label="no preview"

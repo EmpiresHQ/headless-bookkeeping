@@ -7,7 +7,11 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { Database } from '../database/types';
-import { triageResultSchema, TriageResult, classifyReasonType } from '../triage/types';
+import {
+  triageResultSchema,
+  TriageResult,
+  classifyReasonType,
+} from '../triage/types';
 import type { ExpenseStatus } from '../expenses/types';
 import { DocumentStorageService } from './document-storage.service';
 import { PreviewRenderer } from './preview-renderer';
@@ -95,8 +99,13 @@ export class DocumentsService {
 
     // Render thumbnail early — decoupled from OCR. Failure is non-fatal:
     // preview_path stays NULL and the upload response is not affected.
-    const partialDoc = this.mapDocumentRow({ ...docRow, storage_path: storagePath });
-    const previewPath = await this.previewRenderer.render(partialDoc, input.buffer).catch(() => null);
+    const partialDoc = this.mapDocumentRow({
+      ...docRow,
+      storage_path: storagePath,
+    });
+    const previewPath = await this.previewRenderer
+      .render(partialDoc, input.buffer)
+      .catch(() => null);
     if (previewPath !== null) {
       await this.db
         .updateTable('document')
@@ -158,18 +167,16 @@ export class DocumentsService {
       // The ON condition pins e.id to MAX(e2.id) for this document, so even if
       // multiple expense rows reference d.id we join at most one.
       .leftJoin('expense as e', (join) =>
-        join
-          .onRef('e.document_id', '=', 'd.id')
-          .on((eb) =>
-            eb(
-              'e.id',
-              '=',
-              eb
-                .selectFrom('expense as e2')
-                .select(sql<number>`MAX(e2.id)`.as('m'))
-                .whereRef('e2.document_id', '=', 'd.id'),
-            ),
+        join.onRef('e.document_id', '=', 'd.id').on((eb) =>
+          eb(
+            'e.id',
+            '=',
+            eb
+              .selectFrom('expense as e2')
+              .select(sql<number>`MAX(e2.id)`.as('m'))
+              .whereRef('e2.document_id', '=', 'd.id'),
           ),
+        ),
       )
       // Supplier entity for the linked expense
       .leftJoin('entity as supplier', 'supplier.id', 'e.supplier_id')
@@ -237,7 +244,10 @@ export class DocumentsService {
         expense_id: r.expense_id ?? null,
         supplier_name: r.supplier_name ?? null,
         claimant_name: r.claimant_name ?? null,
-        expense_status: r.expense_status != null ? this.validateExpenseStatus(r.expense_status) : null,
+        expense_status:
+          r.expense_status != null
+            ? this.validateExpenseStatus(r.expense_status)
+            : null,
       };
     });
   }
@@ -295,7 +305,9 @@ export class DocumentsService {
 
     // Lazy render: read stored bytes then render.
     if (!doc.storage_path) {
-      throw new NotFoundException(`Document ${id} has no stored file to render`);
+      throw new NotFoundException(
+        `Document ${id} has no stored file to render`,
+      );
     }
     const rawBytes = await this.storage.readFile(doc.storage_path);
     const previewPath = await this.previewRenderer.render(doc, rawBytes);
@@ -515,7 +527,10 @@ export class DocumentsService {
         .select(['id', 'status'])
         .where('document_id', '=', id)
         .executeTakeFirst();
-      if (expense && (expense.status === 'posted' || expense.status === 'reversed')) {
+      if (
+        expense &&
+        (expense.status === 'posted' || expense.status === 'reversed')
+      ) {
         throw new ConflictException(
           `Document ${id} is evidence for expense #${expense.id} (${expense.status}) — reverse the expense before deleting`,
         );

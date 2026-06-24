@@ -12,7 +12,7 @@
 import { mkdtemp, rm, stat } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { DocumentStorageService, DOCUMENT_STORAGE_ROOT } from './document-storage.service';
+import { DocumentStorageService } from './document-storage.service';
 
 async function withTmpDir(fn: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), 'doc-storage-test-'));
@@ -76,7 +76,9 @@ describe('DocumentStorageService — real filesystem', () => {
 
       await svc.deleteFile(relPath);
 
-      await expect(stat(join(root, relPath))).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(stat(join(root, relPath))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
       // Second delete must not throw.
       await expect(svc.deleteFile(relPath)).resolves.toBeUndefined();
     });

@@ -141,7 +141,9 @@ describe('DocumentsView', () => {
     render(<DocumentsView />);
     await screen.findByText('invoice.jpg');
     // When preview_path is null, no img element should exist at all
-    expect(screen.queryByRole('img', { name: /preview/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('img', { name: /preview/i }),
+    ).not.toBeInTheDocument();
     // The fallback icon must be rendered
     expect(screen.getByLabelText('no preview')).toBeInTheDocument();
   });

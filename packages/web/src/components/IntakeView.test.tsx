@@ -345,7 +345,9 @@ describe('IntakeView', () => {
       });
 
       render(<IntakeView />);
-      expect(await screen.findByText(/manual classification/i)).toBeInTheDocument();
+      expect(
+        await screen.findByText(/manual classification/i),
+      ).toBeInTheDocument();
     } finally {
       Object.defineProperty(window, 'location', {
         value: { ...window.location, search: window.location.search },
@@ -362,7 +364,9 @@ describe('IntakeView', () => {
     render(<IntakeView />);
     await screen.findByText('low-confidence.pdf');
 
-    expect(screen.queryByText(/manual classification/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/manual classification/i),
+    ).not.toBeInTheDocument();
   });
 
   it('pending document row renders a thumbnail', async () => {

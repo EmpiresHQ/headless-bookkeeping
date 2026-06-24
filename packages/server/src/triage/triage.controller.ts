@@ -39,7 +39,7 @@ export class TriageController {
 
   @Get('api/documents/:id/details')
   @ApiOperation({
-    summary: "Document details (OCR + classification)",
+    summary: 'Document details (OCR + classification)',
     description:
       'Return the cached OCR text and classification from the linked Expense. Never re-invokes the LLM (ADR-0039).',
   })

@@ -92,7 +92,10 @@ describe('TriageService (integration)', () => {
         },
         SalesInvoicesService,
         DocumentStorageService,
-        { provide: PreviewRenderer, useValue: { render: jest.fn().mockResolvedValue(null) } },
+        {
+          provide: PreviewRenderer,
+          useValue: { render: jest.fn().mockResolvedValue(null) },
+        },
         DocumentsService,
         { provide: IntakeWorkflowService, useValue: mockWorkflow },
         TriageService,

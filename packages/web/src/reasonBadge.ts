@@ -13,7 +13,9 @@ export type ReasonType =
   | 'unimplemented'
   | 'unknown';
 
-export function reasonBadge(reason_type: ReasonType | null | undefined): string {
+export function reasonBadge(
+  reason_type: ReasonType | null | undefined,
+): string {
   switch (reason_type) {
     case 'supplier_unresolved':
       return '⚠ Unknown supplier';

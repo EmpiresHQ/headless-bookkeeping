@@ -9,7 +9,12 @@ import { HeicDecoder } from '../triage/heic-decoder';
 @Module({
   imports: [DatabaseModule],
   controllers: [DocumentsController],
-  providers: [DocumentsService, DocumentStorageService, HeicDecoder, PreviewRenderer],
+  providers: [
+    DocumentsService,
+    DocumentStorageService,
+    HeicDecoder,
+    PreviewRenderer,
+  ],
   exports: [DocumentsService, DocumentStorageService, PreviewRenderer],
 })
 export class DocumentsModule {}

@@ -47,7 +47,8 @@ function channelLabel(channel: string | null): string {
 // ── Linked cell ─────────────────────────────────────────────────────────────
 
 function LinkedCell({ doc }: { doc: DocumentArchiveRow }) {
-  if (!doc.expense_id && !doc.supplier_name) return <span className="text-gray-400">—</span>;
+  if (!doc.expense_id && !doc.supplier_name)
+    return <span className="text-gray-400">—</span>;
   return (
     <div className="space-y-0.5 text-xs">
       {doc.supplier_name && (
@@ -196,7 +197,9 @@ export function DocumentsView() {
     {
       header: 'Added',
       cell: (d) => (
-        <span className="text-gray-500 text-xs">{relativeTime(d.created_at)}</span>
+        <span className="text-gray-500 text-xs">
+          {relativeTime(d.created_at)}
+        </span>
       ),
     },
     {
