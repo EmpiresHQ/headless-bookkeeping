@@ -142,6 +142,35 @@ export class DocumentsController {
   }
 
   /**
+   * Stream the thumbnail PNG for a document.
+   *
+   * If `preview_path` is NULL (pre-existing or render-failed doc), renders
+   * once via PreviewRenderer, persists the path, then streams — so old
+   * documents self-heal on first view with no backfill job.
+   *
+   * Returns 404 for non-visual files (render → null) or missing docs.
+   * Sets ETag = document hash so the browser caches across reloads.
+   */
+  @Get(':id/preview')
+  @ApiOperation({
+    summary: "Stream a document's thumbnail PNG",
+    description:
+      'Returns a ~256px PNG thumbnail. Renders lazily on first request if not yet cached.',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async getDocumentPreview(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, hash } = await this.documentsService.getPreview(Number(id));
+    res.set({
+      'Content-Type': 'image/png',
+      ETag: `"${hash}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
+  /**
    * Approver action: confirm whether the Claimant paid this document from
    * their own funds. Only reachable by API token holders (operators/approvers
    * via the SPA); Claimants interact via Telegram/email and never hold an

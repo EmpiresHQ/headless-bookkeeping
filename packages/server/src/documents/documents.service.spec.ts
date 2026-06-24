@@ -728,6 +728,105 @@ describe('DocumentsService (unit)', () => {
     });
   });
 
+  describe('getPreview', () => {
+    let storageService: DocumentStorageService;
+
+    beforeEach(() => {
+      storageService = new DocumentStorageService(storageRoot);
+    });
+
+    it('(a) streams stored bytes without calling renderer when preview_path is set', async () => {
+      const rawBuffer = Buffer.from('fake png bytes');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('pdf content'),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      // Write a preview file into storage and set preview_path.
+      await storageService.saveFile(doc.id, `previews/${doc.hash}.png`, rawBuffer);
+      await db
+        .updateTable('document')
+        .set({ preview_path: `${doc.id}/previews/${doc.hash}.png` })
+        .where('id', '=', doc.id)
+        .execute();
+
+      renderMock.mockClear();
+      const result = await service.getPreview(doc.id);
+
+      expect(result.buffer).toEqual(rawBuffer);
+      expect(result.hash).toBe(doc.hash);
+      expect(renderMock).not.toHaveBeenCalled();
+    });
+
+    it('(b) renders, persists path, and streams bytes when preview_path is NULL', async () => {
+      const pngBytes = Buffer.from('rendered png');
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('pdf content 2'),
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+      // Verify preview_path is NULL (default mock returns null at upload).
+      const rowBefore = await db
+        .selectFrom('document')
+        .select('preview_path')
+        .where('id', '=', doc.id)
+        .executeTakeFirstOrThrow();
+      expect(rowBefore.preview_path).toBeNull();
+
+      // Clear calls accumulated during upload before testing getPreview.
+      renderMock.mockClear();
+
+      // Stub render: write file to storage and return relative path.
+      const expectedPath = `${doc.id}/previews/${doc.hash}.png`;
+      renderMock.mockImplementationOnce(
+        async (d: { id: number; hash: string }) => {
+          await storageService.saveFile(
+            d.id,
+            `previews/${d.hash}.png`,
+            pngBytes,
+          );
+          return expectedPath;
+        },
+      );
+
+      const result = await service.getPreview(doc.id);
+
+      expect(result.buffer).toEqual(pngBytes);
+      expect(result.hash).toBe(doc.hash);
+      // Re-query to assert the DB row was persisted.
+      const rowAfter = await db
+        .selectFrom('document')
+        .select('preview_path')
+        .where('id', '=', doc.id)
+        .executeTakeFirstOrThrow();
+      expect(rowAfter.preview_path).toBe(expectedPath);
+      expect(renderMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('(c) throws NotFoundException when render returns null (non-visual file)', async () => {
+      const { document: doc } = await service.upload({
+        buffer: Buffer.from('binary blob'),
+        filename: 'data.bin',
+        mimeType: 'application/octet-stream',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      // renderMock returns null by default; preview_path stays NULL.
+
+      await expect(service.getPreview(doc.id)).rejects.toThrow(NotFoundException);
+    });
+
+    it('(d) throws NotFoundException for a missing document id', async () => {
+      await expect(service.getPreview(9999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('ios_photo_library channel', () => {
     it('stores an upload from the ios_photo_library channel', async () => {
       const result = await service.upload({

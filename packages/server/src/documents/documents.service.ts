@@ -165,6 +165,51 @@ export class DocumentsService {
     return { buffer, filename: doc.filename, mimeType: doc.mime_type };
   }
 
+  /**
+   * Return the thumbnail PNG bytes and the document hash (for ETag) for a
+   * document.
+   *
+   * - If `preview_path` is already set: read the stored bytes directly.
+   * - If `preview_path` is NULL: invoke PreviewRenderer to render once,
+   *   persist the path to the DB row (lazy self-heal for pre-existing docs),
+   *   then read and return the bytes.
+   * - If render returns null (non-visual file): throw NotFoundException so the
+   *   UI shows its fallback icon.
+   *
+   * Throws NotFoundException for an unknown document id.
+   */
+  async getPreview(id: number): Promise<{ buffer: Buffer; hash: string }> {
+    const doc = await this.getById(id);
+
+    if (doc.preview_path) {
+      const buffer = await this.storage.readFile(doc.preview_path);
+      return { buffer, hash: doc.hash };
+    }
+
+    // Lazy render: read stored bytes then render.
+    if (!doc.storage_path) {
+      throw new NotFoundException(`Document ${id} has no stored file to render`);
+    }
+    const rawBytes = await this.storage.readFile(doc.storage_path);
+    const previewPath = await this.previewRenderer.render(doc, rawBytes);
+
+    if (previewPath === null) {
+      throw new NotFoundException(
+        `Document ${id} cannot be rendered as a preview`,
+      );
+    }
+
+    // Persist the path so subsequent requests skip the render.
+    await this.db
+      .updateTable('document')
+      .set({ preview_path: previewPath })
+      .where('id', '=', id)
+      .execute();
+
+    const buffer = await this.storage.readFile(previewPath);
+    return { buffer, hash: doc.hash };
+  }
+
   async setStatus(id: number, status: DocumentStatus): Promise<void> {
     await this.db
       .updateTable('document')
