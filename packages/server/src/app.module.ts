@@ -41,6 +41,7 @@ import { AnnualAccountsModule } from './annual-accounts/annual-accounts.module';
 import { StatutorySubmissionModule } from './statutory-submission/statutory-submission.module';
 import { ApiTokenGuard } from './auth/api-token.guard';
 import { MailboxModule } from './mailbox/mailbox.module';
+import { AllowancesModule } from './allowances/allowances.module';
 
 @Module({
   imports: [
@@ -118,6 +119,7 @@ import { MailboxModule } from './mailbox/mailbox.module';
     FixedAssetsModule,
     AnnualAccountsModule,
     MailboxModule,
+    AllowancesModule,
   ],
   providers: [
     {
