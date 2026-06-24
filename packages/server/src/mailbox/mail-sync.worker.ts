@@ -43,13 +43,14 @@ export class MailSyncWorker implements OnModuleInit {
         return;
       }
     }
+    // Do NOT await IMAP work during bootstrap: a slow or unreachable mail server
+    // would block onModuleInit and stall NestJS startup (the HTTP listener never
+    // binds). Kick each connector off in the background — the @Cron sweep is the
+    // backstop and openIdle reconnects on its own.
     for (const c of connectors) {
-      await this.syncOnce(c.id).catch((e) =>
-        this.logger.warn(`initial sync ${c.id}: ${e}`),
-      );
-      await this.openIdle(c.id).catch((e) =>
-        this.logger.warn(`idle ${c.id}: ${e}`),
-      );
+      void this.syncOnce(c.id)
+        .then(() => this.openIdle(c.id))
+        .catch((e) => this.logger.warn(`initial sync/idle ${c.id}: ${e}`));
     }
   }
 

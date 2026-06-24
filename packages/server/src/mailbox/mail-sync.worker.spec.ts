@@ -81,6 +81,15 @@ describe('MailSyncWorker.syncOnce', () => {
     expect(row.status).toBe('connected');
   });
 
+  it('does not block startup on a hanging mailbox (onModuleInit fire-and-forgets IMAP)', async () => {
+    await mk();
+    // fetchSince never resolves — a slow/unreachable IMAP server at boot time.
+    imap.fetchSince.mockReturnValue(new Promise<never>(() => {}));
+    // onModuleInit must resolve promptly instead of awaiting the hung sync,
+    // otherwise NestJS bootstrap stalls and the HTTP listener never binds.
+    await expect(worker.onModuleInit()).resolves.toBeUndefined();
+  });
+
   it('re-baselines (no harvest) when uidvalidity changes', async () => {
     const c = await mk();
     await connectors.advanceCursor(c.id, 100, 5);
