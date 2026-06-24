@@ -60,6 +60,7 @@ export function MailboxSettings() {
 
   // BYO OAuth app credentials (your own Google/Microsoft client id + secret).
   const [oauthCfg, setOauthCfg] = useState<Record<string, string>>({});
+  const [initialFetchCount, setInitialFetchCount] = useState('200');
 
   const load = () =>
     getMailboxConnectors()
@@ -74,6 +75,8 @@ export function MailboxSettings() {
           map[k.key] = list.find((s) => s.key === k.key)?.value ?? '';
         }
         setOauthCfg(map);
+        const fetchCount = list.find((s) => s.key === 'mailbox_initial_fetch_count')?.value;
+        if (fetchCount !== undefined) setInitialFetchCount(fetchCount);
       })
       .catch(() => undefined);
 
@@ -138,6 +141,17 @@ export function MailboxSettings() {
         if (v) await setSetting(k.key, v);
       }
       setNote('OAuth credentials saved.');
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const saveSyncSettings = async () => {
+    setError(null);
+    setNote(null);
+    try {
+      await setSetting('mailbox_initial_fetch_count', String(Math.max(0, Number(initialFetchCount) || 0)));
+      setNote('Sync settings saved.');
     } catch (e) {
       fail(e);
     }
@@ -243,6 +257,36 @@ export function MailboxSettings() {
           ))}
         </ul>
       )}
+
+      <details className="rounded border px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium">
+          Sync settings
+        </summary>
+        <div className="mt-3 flex flex-col gap-1 text-sm">
+          <label className="flex flex-col gap-1">
+            <span className="text-gray-700">Initial fetch count</span>
+            <span className="text-xs text-gray-500">
+              How many recent messages to harvest when a mailbox is first connected.
+              0 = start from now, skip all history.
+            </span>
+            <input
+              aria-label="Initial fetch count"
+              type="number"
+              min="0"
+              value={initialFetchCount}
+              onChange={(e) => setInitialFetchCount(e.target.value)}
+              className="w-32 rounded border px-2 py-1 font-mono"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveSyncSettings()}
+          className="mt-3 rounded bg-black px-3 py-1 text-sm text-white"
+        >
+          Save
+        </button>
+      </details>
 
       <details className="rounded border px-3 py-2">
         <summary className="cursor-pointer text-sm font-medium">

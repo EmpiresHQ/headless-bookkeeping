@@ -8,6 +8,7 @@ import { Test } from '@nestjs/testing';
 import { MailboxConnectorService } from './mailbox-connector.service';
 import { MailSyncWorker } from './mail-sync.worker';
 import { ImapClient } from './imap-client.port';
+import { SettingsService } from '../admin/settings.service';
 
 const KEY = '0'.repeat(64);
 
@@ -15,7 +16,7 @@ describe('MailSyncWorker.syncOnce', () => {
   let db: Kysely<Database>;
   let connectors: MailboxConnectorService;
   let worker: MailSyncWorker;
-  let imap: { fetchSince: jest.Mock; idle: jest.Mock };
+  let imap: { fetchSince: jest.Mock; getLatestUid: jest.Mock; idle: jest.Mock };
   let harvested: number[];
 
   beforeEach(async () => {
@@ -30,7 +31,11 @@ describe('MailSyncWorker.syncOnce', () => {
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
     harvested = [];
-    imap = { fetchSince: jest.fn(), idle: jest.fn() };
+    imap = {
+      fetchSince: jest.fn(),
+      getLatestUid: jest.fn(async () => ({ uidvalidity: 1, latestUid: 0 })),
+      idle: jest.fn(),
+    };
     const harvest = {
       harvestMessage: jest.fn(async (_ch: string, m: { uid: number }) => {
         harvested.push(m.uid);
@@ -45,6 +50,7 @@ describe('MailSyncWorker.syncOnce', () => {
         { provide: ImapClient, useValue: imap },
         { provide: 'HARVEST', useValue: harvest },
         { provide: 'OAUTH', useValue: oauth },
+        { provide: SettingsService, useValue: { get: jest.fn(async () => null) } },
         MailSyncWorker,
       ],
     }).compile();
@@ -66,6 +72,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('harvests new messages in order and advances the cursor', async () => {
     const c = await mk();
+    // Advance past baseline so syncOnce takes the incremental path (last_uid > 0).
+    await connectors.advanceCursor(c.id, 100, 3);
     imap.fetchSince.mockResolvedValue({
       uidvalidity: 100,
       messages: [
@@ -83,8 +91,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('does not block startup on a hanging mailbox (onModuleInit fire-and-forgets IMAP)', async () => {
     await mk();
-    // fetchSince never resolves — a slow/unreachable IMAP server at boot time.
-    imap.fetchSince.mockReturnValue(new Promise<never>(() => {}));
+    // getLatestUid never resolves — simulates a slow/unreachable IMAP server at boot time.
+    imap.getLatestUid.mockReturnValue(new Promise<never>(() => {}));
     // onModuleInit must resolve promptly instead of awaiting the hung sync,
     // otherwise NestJS bootstrap stalls and the HTTP listener never binds.
     await expect(worker.onModuleInit()).resolves.toBeUndefined();
@@ -106,6 +114,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('marks auth_failed when the transport throws an auth error', async () => {
     const c = await mk();
+    // Advance past baseline so error comes from fetchSince (incremental path).
+    await connectors.advanceCursor(c.id, 100, 3);
     imap.fetchSince.mockRejectedValue(
       new Error('AUTHENTICATIONFAILED bad token'),
     );
@@ -117,6 +127,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('retries a transient connect failure 5× with backoff, then marks the connector error', async () => {
     const c = await mk();
+    // Advance past baseline so retries come from fetchSince (incremental path).
+    await connectors.advanceCursor(c.id, 100, 3);
     imap.fetchSince.mockRejectedValue(new Error('ECONNREFUSED'));
     const delaySpy = jest
       .spyOn(worker as unknown as { delay(ms: number): Promise<void> }, 'delay')
@@ -131,6 +143,8 @@ describe('MailSyncWorker.syncOnce', () => {
 
   it('does not retry an auth failure — fails fast to auth_failed', async () => {
     const c = await mk();
+    // Advance past baseline so error comes from fetchSince (incremental path).
+    await connectors.advanceCursor(c.id, 100, 3);
     imap.fetchSince.mockRejectedValue(
       new Error('AUTHENTICATIONFAILED bad token'),
     );

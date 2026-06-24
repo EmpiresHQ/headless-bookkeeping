@@ -8,12 +8,16 @@ import {
 } from './imap-client.port';
 import { HarvestService } from './harvest.service';
 import { OAuthService } from './oauth.service';
+import { SettingsService } from '../admin/settings.service';
 
 // Bounded connect retries for a transient IMAP failure. 5 attempts with
 // exponential backoff (1s, 2s, 4s, 8s between them); after the last the
 // connector is marked `error`.
 const MAX_CONNECT_ATTEMPTS = 5;
 const BASE_BACKOFF_MS = 1000;
+// How many recent messages to harvest on first connect (when last_uid=0).
+// The operator can override this via the mailbox_initial_fetch_count setting.
+const DEFAULT_INITIAL_FETCH_COUNT = 200;
 
 @Injectable()
 export class MailSyncWorker implements OnModuleInit {
@@ -26,6 +30,7 @@ export class MailSyncWorker implements OnModuleInit {
     private readonly imap: ImapClient,
     @Inject('HARVEST') private readonly harvest: HarvestService,
     @Inject('OAUTH') private readonly oauth: OAuthService,
+    private readonly settings: SettingsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -88,6 +93,14 @@ export class MailSyncWorker implements OnModuleInit {
       this.logger.log(
         `sync start connector=${connectorId} (${conn.username}) last_uid=${conn.last_uid}`,
       );
+
+      // First-time sync: baseline cursor + harvest last N messages only.
+      // Avoids downloading the entire mailbox history (could be 100k+ messages).
+      if (conn.last_uid === 0) {
+        await this.initialSync(connectorId, conn);
+        return;
+      }
+
       // Connect + fetch with bounded retries & backoff. Transient failures
       // (network, timeout, server busy) are retried; auth failures fail fast.
       const { uidvalidity, messages } = await this.withConnectRetry(
@@ -135,6 +148,40 @@ export class MailSyncWorker implements OnModuleInit {
       this.inFlight.delete(connectorId);
       resolve();
     }
+  }
+
+  private async initialSync(
+    connectorId: number,
+    conn: Awaited<ReturnType<MailboxConnectorService['list']>>[number],
+  ): Promise<void> {
+    const { uidvalidity, latestUid } = await this.withConnectRetry(
+      connectorId,
+      async () => {
+        const cfg = await this.connection(connectorId);
+        return this.imap.getLatestUid(cfg, conn.folder);
+      },
+    );
+
+    const raw = await this.settings.get('mailbox_initial_fetch_count').catch(() => null);
+    const count = Math.max(0, Number(raw ?? DEFAULT_INITIAL_FETCH_COUNT));
+    const sinceUid = count > 0 ? Math.max(0, latestUid - count) : latestUid;
+
+    let harvested = 0;
+    if (sinceUid < latestUid && count > 0) {
+      const { messages } = await this.withConnectRetry(connectorId, async () => {
+        const cfg = await this.connection(connectorId);
+        return this.imap.fetchSince(cfg, conn.folder, sinceUid);
+      });
+      for (const msg of messages.sort((a, b) => a.uid - b.uid)) {
+        await this.harvest.harvestMessage(conn.channel, msg);
+      }
+      harvested = messages.length;
+    }
+
+    this.logger.log(
+      `baseline connector=${connectorId} latestUid=${latestUid} harvested=${harvested} initial_fetch_count=${count}`,
+    );
+    await this.connectors.advanceCursor(connectorId, uidvalidity, latestUid);
   }
 
   private isAuthError(err: unknown): boolean {

@@ -102,6 +102,28 @@ export class ImapflowImapClient extends ImapClient {
     }
   }
 
+  async getLatestUid(
+    conn: ImapConnectionConfig,
+    folder: string,
+  ): Promise<{ uidvalidity: number; latestUid: number }> {
+    const c = buildClient(conn);
+    await withTimeout(c.connect(), OPERATION_TIMEOUT_MS);
+    try {
+      const lock = await c.getMailboxLock(folder, { readOnly: true });
+      try {
+        const mb = c.mailbox as { uidValidity: bigint; uidNext: number };
+        return {
+          uidvalidity: Number(mb.uidValidity),
+          latestUid: Math.max(0, mb.uidNext - 1),
+        };
+      } finally {
+        lock.release();
+      }
+    } finally {
+      await c.logout();
+    }
+  }
+
   async idle(
     conn: ImapConnectionConfig,
     folder: string,
