@@ -121,20 +121,42 @@ export class MailSyncWorker implements OnModuleInit {
     } catch (err) {
       // All retries exhausted (or an auth failure failed fast): drop the
       // connector into an error state with the reason so the operator sees it.
-      const msg = err instanceof Error ? err.message : String(err);
-      const status = this.isAuthError(msg) ? 'auth_failed' : 'error';
+      const status = this.isAuthError(err) ? 'auth_failed' : 'error';
+      const detail = this.describeError(err);
       this.logger.error(
-        `sync failed connector=${connectorId} status=${status} error=${msg}`,
+        `sync failed connector=${connectorId} status=${status} error=${detail}`,
       );
+      const msg = err instanceof Error ? err.message : String(err);
       await this.connectors.markStatus(connectorId, status, msg);
     } finally {
       this.inFlight.delete(connectorId);
     }
   }
 
-  private isAuthError(msg: string): boolean {
-    // OAuth refresh failures ("OAuth refresh failed") match /auth/ too.
+  private isAuthError(err: unknown): boolean {
+    // imapflow sets authenticationFailed=true on XOAUTH2/LOGIN rejections.
+    if (
+      err &&
+      typeof err === 'object' &&
+      (err as Record<string, unknown>).authenticationFailed
+    )
+      return true;
+    const msg = err instanceof Error ? err.message : String(err);
+    // OAuth refresh failures ("OAuth refresh failed") also match /auth/.
     return /auth|token|credential|login|password/i.test(msg);
+  }
+
+  private describeError(err: unknown): string {
+    if (!err || typeof err !== 'object') return String(err);
+    const e = err as Record<string, unknown>;
+    const parts: string[] = [err instanceof Error ? err.message : String(err)];
+    if (e.serverResponseCode) parts.push(`code=${e.serverResponseCode}`);
+    if (e.response) parts.push(`response=${e.response}`);
+    if (e.oauthError)
+      parts.push(
+        `oauthError=${typeof e.oauthError === 'object' ? JSON.stringify(e.oauthError) : e.oauthError}`,
+      );
+    return parts.join(' | ');
   }
 
   private delay(ms: number): Promise<void> {
@@ -158,12 +180,12 @@ export class MailSyncWorker implements OnModuleInit {
         return await fn();
       } catch (e) {
         lastErr = e;
-        const msg = e instanceof Error ? e.message : String(e);
-        if (this.isAuthError(msg)) throw e; // fail fast — do not retry auth errors
+        if (this.isAuthError(e)) throw e; // fail fast — do not retry auth errors
         if (attempt < MAX_CONNECT_ATTEMPTS) {
           const backoff = BASE_BACKOFF_MS * 2 ** (attempt - 1);
+          const desc = e instanceof Error ? e.message : String(e);
           this.logger.warn(
-            `mailbox ${connectorId} connect attempt ${attempt}/${MAX_CONNECT_ATTEMPTS} failed (${msg}); retrying in ${backoff}ms`,
+            `mailbox ${connectorId} connect attempt ${attempt}/${MAX_CONNECT_ATTEMPTS} failed (${desc}); retrying in ${backoff}ms`,
           );
           await this.delay(backoff);
         }
