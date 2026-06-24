@@ -1,8 +1,20 @@
+import { Reflector } from '@nestjs/core';
 import { MailboxController } from './mailbox.controller';
+import { IS_PUBLIC_KEY } from '../auth/api-token.guard';
 import type { Response } from 'express';
 
 const makeState = (obj: unknown): string =>
   Buffer.from(JSON.stringify(obj)).toString('base64url');
+
+describe('MailboxController.callback auth', () => {
+  it('is a public route (the provider redirects the browser here with no Bearer token)', () => {
+    const isPublic = new Reflector().get<boolean>(
+      IS_PUBLIC_KEY,
+      MailboxController.prototype.callback,
+    );
+    expect(isPublic).toBe(true);
+  });
+});
 
 describe('MailboxController.callback (OAuth redirect)', () => {
   let connectors: { create: jest.Mock };
