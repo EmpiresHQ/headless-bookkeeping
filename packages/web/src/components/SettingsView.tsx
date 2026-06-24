@@ -49,6 +49,12 @@ const LLM_KEYS: LlmKey[] = [
     multiline: false,
   },
   {
+    key: 'ai_model.ocr',
+    label: 'Model — OCR',
+    placeholder: '(inherits global)',
+    multiline: false,
+  },
+  {
     key: 'prompt.triage',
     label: 'Prompt — triage',
     placeholder: '(built-in default)',
