@@ -29,6 +29,7 @@ import {
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
+import { AllowanceRates, AllowanceType } from './allowance-rates.types';
 
 /**
  * Re-exported for backward compatibility with existing importers. The SOURCE
@@ -290,5 +291,42 @@ export class NullCountryPlugin implements CountryPlugin {
     _opts: AnnualAccountsOpts,
   ): AnnualAccountsResult {
     return { artifacts: [], warnings: [] };
+  }
+
+  getAllowanceRates(
+    type: AllowanceType,
+    _year: number,
+    opts: { domestic: boolean },
+  ): AllowanceRates {
+    // Rates are uniform across years until a future TuMS amendment changes them.
+    if (type === 'daily_allowance') {
+      if (opts.domestic) {
+        // TODO: verify Estonian domestic päevaraha rates against TuMS § 22
+        // Placeholder: treat as 40 €/day fully taxable (conservative until confirmed)
+        // monthlyTaxFreeCeiling: 0 means fully taxable (zero tax-free cents), not employer-defined (null).
+        // Conservative placeholder until TuMS § 22 domestic rates are verified.
+        return { ratePerUnit: 0, monthlyTaxFreeCeiling: 0 };
+      }
+      // Estonian foreign päevaraha — TuMS § 21(3), effective 2025-07-05
+      return {
+        ratePerUnit: 7500, // 75 €/day
+        highRateDaysPerMonth: 15,
+        fallbackRatePerUnit: 4000, // 40 €/day
+        monthlyTaxFreeCeiling: null,
+      };
+    }
+    if (type === 'mileage') {
+      // TuMS § 13, effective 2025
+      return { ratePerUnit: 50, monthlyTaxFreeCeiling: 55000 };
+    }
+    // phone, internet, health — employer-defined, no statutory ceiling
+    return { ratePerUnit: 0, monthlyTaxFreeCeiling: null };
+  }
+
+  getAllowanceAccount(type: AllowanceType): string {
+    if (type === 'daily_allowance' || type === 'mileage') {
+      return 'EXPENSE_TRAVEL';
+    }
+    return 'EXPENSE_OTHER';
   }
 }

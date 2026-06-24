@@ -7,6 +7,8 @@ import { LedgerValidationModule } from '../ledger/validation/ledger-validation.m
 import { ExpensesModule } from '../expenses/expenses.module';
 import { SalesInvoicesModule } from '../sales-invoices/sales-invoices.module';
 import { ReconciliationModule } from '../reconciliation/reconciliation.module';
+import { AllowancesModule } from '../allowances/allowances.module';
+import { OrganizationModule } from '../organization/organization.module';
 import { ApprovalsService } from './approvals.service';
 import { ApprovalsController } from './approvals.controller';
 
@@ -20,6 +22,8 @@ import { ApprovalsController } from './approvals.controller';
     ExpensesModule,
     SalesInvoicesModule,
     ReconciliationModule,
+    AllowancesModule,
+    OrganizationModule,
   ],
   providers: [ApprovalsService],
   controllers: [ApprovalsController],

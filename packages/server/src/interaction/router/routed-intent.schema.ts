@@ -4,7 +4,7 @@ import { RoutedIntent } from './types';
 export const routedIntentSchema = z.object({
   kind: z.enum(['advisory', 'action', 'report', 'reconciliation', 'clarify']),
   actionIntent: z
-    .enum(['create_sales_invoice', 'approve', 'reject', 'correct'])
+    .enum(['create_sales_invoice', 'approve', 'reject', 'correct', 'create_allowance'])
     .optional(),
   fields: z.record(z.string(), z.string()).optional(),
   reportKind: z.string().optional(),

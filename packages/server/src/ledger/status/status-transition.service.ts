@@ -5,23 +5,23 @@ import { BusinessObjectStatus } from '../../common/types/business-object-status'
 
 /**
  * The business-object tables whose `status` column this seam owns. The
- * object_type is a closed discriminator (`expense | sales_invoice`) so the
- * dynamic-table dispatch stays type-safe at the module boundary — no `any`.
+ * object_type is a closed discriminator so the dynamic-table dispatch stays
+ * type-safe at the module boundary — no `any`.
+ *
+ * Allowances use a different status machine (draft → needs_triage → posted | draft)
+ * compared to expense/sales_invoice (draft → pending → posted | draft).
  */
-export type TransitionableObjectType = 'expense' | 'sales_invoice';
+export type TransitionableObjectType = 'expense' | 'sales_invoice' | 'allowance';
 
 /** Human label per type, for clear conflict messages. */
 const LABEL: Record<TransitionableObjectType, string> = {
   expense: 'Expense',
   sales_invoice: 'SalesInvoice',
+  allowance: 'Allowance',
 };
 
 /**
- * The legal status transition graph for the expense / sales_invoice status
- * machine (ADR-0006). A transition is legal iff its target appears in the
- * source state's allow-set. Anything else (e.g. posted→draft, reversed→posted,
- * re-posting a reversed object) is an ILLEGAL transition and is rejected before
- * any UPDATE is issued.
+ * The legal status transition graph for expense / sales_invoice (ADR-0006).
  *
  *   draft   → pending | posted   (hold-for-approval; auto-post)
  *   pending → posted  | draft    (approve; reject back to draft)
@@ -39,7 +39,20 @@ const TRANSITION_GRAPH: Record<
 };
 
 /**
- * Thrown when a transition (from → to) is not in {@link TRANSITION_GRAPH}.
+ * The legal status transition graph for allowances (ADR-0006 extension).
+ *
+ *   draft         → needs_triage          (on submit)
+ *   needs_triage  → posted | draft        (approve → posted; reject → draft)
+ *   posted        → (terminal)            (no corrections for allowances in v1)
+ */
+const ALLOWANCE_TRANSITION_GRAPH: Record<string, ReadonlySet<string>> = {
+  draft: new Set(['needs_triage']),
+  needs_triage: new Set(['posted', 'draft']),
+  posted: new Set(),
+};
+
+/**
+ * Thrown when a transition (from → to) is not in the transition graph.
  * This is the ONE behavior this module adds over the old blind UPDATE: an
  * illegal transition is rejected up front rather than silently issuing an
  * UPDATE that the DB CHECK (which only constrains the value SET, not the graph)
@@ -49,8 +62,8 @@ export class IllegalStatusTransitionError extends Error {
   constructor(
     readonly type: TransitionableObjectType,
     readonly id: number,
-    readonly from: BusinessObjectStatus,
-    readonly to: BusinessObjectStatus,
+    readonly from: string,
+    readonly to: string,
   ) {
     super(
       `Illegal status transition for ${LABEL[type]} ${id}: ${from} → ${to}`,
@@ -78,13 +91,16 @@ export interface TransitionOptions {
 
 /**
  * StatusTransitionService — the SINGLE seam that owns business-object status
- * transitions for the expense / sales_invoice status machine (ADR-0006).
+ * transitions for expense / sales_invoice / allowance status machines (ADR-0006).
  *
  * It is the one place that knows the legal transition graph AND performs the
  * transition. Every write of these objects' `status` flows through here:
  *  - the posting pipeline (auto-post `draft → posted`, hold `draft → pending`),
  *  - approvals (`pending → posted` on approve, `pending → draft` on reject),
- *  - corrections (`posted → reversed`, re-pointed at the corrected voucher).
+ *  - corrections (`posted → reversed`, re-pointed at the corrected voucher),
+ *  - allowance submit (`draft → needs_triage`),
+ *  - allowance approve (`needs_triage → posted`),
+ *  - allowance reject (`needs_triage → draft`).
  *
  * Two guarantees, in order:
  *  1. LEGALITY — {@link transition} rejects any (from → to) not in the graph
@@ -99,9 +115,28 @@ export interface TransitionOptions {
  */
 @Injectable()
 export class StatusTransitionService {
-  /** True iff `from → to` is a legal transition in the status machine. */
-  isLegal(from: BusinessObjectStatus, to: BusinessObjectStatus): boolean {
-    return TRANSITION_GRAPH[from].has(to);
+  /** True iff `from → to` is a legal transition for the given type's status machine. */
+  isLegal(type: TransitionableObjectType, from: string, to: string): boolean;
+  /** Overload for backward-compat callers that pass only from/to (defaults to expense graph). */
+  isLegal(from: BusinessObjectStatus, to: BusinessObjectStatus): boolean;
+  isLegal(
+    typeOrFrom: TransitionableObjectType | BusinessObjectStatus,
+    fromOrTo: string,
+    to?: string,
+  ): boolean {
+    if (to !== undefined) {
+      // 3-arg form: (type, from, to)
+      const type = typeOrFrom as TransitionableObjectType;
+      const from = fromOrTo;
+      if (type === 'allowance') {
+        return (ALLOWANCE_TRANSITION_GRAPH[from] ?? new Set()).has(to);
+      }
+      return (TRANSITION_GRAPH[from as BusinessObjectStatus] ?? new Set<BusinessObjectStatus>()).has(to as BusinessObjectStatus);
+    }
+    // 2-arg form: (from, to) — legacy callers use the shared graph
+    const from = typeOrFrom as BusinessObjectStatus;
+    const t = fromOrTo as BusinessObjectStatus;
+    return TRANSITION_GRAPH[from].has(t);
   }
 
   /**
@@ -115,11 +150,11 @@ export class StatusTransitionService {
     trx: Kysely<Database>,
     type: TransitionableObjectType,
     id: number,
-    from: BusinessObjectStatus,
-    to: BusinessObjectStatus,
+    from: string,
+    to: string,
     options: TransitionOptions = {},
   ): Promise<void> {
-    if (!this.isLegal(from, to)) {
+    if (!this.isLegal(type, from, to)) {
       throw new IllegalStatusTransitionError(type, id, from, to);
     }
 

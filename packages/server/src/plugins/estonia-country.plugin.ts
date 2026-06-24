@@ -13,6 +13,7 @@ import {
   DepreciationMethod,
   FixedAssetDefaults,
 } from './fixed-asset.types';
+import { AllowanceRates, AllowanceType } from './allowance-rates.types';
 import {
   ExpenseTreatmentPreview,
   KmdBaseClassification,
@@ -479,6 +480,38 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       ],
       warnings,
     };
+  }
+
+  // ── Allowance rates & accounts (TuMS statutory rates) ────────────────────
+
+  getAllowanceRates(
+    type: AllowanceType,
+    year: number,
+    opts: { domestic: boolean },
+  ): AllowanceRates {
+    void year;
+    if (type === 'daily_allowance') {
+      if (opts.domestic) {
+        return { ratePerUnit: 0, monthlyTaxFreeCeiling: 0 };
+      }
+      return {
+        ratePerUnit: 7500,
+        highRateDaysPerMonth: 15,
+        fallbackRatePerUnit: 4000,
+        monthlyTaxFreeCeiling: null,
+      };
+    }
+    if (type === 'mileage') {
+      return { ratePerUnit: 50, monthlyTaxFreeCeiling: 55000 };
+    }
+    return { ratePerUnit: 0, monthlyTaxFreeCeiling: null };
+  }
+
+  getAllowanceAccount(type: AllowanceType): string {
+    if (type === 'daily_allowance' || type === 'mileage') {
+      return 'EXPENSE_TRAVEL';
+    }
+    return 'EXPENSE_OTHER';
   }
 
   // ── KMD (käibedeklaratsioon) row classification ───────────────────────────

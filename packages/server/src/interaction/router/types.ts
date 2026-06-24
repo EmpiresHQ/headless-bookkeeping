@@ -3,14 +3,15 @@ export type ActionIntent =
   | 'create_sales_invoice'
   | 'approve'
   | 'reject'
-  | 'correct';
+  | 'correct'
+  | 'create_allowance';
 
 export type RoutedIntent =
   | { kind: 'advisory' }
   | {
       kind: 'action';
       actionIntent: ActionIntent;
-      fields: Record<string, string>;
+      fields?: Record<string, string>;
     }
   | { kind: 'report'; reportKind: string }
   | { kind: 'reconciliation' }

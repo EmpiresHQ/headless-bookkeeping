@@ -50,6 +50,7 @@ export type ReferencedObjectType =
   | 'document'
   | 'expense'
   | 'sales_invoice'
+  | 'allowance'
   | 'approval'
   | 'voucher'
   | 'bank_statement_line'
@@ -62,6 +63,7 @@ export const REFERENCED_OBJECT_TYPES: readonly ReferencedObjectType[] = [
   'document',
   'expense',
   'sales_invoice',
+  'allowance',
   'approval',
   'voucher',
   'bank_statement_line',

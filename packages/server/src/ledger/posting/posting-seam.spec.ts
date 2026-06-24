@@ -25,6 +25,11 @@ import { SalesInvoicesService } from '../../sales-invoices/sales-invoices.servic
 import { VoucherProjectionService } from '../projection/voucher-projection.service';
 import { ApprovalsService } from '../../approvals/approvals.service';
 import { ReconciliationService } from '../../reconciliation/reconciliation.service';
+import { AllowanceLimitService } from '../../allowances/allowance-limit.service';
+import { AllowanceProjectionService } from '../../allowances/allowance-projection.service';
+import { BusinessTripService } from '../../allowances/business-trip.service';
+import { AllowanceService } from '../../allowances/allowance.service';
+import { AuditFindingsService } from '../../audit-findings/audit-findings.service';
 import { VoucherRepository } from '../voucher/voucher.repository';
 import { PostingService, PostingSemantics } from './posting.service';
 import { CategoryService } from '../../categories/category.service';
@@ -92,6 +97,11 @@ describe('Posting seam consolidation (integration)', () => {
             discardDraftMatch: jest.fn(),
           },
         },
+        AllowanceLimitService,
+        AllowanceProjectionService,
+        BusinessTripService,
+        AuditFindingsService,
+        AllowanceService,
         ApprovalsService,
         VoucherRepository,
         {

@@ -35,6 +35,8 @@ export interface Database {
   fixed_asset: FixedAssetTable;
   statutory_submission_event: StatutorySubmissionEventTable;
   mailbox_connector: MailboxConnectorTable;
+  business_trip: BusinessTripTable;
+  allowance: AllowanceTable;
 }
 
 export interface OrganizationTable {
@@ -590,6 +592,39 @@ export interface MailboxConnectorTable {
   status: Generated<'connected' | 'auth_failed' | 'disconnected' | 'error'>;
   last_synced_at: number | null;
   last_error: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface BusinessTripTable {
+  id: Generated<number>;
+  claimant_id: number;
+  departure_date: string;
+  return_date: string;
+  destination_country: string;
+  purpose: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AllowanceTable {
+  id: Generated<number>;
+  claimant_id: number;
+  trip_id: number | null;
+  type: string;
+  days: number | null;
+  km: number | null;
+  input_amount: number | null;
+  route_description: string | null;
+  gross_amount: number;
+  tax_free_amount: number;
+  taxable_amount: number;
+  currency: Generated<string>;
+  breakdown: string | null;
+  period_start: string;
+  period_end: string | null;
+  status: Generated<string>;
+  voucher_id: number | null;
   created_at: number;
   updated_at: number;
 }

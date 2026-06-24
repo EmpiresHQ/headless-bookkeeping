@@ -13,11 +13,13 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'superseded';
  * Object types that can be held for approval. `reconciliation_match` is staged
  * by the reconciliation engine (draft match) and is NOT a voucher-generating
  * business object — approving it activates the sub-ledger link (and posts the
- * realized-FX voucher for a multi-currency settlement).
+ * realized-FX voucher for a multi-currency settlement). `allowance` uses a
+ * different status machine (needs_triage instead of pending).
  */
 export type ApprovalObjectType =
   | 'expense'
   | 'sales_invoice'
+  | 'allowance'
   | 'reconciliation_match';
 
 /**

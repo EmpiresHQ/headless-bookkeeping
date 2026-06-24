@@ -38,6 +38,10 @@ import {
   DepreciationMethod,
   FixedAssetDefaults,
 } from '../plugins/fixed-asset.types';
+import {
+  AllowanceRates,
+  AllowanceType,
+} from '../plugins/allowance-rates.types';
 import { DividendsService } from './dividends.service';
 
 /**
@@ -429,6 +433,16 @@ describe('DividendsService (integration)', () => {
       getFixedAssetDefaults(_assetClass: AssetClass): FixedAssetDefaults {
         return { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 };
       }
+      getAllowanceRates(
+        _type: AllowanceType,
+        _year: number,
+        _opts: { domestic: boolean },
+      ): AllowanceRates {
+        return { ratePerUnit: 0, monthlyTaxFreeCeiling: null };
+      }
+      getAllowanceAccount(_type: AllowanceType): string {
+        return 'EXPENSE_OTHER';
+      }
     }
 
     beforeEach(async () => {
@@ -660,6 +674,16 @@ describe('DividendsService (integration)', () => {
 
       getFixedAssetDefaults(_assetClass: AssetClass): FixedAssetDefaults {
         return { defaultUsefulLifeYears: 5, defaultResidualMinor: 0 };
+      }
+      getAllowanceRates(
+        _type: AllowanceType,
+        _year: number,
+        _opts: { domestic: boolean },
+      ): AllowanceRates {
+        return { ratePerUnit: 0, monthlyTaxFreeCeiling: null };
+      }
+      getAllowanceAccount(_type: AllowanceType): string {
+        return 'EXPENSE_OTHER';
       }
     }
 
