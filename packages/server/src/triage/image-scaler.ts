@@ -10,7 +10,7 @@ import sharp from 'sharp';
  * 2048 px is enough resolution for OCR to read printed text reliably while
  * keeping the JPEG under ~500 KB.
  */
-const MAX_DIMENSION = 2048;
+const MAX_DIMENSION = 1024;
 const JPEG_QUALITY = 85;
 
 export interface ScaledImage {
