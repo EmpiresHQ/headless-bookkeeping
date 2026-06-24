@@ -74,14 +74,9 @@ export class ApprovalsService {
         'reconciliation_match approvals are created by the reconciliation engine, not here',
       );
     }
-    // Allowance approvals are created by AllowanceService.submitAllowance() which
-    // inserts the approval row directly and manages the draft→needs_triage transition.
-    // Reject attempts to create them through this endpoint to avoid double-creating.
-    if (dto.object_type === 'allowance') {
-      throw new BadRequestException(
-        'allowance approvals are created by AllowanceService.submitAllowance(), not here',
-      );
-    }
+    // Note: 'allowance' is excluded from createApprovalSchema's Zod enum so it is
+    // rejected at the controller validation layer (HTTP 422) before reaching here.
+    // Allowance approvals are created by AllowanceService.submitAllowance() directly.
     const objectType = dto.object_type;
     const now = Math.floor(Date.now() / 1000);
 
