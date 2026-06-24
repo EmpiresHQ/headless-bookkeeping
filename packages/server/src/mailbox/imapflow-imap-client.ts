@@ -19,6 +19,9 @@ function buildClient(conn: ImapConnectionConfig): ImapFlow {
     secure: true,
     auth,
     logger: false,
+    connectionTimeout: 15000,  // 15s to establish TCP+TLS
+    greetingTimeout: 10000,    // 10s for server greeting after connect
+    socketTimeout: 30000,      // 30s idle before declaring connection dead
   });
 }
 
