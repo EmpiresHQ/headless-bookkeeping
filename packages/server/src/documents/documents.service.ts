@@ -512,12 +512,12 @@ export class DocumentsService {
 
       const expense = await trx
         .selectFrom('expense')
-        .select('id')
+        .select(['id', 'status'])
         .where('document_id', '=', id)
         .executeTakeFirst();
-      if (expense) {
+      if (expense && (expense.status === 'posted' || expense.status === 'reversed')) {
         throw new ConflictException(
-          `Document ${id} is attached to expense #${expense.id} and cannot be deleted`,
+          `Document ${id} is evidence for expense #${expense.id} (${expense.status}) — reverse the expense before deleting`,
         );
       }
       // The SPA is the operator's admin surface — a document can always be

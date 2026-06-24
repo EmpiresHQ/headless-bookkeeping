@@ -307,8 +307,71 @@ describe('DocumentsService (unit)', () => {
       await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
     });
 
-    it('refuses (409) to delete a document attached to an expense', async () => {
+    it('refuses (409) when the linked expense is posted — row and file survive', async () => {
       const { document } = await upload();
+      const path = document.storage_path!;
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'posted',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Row survives.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      // File survives.
+      await expect(fs.readFile(join(storageRoot, path))).resolves.toBeTruthy();
+    });
+
+    it('refuses (409) when the linked expense is reversed — row and file survive', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'reversed',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      // Row survives.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      // File survives.
+      await expect(fs.readFile(join(storageRoot, path))).resolves.toBeTruthy();
+    });
+
+    it('allows deletion when the linked expense is draft (row and file removed)', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
       const now = Math.floor(Date.now() / 1000);
       await db
         .insertInto('expense')
@@ -328,11 +391,22 @@ describe('DocumentsService (unit)', () => {
         })
         .execute();
 
-      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
-      // Still present.
-      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      await expect(service.deleteDocument(document.id)).resolves.toBeUndefined();
+      // Row gone.
+      await expect(service.getById(document.id)).rejects.toThrow(NotFoundException);
+      // File gone.
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
+    });
+
+    it('allows deletion when no expense exists (row and file removed)', async () => {
+      const { document } = await upload();
+      const path = document.storage_path!;
+
+      await expect(service.deleteDocument(document.id)).resolves.toBeUndefined();
+      // Row gone.
+      await expect(service.getById(document.id)).rejects.toThrow(NotFoundException);
+      // File gone.
+      await expect(fs.readFile(join(storageRoot, path))).rejects.toThrow();
     });
 
     it('throws NotFoundException for a missing document', async () => {
