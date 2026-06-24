@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/api-token.guard';
 import {
   MailboxConnectorService,
   MailboxConnector,
@@ -90,6 +91,7 @@ export class MailboxController {
     }
   }
 
+  @Public() // hit by the user's browser after provider consent — no Bearer token
   @Get('oauth/callback')
   @ApiOperation({
     summary:
