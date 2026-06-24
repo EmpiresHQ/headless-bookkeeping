@@ -3,7 +3,8 @@ export type ActionIntent =
   | 'create_sales_invoice'
   | 'approve'
   | 'reject'
-  | 'correct';
+  | 'correct'
+  | 'create_allowance';
 
 export type RoutedIntent =
   | { kind: 'advisory' }

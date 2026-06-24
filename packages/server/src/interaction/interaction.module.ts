@@ -11,7 +11,10 @@ import { Database } from '../database/types';
 import { InteractionConfigService } from './config/interaction-config.service';
 import { PrincipalResolverService } from './principal/principal-resolver.service';
 import { IntentClassifierService } from './router/intent-classifier.service';
-import { FlowDispatcher, NoopFlowDispatcher } from './router/flow-dispatcher';
+import { FlowDispatcher } from './router/flow-dispatcher';
+import { RealFlowDispatcher } from './router/real-flow-dispatcher';
+import { AllowanceFlow } from './router/flows/allowance-flow';
+import { AllowancesModule } from '../allowances/allowances.module';
 import { InteractionGateService } from './router/interaction-gate.service';
 import { InteractionRouterService } from './router/interaction-router.service';
 import {
@@ -32,6 +35,7 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     DocumentsModule,
     AuditLogModule,
     AgentConfigModule,
+    AllowancesModule,
   ],
   controllers: [TelegramWebhookController],
   providers: [
@@ -41,8 +45,10 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     InteractionGateService,
     InteractionRouterService,
     TransportRegistryService,
-    // 8a: non-recording production stub; 8b binds the real flows here.
-    { provide: FlowDispatcher, useClass: NoopFlowDispatcher },
+    AllowanceFlow,
+    RealFlowDispatcher,
+    // 8b: real flow dispatcher replacing the 8a stub.
+    { provide: FlowDispatcher, useClass: RealFlowDispatcher },
     // Live Bot API edge — reads the bot token lazily from settings.
     {
       provide: TelegramApi,
