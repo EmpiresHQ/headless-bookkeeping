@@ -9,6 +9,7 @@ import { ReportingPeriodsModule } from './reporting-periods/reporting-periods.mo
 import { ExpensesModule } from './expenses/expenses.module';
 import { SalesInvoicesModule } from './sales-invoices/sales-invoices.module';
 import { EntitiesModule } from './entities/entities.module';
+import { DocumentsModule } from './documents/documents.module';
 import { DatabaseModule } from './database/database.module';
 import { ApiTokenService } from './auth/api-token.service';
 import { OrganizationService } from './organization/organization.service';
@@ -16,6 +17,7 @@ import { ReportingPeriodsService } from './reporting-periods/reporting-periods.s
 import { ExpensesService } from './expenses/expenses.service';
 import { SalesInvoicesService } from './sales-invoices/sales-invoices.service';
 import { EntitiesService } from './entities/entities.service';
+import { DocumentsService } from './documents/documents.service';
 import { buildCli } from './cli/cli';
 
 /**
@@ -32,6 +34,7 @@ import { buildCli } from './cli/cli';
     ExpensesModule,
     SalesInvoicesModule,
     EntitiesModule,
+    DocumentsModule,
   ],
 })
 class CliModule {}
@@ -54,6 +57,7 @@ async function main(): Promise<void> {
         expenses: app.get(ExpensesService),
         salesInvoices: app.get(SalesInvoicesService),
         entities: app.get(EntitiesService),
+        documents: app.get(DocumentsService),
         db: app.get(KYSELY_MODULE_CONNECTION_TOKEN()),
       },
       {

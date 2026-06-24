@@ -178,4 +178,21 @@ export class DocumentsController {
     await this.documentsService.deleteDocument(Number(id));
     return { deleted: Number(id) };
   }
+
+  /**
+   * Reset a `needs_triage` document back to `pending` so the intake queue
+   * picks it up for a fresh OCR + classification run.  Idempotent — a
+   * no-op when the document is not in `needs_triage`.
+   */
+  @Post(':id/retry')
+  @ApiOperation({
+    summary: 'Re-queue a triage-failed document for reprocessing',
+    description:
+      'Resets a needs_triage document to pending so the intake queue re-picks it.',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async retryDocument(@Param('id') id: string): Promise<void> {
+    await this.documentsService.reprocessDocument(Number(id));
+  }
 }

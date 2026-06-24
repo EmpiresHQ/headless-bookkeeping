@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { uploadDocument, triageDocument, completeDocument } from '../api';
+import { uploadDocument, triageDocument, completeDocument, retryDocument } from '../api';
 
 export function TriageOcrFailedForm({
   documentId,
@@ -45,6 +45,18 @@ export function TriageOcrFailedForm({
     }
   };
 
+  const onRetry = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await retryDocument(documentId);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="p-3 space-y-3 text-sm bg-red-50 border-t border-red-200">
       <p className="text-red-800 text-xs">
@@ -74,6 +86,14 @@ export function TriageOcrFailedForm({
           className="text-gray-600 hover:underline text-sm disabled:opacity-50"
         >
           Dismiss
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onRetry()}
+          className="bg-green-600 text-white rounded px-3 py-1 text-sm disabled:opacity-50"
+        >
+          Retry
         </button>
         <button
           type="button"

@@ -175,6 +175,28 @@ export class DocumentsService {
   }
 
   /**
+   * Reset a document parked in `needs_triage` back to `pending` so the intake
+   * queue re-picks it.  Clears `processing_since` and resets `processing_attempts`
+   * to 0 — the document gets a fresh slate.  No-op when the document is not in
+   * `needs_triage` (idempotent).
+   *
+   * Use when a systemic fix (e.g. a HEIC decoder becoming available, or an OCR
+   * configuration change) makes a previously-failing document retriable.
+   */
+  async reprocessDocument(id: number): Promise<void> {
+    await this.db
+      .updateTable('document')
+      .set({
+        status: 'pending',
+        processing_since: null,
+        processing_attempts: 0,
+      })
+      .where('id', '=', id)
+      .where('status', '=', 'needs_triage')
+      .execute();
+  }
+
+  /**
    * Atomically claim the oldest claimable 'pending' document for processing.
    *
    * Claimable = status 'pending', attempts below the cap, and not currently
