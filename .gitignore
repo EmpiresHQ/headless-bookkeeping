@@ -57,6 +57,12 @@ evals/**/output.*
 # CodeGraph local tooling
 .codegraph/
 
+# Agent/local orchestration state
+.agents/
+.claude/worktrees/
+.superpowers/
+CLAUDE.md
+
 # Monorepo package build artifacts and coverage
 *.tsbuildinfo
 data/
