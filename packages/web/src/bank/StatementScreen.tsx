@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { deleteBankStatement, fmtCents } from '../api';
@@ -231,9 +231,14 @@ export function StatementScreen() {
   const [booking, setBooking] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
-  // Pre-select high-confidence proposals whenever a fresh proposal set lands.
+  // Pre-select high-confidence proposals on the FIRST proposals load per
+  // statement only. Refetches (every invalidateStatement) must NOT resurrect
+  // manually deselected proposals — that would silently change the Book count
+  // on a money-moving control. Navigating to another statement re-arms it.
+  const preselectedFor = useRef<number | null>(null);
   useEffect(() => {
-    if (proposalsQ.data) {
+    if (preselectedFor.current !== statementId && proposalsQ.data) {
+      preselectedFor.current = statementId;
       setSelected(
         new Set(
           proposalsQ.data
@@ -242,7 +247,7 @@ export function StatementScreen() {
         ),
       );
     }
-  }, [proposalsQ.data]);
+  }, [statementId, proposalsQ.data]);
 
   const statement = statementsQ.data?.find((s) => s.id === statementId);
   const lines = useMemo(
@@ -307,7 +312,10 @@ export function StatementScreen() {
           .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
       });
     } catch (e) {
+      // "No pending approval found" means the screen is stale — a refetch
+      // self-heals (the draft may already be active or gone).
       toastErr(e instanceof Error ? e.message : String(e));
+      await invalidateStatement(qc, statementId);
     } finally {
       setConfirmBusy(false);
     }

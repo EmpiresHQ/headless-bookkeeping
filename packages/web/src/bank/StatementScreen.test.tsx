@@ -26,6 +26,7 @@ vi.mock('../api', () => ({
 }));
 
 import * as api from '../api';
+import type { MatchProposalView } from '../api';
 import { StatementScreen } from './StatementScreen';
 import { AppToaster } from '../ui/toast';
 
@@ -99,6 +100,35 @@ const TXNS = [
   },
 ];
 
+const HIGH_PROPOSAL: MatchProposalView = {
+  bankTransactionId: 10,
+  voucherId: 71,
+  matchType: 'exact',
+  amountMatched: 120000,
+  confidence: 'high',
+  signal: 'invoice_number',
+  objectType: 'sales_invoice',
+  objectId: 18,
+  objectLabel: 'Invoice 2026-018',
+  counterpartyName: 'Nordic Consulting OÜ',
+  voucherRemaining: 120000,
+};
+
+/** A medium-confidence proposal (tx 9, WOLT −18.60) — must NOT preselect. */
+const MEDIUM_PROPOSAL: MatchProposalView = {
+  bankTransactionId: 9,
+  voucherId: 55,
+  matchType: 'exact',
+  amountMatched: 1860,
+  confidence: 'medium',
+  signal: 'counterparty',
+  objectType: 'expense',
+  objectId: 77,
+  objectLabel: 'Expense #77',
+  counterpartyName: 'Wolt Eesti OÜ',
+  voucherRemaining: 1860,
+};
+
 function mockStatementData() {
   vi.mocked(api.listBankStatements).mockResolvedValue([
     { id: 3, start_date: '2026-06-01', end_date: '2026-06-30', uploaded_at: 1 },
@@ -144,21 +174,7 @@ function mockStatementData() {
       counterpartyName: 'Elisa Eesti AS',
     },
   ]);
-  vi.mocked(api.proposeMatches).mockResolvedValue([
-    {
-      bankTransactionId: 10,
-      voucherId: 71,
-      matchType: 'exact',
-      amountMatched: 120000,
-      confidence: 'high',
-      signal: 'invoice_number',
-      objectType: 'sales_invoice',
-      objectId: 18,
-      objectLabel: 'Invoice 2026-018',
-      counterpartyName: 'Nordic Consulting OÜ',
-      voucherRemaining: 120000,
-    },
-  ]);
+  vi.mocked(api.proposeMatches).mockResolvedValue([HIGH_PROPOSAL]);
 }
 
 describe('StatementScreen', () => {
@@ -219,7 +235,13 @@ describe('StatementScreen booking', () => {
     mockStatementData();
   });
 
-  it('pre-selects high-confidence proposals and books them with an Undo toast', async () => {
+  it('pre-selects ONLY high-confidence proposals and books exactly the selected set with an Undo toast', async () => {
+    // A medium-confidence proposal alongside the high one: it must render
+    // unselected, stay out of the Book payload, and not count toward the net.
+    vi.mocked(api.proposeMatches).mockResolvedValue([
+      HIGH_PROPOSAL,
+      MEDIUM_PROPOSAL,
+    ]);
     vi.mocked(api.executeMatches).mockResolvedValue({
       records: [{ id: 91 }],
       approvals: [{ id: 12, matchId: 91 }],
@@ -228,17 +250,28 @@ describe('StatementScreen booking', () => {
       approval: { id: 12 },
     } as never);
     renderAt();
-    // The single high-confidence proposal arrives pre-selected, with the
-    // object label + confidence chip in the subtitle.
+    // The high-confidence proposal arrives pre-selected, with the object
+    // label + confidence chip in the subtitle.
     const box = await screen.findByRole('checkbox', {
       name: /select match invoice 2026-018/i,
     });
     expect(box).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText(/Invoice 2026-018/)).toBeInTheDocument();
     expect(screen.getByText('high')).toBeInTheDocument();
+    // The medium-confidence proposal is NOT preselected.
+    const mediumBox = screen.getByRole('checkbox', {
+      name: /select match expense #77/i,
+    });
+    expect(mediumBox).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText('medium')).toBeInTheDocument();
+    // Book bar: only the selected proposal counts — signed net is the high
+    // proposal's +1200.00, not 1200.00 − 18.60.
     const bookBtn = screen.getByRole('button', { name: /book 1 match/i });
+    expect(bookBtn).toHaveTextContent('+1200.00 € net');
     fireEvent.click(bookBtn);
     await vi.waitFor(() => expect(api.executeMatches).toHaveBeenCalledOnce());
+    // Exactly the chosen proposal objects go to the server — nothing more.
+    expect(api.executeMatches).toHaveBeenCalledWith(3, [HIGH_PROPOSAL]);
     expect(api.approveApproval).toHaveBeenCalledWith(12, 'operator');
     expect(await screen.findByText('Booked 1 match')).toBeInTheDocument();
     expect(
@@ -288,6 +321,103 @@ describe('StatementScreen booking', () => {
     expect(
       await screen.findByText(/would over-allocate bank line 10/),
     ).toBeInTheDocument();
+  });
+
+  it('keeps manual deselections across refetches (preselect fires once per statement)', async () => {
+    // Confirm on a staged row invalidates the statement; the proposals
+    // refetch (here returning a changed set) must NOT resurrect a proposal
+    // the operator deselected — the Book count is a money-moving control.
+    vi.mocked(api.proposeMatches)
+      .mockResolvedValueOnce([HIGH_PROPOSAL, MEDIUM_PROPOSAL])
+      .mockResolvedValue([HIGH_PROPOSAL]);
+    vi.mocked(api.getStatementMatches).mockResolvedValue([
+      {
+        id: 50,
+        bankTransactionId: 9,
+        status: 'draft',
+        amountMatched: 1860,
+        objectLabel: 'Expense #70',
+        counterpartyName: null,
+      },
+    ]);
+    vi.mocked(api.getPendingApprovals).mockResolvedValue([
+      {
+        id: 88,
+        object_type: 'reconciliation_match',
+        object_id: 50,
+        status: 'pending',
+        requested_by: 'system',
+        approved_by: null,
+        rejected_reason: null,
+        policy_reason: null,
+        superseded_by: null,
+        created_at: 0,
+        resolved_at: null,
+      },
+    ]);
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: { id: 88 },
+    } as never);
+    renderAt();
+    const box = await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    fireEvent.click(box); // operator deselects the preselected proposal
+    expect(box).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
+    await vi.waitFor(() =>
+      expect(api.approveApproval).toHaveBeenCalledWith(88, 'operator'),
+    );
+    // Invalidation refetched proposals with a new data reference…
+    await vi.waitFor(() =>
+      expect(api.proposeMatches).toHaveBeenCalledTimes(2),
+    );
+    // …and the deselection survived: still unchecked, no Book bar.
+    const boxAfter = await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    expect(boxAfter).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByRole('button', { name: /book/i })).toBeNull();
+  });
+
+  it('surfaces a partial booking failure (staged vs activated) without offering Undo, and refetches', async () => {
+    // Two matches staged; the second approval fails at activation — money is
+    // half-moved. The UI must state what activated vs what is left staged,
+    // must NOT offer Undo, and must refetch so drafts stay visible.
+    vi.mocked(api.executeMatches).mockResolvedValue({
+      records: [{ id: 91 }, { id: 92 }],
+      approvals: [
+        { id: 12, matchId: 91 },
+        { id: 13, matchId: 92 },
+      ],
+    });
+    vi.mocked(api.approveApproval)
+      .mockResolvedValueOnce({ approval: { id: 12 } } as never)
+      .mockRejectedValueOnce(
+        new Error('Match of 1860 would over-allocate bank line 9'),
+      );
+    renderAt();
+    await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    const matchesCallsBefore = vi.mocked(api.getStatementMatches).mock.calls
+      .length;
+    fireEvent.click(screen.getByRole('button', { name: /book 1 match/i }));
+    // BookingPartialError's message pins activated-vs-staged and the cause.
+    expect(
+      await screen.findByText(
+        /approval 13 failed \(1\/2 activated\): Match of 1860 would over-allocate bank line 9/,
+      ),
+    ).toBeInTheDocument();
+    // A half-moved booking must not offer a one-click Undo.
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    // The invalidation path ran: statement queries refetch so the leftover
+    // draft renders as staged (with its Confirm recovery button).
+    await vi.waitFor(() =>
+      expect(
+        vi.mocked(api.getStatementMatches).mock.calls.length,
+      ).toBeGreaterThan(matchesCallsBefore),
+    );
   });
 
   it('renders a staged draft with a Confirm action that approves its approval', async () => {
