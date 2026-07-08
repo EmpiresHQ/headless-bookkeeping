@@ -9,6 +9,8 @@ describe('toastUndo', () => {
       toastUndo('Approved #214', vi.fn());
     });
     expect(await screen.findByText('Approved #214')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Undo' }),
+    ).toBeInTheDocument();
   });
 });

@@ -111,9 +111,9 @@ describe('SettingsView', () => {
     expect(
       screen.getByText(/restart the app after changing telegram settings/i),
     ).toBeInTheDocument();
-    expect(
-      (screen.getByLabelText(/bot token/i) as HTMLInputElement).type,
-    ).toBe('password');
+    expect((screen.getByLabelText(/bot token/i) as HTMLInputElement).type).toBe(
+      'password',
+    );
     expect(
       (screen.getByLabelText(/webhook secret/i) as HTMLInputElement).type,
     ).toBe('password');
@@ -136,9 +136,7 @@ describe('SettingsView', () => {
     );
 
     await waitFor(() =>
-      expect(api.deleteSetting).toHaveBeenCalledWith(
-        'telegram_webhook_secret',
-      ),
+      expect(api.deleteSetting).toHaveBeenCalledWith('telegram_webhook_secret'),
     );
   });
 });
