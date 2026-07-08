@@ -181,6 +181,35 @@ low-priority columns hide per breakpoint and remain in the detail route.
 - `api.ts` is kept as the transport layer; a new `queries.ts` layer exposes
   typed hooks per resource.
 
+## Data display rules (global, all screens)
+
+Canonical visual reference: `assets/2026-07-09-screens-data-redesign.html`.
+
+1. **IDs are not data.** The leading column/title always answers "what is
+   this" (counterparty, document subject) — raw IDs live in URLs and detail
+   screens only.
+2. **Every object has a detail route.** No dead ends: approval → object →
+   document; expense → document, bank match, supplier; all links are real
+   navigations.
+3. **Reasons in human language with numbers.** Never `amount_over_ceiling`;
+   always "89,00 € выше лимита 50,00 €" — threshold and fact from config.
+4. **Progressive disclosure.** List answers "what needs deciding"; detail
+   answers "what are the facts"; expansion answers "where do facts come
+   from" (OCR markdown, classification).
+5. **Money and dates by standard.** Amounts: tabular-nums, right-aligned,
+   never wrap (`flex:none; white-space:nowrap`), inflows green with "+";
+   VAT belongs to detail, not lists. Dates: relative in lists, absolute in
+   details.
+6. **Sections with totals instead of pagination.** Time-grouped lists
+   (month / today-yesterday) with per-section totals recomputed under the
+   active filter.
+7. **Forms: prefill → confirm.** Everything the system knows (OCR, supplier
+   memory, country VAT rate, last-used category) is pre-filled; the operator
+   verifies, not types. Submit buttons state the outcome with the amount
+   ("Создать расход · −48,20 €"), never "Submit".
+8. **Object selection is never ID entry.** Searchable pickers with context
+   (number · counterparty · amount · outstanding), not "enter object ID".
+
 ## Screen-level UX decisions
 
 - **Inbox**: hero card (open period, month total, "Разобрать" CTA); queue
@@ -200,14 +229,53 @@ low-priority columns hide per breakpoint and remain in the detail route.
   with kind selection (cosmetic/financial/credit-note per ADR-0009 branching);
   Delete only for drafts, blocked for posted-linked documents (ADR-0012).
   Documents segment includes a `discarded` filter (ADR-0038).
-- **Bank**: import is an explicit async flow (upload → LLM mapping → applied
-  rules → created), with status card and explicit failure + re-upload CTA;
-  statement screen has unmatched counter, proposal chips with confidence,
-  auto-selected high-confidence proposals, bulk Book with server-side cap
-  enforcement (client stops duplicating cap math); tx detail offers N:M
-  candidate selection with running remainder, manual match, and disposition
-  actions with plugin advisory copy; personal disposition routes through
-  approval (ADR-0017).
+- **Bank** — THE core section; ~90% of operator time. Detailed screen states
+  are canonical in `assets/2026-07-09-tx-screen-states.html` (pixel grid,
+  state routing matrix, gestures/hotkeys, invariants) and
+  `assets/2026-07-09-screens-data-redesign.html` §6/6★/6★b. Summary:
+  - **The core inversion — "bank line → expense".** The dominant real case is
+    a statement line with NO matching object in the books (the receipt lives
+    in some vendor's app, or doesn't exist at all). Instead of hunting the
+    receipt first, the expense is created FROM the line in one tap:
+    counterparty resolved via aliases (ADR-0014), category from
+    classification memory, VAT auto-computed by country rate, tax point from
+    the line; expense is created and matched atomically (composable today:
+    `POST /api/expenses` + `POST /match`). Document policy is a choice:
+    **"чек будет позже"** → expense enters a "Ждут документ" queue and a
+    later-arriving document (email/photo/connector) is auto-suggested for
+    attachment by supplier+amount±date; **"чека не будет"** (croissant case)
+    → the statement line itself is the source record, **VAT auto-set to 0
+    (non-deductible without an invoice — the form knows this rule)**, no
+    nags; optional Policy guardrail: no-doc expenses above a threshold go to
+    approval.
+  - **Tx screen state routing** (first match wins, alternatives always
+    visible below): already-matched → match card + Unmatch; AI proposal
+    ≥0.85 → preselected confirm; candidates exist → N:M checkboxes with live
+    remainder (remainder never lost: invoice / prepayment / owner-debt);
+    recurring counterparty → "как в прошлом месяце" one-tap repeat; alias
+    hit → prefilled create; unknown counterparty → inline supplier
+    mini-create (line text becomes the alias); incoming with no invoices →
+    prepayment or owner-debt repayment; fee-heuristic → one-tap Bank fee.
+  - **Personal disposition** — never shows chart of accounts (ADR-0001/0017):
+    sheet explains consequences in human terms (not in P&L, no VAT
+    deduction, becomes owner's debt) + live owner-debt balance
+    ("сейчас 217,80 € → станет 236,40 €"); approve-on-the-spot (operator is
+    the approver — one attributable tap records disposition + approval);
+    repayment closes via the same statement flow (incoming line offers
+    "закрыть долг владельца").
+  - **Statement list color coding**: matched = 3px green left stripe + ✓
+    icon + dimmed text with object link in subtitle; AI proposal = checkbox
+    + amber confidence chip; unmatched = normal weight; waiting-for-document
+    = 📎 marker. Status readable at a glance without reading text.
+  - Import is an explicit async flow (upload → LLM mapping → applied rules →
+    created) with a status stepper and explicit failure + re-upload CTA;
+    bulk Book with server-side cap enforcement (client stops duplicating cap
+    math); every action optimistic with 5s Undo; NO irreversible actions on
+    this screen at all.
+  - **Known server gaps** (deliberate scope extension, flagged for the Bank
+    plan): alias-lookup by statement-line counterparty string; "waiting for
+    document" marker + late-document auto-attach suggestion; recurring
+    detection. Client flows degrade gracefully where these are missing.
 - **Reports**: period rows show open/locked + folded submission state; KMD
   preview clearly labeled *live draft* vs *frozen snapshot*; INF gaps link to
   the metadata fix (`PATCH .../document-metadata`); lock flow lists stragglers
@@ -256,10 +324,16 @@ rendering).
 ## Delivery shape (for the implementation plan)
 
 1. Foundation: tokens, UI kit, router shell (tabs/sidebar, route tree,
-   transitions), query layer, TokenGate/401.
-2. Inbox (triage + approvals) — the flagship flow.
-3. Books (expenses/invoices/documents/credit-notes + corrections).
-4. Bank (import, statements, matching, dispositions).
-5. Reports (periods, KMD, lock guard, submissions).
-6. Settings (all subsections) + final cleanup: delete dead components, old
-   tabs.tsx, `window.*` dialogs; every old screen removed.
+   transitions), query layer, TokenGate/401. **[DONE — plan 01, branch
+   `spa-redesign-foundation`]**
+2. **Bank** (statements, tx-screen state machine, line→expense, dispositions,
+   import) — promoted to first: it is the core pain and ~90% of operator
+   time. Client-first on the existing API; server gaps (alias lookup,
+   waiting-doc, recurring) follow as a dedicated step.
+3. Inbox (triage + approvals).
+4. Books (expenses/invoices/documents/credit-notes + corrections + "Ждут
+   документ" queue).
+5. Reports (periods, KMD drill-down, lock guard, submissions).
+6. Settings (all subsections, entity cards with aliases + classification
+   memory) + final cleanup: delete dead components, `window.*` dialogs;
+   every old screen removed.
