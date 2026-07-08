@@ -38,7 +38,10 @@ describe('BankView', () => {
     vi.mocked(api.getReconciliationStatus).mockResolvedValue([]);
     vi.mocked(api.getStatementMatches).mockResolvedValue([]);
     vi.mocked(api.proposeMatches).mockResolvedValue([]);
-    vi.mocked(api.executeMatches).mockResolvedValue({ records: [] });
+    vi.mocked(api.executeMatches).mockResolvedValue({
+      records: [],
+      approvals: [],
+    });
     vi.mocked(api.createPrepayment).mockResolvedValue(undefined);
     vi.mocked(api.markPersonal).mockResolvedValue(undefined);
   });
