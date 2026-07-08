@@ -290,7 +290,7 @@ export class ExpensesService {
         .executeTakeFirstOrThrow();
 
       if (expense.status === 'pending') {
-        await trx
+        const approval = await trx
           .updateTable('approval')
           .set({
             status: 'superseded',
@@ -299,7 +299,24 @@ export class ExpensesService {
           .where('object_type', '=', 'expense')
           .where('object_id', '=', id)
           .where('status', '=', 'pending')
-          .execute();
+          .returning('id')
+          .executeTakeFirst();
+
+        if (approval) {
+          await trx
+            .updateTable('audit_finding')
+            .set({
+              status: 'resolved',
+              resolved_at: now,
+              transitioned_by: null,
+              transition_reason: 'Draft updated; approval superseded',
+            })
+            .where('finding_type', '=', 'pending_approval')
+            .where('referenced_object_type', '=', 'approval')
+            .where('referenced_object_id', '=', approval.id)
+            .where('status', '=', 'open')
+            .execute();
+        }
       }
 
       return updated;

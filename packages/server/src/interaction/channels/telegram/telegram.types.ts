@@ -14,7 +14,7 @@ export interface TelegramMessage {
 export interface TelegramCallbackQuery {
   id: string;
   from: TelegramUser;
-  message?: { chat: TelegramChat };
+  message?: TelegramMessage;
   data?: string;
 }
 export interface TelegramUpdate {

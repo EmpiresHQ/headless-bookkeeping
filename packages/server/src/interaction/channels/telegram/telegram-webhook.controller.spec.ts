@@ -36,7 +36,28 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 
 class FakeTelegramApi implements TelegramApi {
+  readonly callbackAnswers: string[] = [];
+
+  readonly clearedMarkups: Array<{
+    readonly chatId: number;
+    readonly messageId: number;
+  }> = [];
+
   sendMessage(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  setWebhook(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  answerCallbackQuery(callbackQueryId: string): Promise<void> {
+    this.callbackAnswers.push(callbackQueryId);
+    return Promise.resolve();
+  }
+
+  editMessageReplyMarkup(chatId: number, messageId: number): Promise<void> {
+    this.clearedMarkups.push({ chatId, messageId });
     return Promise.resolve();
   }
 }
@@ -45,6 +66,8 @@ describe('TelegramWebhookController (integration)', () => {
   let db: Kysely<Database>;
   let controller: TelegramWebhookController;
   let classifier: IntentClassifierService;
+  let dispatcher: RecordingFlowDispatcher;
+  let api: FakeTelegramApi;
   let storageRoot: string;
 
   beforeEach(async () => {
@@ -62,7 +85,7 @@ describe('TelegramWebhookController (integration)', () => {
     storageRoot = join('/tmp', 'telegram-webhook-test', `${Date.now()}`);
     await fs.mkdir(storageRoot, { recursive: true });
 
-    const api = new FakeTelegramApi();
+    api = new FakeTelegramApi();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TelegramWebhookController],
       providers: [
@@ -96,6 +119,7 @@ describe('TelegramWebhookController (integration)', () => {
 
     controller = module.get(TelegramWebhookController);
     classifier = module.get(IntentClassifierService);
+    dispatcher = module.get(FlowDispatcher);
     jest.spyOn(classifier, 'classify').mockResolvedValue({ kind: 'advisory' });
 
     await db
@@ -127,10 +151,25 @@ describe('TelegramWebhookController (integration)', () => {
     },
   };
 
+  const callbackUpdate = {
+    update_id: 2,
+    callback_query: {
+      id: 'cb-1',
+      from: { id: 999 },
+      message: {
+        message_id: 6,
+        chat: { id: 999 },
+      },
+      data: 'approve:42',
+    },
+  };
+
   it('rejects a webhook with a wrong secret token and audit-logs the failure', async () => {
     await expect(controller.handle('nope', update)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    expect(api.callbackAnswers).toEqual([]);
+    expect(api.clearedMarkups).toEqual([]);
     const rows = await db
       .selectFrom('audit_log')
       .selectAll()
@@ -149,5 +188,48 @@ describe('TelegramWebhookController (integration)', () => {
       .where('thread_key', '=', 'tg:999')
       .executeTakeFirst();
     expect(convo).toBeDefined();
+  });
+
+  it('accepts a verified callback update and persists the callback marker', async () => {
+    const res = await controller.handle('sek', callbackUpdate);
+    expect(res).toEqual({ ok: true });
+    const convo = await db
+      .selectFrom('conversation')
+      .selectAll()
+      .where('thread_key', '=', 'tg:999')
+      .executeTakeFirstOrThrow();
+    const messages = await db
+      .selectFrom('message')
+      .select(['direction', 'body'])
+      .where('conversation_id', '=', convo.id)
+      .execute();
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          direction: 'inbound',
+          body: '[callback:approve:42]',
+        }),
+      ]),
+    );
+  });
+
+  it('acknowledges a verified callback without clearing stale buttons when callback handling did not succeed', async () => {
+    const res = await controller.handle('sek', callbackUpdate);
+    expect(res).toEqual({ ok: true });
+    expect(api.callbackAnswers).toEqual(['cb-1']);
+    expect(api.clearedMarkups).toEqual([]);
+  });
+
+  it('clears stale buttons only when the router reports callback success', async () => {
+    jest.spyOn(dispatcher, 'dispatch').mockResolvedValue({
+      handled: true,
+      callbackSucceeded: true,
+    });
+
+    const res = await controller.handle('sek', callbackUpdate);
+
+    expect(res).toEqual({ ok: true });
+    expect(api.callbackAnswers).toEqual(['cb-1']);
+    expect(api.clearedMarkups).toEqual([{ chatId: 999, messageId: 6 }]);
   });
 });

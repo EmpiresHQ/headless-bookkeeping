@@ -89,7 +89,7 @@ There is **no universal VAT vocabulary**. Denmark's `DK_INPUT_25` means nothing 
 ### 5. Single-tenant, local-first, headless
 - **Single-tenant:** one deployment serves **one business** (one Organization). No `org_id` threaded through the schema. Multiple businesses → multiple deployments. *(ADR-0003)*
 - **Local-first:** target is a **$5 VPS, one `docker compose up`, one SQLite file, minimal RAM**. No Postgres/Redis/Kafka/Kubernetes required.
-- **Headless:** there's no giant accounting GUI. You interact through **Telegram, Slack, email, REST API, and agent tools**. An admin diagnostics API exists for setup and visibility. Channel adapters (Telegram, Slack, email) are planned; the REST API works today.
+- **Headless:** there's no giant accounting GUI. You interact through **Telegram, Slack, email, REST API, and agent tools**. Telegram approval+nagging is built (Todos 1-5 of the Telegram plan); Slack and email channel adapters are planned. The REST API works today. An admin diagnostics API exists for setup and visibility.
 
 ---
 
@@ -231,7 +231,7 @@ Today only one plugin is implemented: **`NullCountryPlugin`** ([`src/plugins/nul
 
 - **AI agents** — the `AccountingAgent` and other agents are empty stubs; the orchestration wiring exists but no LLM calls are made
 - **Real country plugins** — only `NullCountryPlugin` exists; DK/DE/etc. are not implemented yet. Cross-border VAT treatment mis-books until a real plugin arrives
-- **Channel adapters** — Telegram, Slack, email intake, Google Drive watcher are designed but not built. Document upload works today only via the REST API
+- **Channel adapters** — Telegram approval+nagging is built (webhook auto-registration, SecretaryAgent nag buttons, approve/reject button taps). Telegram document/photo intake, Slack, email intake, and Google Drive watcher are **not** built. Document upload works today only via the REST API
 - **Merkle root computation** — `vat_report.merkle_root` is reserved but not computed *(ADR-0013)*
 - **Hash chain** — `voucher.previous_hash` is reserved but unused *(ADR-0013)*
 - **Cash-basis report view** — accrual ledger is the only view today

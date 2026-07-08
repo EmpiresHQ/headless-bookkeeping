@@ -17,7 +17,7 @@ const callbackUpdate: TelegramUpdate = {
   callback_query: {
     id: 'c1',
     from: { id: 999 },
-    message: { chat: { id: 999 } },
+    message: { message_id: 6, chat: { id: 999 } },
     data: 'approve:42',
   },
 };
@@ -53,10 +53,30 @@ describe('telegram-mapper', () => {
       channel: 'telegram',
       convKey: 'tg:999',
       text: 'Approve this?',
-      actionPoint: { id: 'approve:42', label: 'Approve' },
+      actionPoints: [{ id: 'approve:42', label: 'Approve' }],
     });
     expect(payload.reply_markup).toEqual({
       inline_keyboard: [[{ text: 'Approve', callback_data: 'approve:42' }]],
+    });
+  });
+
+  it('renders two action points in one inline keyboard row', () => {
+    const payload = toSendPayload({
+      channel: 'telegram',
+      convKey: 'tg:999',
+      text: 'Approve this?',
+      actionPoints: [
+        { id: 'approve:42', label: 'Approve' },
+        { id: 'reject:42', label: 'Reject' },
+      ],
+    });
+    expect(payload.reply_markup).toEqual({
+      inline_keyboard: [
+        [
+          { text: 'Approve', callback_data: 'approve:42' },
+          { text: 'Reject', callback_data: 'reject:42' },
+        ],
+      ],
     });
   });
 });

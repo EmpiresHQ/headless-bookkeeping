@@ -122,6 +122,30 @@ describe('ApprovalsService (integration)', () => {
     tax_point_date: '2026-03-15',
   });
 
+  async function insertPendingApprovalFinding(
+    approvalId: number,
+  ): Promise<number> {
+    const row = await db
+      .insertInto('audit_finding')
+      .values({
+        finding_type: 'pending_approval',
+        severity: 'medium',
+        description: `Approval ${approvalId} is waiting for a decision`,
+        referenced_object_type: 'approval',
+        referenced_object_id: approvalId,
+        status: 'open',
+        created_at: Math.floor(Date.now() / 1000),
+        resolved_at: null,
+        snoozed_at: null,
+        transitioned_by: null,
+        transition_reason: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    return row.id;
+  }
+
   // ── createApproval ───────────────────────────────────────────────
 
   describe('createApproval', () => {
@@ -244,6 +268,27 @@ describe('ApprovalsService (integration)', () => {
       expect(second.voucher?.id).toBe(first.voucher?.id);
     });
 
+    it('resolves the matching pending_approval finding when an approval is approved', async () => {
+      const expense = await expensesService.createExpense(sampleExpense());
+      const approval = await service.createApproval({
+        object_type: 'expense',
+        object_id: expense.id,
+        requested_by: 'user@test.com',
+        reason: 'Test',
+      });
+      const findingId = await insertPendingApprovalFinding(approval.id);
+
+      await service.approveApproval(approval.id, 'admin@test.com');
+
+      const finding = await db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .where('id', '=', findingId)
+        .executeTakeFirstOrThrow();
+      expect(finding.status).toBe('resolved');
+      expect(finding.resolved_at).not.toBeNull();
+    });
+
     it('throws ConflictException for non-pending approval', async () => {
       const expense = await expensesService.createExpense(sampleExpense());
 
@@ -343,6 +388,27 @@ describe('ApprovalsService (integration)', () => {
       expect(updatedExpense.status).toBe('draft');
     });
 
+    it('resolves the matching pending_approval finding when an approval is rejected', async () => {
+      const expense = await expensesService.createExpense(sampleExpense());
+      const approval = await service.createApproval({
+        object_type: 'expense',
+        object_id: expense.id,
+        requested_by: 'user@test.com',
+        reason: 'Test',
+      });
+      const findingId = await insertPendingApprovalFinding(approval.id);
+
+      await service.rejectApproval(approval.id, 'Wrong category');
+
+      const finding = await db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .where('id', '=', findingId)
+        .executeTakeFirstOrThrow();
+      expect(finding.status).toBe('resolved');
+      expect(finding.resolved_at).not.toBeNull();
+    });
+
     it('throws ConflictException for already-approved approval', async () => {
       const expense = await expensesService.createExpense(sampleExpense());
 
@@ -393,6 +459,38 @@ describe('ApprovalsService (integration)', () => {
       expect(result.status).toBe('superseded');
       expect(result.superseded_by).toBe(approval2.id);
       expect(result.resolved_at).not.toBeNull();
+    });
+
+    it('resolves the matching pending_approval finding when an approval is superseded', async () => {
+      const expense = await expensesService.createExpense(sampleExpense());
+      const approval1 = await service.createApproval({
+        object_type: 'expense',
+        object_id: expense.id,
+        requested_by: 'user@test.com',
+        reason: 'First',
+      });
+      const findingId = await insertPendingApprovalFinding(approval1.id);
+
+      const newerExpense = await expensesService.createExpense({
+        ...sampleExpense(),
+        category: 'transport',
+      });
+      const approval2 = await service.createApproval({
+        object_type: 'expense',
+        object_id: newerExpense.id,
+        requested_by: 'user@test.com',
+        reason: 'Second',
+      });
+
+      await service.supersedeApproval(approval1.id, approval2.id);
+
+      const finding = await db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .where('id', '=', findingId)
+        .executeTakeFirstOrThrow();
+      expect(finding.status).toBe('resolved');
+      expect(finding.resolved_at).not.toBeNull();
     });
 
     it('throws ConflictException for non-pending approval', async () => {

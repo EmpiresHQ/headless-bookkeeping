@@ -1,4 +1,5 @@
 // src/interaction/router/interaction-router.service.spec.ts
+// allow: SIZE_OK — integration router matrix stays co-located under the required verification spec path.
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -153,6 +154,7 @@ describe('InteractionRouterService (integration)', () => {
       actionIntent: 'create_sales_invoice',
       fields: {},
     });
+    expect(dispatcher.calls[0].ctx).toMatchObject({ origin: 'message' });
   });
 
   it('sends a clarify question over the transport and does NOT dispatch', async () => {
@@ -192,7 +194,7 @@ describe('InteractionRouterService (integration)', () => {
 
   it('treats a button tap (callbackData) as a deterministic action — no classifier call', async () => {
     const spy = jest.spyOn(classifier, 'classify');
-    await router.handle(
+    const outcome = await router.handle(
       envelope({ message: null, metadata: { callbackData: 'approve:42' } }),
     );
     expect(spy).not.toHaveBeenCalled();
@@ -202,6 +204,39 @@ describe('InteractionRouterService (integration)', () => {
       actionIntent: 'approve',
       fields: { ref: '42' },
     });
+    expect(dispatcher.calls[0].ctx).toMatchObject({ origin: 'callback' });
+    expect(outcome.callbackSucceeded).toBe(false);
+  });
+
+  it('maps reject button taps into deterministic reject actions', async () => {
+    const spy = jest.spyOn(classifier, 'classify');
+    const outcome = await router.handle(
+      envelope({ message: null, metadata: { callbackData: 'reject:77' } }),
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(dispatcher.calls).toHaveLength(1);
+    expect(dispatcher.calls[0].intent).toEqual({
+      kind: 'action',
+      actionIntent: 'reject',
+      fields: { ref: '77' },
+    });
+    expect(dispatcher.calls[0].ctx).toMatchObject({ origin: 'callback' });
+    expect(outcome.dispatched).toBe(true);
+  });
+
+  it('mirrors explicit callback success from the flow dispatcher into the router outcome', async () => {
+    jest.spyOn(dispatcher, 'dispatch').mockResolvedValue({
+      handled: true,
+      callbackSucceeded: true,
+    });
+
+    const outcome = await router.handle(
+      envelope({ message: null, metadata: { callbackData: 'approve:42' } }),
+    );
+
+    expect(outcome.dispatched).toBe(true);
+    expect(outcome.callbackSucceeded).toBe(true);
   });
 
   it('ingests an attachment through DocumentsService and binds it to the Conversation', async () => {
@@ -325,5 +360,10 @@ describe('InteractionRouterService (integration)', () => {
     expect(rows[0].outcome).toBe('rejected');
     // gated_in stays true (principal was allowed; token was stale)
     expect(outcome.gated_in).toBe(true);
+    expect(transport.sent).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: 'That button is no longer valid.' }),
+      ]),
+    );
   });
 });

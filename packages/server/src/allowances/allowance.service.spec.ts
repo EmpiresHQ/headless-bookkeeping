@@ -210,7 +210,9 @@ describe('AllowanceService', () => {
         type: 'daily_allowance',
       });
 
-      const results = await service.listAllowances({ claimantId: claimant1.id });
+      const results = await service.listAllowances({
+        claimantId: claimant1.id,
+      });
       expect(results).toHaveLength(1);
       expect(results[0].claimant_id).toBe(claimant1.id);
     });

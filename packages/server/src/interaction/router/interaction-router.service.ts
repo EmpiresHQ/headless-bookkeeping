@@ -55,6 +55,8 @@ export class InteractionRouterService {
     private readonly gate: InteractionGateService,
   ) {}
 
+  private static readonly NO_CALLBACK_SUCCESS = false;
+
   async handle(envelope: UnifiedEnvelope): Promise<RouterOutcome> {
     // 1. Deterministic Conversation resolution (by channel + thread key).
     const conversation = await this.conversations.resolve({
@@ -136,9 +138,10 @@ export class InteractionRouterService {
           ingested,
           intent: null,
           dispatched: false,
+          callbackSucceeded: InteractionRouterService.NO_CALLBACK_SUCCESS,
         };
       }
-      const dispatched = await this.dispatch(
+      const dispatchOutcome = await this.dispatch(
         intent,
         conversation.id,
         envelope,
@@ -149,7 +152,8 @@ export class InteractionRouterService {
         gated_in: true,
         ingested,
         intent,
-        dispatched,
+        dispatched: dispatchOutcome.dispatched,
+        callbackSucceeded: dispatchOutcome.callbackSucceeded,
       };
     }
 
@@ -163,6 +167,7 @@ export class InteractionRouterService {
         ingested,
         intent: null,
         dispatched: false,
+        callbackSucceeded: InteractionRouterService.NO_CALLBACK_SUCCESS,
       };
     }
 
@@ -175,12 +180,13 @@ export class InteractionRouterService {
         ingested,
         intent: null,
         dispatched: false,
+        callbackSucceeded: InteractionRouterService.NO_CALLBACK_SUCCESS,
       };
     }
 
     // 7. Classify, then clarify-or-dispatch.
     const intent = await this.classifier.classify(envelope.message);
-    const dispatched = await this.dispatch(
+    const dispatchOutcome = await this.dispatch(
       intent,
       conversation.id,
       envelope,
@@ -191,7 +197,8 @@ export class InteractionRouterService {
       gated_in: true,
       ingested,
       intent,
-      dispatched,
+      dispatched: dispatchOutcome.dispatched,
+      callbackSucceeded: dispatchOutcome.callbackSucceeded,
     };
   }
 
@@ -208,25 +215,35 @@ export class InteractionRouterService {
     return { kind: 'clarify', question: 'That button is no longer valid.' };
   }
 
-  /** Returns true when a flow handled it; a clarify is sent over the transport instead. */
+  /** Returns the dispatch state; a clarify is sent over the transport instead. */
   private async dispatch(
     intent: RoutedIntent,
     conversationId: number,
     envelope: UnifiedEnvelope,
     principal: Principal,
-  ): Promise<boolean> {
+  ): Promise<{
+    readonly dispatched: boolean;
+    readonly callbackSucceeded: boolean;
+  }> {
     if (intent.kind === 'clarify') {
       await this.sendOutbound(envelope, conversationId, intent.question);
-      return false;
+      return {
+        dispatched: false,
+        callbackSucceeded: InteractionRouterService.NO_CALLBACK_SUCCESS,
+      };
     }
     const result = await this.dispatcher.dispatch(intent, {
       conversation_id: conversationId,
       principal,
+      origin: envelope.metadata.callbackData ? 'callback' : 'message',
     });
     if (result.reply) {
       await this.sendOutbound(envelope, conversationId, result.reply);
     }
-    return true;
+    return {
+      dispatched: true,
+      callbackSucceeded: result.callbackSucceeded ?? false,
+    };
   }
 
   private async sendOutbound(

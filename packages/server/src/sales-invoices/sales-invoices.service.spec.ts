@@ -285,6 +285,23 @@ describe('SalesInvoicesService (integration)', () => {
         })
         .returningAll()
         .executeTakeFirstOrThrow();
+      const finding = await db
+        .insertInto('audit_finding')
+        .values({
+          finding_type: 'pending_approval',
+          severity: 'medium',
+          description: `Approval ${approval.id} is waiting for a decision`,
+          referenced_object_type: 'approval',
+          referenced_object_id: approval.id,
+          status: 'open',
+          created_at: now,
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
       const updated = await service.updateDraft(invoice.id, {
         gross_amount: 15000,
@@ -302,6 +319,14 @@ describe('SalesInvoicesService (integration)', () => {
         .executeTakeFirstOrThrow();
       expect(resolvedApproval.status).toBe('superseded');
       expect(resolvedApproval.resolved_at).not.toBeNull();
+
+      const resolvedFinding = await db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .where('id', '=', finding.id)
+        .executeTakeFirstOrThrow();
+      expect(resolvedFinding.status).toBe('resolved');
+      expect(resolvedFinding.resolved_at).not.toBeNull();
     });
   });
 

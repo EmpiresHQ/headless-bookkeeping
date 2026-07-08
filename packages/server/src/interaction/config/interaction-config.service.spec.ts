@@ -67,4 +67,15 @@ describe('InteractionConfigService (integration)', () => {
     await setSetting('telegram_webhook_secret', 's3cr3t');
     await expect(config.getTelegramWebhookSecret()).resolves.toBe('s3cr3t');
   });
+
+  it('returns null for public_api_url when unset', async () => {
+    await expect(config.getPublicApiUrl()).resolves.toBeNull();
+  });
+
+  it('reads public_api_url without rewriting it', async () => {
+    await setSetting('public_api_url', 'https://app.example/');
+    await expect(config.getPublicApiUrl()).resolves.toBe(
+      'https://app.example/',
+    );
+  });
 });

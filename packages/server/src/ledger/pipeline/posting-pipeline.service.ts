@@ -275,9 +275,11 @@ export class PostingPipelineService {
     policyReason: string,
   ): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
+      const now = Math.floor(Date.now() / 1000);
+
       await this.statusTransition.transition(trx, type, id, 'draft', 'pending');
 
-      await trx
+      const approval = await trx
         .insertInto('approval')
         .values({
           object_type: type,
@@ -288,8 +290,26 @@ export class PostingPipelineService {
           rejected_reason: null,
           policy_reason: policyReason,
           superseded_by: null,
-          created_at: Math.floor(Date.now() / 1000),
+          created_at: now,
           resolved_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      await trx
+        .insertInto('audit_finding')
+        .values({
+          finding_type: 'pending_approval',
+          severity: 'medium',
+          description: `Approval ${approval.id} pending for ${type} ${id}: ${policyReason}`,
+          referenced_object_type: 'approval',
+          referenced_object_id: approval.id,
+          status: 'open',
+          created_at: now,
+          resolved_at: null,
+          snoozed_at: null,
+          transitioned_by: null,
+          transition_reason: null,
         })
         .execute();
     });

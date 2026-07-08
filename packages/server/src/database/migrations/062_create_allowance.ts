@@ -3,11 +3,15 @@ import { Kysely, sql } from 'kysely';
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable('allowance')
-    .addColumn('id', 'integer', (col) => col.primaryKey().autoIncrement().notNull())
+    .addColumn('id', 'integer', (col) =>
+      col.primaryKey().autoIncrement().notNull(),
+    )
     .addColumn('claimant_id', 'integer', (col) =>
       col.notNull().references('entity.id'),
     )
-    .addColumn('trip_id', 'integer', (col) => col.references('business_trip.id'))
+    .addColumn('trip_id', 'integer', (col) =>
+      col.references('business_trip.id'),
+    )
     .addColumn('type', 'text', (col) => col.notNull())
     .addColumn('days', 'integer')
     .addColumn('km', 'integer')

@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { FlowDispatcher, DispatchContext, DispatchResult } from './flow-dispatcher';
+import {
+  FlowDispatcher,
+  DispatchContext,
+  DispatchResult,
+} from './flow-dispatcher';
 import { RoutedIntent } from './types';
 import { AllowanceFlow } from './flows/allowance-flow';
+import { ApprovalFlow } from './flows/approval-flow';
 
 @Injectable()
 export class RealFlowDispatcher extends FlowDispatcher {
-  constructor(private readonly allowanceFlow: AllowanceFlow) {
+  constructor(
+    private readonly allowanceFlow: AllowanceFlow,
+    private readonly approvalFlow: ApprovalFlow,
+  ) {
     super();
   }
 
@@ -13,13 +21,18 @@ export class RealFlowDispatcher extends FlowDispatcher {
     intent: RoutedIntent,
     ctx: DispatchContext,
   ): Promise<DispatchResult> {
-    if (
-      intent.kind === 'action' &&
-      intent.actionIntent === 'create_allowance'
-    ) {
-      return this.allowanceFlow.dispatch(intent, ctx);
+    if (intent.kind !== 'action') {
+      return { handled: false };
     }
 
-    return { handled: false };
+    switch (intent.actionIntent) {
+      case 'create_allowance':
+        return this.allowanceFlow.dispatch(intent, ctx);
+      case 'approve':
+      case 'reject':
+        return this.approvalFlow.dispatch(intent, ctx);
+      default:
+        return { handled: false };
+    }
   }
 }

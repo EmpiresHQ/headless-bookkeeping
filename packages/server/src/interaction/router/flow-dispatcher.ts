@@ -3,18 +3,22 @@ import { Injectable } from '@nestjs/common';
 import { RoutedIntent } from './types';
 import { Principal } from '../principal/types';
 
+export type DispatchOrigin = 'callback' | 'message';
+
 export interface DispatchContext {
   conversation_id: number;
   /** The resolved sender. 8b flows MUST canCommit-gate any actual Action-point commit using this
    * (the router only canConverse-gates flow *initiation*, per ADR-0016 — free chat leads to the
    * action point; the action point commits). */
   principal: Principal;
+  origin?: DispatchOrigin;
 }
 
 export interface DispatchResult {
   handled: boolean;
   /** Optional dialogue reply to send back on the channel. */
   reply?: string;
+  callbackSucceeded?: boolean;
 }
 
 /** The seam 8b plugs real conversational flows into. */

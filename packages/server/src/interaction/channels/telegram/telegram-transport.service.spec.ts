@@ -5,8 +5,21 @@ import { TelegramSendPayload } from './telegram.types';
 
 class FakeTelegramApi implements TelegramApi {
   readonly calls: TelegramSendPayload[] = [];
+
   sendMessage(payload: TelegramSendPayload): Promise<void> {
     this.calls.push(payload);
+    return Promise.resolve();
+  }
+
+  answerCallbackQuery(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  editMessageReplyMarkup(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  setWebhook(): Promise<void> {
     return Promise.resolve();
   }
 }

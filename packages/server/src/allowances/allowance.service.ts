@@ -135,9 +135,7 @@ export class AllowanceService {
         tax_free_amount: split.taxFreeAmount,
         taxable_amount: split.taxableAmount,
         breakdown:
-          split.breakdown.length > 0
-            ? JSON.stringify(split.breakdown)
-            : null,
+          split.breakdown.length > 0 ? JSON.stringify(split.breakdown) : null,
         period_start: periodStart,
         period_end: periodEnd ?? null,
         voucher_id: null,

@@ -203,7 +203,8 @@ export class ApprovalsService {
     const now = Math.floor(Date.now() / 1000);
 
     // Allowances use needs_triage as their pre-approval status; all other types use pending.
-    const fromStatus = approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
+    const fromStatus =
+      approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
 
     // Post the voucher and update everything atomically. The idempotency claim
     // is THE single status-transition seam, with the correct prior status for
@@ -214,7 +215,12 @@ export class ApprovalsService {
       // transaction so the allowance row and posted voucher are always consistent.
       // The split was computed above (pre-transaction) to avoid SQLite deadlock.
       if (freshAllowanceSplit) {
-        await this.applyAllowanceSplit(approval.object_id, freshAllowanceSplit, now, trx);
+        await this.applyAllowanceSplit(
+          approval.object_id,
+          freshAllowanceSplit,
+          now,
+          trx,
+        );
       }
 
       await this.statusTransition.transition(
@@ -237,7 +243,9 @@ export class ApprovalsService {
 
       // Re-point the now-posted object at its voucher.
       await trx
-        .updateTable(approval.object_type as 'expense' | 'sales_invoice' | 'allowance')
+        .updateTable(
+          approval.object_type as 'expense' | 'sales_invoice' | 'allowance',
+        )
         .set({ voucher_id: voucher.id, updated_at: now })
         .where('id', '=', approval.object_id)
         .execute();
@@ -252,6 +260,14 @@ export class ApprovalsService {
         })
         .where('id', '=', id)
         .execute();
+
+      await this.resolvePendingApprovalFindingTx(
+        trx,
+        id,
+        now,
+        approvedBy,
+        'Approval approved',
+      );
 
       return voucher;
     });
@@ -324,7 +340,8 @@ export class ApprovalsService {
     const now = Math.floor(Date.now() / 1000);
 
     // Allowances use needs_triage as their pre-approval status; all other types use pending.
-    const fromStatusForReject = approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
+    const fromStatusForReject =
+      approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
 
     await this.db.transaction().execute(async (trx) => {
       // Return business object to draft via the single status-transition seam
@@ -352,6 +369,14 @@ export class ApprovalsService {
         })
         .where('id', '=', id)
         .execute();
+
+      await this.resolvePendingApprovalFindingTx(
+        trx,
+        id,
+        now,
+        null,
+        rejectedReason,
+      );
     });
 
     return this.getApprovalById(id);
@@ -379,15 +404,25 @@ export class ApprovalsService {
 
     const now = Math.floor(Date.now() / 1000);
 
-    await this.db
-      .updateTable('approval')
-      .set({
-        status: 'superseded',
-        superseded_by: supersededBy,
-        resolved_at: now,
-      })
-      .where('id', '=', id)
-      .execute();
+    await this.db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('approval')
+        .set({
+          status: 'superseded',
+          superseded_by: supersededBy,
+          resolved_at: now,
+        })
+        .where('id', '=', id)
+        .execute();
+
+      await this.resolvePendingApprovalFindingTx(
+        trx,
+        id,
+        now,
+        null,
+        `Superseded by approval ${supersededBy}`,
+      );
+    });
 
     return this.getApprovalById(id);
   }
@@ -504,7 +539,12 @@ export class ApprovalsService {
    */
   private async applyAllowanceSplit(
     allowanceId: number,
-    split: { grossAmount: number; taxFreeAmount: number; taxableAmount: number; breakdown: unknown[] },
+    split: {
+      grossAmount: number;
+      taxFreeAmount: number;
+      taxableAmount: number;
+      breakdown: unknown[];
+    },
     now: number,
     trx: Transaction<Database>,
   ): Promise<void> {
@@ -515,9 +555,7 @@ export class ApprovalsService {
         tax_free_amount: split.taxFreeAmount,
         taxable_amount: split.taxableAmount,
         breakdown:
-          split.breakdown.length > 0
-            ? JSON.stringify(split.breakdown)
-            : null,
+          split.breakdown.length > 0 ? JSON.stringify(split.breakdown) : null,
         updated_at: now,
       })
       .where('id', '=', allowanceId)
@@ -536,6 +574,28 @@ export class ApprovalsService {
     }
 
     return this.mapRow(row);
+  }
+
+  private async resolvePendingApprovalFindingTx(
+    trx: Transaction<Database>,
+    approvalId: number,
+    now: number,
+    transitionedBy: string | null,
+    transitionReason: string,
+  ): Promise<void> {
+    await trx
+      .updateTable('audit_finding')
+      .set({
+        status: 'resolved',
+        resolved_at: now,
+        transitioned_by: transitionedBy,
+        transition_reason: transitionReason,
+      })
+      .where('finding_type', '=', 'pending_approval')
+      .where('referenced_object_type', '=', 'approval')
+      .where('referenced_object_id', '=', approvalId)
+      .where('status', '=', 'open')
+      .execute();
   }
 
   private async generateDraftVoucher(
@@ -572,7 +632,9 @@ export class ApprovalsService {
 
     // Look up the business object to find its voucher_id
     const row = await this.db
-      .selectFrom(approval.object_type as 'expense' | 'sales_invoice' | 'allowance')
+      .selectFrom(
+        approval.object_type as 'expense' | 'sales_invoice' | 'allowance',
+      )
       .select('voucher_id')
       .where('id', '=', approval.object_id)
       .executeTakeFirst();

@@ -14,19 +14,24 @@ import { IntentClassifierService } from './router/intent-classifier.service';
 import { FlowDispatcher } from './router/flow-dispatcher';
 import { RealFlowDispatcher } from './router/real-flow-dispatcher';
 import { AllowanceFlow } from './router/flows/allowance-flow';
+import { ApprovalFlow } from './router/flows/approval-flow';
 import { AllowancesModule } from '../allowances/allowances.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
+import { ExpensesModule } from '../expenses/expenses.module';
 import { InteractionGateService } from './router/interaction-gate.service';
 import { InteractionRouterService } from './router/interaction-router.service';
 import {
   TransportRegistryService,
   INTERACTION_TRANSPORTS,
 } from './transport/transport-registry.service';
+import { TelegramApprovalSupportService } from './telegram-approval-support.service';
 import { TelegramTransportService } from './channels/telegram/telegram-transport.service';
 import {
   TelegramApi,
   HttpTelegramApi,
 } from './channels/telegram/telegram-api.port';
 import { TelegramWebhookController } from './channels/telegram/telegram-webhook.controller';
+import { TelegramWebhookRegistrar } from './telegram-webhook-registrar';
 
 @Module({
   imports: [
@@ -36,6 +41,8 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     AuditLogModule,
     AgentConfigModule,
     AllowancesModule,
+    ApprovalsModule,
+    ExpensesModule,
   ],
   controllers: [TelegramWebhookController],
   providers: [
@@ -44,8 +51,11 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
     IntentClassifierService,
     InteractionGateService,
     InteractionRouterService,
+    TelegramWebhookRegistrar,
     TransportRegistryService,
+    TelegramApprovalSupportService,
     AllowanceFlow,
+    ApprovalFlow,
     RealFlowDispatcher,
     // 8b: real flow dispatcher replacing the 8a stub.
     { provide: FlowDispatcher, useClass: RealFlowDispatcher },
@@ -69,6 +79,11 @@ import { TelegramWebhookController } from './channels/telegram/telegram-webhook.
       useFactory: (t: TelegramTransportService) => [t],
       inject: [TelegramTransportService],
     },
+  ],
+  exports: [
+    InteractionConfigService,
+    TransportRegistryService,
+    TelegramApprovalSupportService,
   ],
 })
 // The intent-classifier agent is built on demand per message (settings-backed),

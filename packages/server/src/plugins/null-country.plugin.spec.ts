@@ -141,7 +141,9 @@ describe('getAllowanceRates', () => {
   const plugin = new NullCountryPlugin();
 
   it('returns 7500 rate and 15-day high-rate window for foreign daily_allowance in 2025', () => {
-    const rates = plugin.getAllowanceRates('daily_allowance', 2025, { domestic: false });
+    const rates = plugin.getAllowanceRates('daily_allowance', 2025, {
+      domestic: false,
+    });
     expect(rates.ratePerUnit).toBe(7500);
     expect(rates.highRateDaysPerMonth).toBe(15);
     expect(rates.fallbackRatePerUnit).toBe(4000);
@@ -149,7 +151,9 @@ describe('getAllowanceRates', () => {
   });
 
   it('returns 50 rate and 55000 monthly ceiling for mileage in 2025', () => {
-    const rates = plugin.getAllowanceRates('mileage', 2025, { domestic: false });
+    const rates = plugin.getAllowanceRates('mileage', 2025, {
+      domestic: false,
+    });
     expect(rates.ratePerUnit).toBe(50);
     expect(rates.monthlyTaxFreeCeiling).toBe(55000);
   });
@@ -165,7 +169,9 @@ describe('getAllowanceAccount', () => {
   const plugin = new NullCountryPlugin();
 
   it('returns EXPENSE_TRAVEL for daily_allowance', () => {
-    expect(plugin.getAllowanceAccount('daily_allowance')).toBe('EXPENSE_TRAVEL');
+    expect(plugin.getAllowanceAccount('daily_allowance')).toBe(
+      'EXPENSE_TRAVEL',
+    );
   });
 
   it('returns EXPENSE_TRAVEL for mileage', () => {

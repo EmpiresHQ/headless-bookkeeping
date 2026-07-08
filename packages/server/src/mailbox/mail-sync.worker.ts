@@ -83,7 +83,9 @@ export class MailSyncWorker implements OnModuleInit {
     const running = this.inFlight.get(connectorId);
     if (running) return running; // coalesce: wait for the in-flight sync to finish
     let resolve!: () => void;
-    const promise = new Promise<void>((r) => { resolve = r; });
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
     this.inFlight.set(connectorId, promise);
     try {
       const [conn] = (await this.connectors.list()).filter(
@@ -162,16 +164,21 @@ export class MailSyncWorker implements OnModuleInit {
       },
     );
 
-    const raw = await this.settings.get('mailbox_initial_fetch_count').catch(() => null);
+    const raw = await this.settings
+      .get('mailbox_initial_fetch_count')
+      .catch(() => null);
     const count = Math.max(0, Number(raw ?? DEFAULT_INITIAL_FETCH_COUNT));
     const sinceUid = count > 0 ? Math.max(0, latestUid - count) : latestUid;
 
     let harvested = 0;
     if (sinceUid < latestUid && count > 0) {
-      const { messages } = await this.withConnectRetry(connectorId, async () => {
-        const cfg = await this.connection(connectorId);
-        return this.imap.fetchSince(cfg, conn.folder, sinceUid);
-      });
+      const { messages } = await this.withConnectRetry(
+        connectorId,
+        async () => {
+          const cfg = await this.connection(connectorId);
+          return this.imap.fetchSince(cfg, conn.folder, sinceUid);
+        },
+      );
       for (const msg of messages.sort((a, b) => a.uid - b.uid)) {
         await this.harvest.harvestMessage(conn.channel, msg);
       }

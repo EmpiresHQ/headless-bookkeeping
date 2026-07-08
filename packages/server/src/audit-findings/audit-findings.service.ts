@@ -214,10 +214,7 @@ export class AuditFindingsService {
    * otherwise stay stale, showing the ORIGINAL failure reason to the
    * operator even though the re-run may have failed for a different reason.
    */
-  async updateDescription(
-    id: number,
-    description: string,
-  ): Promise<void> {
+  async updateDescription(id: number, description: string): Promise<void> {
     await this.db
       .updateTable('audit_finding')
       .set({ description })

@@ -19,9 +19,9 @@ function buildClient(conn: ImapConnectionConfig): ImapFlow {
     secure: true,
     auth,
     logger: false,
-    connectionTimeout: 15000,  // 15s to establish TCP+TLS
-    greetingTimeout: 10000,    // 10s for server greeting after connect
-    socketTimeout: 30000,      // 30s idle before declaring connection dead
+    connectionTimeout: 15000, // 15s to establish TCP+TLS
+    greetingTimeout: 10000, // 10s for server greeting after connect
+    socketTimeout: 30000, // 30s idle before declaring connection dead
   });
 }
 
@@ -53,11 +53,16 @@ const OPERATION_TIMEOUT_MS = 60_000; // 60s hard cap for any IMAP operation
 // Avoids downloading the full source for text-only messages.
 function hasRelevantAttachment(node: unknown): boolean {
   if (!node || typeof node !== 'object') return false;
-  const n = node as { type?: string; disposition?: string; childNodes?: unknown[] };
+  const n = node as {
+    type?: string;
+    disposition?: string;
+    childNodes?: unknown[];
+  };
   const type = (n.type ?? '').toLowerCase();
   if (n.disposition?.toLowerCase() === 'attachment') return true;
   // application/* covers PDF, Word, Excel, etc. Exclude PGP signature metadata.
-  if (type.startsWith('application/') && type !== 'application/pgp-signature') return true;
+  if (type.startsWith('application/') && type !== 'application/pgp-signature')
+    return true;
   if (type.startsWith('image/')) return true;
   return (n.childNodes ?? []).some(hasRelevantAttachment);
 }
@@ -160,7 +165,10 @@ export class ImapflowImapClient extends ImapClient {
   ): Promise<IdleHandle> {
     const c = buildClient(conn);
     await withTimeout(c.connect(), OPERATION_TIMEOUT_MS);
-    await withTimeout(c.mailboxOpen(folder, { readOnly: true }), OPERATION_TIMEOUT_MS);
+    await withTimeout(
+      c.mailboxOpen(folder, { readOnly: true }),
+      OPERATION_TIMEOUT_MS,
+    );
     c.on('exists', () => onNew());
     // imapflow auto-renews IDLE; kick once to enter IDLE state
     void c.idle().catch((err) => {

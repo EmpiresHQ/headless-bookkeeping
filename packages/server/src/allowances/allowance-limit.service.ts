@@ -79,12 +79,23 @@ export class AllowanceLimitService {
   private async computeDailyAllowanceSplit(
     params: ComputeSplitParams,
   ): Promise<AllowanceSplit> {
-    const { claimantId, days, periodStart, periodEnd, domestic, year, excludeAllowanceId } =
-      params;
-
-    const rates = this.countryPlugin.getAllowanceRates('daily_allowance', year, {
+    const {
+      claimantId,
+      days,
+      periodStart,
+      periodEnd,
       domestic,
-    });
+      year,
+      excludeAllowanceId,
+    } = params;
+
+    const rates = this.countryPlugin.getAllowanceRates(
+      'daily_allowance',
+      year,
+      {
+        domestic,
+      },
+    );
 
     const ratePerUnit = rates.ratePerUnit;
     const fallbackRatePerUnit = rates.fallbackRatePerUnit ?? 0;
@@ -103,7 +114,8 @@ export class AllowanceLimitService {
 
     // Scale factor in case caller's days != days computed from date range
     // (e.g. overnight trip counting partial days differently). Default: use split as-is.
-    const scaleFactor = totalDaysFromSplit > 0 ? totalDays / totalDaysFromSplit : 1;
+    const scaleFactor =
+      totalDaysFromSplit > 0 ? totalDays / totalDaysFromSplit : 1;
 
     const breakdown: MonthSegment[] = [];
     let totalGross = 0;
@@ -180,7 +192,8 @@ export class AllowanceLimitService {
   private async computeMileageSplit(
     params: ComputeSplitParams,
   ): Promise<AllowanceSplit> {
-    const { claimantId, km, periodStart, year, domestic, excludeAllowanceId } = params;
+    const { claimantId, km, periodStart, year, domestic, excludeAllowanceId } =
+      params;
 
     const rates = this.countryPlugin.getAllowanceRates('mileage', year, {
       domestic,

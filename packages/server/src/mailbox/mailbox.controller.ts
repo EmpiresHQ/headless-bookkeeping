@@ -82,7 +82,10 @@ export class MailboxController {
   }
 
   @Post('connectors/:id/sync')
-  @ApiOperation({ summary: 'Trigger an immediate sync for a connector and return updated state' })
+  @ApiOperation({
+    summary:
+      'Trigger an immediate sync for a connector and return updated state',
+  })
   async sync(@Param('id') id: string): Promise<MailboxConnector> {
     await this.worker.syncOnce(Number(id));
     const connectors = await this.connectors.list();

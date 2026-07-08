@@ -50,7 +50,10 @@ describe('MailSyncWorker.syncOnce', () => {
         { provide: ImapClient, useValue: imap },
         { provide: 'HARVEST', useValue: harvest },
         { provide: 'OAUTH', useValue: oauth },
-        { provide: SettingsService, useValue: { get: jest.fn(async () => null) } },
+        {
+          provide: SettingsService,
+          useValue: { get: jest.fn(async () => null) },
+        },
         MailSyncWorker,
       ],
     }).compile();

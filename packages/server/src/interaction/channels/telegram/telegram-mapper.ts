@@ -44,10 +44,13 @@ export function toEnvelope(
 export function toSendPayload(out: OutboundMessage): TelegramSendPayload {
   const chatId = Number(out.convKey.replace(/^tg:/, ''));
   const payload: TelegramSendPayload = { chat_id: chatId, text: out.text };
-  if (out.actionPoint) {
+  if (out.actionPoints && out.actionPoints.length > 0) {
     payload.reply_markup = {
       inline_keyboard: [
-        [{ text: out.actionPoint.label, callback_data: out.actionPoint.id }],
+        out.actionPoints.map((actionPoint) => ({
+          text: actionPoint.label,
+          callback_data: actionPoint.id,
+        })),
       ],
     };
   }

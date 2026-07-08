@@ -9,7 +9,10 @@ let _emailCounter = 0;
  */
 export async function seedEntity(
   db: Kysely<Database>,
-  opts: { role: 'employee' | 'director' | 'supplier' | 'customer'; name?: string },
+  opts: {
+    role: 'employee' | 'director' | 'supplier' | 'customer';
+    name?: string;
+  },
 ): Promise<{ id: number; role: string; name: string }> {
   const now = Math.floor(Date.now() / 1000);
   const name = opts.name ?? `Test ${opts.role} ${++_emailCounter}`;

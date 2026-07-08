@@ -38,7 +38,8 @@ export class BusinessTripController {
 
   @Get()
   list(@Query('claimant_id') claimantId?: string) {
-    const parsed = claimantId !== undefined ? parseInt(claimantId, 10) : undefined;
+    const parsed =
+      claimantId !== undefined ? parseInt(claimantId, 10) : undefined;
     if (parsed !== undefined && (isNaN(parsed) || parsed <= 0)) {
       throw new BadRequestException('claimant_id must be a positive integer');
     }

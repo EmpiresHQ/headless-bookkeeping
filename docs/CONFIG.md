@@ -72,7 +72,7 @@ Resolution precedence — model: `ai_model.<agent>` → `ai_model` → `DEFAULT_
 
 | Channel | Config |
 |---|---|
-| Telegram | bot token, webhook; approver chat IDs (ADR-0014); supports action-point buttons → approval channel (ADR-0016) |
+| Telegram | Settings: `telegram_bot_token`, `telegram_webhook_secret`, `telegram_allowlist`, `approvers`, `public_api_url`. **Webhook URL is derived from `public_api_url`** (`${public_api_url}/api/channels/telegram/webhook`); no separate `telegram_webhook_url` key. On startup the server auto-registers the webhook if all five settings are present and `public_api_url` is an HTTPS URL (localhost is skipped). **Restart required** after changing any of these five settings in this MVP. Delivery requires a **private 1:1 chat** where the approver has already started the bot (chat id = `tg:<approver-id>`); group chats are not supported. Scope in this MVP: approval+nagging only — `approve`/`reject` button taps resolve pending `Approval` rows; SecretaryAgent sends nag messages with buttons. Telegram document/photo intake is **not** implemented. (ADR-0014, ADR-0016 Todo 6) |
 | Slack | app/bot token; approver user IDs (ADR-0014); supports action-point buttons → approval channel (ADR-0016) |
 | Email | Ingest **sender-gated** by `email_whitelist` (deterministic; `ingest_policy: known-only [default] | quarantine | open`, ADR-0016 Wave-8 amendment); conversation/commands whitelist-only; action/approval = approver ⊆ whitelist via confirmation loop (explicit "YES" / re-ask) + DKIM/SPF; SMTP outbound = dialogue only (replies/re-asks/reports) — invoice rendering/delivery is a v2 plugin, not v1 (ADR-0016) |
 | Google Drive | watcher folder/credentials (passive intake) |

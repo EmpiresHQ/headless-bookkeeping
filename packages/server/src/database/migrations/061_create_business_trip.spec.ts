@@ -228,7 +228,9 @@ describe('Migration 060: create business_trip table', () => {
       db,
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
-    const { error } = await migrator.migrateTo('059_widen_document_source_channel');
+    const { error } = await migrator.migrateTo(
+      '059_widen_document_source_channel',
+    );
     expect(error).toBeUndefined();
 
     const result = await sql<{

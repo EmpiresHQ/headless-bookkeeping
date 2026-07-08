@@ -25,11 +25,11 @@ class MigrationRunner implements OnModuleInit {
 
     results?.forEach((it) => {
       if (it.status === 'Success') {
-        this.logger.log(`migration "${it.migrationName}" executed successfully`);
-      } else if (it.status === 'Error') {
-        this.logger.error(
-          `failed to execute migration "${it.migrationName}"`,
+        this.logger.log(
+          `migration "${it.migrationName}" executed successfully`,
         );
+      } else if (it.status === 'Error') {
+        this.logger.error(`failed to execute migration "${it.migrationName}"`);
       }
     });
 

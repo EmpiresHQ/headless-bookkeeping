@@ -24,4 +24,5 @@ export interface RouterOutcome {
   ingested: number; // count of documents ingested this turn
   intent: RoutedIntent | null; // null when no message / gated out
   dispatched: boolean;
+  callbackSucceeded: boolean;
 }

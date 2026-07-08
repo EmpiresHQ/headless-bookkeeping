@@ -12,9 +12,25 @@ import { AllowanceController } from './allowance.controller';
 import { AllowanceProjectionService } from './allowance-projection.service';
 
 @Module({
-  imports: [DatabaseModule, PluginsModule, OrganizationModule, AuditFindingsModule, StatusTransitionModule],
+  imports: [
+    DatabaseModule,
+    PluginsModule,
+    OrganizationModule,
+    AuditFindingsModule,
+    StatusTransitionModule,
+  ],
   controllers: [BusinessTripController, AllowanceController],
-  providers: [BusinessTripService, AllowanceLimitService, AllowanceService, AllowanceProjectionService],
-  exports: [BusinessTripService, AllowanceLimitService, AllowanceService, AllowanceProjectionService],
+  providers: [
+    BusinessTripService,
+    AllowanceLimitService,
+    AllowanceService,
+    AllowanceProjectionService,
+  ],
+  exports: [
+    BusinessTripService,
+    AllowanceLimitService,
+    AllowanceService,
+    AllowanceProjectionService,
+  ],
 })
 export class AllowancesModule {}

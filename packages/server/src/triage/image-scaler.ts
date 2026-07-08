@@ -57,7 +57,9 @@ export class ImageScaler {
       return { buffer: scaled, mimeType: 'image/jpeg' };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.logger.warn(`Image downscale failed, sending original: ${err.message}`);
+      this.logger.warn(
+        `Image downscale failed, sending original: ${err.message}`,
+      );
       return { buffer: image, mimeType };
     }
   }

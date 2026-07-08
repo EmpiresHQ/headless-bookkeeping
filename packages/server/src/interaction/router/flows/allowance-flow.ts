@@ -15,7 +15,10 @@ export class AllowanceFlow {
     intent: RoutedIntent,
     ctx: DispatchContext,
   ): Promise<DispatchResult> {
-    if (intent.kind !== 'action' || intent.actionIntent !== 'create_allowance') {
+    if (
+      intent.kind !== 'action' ||
+      intent.actionIntent !== 'create_allowance'
+    ) {
       return { handled: false };
     }
 

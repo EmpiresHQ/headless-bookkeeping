@@ -16,10 +16,14 @@ describe('RecordingFlowDispatcher (8a stub)', () => {
       authVerified: true,
       senderId: '999',
     };
-    const result = await d.dispatch(intent, { conversation_id: 7, principal });
+    const result = await d.dispatch(intent, {
+      conversation_id: 7,
+      principal,
+      origin: 'message',
+    });
     expect(result.handled).toBe(false);
     expect(d.calls).toEqual([
-      { intent, ctx: { conversation_id: 7, principal } },
+      { intent, ctx: { conversation_id: 7, principal, origin: 'message' } },
     ]);
   });
 });
@@ -35,6 +39,7 @@ describe('NoopFlowDispatcher (8a production stub)', () => {
     const result = await d.dispatch(intent, {
       conversation_id: 42,
       principal: { role: 'approver', authVerified: true, senderId: '999' },
+      origin: 'message',
     });
     expect(result.handled).toBe(false);
     expect((d as unknown as { calls?: unknown }).calls).toBeUndefined();

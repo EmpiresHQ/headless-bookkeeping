@@ -54,4 +54,8 @@ export class InteractionConfigService {
   async getTelegramWebhookSecret(): Promise<string | null> {
     return this.read('telegram_webhook_secret');
   }
+
+  async getPublicApiUrl(): Promise<string | null> {
+    return this.read('public_api_url');
+  }
 }

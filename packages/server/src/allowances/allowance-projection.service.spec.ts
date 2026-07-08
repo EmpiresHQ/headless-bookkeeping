@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AllowanceProjectionService, AllowanceRow } from './allowance-projection.service';
+import {
+  AllowanceProjectionService,
+  AllowanceRow,
+} from './allowance-projection.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 
@@ -51,8 +54,12 @@ describe('AllowanceProjectionService', () => {
     const draft = await service.project(allowance);
 
     expect(draft.lines).toHaveLength(2);
-    const debit = draft.lines.find((l) => l.account_code === 'EXPENSE_TRAVEL' && l.is_debit);
-    const credit = draft.lines.find((l) => l.account_code === 'CLAIMANT_PAYABLE' && !l.is_debit);
+    const debit = draft.lines.find(
+      (l) => l.account_code === 'EXPENSE_TRAVEL' && l.is_debit,
+    );
+    const credit = draft.lines.find(
+      (l) => l.account_code === 'CLAIMANT_PAYABLE' && !l.is_debit,
+    );
     expect(debit?.amount).toBe(45000);
     expect(credit?.amount).toBe(45000); // positive, is_debit: false
     expect(debit?.vat_code).toBe(NULL_VAT_CODE);
@@ -82,9 +89,15 @@ describe('AllowanceProjectionService', () => {
     const draft = await service.project(allowance);
 
     expect(draft.lines).toHaveLength(3);
-    const travelDebit = draft.lines.find((l) => l.account_code === 'EXPENSE_TRAVEL' && l.is_debit);
-    const salaryDebit = draft.lines.find((l) => l.account_code === 'EXPENSE_SALARY' && l.is_debit);
-    const credit = draft.lines.find((l) => l.account_code === 'CLAIMANT_PAYABLE' && !l.is_debit);
+    const travelDebit = draft.lines.find(
+      (l) => l.account_code === 'EXPENSE_TRAVEL' && l.is_debit,
+    );
+    const salaryDebit = draft.lines.find(
+      (l) => l.account_code === 'EXPENSE_SALARY' && l.is_debit,
+    );
+    const credit = draft.lines.find(
+      (l) => l.account_code === 'CLAIMANT_PAYABLE' && !l.is_debit,
+    );
 
     expect(travelDebit?.amount).toBe(5000);
     expect(salaryDebit?.amount).toBe(7000);
@@ -101,7 +114,9 @@ describe('AllowanceProjectionService', () => {
       period_start: '2026-06-15',
     });
     const draft = await service.project(allowance);
-    const credit = draft.lines.find((l) => l.account_code === 'CLAIMANT_PAYABLE');
+    const credit = draft.lines.find(
+      (l) => l.account_code === 'CLAIMANT_PAYABLE',
+    );
     expect(credit?.is_debit).toBe(false);
     expect(credit?.amount).toBeGreaterThan(0);
   });

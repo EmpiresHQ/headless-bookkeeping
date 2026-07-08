@@ -15,14 +15,7 @@ const execFileAsync = promisify(execFile);
  * `mif1` / `msf1` — HEIF multi-image / sequence
  * `hevc` / `hevx` — raw HEVC bitstreams (less common as photos)
  */
-const HEIC_BRANDS = new Set([
-  'heic',
-  'heix',
-  'hevc',
-  'hevx',
-  'mif1',
-  'msf1',
-]);
+const HEIC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1']);
 
 /**
  * Pure, synchronous magic-bytes check: is `buf` a HEIC/HEIF image?

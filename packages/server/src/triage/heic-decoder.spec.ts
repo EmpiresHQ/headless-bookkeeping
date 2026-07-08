@@ -7,10 +7,10 @@ function heicBuf(brand: string): Buffer {
   const size = Buffer.alloc(4);
   size.writeUInt32BE(24, 0);
   return Buffer.concat([
-    size,                         // 0–3  box size (BE u32)
-    Buffer.from('ftyp'),          // 4–7  box type
+    size, // 0–3  box size (BE u32)
+    Buffer.from('ftyp'), // 4–7  box type
     Buffer.from(brand.padEnd(4)), // 8–11 major brand
-    Buffer.alloc(12),             // 12–23 minor version + compatible brands
+    Buffer.alloc(12), // 12–23 minor version + compatible brands
   ]);
 }
 

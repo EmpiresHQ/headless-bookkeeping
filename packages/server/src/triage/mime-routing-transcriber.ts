@@ -39,8 +39,10 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
     buffer: Buffer,
     mimeType: string,
   ): Promise<OcrOutcome> {
-    const { buffer: scaled, mimeType: mt } =
-      await this.scaler.downscale(buffer, mimeType);
+    const { buffer: scaled, mimeType: mt } = await this.scaler.downscale(
+      buffer,
+      mimeType,
+    );
     return this.vision.transcribeImage({ buffer: scaled, mimeType: mt });
   }
 
@@ -53,8 +55,7 @@ export class MimeRoutingTranscriber extends DocumentTranscriber {
     // the UTI mapping misfires.  The magic-bytes check is the definitive
     // server-side fallback — it is pure, synchronous, and never throws.
     const mimeIsHeic = mime === 'image/heic' || mime === 'image/heif';
-    const magicIsHeic =
-      !mimeIsHeic && isHeicMagicBytes(file.buffer);
+    const magicIsHeic = !mimeIsHeic && isHeicMagicBytes(file.buffer);
     const isHeic = mimeIsHeic || magicIsHeic;
 
     // HEIC/HEIF (default iPhone capture) is an image/* the vision provider can

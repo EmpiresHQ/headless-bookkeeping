@@ -11,7 +11,7 @@ export interface OutboundMessage {
   channel: InteractionChannel;
   convKey: string;
   text: string;
-  actionPoint?: ActionPoint;
+  actionPoints?: ActionPoint[];
 }
 
 /** One channel's outbound edge. Implemented by each adapter (e.g. TelegramTransport). */

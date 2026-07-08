@@ -3,7 +3,9 @@ import { Kysely } from 'kysely';
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable('business_trip')
-    .addColumn('id', 'integer', (col) => col.primaryKey().autoIncrement().notNull())
+    .addColumn('id', 'integer', (col) =>
+      col.primaryKey().autoIncrement().notNull(),
+    )
     .addColumn('claimant_id', 'integer', (col) =>
       col.notNull().references('entity.id'),
     )

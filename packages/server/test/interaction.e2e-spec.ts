@@ -1,120 +1,226 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import { Kysely, SqliteDialect } from 'kysely';
-import { Migrator } from 'kysely/migration';
-import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
-import SqliteDb from 'better-sqlite3';
-import { Database } from '../src/database/types';
-import { migrations } from '../src/database/migrations';
-import { AppModule } from '../src/app.module';
-import { MastraService } from '../src/ai/mastra.service';
-import { fauxMastraService } from './faux-mastra.service';
-import { DOCUMENT_STORAGE_ROOT } from '../src/documents/document-storage.service';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { mkdtempSync, rmSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import {
+  approverUpdate,
+  buildCallbackUpdate,
+  createInteractionE2eHarness,
+  expectNagForApproval,
+  type InteractionE2eHarness,
+} from './interaction.e2e-support';
 
-/**
- * End-to-end test for the Telegram webhook flow:
- *   POST /api/channels/telegram/webhook → secret-token gate → router → Conversation persisted.
- *
- * Boots the full AppModule against an in-memory SQLite DB (seeded by real migrations).
- * @mastra/* is stubbed via test/jest-e2e.json moduleNameMapper; the stub's generate()
- * returns { object: undefined } so safeParse rejects → classifier degrades to clarify →
- * HttpTelegramApi (unset bot token) logs-and-drops. Webhook still returns { ok: true }.
- * The test asserts only the Conversation row — fully deterministic without a live Bot API.
- */
-describe('Telegram webhook (e2e)', () => {
-  let app: INestApplication<App>;
-  let db: Kysely<Database>;
-  let root: string;
+describe('Telegram webhook + approval lifecycle (e2e)', () => {
+  let harness: InteractionE2eHarness;
 
-  beforeAll(async () => {
-    const rawDb = new SqliteDb(':memory:');
-    rawDb.pragma('foreign_keys = ON');
-    db = new Kysely<Database>({
-      dialect: new SqliteDialect({ database: rawDb }),
-    });
-
-    const migrator = new Migrator({
-      db,
-      provider: { getMigrations: () => Promise.resolve(migrations) },
-    });
-    const { error } = await migrator.migrateToLatest();
-    if (error)
-      throw error instanceof Error ? error : new Error('Migration failed');
-
-    root = mkdtempSync(join(tmpdir(), 'interaction-e2e-'));
-
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(KYSELY_MODULE_CONNECTION_TOKEN())
-      .useValue(db)
-      .overrideProvider(DOCUMENT_STORAGE_ROOT)
-      .useValue(root)
-      .overrideProvider(MastraService)
-      .useValue(fauxMastraService)
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    await app.init();
-
-    // Seed settings AFTER migrations have run.
-    await db
-      .insertInto('setting')
-      .values({ key: 'telegram_webhook_secret', value: 'sek', updated_at: 0 })
-      .execute();
-    await db
-      .insertInto('setting')
-      .values({ key: 'telegram_allowlist', value: '999', updated_at: 0 })
-      .execute();
-    await db
-      .insertInto('setting')
-      .values({ key: 'approvers', value: '999', updated_at: 0 })
-      .execute();
+  beforeEach(async () => {
+    harness = await createInteractionE2eHarness();
   });
 
-  afterAll(async () => {
-    await app.close();
-    await db.destroy();
-    rmSync(root, { recursive: true, force: true });
+  afterEach(async () => {
+    await harness.close();
   });
-
-  const update = {
-    update_id: 1,
-    message: {
-      message_id: 5,
-      chat: { id: 999 },
-      from: { id: 999 },
-      text: 'what is my VAT due?',
-    },
-  };
 
   it('403s a webhook with a wrong secret token', async () => {
-    await request(app.getHttpServer())
+    await request(harness.app.getHttpServer())
       .post('/api/channels/telegram/webhook')
       .set('x-telegram-bot-api-secret-token', 'wrong')
-      .send(update)
+      .send(approverUpdate)
       .expect(403);
+
+    expect(harness.telegramApi.sentMessages).toEqual([]);
+    expect(harness.telegramApi.callbackAnswers).toEqual([]);
+    expect(harness.telegramApi.clearedMarkups).toEqual([]);
   });
 
   it('accepts a valid webhook and creates an open Conversation at thread_key=tg:999', async () => {
-    await request(app.getHttpServer())
-      .post('/api/channels/telegram/webhook')
-      .set('x-telegram-bot-api-secret-token', 'sek')
-      .send(update)
-      .expect(200)
-      .expect({ ok: true });
+    await harness.seedPrivateApproverChat();
 
-    const convo = await db
+    const conversation = await harness.db
       .selectFrom('conversation')
       .selectAll()
       .where('thread_key', '=', 'tg:999')
       .executeTakeFirstOrThrow();
-    expect(convo.status).toBe('open');
-    expect(convo.channel).toBe('telegram');
+
+    expect(conversation.status).toBe('open');
+    expect(conversation.channel).toBe('telegram');
+    expect(harness.telegramApi.sentMessages).toEqual([
+      { chat_id: 999, text: 'Could you rephrase what you need?' },
+    ]);
+    expect(harness.telegramApi.callbackAnswers).toEqual([]);
+    expect(harness.telegramApi.clearedMarkups).toEqual([]);
+  });
+
+  it('holds, nags, and approves a sales invoice through the real Telegram callback seam', async () => {
+    await harness.seedPrivateApproverChat();
+    harness.telegramApi.reset();
+    await harness.forceHoldPolicy();
+
+    const invoice = await harness.createDraftSalesInvoice(
+      'INV-TELEGRAM-APPROVE',
+    );
+    const postResult = await harness.holdSalesInvoice(invoice.id);
+    expect(postResult.policy.action).toBe('hold-for-approval');
+    expect(postResult.voucher).toBeNull();
+    expect(postResult.invoice.status).toBe('pending');
+
+    const approval = await harness.getPendingApprovalForInvoice(invoice.id);
+    const finding = await harness.getFindingForApproval(approval.id);
+    const openFindings = await harness.db
+      .selectFrom('audit_finding')
+      .selectAll()
+      .where('status', '=', 'open')
+      .execute();
+    expect(openFindings).toHaveLength(1);
+
+    await harness.secretary.notify();
+    expectNagForApproval(harness.telegramApi, approval.id, finding.description);
+
+    const outboundMessages = await harness.db
+      .selectFrom('message')
+      .select(['direction', 'body'])
+      .execute();
+    expect(outboundMessages).toEqual(
+      expect.arrayContaining([
+        {
+          direction: 'outbound',
+          body: `Approval needed — ${finding.description} (approval #${approval.id})`,
+        },
+      ]),
+    );
+
+    await request(harness.app.getHttpServer())
+      .post('/api/channels/telegram/webhook')
+      .set('x-telegram-bot-api-secret-token', 'sek')
+      .send(buildCallbackUpdate(approval.id, 'cb-approve', 999, 77))
+      .expect(200)
+      .expect({ ok: true });
+
+    expect(harness.telegramApi.callbackAnswers).toEqual(['cb-approve']);
+    expect(harness.telegramApi.clearedMarkups).toEqual([
+      { chatId: 999, messageId: 77 },
+    ]);
+
+    const approved = await harness.db
+      .selectFrom('approval')
+      .selectAll()
+      .where('id', '=', approval.id)
+      .executeTakeFirstOrThrow();
+    const postedInvoice = await harness.db
+      .selectFrom('sales_invoice')
+      .selectAll()
+      .where('id', '=', invoice.id)
+      .executeTakeFirstOrThrow();
+    const resolvedFinding = await harness.getFindingForApproval(approval.id);
+    const vouchers = await harness.db
+      .selectFrom('voucher')
+      .selectAll()
+      .execute();
+
+    expect(approved.status).toBe('approved');
+    expect(approved.approved_by).toBe('999');
+    expect(postedInvoice.status).toBe('posted');
+    expect(postedInvoice.voucher_id).not.toBeNull();
+    expect(resolvedFinding.status).toBe('resolved');
+    expect(resolvedFinding.transitioned_by).toBe('999');
+    expect(resolvedFinding.transition_reason).toBe('Approval approved');
+    expect(vouchers).toHaveLength(1);
+  });
+
+  it('holds, nags, and rejects a sales invoice through the real Telegram callback seam', async () => {
+    await harness.seedPrivateApproverChat();
+    harness.telegramApi.reset();
+    await harness.forceHoldPolicy();
+
+    const invoice = await harness.createDraftSalesInvoice(
+      'INV-TELEGRAM-REJECT',
+    );
+    const postResult = await harness.holdSalesInvoice(invoice.id);
+    expect(postResult.policy.action).toBe('hold-for-approval');
+
+    const approval = await harness.getPendingApprovalForInvoice(invoice.id);
+    const finding = await harness.getFindingForApproval(approval.id);
+
+    await harness.secretary.notify();
+    expectNagForApproval(harness.telegramApi, approval.id, finding.description);
+
+    await request(harness.app.getHttpServer())
+      .post('/api/channels/telegram/webhook')
+      .set('x-telegram-bot-api-secret-token', 'sek')
+      .send(buildCallbackUpdate(approval.id, 'cb-reject', 999, 88, 'reject'))
+      .expect(200)
+      .expect({ ok: true });
+
+    expect(harness.telegramApi.callbackAnswers).toEqual(['cb-reject']);
+    expect(harness.telegramApi.clearedMarkups).toEqual([
+      { chatId: 999, messageId: 88 },
+    ]);
+
+    const rejected = await harness.db
+      .selectFrom('approval')
+      .selectAll()
+      .where('id', '=', approval.id)
+      .executeTakeFirstOrThrow();
+    const revertedInvoice = await harness.db
+      .selectFrom('sales_invoice')
+      .selectAll()
+      .where('id', '=', invoice.id)
+      .executeTakeFirstOrThrow();
+    const resolvedFinding = await harness.getFindingForApproval(approval.id);
+    const vouchers = await harness.db
+      .selectFrom('voucher')
+      .selectAll()
+      .execute();
+
+    expect(rejected.status).toBe('rejected');
+    expect(rejected.rejected_reason).toBe('Rejected via Telegram');
+    expect(revertedInvoice.status).toBe('draft');
+    expect(revertedInvoice.voucher_id).toBeNull();
+    expect(resolvedFinding.status).toBe('resolved');
+    expect(resolvedFinding.transitioned_by).toBeNull();
+    expect(resolvedFinding.transition_reason).toBe('Rejected via Telegram');
+    expect(vouchers).toHaveLength(0);
+  });
+
+  it('acknowledges a non-approver callback without mutating approval state', async () => {
+    await harness.seedPrivateApproverChat();
+    harness.telegramApi.reset();
+    await harness.forceHoldPolicy();
+
+    const invoice = await harness.createDraftSalesInvoice(
+      'INV-TELEGRAM-DENIED',
+    );
+    await harness.holdSalesInvoice(invoice.id);
+    const approval = await harness.getPendingApprovalForInvoice(invoice.id);
+
+    await harness.secretary.notify();
+    await request(harness.app.getHttpServer())
+      .post('/api/channels/telegram/webhook')
+      .set('x-telegram-bot-api-secret-token', 'sek')
+      .send(buildCallbackUpdate(approval.id, 'cb-denied', 123, 90))
+      .expect(200)
+      .expect({ ok: true });
+
+    expect(harness.telegramApi.callbackAnswers).toEqual(['cb-denied']);
+    expect(harness.telegramApi.clearedMarkups).toEqual([]);
+
+    const unchangedApproval = await harness.db
+      .selectFrom('approval')
+      .selectAll()
+      .where('id', '=', approval.id)
+      .executeTakeFirstOrThrow();
+    const unchangedInvoice = await harness.db
+      .selectFrom('sales_invoice')
+      .selectAll()
+      .where('id', '=', invoice.id)
+      .executeTakeFirstOrThrow();
+    const openFinding = await harness.getFindingForApproval(approval.id);
+    const vouchers = await harness.db
+      .selectFrom('voucher')
+      .selectAll()
+      .execute();
+
+    expect(unchangedApproval.status).toBe('pending');
+    expect(unchangedInvoice.status).toBe('pending');
+    expect(unchangedInvoice.voucher_id).toBeNull();
+    expect(openFinding.status).toBe('open');
+    expect(vouchers).toHaveLength(0);
   });
 });

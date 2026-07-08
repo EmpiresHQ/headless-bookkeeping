@@ -11,7 +11,10 @@ import { BusinessObjectStatus } from '../../common/types/business-object-status'
  * Allowances use a different status machine (draft → needs_triage → posted | draft)
  * compared to expense/sales_invoice (draft → pending → posted | draft).
  */
-export type TransitionableObjectType = 'expense' | 'sales_invoice' | 'allowance';
+export type TransitionableObjectType =
+  | 'expense'
+  | 'sales_invoice'
+  | 'allowance';
 
 /** Human label per type, for clear conflict messages. */
 const LABEL: Record<TransitionableObjectType, string> = {
@@ -131,7 +134,10 @@ export class StatusTransitionService {
       if (type === 'allowance') {
         return (ALLOWANCE_TRANSITION_GRAPH[from] ?? new Set()).has(to);
       }
-      return (TRANSITION_GRAPH[from as BusinessObjectStatus] ?? new Set<BusinessObjectStatus>()).has(to as BusinessObjectStatus);
+      return (
+        TRANSITION_GRAPH[from as BusinessObjectStatus] ??
+        new Set<BusinessObjectStatus>()
+      ).has(to as BusinessObjectStatus);
     }
     // 2-arg form: (from, to) — legacy callers use the shared graph
     const from = typeOrFrom as BusinessObjectStatus;
