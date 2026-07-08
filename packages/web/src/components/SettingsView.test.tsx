@@ -7,6 +7,9 @@ describe('SettingsView', () => {
   beforeEach(() => {
     vi.spyOn(api, 'getSettings').mockResolvedValue([
       { key: 'ai_model', value: 'openai/gpt-4o' },
+      { key: 'telegram_bot_token', value: '123:abc' },
+      { key: 'telegram_webhook_secret', value: 'sek' },
+      { key: 'telegram_allowlist', value: 'tg:1, tg:2' },
     ]);
     vi.spyOn(api, 'getPolicyConfig').mockResolvedValue({
       auto_post_amount_ceiling: 50000,
@@ -77,5 +80,65 @@ describe('SettingsView', () => {
     expect(
       (screen.getByLabelText(/global model/i) as HTMLInputElement).value,
     ).toBe('anthropic/claude-3-5');
+  });
+
+  it('shows Telegram settings and saves an edit', async () => {
+    render(<SettingsView />);
+
+    const input = (await screen.findByLabelText(
+      /bot token/i,
+    )) as HTMLInputElement;
+    expect(input.value).toBe('123:abc');
+    expect(input.type).toBe('password');
+
+    fireEvent.change(input, { target: { value: '456:def' } });
+    fireEvent.click(screen.getByRole('button', { name: /save bot token/i }));
+
+    await waitFor(
+      () =>
+        expect(api.setSetting).toHaveBeenCalledWith(
+          'telegram_bot_token',
+          '456:def',
+        ),
+      { timeout: 5000 },
+    );
+  });
+
+  it('shows Telegram restart guidance and masks secret fields', async () => {
+    render(<SettingsView />);
+
+    expect(await screen.findByText('Telegram')).toBeInTheDocument();
+    expect(
+      screen.getByText(/restart the app after changing telegram settings/i),
+    ).toBeInTheDocument();
+    expect(
+      (screen.getByLabelText(/bot token/i) as HTMLInputElement).type,
+    ).toBe('password');
+    expect(
+      (screen.getByLabelText(/webhook secret/i) as HTMLInputElement).type,
+    ).toBe('password');
+    expect(
+      (screen.getByLabelText(/allowlist chat ids/i) as HTMLTextAreaElement)
+        .value,
+    ).toBe('tg:1, tg:2');
+  });
+
+  it('clears the Telegram webhook secret', async () => {
+    vi.spyOn(api, 'deleteSetting').mockResolvedValue({
+      key: 'telegram_webhook_secret',
+      deleted: true,
+    });
+
+    render(<SettingsView />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /clear webhook secret/i }),
+    );
+
+    await waitFor(() =>
+      expect(api.deleteSetting).toHaveBeenCalledWith(
+        'telegram_webhook_secret',
+      ),
+    );
   });
 });

@@ -9,15 +9,15 @@ import {
 } from '../api';
 import { MailboxSettings } from './MailboxSettings';
 
-interface LlmKey {
-  key: string;
-  label: string;
-  placeholder: string;
-  multiline: boolean;
-  secret?: boolean;
-}
+type SettingField = {
+  readonly key: string;
+  readonly label: string;
+  readonly placeholder: string;
+  readonly multiline: boolean;
+  readonly secret?: boolean;
+};
 
-const LLM_KEYS: LlmKey[] = [
+const LLM_KEYS: readonly SettingField[] = [
   {
     key: 'ai_base_url',
     label: 'Inference base URL',
@@ -69,6 +69,29 @@ const LLM_KEYS: LlmKey[] = [
   },
 ];
 
+const TELEGRAM_KEYS: readonly SettingField[] = [
+  {
+    key: 'telegram_bot_token',
+    label: 'Bot token',
+    placeholder: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11',
+    multiline: false,
+    secret: true,
+  },
+  {
+    key: 'telegram_webhook_secret',
+    label: 'Webhook secret',
+    placeholder: 'telegram-webhook-secret',
+    multiline: false,
+    secret: true,
+  },
+  {
+    key: 'telegram_allowlist',
+    label: 'Allowlist chat ids',
+    placeholder: 'tg:123456789, tg:987654321',
+    multiline: true,
+  },
+] as const;
+
 const INGEST_OPTIONS = ['known-only', 'quarantine', 'open'] as const;
 
 function SettingRow({
@@ -77,7 +100,7 @@ function SettingRow({
   onChanged,
   onError,
 }: {
-  def: LlmKey;
+  def: SettingField;
   current: string;
   onChanged: () => void;
   onError: (msg: string) => void;
@@ -258,6 +281,28 @@ export function SettingsView() {
             onError={setError}
           />
         )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-semibold">Telegram</h2>
+        <p className="text-xs text-gray-500">
+          Configure the bot credentials and the allowlisted approver chat ids
+          used for Telegram approvals and reminders.
+        </p>
+        <p className="text-xs text-amber-700">
+          Restart the app after changing Telegram settings in this MVP so the
+          webhook registration picks up the new token and secret.
+        </p>
+        {settings !== null &&
+          TELEGRAM_KEYS.map((def) => (
+            <SettingRow
+              key={def.key}
+              def={def}
+              current={settings[def.key] ?? ''}
+              onChanged={loadSettings}
+              onError={setError}
+            />
+          ))}
       </section>
 
       <MailboxSettings />
