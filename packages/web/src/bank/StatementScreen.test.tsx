@@ -1,0 +1,127 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../api', () => ({
+  listBankStatements: vi.fn(),
+  listBankTransactions: vi.fn(),
+  getReconciliationStatus: vi.fn(),
+  getStatementMatches: vi.fn(),
+  proposeMatches: vi.fn(),
+  getMatchCandidates: vi.fn(),
+  getBankImportStatus: vi.fn(),
+  executeMatches: vi.fn(),
+  manualMatch: vi.fn(),
+  unmatchMatch: vi.fn(),
+  approveApproval: vi.fn(),
+  getPendingApprovals: vi.fn(),
+  createExpense: vi.fn(),
+  postExpense: vi.fn(),
+  getCategories: vi.fn(),
+  getEntities: vi.fn(),
+  getOrganization: vi.fn(),
+  deleteBankStatement: vi.fn(),
+  fmtCents: (cents: number) => (cents / 100).toFixed(2),
+}));
+
+import * as api from '../api';
+import { StatementScreen } from './StatementScreen';
+
+function renderAt(path = '/bank/statements/3') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const router = createMemoryRouter(
+    [
+      { path: '/bank', element: <p>bank list</p> },
+      { path: '/bank/statements/:id', element: <StatementScreen /> },
+      { path: '/bank/statements/:id/tx/:txId', element: <p>tx screen</p> },
+    ],
+    { initialEntries: [path] },
+  );
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  return router;
+}
+
+const TXNS = [
+  { id: 9, transaction_date: '2026-06-27', description: 'WOLT 220627', amount: -1860, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'open' },
+  { id: 10, transaction_date: '2026-06-28', description: 'NORDIC CONSULT', amount: 120000, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'open' },
+  { id: 11, transaction_date: '2026-06-24', description: 'ELISA arve 6/2026', amount: -3500, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'open' },
+  { id: 12, transaction_date: '2026-06-20', description: 'OWNER LUNCH', amount: -900, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'personal' },
+];
+
+function mockStatementData() {
+  vi.mocked(api.listBankStatements).mockResolvedValue([
+    { id: 3, start_date: '2026-06-01', end_date: '2026-06-30', uploaded_at: 1 },
+  ]);
+  vi.mocked(api.listBankTransactions).mockResolvedValue(TXNS as never);
+  vi.mocked(api.getReconciliationStatus).mockResolvedValue([
+    { bankTransactionId: 9, amountBase: 1860, matchedSum: 0, remaining: 1860, reconStatus: 'open' },
+    { bankTransactionId: 10, amountBase: 120000, matchedSum: 0, remaining: 120000, reconStatus: 'open' },
+    { bankTransactionId: 11, amountBase: 3500, matchedSum: 3500, remaining: 0, reconStatus: 'matched' },
+    { bankTransactionId: 12, amountBase: 900, matchedSum: 0, remaining: 900, reconStatus: 'open' },
+  ]);
+  vi.mocked(api.getStatementMatches).mockResolvedValue([
+    { id: 41, bankTransactionId: 11, status: 'active', amountMatched: 3500, objectLabel: 'Expense #61', counterpartyName: 'Elisa Eesti AS' },
+  ]);
+  vi.mocked(api.proposeMatches).mockResolvedValue([
+    { bankTransactionId: 10, voucherId: 71, matchType: 'exact', amountMatched: 120000, confidence: 'high', signal: 'invoice_number', objectType: 'sales_invoice', objectId: 18, objectLabel: 'Invoice 2026-018', counterpartyName: 'Nordic Consulting OÜ', voucherRemaining: 120000 },
+  ]);
+}
+
+describe('StatementScreen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStatementData();
+  });
+
+  it('shows the period title, segment counts, and the AI-proposals tier', async () => {
+    renderAt();
+    expect(await screen.findByText('Jun 2026')).toBeInTheDocument();
+    expect(await screen.findByText('AI proposals')).toBeInTheDocument();
+    expect(screen.getByText('Decide yourself')).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: 'Unmatched 2' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'All 4' })).toBeInTheDocument();
+    // The proposal-backed line sits in the AI-proposals tier (Task 7 upgrades
+    // its row to the selectable ProposalRow with object label + confidence).
+    expect(screen.getByText('NORDIC CONSULT')).toBeInTheDocument();
+    // Matched line is hidden in the default Unmatched segment.
+    expect(screen.queryByText('ELISA arve 6/2026')).toBeNull();
+  });
+
+  it('shows matched (green ✓, object label) and disposition rows in the All segment', async () => {
+    renderAt('/bank/statements/3?seg=all');
+    expect(await screen.findByText('ELISA arve 6/2026')).toBeInTheDocument();
+    expect(screen.getByText(/→ Expense #61/)).toBeInTheDocument();
+    expect(screen.getByText('personal')).toBeInTheDocument();
+    expect(screen.getByText('Matched')).toBeInTheDocument();
+  });
+
+  it('navigates to the tx screen when a decide row is clicked', async () => {
+    const router = renderAt();
+    fireEvent.click(await screen.findByText('WOLT 220627'));
+    expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');
+  });
+
+  it('deletes the statement behind an explicit confirm and returns to /bank', async () => {
+    vi.mocked(api.deleteBankStatement).mockResolvedValue({ deleted: 3 });
+    const router = renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete statement' }),
+    );
+    await vi.waitFor(() =>
+      expect(api.deleteBankStatement).toHaveBeenCalledWith(3),
+    );
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe('/bank'),
+    );
+  });
+});
