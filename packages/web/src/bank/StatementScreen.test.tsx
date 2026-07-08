@@ -27,6 +27,7 @@ vi.mock('../api', () => ({
 
 import * as api from '../api';
 import { StatementScreen } from './StatementScreen';
+import { AppToaster } from '../ui/toast';
 
 function renderAt(path = '/bank/statements/3') {
   const client = new QueryClient({
@@ -42,7 +43,10 @@ function renderAt(path = '/bank/statements/3') {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </>
     </QueryClientProvider>,
   );
   return router;
@@ -205,6 +209,129 @@ describe('StatementScreen', () => {
     );
     await vi.waitFor(() =>
       expect(router.state.location.pathname).toBe('/bank'),
+    );
+  });
+});
+
+describe('StatementScreen booking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStatementData();
+  });
+
+  it('pre-selects high-confidence proposals and books them with an Undo toast', async () => {
+    vi.mocked(api.executeMatches).mockResolvedValue({
+      records: [{ id: 91 }],
+      approvals: [{ id: 12, matchId: 91 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: { id: 12 },
+    } as never);
+    renderAt();
+    // The single high-confidence proposal arrives pre-selected, with the
+    // object label + confidence chip in the subtitle.
+    const box = await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    expect(box).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText(/Invoice 2026-018/)).toBeInTheDocument();
+    expect(screen.getByText('high')).toBeInTheDocument();
+    const bookBtn = screen.getByRole('button', { name: /book 1 match/i });
+    fireEvent.click(bookBtn);
+    await vi.waitFor(() => expect(api.executeMatches).toHaveBeenCalledOnce());
+    expect(api.approveApproval).toHaveBeenCalledWith(12, 'operator');
+    expect(await screen.findByText('Booked 1 match')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Undo' }),
+    ).toBeInTheDocument();
+  });
+
+  it('undo unmatches the booked matches', async () => {
+    vi.mocked(api.executeMatches).mockResolvedValue({
+      records: [{ id: 91 }],
+      approvals: [{ id: 12, matchId: 91 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: { id: 12 },
+    } as never);
+    vi.mocked(api.unmatchMatch).mockResolvedValue({});
+    renderAt();
+    await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    fireEvent.click(screen.getByRole('button', { name: /book 1 match/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await vi.waitFor(() =>
+      expect(api.unmatchMatch).toHaveBeenCalledWith(3, 91),
+    );
+  });
+
+  it('deselecting the proposal hides the Book bar', async () => {
+    renderAt();
+    const box = await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    fireEvent.click(box);
+    expect(box).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByRole('button', { name: /book/i })).toBeNull();
+  });
+
+  it('surfaces the server cap error text on booking failure', async () => {
+    vi.mocked(api.executeMatches).mockRejectedValue(
+      new Error('Match of 1200 would over-allocate bank line 10'),
+    );
+    renderAt();
+    await screen.findByRole('checkbox', {
+      name: /select match invoice 2026-018/i,
+    });
+    fireEvent.click(screen.getByRole('button', { name: /book 1 match/i }));
+    expect(
+      await screen.findByText(/would over-allocate bank line 10/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders a staged draft with a Confirm action that approves its approval', async () => {
+    vi.mocked(api.getStatementMatches).mockResolvedValue([
+      {
+        id: 41,
+        bankTransactionId: 11,
+        status: 'active',
+        amountMatched: 3500,
+        objectLabel: 'Expense #61',
+        counterpartyName: 'Elisa Eesti AS',
+      },
+      {
+        id: 50,
+        bankTransactionId: 9,
+        status: 'draft',
+        amountMatched: 1860,
+        objectLabel: 'Expense #70',
+        counterpartyName: null,
+      },
+    ]);
+    vi.mocked(api.getPendingApprovals).mockResolvedValue([
+      {
+        id: 88,
+        object_type: 'reconciliation_match',
+        object_id: 50,
+        status: 'pending',
+        requested_by: 'system',
+        approved_by: null,
+        rejected_reason: null,
+        policy_reason: null,
+        superseded_by: null,
+        created_at: 0,
+        resolved_at: null,
+      },
+    ]);
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: { id: 88 },
+    } as never);
+    renderAt();
+    expect(await screen.findByText('staged')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
+    await vi.waitFor(() =>
+      expect(api.approveApproval).toHaveBeenCalledWith(88, 'operator'),
     );
   });
 });

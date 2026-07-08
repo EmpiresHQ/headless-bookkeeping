@@ -1,9 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { deleteBankStatement, fmtCents } from '../api';
+import type { MatchProposalView, MatchRowView } from '../api';
 import {
   bankKeys,
+  bookProposals,
+  confirmStagedMatch,
+  invalidateStatement,
+  undoMatches,
   useBankStatements,
   useBankTransactions,
   useMatchProposals,
@@ -11,16 +16,22 @@ import {
   useStatementMatches,
 } from '../queries/bank';
 import { AmountText } from '../ui/AmountText';
+import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { GroupLabel } from '../ui/List';
 import { SegmentedControl } from '../ui/SegmentedControl';
-import { toastErr } from '../ui/toast';
+import { toastErr, toastUndo } from '../ui/toast';
 import { ScreenHeader } from '../shell/Headers';
 import { formatStatementPeriod, formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
-import { bucketOf, buildLines, type LineView } from './statementModel';
+import {
+  bucketOf,
+  buildLines,
+  proposalKey,
+  type LineView,
+} from './statementModel';
 
 const DISPOSITION_LABEL: Record<string, string> = {
   personal: 'personal',
@@ -70,6 +81,93 @@ function DecideRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
         ›
       </span>
     </button>
+  );
+}
+
+/** AI-proposals row — selectable checkbox per proposal, staged drafts get a
+ *  "staged" chip and a per-row Confirm button. */
+function ProposalRow({
+  line,
+  selected,
+  onToggle,
+  onOpen,
+  onConfirmStaged,
+  confirmBusy,
+}: {
+  line: LineView;
+  selected: Set<string>;
+  onToggle: (p: MatchProposalView) => void;
+  onOpen: () => void;
+  onConfirmStaged: (m: MatchRowView) => void;
+  confirmBusy: boolean;
+}) {
+  return (
+    <div className="border-b border-line last:border-b-0">
+      {line.proposals.map((p) => {
+        const key = proposalKey(p);
+        const on = selected.has(key);
+        return (
+          <div key={key} className="flex w-full items-center gap-3 px-3.5 py-3">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={on}
+              aria-label={`Select match ${p.objectLabel}`}
+              onClick={() => onToggle(p)}
+              className={`flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[7px] border-2 text-[13px] font-bold ${
+                on
+                  ? 'border-accent bg-accent text-white'
+                  : 'border-[#C2C7C1] text-transparent'
+              }`}
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              onClick={onOpen}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14.5px] font-semibold">
+                  {txTitle(line.tx)}
+                </div>
+                <div className="truncate text-[12.5px] text-ink-2">
+                  → {p.objectLabel} <Chip tone="warn">{p.confidence}</Chip>
+                </div>
+              </div>
+              <LineTrailing line={line} />
+            </button>
+          </div>
+        );
+      })}
+      {line.staged.map((m) => (
+        <div key={m.id} className="flex w-full items-center gap-3 px-3.5 py-3">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14.5px] font-semibold">
+                {txTitle(line.tx)}
+              </div>
+              <div className="truncate text-[12.5px] text-ink-2">
+                → {m.objectLabel} <Chip tone="warn">staged</Chip>
+              </div>
+            </div>
+            <LineTrailing line={line} />
+          </button>
+          <Button
+            variant="secondary"
+            className="flex-none px-3 py-1.5 text-[12px]"
+            busy={confirmBusy}
+            onClick={() => onConfirmStaged(m)}
+          >
+            Confirm
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -129,6 +227,22 @@ export function StatementScreen() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [booking, setBooking] = useState(false);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  // Pre-select high-confidence proposals whenever a fresh proposal set lands.
+  useEffect(() => {
+    if (proposalsQ.data) {
+      setSelected(
+        new Set(
+          proposalsQ.data
+            .filter((p) => p.confidence === 'high')
+            .map(proposalKey),
+        ),
+      );
+    }
+  }, [proposalsQ.data]);
 
   const statement = statementsQ.data?.find((s) => s.id === statementId);
   const lines = useMemo(
@@ -142,6 +256,62 @@ export function StatementScreen() {
     [txQ.data, reconQ.data, matchesQ.data, proposalsQ.data],
   );
   const loading = txQ.isPending || reconQ.isPending || matchesQ.isPending;
+
+  const toggleProposal = (p: MatchProposalView) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const key = proposalKey(p);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const chosen = (proposalsQ.data ?? []).filter((p) =>
+    selected.has(proposalKey(p)),
+  );
+  const txById = new Map(lines.map((l) => [l.tx.id, l.tx]));
+  const netCents = chosen.reduce((sum, p) => {
+    const tx = txById.get(p.bankTransactionId);
+    return sum + (tx && tx.amount < 0 ? -p.amountMatched : p.amountMatched);
+  }, 0);
+
+  const onBook = async () => {
+    setBooking(true);
+    try {
+      const matchIds = await bookProposals(statementId, chosen);
+      await invalidateStatement(qc, statementId);
+      const label = `Booked ${matchIds.length} ${matchIds.length === 1 ? 'match' : 'matches'}`;
+      toastUndo(label, () => {
+        void undoMatches(statementId, matchIds)
+          .then(() => invalidateStatement(qc, statementId))
+          .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
+      });
+    } catch (e) {
+      // Server-enforced cap / over-match — show the server's words, then
+      // refresh so partially staged/active state is visible, never hidden.
+      toastErr(e instanceof Error ? e.message : String(e));
+      await invalidateStatement(qc, statementId);
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  const onConfirmStaged = async (m: MatchRowView) => {
+    setConfirmBusy(true);
+    try {
+      await confirmStagedMatch(m.id);
+      await invalidateStatement(qc, statementId);
+      toastUndo(`Confirmed · ${m.objectLabel}`, () => {
+        void undoMatches(statementId, [m.id])
+          .then(() => invalidateStatement(qc, statementId))
+          .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
+      });
+    } catch (e) {
+      toastErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
 
   const proposalLines = lines.filter((l) => bucketOf(l) === 'proposals');
   const decideLines = lines.filter((l) => bucketOf(l) === 'decide');
@@ -217,14 +387,36 @@ export function StatementScreen() {
               <GroupLabel>AI proposals</GroupLabel>
               <div className="mx-3.5 mb-3.5 overflow-hidden rounded-2xl bg-surface">
                 {proposalLines.map((line) => (
-                  // Task 7 replaces this row with the selectable ProposalRow.
-                  <DecideRow
+                  <ProposalRow
                     key={line.tx.id}
                     line={line}
+                    selected={selected}
+                    onToggle={toggleProposal}
                     onOpen={() => openTx(line.tx.id)}
+                    onConfirmStaged={(m) => void onConfirmStaged(m)}
+                    confirmBusy={confirmBusy}
                   />
                 ))}
               </div>
+              {chosen.length > 0 && (
+                <div className="mx-3.5 mb-3.5">
+                  <button
+                    type="button"
+                    disabled={booking}
+                    onClick={() => void onBook()}
+                    className="flex h-[46px] w-full items-center justify-between rounded-[13px] bg-accent-deep px-4 text-[13.5px] font-bold text-white disabled:opacity-60"
+                  >
+                    <span>
+                      Book {chosen.length}{' '}
+                      {chosen.length === 1 ? 'match' : 'matches'}
+                    </span>
+                    <span className="text-[10.5px] font-medium opacity-70">
+                      {netCents > 0 ? '+' : ''}
+                      {fmtCents(netCents)} € net
+                    </span>
+                  </button>
+                </div>
+              )}
             </>
           )}
           {decideLines.length > 0 && (
