@@ -1,16 +1,6 @@
 const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
 function parts(iso: string): { y: number; m: number; d: number } {
@@ -46,10 +36,7 @@ export function txTitle(tx: {
   reference: string | null;
 }): string {
   return (
-    tx.description ??
-    tx.counterparty_descriptor ??
-    tx.reference ??
-    'Bank transaction'
+    tx.description ?? tx.counterparty_descriptor ?? tx.reference ?? 'Bank transaction'
   );
 }
 
