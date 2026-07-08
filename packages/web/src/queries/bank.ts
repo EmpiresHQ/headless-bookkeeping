@@ -17,6 +17,8 @@ import {
   postExpense,
   proposeMatches,
   unmatchMatch,
+  type BankImportJob,
+  type ExecuteMatchesResult,
   type MatchProposalView,
 } from '../api';
 
@@ -82,16 +84,29 @@ export const useMatchCandidates = (
     enabled,
   });
 
+/**
+ * Import-job poll pacing: 1.5s before the first result and while the job is
+ * `running`; stop on terminal job statuses AND when the status fetch itself
+ * errors (query.state.status === 'error') — otherwise a failing endpoint
+ * would be polled forever. Exported for direct unit testing; `useImportJob`
+ * passes it verbatim.
+ */
+export function importJobRefetchInterval(query: {
+  state: { status: 'pending' | 'error' | 'success'; data?: BankImportJob };
+}): number | false {
+  if (query.state.status === 'error') return false;
+  return query.state.data === undefined || query.state.data.status === 'running'
+    ? 1500
+    : false;
+}
+
 /** Import-job polling — the ONLY refetchInterval in the Bank section. */
 export function useImportJob(jobId: number | null) {
   return useQuery({
     queryKey: bankKeys.importJob(jobId ?? -1),
     queryFn: () => getBankImportStatus(jobId as number),
     enabled: jobId !== null,
-    refetchInterval: (query) =>
-      query.state.data === undefined || query.state.data.status === 'running'
-        ? 1500
-        : false,
+    refetchInterval: importJobRefetchInterval,
   });
 }
 
@@ -146,10 +161,72 @@ export function invalidateStatement(
 const APPROVED_BY = 'operator';
 
 /**
+ * Thrown when staging succeeded but an approval failed mid-loop: some matches
+ * may already be ACTIVE, the rest are stranded as drafts. Carries the ids the
+ * UI needs to recover — `getStatementMatches` shows draft-vs-active, and
+ * `confirmStagedMatch` activates the leftovers. A staging failure is NOT
+ * wrapped in this error; it propagates as-is (nothing was staged).
+ */
+export class BookingPartialError extends Error {
+  /** Every match id staging returned (draft at the time of the failure). */
+  readonly stagedMatchIds: number[];
+  /** Match ids whose approvals succeeded before the failure (now active). */
+  readonly approvedMatchIds: number[];
+  /** The approval whose activation failed. */
+  readonly failedApprovalId: number;
+  /** The original error from the failed approveApproval call. */
+  readonly cause: unknown;
+
+  constructor(args: {
+    stagedMatchIds: number[];
+    approvedMatchIds: number[];
+    failedApprovalId: number;
+    cause: unknown;
+  }) {
+    const causeText =
+      args.cause instanceof Error ? args.cause.message : String(args.cause);
+    super(
+      `Matches were staged but approval ${args.failedApprovalId} failed ` +
+        `(${args.approvedMatchIds.length}/${args.stagedMatchIds.length} activated): ${causeText}`,
+    );
+    this.name = 'BookingPartialError';
+    this.cause = args.cause;
+    this.stagedMatchIds = args.stagedMatchIds;
+    this.approvedMatchIds = args.approvedMatchIds;
+    this.failedApprovalId = args.failedApprovalId;
+  }
+}
+
+/**
+ * Approve every staged approval in order, tracking progress. On a mid-loop
+ * failure, throws BookingPartialError carrying the full staged set and the
+ * already-activated subset. Returns the activated match ids on full success.
+ */
+async function approveStaged(res: ExecuteMatchesResult): Promise<number[]> {
+  const stagedMatchIds = res.records.map((r) => r.id);
+  const approvedMatchIds: number[] = [];
+  for (const a of res.approvals) {
+    try {
+      await approveApproval(a.id, APPROVED_BY);
+    } catch (cause) {
+      throw new BookingPartialError({
+        stagedMatchIds,
+        approvedMatchIds,
+        failedApprovalId: a.id,
+        cause,
+      });
+    }
+    approvedMatchIds.push(a.matchId);
+  }
+  return approvedMatchIds;
+}
+
+/**
  * Book selected AI proposals: stage drafts (server creates one pending
  * approval per match), then approve each — the operator IS the approver.
  * The over-allocation cap is enforced server-side AT ACTIVATION; a 409 here
- * propagates to the caller with the server's message (no client cap math).
+ * propagates to the caller with the server's message (no client cap math) —
+ * as a BookingPartialError when it strikes mid-loop after staging succeeded.
  * Returns the created match ids (for Undo via undoMatches).
  */
 export async function bookProposals(
@@ -157,10 +234,7 @@ export async function bookProposals(
   proposals: MatchProposalView[],
 ): Promise<number[]> {
   const res = await executeMatches(statementId, proposals);
-  for (const a of res.approvals) {
-    await approveApproval(a.id, APPROVED_BY);
-  }
-  return res.approvals.map((a) => a.matchId);
+  return approveStaged(res);
 }
 
 /** Stage + approve a single manual match. Returns the match id (for Undo). */
@@ -174,10 +248,15 @@ export async function bookManualMatch(
   },
 ): Promise<number> {
   const res = await manualMatch(statementId, m);
-  for (const a of res.approvals) {
-    await approveApproval(a.id, APPROVED_BY);
+  if (res.approvals.length === 0 || res.records.length === 0) {
+    // Never return a match id that was not activated: a staged match with no
+    // approval cannot be approved-on-the-spot and is not booked.
+    throw new Error(
+      'manual match staged but no approval returned — server contract breach',
+    );
   }
-  return res.approvals[0]?.matchId ?? res.records[0].id;
+  const [matchId] = await approveStaged(res);
+  return matchId;
 }
 
 /**

@@ -25,10 +25,12 @@ vi.mock('../api', () => ({
 
 import * as api from '../api';
 import {
+  BookingPartialError,
   bookManualMatch,
   bookProposals,
   confirmStagedMatch,
   createExpenseFromLine,
+  importJobRefetchInterval,
   undoMatches,
   useImportJob,
 } from './bank';
@@ -82,6 +84,39 @@ describe('bookProposals', () => {
     expect(order).toEqual(['stage', 'approve-9', 'approve-10']);
     expect(api.approveApproval).toHaveBeenCalledWith(9, 'operator');
   });
+
+  it('throws BookingPartialError with progress when an approval fails mid-loop', async () => {
+    vi.mocked(api.executeMatches).mockResolvedValue({
+      records: [{ id: 41 }, { id: 42 }],
+      approvals: [
+        { id: 9, matchId: 41 },
+        { id: 10, matchId: 42 },
+      ],
+    });
+    vi.mocked(api.approveApproval)
+      .mockResolvedValueOnce({ approval: { id: 9 } } as never)
+      .mockRejectedValueOnce(new Error('over-allocation: cap exceeded (409)'));
+
+    const err: unknown = await bookProposals(3, [PROPOSAL, PROPOSAL]).then(
+      () => {
+        throw new Error('expected bookProposals to reject');
+      },
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(BookingPartialError);
+    const partial = err as BookingPartialError;
+    expect(partial.stagedMatchIds).toEqual([41, 42]);
+    expect(partial.approvedMatchIds).toEqual([41]);
+    expect(partial.failedApprovalId).toBe(10);
+    expect(partial.message).toMatch(/over-allocation: cap exceeded \(409\)/);
+  });
+
+  it('rethrows a staging failure as-is (not BookingPartialError)', async () => {
+    const boom = new Error('statement is locked');
+    vi.mocked(api.executeMatches).mockRejectedValue(boom);
+    await expect(bookProposals(3, [PROPOSAL])).rejects.toBe(boom);
+    expect(api.approveApproval).not.toHaveBeenCalled();
+  });
 });
 
 describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
@@ -103,6 +138,49 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
     });
     expect(matchId).toBe(88);
     expect(api.approveApproval).toHaveBeenCalledWith(12, 'operator');
+  });
+
+  it('bookManualMatch throws a contract-breach error when the server returns no approvals', async () => {
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 88 }],
+      approvals: [],
+    });
+    await expect(
+      bookManualMatch(3, {
+        bankTransactionId: 9,
+        voucherId: 70,
+        amountMatched: 1860,
+        matchType: 'exact',
+      }),
+    ).rejects.toThrow(/contract breach/i);
+    expect(api.approveApproval).not.toHaveBeenCalled();
+  });
+
+  it('bookManualMatch throws BookingPartialError when its approval fails', async () => {
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 88 }],
+      approvals: [{ id: 12, matchId: 88 }],
+    });
+    vi.mocked(api.approveApproval).mockRejectedValue(
+      new Error('approval already superseded'),
+    );
+    const err: unknown = await bookManualMatch(3, {
+      bankTransactionId: 9,
+      voucherId: 70,
+      amountMatched: 1860,
+      matchType: 'exact',
+    }).then(
+      () => {
+        throw new Error('expected bookManualMatch to reject');
+      },
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(BookingPartialError);
+    const partial = err as BookingPartialError;
+    expect(partial.stagedMatchIds).toEqual([88]);
+    expect(partial.approvedMatchIds).toEqual([]);
+    expect(partial.failedApprovalId).toBe(12);
+    expect(partial.message).toMatch(/approval already superseded/);
   });
 
   it('undoMatches unmatches every id against the statement', async () => {
@@ -244,5 +322,49 @@ describe('useImportJob', () => {
     });
     await waitFor(() => expect(result.current.data?.status).toBe('done'));
     expect(api.getBankImportStatus).toHaveBeenCalledWith(7);
+  });
+});
+
+describe('importJobRefetchInterval', () => {
+  const job = (status: string) => ({
+    id: 7,
+    status,
+    account_code: 'BANK_EUR',
+    statement_id: null,
+    error: null,
+  });
+
+  it('polls at 1.5s before the first result and while running', () => {
+    expect(
+      importJobRefetchInterval({
+        state: { status: 'pending', data: undefined },
+      }),
+    ).toBe(1500);
+    expect(
+      importJobRefetchInterval({
+        state: { status: 'success', data: job('running') },
+      }),
+    ).toBe(1500);
+  });
+
+  it('stops when the job reaches a terminal status', () => {
+    expect(
+      importJobRefetchInterval({
+        state: { status: 'success', data: job('done') },
+      }),
+    ).toBe(false);
+    expect(
+      importJobRefetchInterval({
+        state: { status: 'success', data: job('error') },
+      }),
+    ).toBe(false);
+  });
+
+  it('stops polling when the status fetch itself errors', () => {
+    expect(
+      importJobRefetchInterval({
+        state: { status: 'error', data: undefined },
+      }),
+    ).toBe(false);
   });
 });
