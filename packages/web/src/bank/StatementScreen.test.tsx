@@ -49,10 +49,50 @@ function renderAt(path = '/bank/statements/3') {
 }
 
 const TXNS = [
-  { id: 9, transaction_date: '2026-06-27', description: 'WOLT 220627', amount: -1860, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'open' },
-  { id: 10, transaction_date: '2026-06-28', description: 'NORDIC CONSULT', amount: 120000, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'open' },
-  { id: 11, transaction_date: '2026-06-24', description: 'ELISA arve 6/2026', amount: -3500, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'open' },
-  { id: 12, transaction_date: '2026-06-20', description: 'OWNER LUNCH', amount: -900, currency: 'EUR', counterparty_iban: null, counterparty_descriptor: null, reference: null, status: 'personal' },
+  {
+    id: 9,
+    transaction_date: '2026-06-27',
+    description: 'WOLT 220627',
+    amount: -1860,
+    currency: 'EUR',
+    counterparty_iban: null,
+    counterparty_descriptor: null,
+    reference: null,
+    status: 'open',
+  },
+  {
+    id: 10,
+    transaction_date: '2026-06-28',
+    description: 'NORDIC CONSULT',
+    amount: 120000,
+    currency: 'EUR',
+    counterparty_iban: null,
+    counterparty_descriptor: null,
+    reference: null,
+    status: 'open',
+  },
+  {
+    id: 11,
+    transaction_date: '2026-06-24',
+    description: 'ELISA arve 6/2026',
+    amount: -3500,
+    currency: 'EUR',
+    counterparty_iban: null,
+    counterparty_descriptor: null,
+    reference: null,
+    status: 'open',
+  },
+  {
+    id: 12,
+    transaction_date: '2026-06-20',
+    description: 'OWNER LUNCH',
+    amount: -900,
+    currency: 'EUR',
+    counterparty_iban: null,
+    counterparty_descriptor: null,
+    reference: null,
+    status: 'personal',
+  },
 ];
 
 function mockStatementData() {
@@ -61,16 +101,59 @@ function mockStatementData() {
   ]);
   vi.mocked(api.listBankTransactions).mockResolvedValue(TXNS as never);
   vi.mocked(api.getReconciliationStatus).mockResolvedValue([
-    { bankTransactionId: 9, amountBase: 1860, matchedSum: 0, remaining: 1860, reconStatus: 'open' },
-    { bankTransactionId: 10, amountBase: 120000, matchedSum: 0, remaining: 120000, reconStatus: 'open' },
-    { bankTransactionId: 11, amountBase: 3500, matchedSum: 3500, remaining: 0, reconStatus: 'matched' },
-    { bankTransactionId: 12, amountBase: 900, matchedSum: 0, remaining: 900, reconStatus: 'open' },
+    {
+      bankTransactionId: 9,
+      amountBase: 1860,
+      matchedSum: 0,
+      remaining: 1860,
+      reconStatus: 'open',
+    },
+    {
+      bankTransactionId: 10,
+      amountBase: 120000,
+      matchedSum: 0,
+      remaining: 120000,
+      reconStatus: 'open',
+    },
+    {
+      bankTransactionId: 11,
+      amountBase: 3500,
+      matchedSum: 3500,
+      remaining: 0,
+      reconStatus: 'matched',
+    },
+    {
+      bankTransactionId: 12,
+      amountBase: 900,
+      matchedSum: 0,
+      remaining: 900,
+      reconStatus: 'open',
+    },
   ]);
   vi.mocked(api.getStatementMatches).mockResolvedValue([
-    { id: 41, bankTransactionId: 11, status: 'active', amountMatched: 3500, objectLabel: 'Expense #61', counterpartyName: 'Elisa Eesti AS' },
+    {
+      id: 41,
+      bankTransactionId: 11,
+      status: 'active',
+      amountMatched: 3500,
+      objectLabel: 'Expense #61',
+      counterpartyName: 'Elisa Eesti AS',
+    },
   ]);
   vi.mocked(api.proposeMatches).mockResolvedValue([
-    { bankTransactionId: 10, voucherId: 71, matchType: 'exact', amountMatched: 120000, confidence: 'high', signal: 'invoice_number', objectType: 'sales_invoice', objectId: 18, objectLabel: 'Invoice 2026-018', counterpartyName: 'Nordic Consulting OÜ', voucherRemaining: 120000 },
+    {
+      bankTransactionId: 10,
+      voucherId: 71,
+      matchType: 'exact',
+      amountMatched: 120000,
+      confidence: 'high',
+      signal: 'invoice_number',
+      objectType: 'sales_invoice',
+      objectId: 18,
+      objectLabel: 'Invoice 2026-018',
+      counterpartyName: 'Nordic Consulting OÜ',
+      voucherRemaining: 120000,
+    },
   ]);
 }
 

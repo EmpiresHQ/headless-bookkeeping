@@ -67,7 +67,9 @@ describe('buildLines / bucketOf', () => {
   });
 
   it('routes buckets: disposition and fully-matched are done', () => {
-    expect(bucketOf(buildLines([tx({ status: 'personal' })], [], [], [])[0])).toBe('done');
+    expect(
+      bucketOf(buildLines([tx({ status: 'personal' })], [], [], [])[0]),
+    ).toBe('done');
     expect(
       bucketOf(
         buildLines([tx({})], [recon({ reconStatus: 'matched' })], [], [])[0],
@@ -85,7 +87,9 @@ describe('buildLines / bucketOf', () => {
   });
 
   it('routes buckets: open and partial lines are decide-yourself', () => {
-    expect(bucketOf(buildLines([tx({})], [recon({})], [], [])[0])).toBe('decide');
+    expect(bucketOf(buildLines([tx({})], [recon({})], [], [])[0])).toBe(
+      'decide',
+    );
     expect(
       bucketOf(
         buildLines(
