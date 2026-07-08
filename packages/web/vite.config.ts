@@ -14,7 +14,9 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
+    // Wraps the built-in jsdom environment to keep Node's native fetch
+    // working under react-router v7 data routers — see the file for why.
+    environment: './test/jsdomFetchSafeEnvironment.ts',
     setupFiles: ['./src/test-setup.ts'],
   },
 });

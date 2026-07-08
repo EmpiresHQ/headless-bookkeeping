@@ -1,5 +1,10 @@
 import { useRef, useState } from 'react';
-import { uploadDocument, triageDocument, completeDocument, retryDocument } from '../api';
+import {
+  uploadDocument,
+  triageDocument,
+  completeDocument,
+  retryDocument,
+} from '../api';
 
 export function TriageOcrFailedForm({
   documentId,

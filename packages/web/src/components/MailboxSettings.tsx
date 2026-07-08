@@ -75,7 +75,9 @@ export function MailboxSettings() {
           map[k.key] = list.find((s) => s.key === k.key)?.value ?? '';
         }
         setOauthCfg(map);
-        const fetchCount = list.find((s) => s.key === 'mailbox_initial_fetch_count')?.value;
+        const fetchCount = list.find(
+          (s) => s.key === 'mailbox_initial_fetch_count',
+        )?.value;
         if (fetchCount !== undefined) setInitialFetchCount(fetchCount);
       })
       .catch(() => undefined);
@@ -150,7 +152,10 @@ export function MailboxSettings() {
     setError(null);
     setNote(null);
     try {
-      await setSetting('mailbox_initial_fetch_count', String(Math.max(0, Number(initialFetchCount) || 0)));
+      await setSetting(
+        'mailbox_initial_fetch_count',
+        String(Math.max(0, Number(initialFetchCount) || 0)),
+      );
       setNote('Sync settings saved.');
     } catch (e) {
       fail(e);
@@ -266,8 +271,8 @@ export function MailboxSettings() {
           <label className="flex flex-col gap-1">
             <span className="text-gray-700">Initial fetch count</span>
             <span className="text-xs text-gray-500">
-              How many recent messages to harvest when a mailbox is first connected.
-              0 = start from now, skip all history.
+              How many recent messages to harvest when a mailbox is first
+              connected. 0 = start from now, skip all history.
             </span>
             <input
               aria-label="Initial fetch count"
