@@ -14,29 +14,10 @@ import {
 import { useEntities, useExpenses } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { statusChip, StatusChipRow } from './chips';
-
-/** Month-section header content: label left, filtered total right. */
-function GroupHeader({
-  label,
-  totalCents,
-  count,
-}: {
-  label: string;
-  totalCents: number;
-  count: number;
-}) {
-  return (
-    <span className="flex w-full items-baseline justify-between">
-      <span>{label}</span>
-      <span className="whitespace-nowrap tabular-nums">
-        −{fmtCents(totalCents)} € · {count}
-      </span>
-    </span>
-  );
-}
 
 function ExpenseRow({
   e,
@@ -157,8 +138,7 @@ export function ExpensesSegment({ q }: { q: string }) {
           label={
             <GroupHeader
               label={g.label}
-              totalCents={g.totalCents}
-              count={g.count}
+              trailing={`−${fmtCents(g.totalCents)} € · ${g.count}`}
             />
           }
         >
