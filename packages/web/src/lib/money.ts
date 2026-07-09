@@ -11,3 +11,9 @@ export function eurosToCents(input: string): number | null {
 export function centsToEuroInput(cents: number): string {
   return (cents / 100).toFixed(2);
 }
+
+/** VAT portion inside a VAT-inclusive gross at an integer percent rate:
+ *  vat = gross * r / (100 + r). Used to prefill VAT from a bank-line amount. */
+export function vatFromGross(grossCents: number, ratePct: number): number {
+  return Math.round((grossCents * ratePct) / (100 + ratePct));
+}

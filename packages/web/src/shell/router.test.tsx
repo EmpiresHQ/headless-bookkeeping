@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setToken } from '../auth';
 import { buildRoutes } from './router';
 
@@ -52,5 +52,21 @@ describe('router', () => {
       screen.getByRole('tab', { name: 'Organization' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Entities' })).toBeInTheDocument();
+  });
+
+  it('renders the new Bank statements screen at /bank', async () => {
+    setToken('test-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('[]', { status: 200 }),
+    );
+    renderAt('/bank');
+    expect(
+      await screen.findByRole('heading', { name: 'Bank' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Import' })).toHaveAttribute(
+      'href',
+      '/bank/import',
+    );
+    vi.restoreAllMocks();
   });
 });

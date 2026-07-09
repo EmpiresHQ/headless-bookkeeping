@@ -335,6 +335,21 @@ export const correctInvoice = (id: number, req: CorrectionRequest) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(req),
   });
+
+// ── Expense posting pipeline (draft → Rules → Policy → post or hold) ───────
+// The endpoint also returns the posted voucher; it stays off the typed surface
+// on purpose (ADR-0001/ADR-0030 — the operator UI never consumes ledger data).
+export interface PolicyDecisionView {
+  action: 'auto-post' | 'hold-for-approval';
+  reason: string;
+}
+
+export const postExpense = (id: number) =>
+  apiFetch<{ expense: Expense; policy: PolicyDecisionView }>(
+    `/api/expenses/${id}/post`,
+    { method: 'POST' },
+  );
+
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
 
@@ -792,30 +807,36 @@ export const getReconciliationStatus = (statementId: number) =>
     `/api/bank-statements/${statementId}/reconciliation`,
   );
 
+// The match endpoint stages DRAFT matches and creates one pending approval per
+// match (settlement happens at approval → activation). The client needs the
+// approval ids to approve-on-the-spot, and the match ids to Undo.
+export interface ExecuteMatchesResult {
+  records: { id: number }[];
+  approvals: { id: number; matchId: number }[];
+}
+
 // The execute endpoint accepts the base MatchProposal fields. Strip the display
 // extras before sending; the server also returns ledger data we deliberately
-// ignore (ADR-0030) — typed as the match count only.
+// ignore (ADR-0030) — typed as ExecuteMatchesResult (staged records + their
+// pending approvals, not the ledger data).
 export const executeMatches = (
   statementId: number,
   proposals: MatchProposalView[],
 ) =>
-  apiFetch<{ records: { id: number }[] }>(
-    `/api/bank-statements/${statementId}/match`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        matches: proposals.map((p) => ({
-          bankTransactionId: p.bankTransactionId,
-          voucherId: p.voucherId,
-          matchType: p.matchType,
-          amountMatched: p.amountMatched,
-          confidence: p.confidence,
-          signal: p.signal,
-        })),
-      }),
-    },
-  );
+  apiFetch<ExecuteMatchesResult>(`/api/bank-statements/${statementId}/match`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      matches: proposals.map((p) => ({
+        bankTransactionId: p.bankTransactionId,
+        voucherId: p.voucherId,
+        matchType: p.matchType,
+        amountMatched: p.amountMatched,
+        confidence: p.confidence,
+        signal: p.signal,
+      })),
+    }),
+  });
 
 // Recorded matches (draft + active) on a statement's lines.
 export interface MatchRowView {
@@ -872,14 +893,11 @@ export const manualMatch = (
     matchType: 'exact' | 'partial';
   },
 ) =>
-  apiFetch<{ records: { id: number }[] }>(
-    `/api/bank-statements/${statementId}/match`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ matches: [{ ...m, signal: 'manual' }] }),
-    },
-  );
+  apiFetch<ExecuteMatchesResult>(`/api/bank-statements/${statementId}/match`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ matches: [{ ...m, signal: 'manual' }] }),
+  });
 
 // Prepayment / Personal post ledger vouchers; the UI ignores the returned
 // voucher (ADR-0030) and only needs success/failure.

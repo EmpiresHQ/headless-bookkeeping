@@ -5,7 +5,6 @@ import {
   type RouteObject,
 } from 'react-router-dom';
 import { ApprovalsView } from '../components/ApprovalsView';
-import { BankView } from '../components/BankView';
 import { CategoriesView } from '../components/CategoriesView';
 import { CreditNotesView } from '../components/CreditNotesView';
 import { DocumentsView } from '../components/DocumentsView';
@@ -17,6 +16,10 @@ import { InvoicesView } from '../components/InvoicesView';
 import { KmdView } from '../components/KmdView';
 import { OrgView } from '../components/OrgView';
 import { SettingsView } from '../components/SettingsView';
+import { ImportScreen } from '../bank/ImportScreen';
+import { StatementScreen } from '../bank/StatementScreen';
+import { StatementsScreen } from '../bank/StatementsScreen';
+import { TxScreen } from '../bank/TxScreen';
 import { LegacyTabs } from './LegacyTabs';
 import { Root } from './Root';
 
@@ -83,15 +86,10 @@ export function buildRoutes(): RouteObject[] {
             />
           ),
         },
-        {
-          path: '/bank',
-          element: (
-            <LegacyTabs
-              title="Bank"
-              tabs={[{ key: 'bank', label: 'Bank', El: BankView }]}
-            />
-          ),
-        },
+        { path: '/bank', element: <StatementsScreen /> },
+        { path: '/bank/import', element: <ImportScreen /> },
+        { path: '/bank/statements/:id', element: <StatementScreen /> },
+        { path: '/bank/statements/:id/tx/:txId', element: <TxScreen /> },
         {
           path: '/reports',
           element: (
