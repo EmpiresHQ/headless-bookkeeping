@@ -290,6 +290,10 @@ export function ApprovalScreen() {
         Approve posts to the books immediately — recover via a correction
       </p>
       <RejectSheet
+        // Remount per approval: auto-advance re-renders this same element
+        // for the NEXT item, and a carried-over reason would land a stale
+        // justification in the next item's audit trail.
+        key={approvalId}
         open={rejectOpen}
         onOpenChange={setRejectOpen}
         busy={rejectMut.isPending}

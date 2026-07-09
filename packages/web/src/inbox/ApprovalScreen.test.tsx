@@ -19,6 +19,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import type { Approval } from '../api';
+import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
 
 const APPROVAL = (over: Partial<Approval> = {}): Approval => ({
@@ -147,8 +148,16 @@ describe('ApprovalScreen', () => {
   });
 
   it('approves with one tap and auto-advances to the next pending item', async () => {
-    vi.mocked(api.approveApproval).mockResolvedValue({
-      approval: APPROVAL({ status: 'approved' }),
+    // The approve ALSO drops item 7 from the pending list (as the real server
+    // does), so the post-mutation refetch no longer contains this route. This
+    // pins that `next` is computed from the queue as it was BEFORE the
+    // mutation/invalidation — a compute-after regression would land on
+    // /inbox (route no longer in the refetched queue), not /inbox/approval/8.
+    vi.mocked(api.approveApproval).mockImplementation(async () => {
+      vi.mocked(api.getPendingApprovals).mockResolvedValue([
+        APPROVAL({ id: 8, object_id: 215, created_at: 200 }),
+      ]);
+      return { approval: APPROVAL({ status: 'approved' }) };
     });
     const router = renderAt('/inbox/approval/7');
     const btn = await screen.findByRole('button', { name: 'Approve · -89.00 €' });
@@ -208,5 +217,53 @@ describe('ApprovalScreen', () => {
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/inbox'),
     );
+  });
+
+  it('does not carry the previous reject reason to the next item', async () => {
+    vi.mocked(api.rejectApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'rejected' }),
+    });
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
+    fireEvent.change(
+      await screen.findByPlaceholderText(/why this should not be posted/i),
+      { target: { value: 'Wrong supplier' } },
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reject & return to draft' }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/approval/8'),
+    );
+    // Item 8's sheet must start CLEAN — a pre-filled reason from item 7
+    // would let a stale justification land in item 8's audit trail.
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
+    const textarea = await screen.findByPlaceholderText(
+      /why this should not be posted/i,
+    );
+    expect(textarea).toHaveValue('');
+    expect(
+      screen.getByRole('button', { name: 'Reject & return to draft' }),
+    ).toBeDisabled();
+  });
+
+  it('shows the approve receipt WITHOUT an Undo action (posting is final)', async () => {
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'approved' }),
+    });
+    render(<AppToaster />);
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+    );
+    expect(
+      await screen.findByText('Approved & posted · -89.00 €'),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/approval/8'),
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Undo' }),
+    ).not.toBeInTheDocument();
   });
 });
