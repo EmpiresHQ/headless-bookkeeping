@@ -30,11 +30,14 @@ export const reportsKeys = {
   periodConfig: ['reports', 'period-config'] as const,
 };
 
-/** Derived on every read — live preview for open periods (Reality #5). */
-export const useKmd = (periodId: number) =>
+/** Derived on every read — live preview for open periods (Reality #5).
+ *  Optional `enabled` (default true) lets PeriodScreen gate the fetch when
+ *  the route's `:id` param is not a finite number — Task 5 adjudication. */
+export const useKmd = (periodId: number, enabled = true) =>
   useQuery({
     queryKey: reportsKeys.kmd(periodId),
     queryFn: () => getKmd(periodId),
+    enabled,
   });
 
 /** Advisory ADR-0015 stragglers — enabled only where shown (open periods). */
