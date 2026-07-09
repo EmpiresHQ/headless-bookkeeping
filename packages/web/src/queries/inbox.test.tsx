@@ -13,6 +13,7 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import type {
   Approval,
+  Entity,
   Expense,
   NeedsTriageItem,
   ReportingPeriod,
@@ -129,7 +130,7 @@ describe('sections and progress', () => {
 });
 
 describe('approvalDisplay', () => {
-  const entities = [
+  const entities: Entity[] = [
     {
       id: 3,
       role: 'supplier',

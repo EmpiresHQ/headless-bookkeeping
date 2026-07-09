@@ -35,9 +35,13 @@ export interface EntityIdentifier {
   confirmed: boolean;
 }
 
+/** The server's entity role enum — verified entities/types.ts:4. Employees
+ *  and directors are the ADR-0036 claimants (there is NO 'claimant' role). */
+export type EntityRole = 'supplier' | 'customer' | 'employee' | 'director';
+
 export interface Entity {
   id: number;
-  role: string;
+  role: EntityRole;
   country: string;
   name: string;
   goods_vs_services: string | null;
@@ -542,13 +546,22 @@ export const addEntityAlias = (id: number, input: AddAliasInput) =>
     body: JSON.stringify({ confirmed: true, ...input }),
   });
 
+/**
+ * POST /api/entities body. Identity is PER-ROLE (entities.service.ts:42-85):
+ * supplier/customer REQUIRE registrationKey (400
+ * 'registrationKey is required for supplier/customer entities'); employee/
+ * director REQUIRE email (400 'email is required for employee/director
+ * entities'), optional tgUserId. The server stores these as identifiers
+ * (registration_key / email / tg_user_id); none is editable afterwards.
+ */
 export interface OnboardEntityInput {
-  role: 'supplier' | 'customer';
+  role: EntityRole;
   country: string;
   name: string;
-  // The strong identity key (e.g. VAT / registry no.) used to match the entity.
-  registrationKey: string;
+  registrationKey?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  email?: string;
+  tgUserId?: string;
 }
 
 export const onboardEntity = (input: OnboardEntityInput) =>

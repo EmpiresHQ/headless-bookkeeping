@@ -74,7 +74,7 @@ export function EntitiesView() {
         ...form,
         name: form.name.trim(),
         country: form.country.trim(),
-        registrationKey: form.registrationKey.trim(),
+        registrationKey: (form.registrationKey ?? '').trim(),
       });
       setForm(blankForm);
     });
@@ -136,7 +136,7 @@ export function EntitiesView() {
   const addValid =
     form.name.trim() !== '' &&
     form.country.trim() !== '' &&
-    form.registrationKey.trim() !== '';
+    (form.registrationKey ?? '').trim() !== '';
 
   const columns: Column<Entity>[] = [
     { header: 'ID', cell: (e) => e.id },

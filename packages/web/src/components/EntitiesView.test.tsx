@@ -10,7 +10,7 @@ vi.mock('../api', () => ({
   deleteEntity: vi.fn(),
 }));
 
-const acme = {
+const acme: api.Entity = {
   id: 7,
   role: 'supplier',
   country: 'EE',
