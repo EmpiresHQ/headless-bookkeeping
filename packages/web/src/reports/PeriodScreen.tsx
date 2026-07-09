@@ -24,6 +24,7 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow, KeyValue, GroupLabel } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { toastErr } from '../ui/toast';
+import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
 
 /** Info banner — live vs frozen is THE §7 marking decision. */
 function StatusBanner({ period }: { period: ReportingPeriod }) {
@@ -232,7 +233,9 @@ export function PeriodScreen() {
           <ReviewFlags flags={kmdQ.data.review_flags} />
         </>
       )}
-      {/* Task 6 sections mount here */}
+      <InfGapsSection period={period} />
+      <StragglersSection period={period} />
+      <InPeriodSection period={period} />
       <Downloads period={period} />
       {/* Task 7 lock entry mounts here */}
     </div>
