@@ -27,10 +27,24 @@ export interface Organization {
   iban: string | null;
 }
 
+/**
+ * The server's identifier kind union is wider than the three addable-alias
+ * kinds (Reality #5, entities/types.ts identifier union): `email`/`tg_user_id`
+ * arrive on employee/director entities (onboarding identity, ADR-0036),
+ * `phone`/`address` exist server-side but no UI writes them.
+ */
 export interface EntityIdentifier {
   id: number;
   entity_id: number;
-  kind: 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias';
+  kind:
+    | 'registration_key'
+    | 'iban'
+    | 'merchant_descriptor'
+    | 'name_alias'
+    | 'email'
+    | 'phone'
+    | 'address'
+    | 'tg_user_id';
   value: string;
   confirmed: boolean;
 }

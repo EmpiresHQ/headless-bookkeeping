@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useSeg } from '../lib/useSeg';
 import { LargeTitleHeader } from '../shell/Headers';
 import { SearchInput } from '../ui/SearchInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
@@ -24,22 +25,10 @@ const SEGMENT_PARAMS = ['status', 'nodoc', 'dstatus'] as const;
 
 export function BooksScreen() {
   const [params, setParams] = useSearchParams();
-  // Legacy bookmarks used ?tab= (LegacyTabs); accept it as an alias.
-  const rawSeg = params.get('seg') ?? params.get('tab');
-  const seg: Segment = SEGMENTS.includes(rawSeg as Segment)
-    ? (rawSeg as Segment)
-    : 'expenses';
+  const [seg, setSeg] = useSeg<Segment>(SEGMENTS, 'expenses', SEGMENT_PARAMS);
   const q = params.get('q') ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const [sheet, setSheet] = useState<CreateKind | null>(null);
-
-  const setSeg = (next: Segment) => {
-    const p = new URLSearchParams(params);
-    p.set('seg', next);
-    p.delete('tab');
-    for (const key of SEGMENT_PARAMS) p.delete(key);
-    setParams(p, { replace: true });
-  };
 
   const setQ = (next: string) => {
     const p = new URLSearchParams(params);
