@@ -169,6 +169,30 @@ export const getCategories = () =>
     (r) => r.categories,
   );
 
+/**
+ * Single-expense detail (GET /api/expenses/:id). Display subset for the
+ * approval detail screen: adds document_id + ai_confidence, which the list
+ * subset (Expense) deliberately omits. NOT extending Expense: the single
+ * fetch carries no `reconciled` flag (that is a list-endpoint enrichment).
+ * voucher_id stays off the typed surface (ADR-0001/ADR-0030).
+ */
+export interface ExpenseDetail {
+  id: number;
+  document_id: number | null;
+  supplier_id: number | null;
+  category: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  status: string;
+  supplier_invoice_number: string | null;
+  ai_confidence: number | null;
+}
+
+export const getExpense = (id: number) =>
+  apiFetch<ExpenseDetail>(`/api/expenses/${id}`);
+
 // ── Document details (OCR + persisted classification — no LLM re-run) ────────
 export interface DebugTriageResult {
   kind: string;
