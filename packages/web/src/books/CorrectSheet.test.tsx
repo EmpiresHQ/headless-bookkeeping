@@ -104,7 +104,7 @@ describe('CorrectSheet', () => {
     ).toBeInTheDocument();
   });
 
-  it('cosmetic: no patch fields, honest no-op hint, reason still mandatory', async () => {
+  it('cosmetic: no patch fields, honest no-op hint, reason still mandatory, honest not-stored copy throughout', async () => {
     vi.mocked(correctExpense).mockResolvedValue({
       outcome: 'cosmetic_attachment_replaced',
     } as never);
@@ -114,6 +114,10 @@ describe('CorrectSheet', () => {
     expect(
       screen.getByText(/nothing changes in the books/i),
     ).toBeInTheDocument();
+    // The hint must not claim the reason lands in the audit trail — the
+    // server discards it for cosmetic corrections.
+    expect(screen.getByText(/not stored/i)).toBeInTheDocument();
+    expect(screen.queryByText(/lands in the audit trail/i)).toBeNull();
     fireEvent.change(screen.getByLabelText('Reason'), {
       target: { value: 'typo in note' },
     });
@@ -126,6 +130,31 @@ describe('CorrectSheet', () => {
         reason: 'typo in note',
       }),
     );
+    // The success toast must not claim persistence either.
+    expect(
+      await screen.findByText(/not stored, nothing changed/i),
+    ).toBeInTheDocument();
+  });
+
+  it('unsupported_status: the object was already corrected — no false success toast, sheet closes, queries invalidate', async () => {
+    vi.mocked(correctExpense).mockResolvedValue({
+      outcome: 'unsupported_status',
+    } as never);
+    const onOpenChange = vi.fn();
+    const { onDone } = mount({ onOpenChange });
+    fireEvent.change(await screen.findByLabelText('Reason'), {
+      target: { value: 'trying to fix a typo' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Post correction/ }));
+    expect(
+      await screen.findByText(
+        /already corrected \(corrections are one-shot\)/i,
+      ),
+    ).toBeInTheDocument();
+    // No success toast — "Correction posted" would be a lie here.
+    expect(screen.queryByText(/Correction posted/)).toBeNull();
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onDone).toHaveBeenCalled();
   });
 
   it('credit note branch NAVIGATES to the prefilled form — no /correct call', async () => {

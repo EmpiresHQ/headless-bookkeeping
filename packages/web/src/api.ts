@@ -762,8 +762,8 @@ export interface CreditNote {
   id: number;
   credit_note_number: string;
   status: string;
-  gross_amount: number;
-  vat_amount: number;
+  gross_amount: number; // integer cents
+  vat_amount: number; // integer cents
   currency: string;
   tax_point_date: string;
   created_at: number;

@@ -184,6 +184,57 @@ describe('ExpenseScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('auto-post success renders the POSTED toast (a posted-rendered-as-held regression must fail this)', async () => {
+    vi.mocked(postExpense).mockResolvedValue({
+      expense: { id: 12, status: 'posted' },
+      policy: { action: 'auto-post' },
+    } as never);
+    mountAt({ status: 'draft' }, 'draft');
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Submit for posting' }),
+    );
+    await waitFor(() => expect(postExpense).toHaveBeenCalledWith(12));
+    // U+2212 minus sign (matches the sibling money surfaces), not ASCII '-'.
+    expect(await screen.findByText('Posted · −650.00 €')).toBeInTheDocument();
+    expect(screen.queryByText(/Held for approval/)).toBeNull();
+  });
+
+  it('Bank fact shows "—" while the bank list query is still loading — never a false "Not matched"', async () => {
+    vi.mocked(getExpense).mockResolvedValue(DETAIL as never);
+    // Never resolves — pins listQ in the pending state for the assertion.
+    vi.mocked(getExpenses).mockReturnValue(new Promise(() => {}) as never);
+    vi.mocked(getEntities).mockResolvedValue([
+      {
+        id: 3,
+        role: 'supplier',
+        country: 'EE',
+        name: 'AS Merko Ehitus',
+        goods_vs_services: null,
+      },
+    ] as never);
+    vi.mocked(getDocuments).mockResolvedValue([
+      { id: 9, expense_id: 12, filename: 'arve-183.pdf' },
+    ] as never);
+    vi.mocked(listApprovals).mockResolvedValue([] as never);
+    vi.mocked(getCategories).mockResolvedValue([] as never);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/books/expenses/12']}>
+          <Routes>
+            <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('A-183')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByText('Not matched')).toBeNull();
+    expect(screen.queryByText('🏦 Reconciled')).toBeNull();
+  });
+
   it('detail fetch failure renders a retryable LoadError, not skeletons forever', async () => {
     vi.mocked(getExpense).mockRejectedValue(new Error('nope'));
     vi.mocked(getExpenses).mockResolvedValue([] as never);

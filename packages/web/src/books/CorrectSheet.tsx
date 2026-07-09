@@ -89,12 +89,21 @@ export function CorrectSheet({
           ? await correctExpense(objectId, req)
           : await correctInvoice(objectId, req);
       await invalidateBooks(qc);
-      if (res.redirected === true) {
+      if (res.outcome === 'unsupported_status') {
+        // The object was corrected by someone/something else in the
+        // meantime — corrections are one-shot (ADR-0009), so this request
+        // did nothing. Show reality, not a false success receipt.
+        toastErr(
+          'Nothing changed — this document was already corrected (corrections are one-shot)',
+        );
+      } else if (res.redirected === true) {
         toastOk(
           'Correction landed in the current open period — the original period is locked',
         );
       } else if (kind === 'cosmetic') {
-        toastOk('Cosmetic correction recorded');
+        toastOk(
+          'Cosmetic note sent — not stored, nothing changed in the books',
+        );
       } else {
         toastOk(
           `Correction posted · ${sign}${centsToEuroInput(grossParsed as number)} €`,
@@ -190,7 +199,14 @@ export function CorrectSheet({
                 )}
               </>
             )}
-            <Field label="Reason" hint="Required — it lands in the audit trail">
+            <Field
+              label="Reason"
+              hint={
+                kind === 'cosmetic'
+                  ? 'Required — not stored; write it for your own reference'
+                  : 'Required — it lands in the audit trail'
+              }
+            >
               <textarea
                 className={INPUT_CLS}
                 rows={2}

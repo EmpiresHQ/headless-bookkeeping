@@ -1,12 +1,13 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
-import type { DocumentArchiveRow, Expense } from '../api';
+import type { DocumentArchiveRow, Expense, SalesInvoice } from '../api';
 import {
   booksKeys,
   documentedExpenseIds,
   expenseMatchesQuery,
   groupByMonth,
   invalidateBooks,
+  invoiceMatchesQuery,
   matchesStatus,
   monthLabel,
   newestRejection,
@@ -61,6 +62,36 @@ describe('books pure model', () => {
     expect(expenseMatchesQuery(row, '89.00', null)).toBe(true);
     expect(expenseMatchesQuery(row, 'bolt', 'Telia Eesti AS')).toBe(false);
     expect(expenseMatchesQuery(row, '', null)).toBe(true);
+  });
+
+  it('invoiceMatchesQuery searches customer name, invoice number, and amount', () => {
+    const inv: SalesInvoice = {
+      id: 3,
+      customer_id: 7,
+      invoice_number: '2026-018',
+      gross_amount: 120000,
+      vat_amount: 21639,
+      currency: 'EUR',
+      tax_point_date: '2026-07-04',
+      due_date: null,
+      document_id: null,
+      status: 'posted',
+      sent_at: null,
+      reconciled: false,
+    };
+    // Number arm:
+    expect(invoiceMatchesQuery(inv, '2026-018', null)).toBe(true);
+    expect(invoiceMatchesQuery(inv, '2026-099', null)).toBe(false);
+    // Amount arm:
+    expect(invoiceMatchesQuery(inv, '1200.00', null)).toBe(true);
+    expect(invoiceMatchesQuery(inv, '999.99', 'Nordic Consulting OÜ')).toBe(
+      false,
+    );
+    // Customer-name arm, and the empty-query pass-through:
+    expect(invoiceMatchesQuery(inv, 'nordic', 'Nordic Consulting OÜ')).toBe(
+      true,
+    );
+    expect(invoiceMatchesQuery(inv, '', null)).toBe(true);
   });
 
   it('documentedExpenseIds joins the archive (waiting-for-document marker)', () => {

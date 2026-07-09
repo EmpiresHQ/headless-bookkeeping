@@ -232,10 +232,14 @@ describe('hooks', () => {
 });
 
 describe('invalidateInbox', () => {
-  it('invalidates the queue, expenses, invoices, AND entities', async () => {
+  it('invalidates the queue, expenses, invoices, entities, AND books', async () => {
     // ResolveSupplierSheet creates suppliers on the triage path, and queue
     // titles/facts/pickers join against entities — a stale entities cache
     // would show the pre-creation "unknown supplier" state after resolving.
+    // Books also joins expense/invoice detail, rejection, and documents
+    // against this same approve/reject data — without invalidating
+    // ['books'] too, the "Open Inbox" round-trip back to Books shows stale
+    // pending state under Books' own 15s staleTime.
     const { client } = makeWrapper();
     const spy = vi.spyOn(client, 'invalidateQueries');
     await invalidateInbox(client);
@@ -246,6 +250,7 @@ describe('invalidateInbox', () => {
         sharedKeys.expenses,
         sharedKeys.invoices,
         sharedKeys.entities,
+        ['books'],
       ]),
     );
   });

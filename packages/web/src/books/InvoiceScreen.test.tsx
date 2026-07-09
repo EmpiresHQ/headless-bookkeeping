@@ -21,6 +21,7 @@ import {
   getEntities,
   getInvoices,
   listApprovals,
+  postInvoice,
   type SalesInvoice,
 } from '../api';
 
@@ -127,5 +128,19 @@ describe('InvoiceScreen', () => {
   it('an id absent from the list renders an honest not-found state', async () => {
     mountAt({}, '999');
     expect(await screen.findByText(/not in the books/i)).toBeInTheDocument();
+  });
+
+  it('auto-post success renders the POSTED toast (a posted-rendered-as-held regression must fail this)', async () => {
+    vi.mocked(postInvoice).mockResolvedValue({
+      invoice: { id: 3, status: 'posted' },
+      policy: { action: 'auto-post' },
+    } as never);
+    mountAt({ status: 'draft', sent_at: null, reconciled: false });
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Submit for posting' }),
+    );
+    await waitFor(() => expect(postInvoice).toHaveBeenCalledWith(3));
+    expect(await screen.findByText('Posted · +1200.00 €')).toBeInTheDocument();
+    expect(screen.queryByText(/Held for approval/)).toBeNull();
   });
 });

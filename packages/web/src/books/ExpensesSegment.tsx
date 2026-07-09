@@ -82,6 +82,10 @@ export function ExpensesSegment({ q }: { q: string }) {
   const entitiesQ = useEntities();
   const docsQ = useDocumentsArchive();
   const entities = entitiesQ.data ?? [];
+  // While the archive is still loading (or errored), we cannot know which
+  // expenses lack a document — treat everyone as documented rather than
+  // flash a false "no document" marker/count for the whole list.
+  const docsReady = docsQ.data !== undefined;
   const documented = documentedExpenseIds(docsQ.data ?? []);
 
   const setParam = (key: string, value: string | null) => {
@@ -114,7 +118,9 @@ export function ExpensesSegment({ q }: { q: string }) {
       searched.filter((e) => matchesStatus(e, f)).length,
     ]),
   ) as Record<StatusFilter, number>;
-  const noDocCount = searched.filter((e) => !documented.has(e.id)).length;
+  const noDocCount = docsReady
+    ? searched.filter((e) => !documented.has(e.id)).length
+    : 0;
   const filtered = searched
     .filter((e) => matchesStatus(e, status))
     .filter((e) => !noDocOnly || !documented.has(e.id));
@@ -161,7 +167,7 @@ export function ExpensesSegment({ q }: { q: string }) {
               key={e.id}
               e={e}
               supplierName={entityName(entities, e.supplier_id)}
-              hasDocument={documented.has(e.id)}
+              hasDocument={!docsReady || documented.has(e.id)}
             />
           ))}
         </ListGroup>

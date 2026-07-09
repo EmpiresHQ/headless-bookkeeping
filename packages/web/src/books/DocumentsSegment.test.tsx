@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { DocumentsSegment } from './DocumentsSegment';
@@ -9,7 +9,7 @@ vi.mock('../api', async (io) => ({
   getDocuments: vi.fn(),
   fetchDocumentPreviewObjectUrl: vi.fn().mockResolvedValue('blob:x'),
 }));
-import { getDocuments } from '../api';
+import { fetchDocumentPreviewObjectUrl, getDocuments } from '../api';
 
 const DOCS = [
   {
@@ -89,5 +89,19 @@ describe('DocumentsSegment', () => {
     mount('', '/books?seg=documents&dstatus=needs_triage');
     expect(await screen.findByText('weird.jpg')).toBeInTheDocument();
     expect(screen.queryByText('AS Merko Ehitus')).toBeNull();
+  });
+
+  it('DocThumb only fetches a preview for rows WITH a preview_path — a null preview_path never fires the authenticated request', async () => {
+    vi.mocked(fetchDocumentPreviewObjectUrl).mockClear();
+    mount();
+    await screen.findByText('AS Merko Ehitus');
+    await screen.findByText('weird.jpg');
+    // Doc 9 has preview_path 'p' → fetched.
+    await waitFor(() =>
+      expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledWith(9),
+    );
+    // Doc 10 has preview_path: null → never fetched, and no other row fetches.
+    expect(fetchDocumentPreviewObjectUrl).not.toHaveBeenCalledWith(10);
+    expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledTimes(1);
   });
 });

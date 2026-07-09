@@ -125,7 +125,7 @@ export function ExpenseScreen() {
           `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
         );
       } else {
-        toastOk(`Posted · -${(detail.gross_amount / 100).toFixed(2)} €`);
+        toastOk(`Posted · −${(detail.gross_amount / 100).toFixed(2)} €`);
       }
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -199,7 +199,13 @@ export function ExpenseScreen() {
         )}
         <KeyValue
           k="Bank"
-          v={listRow?.reconciled === true ? '🏦 Reconciled' : 'Not matched'}
+          v={
+            listQ.data === undefined
+              ? '—'
+              : listRow?.reconciled === true
+                ? '🏦 Reconciled'
+                : 'Not matched'
+          }
         />
       </ListGroup>
 

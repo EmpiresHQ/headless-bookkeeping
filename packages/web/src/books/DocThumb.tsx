@@ -2,11 +2,21 @@ import { useEffect, useState } from 'react';
 import { fetchDocumentPreviewObjectUrl } from '../api';
 
 /** Archive-row thumbnail: bearer-only /preview bytes → blob URL, revoked on
- *  unmount (same choreography as inbox/DocPreviewRow — StrictMode-safe). */
-export function DocThumb({ id }: { id: number }) {
+ *  unmount (same choreography as inbox/DocPreviewRow — StrictMode-safe).
+ *  Rows without a preview (preview_path null) never fetch — the legacy
+ *  component gated on it, and firing an authenticated /preview request for
+ *  every archive row is wasted work when there is nothing to show. */
+export function DocThumb({
+  id,
+  hasPreview,
+}: {
+  id: number;
+  hasPreview: boolean;
+}) {
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!hasPreview) return;
     let revoked = false;
     let objectUrl: string | null = null;
     fetchDocumentPreviewObjectUrl(id)
@@ -23,7 +33,7 @@ export function DocThumb({ id }: { id: number }) {
       revoked = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [id]);
+  }, [id, hasPreview]);
 
   return src !== null ? (
     <img

@@ -164,4 +164,26 @@ describe('ExpensesSegment', () => {
     expect(screen.getByText('Bolt Operations OÜ')).toBeInTheDocument();
     expect(screen.getByText('fuel')).toBeInTheDocument();
   });
+
+  it('suppresses the 📎 marker AND the no-document chip count while the archive query is still loading — no false "no document" flash', async () => {
+    vi.mocked(getExpenses).mockResolvedValue(EXPENSES as never);
+    vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+    // Never resolves — pins docsQ in the pending state for the assertion.
+    vi.mocked(getDocuments).mockReturnValue(new Promise(() => {}) as never);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/books']}>
+          <ExpensesSegment q="" />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('Telia Eesti AS')).toBeInTheDocument();
+    expect(screen.queryByText(/📎 no document/)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /No document 0/ }),
+    ).toBeInTheDocument();
+  });
 });

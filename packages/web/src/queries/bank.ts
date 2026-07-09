@@ -18,6 +18,7 @@ import {
   type ExecuteMatchesResult,
   type MatchProposalView,
 } from '../api';
+import { sharedKeys } from './keys';
 
 /**
  * Bank data layer. Reads are TanStack Query hooks; the multi-call server
@@ -133,11 +134,19 @@ export const useUnmatchedCounts = (statementIds: number[]) =>
 // screens' imports keep working. Keys unchanged (see queries/keys.ts).
 export { useCategories, useOrganizationCountry, useSuppliers } from './shared';
 
+/** Booking/undoing a match flips reconciled flags and can create posted
+ *  expenses — Books lists, expense/invoice detail, and the 🏦 markers all
+ *  read that data, so a statement-scoped invalidation alone leaves them
+ *  stale. */
 export function invalidateStatement(
   qc: QueryClient,
   statementId: number,
 ): Promise<void> {
-  return qc.invalidateQueries({ queryKey: bankKeys.statement(statementId) });
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: bankKeys.statement(statementId) }),
+    qc.invalidateQueries({ queryKey: sharedKeys.expenses }),
+    qc.invalidateQueries({ queryKey: ['books'] }),
+  ]).then(() => undefined);
 }
 
 // ── Composite flows ────────────────────────────────────────────────────────

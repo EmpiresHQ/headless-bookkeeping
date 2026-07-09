@@ -148,7 +148,9 @@ export function DocumentsSegment({ q }: { q: string }) {
               <ListRow
                 key={d.id}
                 to={`/books/documents/${d.id}`}
-                leading={<DocThumb id={d.id} />}
+                leading={
+                  <DocThumb id={d.id} hasPreview={d.preview_path != null} />
+                }
                 title={d.supplier_name ?? d.filename}
                 subtitle={subtitleParts.join(' · ')}
                 chip={docStatusChip(d)}
