@@ -5,7 +5,7 @@ import { ListGroup, ListRow } from '../ui/List';
 /**
  * Document preview row (asset §2): thumb + "tap to open". The /preview
  * endpoint is Bearer-only, so the bytes are fetched into a blob: URL and
- * revoked on unmount (same choreography as legacy DocumentThumb, restyled);
+ * revoked on unmount (same choreography as the deleted legacy thumb component);
  * the file opens via a signed token-free URL inside the click gesture.
  */
 export function DocPreviewRow({

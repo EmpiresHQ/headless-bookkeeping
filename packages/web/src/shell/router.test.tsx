@@ -10,8 +10,9 @@ function renderAt(path: string) {
   return router;
 }
 
-/** The new Inbox screens fetch on mount; route JSON per endpoint so any
- *  screen the router lands on renders without network noise. */
+/** The new Inbox/Books screens fetch on mount; route JSON per endpoint so any
+ *  screen the router lands on renders without network noise. Specific
+ *  (single-object) paths are checked before their general (list) prefix. */
 function mockApiFetch() {
   vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
     const url = String(input);
@@ -19,12 +20,34 @@ function mockApiFetch() {
       Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
     if (url.includes('/api/triage/needs-triage')) return json({ items: [] });
     if (url.includes('/api/approvals/pending')) return json({ approvals: [] });
+    if (url.includes('/api/approvals')) return json({ approvals: [] });
+    // getExpense(id) — single ExpenseDetail, not list-wrapped.
+    if (/\/api\/expenses\/\d+$/.test(url))
+      return json({
+        id: 5,
+        document_id: null,
+        supplier_id: null,
+        category: 'other',
+        gross_amount: 0,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-01-01',
+        status: 'draft',
+        supplier_invoice_number: null,
+        ai_confidence: null,
+        claimant_id: null,
+        created_at: Date.now(),
+      });
     if (url.includes('/api/expenses')) return json({ expenses: [] });
     if (url.includes('/api/sales-invoices')) return json({ invoices: [] });
     if (url.includes('/api/entities')) return json({ entities: [] });
     if (url.includes('/api/reporting-periods'))
       return json({ reportingPeriods: [] });
     if (url.includes('/api/documents/')) return json({});
+    if (url.includes('/api/documents')) return json({ documents: [] });
+    if (url.includes('/api/credit-notes/')) return json({});
+    if (url.includes('/api/credit-notes')) return json({ credit_notes: [] });
+    if (url.includes('/api/categories')) return json({ categories: [] });
     return json([]);
   });
 }
@@ -77,10 +100,32 @@ describe('router', () => {
     expect(router.state.location.search).toContain('seg=approvals');
   });
 
-  it('redirects legacy /expenses to /books?tab=expenses', () => {
-    const router = renderAt('/expenses');
+  it.each([
+    ['/expenses', 'seg=expenses'],
+    ['/invoices', 'seg=invoices'],
+    ['/documents', 'seg=documents'],
+    ['/credit-notes', 'seg=credit-notes'],
+  ])('redirects legacy %s to /books?%s', (from, expectedSearch) => {
+    const router = renderAt(from);
     expect(router.state.location.pathname).toBe('/books');
-    expect(router.state.location.search).toContain('tab=expenses');
+    expect(router.state.location.search).toContain(expectedSearch);
+  });
+
+  it('mounts BooksScreen at /books', async () => {
+    renderAt('/books');
+    expect(
+      await screen.findByRole('heading', { name: 'Books' }),
+    ).toBeInTheDocument();
+  });
+
+  it('mounts ExpenseScreen at /books/expenses/:id', async () => {
+    renderAt('/books/expenses/5');
+    expect(await screen.findByText('Expense')).toBeInTheDocument();
+  });
+
+  it('mounts CreditNoteCreateScreen at /books/credit-notes/new', async () => {
+    renderAt('/books/credit-notes/new');
+    expect(await screen.findByText('New credit note')).toBeInTheDocument();
   });
 
   it('renders legacy section tabs at /settings', () => {
