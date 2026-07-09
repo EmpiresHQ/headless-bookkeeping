@@ -86,8 +86,12 @@ export function TriageDocScreen() {
       await invalidateInbox(qc);
       // Auto-advance re-renders this SAME element for the next document
       // (only the :id param changes) — reset the screen-level action state
-      // BEFORE navigating, or doc N+1 renders with every action disabled
-      // and the confirm dialog still open over the wrong document.
+      // BEFORE navigating, or doc N+1 renders with every action disabled,
+      // the confirm dialog still open, or (OcrFailedSheet.onRetried, which
+      // calls runAction directly) a Fix-file sheet auto-opened over the
+      // WRONG document — its Upload replacement would then archive the
+      // next doc's original file.
+      setSheet(null);
       setBusy(false);
       setConfirm(null);
       navigate(next);

@@ -215,12 +215,15 @@ export function approvalDisplay(
 }
 
 /** After approve/reject/triage: the queue AND the business-object lists the
- *  rows join against are stale. */
+ *  rows join against are stale — including entities (ResolveSupplierSheet
+ *  can create a new supplier, and queue titles/facts/pickers join against
+ *  the entities list). */
 export function invalidateInbox(qc: QueryClient): Promise<void> {
   return Promise.all([
     qc.invalidateQueries({ queryKey: inboxKeys.all }),
     qc.invalidateQueries({ queryKey: sharedKeys.expenses }),
     qc.invalidateQueries({ queryKey: sharedKeys.invoices }),
+    qc.invalidateQueries({ queryKey: sharedKeys.entities }),
   ]).then(() => undefined);
 }
 

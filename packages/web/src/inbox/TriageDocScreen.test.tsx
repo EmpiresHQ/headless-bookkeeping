@@ -304,6 +304,46 @@ describe('TriageDocScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('closes a carried-over sheet before advancing — OcrFailedSheet Retry OCR must not reopen Fix-file over the next document', async () => {
+    // Regression for the sheet-carry-over hazard: runAction used to reset
+    // busy/confirm but not `sheet`, so OcrFailedSheet's onRetried -> runAction
+    // -> navigate path re-rendered this element for doc 13 with sheet==='ocr'
+    // still set — a fresh Fix-file sheet auto-opened over the WRONG document.
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        reason_type: 'ocr_failed',
+        reason: 'OCR could not read the file',
+      }),
+      ITEM({
+        id: 13,
+        filename: 'later.pdf',
+        created_at: 200,
+        reason_type: 'ocr_failed',
+        reason: 'OCR could not read the file',
+      }),
+    ]);
+    vi.mocked(api.retryDocument).mockResolvedValue({ ok: true });
+    const router = renderAt('/inbox/doc/12');
+    fireEvent.click(await screen.findByRole('button', { name: 'Fix file…' }));
+    expect(
+      await screen.findByText('Fix file', { selector: 'h2' }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Retry OCR on this file' }),
+    );
+    await waitFor(() => expect(api.retryDocument).toHaveBeenCalledWith(12));
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+    );
+    await screen.findByText('later.pdf');
+    expect(
+      screen.queryByText('Fix file', { selector: 'h2' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Retry OCR on this file' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
     vi.mocked(api.getDocumentReclassify).mockResolvedValue(

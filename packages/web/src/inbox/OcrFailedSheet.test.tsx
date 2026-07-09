@@ -71,6 +71,12 @@ describe('OcrFailedSheet', () => {
     await waitFor(() => expect(api.triageDocument).toHaveBeenCalledWith(99));
     await waitFor(() => expect(api.completeDocument).toHaveBeenCalledWith(12));
     expect(onReplaced).toHaveBeenCalledWith(outcome);
+    // ORDER matters: the replacement must be triaged (booked) BEFORE the
+    // broken original is archived, or a failure between the two calls
+    // would dismiss doc 12 with nothing booked in its place.
+    expect(
+      vi.mocked(api.triageDocument).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(api.completeDocument).mock.invocationCallOrder[0]);
   });
 
   it('disables Upload replacement until a file is chosen', () => {

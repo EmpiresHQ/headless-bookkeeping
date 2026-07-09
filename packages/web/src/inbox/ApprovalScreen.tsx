@@ -85,6 +85,20 @@ export function ApprovalScreen() {
           })()
         : null;
 
+  // Approve must never post blind: for expense/invoice the amount comes from
+  // a sub-fetch (single expense / joined invoice list) that can be pending,
+  // errored, OR settled-without-a-match — all three leave heroAmount null,
+  // so `undefined`/"not found" IS "unresolved" here (unlike the body render
+  // below, which must tell those three states apart to avoid a dead-end
+  // skeleton). generic/reconciliation_match types never load sub-facts, so
+  // they keep the previous (always-enabled) behavior.
+  const factsUnresolved =
+    approval?.object_type === 'expense'
+      ? expenseQ.data === undefined
+      : approval?.object_type === 'sales_invoice'
+        ? invoicesQ.data?.find((x) => x.id === approval.object_id) === undefined
+        : false;
+
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -166,74 +180,91 @@ export function ApprovalScreen() {
       e?.supplier_id != null
         ? entities.find((en) => en.id === e.supplier_id)
         : undefined;
-    body =
-      e === undefined ? (
-        <SkeletonRows count={2} />
-      ) : (
-        <>
-          <Hero
-            amount={heroAmount ?? ''}
-            subtitle={`${supplier?.name ?? 'Unknown supplier'} · ${e.category}`}
+    body = expenseQ.isError ? (
+      <LoadError
+        message={
+          expenseQ.error instanceof Error
+            ? expenseQ.error.message
+            : 'Failed to load the expense'
+        }
+        onRetry={() => void expenseQ.refetch()}
+      />
+    ) : e === undefined ? (
+      <SkeletonRows count={2} />
+    ) : (
+      <>
+        <Hero
+          amount={heroAmount ?? ''}
+          subtitle={`${supplier?.name ?? 'Unknown supplier'} · ${e.category}`}
+        />
+        <WhyHeldBox reason={approval.policy_reason} />
+        {e.document_id !== null && <DocPreviewRow documentId={e.document_id} />}
+        <ListGroup label="Facts">
+          <KeyValue
+            k="VAT"
+            v={
+              vatRatePct(e.gross_amount, e.vat_amount) !== null
+                ? `${(e.vat_amount / 100).toFixed(2)} € (${vatRatePct(e.gross_amount, e.vat_amount)}%)`
+                : `${(e.vat_amount / 100).toFixed(2)} €`
+            }
           />
-          <WhyHeldBox reason={approval.policy_reason} />
-          {e.document_id !== null && (
-            <DocPreviewRow documentId={e.document_id} />
-          )}
-          <ListGroup label="Facts">
+          <KeyValue k="Tax point" v={absoluteDateFromIso(e.tax_point_date)} />
+          {e.ai_confidence !== null && (
             <KeyValue
-              k="VAT"
+              k="AI confidence"
               v={
-                vatRatePct(e.gross_amount, e.vat_amount) !== null
-                  ? `${(e.vat_amount / 100).toFixed(2)} € (${vatRatePct(e.gross_amount, e.vat_amount)}%)`
-                  : `${(e.vat_amount / 100).toFixed(2)} €`
+                <span
+                  className={e.ai_confidence >= 0.9 ? 'text-ok' : 'text-warn'}
+                >
+                  {e.ai_confidence.toFixed(2)}
+                </span>
               }
             />
-            <KeyValue k="Tax point" v={absoluteDateFromIso(e.tax_point_date)} />
-            {e.ai_confidence !== null && (
-              <KeyValue
-                k="AI confidence"
-                v={
-                  <span
-                    className={e.ai_confidence >= 0.9 ? 'text-ok' : 'text-warn'}
-                  >
-                    {e.ai_confidence.toFixed(2)}
-                  </span>
-                }
-              />
-            )}
-            <KeyValue k="Supplier" v={supplier?.name ?? '—'} />
-            {e.supplier_invoice_number !== null && (
-              <KeyValue k="Invoice number" v={e.supplier_invoice_number} />
-            )}
-          </ListGroup>
-        </>
-      );
+          )}
+          <KeyValue k="Supplier" v={supplier?.name ?? '—'} />
+          {e.supplier_invoice_number !== null && (
+            <KeyValue k="Invoice number" v={e.supplier_invoice_number} />
+          )}
+        </ListGroup>
+      </>
+    );
   } else if (approval.object_type === 'sales_invoice') {
     const inv = invoicesQ.data?.find((x) => x.id === approval.object_id);
     const customer =
       inv?.customer_id != null
         ? entities.find((en) => en.id === inv.customer_id)
         : undefined;
-    body =
-      inv === undefined ? (
-        <SkeletonRows count={2} />
-      ) : (
-        <>
-          <Hero
-            amount={heroAmount ?? ''}
-            subtitle={`${customer?.name ?? 'No customer'} · ${inv.invoice_number}`}
-          />
-          <WhyHeldBox reason={approval.policy_reason} />
-          <ListGroup label="Facts">
-            <KeyValue k="VAT" v={`${(inv.vat_amount / 100).toFixed(2)} €`} />
-            <KeyValue
-              k="Tax point"
-              v={absoluteDateFromIso(inv.tax_point_date)}
-            />
-            <KeyValue k="Invoice number" v={inv.invoice_number} />
-          </ListGroup>
-        </>
-      );
+    body = invoicesQ.isError ? (
+      <LoadError
+        message={
+          invoicesQ.error instanceof Error
+            ? invoicesQ.error.message
+            : 'Failed to load invoices'
+        }
+        onRetry={() => void invoicesQ.refetch()}
+      />
+    ) : inv !== undefined ? (
+      <>
+        <Hero
+          amount={heroAmount ?? ''}
+          subtitle={`${customer?.name ?? 'No customer'} · ${inv.invoice_number}`}
+        />
+        <WhyHeldBox reason={approval.policy_reason} />
+        <ListGroup label="Facts">
+          <KeyValue k="VAT" v={`${(inv.vat_amount / 100).toFixed(2)} €`} />
+          <KeyValue k="Tax point" v={absoluteDateFromIso(inv.tax_point_date)} />
+          <KeyValue k="Invoice number" v={inv.invoice_number} />
+        </ListGroup>
+      </>
+    ) : invoicesQ.isPending ? (
+      <SkeletonRows count={2} />
+    ) : (
+      <EmptyState
+        icon="⚠"
+        title="Facts unavailable"
+        hint="The invoice could not be loaded"
+      />
+    );
   } else {
     // reconciliation_match / allowance / future types: generic, safe.
     const label =
@@ -280,7 +311,7 @@ export function ApprovalScreen() {
         <Button
           className="flex-1"
           busy={approveMut.isPending}
-          disabled={rejectMut.isPending}
+          disabled={rejectMut.isPending || factsUnresolved}
           onClick={() => approveMut.mutate()}
         >
           {heroAmount !== null ? `Approve · ${heroAmount}` : 'Approve'}

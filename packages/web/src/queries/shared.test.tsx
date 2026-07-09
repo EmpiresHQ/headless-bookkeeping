@@ -34,6 +34,20 @@ describe('shared query keys', () => {
     expect(sharedKeys.categories).toEqual(['categories']);
     expect(sharedKeys.organization).toEqual(['organization']);
   });
+
+  it('freezes the top-level object — properties cannot be reassigned, and the produced key arrays stay byte-identical', () => {
+    expect(Object.isFrozen(sharedKeys)).toBe(true);
+    expect(() => {
+      // @ts-expect-error — intentional reassignment attempt to prove it's a no-op/throws
+      sharedKeys.entities = ['hijacked'];
+    }).toThrow();
+    expect(sharedKeys.entities).toEqual(['entities']);
+    expect(sharedKeys.categories).toEqual(['categories']);
+    expect(sharedKeys.organization).toEqual(['organization']);
+    expect(sharedKeys.expenses).toEqual(['expenses']);
+    expect(sharedKeys.invoices).toEqual(['invoices']);
+    expect(sharedKeys.reportingPeriods).toEqual(['reporting-periods']);
+  });
 });
 
 describe('shared hooks', () => {

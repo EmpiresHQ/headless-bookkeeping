@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { BUTTON_VARIANTS } from './Button';
 
 type Variant = 'primary' | 'secondary';
 
+// Subset of BUTTON_VARIANTS (LinkButton only ever renders primary/secondary,
+// Button.tsx's Record<Variant, string> is the source of truth so the two
+// never drift apart visually).
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-accent text-white',
-  secondary: 'bg-[#E9EBE7] text-ink',
+  primary: BUTTON_VARIANTS.primary,
+  secondary: BUTTON_VARIANTS.secondary,
 };
 
 /** A route navigation styled as a kit Button (mirror of ui/Button styles).

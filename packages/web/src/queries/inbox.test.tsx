@@ -12,11 +12,14 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import type { Approval, Expense, NeedsTriageItem } from '../api';
+import { sharedKeys } from './keys';
 import {
   INBOX_REFETCH_MS,
   approvalDisplay,
   buildQueue,
+  inboxKeys,
   inboxRefetchInterval,
+  invalidateInbox,
   nextRouteAfter,
   openPeriod,
   periodExpensesTotal,
@@ -223,6 +226,26 @@ describe('hooks', () => {
     const { wrapper } = makeWrapper();
     const { result } = renderHook(() => useInboxCount(), { wrapper });
     await waitFor(() => expect(result.current).toBe(3));
+  });
+});
+
+describe('invalidateInbox', () => {
+  it('invalidates the queue, expenses, invoices, AND entities', async () => {
+    // ResolveSupplierSheet creates suppliers on the triage path, and queue
+    // titles/facts/pickers join against entities — a stale entities cache
+    // would show the pre-creation "unknown supplier" state after resolving.
+    const { client } = makeWrapper();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    await invalidateInbox(client);
+    const keys = spy.mock.calls.map(([arg]) => arg?.queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        inboxKeys.all,
+        sharedKeys.expenses,
+        sharedKeys.invoices,
+        sharedKeys.entities,
+      ]),
+    );
   });
 });
 

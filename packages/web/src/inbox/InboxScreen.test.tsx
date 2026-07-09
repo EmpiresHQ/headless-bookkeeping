@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
@@ -18,7 +18,12 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { InboxScreen } from './InboxScreen';
 
-const NOW = Math.floor(Date.now() / 1000);
+// Fixed clock (not the real wall clock — see beforeEach/afterEach below):
+// picking Date.now() at import time made the Today/Earlier split flaky
+// within an hour of local midnight, since `NOW - 3600` (nominally "today")
+// would roll into "Earlier" once the wall clock crossed midnight.
+const FIXED_NOW = new Date('2026-07-09T12:00:00');
+const NOW = Math.floor(FIXED_NOW.getTime() / 1000);
 const YESTERDAY = NOW - 86400 * 2;
 
 function renderAt(path: string) {
@@ -43,6 +48,10 @@ function renderAt(path: string) {
 
 describe('InboxScreen', () => {
   beforeEach(() => {
+    // Not vi.useFakeTimers(): setSystemTime alone only mocks Date/new Date()
+    // (per Vitest's own doc comment on the API), leaving RTL's findBy*/
+    // waitFor timers real so nothing here needs manual timer advancement.
+    vi.setSystemTime(FIXED_NOW);
     vi.clearAllMocks();
     vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
       {
@@ -92,6 +101,10 @@ describe('InboxScreen', () => {
       },
     ]);
     vi.mocked(api.getReportingPeriods).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('merges both sources FIFO with Today/Earlier sections', async () => {

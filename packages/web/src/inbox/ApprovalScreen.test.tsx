@@ -122,6 +122,33 @@ describe('ApprovalScreen', () => {
     expect(await screen.findByText('Source document')).toBeInTheDocument();
   });
 
+  it('shows a LoadError and disables Approve when the expense fetch fails — no blind approve', async () => {
+    vi.mocked(api.getExpense).mockRejectedValueOnce(new Error('network down'));
+    renderAt('/inbox/approval/7');
+    expect(await screen.findByText('network down')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    // Retry re-fetches — the beforeEach default (a valid expense) resolves
+    // once the rejected-once mock is consumed.
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('-89.00 €')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Approve · -89.00 €' }),
+    ).toBeEnabled();
+  });
+
+  it('shows an unavailable state and disables Approve when the invoice is absent from the settled list', async () => {
+    vi.mocked(api.getPendingApprovals).mockResolvedValue([
+      APPROVAL({ id: 10, object_type: 'sales_invoice', object_id: 999 }),
+    ]);
+    vi.mocked(api.getInvoices).mockResolvedValue([]); // settled — no match
+    renderAt('/inbox/approval/10');
+    expect(await screen.findByText('Facts unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('The invoice could not be loaded'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  });
+
   it('renders a reconciliation_match approval safely (generic facts, no crash)', async () => {
     vi.mocked(api.getPendingApprovals).mockResolvedValue([
       APPROVAL({
