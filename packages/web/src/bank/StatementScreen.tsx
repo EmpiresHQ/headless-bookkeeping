@@ -73,7 +73,7 @@ function DecideRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
         <div className="truncate text-[12.5px] text-ink-2">
           {partial
             ? `Partially matched · ${fmtCents(line.recon?.remaining ?? 0)} € left`
-            : 'No candidates — decide'}
+            : 'No AI match — decide'}
         </div>
       </div>
       <LineTrailing line={line} />
