@@ -276,6 +276,98 @@ describe('TxScreen state composition', () => {
     );
   });
 
+  it('unmounts the create form on done — a second click cannot post a duplicate', async () => {
+    mockLine();
+    // Pin the createDone guard, not navigation: the tx refetch triggered by
+    // onDone's invalidateStatement hangs, so `navigate` never fires. The ONLY
+    // thing that can remove the submit button is the guard's own unmount —
+    // without it, the button re-enables in the done-window and stays.
+    vi.mocked(api.listBankTransactions)
+      .mockReset()
+      .mockResolvedValueOnce([BASE_TX] as never)
+      .mockImplementation(() => new Promise(() => {}));
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 55 } as never);
+    vi.mocked(api.postExpense).mockResolvedValue({
+      expense: { id: 55, status: 'posted' },
+      policy: { action: 'auto-post', reason: 'ok' },
+    } as never);
+    const noCandidates = {
+      bankTransactionId: 9,
+      lineRemaining: 1860,
+      candidates: [],
+    };
+    vi.mocked(api.getMatchCandidates)
+      .mockResolvedValueOnce(noCandidates) // state routing on mount
+      .mockResolvedValueOnce({
+        // the composite's own lookup of the fresh expense
+        bankTransactionId: 9,
+        lineRemaining: 1860,
+        candidates: [
+          {
+            voucherId: 70,
+            objectType: 'expense',
+            objectId: 55,
+            objectLabel: 'Expense #55',
+            counterpartyName: null,
+            voucherRemaining: 1860,
+          },
+        ],
+      })
+      .mockResolvedValue(noCandidates); // invalidation refetch → still 'create'
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 88 }],
+      approvals: [{ id: 12, matchId: 88 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({ approval: {} } as never);
+    const router = renderTx();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · -18.60 €' }),
+    );
+    // The success toast renders in the same batched flush as the form's own
+    // setBusy(false) — the exact moment the done-window would open. (Waiting
+    // on the button's name alone is not a sync point: while busy it renders
+    // '…', so its accessible name never matches mid-flight.)
+    await screen.findByText('Expense created & matched · -18.60 €');
+    // Guard: the form unmounted in that same flush. Without the guard the
+    // button would be back — enabled — and a second tap would post a
+    // duplicate expense.
+    expect(
+      screen.queryByRole('button', { name: 'Create & match · -18.60 €' }),
+    ).toBeNull();
+    // ...and it vanished BEFORE navigation — the guard, not the redirect.
+    expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+  });
+
+  it('prepayment confirms through the explanation sheet and calls createPrepayment', async () => {
+    mockLine({ amount: 50000, description: 'ETTEMAKS Baltic Trade' });
+    vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
+    const router = renderTx();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Record prepayment · +500.00 €',
+      }),
+    );
+    // The explanation sheet is the explicit confirm step.
+    expect(
+      await screen.findByText(/money received on account/),
+    ).toBeInTheDocument();
+    const confirms = screen.getAllByRole('button', {
+      name: 'Record prepayment · +500.00 €',
+    });
+    fireEvent.click(confirms[confirms.length - 1]);
+    await vi.waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9),
+    );
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe('/bank/statements/3'),
+    );
+  });
+
   it('renders the disposed state read-only', async () => {
     mockLine({ status: 'personal' });
     renderTx();

@@ -141,8 +141,7 @@ export function PersonalSheet({
         </b>
         This is not a company expense: it will not enter the P&amp;L and no VAT
         is deducted. The amount is recorded as your debt to the company — repay
-        it by transfer or settle it against a payout. The booking account is
-        resolved automatically for your organization type.
+        it by transfer or settle it against a payout.
       </div>
       <div className="flex gap-2.5 px-4 pb-4">
         <Button
