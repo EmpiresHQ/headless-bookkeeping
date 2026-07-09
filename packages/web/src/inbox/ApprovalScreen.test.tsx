@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -144,5 +144,69 @@ describe('ApprovalScreen', () => {
     expect(
       screen.getByRole('link', { name: /back to inbox/i }),
     ).toHaveAttribute('href', '/inbox');
+  });
+
+  it('approves with one tap and auto-advances to the next pending item', async () => {
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'approved' }),
+    });
+    const router = renderAt('/inbox/approval/7');
+    const btn = await screen.findByRole('button', { name: 'Approve · -89.00 €' });
+    fireEvent.click(btn);
+    await waitFor(() =>
+      expect(api.approveApproval).toHaveBeenCalledWith(7, 'operator'),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/approval/8'),
+    );
+  });
+
+  it('rejects only with a non-empty reason and advances', async () => {
+    vi.mocked(api.rejectApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'rejected' }),
+    });
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
+    const submit = await screen.findByRole('button', {
+      name: 'Reject & return to draft',
+    });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/why this should not be posted/i), {
+      target: { value: 'Wrong supplier' },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(api.rejectApproval).toHaveBeenCalledWith(7, 'Wrong supplier'),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/approval/8'),
+    );
+  });
+
+  it('stays on the screen when approve fails (server text surfaced)', async () => {
+    vi.mocked(api.approveApproval).mockRejectedValue(
+      new Error('Approval 7 is rejected, cannot approve'),
+    );
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+    );
+    await waitFor(() => expect(api.approveApproval).toHaveBeenCalled());
+    expect(router.state.location.pathname).toBe('/inbox/approval/7');
+  });
+
+  it('approves the last remaining item and returns to the queue', async () => {
+    vi.mocked(api.getPendingApprovals).mockResolvedValue([APPROVAL()]);
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'approved' }),
+    });
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox'),
+    );
   });
 });

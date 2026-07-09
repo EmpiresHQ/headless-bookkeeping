@@ -1,17 +1,24 @@
-import { useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
+import { approveApproval, rejectApproval } from '../api';
 import { ScreenHeader } from '../shell/Headers';
 import {
+  invalidateInbox,
+  nextRouteAfter,
   queuePosition,
   useExpenseDetail,
   useInboxQueue,
   usePendingApprovals,
 } from '../queries/inbox';
 import { useEntities, useInvoices } from '../queries/shared';
+import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { KeyValue, ListGroup } from '../ui/List';
 import { LinkButton } from '../ui/LinkButton';
 import { LoadError } from '../ui/LoadError';
+import { toastErr, toastOk } from '../ui/toast';
 import { DocPreviewRow } from './DocPreviewRow';
 import {
   absoluteDate,
@@ -20,6 +27,7 @@ import {
   vatRatePct,
 } from './format';
 import { humanizePolicyReason } from './reason';
+import { RejectSheet } from './RejectSheet';
 
 function WhyHeldBox({ reason }: { reason: string | null }) {
   return (
@@ -46,8 +54,8 @@ function Hero({ amount, subtitle }: { amount: string; subtitle: string }) {
 }
 
 /** /inbox/approval/:id — the decision detail (asset §2): amount hero →
- *  "why held" with concrete numbers → document preview → facts KV.
- *  Renders EVERY object_type safely; actions are wired in Task 9. */
+ *  "why held" with concrete numbers → document preview → facts KV →
+ *  Approve/Reject action bar. Renders EVERY object_type safely. */
 export function ApprovalScreen() {
   const { id } = useParams();
   const approvalId = Number(id);
@@ -64,6 +72,52 @@ export function ApprovalScreen() {
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
   const entities = entitiesQ.data ?? [];
+
+  const heroAmount: string | null =
+    approval?.object_type === 'expense' && expenseQ.data !== undefined
+      ? signedEuros(-expenseQ.data.gross_amount)
+      : approval?.object_type === 'sales_invoice'
+        ? (() => {
+            const inv = invoicesQ.data?.find(
+              (x) => x.id === approval.object_id,
+            );
+            return inv !== undefined ? signedEuros(inv.gross_amount) : null;
+          })()
+        : null;
+
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [rejectOpen, setRejectOpen] = useState(false);
+  // Computed from the CURRENT queue before the mutation lands (the refetch
+  // will drop this entry).
+  const next = nextRouteAfter(entries, route);
+
+  const approveMut = useMutation({
+    mutationFn: () => approveApproval(approvalId, 'operator'),
+    onSuccess: async (_res, _vars, _ctx) => {
+      // NO Undo: approve posts the voucher in the same transaction
+      // (Reality #1); recovery is the correction flow.
+      toastOk(
+        heroAmount !== null
+          ? `Approved & posted · ${heroAmount}`
+          : 'Approved & posted',
+      );
+      await invalidateInbox(qc);
+      navigate(next);
+    },
+    onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: (reason: string) => rejectApproval(approvalId, reason),
+    onSuccess: async () => {
+      setRejectOpen(false);
+      toastOk('Rejected — returned to draft');
+      await invalidateInbox(qc);
+      navigate(next);
+    },
+    onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
+  });
 
   const title =
     position !== null ? `${position.pos} of ${position.total}` : 'Approval';
@@ -118,7 +172,7 @@ export function ApprovalScreen() {
       ) : (
         <>
           <Hero
-            amount={signedEuros(-e.gross_amount)}
+            amount={heroAmount ?? ''}
             subtitle={`${supplier?.name ?? 'Unknown supplier'} · ${e.category}`}
           />
           <WhyHeldBox reason={approval.policy_reason} />
@@ -166,7 +220,7 @@ export function ApprovalScreen() {
       ) : (
         <>
           <Hero
-            amount={signedEuros(inv.gross_amount)}
+            amount={heroAmount ?? ''}
             subtitle={`${customer?.name ?? 'No customer'} · ${inv.invoice_number}`}
           />
           <WhyHeldBox reason={approval.policy_reason} />
@@ -214,7 +268,33 @@ export function ApprovalScreen() {
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title={title} backTo="/inbox" />
       {body}
-      {/* Action bar lands in Task 9 */}
+      <div className="mx-3.5 mt-2 flex gap-2.5">
+        <Button
+          variant="secondary"
+          className="flex-1"
+          disabled={approveMut.isPending || rejectMut.isPending}
+          onClick={() => setRejectOpen(true)}
+        >
+          Reject…
+        </Button>
+        <Button
+          className="flex-1"
+          busy={approveMut.isPending}
+          disabled={rejectMut.isPending}
+          onClick={() => approveMut.mutate()}
+        >
+          {heroAmount !== null ? `Approve · ${heroAmount}` : 'Approve'}
+        </Button>
+      </div>
+      <p className="px-6 pt-2 text-center text-[10.5px] text-ink-2">
+        Approve posts to the books immediately — recover via a correction
+      </p>
+      <RejectSheet
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        busy={rejectMut.isPending}
+        onSubmit={(reason) => rejectMut.mutate(reason)}
+      />
     </div>
   );
 }
