@@ -162,6 +162,7 @@ export function TxScreen() {
       await backToStatement();
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
+      void invalidateStatement(qc, statementId);
     } finally {
       setBusy(false);
       setPersonalOpen(false);
@@ -176,6 +177,7 @@ export function TxScreen() {
       await backToStatement();
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
+      void invalidateStatement(qc, statementId);
     } finally {
       setBusy(false);
       setPrepayOpen(false);

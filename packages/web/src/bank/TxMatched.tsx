@@ -72,7 +72,11 @@ export function TxMatched({
           staged.map((m) => m.id),
         )
           .then(onChanged)
-          .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
+          .catch((e) => {
+            toastErr(e instanceof Error ? e.message : String(e));
+            // A partial undo may have changed server state — refresh anyway.
+            onChanged();
+          });
       });
       onChanged();
     } catch (e) {
