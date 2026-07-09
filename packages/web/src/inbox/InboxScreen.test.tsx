@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -164,5 +164,66 @@ describe('InboxScreen', () => {
     const router = renderAt('/inbox?seg=triage&expand=12');
     expect(await screen.findByText('doc detail')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/inbox/doc/12');
+  });
+
+  it('renders the hero card with the open period, month total and CTA to the first item', async () => {
+    vi.mocked(api.getReportingPeriods).mockResolvedValue([
+      {
+        id: 1,
+        name: 'July 2026',
+        start_date: '2026-07-01',
+        end_date: '2026-07-31',
+        status: 'open',
+        filed_at: null,
+      },
+    ]);
+    renderAt('/inbox');
+    expect(await screen.findByText(/July 2026/)).toBeInTheDocument();
+    // 89.00 pending expense inside the period (from the shared fixture).
+    expect(screen.getByText('−89.00 €')).toBeInTheDocument();
+    const cta = screen.getByRole('link', { name: /Start clearing · 2/ });
+    // FIFO first = the 2-day-old approval.
+    expect(cta).toHaveAttribute('href', '/inbox/approval/7');
+  });
+
+  it('hides the hero when no period is open', async () => {
+    renderAt('/inbox'); // getReportingPeriods resolves [] in the shared fixture
+    await screen.findByText('Telia Eesti AS');
+    expect(screen.queryByText(/expenses this period/)).not.toBeInTheDocument();
+  });
+
+  it('uploads a file, auto-triages it and refreshes the queue', async () => {
+    vi.mocked(api.uploadDocument).mockResolvedValue({
+      document: {
+        id: 99,
+        filename: 'r.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 1,
+        status: 'pending',
+        processing_since: null,
+        created_at: 1,
+      },
+      deduplicated: false,
+    });
+    vi.mocked(api.triageDocument).mockResolvedValue({
+      kind: 'expense',
+      document_id: 99,
+      expense_id: 500,
+    });
+    renderAt('/inbox');
+    await screen.findByText('Telia Eesti AS');
+    const callsBefore = vi.mocked(api.getNeedsTriageItems).mock.calls.length;
+    const input = screen.getByLabelText('Upload document');
+    fireEvent.change(input, {
+      target: {
+        files: [new File(['x'], 'r.pdf', { type: 'application/pdf' })],
+      },
+    });
+    await waitFor(() => expect(api.triageDocument).toHaveBeenCalledWith(99));
+    await waitFor(() =>
+      expect(
+        vi.mocked(api.getNeedsTriageItems).mock.calls.length,
+      ).toBeGreaterThan(callsBefore),
+    );
   });
 });

@@ -7,9 +7,11 @@ import {
   type Entity,
   type Expense,
   type NeedsTriageItem,
+  type ReportingPeriod,
   type SalesInvoice,
 } from '../api';
 import { sharedKeys } from './keys';
+import { useExpenses, useReportingPeriods } from './shared';
 
 /**
  * Inbox data layer. The queue itself is a PURE merge of two server lists
@@ -145,7 +147,10 @@ export function nextRouteAfter(entries: InboxEntry[], route: string): string {
 
 /** The two list queries + the merged queue, for the Inbox screens
  *  (poll: true there) and the detail screens (position/advance). */
-export function useInboxQueue(seg: InboxSegment, opts: { poll?: boolean } = {}) {
+export function useInboxQueue(
+  seg: InboxSegment,
+  opts: { poll?: boolean } = {},
+) {
   const triageQ = useNeedsTriage(opts);
   const approvalsQ = usePendingApprovals(opts);
   const triage = triageQ.data ?? [];
@@ -217,4 +222,44 @@ export function invalidateInbox(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: sharedKeys.expenses }),
     qc.invalidateQueries({ queryKey: sharedKeys.invoices }),
   ]).then(() => undefined);
+}
+
+// ── Hero card data (open period + month total) ─────────────────────────────
+
+/** Latest open reporting period, or null (hero hidden — no fake surface). */
+export function openPeriod(periods: ReportingPeriod[]): ReportingPeriod | null {
+  const open = periods.filter((p) => p.status === 'open');
+  if (open.length === 0) return null;
+  return [...open].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+}
+
+/** Money spent in the period: posted + pending expenses (drafts are not
+ *  money yet), tax_point_date within [start, end]. ISO strings compare
+ *  lexicographically. */
+export function periodExpensesTotal(
+  expenses: Expense[],
+  period: ReportingPeriod,
+): number {
+  return expenses
+    .filter(
+      (e) =>
+        (e.status === 'posted' || e.status === 'pending') &&
+        e.tax_point_date >= period.start_date &&
+        e.tax_point_date <= period.end_date,
+    )
+    .reduce((sum, e) => sum + e.gross_amount, 0);
+}
+
+export function useInboxHero(): {
+  periodName: string;
+  monthTotalCents: number;
+} | null {
+  const periodsQ = useReportingPeriods();
+  const expensesQ = useExpenses();
+  const period = openPeriod(periodsQ.data ?? []);
+  if (period === null || expensesQ.data === undefined) return null;
+  return {
+    periodName: period.name,
+    monthTotalCents: periodExpensesTotal(expensesQ.data, period),
+  };
 }

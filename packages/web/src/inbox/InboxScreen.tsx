@@ -1,10 +1,15 @@
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { fmtCents, triageDocument, uploadDocument } from '../api';
 import { relativeTime } from '../relativeTime';
 import { LargeTitleHeader } from '../shell/Headers';
 import {
   splitTodayEarlier,
   useInboxQueue,
   approvalDisplay,
+  invalidateInbox,
+  useInboxHero,
   type InboxEntry,
   type InboxSegment,
 } from '../queries/inbox';
@@ -15,8 +20,10 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { toastErr, toastOk } from '../ui/toast';
 import {
   humanizePolicyReason,
+  outcomeText,
   triageChipLabel,
   triageSubtitle,
 } from './reason';
@@ -92,6 +99,91 @@ function QueueRow({
   );
 }
 
+function InboxHero({
+  periodName,
+  monthTotalCents,
+  taskCount,
+  firstRoute,
+}: {
+  periodName: string;
+  monthTotalCents: number;
+  taskCount: number;
+  firstRoute: string | null;
+}) {
+  return (
+    <div className="mx-3.5 mb-3.5 rounded-2xl bg-accent-deep px-5 py-4 text-white">
+      <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">
+        {periodName} · open
+      </p>
+      <p className="mt-1 whitespace-nowrap text-[28px] font-extrabold tabular-nums">
+        −{fmtCents(monthTotalCents)} €
+      </p>
+      <p className="text-[12.5px] opacity-70">expenses this period</p>
+      {taskCount > 0 && firstRoute !== null && (
+        // The mint hero CTA is the ONE sanctioned bespoke button (spec:
+        // `signal` token is hero-CTA-only).
+        <Link
+          to={firstRoute}
+          viewTransition
+          className="mt-3 block rounded-xl bg-signal px-4 py-2.5 text-center text-[15px] font-bold text-accent-deep"
+        >
+          Start clearing · {taskCount}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** Minimal upload entry point (legacy IntakeView capability kept): upload →
+ *  auto-triage → outcome toast. The full upload flow (claimant dropdown,
+ *  ADR-0036) belongs to the Books plan. */
+function UploadAction() {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const onPick = async (file: File) => {
+    setBusy(true);
+    try {
+      const { document, deduplicated } = await uploadDocument(file);
+      if (deduplicated)
+        toastOk('Already uploaded — using the existing document');
+      const outcome = await triageDocument(document.id);
+      if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
+      else toastOk(outcomeText(outcome));
+      await invalidateInbox(qc);
+    } catch (e) {
+      toastErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <>
+      <input
+        ref={fileRef}
+        type="file"
+        className="hidden"
+        aria-label="Upload document"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onPick(f);
+        }}
+      />
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => fileRef.current?.click()}
+        className="text-[15px] font-semibold text-accent disabled:opacity-50"
+      >
+        {busy ? 'Processing…' : 'Upload'}
+      </button>
+    </>
+  );
+}
+
 /** /inbox — the unified decision queue: needs-triage documents + pending
  *  approvals, ONE FIFO list (oldest on top — the queue must end). Polls at
  *  30s while mounted; see queries/inbox.ts for the polling rule. */
@@ -106,6 +198,7 @@ export function InboxScreen() {
     seg,
     { poll: true },
   );
+  const hero = useInboxHero();
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
@@ -129,9 +222,12 @@ export function InboxScreen() {
       <LargeTitleHeader
         title="Inbox"
         trailing={
-          <span className="text-[12.5px] font-semibold text-ink-2">
-            {total === 1 ? '1 task' : `${total} tasks`}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[12.5px] font-semibold text-ink-2">
+              {total === 1 ? '1 task' : `${total} tasks`}
+            </span>
+            <UploadAction />
+          </div>
         }
       />
       <div className="px-4 pb-3">
@@ -148,6 +244,14 @@ export function InboxScreen() {
           onChange={(v) => setParams({ seg: v }, { replace: true })}
         />
       </div>
+      {hero !== null && (
+        <InboxHero
+          periodName={hero.periodName}
+          monthTotalCents={hero.monthTotalCents}
+          taskCount={entries.length}
+          firstRoute={entries[0]?.route ?? null}
+        />
+      )}
       {isPending && <SkeletonRows count={4} />}
       {listError != null && (
         <LoadError

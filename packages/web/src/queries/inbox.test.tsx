@@ -11,13 +11,15 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
-import type { Approval, NeedsTriageItem } from '../api';
+import type { Approval, Expense, NeedsTriageItem } from '../api';
 import {
   INBOX_REFETCH_MS,
   approvalDisplay,
   buildQueue,
   inboxRefetchInterval,
   nextRouteAfter,
+  openPeriod,
+  periodExpensesTotal,
   queuePosition,
   splitTodayEarlier,
   useInboxCount,
@@ -32,7 +34,11 @@ const T = (id: number, createdAt: number): NeedsTriageItem => ({
   reason_type: 'low_confidence',
 });
 
-const A = (id: number, createdAt: number, over: Partial<Approval> = {}): Approval => ({
+const A = (
+  id: number,
+  createdAt: number,
+  over: Partial<Approval> = {},
+): Approval => ({
   id,
   object_type: 'expense',
   object_id: 100 + id,
@@ -79,7 +85,9 @@ describe('buildQueue', () => {
   });
 
   it('filters by segment', () => {
-    expect(buildQueue(triage, approvals, 'triage').every((e) => e.kind === 'triage')).toBe(true);
+    expect(
+      buildQueue(triage, approvals, 'triage').every((e) => e.kind === 'triage'),
+    ).toBe(true);
     expect(buildQueue(triage, approvals, 'approvals')).toHaveLength(1);
   });
 });
@@ -97,7 +105,10 @@ describe('sections and progress', () => {
   });
 
   it('computes N of M for a detail route', () => {
-    expect(queuePosition(entries, '/inbox/doc/1')).toEqual({ pos: 1, total: 2 });
+    expect(queuePosition(entries, '/inbox/doc/1')).toEqual({
+      pos: 1,
+      total: 2,
+    });
     expect(queuePosition(entries, '/inbox/doc/999')).toBeNull();
   });
 
@@ -111,14 +122,47 @@ describe('sections and progress', () => {
 
 describe('approvalDisplay', () => {
   const entities = [
-    { id: 3, role: 'supplier', country: 'EE', name: 'Telia Eesti AS', goods_vs_services: null },
-    { id: 4, role: 'customer', country: 'EE', name: 'Nordic Consulting', goods_vs_services: null },
+    {
+      id: 3,
+      role: 'supplier',
+      country: 'EE',
+      name: 'Telia Eesti AS',
+      goods_vs_services: null,
+    },
+    {
+      id: 4,
+      role: 'customer',
+      country: 'EE',
+      name: 'Nordic Consulting',
+      goods_vs_services: null,
+    },
   ];
   const expenses = [
-    { id: 107, supplier_id: 3, category: 'software', gross_amount: 8900, vat_amount: 1632, currency: 'EUR', tax_point_date: '2026-07-03', status: 'pending', reconciled: false },
+    {
+      id: 107,
+      supplier_id: 3,
+      category: 'software',
+      gross_amount: 8900,
+      vat_amount: 1632,
+      currency: 'EUR',
+      tax_point_date: '2026-07-03',
+      status: 'pending',
+      reconciled: false,
+    },
   ];
   const invoices = [
-    { id: 55, customer_id: 4, invoice_number: '2026-018', gross_amount: 120000, vat_amount: 0, currency: 'EUR', tax_point_date: '2026-07-01', status: 'pending', sent_at: null, reconciled: false },
+    {
+      id: 55,
+      customer_id: 4,
+      invoice_number: '2026-018',
+      gross_amount: 120000,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2026-07-01',
+      status: 'pending',
+      sent_at: null,
+      reconciled: false,
+    },
   ];
 
   it('titles an expense approval with the supplier and a negative amount', () => {
@@ -137,13 +181,19 @@ describe('approvalDisplay', () => {
   });
 
   it('renders reconciliation_match and allowance safely', () => {
-    const m = A(9, 1, { object_type: 'reconciliation_match', object_id: 41, policy_reason: null });
+    const m = A(9, 1, {
+      object_type: 'reconciliation_match',
+      object_id: 41,
+      policy_reason: null,
+    });
     expect(approvalDisplay(m, { expenses, invoices, entities })).toEqual({
       title: 'Bank match',
       amountCents: null,
     });
     const al = A(10, 1, { object_type: 'allowance', object_id: 5 });
-    expect(approvalDisplay(al, { expenses, invoices, entities }).title).toBe('Allowance');
+    expect(approvalDisplay(al, { expenses, invoices, entities }).title).toBe(
+      'Allowance',
+    );
   });
 
   it('falls back to the category when the expense row is not in the list yet', () => {
@@ -157,7 +207,10 @@ describe('hooks', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('useNeedsTriage re-sorts the newest-first server list to FIFO', async () => {
-    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([T(1, 300), T(2, 100)]);
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      T(1, 300),
+      T(2, 100),
+    ]);
     const { wrapper } = makeWrapper();
     const { result } = renderHook(() => useNeedsTriage(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -170,5 +223,61 @@ describe('hooks', () => {
     const { wrapper } = makeWrapper();
     const { result } = renderHook(() => useInboxCount(), { wrapper });
     await waitFor(() => expect(result.current).toBe(3));
+  });
+});
+
+describe('hero data', () => {
+  const period = {
+    id: 1,
+    name: 'July 2026',
+    start_date: '2026-07-01',
+    end_date: '2026-07-31',
+    status: 'open',
+    filed_at: null,
+  };
+  // Typed Partial so the spread keeps the Expense shape (a Record spread
+  // would widen the fields). Add `Expense` to the api type imports.
+  const expense = (over: Partial<Expense> = {}): Expense => ({
+    id: 1,
+    supplier_id: null,
+    category: 'software',
+    gross_amount: 1000,
+    vat_amount: 0,
+    currency: 'EUR',
+    tax_point_date: '2026-07-03',
+    status: 'posted',
+    reconciled: false,
+    ...over,
+  });
+
+  it('openPeriod picks the latest open period and ignores locked ones', () => {
+    expect(
+      openPeriod([
+        {
+          ...period,
+          id: 2,
+          name: 'June',
+          start_date: '2026-06-01',
+          end_date: '2026-06-30',
+          status: 'locked',
+        },
+        period,
+      ])?.name,
+    ).toBe('July 2026');
+    expect(openPeriod([{ ...period, status: 'locked' }])).toBeNull();
+    expect(openPeriod([])).toBeNull();
+  });
+
+  it('periodExpensesTotal sums posted+pending inside the period only', () => {
+    const total = periodExpensesTotal(
+      [
+        expense({ id: 1, gross_amount: 8900 }),
+        expense({ id: 2, gross_amount: 4820, status: 'pending' }),
+        expense({ id: 3, gross_amount: 999, status: 'draft' }), // not money yet
+        expense({ id: 4, gross_amount: 5000, tax_point_date: '2026-06-30' }), // out of period
+      ],
+      period,
+    );
+    expect(total).toBe(13720);
   });
 });
