@@ -128,6 +128,47 @@ describe('LockSheet', () => {
     ).toBeInTheDocument();
   });
 
+  it('refuses to close via the sheet while the lock mutation is pending (vaul backdrop/swipe dismissal must not unmount the mutation observer)', async () => {
+    // Never-resolving mock — the mutation stays pending for the life of the
+    // test, mirroring a slow in-flight server locking the period.
+    vi.mocked(lockPeriod).mockReturnValue(new Promise(() => {}));
+    const { onOpenChange } = mountSheet();
+    fireEvent.change(await screen.findByLabelText('Type 2026-06 to confirm'), {
+      target: { value: '2026-06' },
+    });
+    const confirmButton = screen.getByRole('button', {
+      name: 'Close & freeze · VAT to pay 624.07 €',
+    });
+    fireEvent.click(confirmButton);
+    await waitFor(() => expect(lockPeriod).toHaveBeenCalled());
+    await waitFor(() => expect(confirmButton).toBeDisabled());
+    // Simulate the vaul dismiss path — Escape / backdrop click both route
+    // through Drawer.Root's onOpenChange(false).
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    // The guard must refuse the close: onOpenChange(false) never reaches the
+    // caller while the mutation observer is still in flight — the caller
+    // never unmounts LockSheet, so the invalidate/receipt-toast in onSuccess
+    // is not lost.
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // The sheet content is still mounted.
+    expect(
+      screen.getByText(/declaration is frozen exactly as shown/i),
+    ).toBeInTheDocument();
+    expect(confirmButton).toBeInTheDocument();
+  });
+
+  it('trims leading/trailing whitespace off the typed confirmation', async () => {
+    mountSheet();
+    const confirm = await screen.findByRole('button', {
+      name: 'Close & freeze · VAT to pay 624.07 €',
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Type 2026-06 to confirm'), {
+      target: { value: ' 2026-06 ' },
+    });
+    expect(confirm).toBeEnabled();
+  });
+
   it('surfaces the in-order 409 verbatim and stays open', async () => {
     vi.mocked(lockPeriod).mockRejectedValue(
       new Error(

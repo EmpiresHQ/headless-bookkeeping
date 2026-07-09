@@ -159,6 +159,9 @@ describe('PeriodScreen', () => {
         'Submitted — awaiting confirmation · ref KMD-2026-06-001',
       ),
     ).toBeInTheDocument();
+    // The irreversible close action never appears on an already-locked
+    // period (there is no unlock — ADR-0015).
+    expect(screen.queryByRole('button', { name: 'Close period…' })).toBeNull();
   });
 
   it('negative net VAT reads as reclaimable', async () => {

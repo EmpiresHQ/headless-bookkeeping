@@ -158,6 +158,32 @@ describe('SubmissionsScreen', () => {
     expect(await screen.findByText('Recorded — Accepted')).toBeInTheDocument();
   });
 
+  it('a periods-fetch failure gets an honest LoadError, not "This period does not exist"', async () => {
+    vi.mocked(getReportingPeriods).mockRejectedValue(
+      new Error('Network error loading periods'),
+    );
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/reports/periods/6/submissions']}>
+          <AppToaster />
+          <Routes>
+            <Route
+              path="/reports/periods/:id/submissions"
+              element={<SubmissionsScreen />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByText('Network error loading periods'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('This period does not exist')).toBeNull();
+  });
+
   it('an OPEN period gets an honest gate instead of the timeline', async () => {
     mountAt(7, 'not_started', []);
     expect(

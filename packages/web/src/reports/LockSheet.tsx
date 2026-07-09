@@ -86,10 +86,20 @@ export function LockSheet({
       ? `Close & freeze · ${netVatLabel(netVatDueCents)} ${fmtCents(Math.abs(netVatDueCents))} €`
       : 'Close & freeze the declaration';
 
+  // Refuse to close while the lock mutation is in flight: vaul's
+  // backdrop/swipe dismissal would otherwise unmount this component mid-
+  // mutation, losing the onSuccess invalidate + receipt toast — worst here,
+  // where the server has just locked the period and the UI would silently
+  // keep showing it open.
+  const guardedOnOpenChange = (o: boolean) => {
+    if (lock.isPending && !o) return;
+    onOpenChange(o);
+  };
+
   return (
     <Sheet
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={guardedOnOpenChange}
       title={`Close ${periodTitle(period.name)}`}
     >
       <div className="space-y-3 px-6">

@@ -111,7 +111,9 @@ function Downloads({ period }: { period: ReportingPeriod }) {
       .catch((e) =>
         toastErr(e instanceof Error ? e.message : 'Download failed'),
       )
-      .finally(() => setBusy(null));
+      // Two interleaved downloads must not clear each other's busy slot —
+      // only clear if THIS format is still the one showing busy.
+      .finally(() => setBusy((b) => (b === format ? null : b)));
   };
   return (
     <div className="mx-3.5 mb-3.5 space-y-1.5">
@@ -150,8 +152,10 @@ export function PeriodScreen() {
   // The route param is not statically constrained to digits — guard the
   // NaN case here rather than firing GET /api/reporting-periods/NaN/kmd
   // (useKmd's `enabled` gate was added in this task for exactly this;
-  // see task-5-report.md self-review / adjudication note).
-  const validPeriodId = Number.isFinite(periodId);
+  // see task-5-report.md self-review / adjudication note). Number.isFinite
+  // alone admits non-integers too (e.g. '7.5' → GET .../7.5/kmd) — require
+  // a positive integer.
+  const validPeriodId = Number.isInteger(periodId) && periodId > 0;
   const periodsQ = useReportingPeriods();
   const period = (periodsQ.data ?? []).find((p) => p.id === periodId);
   const kmdQ = useKmd(periodId, validPeriodId);

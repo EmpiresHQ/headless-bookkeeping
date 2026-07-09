@@ -104,8 +104,20 @@ function AddEventSheet({
 
   const label = RECORDABLE.find((r) => r.value === kind)?.label ?? kind;
 
+  // Refuse to close while the record mutation is in flight — a vaul
+  // backdrop/swipe dismissal mid-mutation would unmount this component and
+  // lose the onSuccess invalidate + receipt toast.
+  const guardedOnOpenChange = (o: boolean) => {
+    if (record.isPending && !o) return;
+    onOpenChange(o);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Record what happened">
+    <Sheet
+      open={open}
+      onOpenChange={guardedOnOpenChange}
+      title="Record what happened"
+    >
       <div className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">
           The system never talks to e-MTA — you report back what happened there
@@ -171,6 +183,21 @@ export function SubmissionsScreen() {
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Filing" backTo="/reports" />
         <SkeletonRows count={3} />
+      </div>
+    );
+  }
+  if (periodsQ.isError) {
+    return (
+      <div className="mx-auto max-w-3xl pb-6">
+        <ScreenHeader title="Filing" backTo="/reports" />
+        <LoadError
+          message={
+            periodsQ.error instanceof Error
+              ? periodsQ.error.message
+              : 'Failed to load periods'
+          }
+          onRetry={() => void periodsQ.refetch()}
+        />
       </div>
     );
   }

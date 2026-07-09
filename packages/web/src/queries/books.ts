@@ -84,14 +84,18 @@ export function useRejectedReason(
 }
 
 /** After any Books mutation: Books reads, the shared lists the rows join
- *  against, AND the Inbox (posting a draft can mint an approval; deletes/
- *  corrections change what Inbox rows join against). */
+ *  against, the Inbox (posting a draft can mint an approval; deletes/
+ *  corrections change what Inbox rows join against), AND Reports (a posted/
+ *  corrected expense or invoice changes the open period's live
+ *  KMD/warnings/hero net — Reports keys must not sit stale on their own
+ *  staleTime). */
 export function invalidateBooks(qc: QueryClient): Promise<void> {
   return Promise.all([
     qc.invalidateQueries({ queryKey: booksKeys.all }),
     qc.invalidateQueries({ queryKey: sharedKeys.expenses }),
     qc.invalidateQueries({ queryKey: sharedKeys.invoices }),
     qc.invalidateQueries({ queryKey: ['inbox'] }),
+    qc.invalidateQueries({ queryKey: ['reports'] }),
   ]).then(() => undefined);
 }
 

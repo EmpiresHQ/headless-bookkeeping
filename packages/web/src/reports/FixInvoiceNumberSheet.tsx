@@ -41,10 +41,18 @@ export function FixInvoiceNumberSheet({
       toastErr(e instanceof Error ? e.message : 'Could not save the number'),
   });
 
+  // Refuse to close while the patch mutation is in flight — a vaul
+  // backdrop/swipe dismissal mid-mutation would unmount this component and
+  // lose the onSuccess invalidate + receipt toast.
+  const guardedOnOpenChange = (o: boolean) => {
+    if (save.isPending && !o) return;
+    onOpenChange(o);
+  };
+
   return (
     <Sheet
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={guardedOnOpenChange}
       title={supplierName ?? 'Add invoice number'}
     >
       <div className="space-y-3 px-6">

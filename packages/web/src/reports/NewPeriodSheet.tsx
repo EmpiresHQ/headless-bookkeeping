@@ -52,8 +52,16 @@ export function NewPeriodSheet({
 
   const frequency = configQ.data?.default_frequency;
 
+  // Refuse to close while the create mutation is in flight — a vaul
+  // backdrop/swipe dismissal mid-mutation would unmount this component and
+  // lose the onSuccess invalidate + receipt toast.
+  const guardedOnOpenChange = (o: boolean) => {
+    if (create.isPending && !o) return;
+    onOpenChange(o);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="New period">
+    <Sheet open={open} onOpenChange={guardedOnOpenChange} title="New period">
       <div className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">
           The next period is computed from your
