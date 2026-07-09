@@ -92,7 +92,7 @@ function mockLine(
   });
 }
 
-function renderTx() {
+function renderTx(path = '/bank/statements/3/tx/9') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -101,7 +101,7 @@ function renderTx() {
       { path: '/bank/statements/:id', element: <p>statement screen</p> },
       { path: '/bank/statements/:id/tx/:txId', element: <TxScreen /> },
     ],
-    { initialEntries: ['/bank/statements/3/tx/9'] },
+    { initialEntries: [path] },
   );
   render(
     <QueryClientProvider client={client}>
@@ -373,5 +373,41 @@ describe('TxScreen state composition', () => {
     renderTx();
     expect(await screen.findByText('Recorded as personal')).toBeInTheDocument();
     expect(screen.queryByText('Create expense from line')).toBeNull();
+  });
+
+  it('renders LoadError when the transactions query fails, with a working retry', async () => {
+    mockLine();
+    vi.mocked(api.listBankTransactions)
+      .mockReset()
+      .mockRejectedValueOnce(new Error('Network down'))
+      .mockResolvedValue([BASE_TX] as never);
+    renderTx();
+    expect(await screen.findByText('Network down')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Create expense from line'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() =>
+      expect(api.listBankTransactions).toHaveBeenCalledTimes(2),
+    );
+    // Recovers into the normal (create) state once the retry succeeds.
+    expect(
+      await screen.findByText('Create expense from line'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders a not-found state for an unknown txId deep link, with a link back to the statement', async () => {
+    mockLine();
+    const router = renderTx('/bank/statements/3/tx/999');
+    expect(await screen.findByText('Line not found')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to statement' }));
+    expect(router.state.location.pathname).toBe('/bank/statements/3');
+  });
+
+  it('carries ?seg=all through the back link (round trip from the statement)', async () => {
+    mockLine();
+    renderTx('/bank/statements/3/tx/9?seg=all');
+    const backLink = await screen.findByRole('link', { name: '‹ Back' });
+    expect(backLink).toHaveAttribute('href', '/bank/statements/3?seg=all');
   });
 });

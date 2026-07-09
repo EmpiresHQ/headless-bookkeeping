@@ -261,6 +261,17 @@ export function StatementScreen() {
     [txQ.data, reconQ.data, matchesQ.data, proposalsQ.data],
   );
   const loading = txQ.isPending || reconQ.isPending || matchesQ.isPending;
+  // reconQ/matchesQ errors mean the worklist buckets (proposals/decide/done)
+  // are computed on incomplete data — a silent dump into "Decide yourself"
+  // is misleading, so they gate the full-screen error the same as txQ.
+  const failingQuery = txQ.isError
+    ? txQ
+    : reconQ.isError
+      ? reconQ
+      : matchesQ.isError
+        ? matchesQ
+        : null;
+  const hasBlockingError = failingQuery !== null;
 
   const toggleProposal = (p: MatchProposalView) =>
     setSelected((prev) => {
@@ -289,7 +300,10 @@ export function StatementScreen() {
       toastUndo(label, () => {
         void undoMatches(statementId, matchIds)
           .then(() => invalidateStatement(qc, statementId))
-          .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
+          .catch((e) => {
+            toastErr(e instanceof Error ? e.message : String(e));
+            void invalidateStatement(qc, statementId);
+          });
       });
     } catch (e) {
       // Server-enforced cap / over-match — show the server's words, then
@@ -309,7 +323,10 @@ export function StatementScreen() {
       toastUndo(`Confirmed · ${m.objectLabel}`, () => {
         void undoMatches(statementId, [m.id])
           .then(() => invalidateStatement(qc, statementId))
-          .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
+          .catch((e) => {
+            toastErr(e instanceof Error ? e.message : String(e));
+            void invalidateStatement(qc, statementId);
+          });
       });
     } catch (e) {
       // "No pending approval found" means the screen is stale — a refetch
@@ -327,7 +344,9 @@ export function StatementScreen() {
   const unmatchedCount = proposalLines.length + decideLines.length;
 
   const openTx = (txId: number) =>
-    navigate(`/bank/statements/${statementId}/tx/${txId}`);
+    navigate(
+      `/bank/statements/${statementId}/tx/${txId}${seg === 'all' ? '?seg=all' : ''}`,
+    );
 
   const onDelete = async () => {
     setDeleting(true);
@@ -377,19 +396,31 @@ export function StatementScreen() {
       </div>
 
       {loading && <SkeletonRows count={5} />}
-      {txQ.isError && (
+      {failingQuery && (
         <LoadError
           message={
-            txQ.error instanceof Error
-              ? txQ.error.message
-              : 'Failed to load transactions'
+            failingQuery.error instanceof Error
+              ? failingQuery.error.message
+              : 'Failed to load this statement'
           }
-          onRetry={() => void txQ.refetch()}
+          onRetry={() => void failingQuery.refetch()}
         />
       )}
 
-      {!loading && !txQ.isError && (
+      {!loading && !hasBlockingError && (
         <>
+          {proposalsQ.isError && (
+            <div className="mx-3.5 mb-3.5 flex items-center justify-between gap-3 rounded-xl bg-warn-bg px-3.5 py-2.5 text-[12.5px] text-warn">
+              <span>Couldn't load AI proposals</span>
+              <button
+                type="button"
+                onClick={() => void proposalsQ.refetch()}
+                className="flex-none font-semibold underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {proposalLines.length > 0 && (
             <>
               <GroupLabel>AI proposals</GroupLabel>

@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   fmtCents,
   type BankTransaction,
   type MatchCandidateView,
   type MatchCandidatesResult,
 } from '../api';
-import { bookManualMatch } from '../queries/bank';
+import { bookManualMatch, invalidateStatement } from '../queries/bank';
 import { Button } from '../ui/Button';
 import { GroupLabel } from '../ui/List';
 import { toastErr } from '../ui/toast';
@@ -30,6 +31,7 @@ export function TxCandidates({
   preselectVoucherIds: number[];
   onMatched: (matchIds: number[], totalCents: number) => void;
 }) {
+  const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<number>>(
     () =>
       new Set(
@@ -89,6 +91,12 @@ export function TxCandidates({
           .slice(0, matchIds.length)
           .reduce((sum, a) => sum + a.amount, 0);
         onMatched(matchIds, landed);
+      } else {
+        // The FIRST match threw after staging (BookingPartialError, zero
+        // landed): nothing to report via onMatched, but the line is now
+        // stranded stale — refetch so it routes to matched-with-staged and
+        // a Confirm primary (the recovery path already exists).
+        void invalidateStatement(qc, statementId);
       }
     } finally {
       setBusy(false);

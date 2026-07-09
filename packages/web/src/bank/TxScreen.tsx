@@ -1,7 +1,13 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useMemo, useState, type ReactNode } from 'react';
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPrepayment, fmtCents, markPersonal } from '../api';
+import type { BankTransaction } from '../api';
 import {
   createExpenseFromLine,
   invalidateStatement,
@@ -20,6 +26,7 @@ import { SkeletonRows } from '../ui/Feedback';
 import { toastErr, toastOk, toastUndo } from '../ui/toast';
 import { ScreenHeader } from '../shell/Headers';
 import { formatTxDate, txTitle } from './format';
+import { LoadError } from './LoadError';
 import { routeTxState } from './txState';
 import { TxCandidates } from './TxCandidates';
 import { TxCreateExpense } from './TxCreateExpense';
@@ -31,6 +38,13 @@ import {
   PrepaymentSheet,
 } from './TxDispositions';
 import { TxMatched } from './TxMatched';
+
+/** Exhaustiveness guard for the `TxState` switch below — a compile error at
+ *  the `default` case is the point: adding a TxState kind without handling
+ *  it here must fail `tsc`, not silently render nothing. */
+function assertNever(x: never): never {
+  throw new Error(`Unreachable TxState: ${JSON.stringify(x)}`);
+}
 
 const DISPOSED_TITLE: Record<string, string> = {
   personal: 'Recorded as personal',
@@ -47,6 +61,12 @@ export function TxScreen() {
   const txId = Number(params.txId);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  // Carry the statement's segment filter (`?seg=all`) across the round trip
+  // to this screen and back — dropping it silently resets the operator's
+  // "All" view to "Unmatched" on every tap into a line.
+  const seg = searchParams.get('seg');
+  const statementPath = `/bank/statements/${statementId}${seg === 'all' ? '?seg=all' : ''}`;
 
   const txQ = useBankTransactions(statementId);
   const reconQ = useReconciliation(statementId);
@@ -104,7 +124,7 @@ export function TxScreen() {
 
   const backToStatement = async () => {
     await invalidateStatement(qc, statementId);
-    navigate(`/bank/statements/${statementId}`);
+    navigate(statementPath);
   };
 
   const onMatched = (matchIds: number[], totalCents: number) => {
@@ -113,7 +133,10 @@ export function TxScreen() {
       toastUndo(`Matched · ${total} €`, () => {
         void undoMatches(statementId, matchIds)
           .then(() => invalidateStatement(qc, statementId))
-          .catch((e) => toastErr(e instanceof Error ? e.message : String(e)));
+          .catch((e) => {
+            toastErr(e instanceof Error ? e.message : String(e));
+            void invalidateStatement(qc, statementId);
+          });
       });
     });
   };
@@ -181,7 +204,10 @@ export function TxScreen() {
       }
       await backToStatement();
     } catch (e) {
+      // createExpenseFromLine can post the expense then fail at match —
+      // invalidate so the line reflects the posted expense on refetch.
       toastErr(e instanceof Error ? e.message : String(e));
+      await invalidateStatement(qc, statementId);
     } finally {
       setBusy(false);
     }
@@ -196,11 +222,100 @@ export function TxScreen() {
 
   const showOr = state.kind === 'candidates' || state.kind === 'create';
 
+  // An errored query skeletons forever if unhandled: the state machine
+  // never advances past `loading` once its inputs are undefined-forever.
+  // candQ only matters once the tx is known to be open (it's gated the
+  // same way in the useMatchCandidates(enabled) call above).
+  const failingQuery = txQ.isError
+    ? txQ
+    : matchesQ.isError
+      ? matchesQ
+      : tx?.status === 'open' && candQ.isError
+        ? candQ
+        : null;
+
+  /** The state-dependent body — a switch over `TxState` so adding a kind
+   *  without handling it here is a compile error, not a silent no-op. */
+  const renderState = (tx: BankTransaction): ReactNode => {
+    switch (state.kind) {
+      case 'loading':
+        return <SkeletonRows count={3} />;
+      case 'disposed':
+        return (
+          <div className="mx-3.5 mb-3 rounded-2xl bg-surface px-3.5 py-3 text-center text-[13px] text-ink-2">
+            This line is settled as a disposition. No further action is
+            available here.
+          </div>
+        );
+      case 'matched':
+        return (
+          <TxMatched
+            statementId={statementId}
+            tx={tx}
+            active={state.active}
+            staged={state.staged}
+            recon={recon}
+            onChanged={() => void invalidateStatement(qc, statementId)}
+          />
+        );
+      case 'candidates':
+        return (
+          <TxCandidates
+            statementId={statementId}
+            tx={tx}
+            result={state.result}
+            preselectVoucherIds={preselect}
+            onMatched={onMatched}
+          />
+        );
+      case 'create':
+        return createDone ? (
+          <SkeletonRows count={2} />
+        ) : (
+          <TxCreateExpense
+            statementId={statementId}
+            tx={tx}
+            onDone={onCreateDone}
+          />
+        );
+      case 'incoming-open':
+        return (
+          <IncomingOpen tx={tx} onPrepayment={() => setPrepayOpen(true)} />
+        );
+      default:
+        return assertNever(state);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title={title} backTo={`/bank/statements/${statementId}`} />
-      {tx === undefined ? (
-        <SkeletonRows count={3} />
+      <ScreenHeader title={title} backTo={statementPath} />
+      {failingQuery ? (
+        <LoadError
+          message={
+            failingQuery.error instanceof Error
+              ? failingQuery.error.message
+              : 'Failed to load this line'
+          }
+          onRetry={() => void failingQuery.refetch()}
+        />
+      ) : tx === undefined ? (
+        txQ.isSuccess ? (
+          <div className="mx-3.5 mb-3 rounded-2xl bg-surface px-3.5 py-3 text-center text-[13px] text-ink-2">
+            Line not found
+            <div className="mt-2">
+              <Link
+                to={statementPath}
+                viewTransition
+                className="font-semibold text-accent"
+              >
+                Back to statement
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <SkeletonRows count={3} />
+        )
       ) : (
         <>
           <div className="px-5 pb-3 pt-1.5 text-center">
@@ -221,45 +336,7 @@ export function TxScreen() {
             )}
           </div>
 
-          {state.kind === 'loading' && <SkeletonRows count={3} />}
-          {state.kind === 'disposed' && (
-            <div className="mx-3.5 mb-3 rounded-2xl bg-surface px-3.5 py-3 text-center text-[13px] text-ink-2">
-              This line is settled as a disposition. No further action is
-              available here.
-            </div>
-          )}
-          {state.kind === 'matched' && (
-            <TxMatched
-              statementId={statementId}
-              tx={tx}
-              active={state.active}
-              staged={state.staged}
-              recon={recon}
-              onChanged={() => void invalidateStatement(qc, statementId)}
-            />
-          )}
-          {state.kind === 'candidates' && (
-            <TxCandidates
-              statementId={statementId}
-              tx={tx}
-              result={state.result}
-              preselectVoucherIds={preselect}
-              onMatched={onMatched}
-            />
-          )}
-          {state.kind === 'create' &&
-            (createDone ? (
-              <SkeletonRows count={2} />
-            ) : (
-              <TxCreateExpense
-                statementId={statementId}
-                tx={tx}
-                onDone={onCreateDone}
-              />
-            ))}
-          {state.kind === 'incoming-open' && (
-            <IncomingOpen tx={tx} onPrepayment={() => setPrepayOpen(true)} />
-          )}
+          {renderState(tx)}
 
           {showOr && !createDone && (
             <OrRow onClick={() => setOtherOpen(true)} />

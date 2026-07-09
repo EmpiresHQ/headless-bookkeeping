@@ -213,6 +213,45 @@ describe('StatementScreen', () => {
     expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');
   });
 
+  it('carries ?seg=all into the tx URL when a line is opened from the All segment', async () => {
+    const router = renderAt('/bank/statements/3?seg=all');
+    fireEvent.click(await screen.findByText('ELISA arve 6/2026'));
+    expect(router.state.location.pathname).toBe('/bank/statements/3/tx/11');
+    expect(router.state.location.search).toBe('?seg=all');
+  });
+
+  it('does not append ?seg= for the default Unmatched segment', async () => {
+    const router = renderAt();
+    fireEvent.click(await screen.findByText('WOLT 220627'));
+    expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('shows LoadError when the reconciliation or matches query fails, gating the worklist', async () => {
+    vi.mocked(api.getReconciliationStatus).mockRejectedValue(
+      new Error('recon endpoint down'),
+    );
+    renderAt();
+    expect(await screen.findByText('recon endpoint down')).toBeInTheDocument();
+    // The (misleading) "Decide yourself" worklist must not render on top of
+    // an error — matched lines must not silently dump in there.
+    expect(screen.queryByText('Decide yourself')).toBeNull();
+  });
+
+  it('shows a non-blocking inline notice when AI proposals fail to load, without blocking the rest of the screen', async () => {
+    vi.mocked(api.proposeMatches).mockRejectedValue(
+      new Error('proposals endpoint down'),
+    );
+    renderAt();
+    expect(
+      await screen.findByText("Couldn't load AI proposals"),
+    ).toBeInTheDocument();
+    // Non-blocking: the rest of the worklist still renders.
+    expect(screen.getByText('Decide yourself')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => expect(api.proposeMatches).toHaveBeenCalledTimes(2));
+  });
+
   it('deletes the statement behind an explicit confirm and returns to /bank', async () => {
     vi.mocked(api.deleteBankStatement).mockResolvedValue({ deleted: 3 });
     const router = renderAt();
@@ -369,9 +408,7 @@ describe('StatementScreen booking', () => {
       expect(api.approveApproval).toHaveBeenCalledWith(88, 'operator'),
     );
     // Invalidation refetched proposals with a new data reference…
-    await vi.waitFor(() =>
-      expect(api.proposeMatches).toHaveBeenCalledTimes(2),
-    );
+    await vi.waitFor(() => expect(api.proposeMatches).toHaveBeenCalledTimes(2));
     // …and the deselection survived: still unchecked, no Book bar.
     const boxAfter = await screen.findByRole('checkbox', {
       name: /select match invoice 2026-018/i,

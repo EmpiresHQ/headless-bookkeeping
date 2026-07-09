@@ -105,4 +105,47 @@ describe('ImportScreen', () => {
       screen.getByRole('button', { name: /import statement/i }),
     ).toBeDisabled();
   });
+
+  it('shows a status-check failure (jobQ.isError) with Check again / Start over, and hides the leave-open hint', async () => {
+    vi.mocked(api.importBankStatement).mockResolvedValue({ jobId: 9 });
+    vi.mocked(api.getBankImportStatus)
+      .mockRejectedValueOnce(new Error('status endpoint down'))
+      .mockResolvedValue({
+        id: 9,
+        status: 'done',
+        account_code: 'BANK_EUR',
+        statement_id: 12,
+        error: null,
+      });
+    renderScreen();
+    pickFile();
+    fireEvent.click(screen.getByRole('button', { name: /import statement/i }));
+    expect(await screen.findByText('status endpoint down')).toBeInTheDocument();
+    // A failing status check must not still promise the job is progressing.
+    expect(screen.queryByText(/Leave this screen open/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /start over/i }));
+    // Start over returns to the upload form (same effect as the existing
+    // job-failed panel's "Try again").
+    expect(screen.getByLabelText('Statement file')).toBeInTheDocument();
+  });
+
+  it('"Check again" refetches the status endpoint and recovers into the done state', async () => {
+    vi.mocked(api.importBankStatement).mockResolvedValue({ jobId: 9 });
+    vi.mocked(api.getBankImportStatus)
+      .mockRejectedValueOnce(new Error('status endpoint down'))
+      .mockResolvedValue({
+        id: 9,
+        status: 'done',
+        account_code: 'BANK_EUR',
+        statement_id: 12,
+        error: null,
+      });
+    renderScreen();
+    pickFile();
+    fireEvent.click(screen.getByRole('button', { name: /import statement/i }));
+    await screen.findByText('status endpoint down');
+    fireEvent.click(screen.getByRole('button', { name: /check again/i }));
+    expect(await screen.findByText('Statement created')).toBeInTheDocument();
+    expect(api.getBankImportStatus).toHaveBeenCalledTimes(2);
+  });
 });

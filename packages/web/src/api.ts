@@ -817,7 +817,8 @@ export interface ExecuteMatchesResult {
 
 // The execute endpoint accepts the base MatchProposal fields. Strip the display
 // extras before sending; the server also returns ledger data we deliberately
-// ignore (ADR-0030) — typed as the match count only.
+// ignore (ADR-0030) — typed as ExecuteMatchesResult (staged records + their
+// pending approvals, not the ledger data).
 export const executeMatches = (
   statementId: number,
   proposals: MatchProposalView[],

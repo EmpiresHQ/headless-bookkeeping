@@ -54,6 +54,7 @@ export function TxMatched({
       onChanged();
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
+      onChanged();
     } finally {
       setBusy(false);
     }
@@ -76,6 +77,7 @@ export function TxMatched({
       onChanged();
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
+      onChanged();
     } finally {
       setBusy(false);
     }

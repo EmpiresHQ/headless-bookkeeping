@@ -85,8 +85,12 @@ export function ImportScreen() {
   }, [jobStatus, qc]);
 
   const showForm = jobId === null;
-  const mappingState: StepState =
-    job === undefined
+  // A status-endpoint failure (jobQ.isError) must not read as "still
+  // running": gate the active/running derivation on it so step 2 shows
+  // failed instead of spinning forever.
+  const mappingState: StepState = jobQ.isError
+    ? 'failed'
+    : job === undefined
       ? 'active'
       : job.status === 'running'
         ? 'active'
@@ -138,11 +142,28 @@ export function ImportScreen() {
               label="Statement created"
             />
           </div>
-          {(job === undefined || job.status === 'running') && (
+          {!jobQ.isError && (job === undefined || job.status === 'running') && (
             <p className="px-6 pt-3 text-center text-[12.5px] text-ink-2">
               The AI infers the column mapping and rules run — this can take a
               minute. Leave this screen open.
             </p>
+          )}
+          {jobQ.isError && (
+            <div className="mx-3.5 mt-3 rounded-2xl bg-err-bg px-4 py-3.5">
+              <p className="text-[13px] font-semibold text-err">
+                {jobQ.error instanceof Error
+                  ? jobQ.error.message
+                  : 'Failed to check import status'}
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Button variant="secondary" onClick={() => void jobQ.refetch()}>
+                  Check again
+                </Button>
+                <Button variant="secondary" onClick={reset}>
+                  Start over
+                </Button>
+              </div>
+            </div>
           )}
           {job?.status === 'failed' && (
             <div className="mx-3.5 mt-3 rounded-2xl bg-err-bg px-4 py-3.5">

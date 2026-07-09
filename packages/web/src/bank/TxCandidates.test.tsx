@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,6 +25,7 @@ vi.mock('../api', () => ({
 }));
 
 import * as api from '../api';
+import { AppToaster } from '../ui/toast';
 import { TxCandidates } from './TxCandidates';
 
 const TX = {
@@ -60,11 +63,27 @@ const RESULT = {
   ],
 };
 
+/** TxCandidates now reads useQueryClient() (fix #3, zero-landed
+ *  invalidation) — every render needs a QueryClientProvider. Returns the
+ *  client so tests can spy on invalidateQueries. */
+function renderWithClient(
+  ui: ReactElement,
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
+  render(
+    <QueryClientProvider client={client}>
+      {ui}
+      <AppToaster />
+    </QueryClientProvider>,
+  );
+  return client;
+}
+
 describe('TxCandidates', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('preselects proposal candidates and shows the live remainder', () => {
-    render(
+    renderWithClient(
       <TxCandidates
         statementId={3}
         tx={TX as never}
@@ -84,7 +103,7 @@ describe('TxCandidates', () => {
   });
 
   it('recomputes the button on every toggle and disables at zero selection', () => {
-    render(
+    renderWithClient(
       <TxCandidates
         statementId={3}
         tx={TX as never}
@@ -122,7 +141,7 @@ describe('TxCandidates', () => {
       approval: {},
     } as never);
     const onMatched = vi.fn();
-    render(
+    renderWithClient(
       <TxCandidates
         statementId={3}
         tx={TX as never}
@@ -147,5 +166,189 @@ describe('TxCandidates', () => {
       amountMatched: 20000,
       matchType: 'partial',
     });
+  });
+
+  it('clamps allocation to the line remaining when the voucher outstanding is larger', async () => {
+    const CLAMP_RESULT = {
+      bankTransactionId: 9,
+      lineRemaining: 50000,
+      candidates: [
+        {
+          voucherId: 80,
+          objectType: 'sales_invoice' as const,
+          objectId: 20,
+          objectLabel: 'Invoice 2026-020',
+          counterpartyName: 'Big Client OÜ',
+          voucherRemaining: 60000,
+        },
+      ],
+    };
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 91 }],
+      approvals: [{ id: 12, matchId: 91 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    const onMatched = vi.fn();
+    renderWithClient(
+      <TxCandidates
+        statementId={3}
+        tx={TX as never}
+        result={CLAMP_RESULT}
+        preselectVoucherIds={[80]}
+        onMatched={onMatched}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
+    await vi.waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 50000));
+    expect(api.manualMatch).toHaveBeenCalledWith(3, {
+      bankTransactionId: 9,
+      voucherId: 80,
+      amountMatched: 50000,
+      matchType: 'partial',
+    });
+  });
+
+  it('skips a selected candidate once the line is fully allocated — exactly one manualMatch call, second row still checked', async () => {
+    const SKIP_RESULT = {
+      bankTransactionId: 9,
+      lineRemaining: 30000,
+      candidates: [
+        {
+          voucherId: 90,
+          objectType: 'sales_invoice' as const,
+          objectId: 30,
+          objectLabel: 'Invoice 2026-030',
+          counterpartyName: 'Baltic Trade OÜ',
+          voucherRemaining: 30000,
+        },
+        {
+          voucherId: 91,
+          objectType: 'sales_invoice' as const,
+          objectId: 31,
+          objectLabel: 'Invoice 2026-031',
+          counterpartyName: 'Baltic Trade OÜ',
+          voucherRemaining: 20000,
+        },
+      ],
+    };
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 91 }],
+      approvals: [{ id: 12, matchId: 91 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    const onMatched = vi.fn();
+    renderWithClient(
+      <TxCandidates
+        statementId={3}
+        tx={TX as never}
+        result={SKIP_RESULT}
+        preselectVoucherIds={[90, 91]}
+        onMatched={onMatched}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Match 300.00 €' }));
+    await vi.waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 30000));
+    expect(api.manualMatch).toHaveBeenCalledTimes(1);
+    expect(api.manualMatch).toHaveBeenCalledWith(3, {
+      bankTransactionId: 9,
+      voucherId: 90,
+      amountMatched: 30000,
+      matchType: 'exact',
+    });
+    // Pinning current zero-alloc behavior: the second candidate stays
+    // selected in the UI even though it received no allocation.
+    expect(
+      screen.getByRole('checkbox', { name: /invoice 2026-031/i }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('books an exact match when the single candidate exactly covers the line', async () => {
+    const EXACT_RESULT = {
+      bankTransactionId: 9,
+      lineRemaining: 25000,
+      candidates: [
+        {
+          voucherId: 95,
+          objectType: 'sales_invoice' as const,
+          objectId: 40,
+          objectLabel: 'Invoice 2026-040',
+          counterpartyName: 'Baltic Trade OÜ',
+          voucherRemaining: 25000,
+        },
+      ],
+    };
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 99 }],
+      approvals: [{ id: 20, matchId: 99 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    const onMatched = vi.fn();
+    renderWithClient(
+      <TxCandidates
+        statementId={3}
+        tx={TX as never}
+        result={EXACT_RESULT}
+        preselectVoucherIds={[95]}
+        onMatched={onMatched}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Match 250.00 €' }));
+    await vi.waitFor(() => expect(onMatched).toHaveBeenCalledWith([99], 25000));
+    expect(api.manualMatch).toHaveBeenCalledWith(3, {
+      bankTransactionId: 9,
+      voucherId: 95,
+      amountMatched: 25000,
+      matchType: 'exact',
+    });
+  });
+
+  it('invalidates the statement when the first match fails after staging (zero landed)', async () => {
+    // Staging succeeds (one record + one pending approval), but activation
+    // fails — bookManualMatch's approveStaged throws BookingPartialError.
+    // Nothing landed (matchIds stays empty), so the fix #3 catch branch
+    // must refetch the statement so the line routes to matched-with-staged
+    // and a Confirm primary, instead of leaving a stale, re-clickable list.
+    vi.mocked(api.manualMatch).mockResolvedValueOnce({
+      records: [{ id: 91 }],
+      approvals: [{ id: 12, matchId: 91 }],
+    });
+    vi.mocked(api.approveApproval).mockRejectedValueOnce(
+      new Error('Match of 30000 would over-allocate voucher 70'),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+    const onMatched = vi.fn();
+    renderWithClient(
+      <TxCandidates
+        statementId={3}
+        tx={TX as never}
+        result={RESULT}
+        preselectVoucherIds={[70]}
+        onMatched={onMatched}
+      />,
+      client,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Match 300.00 €' }));
+    // Toast shown with the BookingPartialError's message.
+    expect(
+      await screen.findByText(/approval 12 failed \(0\/1 activated\)/),
+    ).toBeInTheDocument();
+    // Nothing landed — onMatched must NOT fire.
+    expect(onMatched).not.toHaveBeenCalled();
+    // The statement queries refetch (invalidateStatement → qc.invalidateQueries
+    // with the statement's key prefix).
+    await vi.waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['bank', 'statements', 3] }),
+      ),
+    );
   });
 });
