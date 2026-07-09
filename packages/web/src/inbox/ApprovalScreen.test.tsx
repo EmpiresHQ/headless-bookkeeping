@@ -98,7 +98,7 @@ describe('ApprovalScreen', () => {
 
   it('renders hero amount, subtitle and the N-of-M nav title', async () => {
     renderAt('/inbox/approval/7');
-    expect(await screen.findByText('-89.00 €')).toBeInTheDocument();
+    expect(await screen.findByText('−89.00 €')).toBeInTheDocument();
     expect(screen.getByText(/Telia Eesti AS · software/)).toBeInTheDocument();
     expect(screen.getByText('1 of 2')).toBeInTheDocument();
   });
@@ -132,9 +132,9 @@ describe('ApprovalScreen', () => {
     // Retry re-fetches — the beforeEach default (a valid expense) resolves
     // once the rejected-once mock is consumed.
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('-89.00 €')).toBeInTheDocument();
+    expect(await screen.findByText('−89.00 €')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Approve · -89.00 €' }),
+      screen.getByRole('button', { name: 'Approve · −89.00 €' }),
     ).toBeEnabled();
   });
 
@@ -190,7 +190,7 @@ describe('ApprovalScreen', () => {
     });
     const router = renderAt('/inbox/approval/7');
     const btn = await screen.findByRole('button', {
-      name: 'Approve · -89.00 €',
+      name: 'Approve · −89.00 €',
     });
     fireEvent.click(btn);
     await waitFor(() =>
@@ -233,7 +233,7 @@ describe('ApprovalScreen', () => {
     );
     const router = renderAt('/inbox/approval/7');
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
     );
     await waitFor(() => expect(api.approveApproval).toHaveBeenCalled());
     expect(router.state.location.pathname).toBe('/inbox/approval/7');
@@ -246,7 +246,7 @@ describe('ApprovalScreen', () => {
     });
     const router = renderAt('/inbox/approval/7');
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
     );
     await waitFor(() => expect(router.state.location.pathname).toBe('/inbox'));
   });
@@ -286,10 +286,10 @@ describe('ApprovalScreen', () => {
     render(<AppToaster />);
     const router = renderAt('/inbox/approval/7');
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
     );
     expect(
-      await screen.findByText('Approved & posted · -89.00 €'),
+      await screen.findByText('Approved & posted · −89.00 €'),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/inbox/approval/8'),

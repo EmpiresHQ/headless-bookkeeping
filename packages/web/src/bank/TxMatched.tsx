@@ -144,7 +144,7 @@ export function TxMatched({
           Unmatch
         </Button>
       </div>
-      <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-[#8A9089]">
+      <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         Unmatch returns the line to unmatched · the booked object is untouched
       </p>
     </>

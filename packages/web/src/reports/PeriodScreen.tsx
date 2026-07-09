@@ -32,7 +32,7 @@ import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
 function StatusBanner({ period }: { period: ReportingPeriod }) {
   if (period.status === 'open') {
     return (
-      <div className="mx-3.5 mb-3.5 rounded-2xl bg-[#E3EFE8] px-4 py-3 text-[13px] text-accent">
+      <div className="mx-3.5 mb-3.5 rounded-2xl bg-tint px-4 py-3 text-[13px] text-accent">
         Live preview — recomputed from the posted books every time you open this
         screen.
       </div>

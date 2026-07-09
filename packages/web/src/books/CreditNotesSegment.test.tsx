@@ -126,7 +126,7 @@ describe('Credit notes', () => {
     expect(
       screen.getByText(/CN-1 · credits invoice · 2 Jul/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/-400\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/−400\.00/)).toBeInTheDocument();
     expect(
       screen.getByRole('link', {
         name: /Nordic Consulting OÜ · Invoice 2026-018/,

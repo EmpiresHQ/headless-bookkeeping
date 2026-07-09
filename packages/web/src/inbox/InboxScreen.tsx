@@ -33,7 +33,7 @@ const SEGMENTS: readonly InboxSegment[] = ['all', 'triage', 'approvals'];
 function EntryIcon({ entry }: { entry: InboxEntry }) {
   const [bg, glyph] =
     entry.kind === 'approval'
-      ? ['bg-[#E3EFE8] text-accent', '✓']
+      ? ['bg-tint text-accent', '✓']
       : entry.item.reason_type === 'ocr_failed' ||
           entry.item.reason_type === 'not_a_document'
         ? ['bg-err-bg text-err', '!']

@@ -172,7 +172,7 @@ export function TxCreateExpense({
                 className={`h-[22px] w-[22px] flex-none rounded-full border-2 ${
                   on
                     ? 'border-accent bg-[radial-gradient(circle,theme(colors.accent.DEFAULT)_42%,transparent_48%)]'
-                    : 'border-[#C2C7C1]'
+                    : 'border-chevron'
                 }`}
               />
             </button>
@@ -190,7 +190,7 @@ export function TxCreateExpense({
           Create &amp; match · {fmtCents(tx.amount)} €
         </Button>
       </div>
-      <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-[#8A9089]">
+      <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         The amount and date come from the bank — they are facts, not fields
       </p>
 

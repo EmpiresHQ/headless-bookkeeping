@@ -8,7 +8,7 @@ export function SegmentedControl<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div role="tablist" className="flex rounded-[10px] bg-[#E5E7E3] p-0.5">
+    <div role="tablist" className="flex rounded-[10px] bg-track p-0.5">
       {options.map((o) => (
         <button
           key={o.value}

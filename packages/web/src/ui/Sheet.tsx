@@ -19,7 +19,7 @@ export function Sheet({
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-40 bg-black/45" />
         <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col rounded-t-3xl bg-bg pb-6 outline-none">
-          <div className="mx-auto mb-3 mt-2.5 h-1 w-10 flex-none rounded-full bg-[#D4D7D1]" />
+          <div className="mx-auto mb-3 mt-2.5 h-1 w-10 flex-none rounded-full bg-handle" />
           {title != null && (
             <Drawer.Title className="mb-2 flex-none px-6 text-center text-lg font-extrabold">
               {title}

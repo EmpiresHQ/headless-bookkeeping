@@ -7,7 +7,7 @@ const TONES: Record<Tone, string> = {
   warn: 'bg-warn-bg text-warn',
   err: 'bg-err-bg text-err',
   muted: 'bg-line text-ink-2',
-  accent: 'bg-[#E3EFE8] text-accent',
+  accent: 'bg-tint text-accent',
 };
 
 export function Chip({

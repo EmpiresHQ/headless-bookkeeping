@@ -8,7 +8,7 @@ type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
  *  drift apart visually. */
 export const BUTTON_VARIANTS: Record<Variant, string> = {
   primary: 'bg-accent text-white',
-  secondary: 'bg-[#E9EBE7] text-ink',
+  secondary: 'bg-fill text-ink',
   danger: 'bg-err text-white',
   ghost: 'bg-transparent text-accent',
 };

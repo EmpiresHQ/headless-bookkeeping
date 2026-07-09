@@ -14,10 +14,11 @@ export function OrRow({ onClick }: { onClick: () => void }) {
           onClick={onClick}
           className="flex min-h-[44px] w-full items-center gap-3 px-3.5 py-2.5 text-left"
         >
+          {/* sanctioned one-off (approved mockup), no token — Plan 06 Task 2 */}
           <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[#4D534E]">
             Personal · Bank fee · Prepayment
           </span>
-          <span aria-hidden className="flex-none text-base text-[#C2C7C1]">
+          <span aria-hidden className="flex-none text-base text-chevron">
             ›
           </span>
         </button>
@@ -93,7 +94,7 @@ export function OtherSheet({
                 </div>
                 <div className="truncate text-[12.5px] text-ink-2">{o.sub}</div>
               </div>
-              <span aria-hidden className="flex-none text-base text-[#C2C7C1]">
+              <span aria-hidden className="flex-none text-base text-chevron">
                 ›
               </span>
             </button>
@@ -135,7 +136,7 @@ export function PersonalSheet({
       <p className="px-7 pb-2.5 text-center text-[12px] text-ink-2">
         {tx.description ?? 'Bank line'} · {fmtCents(tx.amount)} €
       </p>
-      <div className="mx-4 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-[#6D4A05]">
+      <div className="mx-4 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-warn-deep">
         <b className="mb-0.5 block text-[11px] uppercase tracking-wide">
           What happens
         </b>
@@ -155,7 +156,7 @@ export function PersonalSheet({
           Record as personal
         </Button>
       </div>
-      <p className="px-6 pb-3 text-center text-[10.5px] text-[#8A9089]">
+      <p className="px-6 pb-3 text-center text-[10.5px] text-ink-3">
         One attributable tap — you are the approver; recorded in the audit log
       </p>
     </Sheet>
@@ -184,7 +185,7 @@ export function PrepaymentSheet({
         {tx.description ?? 'Bank line'} · {incoming ? '+' : '-'}
         {abs} €
       </p>
-      <div className="mx-4 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-[#6D4A05]">
+      <div className="mx-4 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-warn-deep">
         <b className="mb-0.5 block text-[11px] uppercase tracking-wide">
           What happens
         </b>

@@ -130,6 +130,7 @@ export function SupplierSheet({
           </>
         )}
         {creating && (
+          // sanctioned one-off (approved mockup), no token — Plan 06 Task 2
           <div className="space-y-3 rounded-2xl border-[1.5px] border-dashed border-[#B7C4BA] bg-surface p-4">
             <Field label="Name" hint="Prefilled from the statement line">
               <TextInput

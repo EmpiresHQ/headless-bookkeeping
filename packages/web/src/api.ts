@@ -391,8 +391,11 @@ export const recordSubmissionEvent = (
     },
   );
 
-/** Integer cents → display string, e.g. 615700 -> "6157.00". */
-export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
+/** Euro display formatting: integer cents → "48.20". Negatives carry the
+ *  TYPOGRAPHIC minus U+2212 (figure-width under tabular-nums — aligns with
+ *  '+'-signed inflows). App-wide decision, Plan 06 Task 2. */
+export const fmtCents = (cents: number): string =>
+  (cents < 0 ? '−' : '') + (Math.abs(cents) / 100).toFixed(2);
 
 // ── KMD declaration (GET /api/reporting-periods/:id/kmd) ──────────────────
 // Derived on EVERY read from the period's posted vouchers — a live preview

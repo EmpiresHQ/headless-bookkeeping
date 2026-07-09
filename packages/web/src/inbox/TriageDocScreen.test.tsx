@@ -74,7 +74,7 @@ async function openClassifyPickSupplierAndSubmit(grossDisplay: string) {
   });
   fireEvent.click(screen.getByRole('button', { name: /Circle K Eesti AS/ }));
   const submit = screen.getByRole('button', {
-    name: `Create expense · -${grossDisplay} €`,
+    name: `Create expense · −${grossDisplay} €`,
   });
   await waitFor(() => expect(submit).toBeEnabled());
   fireEvent.click(submit);
@@ -143,7 +143,7 @@ describe('TriageDocScreen', () => {
         'AI confidence 0.41 — below the 0.8 threshold, check the result',
       ),
     ).toBeInTheDocument();
-    expect(await screen.findByText('-48.20 €')).toBeInTheDocument();
+    expect(await screen.findByText('−48.20 €')).toBeInTheDocument();
     expect(screen.getByText('01.07.2026')).toBeInTheDocument();
     expect(screen.getByText('OCR text')).toBeInTheDocument();
   });
@@ -300,7 +300,7 @@ describe('TriageDocScreen', () => {
     expect(await screen.findByDisplayValue('99.00')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('48.20')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Create expense · -99.00 €' }),
+      screen.getByRole('button', { name: 'Create expense · −99.00 €' }),
     ).toBeInTheDocument();
   });
 
@@ -365,7 +365,7 @@ describe('TriageDocScreen', () => {
     expect(await screen.findByDisplayValue('48.20')).toBeInTheDocument();
     expect(
       await screen.findByRole('button', {
-        name: 'Create expense · -48.20 €',
+        name: 'Create expense · −48.20 €',
       }),
     ).toBeInTheDocument();
   });
