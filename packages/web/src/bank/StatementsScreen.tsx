@@ -3,6 +3,7 @@ import { relativeTime } from '../relativeTime';
 import { useBankStatements, useUnmatchedCounts } from '../queries/bank';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { LinkButton } from '../ui/LinkButton';
 import { ListGroup, ListRow } from '../ui/List';
 import { LargeTitleHeader } from '../shell/Headers';
 import { formatStatementPeriod } from './format';
@@ -49,15 +50,7 @@ export function StatementsScreen() {
           icon="🏦"
           title="No statements yet"
           hint="Import a bank statement to start reconciling."
-          action={
-            <Link
-              to="/bank/import"
-              viewTransition
-              className="inline-block rounded-xl bg-accent px-4 py-2.5 text-[15px] font-bold text-white"
-            >
-              Import statement
-            </Link>
-          }
+          action={<LinkButton to="/bank/import">Import statement</LinkButton>}
         />
       )}
       {sorted.length > 0 && (

@@ -191,6 +191,12 @@
         <div class="hint">Старые сверху — очередь разбирается FIFO</div>
       </div></div>
       <p class="cap">Строка = решение: кто · почему · сколько · когда</p>
+      <!-- Reconciling note: the implementation renders Earlier before Today
+           — strict FIFO oldest-first, per this mock's own "Старые сверху"
+           caption above. The Today-first section ORDER drawn above (Today
+           group, then Earlier group) is a drawing artifact of this static
+           mock, not a spec for the section order; only the FIFO ordering
+           WITHIN each section, and the section split itself, are binding. -->
       </div>
       <div class="decisions">
         <h4>Решения</h4>

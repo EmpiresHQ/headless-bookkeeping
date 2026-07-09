@@ -25,15 +25,18 @@ vi.mock('../api', () => ({
 
 import * as api from '../api';
 import {
+  bankKeys,
   BookingPartialError,
   bookManualMatch,
   bookProposals,
   confirmStagedMatch,
   createExpenseFromLine,
   importJobRefetchInterval,
+  invalidateStatement,
   undoMatches,
   useImportJob,
 } from './bank';
+import { sharedKeys } from './keys';
 
 const PROPOSAL = {
   bankTransactionId: 9,
@@ -298,6 +301,24 @@ describe('createExpenseFromLine', () => {
     });
     expect(api.getMatchCandidates).not.toHaveBeenCalled();
     expect(api.manualMatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('invalidateStatement', () => {
+  it('invalidates the statement AND the cross-domain expenses/books keys — booking a match flips reconciled flags and posts expenses that Books reads', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    await invalidateStatement(client, 5);
+    const keys = spy.mock.calls.map(([arg]) => arg?.queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        bankKeys.statement(5),
+        sharedKeys.expenses,
+        ['books'],
+      ]),
+    );
   });
 });
 

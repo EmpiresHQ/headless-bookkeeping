@@ -40,7 +40,11 @@ describe('txTitle', () => {
       }),
     ).toBe('CIRCLE K 4411');
     expect(
-      txTitle({ description: null, counterparty_descriptor: null, reference: null }),
+      txTitle({
+        description: null,
+        counterparty_descriptor: null,
+        reference: null,
+      }),
     ).toBe('Bank transaction');
   });
 });

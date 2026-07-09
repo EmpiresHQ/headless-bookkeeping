@@ -4,37 +4,40 @@ import {
   useLocation,
   type RouteObject,
 } from 'react-router-dom';
-import { ApprovalsView } from '../components/ApprovalsView';
 import { CategoriesView } from '../components/CategoriesView';
-import { CreditNotesView } from '../components/CreditNotesView';
-import { DocumentsView } from '../components/DocumentsView';
 import { EnrollView } from '../components/EnrollView';
 import { EntitiesView } from '../components/EntitiesView';
-import { ExpensesView } from '../components/ExpensesView';
-import { IntakeView } from '../components/IntakeView';
-import { InvoicesView } from '../components/InvoicesView';
 import { KmdView } from '../components/KmdView';
 import { OrgView } from '../components/OrgView';
 import { SettingsView } from '../components/SettingsView';
+import { ApprovalScreen } from '../inbox/ApprovalScreen';
+import { InboxScreen } from '../inbox/InboxScreen';
+import { TriageDocScreen } from '../inbox/TriageDocScreen';
 import { ImportScreen } from '../bank/ImportScreen';
 import { StatementScreen } from '../bank/StatementScreen';
 import { StatementsScreen } from '../bank/StatementsScreen';
 import { TxScreen } from '../bank/TxScreen';
+import { BooksScreen } from '../books/BooksScreen';
+import { CreditNoteCreateScreen } from '../books/CreditNoteCreateScreen';
+import { CreditNoteScreen } from '../books/CreditNoteScreen';
+import { DocumentScreen } from '../books/DocumentScreen';
+import { ExpenseScreen } from '../books/ExpenseScreen';
+import { InvoiceScreen } from '../books/InvoiceScreen';
 import { LegacyTabs } from './LegacyTabs';
 import { Root } from './Root';
 
-/** Old flat-tab URL → new section URL (tab preselected via ?tab=). */
+/** Old flat-tab URL → new section URL (tab preselected via ?tab=/?seg=). */
 const LEGACY_REDIRECTS: Record<string, string> = {
   '/org': '/settings?tab=organization',
   '/entities': '/settings?tab=entities',
   '/categories': '/settings?tab=categories',
   '/enroll': '/settings?tab=enroll',
-  '/expenses': '/books?tab=expenses',
-  '/invoices': '/books?tab=invoices',
-  '/documents': '/books?tab=documents',
-  '/credit-notes': '/books?tab=credit-notes',
-  '/intake': '/inbox?tab=triage',
-  '/approvals': '/inbox?tab=approvals',
+  '/expenses': '/books?seg=expenses',
+  '/invoices': '/books?seg=invoices',
+  '/documents': '/books?seg=documents',
+  '/credit-notes': '/books?seg=credit-notes',
+  '/intake': '/inbox?seg=triage',
+  '/approvals': '/inbox?seg=approvals',
   '/kmd': '/reports',
   '/periods': '/reports',
 };
@@ -56,36 +59,19 @@ export function buildRoutes(): RouteObject[] {
       element: <Root />,
       children: [
         { path: '/', element: <Navigate to="/inbox" replace /> },
+        { path: '/inbox', element: <InboxScreen /> },
+        { path: '/inbox/doc/:id', element: <TriageDocScreen /> },
+        { path: '/inbox/approval/:id', element: <ApprovalScreen /> },
+        { path: '/books', element: <BooksScreen /> },
+        { path: '/books/expenses/:id', element: <ExpenseScreen /> },
+        { path: '/books/invoices/:id', element: <InvoiceScreen /> },
+        { path: '/books/documents/:id', element: <DocumentScreen /> },
+        // Static 'new' outranks ':id' in v7 route ranking — order is not load-bearing.
         {
-          path: '/inbox',
-          element: (
-            <LegacyTabs
-              title="Inbox"
-              tabs={[
-                { key: 'triage', label: 'Triage', El: IntakeView },
-                { key: 'approvals', label: 'Approvals', El: ApprovalsView },
-              ]}
-            />
-          ),
+          path: '/books/credit-notes/new',
+          element: <CreditNoteCreateScreen />,
         },
-        {
-          path: '/books',
-          element: (
-            <LegacyTabs
-              title="Books"
-              tabs={[
-                { key: 'expenses', label: 'Expenses', El: ExpensesView },
-                { key: 'invoices', label: 'Invoices', El: InvoicesView },
-                { key: 'documents', label: 'Documents', El: DocumentsView },
-                {
-                  key: 'credit-notes',
-                  label: 'Credit notes',
-                  El: CreditNotesView,
-                },
-              ]}
-            />
-          ),
-        },
+        { path: '/books/credit-notes/:id', element: <CreditNoteScreen /> },
         { path: '/bank', element: <StatementsScreen /> },
         { path: '/bank/import', element: <ImportScreen /> },
         { path: '/bank/statements/:id', element: <StatementScreen /> },

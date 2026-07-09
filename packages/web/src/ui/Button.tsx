@@ -3,12 +3,17 @@ import type { ButtonHTMLAttributes } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
-const VARIANTS: Record<Variant, string> = {
+/** Shared with LinkButton (a Link styled as this same kit Button) — keep
+ *  primary/secondary here as the single source of truth so the two never
+ *  drift apart visually. */
+export const BUTTON_VARIANTS: Record<Variant, string> = {
   primary: 'bg-accent text-white',
   secondary: 'bg-[#E9EBE7] text-ink',
   danger: 'bg-err text-white',
   ghost: 'bg-transparent text-accent',
 };
+
+const VARIANTS = BUTTON_VARIANTS;
 
 export const Button = forwardRef<
   HTMLButtonElement,
