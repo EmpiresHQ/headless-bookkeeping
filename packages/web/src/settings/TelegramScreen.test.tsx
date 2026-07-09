@@ -47,6 +47,10 @@ describe('TelegramScreen', () => {
       'type',
       'password',
     );
+    expect(screen.getByLabelText('Webhook secret')).toHaveAttribute(
+      'type',
+      'password',
+    );
     // The honest operational caveat survives.
     expect(
       screen.getByText(/Restart the app after changing/),

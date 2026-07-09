@@ -21,7 +21,7 @@ const TELEGRAM_DEFS: SettingDef[] = [
   {
     key: 'telegram_allowlist',
     label: 'Allowlist chat ids',
-    placeholder: 'tg:123456789, tg:987654321',
+    placeholder: '123456789, 987654321',
     multiline: true,
   },
 ];
@@ -30,8 +30,8 @@ const APPROVER_DEFS: SettingDef[] = [
   {
     key: 'approvers',
     label: 'Approvers',
-    placeholder: 'tg:123456789, mailto:boss@example.com',
-    hint: 'Comma-separated approver identities — who gets approval prompts',
+    placeholder: '123456789, boss@example.com',
+    hint: 'Comma-separated Telegram user IDs and/or email addresses — who gets approval prompts',
   },
   {
     key: 'email_whitelist',
