@@ -16,6 +16,7 @@ vi.mock('../api', async (io) => ({
   getInvoices: vi.fn(),
   getEntities: vi.fn(),
   getPeriodWarnings: vi.fn(),
+  lockPeriod: vi.fn(),
 }));
 import {
   downloadStatutoryReport,
@@ -194,6 +195,49 @@ describe('PeriodScreen', () => {
     mountAt(99);
     expect(
       await screen.findByText('This period does not exist'),
+    ).toBeInTheDocument();
+  });
+
+  it('the OLDEST open period offers "Close period…"', async () => {
+    // June (id 6) is open and oldest-open when July is also open.
+    mountAt(6, [
+      {
+        ...LOCKED_PERIOD,
+        id: 5,
+        name: '2026-05',
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+      },
+      {
+        ...LOCKED_PERIOD,
+        id: 6,
+        name: '2026-06',
+        status: 'open',
+        filed_at: null,
+      },
+      OPEN_PERIOD,
+    ]);
+    expect(await screen.findByText('June 2026')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Close period…' }),
+    ).toBeInTheDocument();
+  });
+
+  it('a LATER open period gets the honest file-first hint instead of a lock button', async () => {
+    mountAt(7, [
+      {
+        ...LOCKED_PERIOD,
+        id: 6,
+        name: '2026-06',
+        status: 'open',
+        filed_at: null,
+      },
+      OPEN_PERIOD,
+    ]);
+    expect(await screen.findByText('July 2026')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close period…' })).toBeNull();
+    expect(
+      screen.getByText(/File June 2026 first — filing proceeds oldest-first/),
     ).toBeInTheDocument();
   });
 });

@@ -11,6 +11,7 @@ import {
   displayFlags,
   KMD_ROWS,
   netVatLabel,
+  oldestOpen,
   periodTitle,
   submissionLine,
   useKmd,
@@ -24,6 +25,7 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow, KeyValue, GroupLabel } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { toastErr } from '../ui/toast';
+import { LockSheet } from './LockSheet';
 import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
 
 /** Info banner — live vs frozen is THE §7 marking decision. */
@@ -154,6 +156,8 @@ export function PeriodScreen() {
   const period = (periodsQ.data ?? []).find((p) => p.id === periodId);
   const kmdQ = useKmd(periodId, validPeriodId);
   const submissionQ = useSubmissionState(periodId, period?.status === 'locked');
+  const [lockOpen, setLockOpen] = useState(false);
+  const oldest = oldestOpen(periodsQ.data ?? []);
 
   if (periodsQ.isPending) {
     return (
@@ -237,7 +241,32 @@ export function PeriodScreen() {
       <StragglersSection period={period} />
       <InPeriodSection period={period} />
       <Downloads period={period} />
-      {/* Task 7 lock entry mounts here */}
+      {period.status === 'open' && period.id === oldest?.id && (
+        <div className="mx-3.5 mb-3.5">
+          <Button className="w-full" onClick={() => setLockOpen(true)}>
+            Close period…
+          </Button>
+        </div>
+      )}
+      {period.status === 'open' &&
+        oldest !== null &&
+        period.id !== oldest.id && (
+          <p className="mx-6 mb-3.5 text-[12.5px] text-ink-2">
+            File {periodTitle(oldest.name)} first — filing proceeds
+            oldest-first.
+          </p>
+        )}
+      {lockOpen && (
+        <LockSheet
+          key={period.id}
+          period={period}
+          netVatDueCents={
+            kmdQ.data !== undefined ? kmdQ.data.net_vat_due : null
+          }
+          open
+          onOpenChange={(o) => !o && setLockOpen(false)}
+        />
+      )}
     </div>
   );
 }
