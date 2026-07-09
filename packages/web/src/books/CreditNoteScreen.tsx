@@ -48,6 +48,17 @@ export function CreditNoteScreen() {
     invoices: invoicesQ.data ?? [],
     entities: entitiesQ.data ?? [],
   });
+  const creditedTitle =
+    n.credits_object_type === 'sales_invoice'
+      ? `Invoice ${
+          (invoicesQ.data ?? []).find((i) => i.id === n.credits_object_id)
+            ?.invoice_number ?? ''
+        }`.trim()
+      : 'Expense';
+  // d.title adds supplier/customer context when one exists; when the
+  // credited object has none, d.title collapses to the same text as
+  // creditedTitle — skip the subtitle rather than repeat it verbatim.
+  const creditedSubtitle = d.title !== creditedTitle ? d.title : undefined;
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
@@ -76,16 +87,8 @@ export function CreditNoteScreen() {
         {d.objectRoute != null ? (
           <ListRow
             to={d.objectRoute}
-            title={
-              n.credits_object_type === 'sales_invoice'
-                ? `Invoice ${
-                    (invoicesQ.data ?? []).find(
-                      (i) => i.id === n.credits_object_id,
-                    )?.invoice_number ?? ''
-                  }`.trim()
-                : 'Expense'
-            }
-            subtitle={d.title}
+            title={creditedTitle}
+            subtitle={creditedSubtitle}
           />
         ) : (
           <ListRow

@@ -96,7 +96,9 @@ export function CorrectSheet({
       } else if (kind === 'cosmetic') {
         toastOk('Cosmetic correction recorded');
       } else {
-        toastOk(`Correction posted · ${sign}${gross} €`);
+        toastOk(
+          `Correction posted · ${sign}${centsToEuroInput(grossParsed as number)} €`,
+        );
       }
       onOpenChange(false);
       onDone();

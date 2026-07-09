@@ -35,7 +35,9 @@ export function creditNoteDisplay(
     const customer = inv ? entityName(ctx.entities, inv.customer_id) : null;
     return {
       title: inv
-        ? `${customer ?? 'Invoice'} · Invoice ${inv.invoice_number}`
+        ? customer
+          ? `${customer} · Invoice ${inv.invoice_number}`
+          : `Invoice ${inv.invoice_number}`
         : n.credit_note_number,
       subtitle: `${n.credit_note_number} · credits invoice · ${shortDate(n.tax_point_date)}`,
       objectRoute: inv ? `/books/invoices/${inv.id}` : null,
@@ -45,7 +47,9 @@ export function creditNoteDisplay(
   const supplier = e ? entityName(ctx.entities, e.supplier_id) : null;
   return {
     title: e
-      ? `${supplier ?? 'Expense'} · Expense ${e.category}`
+      ? supplier
+        ? `${supplier} · Expense ${e.category}`
+        : `Expense ${e.category}`
       : n.credit_note_number,
     subtitle: `${n.credit_note_number} · credits expense · ${shortDate(n.tax_point_date)}`,
     objectRoute: e ? `/books/expenses/${e.id}` : null,
