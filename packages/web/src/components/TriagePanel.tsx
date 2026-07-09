@@ -6,9 +6,9 @@ import { TriageManualInvoiceForm } from './TriageManualInvoiceForm';
 
 /**
  * The actionable triage UI for a single needs_triage document — the right form
- * for the document's `reason_type`. Extracted from IntakeView so the SAME triage
- * affordances are available inline in the Documents archive (a human can resolve
- * a parked document without bouncing to the Intake tab).
+ * for the document's `reason_type`. Extracted from the legacy Intake tab so the
+ * SAME triage affordances are available inline in the Documents archive (a
+ * human can resolve a parked document without bouncing to the Inbox).
  *
  * Reasons with no form (unimplemented / unknown / not_a_document) show their
  * human-readable reason text — the actionable next step for those is a quick

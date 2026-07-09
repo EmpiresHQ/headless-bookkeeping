@@ -4,18 +4,19 @@ import {
   useLocation,
   type RouteObject,
 } from 'react-router-dom';
-import { ApprovalsView } from '../components/ApprovalsView';
 import { CategoriesView } from '../components/CategoriesView';
 import { CreditNotesView } from '../components/CreditNotesView';
 import { DocumentsView } from '../components/DocumentsView';
 import { EnrollView } from '../components/EnrollView';
 import { EntitiesView } from '../components/EntitiesView';
 import { ExpensesView } from '../components/ExpensesView';
-import { IntakeView } from '../components/IntakeView';
 import { InvoicesView } from '../components/InvoicesView';
 import { KmdView } from '../components/KmdView';
 import { OrgView } from '../components/OrgView';
 import { SettingsView } from '../components/SettingsView';
+import { ApprovalScreen } from '../inbox/ApprovalScreen';
+import { InboxScreen } from '../inbox/InboxScreen';
+import { TriageDocScreen } from '../inbox/TriageDocScreen';
 import { ImportScreen } from '../bank/ImportScreen';
 import { StatementScreen } from '../bank/StatementScreen';
 import { StatementsScreen } from '../bank/StatementsScreen';
@@ -33,8 +34,8 @@ const LEGACY_REDIRECTS: Record<string, string> = {
   '/invoices': '/books?tab=invoices',
   '/documents': '/books?tab=documents',
   '/credit-notes': '/books?tab=credit-notes',
-  '/intake': '/inbox?tab=triage',
-  '/approvals': '/inbox?tab=approvals',
+  '/intake': '/inbox?seg=triage',
+  '/approvals': '/inbox?seg=approvals',
   '/kmd': '/reports',
   '/periods': '/reports',
 };
@@ -56,18 +57,9 @@ export function buildRoutes(): RouteObject[] {
       element: <Root />,
       children: [
         { path: '/', element: <Navigate to="/inbox" replace /> },
-        {
-          path: '/inbox',
-          element: (
-            <LegacyTabs
-              title="Inbox"
-              tabs={[
-                { key: 'triage', label: 'Triage', El: IntakeView },
-                { key: 'approvals', label: 'Approvals', El: ApprovalsView },
-              ]}
-            />
-          ),
-        },
+        { path: '/inbox', element: <InboxScreen /> },
+        { path: '/inbox/doc/:id', element: <TriageDocScreen /> },
+        { path: '/inbox/approval/:id', element: <ApprovalScreen /> },
         {
           path: '/books',
           element: (

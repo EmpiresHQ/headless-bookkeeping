@@ -134,7 +134,7 @@ function InboxHero({
   );
 }
 
-/** Minimal upload entry point (legacy IntakeView capability kept): upload →
+/** Minimal upload entry point (legacy Intake tab capability kept): upload →
  *  auto-triage → outcome toast. The full upload flow (claimant dropdown,
  *  ADR-0036) belongs to the Books plan. */
 function UploadAction() {

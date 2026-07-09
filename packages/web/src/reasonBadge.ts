@@ -1,6 +1,6 @@
 /**
  * reasonBadge — shared label for a needs_triage reason_type.
- * Used in IntakeView (work queue) and DocumentsView (archive).
+ * Used in the Inbox work queue and DocumentsView (archive).
  * Task 10 will also consume this.
  */
 

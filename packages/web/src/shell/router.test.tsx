@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setToken } from '../auth';
 import { buildRoutes } from './router';
 
@@ -10,33 +10,61 @@ function renderAt(path: string) {
   return router;
 }
 
+/** The new Inbox screens fetch on mount; route JSON per endpoint so any
+ *  screen the router lands on renders without network noise. */
+function mockApiFetch() {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+    const url = String(input);
+    const json = (body: unknown) =>
+      Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    if (url.includes('/api/triage/needs-triage')) return json({ items: [] });
+    if (url.includes('/api/approvals/pending')) return json({ approvals: [] });
+    if (url.includes('/api/expenses')) return json({ expenses: [] });
+    if (url.includes('/api/sales-invoices')) return json({ invoices: [] });
+    if (url.includes('/api/entities')) return json({ entities: [] });
+    if (url.includes('/api/reporting-periods'))
+      return json({ reportingPeriods: [] });
+    if (url.includes('/api/documents/')) return json({});
+    return json([]);
+  });
+}
+
 describe('router', () => {
   beforeEach(() => {
     localStorage.clear();
     setToken('test-token');
+    mockApiFetch();
   });
+  afterEach(() => vi.restoreAllMocks());
 
   it('shows the token gate when no token is stored', () => {
     localStorage.clear();
     renderAt('/inbox');
-    // getByText(/api token/i) is ambiguous: it also matches the TokenGate
-    // helper paragraph ("Paste an API token..."). Target the heading.
     expect(
       screen.getByRole('heading', { name: /api token/i }),
     ).toBeInTheDocument();
   });
 
-  it('redirects / to /inbox', () => {
+  it('redirects / to /inbox and renders the new queue screen', async () => {
     const router = renderAt('/');
     expect(router.state.location.pathname).toBe('/inbox');
+    expect(
+      await screen.findByRole('heading', { name: 'Inbox' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^All$/ })).toBeInTheDocument();
   });
 
-  it('redirects legacy /intake to /inbox preserving search params', () => {
+  it('redirects legacy /intake?expand=5 all the way to the triage detail route', async () => {
     const router = renderAt('/intake?expand=5');
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/doc/5'),
+    );
+  });
+
+  it('redirects legacy /approvals to the approvals segment', () => {
+    const router = renderAt('/approvals');
     expect(router.state.location.pathname).toBe('/inbox');
-    const params = new URLSearchParams(router.state.location.search);
-    expect(params.get('tab')).toBe('triage');
-    expect(params.get('expand')).toBe('5');
+    expect(router.state.location.search).toContain('seg=approvals');
   });
 
   it('redirects legacy /expenses to /books?tab=expenses', () => {
@@ -47,7 +75,6 @@ describe('router', () => {
 
   it('renders legacy section tabs at /settings', () => {
     renderAt('/settings');
-    // LegacyTabs segmented control for the settings section.
     expect(
       screen.getByRole('tab', { name: 'Organization' }),
     ).toBeInTheDocument();
@@ -55,10 +82,6 @@ describe('router', () => {
   });
 
   it('renders the new Bank statements screen at /bank', async () => {
-    setToken('test-token');
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('[]', { status: 200 }),
-    );
     renderAt('/bank');
     expect(
       await screen.findByRole('heading', { name: 'Bank' }),
@@ -67,6 +90,5 @@ describe('router', () => {
       'href',
       '/bank/import',
     );
-    vi.restoreAllMocks();
   });
 });
