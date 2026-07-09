@@ -17,6 +17,9 @@ describe('CreditNotesView', () => {
       status: 'posted',
       gross_amount: 5000,
       vat_amount: 1000,
+      currency: 'EUR',
+      tax_point_date: '2026-05-01',
+      created_at: 1751000000,
       credits_object_type: 'sales_invoice',
       credits_object_id: 1,
     });

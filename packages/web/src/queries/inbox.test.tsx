@@ -162,6 +162,8 @@ describe('approvalDisplay', () => {
       vat_amount: 0,
       currency: 'EUR',
       tax_point_date: '2026-07-01',
+      due_date: null,
+      document_id: null,
       status: 'pending',
       sent_at: null,
       reconciled: false,

@@ -66,6 +66,10 @@ export interface SalesInvoice {
   vat_amount: number;
   currency: string;
   tax_point_date: string;
+  due_date: string | null;
+  // Present on every list row (sales-invoices/types.ts:20) — the invoice
+  // detail links its source document with it.
+  document_id: number | null;
   status: string;
   sent_at: number | null;
   // True when the posted voucher is matched to a bank transaction.
@@ -188,6 +192,8 @@ export interface ExpenseDetail {
   status: string;
   supplier_invoice_number: string | null;
   ai_confidence: number | null;
+  claimant_id: number | null;
+  created_at: number;
 }
 
 export const getExpense = (id: number) =>
@@ -346,15 +352,29 @@ export interface CorrectionRequest {
   patch?: { gross_amount?: number; vat_amount?: number; category?: string };
 }
 
+/**
+ * Correction result (corrections/types.ts:24-38). `redirected` is true when
+ * the original date sat in a LOCKED period and the reversal + correction were
+ * re-dated into the current open period (ADR-0009). Voucher ids stay off the
+ * typed surface (ADR-0001/0030). NOTE: the server's `kind:'credit_note'`
+ * branch needs a creditNote payload this client deliberately never sends —
+ * credit notes go through POST /api/credit-notes (see CorrectSheet).
+ */
+export interface CorrectionOutcome {
+  outcome: string;
+  redirected?: boolean;
+  redirectedToPeriodId?: number;
+}
+
 export const correctExpense = (id: number, req: CorrectionRequest) =>
-  apiFetch<{ outcome: string }>(`/api/expenses/${id}/correct`, {
+  apiFetch<CorrectionOutcome>(`/api/expenses/${id}/correct`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(req),
   });
 
 export const correctInvoice = (id: number, req: CorrectionRequest) =>
-  apiFetch<{ outcome: string }>(`/api/sales-invoices/${id}/correct`, {
+  apiFetch<CorrectionOutcome>(`/api/sales-invoices/${id}/correct`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(req),
@@ -371,6 +391,14 @@ export interface PolicyDecisionView {
 export const postExpense = (id: number) =>
   apiFetch<{ expense: Expense; policy: PolicyDecisionView }>(
     `/api/expenses/${id}/post`,
+    { method: 'POST' },
+  );
+
+/** Draft → Rules → Policy → post or hold, for sales invoices (mirror of
+ *  postExpense; 409 on non-draft). Voucher stays untyped (ADR-0001/0030). */
+export const postInvoice = (id: number) =>
+  apiFetch<{ invoice: SalesInvoice; policy: PolicyDecisionView }>(
+    `/api/sales-invoices/${id}/post`,
     { method: 'POST' },
   );
 
@@ -434,10 +462,17 @@ export type TriageOutcome =
   | { kind: 'bank_statement'; document_id: number; job_id: number }
   | { kind: 'unknown'; document_id: number; reason: string };
 
-export const uploadDocument = (file: File) => {
+export const uploadDocument = (
+  file: File,
+  opts: { claimantId?: number | null } = {},
+) => {
   // Multipart: set NO content-type so the browser adds the boundary.
   const body = new FormData();
   body.append('file', file);
+  // ADR-0036: the employee/director who paid out-of-pocket. The server takes
+  // it as a multipart string field (documents.controller.ts:79,109).
+  if (opts.claimantId != null)
+    body.append('claimant_id', String(opts.claimantId));
   return apiFetch<{ document: DocumentRow; deduplicated: boolean }>(
     '/api/documents',
     { method: 'POST', body },
@@ -523,15 +558,7 @@ export interface NeedsTriageItem {
   filename: string;
   created_at: number;
   reason: string;
-  reason_type:
-    | 'supplier_unresolved'
-    | 'outgoing_invoice'
-    | 'low_confidence'
-    | 'category_unresolved'
-    | 'ocr_failed'
-    | 'unimplemented'
-    | 'not_a_document'
-    | 'unknown';
+  reason_type: TriageReasonType;
 }
 
 export const getNeedsTriageItems = () =>
@@ -643,6 +670,28 @@ export const rejectApproval = (id: number, reason: string) =>
     body: JSON.stringify({ rejected_reason: reason }),
   });
 
+/** Approvals LOG (GET /api/approvals?status=&object_type=) — the Books
+ *  detail joins the newest rejected approval to show WHY a draft came back
+ *  (rejecting returns the object to draft, ADR-0015). */
+export interface ListApprovalsQuery {
+  status?: 'pending' | 'approved' | 'rejected' | 'superseded';
+  object_type?:
+    | 'expense'
+    | 'sales_invoice'
+    | 'allowance'
+    | 'reconciliation_match';
+}
+
+export const listApprovals = (query: ListApprovalsQuery = {}) => {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.object_type) params.set('object_type', query.object_type);
+  const qs = params.toString();
+  return apiFetch<{ approvals: Approval[] }>(
+    qs ? `/api/approvals?${qs}` : '/api/approvals',
+  ).then((r) => r.approvals);
+};
+
 // ── Settings (admin/settings key/value) ───────────────────────────────────
 export interface Setting {
   key: string;
@@ -715,9 +764,15 @@ export interface CreditNote {
   status: string;
   gross_amount: number;
   vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  created_at: number;
   credits_object_type: string;
   credits_object_id: number;
 }
+
+export const getCreditNote = (id: number) =>
+  apiFetch<CreditNote>(`/api/credit-notes/${id}`);
 
 export async function createCreditNote(body: {
   credits_object_type: 'sales_invoice' | 'expense';

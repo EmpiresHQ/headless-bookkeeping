@@ -19,6 +19,8 @@ const posted = {
   vat_amount: 2000,
   currency: 'EUR',
   tax_point_date: '2026-05-01',
+  due_date: null,
+  document_id: null,
   status: 'posted',
   sent_at: null,
   reconciled: false,

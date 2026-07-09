@@ -77,6 +77,8 @@ describe('ApprovalScreen', () => {
       status: 'pending',
       supplier_invoice_number: 'A-183',
       ai_confidence: 0.94,
+      claimant_id: null,
+      created_at: 1751000000,
     });
     vi.mocked(api.getExpenses).mockResolvedValue([]);
     vi.mocked(api.getInvoices).mockResolvedValue([]);
