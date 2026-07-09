@@ -62,11 +62,35 @@ describe('AppLayout', () => {
 
   it('shows the live inbox badge in BOTH navs (triage + approvals summed)', async () => {
     vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
-      { id: 1, filename: 'a.pdf', created_at: 1, reason: 'x', reason_type: 'unknown' },
-      { id: 2, filename: 'b.pdf', created_at: 2, reason: 'x', reason_type: 'unknown' },
+      {
+        id: 1,
+        filename: 'a.pdf',
+        created_at: 1,
+        reason: 'x',
+        reason_type: 'unknown',
+      },
+      {
+        id: 2,
+        filename: 'b.pdf',
+        created_at: 2,
+        reason: 'x',
+        reason_type: 'unknown',
+      },
     ]);
     vi.mocked(api.getPendingApprovals).mockResolvedValue([
-      { id: 7, object_type: 'expense', object_id: 1, status: 'pending', requested_by: 'p', approved_by: null, rejected_reason: null, policy_reason: null, superseded_by: null, created_at: 3, resolved_at: null },
+      {
+        id: 7,
+        object_type: 'expense',
+        object_id: 1,
+        status: 'pending',
+        requested_by: 'p',
+        approved_by: null,
+        rejected_reason: null,
+        policy_reason: null,
+        superseded_by: null,
+        created_at: 3,
+        resolved_at: null,
+      },
     ]);
     renderShell();
     await waitFor(() => expect(screen.getAllByText('3')).toHaveLength(2));

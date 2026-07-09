@@ -488,9 +488,16 @@ export async function fetchDocumentPreviewObjectUrl(
  * Open a document's file in a new tab via a freshly-minted signed URL. Opens a
  * blank tab synchronously (inside the click gesture, so the popup blocker does
  * not eat it), then points it at the token-free /shared link once minted.
+ *
+ * Deliberately NOT passing 'noopener'/'noreferrer' to window.open: per the
+ * HTML spec, either flag makes window.open() return null (no reference to
+ * hand back), which silently broke this into always taking the `else`
+ * branch below and navigating the CURRENT tab away instead of opening a new
+ * one (smoke-tested — Task 16). The target is same-origin (our own
+ * /api/documents/:id/shared), so the opener-access trade-off is acceptable.
  */
 export async function openSignedDocument(id: number): Promise<void> {
-  const tab = window.open('', '_blank', 'noreferrer');
+  const tab = window.open('', '_blank');
   try {
     const { url } = await getSignedDocumentUrl(id);
     if (tab) tab.location.href = url;

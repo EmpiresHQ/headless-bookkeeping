@@ -41,8 +41,20 @@ describe('shared hooks', () => {
 
   it('useSuppliers and useCustomers share ONE entities cache entry and filter by role', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([
-      { id: 1, role: 'supplier', country: 'EE', name: 'Wolt', goods_vs_services: null },
-      { id: 2, role: 'customer', country: 'EE', name: 'Nordic', goods_vs_services: null },
+      {
+        id: 1,
+        role: 'supplier',
+        country: 'EE',
+        name: 'Wolt',
+        goods_vs_services: null,
+      },
+      {
+        id: 2,
+        role: 'customer',
+        country: 'EE',
+        name: 'Nordic',
+        goods_vs_services: null,
+      },
     ]);
     const { client, wrapper } = makeWrapper();
     const suppliers = renderHook(() => useSuppliers(), { wrapper });

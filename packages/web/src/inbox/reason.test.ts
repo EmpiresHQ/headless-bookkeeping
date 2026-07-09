@@ -8,9 +8,9 @@ import {
 
 describe('humanizePolicyReason', () => {
   it('renders the amount-ceiling hold with euro amounts from the persisted cents', () => {
-    expect(humanizePolicyReason('Voucher amount 8900 exceeds ceiling 5000')).toBe(
-      '89.00 € above the 50.00 € auto-post limit',
-    );
+    expect(
+      humanizePolicyReason('Voucher amount 8900 exceeds ceiling 5000'),
+    ).toBe('89.00 € above the 50.00 € auto-post limit');
   });
   it('renders the confidence hold with the real numbers', () => {
     expect(humanizePolicyReason('AI confidence 0.41 below threshold 0.8')).toBe(
@@ -64,13 +64,16 @@ describe('triageSubtitle', () => {
     expect(triageSubtitle({ reason: 'x', reason_type: 'ocr_failed' })).toBe(
       'OCR could not read the file — retry or replace',
     );
-    expect(
-      triageSubtitle({ reason: 'x', reason_type: 'not_a_document' }),
-    ).toBe('Does not look like a business document');
+    expect(triageSubtitle({ reason: 'x', reason_type: 'not_a_document' })).toBe(
+      'Does not look like a business document',
+    );
   });
   it('shows the server sentence for unknown types', () => {
     expect(
-      triageSubtitle({ reason: 'Held for human review', reason_type: 'unknown' }),
+      triageSubtitle({
+        reason: 'Held for human review',
+        reason_type: 'unknown',
+      }),
     ).toBe('Held for human review');
   });
 });

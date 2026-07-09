@@ -160,7 +160,9 @@ describe('ApprovalScreen', () => {
       return { approval: APPROVAL({ status: 'approved' }) };
     });
     const router = renderAt('/inbox/approval/7');
-    const btn = await screen.findByRole('button', { name: 'Approve · -89.00 €' });
+    const btn = await screen.findByRole('button', {
+      name: 'Approve · -89.00 €',
+    });
     fireEvent.click(btn);
     await waitFor(() =>
       expect(api.approveApproval).toHaveBeenCalledWith(7, 'operator'),
@@ -180,9 +182,12 @@ describe('ApprovalScreen', () => {
       name: 'Reject & return to draft',
     });
     expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByPlaceholderText(/why this should not be posted/i), {
-      target: { value: 'Wrong supplier' },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/why this should not be posted/i),
+      {
+        target: { value: 'Wrong supplier' },
+      },
+    );
     expect(submit).toBeEnabled();
     fireEvent.click(submit);
     await waitFor(() =>
@@ -214,9 +219,7 @@ describe('ApprovalScreen', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
     );
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe('/inbox'),
-    );
+    await waitFor(() => expect(router.state.location.pathname).toBe('/inbox'));
   });
 
   it('does not carry the previous reject reason to the next item', async () => {
