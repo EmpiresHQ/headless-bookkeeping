@@ -217,10 +217,11 @@ export function approvalDisplay(
 /** After approve/reject/triage: the queue AND the business-object lists the
  *  rows join against are stale — including entities (ResolveSupplierSheet
  *  can create a new supplier, and queue titles/facts/pickers join against
- *  the entities list) AND books (approve/reject changes the expense/invoice
+ *  the entities list), books (approve/reject changes the expense/invoice
  *  detail, rejection, and documents that Books screens read — otherwise the
  *  "Open Inbox" round-trip back to Books shows stale pending state under
- *  Books' own 15s staleTime). */
+ *  Books' own 15s staleTime), AND reports (an approval posts an expense/
+ *  invoice that changes the open period's live KMD/warnings/hero net). */
 export function invalidateInbox(qc: QueryClient): Promise<void> {
   return Promise.all([
     qc.invalidateQueries({ queryKey: inboxKeys.all }),
@@ -228,6 +229,7 @@ export function invalidateInbox(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: sharedKeys.invoices }),
     qc.invalidateQueries({ queryKey: sharedKeys.entities }),
     qc.invalidateQueries({ queryKey: ['books'] }),
+    qc.invalidateQueries({ queryKey: ['reports'] }),
   ]).then(() => undefined);
 }
 

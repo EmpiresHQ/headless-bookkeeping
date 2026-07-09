@@ -12,6 +12,7 @@ import {
 import { useEntities, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { statusChip, StatusChipRow } from './chips';
@@ -109,12 +110,10 @@ export function InvoicesSegment({ q }: { q: string }) {
         <ListGroup
           key={g.month}
           label={
-            <span className="flex w-full items-baseline justify-between">
-              <span>{g.label}</span>
-              <span className="whitespace-nowrap tabular-nums">
-                +{fmtCents(g.totalCents)} € · {g.count}
-              </span>
-            </span>
+            <GroupHeader
+              label={g.label}
+              trailing={`+${fmtCents(g.totalCents)} € · ${g.count}`}
+            />
           }
         >
           {g.rows.map((inv) => (

@@ -53,6 +53,9 @@ export interface Expense {
   vat_amount: number;
   currency: string;
   tax_point_date: string;
+  // Present on every list row (expenses/types.ts:19) — the Reports INF join
+  // derives "missing invoice number" gaps from it (Plan 05 Reality #11).
+  supplier_invoice_number: string | null;
   status: string;
   // True when the posted voucher is matched to a bank transaction.
   reconciled: boolean;
@@ -125,7 +128,7 @@ export interface ReportingPeriod {
   name: string;
   start_date: string;
   end_date: string;
-  status: string;
+  status: 'open' | 'locked';
   filed_at: number | null;
 }
 
@@ -198,6 +201,19 @@ export interface ExpenseDetail {
 
 export const getExpense = (id: number) =>
   apiFetch<ExpenseDetail>(`/api/expenses/${id}`);
+
+/** Set the supplier invoice number on a POSTED expense — no ledger impact;
+ *  400 when the expense's reporting period is locked (expenses.service.ts:
+ *  217-233). The Reports INF-gap fix goes through this. */
+export const setExpenseDocumentMetadata = (
+  id: number,
+  patch: { supplier_invoice_number: string | null },
+) =>
+  apiFetch<ExpenseDetail>(`/api/expenses/${id}/document-metadata`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
 
 // ── Document details (OCR + persisted classification — no LLM re-run) ────────
 export interface DebugTriageResult {
@@ -276,10 +292,111 @@ export const createNextPeriod = (input: CreateNextPeriodInput = {}) =>
     body: JSON.stringify(input),
   });
 
+/**
+ * Advisory pre-lock warnings (GET /api/reporting-periods/:id/warnings) —
+ * ADR-0015 warn-and-confirm: the server NEVER blocks locking on these.
+ * NOTE: `description` embeds raw cents ("EUR 65000") — do not render it;
+ * join object_id against the shared lists instead (Plan 05 Reality #8).
+ */
+export interface PeriodWarning {
+  type: 'pending_approval' | 'unposted_draft';
+  object_type: 'expense' | 'sales_invoice';
+  object_id: number;
+  description: string;
+}
+
+export const getPeriodWarnings = (periodId: number) =>
+  apiFetch<{ warnings: PeriodWarning[] }>(
+    `/api/reporting-periods/${periodId}/warnings`,
+  ).then((r) => r.warnings);
+
+/**
+ * File (lock) a period — ONE atomic act: freezes the VAT snapshot AND flips
+ * the period to locked (ADR-0009/0037). Idempotent; 409 when an EARLIER
+ * period is still open (filing proceeds oldest-first). There is NO unlock
+ * endpoint — corrections go forward into the open period.
+ */
+export const lockPeriod = (periodId: number) =>
+  apiFetch<ReportingPeriod>(`/api/reporting-periods/${periodId}/lock`, {
+    method: 'POST',
+  });
+
+// ── Statutory submission lifecycle (ADR-0037: append-only event log) ──────
+/** Folded filing status — the kind of the latest event (fold.ts). */
+export type SubmissionStatus =
+  | 'not_started'
+  | 'prepared'
+  | 'submitted'
+  | 'accepted'
+  | 'rejected'
+  | 'correction_submitted'
+  | 'correction_accepted';
+
+export type SubmissionEventKind = Exclude<SubmissionStatus, 'not_started'>;
+
+/** Operator-recordable kinds — `prepared` is system-emitted at lock only
+ *  (statutory-submission/types.ts:15-22; the server zod-rejects it). */
+export type RecordableSubmissionKind = Exclude<SubmissionEventKind, 'prepared'>;
+
+/** Display subset of a persisted event — the snapshot linkage columns
+ *  (report_kind, source_snapshot_*) stay off the typed surface: internal
+ *  artifact plumbing, not operator data (ADR-0001/0030 discipline). */
+export interface SubmissionEvent {
+  id: number;
+  reporting_period_id: number;
+  event_kind: SubmissionEventKind;
+  external_ref: string | null;
+  occurred_at: number;
+  actor: string;
+  note: string | null;
+}
+
+/** Folded state + full ordered history. `currentSnapshotId` deliberately
+ *  omitted (internal artifact id). A period with no events folds to
+ *  status 'not_started' with an empty history. */
+export interface SubmissionState {
+  status: SubmissionStatus;
+  lastExternalRef: string | null;
+  submissionCount: number;
+  history: SubmissionEvent[];
+}
+
+export const getSubmissionState = (periodId: number) =>
+  apiFetch<SubmissionState>(
+    `/api/reporting-periods/${periodId}/submission-state`,
+  );
+
+export interface RecordSubmissionEventInput {
+  event_kind: RecordableSubmissionKind;
+  external_ref?: string;
+  note?: string;
+}
+
+/** Operator-attested lifecycle event (POST …/submission-events). 404s for a
+ *  period with no frozen snapshot ("lock it before recording"). */
+export const recordSubmissionEvent = (
+  periodId: number,
+  input: RecordSubmissionEventInput,
+) =>
+  apiFetch<SubmissionEvent>(
+    `/api/reporting-periods/${periodId}/submission-events`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+
 /** Integer cents → display string, e.g. 615700 -> "6157.00". */
 export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
 
 // ── KMD declaration (GET /api/reporting-periods/:id/kmd) ──────────────────
+// Derived on EVERY read from the period's posted vouchers — a live preview
+// while the period is open; stable once locked only because locked periods
+// reject postings. API TRAP (Plan 05 Reality #7): never add a wrapper for
+// POST /api/reporting-periods/:id/vat-report — generating a snapshot on an
+// OPEN period freezes it early and lock() would silently file the STALE
+// snapshot (vat-report.service.ts:44-52 + reporting-periods.service.ts:203).
 export interface KmdDeclaration {
   reporting_period_id: number;
   period_name: string;

@@ -305,7 +305,7 @@ describe('createExpenseFromLine', () => {
 });
 
 describe('invalidateStatement', () => {
-  it('invalidates the statement AND the cross-domain expenses/books keys — booking a match flips reconciled flags and posts expenses that Books reads', async () => {
+  it('invalidates the statement AND the cross-domain expenses/books/reports keys — booking a match flips reconciled flags and posts expenses that Books AND the open period declaration read', async () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -317,6 +317,7 @@ describe('invalidateStatement', () => {
         bankKeys.statement(5),
         sharedKeys.expenses,
         ['books'],
+        ['reports'],
       ]),
     );
   });

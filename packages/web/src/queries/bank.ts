@@ -137,7 +137,8 @@ export { useCategories, useOrganizationCountry, useSuppliers } from './shared';
 /** Booking/undoing a match flips reconciled flags and can create posted
  *  expenses — Books lists, expense/invoice detail, and the 🏦 markers all
  *  read that data, so a statement-scoped invalidation alone leaves them
- *  stale. */
+ *  stale. A posted expense also changes the open period's live
+ *  KMD/warnings/hero net, so Reports keys need the same treatment. */
 export function invalidateStatement(
   qc: QueryClient,
   statementId: number,
@@ -146,6 +147,7 @@ export function invalidateStatement(
     qc.invalidateQueries({ queryKey: bankKeys.statement(statementId) }),
     qc.invalidateQueries({ queryKey: sharedKeys.expenses }),
     qc.invalidateQueries({ queryKey: ['books'] }),
+    qc.invalidateQueries({ queryKey: ['reports'] }),
   ]).then(() => undefined);
 }
 

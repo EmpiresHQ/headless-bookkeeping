@@ -7,7 +7,6 @@ import {
 import { CategoriesView } from '../components/CategoriesView';
 import { EnrollView } from '../components/EnrollView';
 import { EntitiesView } from '../components/EntitiesView';
-import { KmdView } from '../components/KmdView';
 import { OrgView } from '../components/OrgView';
 import { SettingsView } from '../components/SettingsView';
 import { ApprovalScreen } from '../inbox/ApprovalScreen';
@@ -23,6 +22,9 @@ import { CreditNoteScreen } from '../books/CreditNoteScreen';
 import { DocumentScreen } from '../books/DocumentScreen';
 import { ExpenseScreen } from '../books/ExpenseScreen';
 import { InvoiceScreen } from '../books/InvoiceScreen';
+import { PeriodScreen } from '../reports/PeriodScreen';
+import { ReportsScreen } from '../reports/ReportsScreen';
+import { SubmissionsScreen } from '../reports/SubmissionsScreen';
 import { LegacyTabs } from './LegacyTabs';
 import { Root } from './Root';
 
@@ -76,14 +78,11 @@ export function buildRoutes(): RouteObject[] {
         { path: '/bank/import', element: <ImportScreen /> },
         { path: '/bank/statements/:id', element: <StatementScreen /> },
         { path: '/bank/statements/:id/tx/:txId', element: <TxScreen /> },
+        { path: '/reports', element: <ReportsScreen /> },
+        { path: '/reports/periods/:id', element: <PeriodScreen /> },
         {
-          path: '/reports',
-          element: (
-            <LegacyTabs
-              title="Reports"
-              tabs={[{ key: 'kmd', label: 'VAT / KMD', El: KmdView }]}
-            />
-          ),
+          path: '/reports/periods/:id/submissions',
+          element: <SubmissionsScreen />,
         },
         {
           path: '/settings',

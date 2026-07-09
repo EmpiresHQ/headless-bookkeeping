@@ -11,7 +11,12 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
-import type { Approval, Expense, NeedsTriageItem } from '../api';
+import type {
+  Approval,
+  Expense,
+  NeedsTriageItem,
+  ReportingPeriod,
+} from '../api';
 import { sharedKeys } from './keys';
 import {
   INBOX_REFETCH_MS,
@@ -140,7 +145,7 @@ describe('approvalDisplay', () => {
       goods_vs_services: null,
     },
   ];
-  const expenses = [
+  const expenses: Expense[] = [
     {
       id: 107,
       supplier_id: 3,
@@ -149,6 +154,7 @@ describe('approvalDisplay', () => {
       vat_amount: 1632,
       currency: 'EUR',
       tax_point_date: '2026-07-03',
+      supplier_invoice_number: null,
       status: 'pending',
       reconciled: false,
     },
@@ -232,14 +238,16 @@ describe('hooks', () => {
 });
 
 describe('invalidateInbox', () => {
-  it('invalidates the queue, expenses, invoices, entities, AND books', async () => {
+  it('invalidates the queue, expenses, invoices, entities, books, AND reports', async () => {
     // ResolveSupplierSheet creates suppliers on the triage path, and queue
     // titles/facts/pickers join against entities — a stale entities cache
     // would show the pre-creation "unknown supplier" state after resolving.
     // Books also joins expense/invoice detail, rejection, and documents
     // against this same approve/reject data — without invalidating
     // ['books'] too, the "Open Inbox" round-trip back to Books shows stale
-    // pending state under Books' own 15s staleTime.
+    // pending state under Books' own 15s staleTime. An Inbox approval also
+    // posts an expense/invoice that changes the open period's live
+    // KMD/warnings/hero net — Reports keys must not stay stale either.
     const { client } = makeWrapper();
     const spy = vi.spyOn(client, 'invalidateQueries');
     await invalidateInbox(client);
@@ -251,13 +259,14 @@ describe('invalidateInbox', () => {
         sharedKeys.invoices,
         sharedKeys.entities,
         ['books'],
+        ['reports'],
       ]),
     );
   });
 });
 
 describe('hero data', () => {
-  const period = {
+  const period: ReportingPeriod = {
     id: 1,
     name: 'July 2026',
     start_date: '2026-07-01',
@@ -275,6 +284,7 @@ describe('hero data', () => {
     vat_amount: 0,
     currency: 'EUR',
     tax_point_date: '2026-07-03',
+    supplier_invoice_number: null,
     status: 'posted',
     reconciled: false,
     ...over,

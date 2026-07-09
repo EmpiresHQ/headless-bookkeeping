@@ -86,6 +86,7 @@ describe('InboxScreen', () => {
         vat_amount: 1632,
         currency: 'EUR',
         tax_point_date: '2026-07-03',
+        supplier_invoice_number: null,
         status: 'pending',
         reconciled: false,
       },

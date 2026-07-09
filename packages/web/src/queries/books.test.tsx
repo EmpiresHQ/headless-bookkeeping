@@ -23,6 +23,7 @@ const exp = (o: Partial<Expense>): Expense => ({
   vat_amount: 869,
   currency: 'EUR',
   tax_point_date: '2026-07-01',
+  supplier_invoice_number: null,
   status: 'posted',
   reconciled: false,
   ...o,
@@ -150,7 +151,7 @@ describe('books pure model', () => {
     );
   });
 
-  it('invalidateBooks invalidates books + shared lists + inbox', async () => {
+  it('invalidateBooks invalidates books + shared lists + inbox + reports', async () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, 'invalidateQueries');
     await invalidateBooks(qc);
@@ -159,5 +160,9 @@ describe('books pure model', () => {
     expect(keys).toContainEqual(['expenses']);
     expect(keys).toContainEqual(['invoices']);
     expect(keys).toContainEqual(['inbox']);
+    // A Books mutation (approve/reject/correct) posts expenses/invoices that
+    // change the open period's live KMD/warnings/hero net — Reports keys
+    // must not sit on their own staleTime.
+    expect(keys).toContainEqual(['reports']);
   });
 });
