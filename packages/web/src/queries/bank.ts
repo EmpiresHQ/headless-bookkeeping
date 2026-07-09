@@ -4,10 +4,7 @@ import {
   createExpense,
   executeMatches,
   getBankImportStatus,
-  getCategories,
-  getEntities,
   getMatchCandidates,
-  getOrganization,
   getPendingApprovals,
   getReconciliationStatus,
   getStatementMatches,
@@ -132,22 +129,9 @@ export const useUnmatchedCounts = (statementIds: number[]) =>
       new Map(statementIds.map((id, i) => [id, results[i].data])),
   });
 
-export const useCategories = () =>
-  useQuery({ queryKey: ['categories'], queryFn: getCategories });
-
-export const useSuppliers = () =>
-  useQuery({
-    queryKey: ['entities'],
-    queryFn: getEntities,
-    select: (entities) => entities.filter((e) => e.role === 'supplier'),
-  });
-
-export const useOrganizationCountry = () =>
-  useQuery({
-    queryKey: ['organization'],
-    queryFn: getOrganization,
-    select: (org) => org.country,
-  });
+// Cross-domain reads moved to the shared layer (Plan 03); re-exported so bank
+// screens' imports keep working. Keys unchanged (see queries/keys.ts).
+export { useCategories, useOrganizationCountry, useSuppliers } from './shared';
 
 export function invalidateStatement(
   qc: QueryClient,
