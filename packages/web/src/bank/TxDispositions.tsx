@@ -182,7 +182,7 @@ export function PrepaymentSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Record prepayment">
       <p className="px-7 pb-2.5 text-center text-[12px] text-ink-2">
-        {tx.description ?? 'Bank line'} · {incoming ? '+' : '-'}
+        {tx.description ?? 'Bank line'} · {incoming ? '+' : '−'}
         {abs} €
       </p>
       <div className="mx-4 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-warn-deep">
@@ -205,7 +205,7 @@ export function PrepaymentSheet({
           Cancel
         </Button>
         <Button className="h-[46px] flex-1" busy={busy} onClick={onConfirm}>
-          Record prepayment · {incoming ? '+' : '-'}
+          Record prepayment · {incoming ? '+' : '−'}
           {abs} €
         </Button>
       </div>

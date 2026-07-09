@@ -3,7 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
   listBankStatements: vi.fn(),
   listBankTransactions: vi.fn(),
   getReconciliationStatus: vi.fn(),
@@ -22,7 +23,6 @@ vi.mock('../api', () => ({
   getEntities: vi.fn(),
   getOrganization: vi.fn(),
   deleteBankStatement: vi.fn(),
-  fmtCents: (cents: number) => (cents / 100).toFixed(2),
 }));
 
 import * as api from '../api';

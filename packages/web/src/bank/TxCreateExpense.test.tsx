@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
   listBankStatements: vi.fn(),
   listBankTransactions: vi.fn(),
   getReconciliationStatus: vi.fn(),
@@ -22,7 +23,6 @@ vi.mock('../api', () => ({
   getOrganization: vi.fn(),
   onboardEntity: vi.fn(),
   addEntityAlias: vi.fn(),
-  fmtCents: (cents: number) => (cents / 100).toFixed(2),
 }));
 
 import * as api from '../api';
@@ -79,7 +79,7 @@ describe('TxCreateExpense', () => {
     expect(await screen.findByLabelText('VAT (EUR)')).toHaveValue('3.35');
     expect(screen.getByText('27.06.2026 · from the line')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Create & match · -18.60 €' }),
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     ).toBeDisabled(); // no category chosen yet
   });
 
@@ -126,7 +126,7 @@ describe('TxCreateExpense', () => {
     });
     fireEvent.click(screen.getByText('No receipt'));
     fireEvent.click(
-      screen.getByRole('button', { name: 'Create & match · -18.60 €' }),
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
     await vi.waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
@@ -157,7 +157,7 @@ describe('TxCreateExpense', () => {
       target: { value: 'meals' },
     });
     fireEvent.click(
-      screen.getByRole('button', { name: 'Create & match · -18.60 €' }),
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
     await vi.waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
