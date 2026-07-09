@@ -22,6 +22,7 @@ import { KeyValue, ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
+import { CorrectSheet } from './CorrectSheet';
 
 /** Honest history (Reality #2): built ONLY from exposed facts — created_at,
  *  the rejection log, and the reversed status. The correction's own date and
@@ -80,6 +81,7 @@ export function ExpenseScreen() {
   );
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [correctOpen, setCorrectOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   if (detailQ.isError) {
@@ -263,9 +265,18 @@ export function ExpenseScreen() {
           </>
         )}
         {detail.status === 'posted' && (
-          <p className="text-center text-[12.5px] text-ink-2">
-            Posted entries change only through a correction (ADR-0009).
-          </p>
+          <>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => setCorrectOpen(true)}
+            >
+              Correct…
+            </Button>
+            <p className="text-center text-[12.5px] text-ink-2">
+              Posted entries change only through a correction (ADR-0009).
+            </p>
+          </>
         )}
         {detail.status === 'reversed' && (
           <p className="text-center text-[12.5px] text-ink-2">
@@ -285,6 +296,20 @@ export function ExpenseScreen() {
         busy={busy}
         onConfirm={() => void onDelete()}
       />
+
+      {detail.status === 'posted' && (
+        <CorrectSheet
+          key={detail.id}
+          open={correctOpen}
+          onOpenChange={setCorrectOpen}
+          objectType="expense"
+          objectId={detail.id}
+          grossCents={detail.gross_amount}
+          vatCents={detail.vat_amount}
+          category={detail.category}
+          onDone={() => void detailQ.refetch()}
+        />
+      )}
     </div>
   );
 }

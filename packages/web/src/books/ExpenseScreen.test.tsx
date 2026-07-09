@@ -174,6 +174,16 @@ describe('ExpenseScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('posted expenses offer Correct… which opens the sheet', async () => {
+    mountAt();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Correct…' }),
+    );
+    expect(
+      await screen.findByRole('button', { name: /Post correction/ }),
+    ).toBeInTheDocument();
+  });
+
   it('detail fetch failure renders a retryable LoadError, not skeletons forever', async () => {
     vi.mocked(getExpense).mockRejectedValue(new Error('nope'));
     vi.mocked(getExpenses).mockResolvedValue([] as never);
