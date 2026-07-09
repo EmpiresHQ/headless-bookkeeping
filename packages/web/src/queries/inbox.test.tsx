@@ -11,7 +11,12 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
-import type { Approval, Expense, NeedsTriageItem } from '../api';
+import type {
+  Approval,
+  Expense,
+  NeedsTriageItem,
+  ReportingPeriod,
+} from '../api';
 import { sharedKeys } from './keys';
 import {
   INBOX_REFETCH_MS,
@@ -140,7 +145,7 @@ describe('approvalDisplay', () => {
       goods_vs_services: null,
     },
   ];
-  const expenses = [
+  const expenses: Expense[] = [
     {
       id: 107,
       supplier_id: 3,
@@ -149,6 +154,7 @@ describe('approvalDisplay', () => {
       vat_amount: 1632,
       currency: 'EUR',
       tax_point_date: '2026-07-03',
+      supplier_invoice_number: null,
       status: 'pending',
       reconciled: false,
     },
@@ -257,7 +263,7 @@ describe('invalidateInbox', () => {
 });
 
 describe('hero data', () => {
-  const period = {
+  const period: ReportingPeriod = {
     id: 1,
     name: 'July 2026',
     start_date: '2026-07-01',
@@ -275,6 +281,7 @@ describe('hero data', () => {
     vat_amount: 0,
     currency: 'EUR',
     tax_point_date: '2026-07-03',
+    supplier_invoice_number: null,
     status: 'posted',
     reconciled: false,
     ...over,

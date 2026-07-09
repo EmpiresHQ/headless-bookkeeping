@@ -8,8 +8,9 @@ import {
 } from '@testing-library/react';
 import { KmdView } from './KmdView';
 import * as api from '../api';
+import type { ReportingPeriod } from '../api';
 
-const period = {
+const period: ReportingPeriod = {
   id: 3,
   name: '2026-05',
   start_date: '2026-05-01',
@@ -33,7 +34,7 @@ const decl = {
   vd_intra_eu_services: 1174000,
   review_flags: ['Verify KMD row 6 vs 7.'],
 };
-const newPeriod = {
+const newPeriod: ReportingPeriod = {
   id: 7,
   name: '2026-06',
   start_date: '2026-06-01',

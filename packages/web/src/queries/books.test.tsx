@@ -23,6 +23,7 @@ const exp = (o: Partial<Expense>): Expense => ({
   vat_amount: 869,
   currency: 'EUR',
   tax_point_date: '2026-07-01',
+  supplier_invoice_number: null,
   status: 'posted',
   reconciled: false,
   ...o,
