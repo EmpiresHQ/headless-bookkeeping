@@ -58,11 +58,17 @@ export function TriageDocScreen() {
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [confirm, setConfirm] = useState<'dismiss' | 'delete' | null>(null);
   const [busy, setBusy] = useState(false);
+  // Remount nonce for the sheets: bumped when an unknown outcome keeps the
+  // operator on the SAME document (same docId → same key otherwise), so
+  // reopening the sheet to retry gets a fresh instance instead of the one
+  // whose success path deliberately left busy=true.
+  const [attempt, setAttempt] = useState(0);
 
   const finishTriage = async (o: TriageOutcome) => {
     setSheet(null);
     if (o.kind === 'unknown') {
       // Still unresolved — stay here, refresh the reason.
+      setAttempt((a) => a + 1);
       toastErr(outcomeText(o));
       await invalidateInbox(qc);
       return;
@@ -78,6 +84,12 @@ export function TriageDocScreen() {
       await fn();
       toastOk(message);
       await invalidateInbox(qc);
+      // Auto-advance re-renders this SAME element for the next document
+      // (only the :id param changes) — reset the screen-level action state
+      // BEFORE navigating, or doc N+1 renders with every action disabled
+      // and the confirm dialog still open over the wrong document.
+      setBusy(false);
+      setConfirm(null);
       navigate(next);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -290,37 +302,38 @@ export function TriageDocScreen() {
         }
       />
 
-      {/* key={docId}: these sheets do NOT self-reset internal state (prefill
-       *  flags, typed fields, busy) across documents or across a successful
-       *  submit that leaves busy=true for the parent to unmount (Tasks
-       *  10-12). Without a doc-scoped key, advancing to the next item in the
-       *  queue would reuse the same component instance and surface the
-       *  PREVIOUS document's stale fields / a permanently-busy button the
-       *  moment the sheet reopens. Same fix class as the Task 11/12 prefill
-       *  race — disclosed per the binding review note for this task. */}
+      {/* kind-docId-attempt keys: these sheets do NOT self-reset internal
+       *  state (prefill flags, typed fields, busy) across documents or after
+       *  a successful submit that leaves busy=true for the parent to unmount
+       *  (Tasks 10-12). Without the docId in the key, advancing to the next
+       *  item would reuse the same component instance and surface the
+       *  PREVIOUS document's stale fields / a permanently-busy button; the
+       *  attempt nonce covers the unknown-outcome retry on the SAME doc.
+       *  Same fix class as the Task 11/12 prefill race — disclosed per the
+       *  binding review note for this task. */}
       <ResolveSupplierSheet
-        key={`resolve-${docId}`}
+        key={`resolve-${docId}-${attempt}`}
         documentId={docId}
         open={sheet === 'resolve'}
         onOpenChange={(o) => setSheet(o ? 'resolve' : null)}
         onDone={(o) => void finishTriage(o)}
       />
       <ClassifyExpenseSheet
-        key={`classify-${docId}`}
+        key={`classify-${docId}-${attempt}`}
         documentId={docId}
         open={sheet === 'classify'}
         onOpenChange={(o) => setSheet(o ? 'classify' : null)}
         onDone={(o) => void finishTriage(o)}
       />
       <ClassifyInvoiceSheet
-        key={`invoice-${docId}`}
+        key={`invoice-${docId}-${attempt}`}
         documentId={docId}
         open={sheet === 'invoice'}
         onOpenChange={(o) => setSheet(o ? 'invoice' : null)}
         onDone={(o) => void finishTriage(o)}
       />
       <OcrFailedSheet
-        key={`ocr-${docId}`}
+        key={`ocr-${docId}-${attempt}`}
         documentId={docId}
         open={sheet === 'ocr'}
         onOpenChange={(o) => setSheet(o ? 'ocr' : null)}

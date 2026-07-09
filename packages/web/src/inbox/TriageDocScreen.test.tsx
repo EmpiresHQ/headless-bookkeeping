@@ -16,12 +16,13 @@ vi.mock('../api', async (importOriginal) => ({
   completeDocument: vi.fn(),
   retryDocument: vi.fn(),
   deleteDocument: vi.fn(),
+  manualClassify: vi.fn(),
   fetchDocumentPreviewObjectUrl: vi.fn(),
   openSignedDocument: vi.fn(),
 }));
 
 import * as api from '../api';
-import type { NeedsTriageItem } from '../api';
+import type { Entity, NeedsTriageItem } from '../api';
 import { TriageDocScreen } from './TriageDocScreen';
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
@@ -32,6 +33,52 @@ const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
   reason_type: 'low_confidence',
   ...over,
 });
+
+const SUPPLIER: Entity = {
+  id: 3,
+  role: 'supplier',
+  country: 'EE',
+  name: 'Circle K Eesti AS',
+  goods_vs_services: null,
+};
+
+/** Reclassify payload keyed by document id — lets one mockImplementation
+ *  serve BOTH docs so the remount pin can tell 12's prefill from 13's. */
+const RECLASSIFY = (id: number, grossAmount: number, vatAmount: number) => ({
+  document_id: id,
+  ocr: { ok: true as const, markdown: 'x' },
+  classification: {
+    ok: true as const,
+    result: {
+      kind: 'new_expense',
+      document_type: 'receipt',
+      gross_amount: grossAmount,
+      vat_amount: vatAmount,
+      currency: 'EUR',
+      tax_point_date: '2026-07-01',
+      category: 'fuel',
+      document_vat_marking: null,
+      supplier_invoice_number: null,
+      confidence: 0.41,
+    },
+  },
+});
+
+/** Opens the classify sheet, waits for its prefill, picks the supplier and
+ *  submits — the shared choreography of the two remount-discipline tests. */
+async function openClassifyPickSupplierAndSubmit(grossDisplay: string) {
+  fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+  expect(await screen.findByDisplayValue(grossDisplay)).toBeInTheDocument();
+  fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
+    target: { value: 'circle' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /Circle K Eesti AS/ }));
+  const submit = screen.getByRole('button', {
+    name: `Create expense · -${grossDisplay} €`,
+  });
+  await waitFor(() => expect(submit).toBeEnabled());
+  fireEvent.click(submit);
+}
 
 function renderAt(path: string) {
   const client = new QueryClient({
@@ -194,5 +241,92 @@ describe('TriageDocScreen', () => {
   it('shows the already-handled state for an id not in the queue', async () => {
     renderAt('/inbox/doc/404');
     expect(await screen.findByText('Already handled')).toBeInTheDocument();
+  });
+
+  it('offers no Delete for reasons other than not_a_document', async () => {
+    renderAt('/inbox/doc/12'); // low_confidence
+    await screen.findByText('1 of 2');
+    expect(
+      screen.queryByRole('button', { name: 'Delete file…' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('re-enables actions and closes the dialog after dismiss advances', async () => {
+    // Auto-advance re-renders the SAME TriageDocScreen element (param-only
+    // change) — screen-level busy/confirm must not brick the next document.
+    vi.mocked(api.completeDocument).mockResolvedValue({
+      id: 12,
+      status: 'processed',
+    });
+    const router = renderAt('/inbox/doc/12');
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Dismiss document' }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+    );
+    expect(await screen.findByText('later.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry AI' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Classify…' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeEnabled();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Dismiss document' }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it('remounts the classify sheet per document — fresh fields and a live submit after advancing', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    vi.mocked(api.getDocumentReclassify).mockImplementation((id) =>
+      id === 12
+        ? Promise.resolve(RECLASSIFY(12, 4820, 867))
+        : Promise.resolve(RECLASSIFY(id, 9900, 1785)),
+    );
+    vi.mocked(api.manualClassify).mockResolvedValue({
+      kind: 'expense',
+      document_id: 12,
+      expense_id: 700,
+    });
+    const router = renderAt('/inbox/doc/12');
+    await openClassifyPickSupplierAndSubmit('48.20');
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+    );
+    // Reopen on doc 13: MUST be a fresh sheet instance — 13's prefill, no
+    // stale 12 fields, and a submit button that is not stuck busy ('…').
+    fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+    expect(await screen.findByDisplayValue('99.00')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('48.20')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Create expense · -99.00 €' }),
+    ).toBeInTheDocument();
+  });
+
+  it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    vi.mocked(api.getDocumentReclassify).mockResolvedValue(
+      RECLASSIFY(12, 4820, 867),
+    );
+    vi.mocked(api.manualClassify).mockResolvedValue({
+      kind: 'unknown',
+      document_id: 12,
+      reason: 'could not book',
+    });
+    const router = renderAt('/inbox/doc/12');
+    await openClassifyPickSupplierAndSubmit('48.20');
+    await waitFor(() => expect(api.manualClassify).toHaveBeenCalled());
+    // Still unresolved: the operator stays here.
+    expect(router.state.location.pathname).toBe('/inbox/doc/12');
+    // Reopen to retry — same doc, so only a key nonce can remount the sheet
+    // whose success path deliberately left busy=true.
+    fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+    expect(await screen.findByDisplayValue('48.20')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', {
+        name: 'Create expense · -48.20 €',
+      }),
+    ).toBeInTheDocument();
   });
 });
