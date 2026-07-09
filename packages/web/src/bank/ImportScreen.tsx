@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { importBankStatement } from '../api';
 import { bankKeys, useImportJob } from '../queries/bank';
 import { Button } from '../ui/Button';
 import { Field, TextInput } from '../ui/Form';
+import { LinkButton } from '../ui/LinkButton';
 import { ScreenHeader } from '../shell/Headers';
 
 type StepState = 'done' | 'active' | 'failed' | 'idle';
@@ -177,13 +177,12 @@ export function ImportScreen() {
           )}
           {job?.status === 'done' && job.statement_id !== null && (
             <div className="px-4 pt-4">
-              <Link
+              <LinkButton
                 to={`/bank/statements/${job.statement_id}`}
-                viewTransition
-                className="block h-[46px] rounded-xl bg-accent text-center text-[14px] font-bold leading-[46px] text-white"
+                className="block"
               >
                 Open statement
-              </Link>
+              </LinkButton>
             </div>
           )}
         </>
