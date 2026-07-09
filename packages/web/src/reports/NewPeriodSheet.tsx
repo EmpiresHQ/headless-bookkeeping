@@ -13,7 +13,7 @@ import { toastErr, toastOk } from '../ui/toast';
 
 /**
  * Create-next-period flow (POST /api/reporting-periods/next) — the legacy
- * KmdView's "Create next period" + "Override" pair as one sheet. The server
+ * "Create next period" + "Override" pair as one sheet. The server
  * computes the next window from the plugin filing frequency; the optional
  * overrides survive from legacy (all three independent, all optional).
  * Overlap → server 409 surfaced verbatim (Reality #1).
