@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fmtCents } from './api';
-import { signedEuros } from './inbox/format';
+import { signedEuros } from './lib/money';
 
 describe('minus-glyph decision (U+2212 app-wide, Plan 06 Task 2)', () => {
   it('fmtCents emits the typographic minus for negatives', () => {

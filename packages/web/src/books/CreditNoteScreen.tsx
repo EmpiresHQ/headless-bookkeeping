@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { fmtCents } from '../api';
 import { absoluteDateFromIso } from '../inbox/format';
 import { useCreditNoteDetail } from '../queries/books';
 import { useEntities, useExpenses, useInvoices } from '../queries/shared';
@@ -80,7 +81,7 @@ export function CreditNoteScreen() {
        *  string made findByText('CN-1') ambiguous (same class of bug the
        *  InvoiceScreen/ExpenseScreen History sections hit and fixed). */}
       <ListGroup label="Facts">
-        <KeyValue k="VAT" v={`${(n.vat_amount / 100).toFixed(2)} €`} />
+        <KeyValue k="VAT" v={`${fmtCents(n.vat_amount)} €`} />
         <KeyValue k="Tax point" v={absoluteDateFromIso(n.tax_point_date)} />
       </ListGroup>
       <ListGroup label="Credits">

@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { fmtCents, triageDocument, uploadDocument } from '../api';
+import { triageDocument, uploadDocument } from '../api';
+import { signedEuros } from '../lib/money';
 import { useSeg } from '../lib/useSeg';
 import { relativeTime } from '../relativeTime';
 import { LargeTitleHeader } from '../shell/Headers';
@@ -117,7 +118,7 @@ function InboxHero({
         {periodName} · open
       </p>
       <p className="mt-1 whitespace-nowrap text-[28px] font-extrabold tabular-nums">
-        −{fmtCents(monthTotalCents)} €
+        {signedEuros(-monthTotalCents)}
       </p>
       <p className="text-[12.5px] opacity-70">expenses this period</p>
       {taskCount > 0 && firstRoute !== null && (

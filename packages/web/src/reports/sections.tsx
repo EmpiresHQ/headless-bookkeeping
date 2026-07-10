@@ -5,6 +5,7 @@ import {
   type PeriodWarning,
   type ReportingPeriod,
 } from '../api';
+import { signedEuros } from '../lib/money';
 import { entityName, shortDate } from '../queries/books';
 import {
   INF_THRESHOLD_NET,
@@ -179,7 +180,7 @@ export function InPeriodSection({ period }: { period: PeriodProp }) {
           label={
             <GroupHeader
               label="Sales in this period"
-              trailing={`+${fmtCents(salesTotal)} € · ${sales.length}`}
+              trailing={`${signedEuros(salesTotal)} · ${sales.length}`}
             />
           }
         >
@@ -205,7 +206,7 @@ export function InPeriodSection({ period }: { period: PeriodProp }) {
           label={
             <GroupHeader
               label="Purchases in this period"
-              trailing={`−${fmtCents(purchasesTotal)} € · ${purchases.length}`}
+              trailing={`${signedEuros(-purchasesTotal)} · ${purchases.length}`}
             />
           }
         >

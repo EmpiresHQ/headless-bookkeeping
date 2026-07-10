@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   copyDocumentShareLink,
   deleteDocument,
+  fmtCents,
   retryDocument,
   type DocumentDetails,
 } from '../api';
@@ -49,7 +50,7 @@ function ClassificationFacts({ details }: { details: DocumentDetails }) {
       <KeyValue k="Category" v={r.category} />
       <KeyValue
         k="Amount"
-        v={`${(r.gross_amount / 100).toFixed(2)} € (VAT ${(r.vat_amount / 100).toFixed(2)} €)`}
+        v={`${fmtCents(r.gross_amount)} € (VAT ${fmtCents(r.vat_amount)} €)`}
       />
       <KeyValue k="Tax point" v={absoluteDateFromIso(r.tax_point_date)} />
       {r.supplier_invoice_number != null && (

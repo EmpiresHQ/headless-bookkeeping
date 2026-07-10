@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteEntity, fmtCents, type Entity } from '../api';
+import { deleteEntity, type Entity } from '../api';
+import { signedEuros } from '../lib/money';
 import {
   aliasesOf,
   classificationMemory,
@@ -152,9 +153,11 @@ function EntityCard({ entity }: { entity: Entity }) {
             title={`${stats.label} · ${stats.count}`}
             trailing={
               <span className="whitespace-nowrap font-bold tabular-nums">
-                {entity.role === 'supplier'
-                  ? `−${fmtCents(stats.totalCents)} €`
-                  : `+${fmtCents(stats.totalCents)} €`}
+                {signedEuros(
+                  entity.role === 'supplier'
+                    ? -stats.totalCents
+                    : stats.totalCents,
+                )}
               </span>
             }
           />

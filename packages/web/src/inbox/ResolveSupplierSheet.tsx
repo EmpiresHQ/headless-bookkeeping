@@ -6,6 +6,7 @@ import {
   resolveSupplier,
   type TriageOutcome,
 } from '../api';
+import { signedEuros } from '../lib/money';
 import { inboxKeys } from '../queries/inbox';
 import { useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
@@ -13,7 +14,7 @@ import { Field, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
 import { toastErr } from '../ui/toast';
-import { absoluteDateFromIso, signedEuros } from './format';
+import { absoluteDateFromIso } from './format';
 
 /**
  * Triage flow 1 — "who is this supplier?" Prefill → confirm: the AI proposal

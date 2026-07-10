@@ -1,9 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteExpense, postExpense, type ExpenseDetail } from '../api';
+import {
+  deleteExpense,
+  fmtCents,
+  postExpense,
+  type ExpenseDetail,
+} from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
+import { signedEuros } from '../lib/money';
 import {
   entityName,
   invalidateBooks,
@@ -125,7 +131,7 @@ export function ExpenseScreen() {
           `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
         );
       } else {
-        toastOk(`Posted · −${(detail.gross_amount / 100).toFixed(2)} €`);
+        toastOk(`Posted · ${signedEuros(-detail.gross_amount)}`);
       }
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -183,7 +189,7 @@ export function ExpenseScreen() {
         <KeyValue k="Category" v={detail.category} />
         <KeyValue
           k="VAT"
-          v={`${(detail.vat_amount / 100).toFixed(2)} €${rate != null ? ` (${rate}%)` : ''}`}
+          v={`${fmtCents(detail.vat_amount)} €${rate != null ? ` (${rate}%)` : ''}`}
         />
         <KeyValue
           k="Tax point"

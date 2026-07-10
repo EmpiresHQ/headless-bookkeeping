@@ -1,9 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteInvoice, postInvoice } from '../api';
+import { deleteInvoice, fmtCents, postInvoice } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
+import { signedEuros } from '../lib/money';
 import {
   entityName,
   invalidateBooks,
@@ -98,7 +99,7 @@ export function InvoiceScreen() {
           `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
         );
       } else {
-        toastOk(`Posted · +${(inv.gross_amount / 100).toFixed(2)} €`);
+        toastOk(`Posted · ${signedEuros(inv.gross_amount)}`);
       }
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -156,7 +157,7 @@ export function InvoiceScreen() {
         <KeyValue k="Invoice no." v={inv.invoice_number} />
         <KeyValue
           k="VAT"
-          v={`${(inv.vat_amount / 100).toFixed(2)} €${rate != null ? ` (${rate}%)` : ''}`}
+          v={`${fmtCents(inv.vat_amount)} €${rate != null ? ` (${rate}%)` : ''}`}
         />
         <KeyValue k="Tax point" v={absoluteDateFromIso(inv.tax_point_date)} />
         {inv.due_date != null && (
