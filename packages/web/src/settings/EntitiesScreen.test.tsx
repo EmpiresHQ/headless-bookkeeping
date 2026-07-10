@@ -103,4 +103,14 @@ describe('EntitiesScreen', () => {
     expect(await screen.findByText('boom')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
+
+  it('Team-empty state explains the claimant dropdown and preselects the employee role', async () => {
+    // Suppliers/customers only — no team members on this install.
+    vi.mocked(getEntities).mockResolvedValue([ROWS[0], ROWS[1]]);
+    mount('/settings/entities?seg=team');
+    expect(await screen.findByText('No team members yet')).toBeInTheDocument();
+    expect(screen.getByText(/claimant dropdown/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add employee' }));
+    expect(await screen.findByLabelText('Role')).toHaveValue('employee');
+  });
 });

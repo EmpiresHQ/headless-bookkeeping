@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { useSeg } from './useSeg';
@@ -51,5 +51,30 @@ describe('useSeg (shared ?seg= + legacy ?tab= alias)', () => {
     expect(search.get('tab')).toBeNull();
     expect(search.get('status')).toBeNull();
     expect(search.get('q')).toBe('milk');
+  });
+
+  it('normalizes a legacy ?tab= into ?seg= on arrival (nothing lingers)', async () => {
+    mount('/x?tab=open&q=milk');
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByTestId('search').textContent ?? '',
+      );
+      expect(search.get('seg')).toBe('open');
+      expect(search.get('tab')).toBeNull();
+      expect(search.get('q')).toBe('milk');
+    });
+    expect(screen.getByTestId('seg').textContent).toBe('open');
+  });
+
+  it('drops an unknown ?tab= without inventing a ?seg=', async () => {
+    mount('/x?tab=bogus');
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByTestId('search').textContent ?? '',
+      );
+      expect(search.get('tab')).toBeNull();
+      expect(search.get('seg')).toBeNull();
+    });
+    expect(screen.getByTestId('seg').textContent).toBe('all');
   });
 });

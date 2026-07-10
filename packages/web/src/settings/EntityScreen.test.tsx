@@ -283,4 +283,16 @@ describe('EntityScreen (asset §8 card)', () => {
       await screen.findByRole('link', { name: /Expenses · 2/ }),
     ).toBeInTheDocument();
   });
+
+  it('bookings row states its count basis (posted + pending, not drafts)', async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    // The bookings row only renders once the shared expenses list settles
+    // (P04 no-transient-false-zero gate above) — a second async wait,
+    // consistent with the existing "waits for the expenses list to settle"
+    // pin in this file.
+    expect(
+      await screen.findByText('Posted and pending — drafts not counted'),
+    ).toBeInTheDocument();
+  });
 });

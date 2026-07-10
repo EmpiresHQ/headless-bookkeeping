@@ -75,20 +75,31 @@ export function EntitiesScreen() {
           onRetry={() => void entitiesQ.refetch()}
         />
       ) : rows.length === 0 ? (
-        <EmptyState
-          icon="👥"
-          title={
-            q !== '' || seg !== 'all' ? 'Nothing matches' : 'No entities yet'
-          }
-          hint={
-            q !== '' || seg !== 'all'
-              ? 'Try another segment or search term.'
-              : 'Suppliers and customers are created automatically when documents and bank lines are booked; employees and directors (reimbursement claimants) are added here.'
-          }
-          action={
-            <Button onClick={() => setCreateOpen(true)}>Add entity</Button>
-          }
-        />
+        seg === 'team' && q === '' ? (
+          <EmptyState
+            icon="👥"
+            title="No team members yet"
+            hint="Add an employee or director so they appear in the claimant dropdown when a receipt is uploaded for reimbursement (who paid — reimburse them)."
+            action={
+              <Button onClick={() => setCreateOpen(true)}>Add employee</Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon="👥"
+            title={
+              q !== '' || seg !== 'all' ? 'Nothing matches' : 'No entities yet'
+            }
+            hint={
+              q !== '' || seg !== 'all'
+                ? 'Try another segment or search term.'
+                : 'Suppliers and customers are created automatically when documents and bank lines are booked; employees and directors (reimbursement claimants) are added here.'
+            }
+            action={
+              <Button onClick={() => setCreateOpen(true)}>Add entity</Button>
+            }
+          />
+        )
       ) : (
         <ListGroup>
           {rows.map((e) => (
@@ -103,7 +114,11 @@ export function EntitiesScreen() {
         </ListGroup>
       )}
       {createOpen && (
-        <CreateEntitySheet open onClose={() => setCreateOpen(false)} />
+        <CreateEntitySheet
+          open
+          onClose={() => setCreateOpen(false)}
+          defaultRole={seg === 'team' ? 'employee' : 'supplier'}
+        />
       )}
     </div>
   );

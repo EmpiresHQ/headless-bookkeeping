@@ -151,6 +151,7 @@ function EntityCard({ entity }: { entity: Entity }) {
                 : `/books?seg=invoices&${bookingsQuery}`
             }
             title={`${stats.label} · ${stats.count}`}
+            subtitle="Posted and pending — drafts not counted"
             trailing={
               <span className="whitespace-nowrap font-bold tabular-nums">
                 {signedEuros(
