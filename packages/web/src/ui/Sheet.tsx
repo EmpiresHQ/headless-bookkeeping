@@ -1,4 +1,4 @@
-import { useLayoutEffect, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { Drawer } from 'vaul';
 
 /** Bottom sheet for actions attached to the current screen (spec: action =
@@ -35,8 +35,18 @@ export function Sheet({
     }
     onOpenChange(o);
   };
+  // OPEN edge (Plan 07 Task 9 smoke): the trigger button keeps focus after
+  // the click that opens the sheet, and vaul deliberately prevents Radix's
+  // open-autofocus (autoFocus=false — no mobile keyboard pop). Radix then
+  // marks the app root aria-hidden with the still-focused trigger inside it
+  // and the browser logs the same "Blocked aria-hidden" warning at OPEN that
+  // Task 7 closed at CLOSE. Blur the outside-focused element on the open
+  // edge too. Skipped when mounting closed (always-mounted sheets must not
+  // steal focus from the screen at initial render).
+  const everOpen = useRef(open);
+  if (open) everOpen.current = true;
   useLayoutEffect(() => {
-    if (!open && document.activeElement instanceof HTMLElement) {
+    if (everOpen.current && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
   }, [open]);
