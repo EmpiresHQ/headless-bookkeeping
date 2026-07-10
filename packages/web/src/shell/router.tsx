@@ -1,36 +1,126 @@
+import { lazy } from 'react';
 import {
   Navigate,
   createBrowserRouter,
   useLocation,
   type RouteObject,
 } from 'react-router-dom';
-import { ApprovalScreen } from '../inbox/ApprovalScreen';
-import { InboxScreen } from '../inbox/InboxScreen';
-import { TriageDocScreen } from '../inbox/TriageDocScreen';
-import { ImportScreen } from '../bank/ImportScreen';
-import { StatementScreen } from '../bank/StatementScreen';
-import { StatementsScreen } from '../bank/StatementsScreen';
-import { TxScreen } from '../bank/TxScreen';
-import { BooksScreen } from '../books/BooksScreen';
-import { CreditNoteCreateScreen } from '../books/CreditNoteCreateScreen';
-import { CreditNoteScreen } from '../books/CreditNoteScreen';
-import { DocumentScreen } from '../books/DocumentScreen';
-import { ExpenseScreen } from '../books/ExpenseScreen';
-import { InvoiceScreen } from '../books/InvoiceScreen';
-import { PeriodScreen } from '../reports/PeriodScreen';
-import { ReportsScreen } from '../reports/ReportsScreen';
-import { SubmissionsScreen } from '../reports/SubmissionsScreen';
-import { CategoriesScreen } from '../settings/CategoriesScreen';
-import { EnrollScreen } from '../settings/EnrollScreen';
-import { EntitiesScreen } from '../settings/EntitiesScreen';
-import { EntityScreen } from '../settings/EntityScreen';
-import { LlmScreen } from '../settings/LlmScreen';
-import { MailboxScreen } from '../settings/MailboxScreen';
-import { OrganizationScreen } from '../settings/OrganizationScreen';
-import { PolicyScreen } from '../settings/PolicyScreen';
-import { SettingsScreen } from '../settings/SettingsScreen';
-import { TelegramScreen } from '../settings/TelegramScreen';
 import { Root } from './Root';
+
+/* Route-level code-split (Plan 07 Task 8): every screen is its own chunk;
+ * the shell (Root/TokenGate/AppLayout) stays eager so first paint and the
+ * sign-in surface never wait on a screen chunk. The Suspense boundary
+ * lives in AppLayout around the Outlet. The explicit
+ * `.then((m) => ({ default: m.X }))` shape is deliberate — named exports
+ * stay named, and tsc verifies each screen still exports its name. */
+const InboxScreen = lazy(() =>
+  import('../inbox/InboxScreen').then((m) => ({ default: m.InboxScreen })),
+);
+const TriageDocScreen = lazy(() =>
+  import('../inbox/TriageDocScreen').then((m) => ({
+    default: m.TriageDocScreen,
+  })),
+);
+const ApprovalScreen = lazy(() =>
+  import('../inbox/ApprovalScreen').then((m) => ({
+    default: m.ApprovalScreen,
+  })),
+);
+const BooksScreen = lazy(() =>
+  import('../books/BooksScreen').then((m) => ({ default: m.BooksScreen })),
+);
+const ExpenseScreen = lazy(() =>
+  import('../books/ExpenseScreen').then((m) => ({ default: m.ExpenseScreen })),
+);
+const InvoiceScreen = lazy(() =>
+  import('../books/InvoiceScreen').then((m) => ({ default: m.InvoiceScreen })),
+);
+const DocumentScreen = lazy(() =>
+  import('../books/DocumentScreen').then((m) => ({
+    default: m.DocumentScreen,
+  })),
+);
+const CreditNoteCreateScreen = lazy(() =>
+  import('../books/CreditNoteCreateScreen').then((m) => ({
+    default: m.CreditNoteCreateScreen,
+  })),
+);
+const CreditNoteScreen = lazy(() =>
+  import('../books/CreditNoteScreen').then((m) => ({
+    default: m.CreditNoteScreen,
+  })),
+);
+const StatementsScreen = lazy(() =>
+  import('../bank/StatementsScreen').then((m) => ({
+    default: m.StatementsScreen,
+  })),
+);
+const ImportScreen = lazy(() =>
+  import('../bank/ImportScreen').then((m) => ({ default: m.ImportScreen })),
+);
+const StatementScreen = lazy(() =>
+  import('../bank/StatementScreen').then((m) => ({
+    default: m.StatementScreen,
+  })),
+);
+const TxScreen = lazy(() =>
+  import('../bank/TxScreen').then((m) => ({ default: m.TxScreen })),
+);
+const ReportsScreen = lazy(() =>
+  import('../reports/ReportsScreen').then((m) => ({
+    default: m.ReportsScreen,
+  })),
+);
+const PeriodScreen = lazy(() =>
+  import('../reports/PeriodScreen').then((m) => ({ default: m.PeriodScreen })),
+);
+const SubmissionsScreen = lazy(() =>
+  import('../reports/SubmissionsScreen').then((m) => ({
+    default: m.SubmissionsScreen,
+  })),
+);
+const SettingsScreen = lazy(() =>
+  import('../settings/SettingsScreen').then((m) => ({
+    default: m.SettingsScreen,
+  })),
+);
+const OrganizationScreen = lazy(() =>
+  import('../settings/OrganizationScreen').then((m) => ({
+    default: m.OrganizationScreen,
+  })),
+);
+const EntitiesScreen = lazy(() =>
+  import('../settings/EntitiesScreen').then((m) => ({
+    default: m.EntitiesScreen,
+  })),
+);
+const EntityScreen = lazy(() =>
+  import('../settings/EntityScreen').then((m) => ({ default: m.EntityScreen })),
+);
+const CategoriesScreen = lazy(() =>
+  import('../settings/CategoriesScreen').then((m) => ({
+    default: m.CategoriesScreen,
+  })),
+);
+const EnrollScreen = lazy(() =>
+  import('../settings/EnrollScreen').then((m) => ({ default: m.EnrollScreen })),
+);
+const MailboxScreen = lazy(() =>
+  import('../settings/MailboxScreen').then((m) => ({
+    default: m.MailboxScreen,
+  })),
+);
+const TelegramScreen = lazy(() =>
+  import('../settings/TelegramScreen').then((m) => ({
+    default: m.TelegramScreen,
+  })),
+);
+const LlmScreen = lazy(() =>
+  import('../settings/LlmScreen').then((m) => ({ default: m.LlmScreen })),
+);
+const PolicyScreen = lazy(() =>
+  import('../settings/PolicyScreen').then((m) => ({ default: m.PolicyScreen })),
+);
 
 /** Old flat-tab URL → new section URL (?seg= preselects the tab where the
  *  target screen has one). */
