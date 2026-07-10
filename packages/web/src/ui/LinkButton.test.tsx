@@ -25,7 +25,7 @@ describe('LinkButton', () => {
       </MemoryRouter>,
     );
     const link = screen.getByRole('link', { name: 'Back' });
-    expect(link.className).toContain('bg-[#E9EBE7]');
+    expect(link.className).toContain('bg-fill');
     expect(link.className).toContain('mt-3');
   });
 });

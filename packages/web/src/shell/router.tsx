@@ -4,11 +4,6 @@ import {
   useLocation,
   type RouteObject,
 } from 'react-router-dom';
-import { CategoriesView } from '../components/CategoriesView';
-import { EnrollView } from '../components/EnrollView';
-import { EntitiesView } from '../components/EntitiesView';
-import { OrgView } from '../components/OrgView';
-import { SettingsView } from '../components/SettingsView';
 import { ApprovalScreen } from '../inbox/ApprovalScreen';
 import { InboxScreen } from '../inbox/InboxScreen';
 import { TriageDocScreen } from '../inbox/TriageDocScreen';
@@ -25,15 +20,25 @@ import { InvoiceScreen } from '../books/InvoiceScreen';
 import { PeriodScreen } from '../reports/PeriodScreen';
 import { ReportsScreen } from '../reports/ReportsScreen';
 import { SubmissionsScreen } from '../reports/SubmissionsScreen';
-import { LegacyTabs } from './LegacyTabs';
+import { CategoriesScreen } from '../settings/CategoriesScreen';
+import { EnrollScreen } from '../settings/EnrollScreen';
+import { EntitiesScreen } from '../settings/EntitiesScreen';
+import { EntityScreen } from '../settings/EntityScreen';
+import { LlmScreen } from '../settings/LlmScreen';
+import { MailboxScreen } from '../settings/MailboxScreen';
+import { OrganizationScreen } from '../settings/OrganizationScreen';
+import { PolicyScreen } from '../settings/PolicyScreen';
+import { SettingsScreen } from '../settings/SettingsScreen';
+import { TelegramScreen } from '../settings/TelegramScreen';
 import { Root } from './Root';
 
-/** Old flat-tab URL → new section URL (tab preselected via ?tab=/?seg=). */
+/** Old flat-tab URL → new section URL (?seg= preselects the tab where the
+ *  target screen has one). */
 const LEGACY_REDIRECTS: Record<string, string> = {
-  '/org': '/settings?tab=organization',
-  '/entities': '/settings?tab=entities',
-  '/categories': '/settings?tab=categories',
-  '/enroll': '/settings?tab=enroll',
+  '/org': '/settings/organization',
+  '/entities': '/settings/entities',
+  '/categories': '/settings/categories',
+  '/enroll': '/settings/enroll',
   '/expenses': '/books?seg=expenses',
   '/invoices': '/books?seg=invoices',
   '/documents': '/books?seg=documents',
@@ -55,12 +60,25 @@ function RedirectMergingSearch({ to }: { to: string }) {
   return <Navigate to={search ? `${pathname}?${search}` : pathname} replace />;
 }
 
+/** The mailbox OAuth callback bounces the browser to `/?mailbox=connected`
+ *  or `/?mailbox_error=…` (mailbox.controller.ts:119-164). Route the result
+ *  to the Mailbox screen instead of dropping it at the Inbox redirect. */
+function RootRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const to =
+    params.has('mailbox') || params.has('mailbox_error')
+      ? `/settings/mailbox${location.search}`
+      : '/inbox';
+  return <Navigate to={to} replace />;
+}
+
 export function buildRoutes(): RouteObject[] {
   return [
     {
       element: <Root />,
       children: [
-        { path: '/', element: <Navigate to="/inbox" replace /> },
+        { path: '/', element: <RootRedirect /> },
         { path: '/inbox', element: <InboxScreen /> },
         { path: '/inbox/doc/:id', element: <TriageDocScreen /> },
         { path: '/inbox/approval/:id', element: <ApprovalScreen /> },
@@ -84,21 +102,16 @@ export function buildRoutes(): RouteObject[] {
           path: '/reports/periods/:id/submissions',
           element: <SubmissionsScreen />,
         },
-        {
-          path: '/settings',
-          element: (
-            <LegacyTabs
-              title="Settings"
-              tabs={[
-                { key: 'organization', label: 'Organization', El: OrgView },
-                { key: 'entities', label: 'Entities', El: EntitiesView },
-                { key: 'categories', label: 'Categories', El: CategoriesView },
-                { key: 'enroll', label: 'Enroll', El: EnrollView },
-                { key: 'app', label: 'App', El: SettingsView },
-              ]}
-            />
-          ),
-        },
+        { path: '/settings', element: <SettingsScreen /> },
+        { path: '/settings/organization', element: <OrganizationScreen /> },
+        { path: '/settings/entities', element: <EntitiesScreen /> },
+        { path: '/settings/entities/:id', element: <EntityScreen /> },
+        { path: '/settings/categories', element: <CategoriesScreen /> },
+        { path: '/settings/enroll', element: <EnrollScreen /> },
+        { path: '/settings/mailbox', element: <MailboxScreen /> },
+        { path: '/settings/telegram', element: <TelegramScreen /> },
+        { path: '/settings/llm', element: <LlmScreen /> },
+        { path: '/settings/policy', element: <PolicyScreen /> },
         ...Object.entries(LEGACY_REDIRECTS).map(([from, to]) => ({
           path: from,
           element: <RedirectMergingSearch to={to} />,

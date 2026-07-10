@@ -17,8 +17,14 @@ vi.mock('../api', async (importOriginal) => ({
   openSignedDocument: vi.fn(),
 }));
 
+vi.mock('../queries/inbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/inbox')>()),
+  invalidateInbox: vi.fn(),
+}));
+
 import * as api from '../api';
 import type { Approval } from '../api';
+import { invalidateInbox } from '../queries/inbox';
 import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
 
@@ -98,7 +104,7 @@ describe('ApprovalScreen', () => {
 
   it('renders hero amount, subtitle and the N-of-M nav title', async () => {
     renderAt('/inbox/approval/7');
-    expect(await screen.findByText('-89.00 €')).toBeInTheDocument();
+    expect(await screen.findByText('−89.00 €')).toBeInTheDocument();
     expect(screen.getByText(/Telia Eesti AS · software/)).toBeInTheDocument();
     expect(screen.getByText('1 of 2')).toBeInTheDocument();
   });
@@ -132,9 +138,9 @@ describe('ApprovalScreen', () => {
     // Retry re-fetches — the beforeEach default (a valid expense) resolves
     // once the rejected-once mock is consumed.
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('-89.00 €')).toBeInTheDocument();
+    expect(await screen.findByText('−89.00 €')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Approve · -89.00 €' }),
+      screen.getByRole('button', { name: 'Approve · −89.00 €' }),
     ).toBeEnabled();
   });
 
@@ -190,7 +196,7 @@ describe('ApprovalScreen', () => {
     });
     const router = renderAt('/inbox/approval/7');
     const btn = await screen.findByRole('button', {
-      name: 'Approve · -89.00 €',
+      name: 'Approve · −89.00 €',
     });
     fireEvent.click(btn);
     await waitFor(() =>
@@ -233,7 +239,7 @@ describe('ApprovalScreen', () => {
     );
     const router = renderAt('/inbox/approval/7');
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
     );
     await waitFor(() => expect(api.approveApproval).toHaveBeenCalled());
     expect(router.state.location.pathname).toBe('/inbox/approval/7');
@@ -246,7 +252,7 @@ describe('ApprovalScreen', () => {
     });
     const router = renderAt('/inbox/approval/7');
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
     );
     await waitFor(() => expect(router.state.location.pathname).toBe('/inbox'));
   });
@@ -279,6 +285,59 @@ describe('ApprovalScreen', () => {
     ).toBeDisabled();
   });
 
+  it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — approve', async () => {
+    let release!: () => void;
+    vi.mocked(invalidateInbox).mockReturnValue(
+      new Promise<void>((r) => (release = r)),
+    );
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'approved' }),
+    });
+    try {
+      const router = renderAt('/inbox/approval/7');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
+      );
+      expect(router.state.location.pathname).toBe('/inbox/approval/8');
+    } finally {
+      // Always release, even if an assertion above throws — otherwise the
+      // never-resolved invalidateInbox promise leaks into later tests.
+      release();
+    }
+  });
+
+  it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — reject', async () => {
+    let release!: () => void;
+    vi.mocked(invalidateInbox).mockReturnValue(
+      new Promise<void>((r) => (release = r)),
+    );
+    vi.mocked(api.rejectApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'rejected' }),
+    });
+    try {
+      const router = renderAt('/inbox/approval/7');
+      fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
+      fireEvent.change(
+        await screen.findByPlaceholderText(/why this should not be posted/i),
+        { target: { value: 'Wrong supplier' } },
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reject & return to draft' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
+      );
+      expect(router.state.location.pathname).toBe('/inbox/approval/8');
+    } finally {
+      // Always release, even if an assertion above throws — otherwise the
+      // never-resolved invalidateInbox promise leaks into later tests.
+      release();
+    }
+  });
+
   it('shows the approve receipt WITHOUT an Undo action (posting is final)', async () => {
     vi.mocked(api.approveApproval).mockResolvedValue({
       approval: APPROVAL({ status: 'approved' }),
@@ -286,10 +345,10 @@ describe('ApprovalScreen', () => {
     render(<AppToaster />);
     const router = renderAt('/inbox/approval/7');
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · -89.00 €' }),
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
     );
     expect(
-      await screen.findByText('Approved & posted · -89.00 €'),
+      await screen.findByText('Approved & posted · −89.00 €'),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/inbox/approval/8'),

@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -130,7 +136,7 @@ describe('InboxScreen', () => {
     expect(
       screen.getByText('89.00 € above the 50.00 € auto-post limit'),
     ).toBeInTheDocument();
-    expect(screen.getByText('-89.00 €')).toBeInTheDocument();
+    expect(screen.getByText('−89.00 €')).toBeInTheDocument();
     expect(screen.getByText('approve?')).toBeInTheDocument();
   });
 
@@ -155,6 +161,17 @@ describe('InboxScreen', () => {
     renderAt('/inbox?tab=approvals');
     expect(await screen.findByText('Telia Eesti AS')).toBeInTheDocument();
     expect(screen.queryByText('cheque_scan_038.jpg')).not.toBeInTheDocument();
+  });
+
+  it('useSeg round-trip: ?tab= alias reads, switching segments writes ?seg= and drops ?tab= (P06 Task 3)', async () => {
+    const router = renderAt('/inbox?tab=approvals');
+    expect(
+      await screen.findByRole('tab', { name: 'Approvals 1' }),
+    ).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Triage 1' }));
+    const search = new URLSearchParams(router.state.location.search);
+    expect(search.get('seg')).toBe('triage');
+    expect(search.get('tab')).toBeNull();
   });
 
   it('shows segment counts in the control', async () => {
@@ -194,7 +211,14 @@ describe('InboxScreen', () => {
     renderAt('/inbox');
     expect(await screen.findByText(/July 2026/)).toBeInTheDocument();
     // 89.00 pending expense inside the period (from the shared fixture).
-    expect(screen.getByText('−89.00 €')).toBeInTheDocument();
+    // Scoped to the hero card — the U+2212 minus glyph decision (Plan 06
+    // Task 2) makes this amount string identical to the queue row's amount,
+    // so an unscoped getByText would now match both.
+    const hero = screen.getByText('expenses this period').closest('div');
+    expect(hero).not.toBeNull();
+    expect(
+      within(hero as HTMLElement).getByText('−89.00 €'),
+    ).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /Start clearing · 2/ });
     // FIFO first = the 2-day-old approval.
     expect(cta).toHaveAttribute('href', '/inbox/approval/7');

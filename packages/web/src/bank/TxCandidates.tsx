@@ -128,7 +128,7 @@ export function TxCandidates({
                 className={`flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[7px] border-2 text-[13px] font-bold ${
                   on
                     ? 'border-accent bg-accent text-white'
-                    : 'border-[#C2C7C1] text-transparent'
+                    : 'border-chevron text-transparent'
                 }`}
               >
                 ✓
@@ -170,7 +170,7 @@ export function TxCandidates({
           Match {fmtCents(allocated)} €
         </Button>
       </div>
-      <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-[#8A9089]">
+      <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         N:M — the remainder is never lost: it stays visible on the line
       </p>
     </>

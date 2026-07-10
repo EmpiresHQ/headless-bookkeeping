@@ -3,7 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
   listBankStatements: vi.fn(),
   listBankTransactions: vi.fn(),
   getReconciliationStatus: vi.fn(),
@@ -25,7 +26,6 @@ vi.mock('../api', () => ({
   addEntityAlias: vi.fn(),
   markPersonal: vi.fn(),
   createPrepayment: vi.fn(),
-  fmtCents: (cents: number) => (cents / 100).toFixed(2),
 }));
 
 import * as api from '../api';
@@ -118,7 +118,7 @@ describe('TxScreen state composition', () => {
   it('renders the hero as a fact and the create state for an outgoing line with no candidates', async () => {
     mockLine();
     renderTx();
-    expect(await screen.findByText('-18.60 €')).toBeInTheDocument();
+    expect(await screen.findByText('−18.60 €')).toBeInTheDocument();
     expect(
       await screen.findByText('Create expense from line'),
     ).toBeInTheDocument();
@@ -325,18 +325,18 @@ describe('TxScreen state composition', () => {
       target: { value: 'meals' },
     });
     fireEvent.click(
-      screen.getByRole('button', { name: 'Create & match · -18.60 €' }),
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
     // The success toast renders in the same batched flush as the form's own
     // setBusy(false) — the exact moment the done-window would open. (Waiting
     // on the button's name alone is not a sync point: while busy it renders
     // '…', so its accessible name never matches mid-flight.)
-    await screen.findByText('Expense created & matched · -18.60 €');
+    await screen.findByText('Expense created & matched · −18.60 €');
     // Guard: the form unmounted in that same flush. Without the guard the
     // button would be back — enabled — and a second tap would post a
     // duplicate expense.
     expect(
-      screen.queryByRole('button', { name: 'Create & match · -18.60 €' }),
+      screen.queryByRole('button', { name: 'Create & match · −18.60 €' }),
     ).toBeNull();
     // ...and it vanished BEFORE navigation — the guard, not the redirect.
     expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');

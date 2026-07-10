@@ -77,7 +77,7 @@ function DecideRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
         </div>
       </div>
       <LineTrailing line={line} />
-      <span aria-hidden className="flex-none text-base text-[#C2C7C1]">
+      <span aria-hidden className="flex-none text-base text-chevron">
         ›
       </span>
     </button>
@@ -117,7 +117,7 @@ function ProposalRow({
               className={`flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[7px] border-2 text-[13px] font-bold ${
                 on
                   ? 'border-accent bg-accent text-white'
-                  : 'border-[#C2C7C1] text-transparent'
+                  : 'border-chevron text-transparent'
               }`}
             >
               ✓
@@ -181,7 +181,8 @@ function DoneRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
       className={`flex w-full items-center gap-3 border-b border-line px-3.5 py-3 text-left last:border-b-0 ${
         disposed
           ? ''
-          : 'bg-[#F5FAF6] shadow-[inset_3px_0_0_theme(colors.ok.DEFAULT)]'
+          : // sanctioned one-off (approved mockup), no token — Plan 06 Task 2
+            'bg-[#F5FAF6] shadow-[inset_3px_0_0_theme(colors.ok.DEFAULT)]'
       }`}
     >
       {!disposed && (
@@ -352,7 +353,13 @@ export function StatementScreen() {
     setDeleting(true);
     try {
       await deleteBankStatement(statementId);
-      await qc.invalidateQueries({ queryKey: bankKeys.statements });
+      // Deleting a statement unlinks matches / un-reconciles expenses —
+      // the same cross-domain staleness class P04 fixed for line-level
+      // actions: fan out via invalidateStatement PLUS the list key.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: bankKeys.statements }),
+        invalidateStatement(qc, statementId),
+      ]);
       navigate('/bank');
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));

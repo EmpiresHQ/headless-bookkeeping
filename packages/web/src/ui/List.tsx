@@ -65,7 +65,7 @@ export function ListRow({
         <div className="flex-none text-right">{trailing}</div>
       )}
       {interactive && (
-        <span aria-hidden className="flex-none text-base text-[#C2C7C1]">
+        <span aria-hidden className="flex-none text-base text-chevron">
           ›
         </span>
       )}
@@ -92,7 +92,9 @@ export function KeyValue({ k, v }: { k: ReactNode; v: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-line px-3.5 py-2.5 text-sm last:border-b-0">
       <span className="text-ink-2">{k}</span>
-      <span className="text-right font-semibold tabular-nums">{v}</span>
+      <span className="min-w-0 truncate text-right font-semibold tabular-nums">
+        {v}
+      </span>
     </div>
   );
 }

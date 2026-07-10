@@ -27,17 +27,35 @@ export interface Organization {
   iban: string | null;
 }
 
+/**
+ * The server's identifier kind union is wider than the three addable-alias
+ * kinds (Reality #5, entities/types.ts identifier union): `email`/`tg_user_id`
+ * arrive on employee/director entities (onboarding identity, ADR-0036),
+ * `phone`/`address` exist server-side but no UI writes them.
+ */
 export interface EntityIdentifier {
   id: number;
   entity_id: number;
-  kind: 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias';
+  kind:
+    | 'registration_key'
+    | 'iban'
+    | 'merchant_descriptor'
+    | 'name_alias'
+    | 'email'
+    | 'phone'
+    | 'address'
+    | 'tg_user_id';
   value: string;
   confirmed: boolean;
 }
 
+/** The server's entity role enum — verified entities/types.ts:4. Employees
+ *  and directors are the ADR-0036 claimants (there is NO 'claimant' role). */
+export type EntityRole = 'supplier' | 'customer' | 'employee' | 'director';
+
 export interface Entity {
   id: number;
-  role: string;
+  role: EntityRole;
   country: string;
   name: string;
   goods_vs_services: string | null;
@@ -387,8 +405,11 @@ export const recordSubmissionEvent = (
     },
   );
 
-/** Integer cents → display string, e.g. 615700 -> "6157.00". */
-export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
+/** Euro display formatting: integer cents → "48.20". Negatives carry the
+ *  TYPOGRAPHIC minus U+2212 (figure-width under tabular-nums — aligns with
+ *  '+'-signed inflows). App-wide decision, Plan 06 Task 2. */
+export const fmtCents = (cents: number): string =>
+  (cents < 0 ? '−' : '') + (Math.abs(cents) / 100).toFixed(2);
 
 // ── KMD declaration (GET /api/reporting-periods/:id/kmd) ──────────────────
 // Derived on EVERY read from the period's posted vouchers — a live preview
@@ -542,13 +563,22 @@ export const addEntityAlias = (id: number, input: AddAliasInput) =>
     body: JSON.stringify({ confirmed: true, ...input }),
   });
 
+/**
+ * POST /api/entities body. Identity is PER-ROLE (entities.service.ts:42-85):
+ * supplier/customer REQUIRE registrationKey (400
+ * 'registrationKey is required for supplier/customer entities'); employee/
+ * director REQUIRE email (400 'email is required for employee/director
+ * entities'), optional tgUserId. The server stores these as identifiers
+ * (registration_key / email / tg_user_id); none is editable afterwards.
+ */
 export interface OnboardEntityInput {
-  role: 'supplier' | 'customer';
+  role: EntityRole;
   country: string;
   name: string;
-  // The strong identity key (e.g. VAT / registry no.) used to match the entity.
-  registrationKey: string;
+  registrationKey?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  email?: string;
+  tgUserId?: string;
 }
 
 export const onboardEntity = (input: OnboardEntityInput) =>

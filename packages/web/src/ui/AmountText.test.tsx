@@ -5,7 +5,7 @@ import { AmountText } from './AmountText';
 describe('AmountText', () => {
   it('formats cents as euros', () => {
     render(<AmountText cents={-8900} />);
-    expect(screen.getByText('-89.00 €')).toBeInTheDocument();
+    expect(screen.getByText('−89.00 €')).toBeInTheDocument();
   });
 
   it('shows plus sign and ok color for positive amounts when showSign', () => {

@@ -8,7 +8,7 @@ export function SearchInput({
   placeholder?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-[#E9EBE7] px-3 py-2">
+    <div className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2">
       <span aria-hidden className="text-ink-2">
         ⌕
       </span>

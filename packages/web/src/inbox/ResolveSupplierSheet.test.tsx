@@ -71,7 +71,7 @@ describe('ResolveSupplierSheet', () => {
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue('EE100511246')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Create supplier & book · -48.20 €' }),
+      screen.getByRole('button', { name: 'Create supplier & book · −48.20 €' }),
     ).toBeInTheDocument();
     expect(screen.getByText(/fuel/)).toBeInTheDocument();
   });
@@ -87,7 +87,7 @@ describe('ResolveSupplierSheet', () => {
     const onDone = renderSheet();
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Create supplier & book · -48.20 €',
+        name: 'Create supplier & book · −48.20 €',
       }),
     );
     await waitFor(() =>
@@ -109,7 +109,7 @@ describe('ResolveSupplierSheet', () => {
     const regKey = await screen.findByDisplayValue('EE100511246');
     fireEvent.change(regKey, { target: { value: '  ' } });
     expect(
-      screen.getByRole('button', { name: 'Create supplier & book · -48.20 €' }),
+      screen.getByRole('button', { name: 'Create supplier & book · −48.20 €' }),
     ).toBeDisabled();
   });
 

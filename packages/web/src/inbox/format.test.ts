@@ -30,7 +30,7 @@ describe('vatRatePct', () => {
 
 describe('signedEuros', () => {
   it('formats signed euro amounts', () => {
-    expect(signedEuros(-8900)).toBe('-89.00 €');
+    expect(signedEuros(-8900)).toBe('−89.00 €');
     expect(signedEuros(120000)).toBe('+1200.00 €');
     expect(signedEuros(0)).toBe('0.00 €');
   });

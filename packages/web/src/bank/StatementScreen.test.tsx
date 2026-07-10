@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
   listBankStatements: vi.fn(),
   listBankTransactions: vi.fn(),
   getReconciliationStatus: vi.fn(),
@@ -22,7 +23,6 @@ vi.mock('../api', () => ({
   getEntities: vi.fn(),
   getOrganization: vi.fn(),
   deleteBankStatement: vi.fn(),
-  fmtCents: (cents: number) => (cents / 100).toFixed(2),
 }));
 
 import * as api from '../api';
@@ -259,12 +259,63 @@ describe('StatementScreen', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete statement' }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.deleteBankStatement).toHaveBeenCalledWith(3),
     );
-    await vi.waitFor(() =>
-      expect(router.state.location.pathname).toBe('/bank'),
+    await waitFor(() => expect(router.state.location.pathname).toBe('/bank'));
+    // Settle point: `router.state.location.pathname` flips before
+    // RouterProvider actually commits the route swap, so StatementScreen
+    // (and its still-`open` Radix ConfirmDialog) unmounts on a later tick.
+    // Wait for the destination route's own content so that unmount, and
+    // the dialog's exit-animation/focus-release effects, land inside act().
+    await screen.findByText('bank list');
+  });
+
+  it('fans out delete-statement invalidation to expenses/books/reports (unlinked matches un-reconcile expenses)', async () => {
+    vi.mocked(api.deleteBankStatement).mockResolvedValue({ deleted: 3 });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+    const router = createMemoryRouter(
+      [
+        { path: '/bank', element: <p>bank list</p> },
+        { path: '/bank/statements/:id', element: <StatementScreen /> },
+      ],
+      { initialEntries: ['/bank/statements/3'] },
     );
+    render(
+      <QueryClientProvider client={client}>
+        <>
+          <RouterProvider router={router} />
+          <AppToaster />
+        </>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete statement' }),
+    );
+    await waitFor(() =>
+      expect(api.deleteBankStatement).toHaveBeenCalledWith(3),
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe('/bank'));
+    const invalidatedKeys = invalidateSpy.mock.calls.map(
+      (c) => (c[0] as { queryKey: unknown[] }).queryKey,
+    );
+    expect(invalidatedKeys).toContainEqual(['bank', 'statements']);
+    expect(invalidatedKeys).toContainEqual(['expenses']);
+    expect(invalidatedKeys).toContainEqual(['books']);
+    expect(invalidatedKeys).toContainEqual(['reports']);
+    // Settle point: `router.state.location.pathname` flips before
+    // RouterProvider actually commits the route swap, so StatementScreen
+    // (and its still-`open` Radix ConfirmDialog) unmounts on a later tick —
+    // that unmount is where the fan-out invalidateQueries calls above and
+    // the dialog's exit-animation/focus-release effects actually settle.
+    // Wait for the invalidate count to reach its final total and for the
+    // destination route's own content so those updates land inside act().
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(5));
+    await screen.findByText('bank list');
   });
 });
 

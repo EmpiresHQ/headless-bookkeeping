@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { fmtCents, triageDocument, uploadDocument } from '../api';
+import { useSeg } from '../lib/useSeg';
 import { relativeTime } from '../relativeTime';
 import { LargeTitleHeader } from '../shell/Headers';
 import {
@@ -33,7 +34,7 @@ const SEGMENTS: readonly InboxSegment[] = ['all', 'triage', 'approvals'];
 function EntryIcon({ entry }: { entry: InboxEntry }) {
   const [bg, glyph] =
     entry.kind === 'approval'
-      ? ['bg-[#E3EFE8] text-accent', '✓']
+      ? ['bg-tint text-accent', '✓']
       : entry.item.reason_type === 'ocr_failed' ||
           entry.item.reason_type === 'not_a_document'
         ? ['bg-err-bg text-err', '!']
@@ -188,12 +189,8 @@ function UploadAction() {
  *  approvals, ONE FIFO list (oldest on top — the queue must end). Polls at
  *  30s while mounted; see queries/inbox.ts for the polling rule. */
 export function InboxScreen() {
-  const [params, setParams] = useSearchParams();
-  // Legacy bookmarks used ?tab= (LegacyTabs); accept it as an alias.
-  const rawSeg = params.get('seg') ?? params.get('tab');
-  const seg: InboxSegment = SEGMENTS.includes(rawSeg as InboxSegment)
-    ? (rawSeg as InboxSegment)
-    : 'all';
+  const [params] = useSearchParams();
+  const [seg, setSeg] = useSeg<InboxSegment>(SEGMENTS, 'all');
   const { entries, counts, triageQ, approvalsQ, isPending } = useInboxQueue(
     seg,
     { poll: true },
@@ -241,7 +238,7 @@ export function InboxScreen() {
             },
           ]}
           value={seg}
-          onChange={(v) => setParams({ seg: v }, { replace: true })}
+          onChange={setSeg}
         />
       </div>
       {hero !== null && (

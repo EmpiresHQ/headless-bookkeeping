@@ -99,7 +99,7 @@ describe('ExpenseScreen', () => {
     expect(
       await screen.findByText('AS Merko Ehitus · rent'),
     ).toBeInTheDocument();
-    expect(screen.getByText('-650.00 €')).toBeInTheDocument();
+    expect(screen.getByText('−650.00 €')).toBeInTheDocument();
     expect(screen.getByText('117.21 € (22%)')).toBeInTheDocument();
     expect(screen.getByText('25.06.2026')).toBeInTheDocument();
     expect(screen.getByText('A-183')).toBeInTheDocument();

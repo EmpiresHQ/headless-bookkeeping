@@ -120,7 +120,7 @@ describe('ClassifyExpenseSheet', () => {
     expect(screen.getByDisplayValue('8.67')).toBeInTheDocument();
     expect(screen.getByDisplayValue('2026-07-01')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Create expense · -48.20 €' }),
+      screen.getByRole('button', { name: 'Create expense · −48.20 €' }),
     ).toBeInTheDocument();
     // Predicted category chip is selected.
     expect(screen.getByRole('button', { name: 'Fuel' })).toHaveAttribute(
@@ -156,7 +156,7 @@ describe('ClassifyExpenseSheet', () => {
   it('disables submit without a supplier, submits cents payload once valid', async () => {
     const onDone = renderSheet();
     const submit = await screen.findByRole('button', {
-      name: 'Create expense · -48.20 €',
+      name: 'Create expense · −48.20 €',
     });
     expect(submit).toBeDisabled(); // no supplier yet
     fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {

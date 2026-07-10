@@ -21,8 +21,14 @@ vi.mock('../api', async (importOriginal) => ({
   openSignedDocument: vi.fn(),
 }));
 
+vi.mock('../queries/inbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/inbox')>()),
+  invalidateInbox: vi.fn(),
+}));
+
 import * as api from '../api';
 import type { Entity, NeedsTriageItem } from '../api';
+import { invalidateInbox } from '../queries/inbox';
 import { TriageDocScreen } from './TriageDocScreen';
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
@@ -74,10 +80,16 @@ async function openClassifyPickSupplierAndSubmit(grossDisplay: string) {
   });
   fireEvent.click(screen.getByRole('button', { name: /Circle K Eesti AS/ }));
   const submit = screen.getByRole('button', {
-    name: `Create expense · -${grossDisplay} €`,
+    name: `Create expense · −${grossDisplay} €`,
   });
   await waitFor(() => expect(submit).toBeEnabled());
   fireEvent.click(submit);
+  // Wait for finishTriage's full synchronous body (through its trailing
+  // await invalidateInbox) to have run — both outcome branches call it last,
+  // so this is the settling point for setSheet/toastOk-or-Err/navigate
+  // that would otherwise land outside act() between this helper returning
+  // and the caller's next await.
+  await waitFor(() => expect(invalidateInbox).toHaveBeenCalled());
 }
 
 function renderAt(path: string) {
@@ -143,7 +155,7 @@ describe('TriageDocScreen', () => {
         'AI confidence 0.41 — below the 0.8 threshold, check the result',
       ),
     ).toBeInTheDocument();
-    expect(await screen.findByText('-48.20 €')).toBeInTheDocument();
+    expect(await screen.findByText('−48.20 €')).toBeInTheDocument();
     expect(screen.getByText('01.07.2026')).toBeInTheDocument();
     expect(screen.getByText('OCR text')).toBeInTheDocument();
   });
@@ -300,7 +312,7 @@ describe('TriageDocScreen', () => {
     expect(await screen.findByDisplayValue('99.00')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('48.20')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Create expense · -99.00 €' }),
+      screen.getByRole('button', { name: 'Create expense · −99.00 €' }),
     ).toBeInTheDocument();
   });
 
@@ -344,6 +356,32 @@ describe('TriageDocScreen', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('navigates to the next document WHILE the inbox invalidation is still pending (no "Already handled" flash)', async () => {
+    vi.mocked(api.completeDocument).mockResolvedValue({
+      id: 12,
+      status: 'processed',
+    });
+    let release!: () => void;
+    vi.mocked(invalidateInbox).mockReturnValue(
+      new Promise<void>((r) => (release = r)),
+    );
+    try {
+      const router = renderAt('/inbox/doc/12');
+      fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Dismiss document' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).not.toBe('/inbox/doc/12'),
+      );
+      expect(router.state.location.pathname).toBe('/inbox/doc/13');
+    } finally {
+      // Always release, even if an assertion above throws — otherwise the
+      // never-resolved invalidateInbox promise leaks into later tests.
+      release();
+    }
+  });
+
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
     vi.mocked(api.getDocumentReclassify).mockResolvedValue(
@@ -356,7 +394,6 @@ describe('TriageDocScreen', () => {
     });
     const router = renderAt('/inbox/doc/12');
     await openClassifyPickSupplierAndSubmit('48.20');
-    await waitFor(() => expect(api.manualClassify).toHaveBeenCalled());
     // Still unresolved: the operator stays here.
     expect(router.state.location.pathname).toBe('/inbox/doc/12');
     // Reopen to retry — same doc, so only a key nonce can remount the sheet
@@ -365,7 +402,7 @@ describe('TriageDocScreen', () => {
     expect(await screen.findByDisplayValue('48.20')).toBeInTheDocument();
     expect(
       await screen.findByRole('button', {
-        name: 'Create expense · -48.20 €',
+        name: 'Create expense · −48.20 €',
       }),
     ).toBeInTheDocument();
   });

@@ -116,8 +116,8 @@ export function ApprovalScreen() {
           ? `Approved & posted · ${heroAmount}`
           : 'Approved & posted',
       );
-      await invalidateInbox(qc);
       navigate(next);
+      await invalidateInbox(qc);
     },
     onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
   });
@@ -127,8 +127,8 @@ export function ApprovalScreen() {
     onSuccess: async () => {
       setRejectOpen(false);
       toastOk('Rejected — returned to draft');
-      await invalidateInbox(qc);
       navigate(next);
+      await invalidateInbox(qc);
     },
     onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
   });
