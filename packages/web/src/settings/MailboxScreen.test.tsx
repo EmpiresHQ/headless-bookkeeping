@@ -171,4 +171,19 @@ describe('MailboxScreen', () => {
       ),
     );
   });
+
+  it('IMAP sheet resets across open/close/reopen', async () => {
+    mount();
+    await screen.findByText('me@example.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Add IMAP mailbox…' }));
+    fireEvent.change(await screen.findByLabelText('IMAP host'), {
+      target: { value: 'imap.half-typed.example' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('IMAP host')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add IMAP mailbox…' }));
+    expect(await screen.findByLabelText('IMAP host')).toHaveValue('');
+  });
 });

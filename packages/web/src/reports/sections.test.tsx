@@ -188,6 +188,24 @@ describe('InfGapsSection', () => {
     await waitFor(() => expect(getExpenses).toHaveBeenCalled());
     expect(container.textContent).not.toContain('INF annex');
   });
+
+  it('Fix-invoice-number sheet resets across open/close/reopen', async () => {
+    mount(<InfGapsSection period={PERIOD} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /AS Merko Ehitus/ }),
+    );
+    fireEvent.change(await screen.findByLabelText('Supplier invoice number'), {
+      target: { value: 'INV-HALF' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Supplier invoice number')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /AS Merko Ehitus/ }));
+    expect(await screen.findByLabelText('Supplier invoice number')).toHaveValue(
+      '',
+    );
+  });
 });
 
 describe('StragglersSection', () => {

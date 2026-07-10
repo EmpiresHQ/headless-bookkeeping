@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { deleteEntity, type Entity } from '../api';
 import { signedEuros } from '../lib/money';
+import { useSheet } from '../lib/useSheet';
 import {
   aliasesOf,
   classificationMemory,
@@ -77,8 +78,8 @@ function Frame({ children }: { children: React.ReactNode }) {
 function EntityCard({ entity }: { entity: Entity }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [editOpen, setEditOpen] = useState(false);
-  const [aliasOpen, setAliasOpen] = useState(false);
+  const edit = useSheet();
+  const alias = useSheet();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const expensesQ = useExpenses();
@@ -194,7 +195,7 @@ function EntityCard({ entity }: { entity: Entity }) {
               )}
               <button
                 type="button"
-                onClick={() => setAliasOpen(true)}
+                onClick={() => alias.open()}
                 className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold text-accent"
               >
                 ＋ Add alias
@@ -225,7 +226,7 @@ function EntityCard({ entity }: { entity: Entity }) {
         <Button
           variant="secondary"
           className="w-full"
-          onClick={() => setEditOpen(true)}
+          onClick={() => edit.open()}
         >
           Edit
         </Button>
@@ -238,20 +239,20 @@ function EntityCard({ entity }: { entity: Entity }) {
         </Button>
       </div>
 
-      {editOpen && (
+      {edit.epoch > 0 && (
         <EditEntitySheet
-          key={entity.id}
+          key={`edit-${entity.id}-${edit.epoch}`}
           entity={entity}
-          open
-          onClose={() => setEditOpen(false)}
+          open={edit.isOpen}
+          onClose={edit.close}
         />
       )}
-      {aliasOpen && (
+      {alias.epoch > 0 && (
         <AddAliasSheet
-          key={entity.id}
+          key={`alias-${entity.id}-${alias.epoch}`}
           entityId={entity.id}
-          open
-          onClose={() => setAliasOpen(false)}
+          open={alias.isOpen}
+          onClose={alias.close}
         />
       )}
       <ConfirmDialog

@@ -243,4 +243,37 @@ describe('PeriodScreen', () => {
       screen.getByText(/File June 2026 first — filing proceeds oldest-first/),
     ).toBeInTheDocument();
   });
+
+  it('Lock sheet resets the typed confirmation across open/close/reopen', async () => {
+    // June (id 6) is open and oldest-open when July is also open.
+    mountAt(6, [
+      {
+        ...LOCKED_PERIOD,
+        id: 5,
+        name: '2026-05',
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+      },
+      {
+        ...LOCKED_PERIOD,
+        id: 6,
+        name: '2026-06',
+        status: 'open',
+        filed_at: null,
+      },
+      OPEN_PERIOD,
+    ]);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Close period…' }),
+    );
+    fireEvent.change(await screen.findByLabelText(/to confirm/), {
+      target: { value: 'half of the name' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/to confirm/)).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close period…' }));
+    expect(await screen.findByLabelText(/to confirm/)).toHaveValue('');
+  });
 });

@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSeg } from '../lib/useSeg';
+import { useSheet } from '../lib/useSheet';
 import {
   ENTITY_SEGMENTS,
   entityMatchesQuery,
@@ -26,7 +26,7 @@ export function EntitiesScreen() {
   const [seg, setSeg] = useSeg<EntitySegment>(ENTITY_SEGMENTS, 'all');
   const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '';
-  const [createOpen, setCreateOpen] = useState(false);
+  const create = useSheet();
   const entitiesQ = useEntities();
 
   const setQ = (next: string) => {
@@ -45,7 +45,7 @@ export function EntitiesScreen() {
       <LargeTitleHeader
         title="Entities"
         trailing={
-          <Button variant="secondary" onClick={() => setCreateOpen(true)}>
+          <Button variant="secondary" onClick={() => create.open()}>
             ＋ Add
           </Button>
         }
@@ -80,9 +80,7 @@ export function EntitiesScreen() {
             icon="👥"
             title="No team members yet"
             hint="Add an employee or director so they appear in the claimant dropdown when a receipt is uploaded for reimbursement (who paid — reimburse them)."
-            action={
-              <Button onClick={() => setCreateOpen(true)}>Add employee</Button>
-            }
+            action={<Button onClick={() => create.open()}>Add employee</Button>}
           />
         ) : (
           <EmptyState
@@ -95,9 +93,7 @@ export function EntitiesScreen() {
                 ? 'Try another segment or search term.'
                 : 'Suppliers and customers are created automatically when documents and bank lines are booked; employees and directors (reimbursement claimants) are added here.'
             }
-            action={
-              <Button onClick={() => setCreateOpen(true)}>Add entity</Button>
-            }
+            action={<Button onClick={() => create.open()}>Add entity</Button>}
           />
         )
       ) : (
@@ -113,10 +109,11 @@ export function EntitiesScreen() {
           ))}
         </ListGroup>
       )}
-      {createOpen && (
+      {create.epoch > 0 && (
         <CreateEntitySheet
-          open
-          onClose={() => setCreateOpen(false)}
+          key={create.epoch}
+          open={create.isOpen}
+          onClose={create.close}
           defaultRole={seg === 'team' ? 'employee' : 'supplier'}
         />
       )}

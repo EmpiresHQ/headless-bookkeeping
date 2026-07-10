@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   fmtCents,
   type Expense,
@@ -6,6 +5,7 @@ import {
   type ReportingPeriod,
 } from '../api';
 import { signedEuros } from '../lib/money';
+import { useSheet } from '../lib/useSheet';
 import { entityName, shortDate } from '../queries/books';
 import {
   INF_THRESHOLD_NET,
@@ -34,7 +34,7 @@ type PeriodProp = Pick<
 export function InfGapsSection({ period }: { period: PeriodProp }) {
   const expensesQ = useExpenses();
   const entitiesQ = useEntities();
-  const [fixing, setFixing] = useState<Expense | null>(null);
+  const fix = useSheet<Expense>();
 
   const entities = entitiesQ.data ?? [];
   const gaps = infGapCandidates(expensesQ.data ?? [], period);
@@ -62,7 +62,7 @@ export function InfGapsSection({ period }: { period: PeriodProp }) {
           ) : (
             <ListRow
               key={e.id}
-              onClick={() => setFixing(e)}
+              onClick={() => fix.open(e)}
               title={supplier ?? e.category}
               subtitle={subtitle}
               trailing={trailing}
@@ -75,13 +75,13 @@ export function InfGapsSection({ period }: { period: PeriodProp }) {
           ? 'The period is locked — numbers can no longer be edited here; the filed INF is what it is.'
           : `The INF annex itemises suppliers with over ${fmtCents(INF_THRESHOLD_NET)} € of purchases this period — these entries have no supplier invoice number yet. The downloaded KMD stays the authority.`}
       </p>
-      {fixing !== null && (
+      {fix.payload !== null && (
         <FixInvoiceNumberSheet
-          key={fixing.id}
-          expense={fixing}
-          supplierName={entityName(entities, fixing.supplier_id)}
-          open
-          onOpenChange={(o) => !o && setFixing(null)}
+          key={`${fix.payload.id}-${fix.epoch}`}
+          expense={fix.payload}
+          supplierName={entityName(entities, fix.payload.supplier_id)}
+          open={fix.isOpen}
+          onOpenChange={(o) => !o && fix.close()}
         />
       )}
     </>

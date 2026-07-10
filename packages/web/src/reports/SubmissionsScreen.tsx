@@ -8,6 +8,7 @@ import {
   type SubmissionEventKind,
 } from '../api';
 import { absoluteDate } from '../inbox/format';
+import { useSheet } from '../lib/useSheet';
 import {
   invalidateReports,
   periodTitle,
@@ -173,7 +174,7 @@ export function SubmissionsScreen() {
   const period = (periodsQ.data ?? []).find((p) => p.id === periodId);
   const locked = period?.status === 'locked';
   const stateQ = useSubmissionState(periodId, locked);
-  const [addOpen, setAddOpen] = useState(false);
+  const add = useSheet();
 
   const title =
     period !== undefined ? `${periodTitle(period.name)} — filing` : 'Filing';
@@ -272,18 +273,18 @@ export function SubmissionsScreen() {
             </div>
           )}
           <div className="mx-3.5 mb-3.5">
-            <Button className="w-full" onClick={() => setAddOpen(true)}>
+            <Button className="w-full" onClick={() => add.open()}>
               Record what happened…
             </Button>
           </div>
         </>
       )}
-      {addOpen && (
+      {add.epoch > 0 && (
         <AddEventSheet
-          key={period.id}
+          key={`${period.id}-${add.epoch}`}
           periodId={period.id}
-          open
-          onOpenChange={(o) => !o && setAddOpen(false)}
+          open={add.isOpen}
+          onOpenChange={(o) => !o && add.close()}
         />
       )}
     </div>

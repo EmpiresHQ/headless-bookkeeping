@@ -7,6 +7,7 @@ import {
   type ReportingPeriod,
 } from '../api';
 import { absoluteDate, absoluteDateFromIso } from '../inbox/format';
+import { useSheet } from '../lib/useSheet';
 import {
   displayFlags,
   KMD_ROWS,
@@ -160,7 +161,7 @@ export function PeriodScreen() {
   const period = (periodsQ.data ?? []).find((p) => p.id === periodId);
   const kmdQ = useKmd(periodId, validPeriodId);
   const submissionQ = useSubmissionState(periodId, period?.status === 'locked');
-  const [lockOpen, setLockOpen] = useState(false);
+  const lock = useSheet();
   const oldest = oldestOpen(periodsQ.data ?? []);
 
   if (periodsQ.isPending) {
@@ -247,7 +248,7 @@ export function PeriodScreen() {
       <Downloads period={period} />
       {period.status === 'open' && period.id === oldest?.id && (
         <div className="mx-3.5 mb-3.5">
-          <Button className="w-full" onClick={() => setLockOpen(true)}>
+          <Button className="w-full" onClick={() => lock.open()}>
             Close period…
           </Button>
         </div>
@@ -260,15 +261,15 @@ export function PeriodScreen() {
             oldest-first.
           </p>
         )}
-      {lockOpen && (
+      {lock.epoch > 0 && (
         <LockSheet
-          key={period.id}
+          key={`${period.id}-${lock.epoch}`}
           period={period}
           netVatDueCents={
             kmdQ.data !== undefined ? kmdQ.data.net_vat_due : null
           }
-          open
-          onOpenChange={(o) => !o && setLockOpen(false)}
+          open={lock.isOpen}
+          onOpenChange={(o) => !o && lock.close()}
         />
       )}
     </div>

@@ -24,21 +24,11 @@ export function Sheet({
   // calling onOpenChange (e.g. CreateMenu's row onPick) via the layout
   // effect below.
   //
-  // KNOWN RESIDUAL GAP (Task 14 smoke finding, NOT fully closed by either
-  // blur path or by onCloseAutoFocus preventDefault below): whenever the
-  // element that opened a sheet (its "trigger") remains mounted after the
-  // sheet closes, Radix's own FocusScope still restores focus to that
-  // trigger through an internal mechanism outside onOpenChange/
-  // onCloseAutoFocus, landing while the trigger's ancestor is still
-  // aria-hidden — reproduced on Escape-close for CreateEntitySheet's
-  // "+ Add", Books' CreateMenu "+", and by extension any sheet whose
-  // trigger persists. The browser logs the warning synchronously at the
-  // moment of that transient conflict, so no application-level blur
-  // timing (sync, layout-effect, or rAF-deferred — all tried) suppresses
-  // it after the fact. A real fix needs either migrating these sheets off
-  // the "parent unmounts to close" pattern so Radix can run its own
-  // graceful close lifecycle, or neutralizing the trigger's focusability
-  // while its sheet is open. Documented, not fixed here (structural).
+  // RESIDUAL GAP CLOSED (Plan 07 Task 7): every sheet call site now keeps
+  // its sheet MOUNTED (open flag + remount-on-open epoch key, lib/useSheet)
+  // so Radix runs its graceful close lifecycle and focus restoration lands
+  // AFTER aria-hidden lifts. The blur belts below remain as
+  // defense-in-depth for direct open-prop flips.
   const handleOpenChange = (o: boolean) => {
     if (!o && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();

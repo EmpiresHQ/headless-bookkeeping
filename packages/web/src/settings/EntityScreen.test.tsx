@@ -309,4 +309,30 @@ describe('EntityScreen (asset §8 card)', () => {
       'name_alias',
     ]);
   });
+
+  it('alias and edit sheets reset across open/close/reopen', async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
+    fireEvent.change(await screen.findByLabelText('Value'), {
+      target: { value: 'HALF-TYPED' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Value')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
+    expect(await screen.findByLabelText('Value')).toHaveValue('');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Value')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.change(await screen.findByLabelText('Name'), {
+      target: { value: 'Scratch that' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Name')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(await screen.findByLabelText('Name')).toHaveValue(
+      'Circle K Eesti AS',
+    );
+  });
 });
