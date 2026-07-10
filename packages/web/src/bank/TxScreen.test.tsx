@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -191,7 +191,7 @@ describe('TxScreen state composition', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Match 300.00 €' }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(router.state.location.pathname).toBe('/bank/statements/3'),
     );
     expect(await screen.findByText('Matched · 300.00 €')).toBeInTheDocument();
@@ -221,39 +221,46 @@ describe('TxScreen state composition', () => {
       await screen.findByText(/not a company expense/i),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Record as personal' }));
-    await vi.waitFor(() => expect(api.markPersonal).toHaveBeenCalledWith(9));
-    await vi.waitFor(() =>
+    await waitFor(() => expect(api.markPersonal).toHaveBeenCalledWith(9));
+    await waitFor(() =>
       expect(router.state.location.pathname).toBe('/bank/statements/3'),
     );
   });
 
   it('bank fee composes a VAT-0 bank-fee expense and matches it', async () => {
     mockLine({ amount: -800, description: 'SEB hooldustasu' });
-    vi.mocked(api.createExpense).mockResolvedValue({ id: 60 } as never);
     vi.mocked(api.postExpense).mockResolvedValue({
       expense: { id: 60, status: 'posted' },
       policy: { action: 'auto-post', reason: 'ok' },
     } as never);
-    vi.mocked(api.getMatchCandidates)
-      .mockResolvedValueOnce({
-        bankTransactionId: 9,
-        lineRemaining: 800,
-        candidates: [],
-      }) // state routing
-      .mockResolvedValue({
-        bankTransactionId: 9,
-        lineRemaining: 800,
-        candidates: [
-          {
-            voucherId: 80,
-            objectType: 'expense',
-            objectId: 60,
-            objectLabel: 'Expense #60',
-            counterpartyName: null,
-            voucherRemaining: 800,
-          },
-        ],
-      });
+    // Order-decoupled: the candidate appears the moment the expense is
+    // CREATED (the mutation that causes it), not on "the second call".
+    const feeCandidate = {
+      bankTransactionId: 9,
+      lineRemaining: 800,
+      candidates: [
+        {
+          voucherId: 80,
+          objectType: 'expense',
+          objectId: 60,
+          objectLabel: 'Expense #60',
+          counterpartyName: null,
+          voucherRemaining: 800,
+        },
+      ],
+    };
+    let candidates: typeof feeCandidate = {
+      bankTransactionId: 9,
+      lineRemaining: 800,
+      candidates: [],
+    };
+    vi.mocked(api.getMatchCandidates).mockImplementation(() =>
+      Promise.resolve(candidates as never),
+    );
+    vi.mocked(api.createExpense).mockImplementation(async () => {
+      candidates = feeCandidate; // the create is what makes it findable
+      return { id: 60 } as never;
+    });
     vi.mocked(api.manualMatch).mockResolvedValue({
       records: [{ id: 95 }],
       approvals: [{ id: 15, matchId: 95 }],
@@ -264,7 +271,7 @@ describe('TxScreen state composition', () => {
       await screen.findByText(/Personal · Bank fee · Prepayment/),
     );
     fireEvent.click(await screen.findByText('Bank fee'));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.createExpense).toHaveBeenCalledWith({
         category: 'bank fee',
         gross_amount: 800,
@@ -282,41 +289,55 @@ describe('TxScreen state composition', () => {
     // onDone's invalidateStatement hangs, so `navigate` never fires. The ONLY
     // thing that can remove the submit button is the guard's own unmount —
     // without it, the button re-enables in the done-window and stays.
-    vi.mocked(api.listBankTransactions)
-      .mockReset()
-      .mockResolvedValueOnce([BASE_TX] as never)
-      .mockImplementation(() => new Promise(() => {}));
-    vi.mocked(api.createExpense).mockResolvedValue({ id: 55 } as never);
-    vi.mocked(api.postExpense).mockResolvedValue({
-      expense: { id: 55, status: 'posted' },
-      policy: { action: 'auto-post', reason: 'ok' },
-    } as never);
+    // Phase-encoded mocks: the tx list resolves once (mount) and then hangs
+    // (the invalidation refetch that must NOT be the thing that removes the
+    // button); candidates flip on the mutations that cause them — fresh
+    // expense appears on createExpense, disappears again when manualMatch
+    // consumes it — so an extra refetch can never shift the script.
     const noCandidates = {
       bankTransactionId: 9,
       lineRemaining: 1860,
       candidates: [],
     };
-    vi.mocked(api.getMatchCandidates)
-      .mockResolvedValueOnce(noCandidates) // state routing on mount
-      .mockResolvedValueOnce({
-        // the composite's own lookup of the fresh expense
-        bankTransactionId: 9,
-        lineRemaining: 1860,
-        candidates: [
-          {
-            voucherId: 70,
-            objectType: 'expense',
-            objectId: 55,
-            objectLabel: 'Expense #55',
-            counterpartyName: null,
-            voucherRemaining: 1860,
-          },
-        ],
-      })
-      .mockResolvedValue(noCandidates); // invalidation refetch → still 'create'
-    vi.mocked(api.manualMatch).mockResolvedValue({
-      records: [{ id: 88 }],
-      approvals: [{ id: 12, matchId: 88 }],
+    const freshExpense = {
+      bankTransactionId: 9,
+      lineRemaining: 1860,
+      candidates: [
+        {
+          voucherId: 70,
+          objectType: 'expense',
+          objectId: 55,
+          objectLabel: 'Expense #55',
+          counterpartyName: null,
+          voucherRemaining: 1860,
+        },
+      ],
+    };
+    let txListServed = false;
+    vi.mocked(api.listBankTransactions)
+      .mockReset()
+      .mockImplementation(() => {
+        if (!txListServed) {
+          txListServed = true;
+          return Promise.resolve([BASE_TX] as never);
+        }
+        return new Promise(() => {});
+      });
+    let candidates = noCandidates;
+    vi.mocked(api.getMatchCandidates).mockImplementation(() =>
+      Promise.resolve(candidates as never),
+    );
+    vi.mocked(api.createExpense).mockImplementation(async () => {
+      candidates = freshExpense;
+      return { id: 55 } as never;
+    });
+    vi.mocked(api.postExpense).mockResolvedValue({
+      expense: { id: 55, status: 'posted' },
+      policy: { action: 'auto-post', reason: 'ok' },
+    } as never);
+    vi.mocked(api.manualMatch).mockImplementation(async () => {
+      candidates = noCandidates; // consumed — refetches route back to 'create'
+      return { records: [{ id: 88 }], approvals: [{ id: 12, matchId: 88 }] };
     });
     vi.mocked(api.approveApproval).mockResolvedValue({ approval: {} } as never);
     const router = renderTx();
@@ -360,10 +381,8 @@ describe('TxScreen state composition', () => {
       name: 'Record prepayment · +500.00 €',
     });
     fireEvent.click(confirms[confirms.length - 1]);
-    await vi.waitFor(() =>
-      expect(api.createPrepayment).toHaveBeenCalledWith(9),
-    );
-    await vi.waitFor(() =>
+    await waitFor(() => expect(api.createPrepayment).toHaveBeenCalledWith(9));
+    await waitFor(() =>
       expect(router.state.location.pathname).toBe('/bank/statements/3'),
     );
   });
@@ -387,7 +406,7 @@ describe('TxScreen state composition', () => {
       screen.queryByText('Create expense from line'),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.listBankTransactions).toHaveBeenCalledTimes(2),
     );
     // Recovers into the normal (create) state once the retry succeeds.
