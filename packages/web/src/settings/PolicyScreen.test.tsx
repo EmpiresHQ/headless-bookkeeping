@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
@@ -17,6 +23,7 @@ import {
   updatePolicyConfig,
   type PolicyConfig,
 } from '../api';
+import { settingsKeys } from '../queries/settings';
 import { AppToaster } from '../ui/toast';
 import { PolicyScreen } from './PolicyScreen';
 
@@ -37,6 +44,7 @@ function mount() {
       <AppToaster />
     </QueryClientProvider>,
   );
+  return qc;
 }
 
 beforeEach(() => {
@@ -114,5 +122,23 @@ describe('PolicyScreen', () => {
     await waitFor(() =>
       expect(setSetting).toHaveBeenCalledWith('ingest_policy', 'open'),
     );
+  });
+
+  it('keeps a dirty risk-gate draft through a background refetch (>staleTime tab-away)', async () => {
+    const qc = mount();
+    await screen.findByLabelText('Auto-post ceiling (€)');
+    fireEvent.change(screen.getByLabelText('Auto-post ceiling (€)'), {
+      target: { value: '99.00' },
+    });
+    // Simulate a background refetch (staleTime elapsed + refetchOnWindowFocus)
+    // landing a fresh server snapshot in the cache while the operator is
+    // mid-edit — the old `key={dataUpdatedAt}` remount used to clobber this.
+    act(() => {
+      qc.setQueryData(settingsKeys.policy, {
+        ...POLICY,
+        auto_post_amount_ceiling: 7000,
+      });
+    });
+    expect(screen.getByLabelText('Auto-post ceiling (€)')).toHaveValue('99.00');
   });
 });

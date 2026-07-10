@@ -87,7 +87,19 @@ function EntityCard({ entity }: { entity: Entity }) {
   const email = identifierOf(entity, 'email');
   const tg = identifierOf(entity, 'tg_user_id');
   const aliases = aliasesOf(entity);
-  const stats = entityStats(expensesQ.data ?? [], invoicesQ.data ?? [], entity);
+  // Bookings row (P04 dishonest-transient rule): the relevant shared list
+  // (expenses for a supplier, invoices for a customer) must have SETTLED
+  // before entityStats runs — otherwise the `?? []` fallback below renders
+  // a transient "Expenses · 0 / −0.00 €" while the list is still pending.
+  const bookingsListReady =
+    entity.role === 'supplier'
+      ? expensesQ.data !== undefined
+      : entity.role === 'customer'
+        ? invoicesQ.data !== undefined
+        : true;
+  const stats = bookingsListReady
+    ? entityStats(expensesQ.data ?? [], invoicesQ.data ?? [], entity)
+    : null;
   const memory =
     entity.role === 'supplier'
       ? classificationMemory(expensesQ.data ?? [], entity.id)

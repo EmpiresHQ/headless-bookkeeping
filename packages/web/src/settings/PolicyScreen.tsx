@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   fmtCents,
   setSetting,
@@ -53,7 +53,7 @@ export function PolicyScreen() {
   return (
     <Frame>
       <IngestPolicyGroup current={settingsQ.data['ingest_policy'] ?? ''} />
-      <RiskGateForm key={policyQ.dataUpdatedAt} initial={policyQ.data} />
+      <RiskGateForm data={policyQ.data} />
     </Frame>
   );
 }
@@ -111,21 +111,39 @@ function IngestPolicyGroup({ current }: { current: string }) {
   );
 }
 
-function RiskGateForm({ initial }: { initial: PolicyConfig }) {
+function RiskGateForm({ data }: { data: PolicyConfig }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [ceiling, setCeiling] = useState(
-    centsToEuroInput(initial.auto_post_amount_ceiling),
+    centsToEuroInput(data.auto_post_amount_ceiling),
   );
   const [confidence, setConfidence] = useState(
-    String(initial.auto_post_min_confidence),
+    String(data.auto_post_min_confidence),
   );
   const [unknownSupplier, setUnknownSupplier] = useState(
-    initial.unknown_supplier_requires_approval,
+    data.unknown_supplier_requires_approval,
   );
   const [alwaysApprove, setAlwaysApprove] = useState(
-    initial.always_approve_operations.join(', '),
+    data.always_approve_operations.join(', '),
   );
+
+  // Sync guard (SettingField.tsx's syncedCurrent pattern, ported to a
+  // multi-field form): a background refetch (staleTime 15s +
+  // refetchOnWindowFocus) adopts the new server snapshot into the fields
+  // ONLY while the operator has no unsaved edit — otherwise tabbing away
+  // mid-edit silently clobbers every typed field on return.
+  const syncedData = useRef(data);
+  const dirty = useRef(false);
+  useEffect(() => {
+    if (data === syncedData.current) return;
+    if (!dirty.current) {
+      setCeiling(centsToEuroInput(data.auto_post_amount_ceiling));
+      setConfidence(String(data.auto_post_min_confidence));
+      setUnknownSupplier(data.unknown_supplier_requires_approval);
+      setAlwaysApprove(data.always_approve_operations.join(', '));
+    }
+    syncedData.current = data;
+  }, [data]);
 
   const ceilingCents = eurosToCents(ceiling);
   const confidenceNum = Number(confidence);
@@ -149,6 +167,9 @@ function RiskGateForm({ initial }: { initial: PolicyConfig }) {
           .map((s) => s.trim())
           .filter((s) => s.length > 0),
       });
+      // The saved snapshot is the new clean baseline — a subsequent
+      // refetch (below) must be free to sync it in.
+      dirty.current = false;
       await invalidatePolicy(qc);
       toastOk('Policy saved');
     } catch (e) {
@@ -175,7 +196,10 @@ function RiskGateForm({ initial }: { initial: PolicyConfig }) {
             aria-label="Auto-post ceiling (€)"
             inputMode="decimal"
             value={ceiling}
-            onChange={(e) => setCeiling(e.target.value)}
+            onChange={(e) => {
+              dirty.current = true;
+              setCeiling(e.target.value);
+            }}
           />
         </Field>
         <Field
@@ -187,7 +211,10 @@ function RiskGateForm({ initial }: { initial: PolicyConfig }) {
             aria-label="Minimum AI confidence (0–1)"
             inputMode="decimal"
             value={confidence}
-            onChange={(e) => setConfidence(e.target.value)}
+            onChange={(e) => {
+              dirty.current = true;
+              setConfidence(e.target.value);
+            }}
           />
         </Field>
         <label className="flex items-center gap-2 text-[15px]">
@@ -195,7 +222,10 @@ function RiskGateForm({ initial }: { initial: PolicyConfig }) {
             type="checkbox"
             aria-label="Unknown supplier requires approval"
             checked={unknownSupplier}
-            onChange={(e) => setUnknownSupplier(e.target.checked)}
+            onChange={(e) => {
+              dirty.current = true;
+              setUnknownSupplier(e.target.checked);
+            }}
           />
           <span>Unknown supplier requires approval</span>
         </label>
@@ -206,7 +236,10 @@ function RiskGateForm({ initial }: { initial: PolicyConfig }) {
           <TextInput
             aria-label="Always-approve operations"
             value={alwaysApprove}
-            onChange={(e) => setAlwaysApprove(e.target.value)}
+            onChange={(e) => {
+              dirty.current = true;
+              setAlwaysApprove(e.target.value);
+            }}
             placeholder="comma-separated"
           />
         </Field>

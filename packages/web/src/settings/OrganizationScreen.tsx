@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { updateOrganization, type Organization } from '../api';
 import { sharedKeys } from '../queries/keys';
 import { invalidateOrganization, useOrganization } from '../queries/settings';
@@ -38,7 +38,7 @@ export function OrganizationScreen() {
   }
   return (
     <Frame>
-      <OrgForm key={orgQ.dataUpdatedAt} initial={orgQ.data} />
+      <OrgForm data={orgQ.data} />
     </Frame>
   );
 }
@@ -52,20 +52,43 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-function OrgForm({ initial }: { initial: Organization }) {
+function OrgForm({ data }: { data: Organization }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const [country, setCountry] = useState(initial.country);
+  const [country, setCountry] = useState(data.country);
   const [orgType, setOrgType] = useState(
-    initial.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
+    data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
   );
-  const [vatRegistered, setVatRegistered] = useState(initial.vat_registered);
-  const [name, setName] = useState(initial.name ?? '');
+  const [vatRegistered, setVatRegistered] = useState(data.vat_registered);
+  const [name, setName] = useState(data.name ?? '');
   const [vatNumber, setVatNumber] = useState(
-    initial.vat_registration_number ?? '',
+    data.vat_registration_number ?? '',
   );
-  const [iban, setIban] = useState(initial.iban ?? '');
-  const [currency, setCurrency] = useState(initial.base_currency ?? '');
+  const [iban, setIban] = useState(data.iban ?? '');
+  const [currency, setCurrency] = useState(data.base_currency ?? '');
+
+  // Sync guard (SettingField.tsx's syncedCurrent pattern, ported to a
+  // multi-field form): a background refetch (staleTime 15s +
+  // refetchOnWindowFocus) adopts the new server snapshot into the fields
+  // ONLY while the operator has no unsaved edit — otherwise tabbing away
+  // mid-edit silently clobbers every typed field on return.
+  const syncedData = useRef(data);
+  const dirty = useRef(false);
+  useEffect(() => {
+    if (data === syncedData.current) return;
+    if (!dirty.current) {
+      setCountry(data.country);
+      setOrgType(
+        data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
+      );
+      setVatRegistered(data.vat_registered);
+      setName(data.name ?? '');
+      setVatNumber(data.vat_registration_number ?? '');
+      setIban(data.iban ?? '');
+      setCurrency(data.base_currency ?? '');
+    }
+    syncedData.current = data;
+  }, [data]);
 
   const countryErr = COUNTRY_RE.test(country.trim().toUpperCase())
     ? null
@@ -90,6 +113,9 @@ function OrgForm({ initial }: { initial: Organization }) {
         vat_registration_number: vatNumber.trim() ? vatNumber.trim() : null,
         iban: iban.trim() ? iban.trim() : null,
       });
+      // The saved snapshot is the new clean baseline — a subsequent
+      // refetch (below) must be free to sync it in.
+      dirty.current = false;
       qc.setQueryData(sharedKeys.organization, saved);
       await invalidateOrganization(qc);
       toastOk('Organization saved');
@@ -106,7 +132,10 @@ function OrgForm({ initial }: { initial: Organization }) {
         <TextInput
           aria-label="Name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            dirty.current = true;
+            setName(e.target.value);
+          }}
           placeholder="e.g. Acme OÜ"
         />
       </Field>
@@ -118,7 +147,10 @@ function OrgForm({ initial }: { initial: Organization }) {
         <TextInput
           aria-label="Country"
           value={country}
-          onChange={(e) => setCountry(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            dirty.current = true;
+            setCountry(e.target.value.toUpperCase());
+          }}
           placeholder="EE"
           maxLength={2}
           className={`${INPUT_CLS} uppercase`}
@@ -128,7 +160,10 @@ function OrgForm({ initial }: { initial: Organization }) {
         <SelectInput
           aria-label="Type"
           value={orgType}
-          onChange={(e) => setOrgType(e.target.value)}
+          onChange={(e) => {
+            dirty.current = true;
+            setOrgType(e.target.value);
+          }}
         >
           <option value="company">Company</option>
           <option value="sole_proprietor">Sole proprietor</option>
@@ -139,7 +174,10 @@ function OrgForm({ initial }: { initial: Organization }) {
           type="checkbox"
           aria-label="VAT registered"
           checked={vatRegistered}
-          onChange={(e) => setVatRegistered(e.target.checked)}
+          onChange={(e) => {
+            dirty.current = true;
+            setVatRegistered(e.target.checked);
+          }}
         />
         <span>VAT registered</span>
       </label>
@@ -150,7 +188,10 @@ function OrgForm({ initial }: { initial: Organization }) {
         <TextInput
           aria-label="VAT registration number"
           value={vatNumber}
-          onChange={(e) => setVatNumber(e.target.value)}
+          onChange={(e) => {
+            dirty.current = true;
+            setVatNumber(e.target.value);
+          }}
           placeholder="e.g. EE123456789"
         />
       </Field>
@@ -158,7 +199,10 @@ function OrgForm({ initial }: { initial: Organization }) {
         <TextInput
           aria-label="IBAN"
           value={iban}
-          onChange={(e) => setIban(e.target.value)}
+          onChange={(e) => {
+            dirty.current = true;
+            setIban(e.target.value);
+          }}
           placeholder="e.g. EE382200221020145685"
         />
       </Field>
@@ -170,7 +214,10 @@ function OrgForm({ initial }: { initial: Organization }) {
         <TextInput
           aria-label="Base currency"
           value={currency}
-          onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            dirty.current = true;
+            setCurrency(e.target.value.toUpperCase());
+          }}
           placeholder="(inherit)"
           maxLength={3}
           className={`${INPUT_CLS} uppercase`}

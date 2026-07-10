@@ -265,4 +265,22 @@ describe('EntityScreen (asset §8 card)', () => {
     ).toBeInTheDocument();
     expect(getEntity).not.toHaveBeenCalled();
   });
+
+  it('bookings row waits for the expenses list to settle (no transient false zero, P04)', async () => {
+    let resolveExpenses!: (v: Expense[]) => void;
+    vi.mocked(getExpenses).mockReturnValue(
+      new Promise((resolve) => {
+        resolveExpenses = resolve;
+      }),
+    );
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    // Entity settled, but the shared expenses list is still pending — no
+    // "Expenses · 0 / −0.00 €" ghost row.
+    expect(screen.queryByText(/Expenses ·/)).toBeNull();
+    resolveExpenses(EXPENSES);
+    expect(
+      await screen.findByRole('link', { name: /Expenses · 2/ }),
+    ).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
@@ -9,6 +15,7 @@ vi.mock('../api', async (io) => ({
   updateOrganization: vi.fn(),
 }));
 import { getOrganization, updateOrganization, type Organization } from '../api';
+import { sharedKeys } from '../queries/keys';
 import { AppToaster } from '../ui/toast';
 import { OrganizationScreen } from './OrganizationScreen';
 
@@ -36,6 +43,7 @@ function mount() {
       <AppToaster />
     </QueryClientProvider>,
   );
+  return qc;
 }
 
 beforeEach(() => {
@@ -126,5 +134,41 @@ describe('OrganizationScreen', () => {
     mount();
     expect(await screen.findByText('boom')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('keeps a dirty draft through a background refetch (>staleTime tab-away)', async () => {
+    const qc = mount();
+    await waitFor(() =>
+      expect(screen.getByLabelText('Name')).toHaveValue('Acme OÜ'),
+    );
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Draft Name' },
+    });
+    // Simulate a background refetch (staleTime elapsed + refetchOnWindowFocus)
+    // landing a fresh server snapshot in the cache while the operator is
+    // mid-edit — the old `key={dataUpdatedAt}` remount used to clobber this.
+    act(() => {
+      qc.setQueryData(sharedKeys.organization, {
+        ...ORG,
+        name: 'Server Renamed Co',
+      });
+    });
+    expect(screen.getByLabelText('Name')).toHaveValue('Draft Name');
+  });
+
+  it('adopts a background refetch while the draft is untouched', async () => {
+    const qc = mount();
+    await waitFor(() =>
+      expect(screen.getByLabelText('Name')).toHaveValue('Acme OÜ'),
+    );
+    act(() => {
+      qc.setQueryData(sharedKeys.organization, {
+        ...ORG,
+        name: 'Server Renamed Co',
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText('Name')).toHaveValue('Server Renamed Co'),
+    );
   });
 });
