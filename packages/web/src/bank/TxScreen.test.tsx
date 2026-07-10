@@ -323,7 +323,7 @@ describe('TxScreen state composition', () => {
         }
         return new Promise(() => {});
       });
-    let candidates = noCandidates;
+    let candidates: typeof freshExpense = noCandidates;
     vi.mocked(api.getMatchCandidates).mockImplementation(() =>
       Promise.resolve(candidates as never),
     );
