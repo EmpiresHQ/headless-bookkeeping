@@ -295,4 +295,18 @@ describe('EntityScreen (asset §8 card)', () => {
       await screen.findByText('Posted and pending — drafts not counted'),
     ).toBeInTheDocument();
   });
+
+  it('alias Kind select offers exactly the three server-accepted kinds (types.ts:56-60)', async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
+    const options = within(screen.getByLabelText('Kind')).getAllByRole(
+      'option',
+    );
+    expect(options.map((o) => (o as HTMLOptionElement).value)).toEqual([
+      'merchant_descriptor',
+      'iban',
+      'name_alias',
+    ]);
+  });
 });

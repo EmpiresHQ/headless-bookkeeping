@@ -7,7 +7,7 @@ vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
   onboardEntity: vi.fn(),
 }));
-import { onboardEntity } from '../api';
+import { onboardEntity, type Entity } from '../api';
 import { AppToaster } from '../ui/toast';
 import { CreateEntitySheet } from './CreateEntitySheet';
 
@@ -37,7 +37,13 @@ beforeEach(() => vi.clearAllMocks());
 
 describe('CreateEntitySheet', () => {
   it('supplier: requires name, country and registration key; posts the exact payload', async () => {
-    vi.mocked(onboardEntity).mockResolvedValue({ id: 31 } as never);
+    vi.mocked(onboardEntity).mockResolvedValue({
+      id: 31,
+      role: 'supplier',
+      country: 'EE',
+      name: 'Circle K Eesti AS',
+      goods_vs_services: 'goods',
+    } as Entity);
     const { router } = mount();
     const submit = () => screen.getByRole('button', { name: 'Add supplier' });
     expect(submit()).toBeDisabled();
@@ -71,7 +77,13 @@ describe('CreateEntitySheet', () => {
   });
 
   it('employee: swaps identity fields (email required, tg optional) — the ADR-0036 path', async () => {
-    vi.mocked(onboardEntity).mockResolvedValue({ id: 9 } as never);
+    vi.mocked(onboardEntity).mockResolvedValue({
+      id: 9,
+      role: 'employee',
+      country: 'EE',
+      name: 'Mari Maasikas',
+      goods_vs_services: null,
+    } as Entity);
     mount();
     fireEvent.change(screen.getByLabelText('Role'), {
       target: { value: 'employee' },
@@ -127,5 +139,44 @@ describe('CreateEntitySheet', () => {
       ),
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('typing a registration key, then switching role to employee, never leaks the key onto the wire', async () => {
+    vi.mocked(onboardEntity).mockResolvedValue({
+      id: 9,
+      role: 'employee',
+      country: 'EE',
+      name: 'Mari Maasikas',
+      goods_vs_services: null,
+    } as Entity);
+    mount();
+    // Supplier form first: type a registration key…
+    fireEvent.change(screen.getByLabelText('Registration key'), {
+      target: { value: 'EE100511246' },
+    });
+    // …then change your mind about the role.
+    fireEvent.change(screen.getByLabelText('Role'), {
+      target: { value: 'employee' },
+    });
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Mari Maasikas' },
+    });
+    fireEvent.change(screen.getByLabelText('Country'), {
+      target: { value: 'EE' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'mari@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add employee' }));
+    // EXACT body: toHaveBeenCalledWith is deep-equal — a leaked
+    // registrationKey (or stale tgUserId) key would fail this assert.
+    await waitFor(() =>
+      expect(onboardEntity).toHaveBeenCalledWith({
+        role: 'employee',
+        name: 'Mari Maasikas',
+        country: 'EE',
+        email: 'mari@example.com',
+      }),
+    );
   });
 });

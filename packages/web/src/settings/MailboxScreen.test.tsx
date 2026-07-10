@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
@@ -57,6 +57,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getMailboxConnectors).mockResolvedValue([CONNECTOR]);
   vi.mocked(getSettings).mockResolvedValue([]);
+});
+
+afterEach(() => {
+  // The OAuth test installs a window.location GETTER spy — without restore
+  // it outlives its test (P06 T9 deferred).
+  vi.restoreAllMocks();
 });
 
 describe('MailboxScreen', () => {
