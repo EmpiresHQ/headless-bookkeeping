@@ -296,7 +296,7 @@ describe('EntityScreen (asset §8 card)', () => {
     ).toBeInTheDocument();
   });
 
-  it('alias Kind select offers exactly the three server-accepted kinds (types.ts:56-60)', async () => {
+  it("alias Kind select offers exactly the three server-accepted kinds (AddAliasInput['kind'])", async () => {
     mount();
     await screen.findByText('Circle K Eesti AS');
     fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));

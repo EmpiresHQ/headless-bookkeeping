@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -205,6 +211,49 @@ describe('InfGapsSection', () => {
     expect(await screen.findByLabelText('Supplier invoice number')).toHaveValue(
       '',
     );
+  });
+
+  it('the sole gap disappearing does not unmount the still-open fix sheet (last-gap exit)', async () => {
+    vi.mocked(getExpenses).mockResolvedValue(EXPENSES as never);
+    vi.mocked(getInvoices).mockResolvedValue(INVOICES as never);
+    vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <AppToaster />
+          <InfGapsSection period={PERIOD} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: /AS Merko Ehitus/ }),
+    );
+    await screen.findByLabelText('Supplier invoice number');
+
+    // The gap disappears out from under the still-open sheet — e.g.
+    // another operator fixed it, or a plain background refetch settles —
+    // WITHOUT this sheet's own close ever running. An early `return null`
+    // ahead of the sheet mount (the pre-fix shape) would yank the whole
+    // section, including the open sheet, out of the tree along with the
+    // now-empty gap list.
+    vi.mocked(getExpenses).mockResolvedValue([] as never);
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: sharedKeys.expenses });
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('INF annex — invoice numbers to add'),
+      ).toBeNull(),
+    );
+    // The sheet itself must still be mounted and open — nobody asked it to
+    // close, so it must not have been unmounted alongside the gap group.
+    expect(
+      screen.getByLabelText('Supplier invoice number'),
+    ).toBeInTheDocument();
   });
 });
 

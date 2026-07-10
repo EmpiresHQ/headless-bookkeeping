@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fmtCents, type ReportingPeriod } from '../api';
 import { absoluteDateFromIso } from '../inbox/format';
+import { useSheet } from '../lib/useSheet';
 import {
   currentOpen,
   netVatLabel,
@@ -58,7 +58,7 @@ function CurrentPeriodHero({ period }: { period: ReportingPeriod }) {
  *  the folded submission state (ADR-0037, asset §7 decision 6). */
 export function ReportsScreen() {
   const periodsQ = useReportingPeriods();
-  const [newOpen, setNewOpen] = useState(false);
+  const newPeriod = useSheet();
 
   const periods = sortPeriodsNewestFirst(periodsQ.data ?? []);
   const current = currentOpen(periods);
@@ -99,7 +99,7 @@ export function ReportsScreen() {
       <LargeTitleHeader
         title="Reports"
         trailing={
-          <Button variant="secondary" onClick={() => setNewOpen(true)}>
+          <Button variant="secondary" onClick={() => newPeriod.open()}>
             ＋ New period
           </Button>
         }
@@ -121,7 +121,7 @@ export function ReportsScreen() {
           title="No reporting periods yet"
           hint="Open the first period to start collecting the VAT declaration"
           action={
-            <Button onClick={() => setNewOpen(true)}>Open first period</Button>
+            <Button onClick={() => newPeriod.open()}>Open first period</Button>
           }
         />
       )}
@@ -142,8 +142,12 @@ export function ReportsScreen() {
           ))}
         </ListGroup>
       ))}
-      {newOpen && (
-        <NewPeriodSheet open onOpenChange={(o) => !o && setNewOpen(false)} />
+      {newPeriod.epoch > 0 && (
+        <NewPeriodSheet
+          key={newPeriod.epoch}
+          open={newPeriod.isOpen}
+          onOpenChange={(o) => !o && newPeriod.close()}
+        />
       )}
     </div>
   );

@@ -38,43 +38,54 @@ export function InfGapsSection({ period }: { period: PeriodProp }) {
 
   const entities = entitiesQ.data ?? [];
   const gaps = infGapCandidates(expensesQ.data ?? [], period);
-  if (gaps.length === 0) return null;
-
   const locked = period.status === 'locked';
 
+  // Note: an early `if (gaps.length === 0) return null` here would unmount
+  // the sheet mount below along with the gap group the moment the LAST gap
+  // is fixed (the fix's own `invalidateReports` refetch drops `gaps` to
+  // zero while the sheet is still closing) — killing its exit animation
+  // mid-flight. Gate the gap-list markup on `gaps.length > 0` instead and
+  // keep the sheet mount reachable regardless.
   return (
     <>
-      <GroupLabel>INF annex — invoice numbers to add</GroupLabel>
-      <ListGroup>
-        {gaps.map((e) => {
-          const supplier = entityName(entities, e.supplier_id);
-          const subtitle = `${e.category} · ${shortDate(e.tax_point_date)} · no invoice number`;
-          const trailing = (
-            <AmountText cents={-e.gross_amount} className="block text-[14px]" />
-          );
-          return locked ? (
-            <ListRow
-              key={e.id}
-              title={supplier ?? e.category}
-              subtitle={subtitle}
-              trailing={trailing}
-            />
-          ) : (
-            <ListRow
-              key={e.id}
-              onClick={() => fix.open(e)}
-              title={supplier ?? e.category}
-              subtitle={subtitle}
-              trailing={trailing}
-            />
-          );
-        })}
-      </ListGroup>
-      <p className="mx-6 -mt-2 mb-3.5 text-[12px] text-ink-2">
-        {locked
-          ? 'The period is locked — numbers can no longer be edited here; the filed INF is what it is.'
-          : `The INF annex itemises suppliers with over ${fmtCents(INF_THRESHOLD_NET)} € of purchases this period — these entries have no supplier invoice number yet. The downloaded KMD stays the authority.`}
-      </p>
+      {gaps.length > 0 && (
+        <>
+          <GroupLabel>INF annex — invoice numbers to add</GroupLabel>
+          <ListGroup>
+            {gaps.map((e) => {
+              const supplier = entityName(entities, e.supplier_id);
+              const subtitle = `${e.category} · ${shortDate(e.tax_point_date)} · no invoice number`;
+              const trailing = (
+                <AmountText
+                  cents={-e.gross_amount}
+                  className="block text-[14px]"
+                />
+              );
+              return locked ? (
+                <ListRow
+                  key={e.id}
+                  title={supplier ?? e.category}
+                  subtitle={subtitle}
+                  trailing={trailing}
+                />
+              ) : (
+                <ListRow
+                  key={e.id}
+                  onClick={() => fix.open(e)}
+                  title={supplier ?? e.category}
+                  subtitle={subtitle}
+                  trailing={trailing}
+                />
+              );
+            })}
+          </ListGroup>
+          <p className="mx-6 -mt-2 mb-3.5 text-[12px] text-ink-2">
+            {locked
+              ? 'The period is locked — numbers can no longer be edited here; the filed INF is what it is.'
+              : `The INF annex itemises suppliers with over ${fmtCents(INF_THRESHOLD_NET)} € of purchases this period — these entries have no supplier invoice number yet. The downloaded KMD stays the authority.`}
+          </p>
+        </>
+      )}
       {fix.payload !== null && (
         <FixInvoiceNumberSheet
           key={`${fix.payload.id}-${fix.epoch}`}
