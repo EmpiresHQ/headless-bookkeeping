@@ -293,15 +293,20 @@ describe('ApprovalScreen', () => {
     vi.mocked(api.approveApproval).mockResolvedValue({
       approval: APPROVAL({ status: 'approved' }),
     });
-    const router = renderAt('/inbox/approval/7');
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
-    );
-    await waitFor(() =>
-      expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
-    );
-    expect(router.state.location.pathname).toBe('/inbox/approval/8');
-    release();
+    try {
+      const router = renderAt('/inbox/approval/7');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
+      );
+      expect(router.state.location.pathname).toBe('/inbox/approval/8');
+    } finally {
+      // Always release, even if an assertion above throws — otherwise the
+      // never-resolved invalidateInbox promise leaks into later tests.
+      release();
+    }
   });
 
   it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — reject', async () => {
@@ -312,20 +317,25 @@ describe('ApprovalScreen', () => {
     vi.mocked(api.rejectApproval).mockResolvedValue({
       approval: APPROVAL({ status: 'rejected' }),
     });
-    const router = renderAt('/inbox/approval/7');
-    fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
-    fireEvent.change(
-      await screen.findByPlaceholderText(/why this should not be posted/i),
-      { target: { value: 'Wrong supplier' } },
-    );
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Reject & return to draft' }),
-    );
-    await waitFor(() =>
-      expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
-    );
-    expect(router.state.location.pathname).toBe('/inbox/approval/8');
-    release();
+    try {
+      const router = renderAt('/inbox/approval/7');
+      fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
+      fireEvent.change(
+        await screen.findByPlaceholderText(/why this should not be posted/i),
+        { target: { value: 'Wrong supplier' } },
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reject & return to draft' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
+      );
+      expect(router.state.location.pathname).toBe('/inbox/approval/8');
+    } finally {
+      // Always release, even if an assertion above throws — otherwise the
+      // never-resolved invalidateInbox promise leaks into later tests.
+      release();
+    }
   });
 
   it('shows the approve receipt WITHOUT an Undo action (posting is final)', async () => {

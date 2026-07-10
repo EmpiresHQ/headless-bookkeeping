@@ -365,16 +365,21 @@ describe('TriageDocScreen', () => {
     vi.mocked(invalidateInbox).mockReturnValue(
       new Promise<void>((r) => (release = r)),
     );
-    const router = renderAt('/inbox/doc/12');
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Dismiss document' }),
-    );
-    await waitFor(() =>
-      expect(router.state.location.pathname).not.toBe('/inbox/doc/12'),
-    );
-    expect(router.state.location.pathname).toBe('/inbox/doc/13');
-    release();
+    try {
+      const router = renderAt('/inbox/doc/12');
+      fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Dismiss document' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).not.toBe('/inbox/doc/12'),
+      );
+      expect(router.state.location.pathname).toBe('/inbox/doc/13');
+    } finally {
+      // Always release, even if an assertion above throws — otherwise the
+      // never-resolved invalidateInbox promise leaks into later tests.
+      release();
+    }
   });
 
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
