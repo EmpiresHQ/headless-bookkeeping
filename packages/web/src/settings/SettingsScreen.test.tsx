@@ -105,4 +105,11 @@ describe('SettingsScreen (hub)', () => {
       screen.getByRole('heading', { name: 'Settings' }),
     ).toBeInTheDocument();
   });
+
+  it('ignores ?tab=toString (prototype-chain key, not an own TAB_ROUTES entry)', () => {
+    mount('/settings?tab=toString');
+    expect(
+      screen.getByRole('heading', { name: 'Settings' }),
+    ).toBeInTheDocument();
+  });
 });

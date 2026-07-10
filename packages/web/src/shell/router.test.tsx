@@ -40,7 +40,46 @@ function mockApiFetch() {
       });
     if (url.includes('/api/expenses')) return json({ expenses: [] });
     if (url.includes('/api/sales-invoices')) return json({ invoices: [] });
+    // getEntity(id) — single Entity (with identifiers), not list-wrapped.
+    if (/\/api\/entities\/\d+$/.test(url))
+      return json({
+        id: 5,
+        name: 'Mari Maasikas',
+        role: 'employee',
+        country: 'EE',
+        goods_vs_services: null,
+        identifiers: [],
+      });
     if (url.includes('/api/entities')) return json({ entities: [] });
+    if (url.includes('/admin/settings')) return json({ settings: [] });
+    if (url.includes('/api/policy-config'))
+      return json({
+        auto_post_amount_ceiling: 0,
+        auto_post_min_confidence: 0,
+        unknown_supplier_requires_approval: false,
+        always_approve_operations: [],
+      });
+    if (url.includes('/api/mailbox/connectors')) return json([]);
+    if (url.includes('/api/device-enrollments'))
+      return json({
+        apiBaseUrl: 'https://api.example.com',
+        enrollmentToken: 'tok',
+        expiresAt: new Date().toISOString(),
+      });
+    // getOrganization() — checked before /api/organization/period-config
+    // below so the bare org GET doesn't fall through to the [] default.
+    if (/\/api\/organization$/.test(url))
+      return json({
+        id: 1,
+        country: 'EE',
+        base_currency: null,
+        vat_registered: true,
+        org_type: 'company',
+        created_at: 0,
+        name: 'Acme OÜ',
+        vat_registration_number: 'EE123456789',
+        iban: null,
+      });
     // getKmd(id) — minimal KmdDeclaration, all seven rows present.
     if (/\/api\/reporting-periods\/\d+\/kmd$/.test(url))
       return json({
@@ -192,12 +231,90 @@ describe('router', () => {
     expect(router.state.location.pathname).toBe(to);
   });
 
-  it('renders legacy section tabs at /settings', () => {
+  it('mounts SettingsScreen (hub) at /settings', async () => {
     renderAt('/settings');
     expect(
-      screen.getByRole('tab', { name: 'Organization' }),
+      await screen.findByRole('heading', { name: 'Settings' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Entities' })).toBeInTheDocument();
+  });
+
+  it('mounts OrganizationScreen at /settings/organization', async () => {
+    renderAt('/settings/organization');
+    // ScreenHeader renders the title as a plain span, not an h1 — assert text.
+    expect(await screen.findByText('Organization')).toBeInTheDocument();
+  });
+
+  it('mounts EntitiesScreen at /settings/entities', async () => {
+    renderAt('/settings/entities');
+    expect(
+      await screen.findByRole('heading', { name: 'Entities' }),
+    ).toBeInTheDocument();
+  });
+
+  it('mounts EntityScreen at /settings/entities/:id', async () => {
+    renderAt('/settings/entities/5');
+    // Skeleton-or-card: either the pending skeleton or the resolved card's
+    // name proves EntityScreen (not a 404/blank route) mounted.
+    await waitFor(() =>
+      expect(screen.getByText('Mari Maasikas')).toBeInTheDocument(),
+    );
+  });
+
+  it('mounts CategoriesScreen at /settings/categories', async () => {
+    renderAt('/settings/categories');
+    expect(await screen.findByText('Categories')).toBeInTheDocument();
+  });
+
+  it('mounts PolicyScreen at /settings/policy', async () => {
+    renderAt('/settings/policy');
+    expect(await screen.findByText('Posting policy')).toBeInTheDocument();
+  });
+
+  it('mounts MailboxScreen at /settings/mailbox', async () => {
+    renderAt('/settings/mailbox');
+    expect(await screen.findByText('Mail intake')).toBeInTheDocument();
+  });
+
+  it('mounts LlmScreen at /settings/llm', async () => {
+    renderAt('/settings/llm');
+    expect(await screen.findByText('AI models')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['/org', '/settings/organization'],
+    ['/entities', '/settings/entities'],
+    ['/categories', '/settings/categories'],
+  ])('redirects legacy %s to %s', (from, to) => {
+    const router = renderAt(from);
+    expect(router.state.location.pathname).toBe(to);
+  });
+
+  it('redirects legacy /enroll to /settings/enroll', async () => {
+    const router = renderAt('/enroll');
+    expect(router.state.location.pathname).toBe('/settings/enroll');
+    // Settle EnrollScreen's mount-time enrollment + QR generation inside the
+    // test (its state lands async — unawaited it trips the act() warning).
+    expect(
+      await screen.findByAltText('Enrollment QR code'),
+    ).toBeInTheDocument();
+  });
+
+  it('redirects the hub-level ?tab=app bookmark to /settings/llm', async () => {
+    const router = renderAt('/settings?tab=app');
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/settings/llm'),
+    );
+  });
+
+  it('rescues the OAuth-return redirect: /?mailbox=connected → /settings/mailbox with the param preserved', async () => {
+    const router = renderAt('/?mailbox=connected');
+    expect(router.state.location.pathname).toBe('/settings/mailbox');
+    expect(await screen.findByText('Mail intake')).toBeInTheDocument();
+    // The param survived the redirect: MailboxScreen consumed it (its
+    // "Mailbox connected" toast fires only when ?mailbox=connected arrived),
+    // then stripped it so F5 doesn't replay the banner.
+    expect(await screen.findByText('Mailbox connected')).toBeInTheDocument();
+    expect(router.state.location.search).toBe('');
   });
 
   it('renders the new Bank statements screen at /bank', async () => {

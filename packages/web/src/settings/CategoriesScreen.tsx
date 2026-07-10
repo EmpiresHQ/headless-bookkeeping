@@ -9,8 +9,8 @@ import { LoadError } from '../ui/LoadError';
  * /settings/categories — READ-ONLY reference (spec: plugin-owned). Rows are
  * label + key; the key is legitimate operator vocabulary (it is the
  * `category` value on every expense). CategoryDef.accountCode NEVER renders
- * (Reality #7 — ADR-0001/0030; the legacy "Account" column dies with
- * CategoriesView).
+ * (Reality #7 — ADR-0001/0030; the old read-only Categories tab's "Account"
+ * column dies with it).
  */
 export function CategoriesScreen() {
   const categoriesQ = useCategories();

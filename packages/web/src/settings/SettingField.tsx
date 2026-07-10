@@ -18,9 +18,9 @@ export interface SettingDef {
 /**
  * One validated-registry admin setting (Reality #2). Save is disabled on an
  * empty draft (the server's nonEmpty validator would 400); Clear DELETEs the
- * key (server falls back to its built-in default). The sync guard is the
- * legacy SettingsView's: a background refetch adopts the new server value
- * ONLY while the operator has no unsaved edit.
+ * key (server falls back to its built-in default). The sync guard ports the
+ * old combined Settings tab's: a background refetch adopts the new server
+ * value ONLY while the operator has no unsaved edit.
  */
 export function SettingField({
   def,

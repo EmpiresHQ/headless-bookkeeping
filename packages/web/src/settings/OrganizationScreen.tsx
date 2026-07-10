@@ -84,7 +84,7 @@ function OrgForm({ initial }: { initial: Organization }) {
         org_type: orgType === 'sole_proprietor' ? 'sole_proprietor' : 'company',
         vat_registered: vatRegistered,
         // Empty string → null: inherit the country plugin's base currency
-        // (ADR-0004; legacy OrgView semantics preserved).
+        // (ADR-0004; legacy organization-tab semantics preserved).
         base_currency: currency.trim() ? currency.trim().toUpperCase() : null,
         name: name.trim() ? name.trim() : null,
         vat_registration_number: vatNumber.trim() ? vatNumber.trim() : null,

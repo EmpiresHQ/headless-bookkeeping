@@ -1,8 +1,9 @@
 import { useSearchParams } from 'react-router-dom';
 
 /**
- * Shared ?seg= segment state with the legacy ?tab= alias (LegacyTabs
- * bookmarks). Extracted in Plan 06 on the third consumer (P05 Appendix B):
+ * Shared ?seg= segment state with the legacy ?tab= alias (bookmarks from
+ * the old tabbed Settings shell). Extracted in Plan 06 on the third
+ * consumer (P05 Appendix B):
  * InboxScreen, BooksScreen, settings/EntitiesScreen.
  * Read: ?seg= wins, ?tab= is the alias, anything unknown → fallback.
  * Write: sets ?seg=, deletes ?tab= and the segment-scoped `clear` params,

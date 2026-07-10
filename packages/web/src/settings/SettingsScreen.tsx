@@ -1,15 +1,14 @@
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { useEntities } from '../queries/shared';
 import { useMailboxConnectors, useOrganization } from '../queries/settings';
 import { LargeTitleHeader } from '../shell/Headers';
 import type { ShellOutletContext } from '../shell/AppLayout';
-import { useOutletContext } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { ListGroup, ListRow } from '../ui/List';
 
-/** Legacy LegacyTabs bookmarks: /settings?tab=<key>. `app` was the combined
- *  SettingsView (LLM + Telegram + mailbox + policy) — the closest single
- *  target is the AI screen; the rest are one hub tap away. */
+/** Bookmarks from the old tabbed Settings shell: /settings?tab=<key>. `app`
+ *  was the combined settings tab (LLM + Telegram + mailbox + policy) — the
+ *  closest single target is the AI screen; the rest are one hub tap away. */
 const TAB_ROUTES: Record<string, string> = {
   organization: '/settings/organization',
   entities: '/settings/entities',
@@ -29,7 +28,10 @@ export function SettingsScreen() {
   const connectorsQ = useMailboxConnectors();
 
   const tab = params.get('tab');
-  if (tab !== null && TAB_ROUTES[tab] !== undefined) {
+  // Own-key check (not `TAB_ROUTES[tab] !== undefined`): a prototype-chain
+  // key like ?tab=toString would otherwise Navigate to a function and crash.
+  // hasOwnProperty.call, not Object.hasOwn — the tsconfig lib predates es2022.
+  if (tab !== null && Object.prototype.hasOwnProperty.call(TAB_ROUTES, tab)) {
     return <Navigate to={TAB_ROUTES[tab]} replace />;
   }
 

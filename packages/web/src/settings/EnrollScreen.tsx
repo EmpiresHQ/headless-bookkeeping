@@ -10,7 +10,7 @@ import { SettingField } from './SettingField';
 
 /**
  * /settings/enroll — mobile enrollment QR. The payload shape {v,api,enroll}
- * is the mobile-app contract (legacy EnrollView verbatim). The dominant
+ * is the mobile-app contract (kept verbatim from the old Enroll tab). The dominant
  * failure — unset public_api_url → server 500 (Reality #8) — renders
  * guidance WITH the fix inline: the public_api_url setting lives on this
  * screen (it IS the QR's base URL).
