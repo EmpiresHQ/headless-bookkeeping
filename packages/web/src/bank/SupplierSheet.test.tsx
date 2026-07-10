@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -122,7 +122,7 @@ describe('SupplierSheet', () => {
       target: { value: 'EE102030405' },
     });
     fireEvent.click(create);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.onboardEntity).toHaveBeenCalledWith({
         role: 'supplier',
         country: 'EE',
@@ -131,19 +131,19 @@ describe('SupplierSheet', () => {
       }),
     );
     // IBAN alias + name alias from the line → the server matcher learns.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.addEntityAlias).toHaveBeenCalledWith(40, {
         kind: 'iban',
         value: 'EE912200221012345678',
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.addEntityAlias).toHaveBeenCalledWith(40, {
         kind: 'name_alias',
         value: 'PARTNER GRUPP OU ARVE 4471',
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 40 })),
     );
   });

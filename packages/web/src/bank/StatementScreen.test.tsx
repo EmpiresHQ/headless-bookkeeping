@@ -249,7 +249,11 @@ describe('StatementScreen', () => {
     // Non-blocking: the rest of the worklist still renders.
     expect(screen.getByText('Decide yourself')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await vi.waitFor(() => expect(api.proposeMatches).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.proposeMatches).toHaveBeenCalledTimes(2));
+    // Settle: the retried fetch rejects again and the notice re-renders.
+    expect(
+      await screen.findByText("Couldn't load AI proposals"),
+    ).toBeInTheDocument();
   });
 
   it('deletes the statement behind an explicit confirm and returns to /bank', async () => {
@@ -359,7 +363,7 @@ describe('StatementScreen booking', () => {
     const bookBtn = screen.getByRole('button', { name: /book 1 match/i });
     expect(bookBtn).toHaveTextContent('+1200.00 € net');
     fireEvent.click(bookBtn);
-    await vi.waitFor(() => expect(api.executeMatches).toHaveBeenCalledOnce());
+    await waitFor(() => expect(api.executeMatches).toHaveBeenCalledOnce());
     // Exactly the chosen proposal objects go to the server — nothing more.
     expect(api.executeMatches).toHaveBeenCalledWith(3, [HIGH_PROPOSAL]);
     expect(api.approveApproval).toHaveBeenCalledWith(12, 'operator');
@@ -382,10 +386,17 @@ describe('StatementScreen booking', () => {
     await screen.findByRole('checkbox', {
       name: /select match invoice 2026-018/i,
     });
+    const matchesCallsBefore = vi.mocked(api.getStatementMatches).mock.calls
+      .length;
     fireEvent.click(screen.getByRole('button', { name: /book 1 match/i }));
     fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-    await vi.waitFor(() =>
-      expect(api.unmatchMatch).toHaveBeenCalledWith(3, 91),
+    await waitFor(() => expect(api.unmatchMatch).toHaveBeenCalledWith(3, 91));
+    // Settle: undo re-invalidates the statement — wait for the refetch so
+    // the query-state updates land inside act().
+    await waitFor(() =>
+      expect(
+        vi.mocked(api.getStatementMatches).mock.calls.length,
+      ).toBeGreaterThan(matchesCallsBefore + 1),
     );
   });
 
@@ -455,11 +466,11 @@ describe('StatementScreen booking', () => {
     fireEvent.click(box); // operator deselects the preselected proposal
     expect(box).toHaveAttribute('aria-checked', 'false');
     fireEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.approveApproval).toHaveBeenCalledWith(88, 'operator'),
     );
     // Invalidation refetched proposals with a new data reference…
-    await vi.waitFor(() => expect(api.proposeMatches).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.proposeMatches).toHaveBeenCalledTimes(2));
     // …and the deselection survived: still unchecked, no Book bar.
     const boxAfter = await screen.findByRole('checkbox', {
       name: /select match invoice 2026-018/i,
@@ -501,7 +512,7 @@ describe('StatementScreen booking', () => {
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     // The invalidation path ran: statement queries refetch so the leftover
     // draft renders as staged (with its Confirm recovery button).
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         vi.mocked(api.getStatementMatches).mock.calls.length,
       ).toBeGreaterThan(matchesCallsBefore),
@@ -548,8 +559,13 @@ describe('StatementScreen booking', () => {
     renderAt();
     expect(await screen.findByText('staged')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.approveApproval).toHaveBeenCalledWith(88, 'operator'),
     );
+    // Settle: confirm's post-approve invalidation and undo-toast are the
+    // last updates of the flow.
+    expect(
+      await screen.findByText('Confirmed · Expense #70'),
+    ).toBeInTheDocument();
   });
 });

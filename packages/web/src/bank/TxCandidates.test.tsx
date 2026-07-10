@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -151,7 +151,7 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onMatched).toHaveBeenCalledWith([91, 92], 50000),
     );
     expect(api.manualMatch).toHaveBeenNthCalledWith(1, 3, {
@@ -201,7 +201,7 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
-    await vi.waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 50000));
+    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 50000));
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 80,
@@ -251,7 +251,7 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 300.00 €' }));
-    await vi.waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 30000));
+    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 30000));
     expect(api.manualMatch).toHaveBeenCalledTimes(1);
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
@@ -299,7 +299,7 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 250.00 €' }));
-    await vi.waitFor(() => expect(onMatched).toHaveBeenCalledWith([99], 25000));
+    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([99], 25000));
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 95,
@@ -345,7 +345,7 @@ describe('TxCandidates', () => {
     expect(onMatched).not.toHaveBeenCalled();
     // The statement queries refetch (invalidateStatement → qc.invalidateQueries
     // with the statement's key prefix).
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ['bank', 'statements', 3] }),
       ),

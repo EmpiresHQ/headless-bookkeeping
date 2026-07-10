@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -128,7 +128,7 @@ describe('TxCreateExpense', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
         outcome: 'matched',
         expenseId: 55,
@@ -159,7 +159,7 @@ describe('TxCreateExpense', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
         outcome: 'held',
         expenseId: 56,
