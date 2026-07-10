@@ -74,8 +74,8 @@ export function TriageDocScreen() {
       return;
     }
     toastOk(outcomeText(o));
-    await invalidateInbox(qc);
     navigate(next);
+    await invalidateInbox(qc);
   };
 
   const runAction = async (fn: () => Promise<unknown>, message: string) => {
@@ -83,7 +83,6 @@ export function TriageDocScreen() {
     try {
       await fn();
       toastOk(message);
-      await invalidateInbox(qc);
       // Auto-advance re-renders this SAME element for the next document
       // (only the :id param changes) — reset the screen-level action state
       // BEFORE navigating, or doc N+1 renders with every action disabled,
@@ -94,7 +93,11 @@ export function TriageDocScreen() {
       setSheet(null);
       setBusy(false);
       setConfirm(null);
+      // Navigate BEFORE the invalidation settles: awaiting it first let the
+      // refetch land, the item vanish, and the "Already handled" empty
+      // state flash for a frame (P03 Task 13 deferred item).
       navigate(next);
+      await invalidateInbox(qc);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
       setBusy(false);

@@ -353,7 +353,13 @@ export function StatementScreen() {
     setDeleting(true);
     try {
       await deleteBankStatement(statementId);
-      await qc.invalidateQueries({ queryKey: bankKeys.statements });
+      // Deleting a statement unlinks matches / un-reconciles expenses —
+      // the same cross-domain staleness class P04 fixed for line-level
+      // actions: fan out via invalidateStatement PLUS the list key.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: bankKeys.statements }),
+        invalidateStatement(qc, statementId),
+      ]);
       navigate('/bank');
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));

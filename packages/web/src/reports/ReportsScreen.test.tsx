@@ -23,6 +23,14 @@ import {
 
 const PERIODS = [
   {
+    id: 4,
+    name: '2026-04',
+    start_date: '2026-04-01',
+    end_date: '2026-04-30',
+    status: 'locked' as const,
+    filed_at: 1747100000,
+  },
+  {
     id: 5,
     name: '2026-05',
     start_date: '2026-05-01',
@@ -68,12 +76,17 @@ const KMD = {
 function mountList(periods = PERIODS) {
   vi.mocked(getReportingPeriods).mockResolvedValue(periods as never);
   vi.mocked(getKmd).mockResolvedValue(KMD as never);
-  vi.mocked(getSubmissionState).mockResolvedValue({
-    status: 'accepted',
-    lastExternalRef: 'KMD-2026-05-01',
-    submissionCount: 1,
-    history: [],
-  } as never);
+  // Per-period submission state — two locked periods in the fixture (ids 4
+  // and 5) each get a distinct ref, so their folded status lines don't
+  // collide on the same rendered text.
+  vi.mocked(getSubmissionState).mockImplementation((id) =>
+    Promise.resolve({
+      status: 'accepted',
+      lastExternalRef: id === 4 ? 'KMD-2026-04-01' : 'KMD-2026-05-01',
+      submissionCount: 1,
+      history: [],
+    } as never),
+  );
   vi.mocked(getPeriodConfig).mockResolvedValue({
     frequency_options: ['monthly'],
     default_frequency: 'monthly',
@@ -177,6 +190,19 @@ describe('ReportsScreen', () => {
         end_date: '2026-08-15',
         name: 'special',
       }),
+    );
+  });
+
+  it('folds submission state with exactly one request per LOCKED period (fan-out pin)', async () => {
+    // This file has no shared beforeEach/mockClear — clear this mock's own
+    // call history so earlier tests' mounts don't inflate the count.
+    vi.mocked(getSubmissionState).mockClear();
+    mountList();
+    await screen.findByText('July 2026');
+    await waitFor(() =>
+      expect(getSubmissionState).toHaveBeenCalledTimes(
+        2 /* locked periods in fixture */,
+      ),
     );
   });
 

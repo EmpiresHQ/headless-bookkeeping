@@ -17,8 +17,14 @@ vi.mock('../api', async (importOriginal) => ({
   openSignedDocument: vi.fn(),
 }));
 
+vi.mock('../queries/inbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/inbox')>()),
+  invalidateInbox: vi.fn(),
+}));
+
 import * as api from '../api';
 import type { Approval } from '../api';
+import { invalidateInbox } from '../queries/inbox';
 import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
 
@@ -277,6 +283,49 @@ describe('ApprovalScreen', () => {
     expect(
       screen.getByRole('button', { name: 'Reject & return to draft' }),
     ).toBeDisabled();
+  });
+
+  it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — approve', async () => {
+    let release!: () => void;
+    vi.mocked(invalidateInbox).mockReturnValue(
+      new Promise<void>((r) => (release = r)),
+    );
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'approved' }),
+    });
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
+    );
+    expect(router.state.location.pathname).toBe('/inbox/approval/8');
+    release();
+  });
+
+  it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — reject', async () => {
+    let release!: () => void;
+    vi.mocked(invalidateInbox).mockReturnValue(
+      new Promise<void>((r) => (release = r)),
+    );
+    vi.mocked(api.rejectApproval).mockResolvedValue({
+      approval: APPROVAL({ status: 'rejected' }),
+    });
+    const router = renderAt('/inbox/approval/7');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject…' }));
+    fireEvent.change(
+      await screen.findByPlaceholderText(/why this should not be posted/i),
+      { target: { value: 'Wrong supplier' } },
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reject & return to draft' }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).not.toBe('/inbox/approval/7'),
+    );
+    expect(router.state.location.pathname).toBe('/inbox/approval/8');
+    release();
   });
 
   it('shows the approve receipt WITHOUT an Undo action (posting is final)', async () => {

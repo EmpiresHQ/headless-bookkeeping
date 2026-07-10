@@ -266,6 +266,46 @@ describe('StatementScreen', () => {
       expect(router.state.location.pathname).toBe('/bank'),
     );
   });
+
+  it('fans out delete-statement invalidation to expenses/books/reports (unlinked matches un-reconcile expenses)', async () => {
+    vi.mocked(api.deleteBankStatement).mockResolvedValue({ deleted: 3 });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+    const router = createMemoryRouter(
+      [
+        { path: '/bank', element: <p>bank list</p> },
+        { path: '/bank/statements/:id', element: <StatementScreen /> },
+      ],
+      { initialEntries: ['/bank/statements/3'] },
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <>
+          <RouterProvider router={router} />
+          <AppToaster />
+        </>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete statement' }),
+    );
+    await vi.waitFor(() =>
+      expect(api.deleteBankStatement).toHaveBeenCalledWith(3),
+    );
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe('/bank'),
+    );
+    const invalidatedKeys = invalidateSpy.mock.calls.map(
+      (c) => (c[0] as { queryKey: unknown[] }).queryKey,
+    );
+    expect(invalidatedKeys).toContainEqual(['bank', 'statements']);
+    expect(invalidatedKeys).toContainEqual(['expenses']);
+    expect(invalidatedKeys).toContainEqual(['books']);
+    expect(invalidatedKeys).toContainEqual(['reports']);
+  });
 });
 
 describe('StatementScreen booking', () => {

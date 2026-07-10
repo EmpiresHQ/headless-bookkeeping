@@ -32,7 +32,8 @@ import { SettingsScreen } from '../settings/SettingsScreen';
 import { TelegramScreen } from '../settings/TelegramScreen';
 import { Root } from './Root';
 
-/** Old flat-tab URL → new section URL (tab preselected via ?tab=/?seg=). */
+/** Old flat-tab URL → new section URL (?seg= preselects the tab where the
+ *  target screen has one). */
 const LEGACY_REDIRECTS: Record<string, string> = {
   '/org': '/settings/organization',
   '/entities': '/settings/entities',

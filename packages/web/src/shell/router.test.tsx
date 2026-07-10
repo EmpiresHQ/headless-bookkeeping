@@ -317,6 +317,16 @@ describe('router', () => {
     expect(router.state.location.search).toBe('');
   });
 
+  it('rescues the OAuth-error return: /?mailbox_error=… → /settings/mailbox with the param preserved', async () => {
+    const router = renderAt('/?mailbox_error=access_denied');
+    expect(router.state.location.pathname).toBe('/settings/mailbox');
+    expect(await screen.findByText('Mail intake')).toBeInTheDocument();
+    // Same code path as ?mailbox=connected — the error string surfaces
+    // verbatim, then MailboxScreen strips the param so F5 doesn't replay it.
+    expect(await screen.findByText('access_denied')).toBeInTheDocument();
+    expect(router.state.location.search).toBe('');
+  });
+
   it('renders the new Bank statements screen at /bank', async () => {
     renderAt('/bank');
     expect(

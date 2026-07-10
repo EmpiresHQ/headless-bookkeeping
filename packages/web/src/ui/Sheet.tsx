@@ -14,8 +14,18 @@ export function Sheet({
   title?: string;
   children: ReactNode;
 }) {
+  const handleOpenChange = (o: boolean) => {
+    // Radix marks the app root aria-hidden while the sheet animates out; if
+    // focus is still INSIDE the closing sheet the browser logs "Blocked
+    // aria-hidden on an element because its descendant retained focus".
+    // Release focus before the state flips (P05-routed a11y fix).
+    if (!o && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    onOpenChange(o);
+  };
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
+    <Drawer.Root open={open} onOpenChange={handleOpenChange}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-40 bg-black/45" />
         <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col rounded-t-3xl bg-bg pb-6 outline-none">

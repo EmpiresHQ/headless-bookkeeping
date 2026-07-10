@@ -21,8 +21,14 @@ vi.mock('../api', async (importOriginal) => ({
   openSignedDocument: vi.fn(),
 }));
 
+vi.mock('../queries/inbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/inbox')>()),
+  invalidateInbox: vi.fn(),
+}));
+
 import * as api from '../api';
 import type { Entity, NeedsTriageItem } from '../api';
+import { invalidateInbox } from '../queries/inbox';
 import { TriageDocScreen } from './TriageDocScreen';
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
@@ -78,6 +84,12 @@ async function openClassifyPickSupplierAndSubmit(grossDisplay: string) {
   });
   await waitFor(() => expect(submit).toBeEnabled());
   fireEvent.click(submit);
+  // Wait for finishTriage's full synchronous body (through its trailing
+  // await invalidateInbox) to have run — both outcome branches call it last,
+  // so this is the settling point for setSheet/toastOk-or-Err/navigate
+  // that would otherwise land outside act() between this helper returning
+  // and the caller's next await.
+  await waitFor(() => expect(invalidateInbox).toHaveBeenCalled());
 }
 
 function renderAt(path: string) {
@@ -344,6 +356,27 @@ describe('TriageDocScreen', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('navigates to the next document WHILE the inbox invalidation is still pending (no "Already handled" flash)', async () => {
+    vi.mocked(api.completeDocument).mockResolvedValue({
+      id: 12,
+      status: 'processed',
+    });
+    let release!: () => void;
+    vi.mocked(invalidateInbox).mockReturnValue(
+      new Promise<void>((r) => (release = r)),
+    );
+    const router = renderAt('/inbox/doc/12');
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Dismiss document' }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).not.toBe('/inbox/doc/12'),
+    );
+    expect(router.state.location.pathname).toBe('/inbox/doc/13');
+    release();
+  });
+
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
     vi.mocked(api.getDocumentReclassify).mockResolvedValue(
@@ -356,7 +389,6 @@ describe('TriageDocScreen', () => {
     });
     const router = renderAt('/inbox/doc/12');
     await openClassifyPickSupplierAndSubmit('48.20');
-    await waitFor(() => expect(api.manualClassify).toHaveBeenCalled());
     // Still unresolved: the operator stays here.
     expect(router.state.location.pathname).toBe('/inbox/doc/12');
     // Reopen to retry — same doc, so only a key nonce can remount the sheet

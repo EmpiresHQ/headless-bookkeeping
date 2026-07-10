@@ -160,6 +160,11 @@ export function InPeriodSection({ period }: { period: PeriodProp }) {
   const entitiesQ = useEntities();
   const entities = entitiesQ.data ?? [];
 
+  // BOTH sources or nothing: rendering after only one list resolves showed a
+  // half-total for a moment (P05 final-review transient). The section is
+  // supplementary — skeletonless null is the honest loading state.
+  if (!expensesQ.isSuccess || !invoicesQ.isSuccess) return null;
+
   const purchases = periodExpenses(expensesQ.data ?? [], period);
   const sales = periodInvoices(invoicesQ.data ?? [], period);
   if (purchases.length === 0 && sales.length === 0) return null;

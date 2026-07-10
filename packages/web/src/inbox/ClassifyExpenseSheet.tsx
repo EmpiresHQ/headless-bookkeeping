@@ -307,7 +307,7 @@ export function ClassifyExpenseSheet({
           </div>
         </div>
 
-        <Field label="Category" hint={usuallyHint ?? undefined}>
+        <Field label="Category" hint={usuallyHint ?? undefined} group>
           <div className="flex flex-wrap gap-1.5">
             {visibleCats.map((c) => (
               <button

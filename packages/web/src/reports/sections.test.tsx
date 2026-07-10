@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { sharedKeys } from '../queries/keys';
 import { AppToaster } from '../ui/toast';
 import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
 
@@ -254,5 +255,32 @@ describe('InPeriodSection', () => {
     expect(
       screen.getByText(/re-dated into the next open period/i),
     ).toBeInTheDocument();
+  });
+
+  it('renders NOTHING until both lists resolved (no half-totals)', async () => {
+    // mount() sets both to resolve — this needs invoices to hang, so it is
+    // deliberately NOT used here (its defaults would race the override).
+    vi.mocked(getExpenses).mockResolvedValue(EXPENSES as never);
+    vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+    vi.mocked(getInvoices).mockReturnValue(new Promise(() => {})); // never resolves
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <InPeriodSection period={PERIOD} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    // A bare waitFor(getExpenses called) resolves before the (already-
+    // resolved) promise settles through React Query's cache + a re-render —
+    // gate on the query's actual cache status instead, so the assertion
+    // below runs strictly after expenses landed and invoices is still
+    // pending (the only window the old either-list gate got wrong).
+    await waitFor(() =>
+      expect(qc.getQueryState(sharedKeys.expenses)?.status).toBe('success'),
+    );
+    expect(screen.queryByText(/Purchases in this period/)).toBeNull();
   });
 });
