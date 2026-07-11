@@ -10,6 +10,7 @@ import {
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
 import { signedEuros } from '../lib/money';
+import { useSheet } from '../lib/useSheet';
 import {
   entityName,
   invalidateBooks,
@@ -87,7 +88,7 @@ export function ExpenseScreen() {
   );
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [correctOpen, setCorrectOpen] = useState(false);
+  const correctSheet = useSheet();
   const [busy, setBusy] = useState(false);
 
   if (detailQ.isError) {
@@ -281,7 +282,7 @@ export function ExpenseScreen() {
             <Button
               variant="secondary"
               className="w-full"
-              onClick={() => setCorrectOpen(true)}
+              onClick={() => correctSheet.open()}
             >
               Correct…
             </Button>
@@ -309,11 +310,20 @@ export function ExpenseScreen() {
         onConfirm={() => void onDelete()}
       />
 
-      {detail.status === 'posted' && (
+      {/* Mount is reachable independent of `detail.status`: a successful
+       *  financial correction flips status posted→reversed via the
+       *  invalidate-then-refetch inside CorrectSheet's own submit() BEFORE
+       *  it calls onOpenChange(false) — gating the mount on `status ===
+       *  'posted'` would unmount the still-closing sheet mid-transition
+       *  (aria-hidden race + killed exit animation). The TRIGGER above
+       *  stays gated on status; only the mount moved to the sheet's own
+       *  open/close lifecycle (epoch keeps state fresh per open, P07 T7
+       *  discipline). */}
+      {correctSheet.epoch > 0 && (
         <CorrectSheet
-          key={detail.id}
-          open={correctOpen}
-          onOpenChange={setCorrectOpen}
+          key={`${detail.id}-${correctSheet.epoch}`}
+          open={correctSheet.isOpen}
+          onOpenChange={(o) => !o && correctSheet.close()}
           objectType="expense"
           objectId={detail.id}
           grossCents={detail.gross_amount}

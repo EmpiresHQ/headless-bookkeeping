@@ -1,8 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { sharedKeys } from '../queries/keys';
 import { AppToaster } from '../ui/toast';
 import { InvoiceScreen } from './InvoiceScreen';
 
@@ -14,8 +21,10 @@ vi.mock('../api', async (io) => ({
   postInvoice: vi.fn(),
   deleteInvoice: vi.fn(),
   getCategories: vi.fn(),
+  correctInvoice: vi.fn(),
 }));
 import {
+  correctInvoice,
   deleteInvoice,
   getCategories,
   getEntities,
@@ -62,7 +71,7 @@ function mountAt(
   vi.mocked(listApprovals).mockResolvedValue(rejections as never);
   vi.mocked(getCategories).mockResolvedValue([] as never);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const utils = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/books/invoices/${id}`]}>
         <AppToaster />
@@ -73,6 +82,7 @@ function mountAt(
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...utils, qc };
 }
 
 describe('InvoiceScreen', () => {
@@ -96,6 +106,71 @@ describe('InvoiceScreen', () => {
     ).toHaveAttribute(
       'href',
       '/books/credit-notes/new?type=sales_invoice&id=3',
+    );
+  });
+
+  it('CorrectSheet resets across open/close/reopen', async () => {
+    mountAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Correct…' }));
+    const reason = await screen.findByPlaceholderText('Why this correction…');
+    fireEvent.change(reason, { target: { value: 'wrong VAT rate' } });
+    expect(reason).toHaveValue('wrong VAT rate');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Correct…' }));
+    expect(
+      await screen.findByPlaceholderText('Why this correction…'),
+    ).toHaveValue('');
+  });
+
+  it('a successful correction keeps the sheet mounted through the posted→reversed status flip (no unmount-while-open), then closes normally', async () => {
+    const { qc } = mountAt();
+    await screen.findByText(/Nordic Consulting OÜ · 2026-018/);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Correct…' }));
+    fireEvent.change(
+      await screen.findByPlaceholderText('Why this correction…'),
+      { target: { value: 'wrong VAT rate' } },
+    );
+    vi.mocked(correctInvoice).mockResolvedValue({ outcome: 'ok' } as never);
+
+    // Mount is NOT gated on `inv.status` any more (that gate stays on the
+    // TRIGGER only) — the refetch below flips status posted→reversed while
+    // the sheet is still open, driven directly through the cache the same
+    // way the real invalidateBooks(qc) refetch inside CorrectSheet's own
+    // submit() would. Nobody has asked the sheet to close at this point.
+    vi.mocked(getInvoices).mockResolvedValue([
+      { ...INVOICE, status: 'reversed' },
+    ] as never);
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: sharedKeys.invoices });
+    });
+
+    // The TRIGGER is gone (gated on status) — but the sheet itself, still
+    // logically open, must not have been unmounted alongside it. The
+    // pre-fix `{inv.status === 'posted' && <CorrectSheet ...>}` shape
+    // would have yanked the whole (still-open) sheet out of the tree here.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Correct…' })).toBeNull(),
+    );
+    expect(
+      screen.getByPlaceholderText('Why this correction…'),
+    ).toBeInTheDocument();
+
+    // Now drive the sheet's own successful submit — it must still close
+    // normally afterward (invalidate-before-toast ordering untouched).
+    fireEvent.click(screen.getByRole('button', { name: /Post correction/ }));
+    await waitFor(() =>
+      expect(correctInvoice).toHaveBeenCalledWith(3, {
+        kind: 'financial',
+        reason: 'wrong VAT rate',
+        patch: { gross_amount: 120000, vat_amount: 21639 },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
     );
   });
 
