@@ -30,8 +30,52 @@ import {
   ProposeDraftOutcome,
 } from './propose-draft.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
-import { TriageResult } from '../triage/types';
+import { TriageResult, Pass2Enrichment } from '../triage/types';
 import { BadRequestException } from '@nestjs/common';
+import {
+  extractPass2EnrichmentSupplier,
+  type EnrichmentToolResultChunk,
+} from './pass2-agent.service';
+
+/**
+ * Build a `toolResults` array shaped exactly like a real enrichment turn's
+ * `getClassificationContext` call — then run it through the SAME production
+ * extraction function `Pass2AgentService` uses (`extractPass2EnrichmentSupplier`)
+ * to derive `enrichmentContext`. This is the "real capture path" (issue #179
+ * review): the guard tests below exercise the production wiring from
+ * toolResults -> Pass2Enrichment, rather than hand-constructing the
+ * `{ summary, supplier: { matchEntityId } }` shape and risking it silently
+ * drifting from what pass2-agent.service.ts actually produces.
+ */
+function getClassificationContextToolResult(
+  matchedEntityId: number,
+): EnrichmentToolResultChunk[] {
+  return [
+    {
+      payload: {
+        toolName: 'getClassificationContext',
+        result: {
+          supplier: {
+            resolution: 'matched',
+            matchEntityId: matchedEntityId,
+            name: 'Deterministically Resolved Supplier',
+            country: 'EE',
+            goodsVsServices: 'services',
+          },
+          classificationMemory: [],
+          mapping: { accountCode: 'EXPENSE_SOFTWARE', vatCode: 'EE_STANDARD' },
+        },
+      },
+    },
+  ];
+}
+
+function enrichmentFromToolResults(matchedEntityId: number): Pass2Enrichment {
+  const { supplier } = extractPass2EnrichmentSupplier(
+    getClassificationContextToolResult(matchedEntityId),
+  );
+  return { summary: 'supplier match from deterministic enrichment', supplier };
+}
 
 /**
  * proposeDraft now returns a discriminated ProposeDraftOutcome. The working
@@ -349,11 +393,13 @@ describe('ProposeDraftService (integration)', () => {
 
     it('writes an ai_proposal row after proposeDraft (auto-post path)', async () => {
       // Seed a per-agent model override — this is a discriminating value that
-      // differs from the old hardcoded literal 'openai/gpt-4o-mini'.
+      // differs from the old hardcoded literal 'openai/gpt-4o-mini'. Provenance
+      // must record the model that ACTUALLY ran classification
+      // (triage_classification), not the dead legacy 'triage' agent key.
       await db
         .insertInto('setting')
         .values({
-          key: 'ai_model.triage',
+          key: 'ai_model.triage_classification',
           value: 'openai/gpt-4o',
           updated_at: 0,
         })
@@ -749,10 +795,7 @@ describe('ProposeDraftService (integration)', () => {
           observed_registration_key: 'EE22000000',
         },
       };
-      const enrichmentContext = {
-        summary: 'supplier match from deterministic enrichment',
-        supplier: { matchEntityId: eeSupplier.id },
-      };
+      const enrichmentContext = enrichmentFromToolResults(eeSupplier.id);
 
       const result = expectDraft(
         await service.proposeDraft(
@@ -792,10 +835,9 @@ describe('ProposeDraftService (integration)', () => {
           observed_registration_key: 'EE44000000',
         },
       };
-      const enrichmentContext = {
-        summary: 'supplier match from deterministic enrichment',
-        supplier: { matchEntityId: enrichmentSupplier.id },
-      };
+      const enrichmentContext = enrichmentFromToolResults(
+        enrichmentSupplier.id,
+      );
 
       const outcome = await service.proposeDraft(
         triageResult,
@@ -810,6 +852,55 @@ describe('ProposeDraftService (integration)', () => {
         .selectFrom('expense')
         .selectAll()
         .where('document_id', '=', 36)
+        .execute();
+      expect(expenses).toHaveLength(0);
+    });
+
+    it('issue #179 regression: a strict-classification match_entity_id for a NONEXISTENT entity cannot reach the draft when deterministic enrichment resolved a real supplier', async () => {
+      // The exact production failure mode: enrichment's getClassificationContext
+      // deterministically resolved entity A (real, EE102139798-like), but the
+      // strict-classification call emits a hallucinated match_entity_id for a
+      // completely nonexistent entity B. The trust boundary must reject B
+      // outright — A never even gets a chance to "win" here because the
+      // model's own proposal is what resolveSupplier evaluates first; the
+      // deterministic enrichment must override/park it rather than let B's
+      // fabricated id reach createExpense.
+      const entitiesService = module.get(EntitiesService);
+      const entityA = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Citybee OÜ',
+        registrationKey: 'EE102139798',
+      });
+      const NONEXISTENT_ENTITY_B = 705731; // never onboarded — the field case from issue #179
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: NONEXISTENT_ENTITY_B,
+          observed_country: 'EE',
+          observed_registration_key: 'EE102139798',
+        },
+      };
+      const enrichmentContext = enrichmentFromToolResults(entityA.id);
+
+      const outcome = await service.proposeDraft(
+        triageResult,
+        40,
+        undefined,
+        undefined,
+        enrichmentContext,
+      );
+
+      // The guard fires: B cannot cross the orchestration boundary. The run
+      // parks to supplier-unresolved (needs_triage) rather than trusting B.
+      expect(outcome.outcome).toBe('supplier-unresolved');
+
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 40)
         .execute();
       expect(expenses).toHaveLength(0);
     });

@@ -41,12 +41,16 @@ describe('AgentConfigService (integration)', () => {
     db.insertInto('setting').values({ key, value, updated_at: 0 }).execute();
 
   it('falls back to DEFAULT_MODEL when no model setting exists', async () => {
-    await expect(config.resolveModel('triage')).resolves.toBe(DEFAULT_MODEL);
+    await expect(config.resolveModel('triage_classification')).resolves.toBe(
+      DEFAULT_MODEL,
+    );
   });
 
   it('uses the global ai_model when set', async () => {
     await set('ai_model', 'openai/gpt-4o');
-    await expect(config.resolveModel('triage')).resolves.toBe('openai/gpt-4o');
+    await expect(config.resolveModel('triage_classification')).resolves.toBe(
+      'openai/gpt-4o',
+    );
   });
 
   it('prefers a per-agent override over the global model', async () => {
@@ -55,13 +59,15 @@ describe('AgentConfigService (integration)', () => {
     await expect(config.resolveModel('intent_classifier')).resolves.toBe(
       'anthropic/claude-haiku',
     );
-    await expect(config.resolveModel('triage')).resolves.toBe('openai/gpt-4o');
+    await expect(config.resolveModel('triage_classification')).resolves.toBe(
+      'openai/gpt-4o',
+    );
   });
 
   it('falls back to the code default prompt when no prompt setting exists', async () => {
-    await expect(config.resolveInstructions('triage')).resolves.toBe(
-      AGENT_PROMPTS.triage,
-    );
+    await expect(
+      config.resolveInstructions('triage_classification'),
+    ).resolves.toBe(AGENT_PROMPTS.triage_classification);
   });
 
   it('prefers a prompt.<key> override over the code default', async () => {
@@ -72,26 +78,28 @@ describe('AgentConfigService (integration)', () => {
   });
 
   it('resolve() returns both model and instructions', async () => {
-    await set('ai_model.triage', 'openai/gpt-4o');
-    const resolved = await config.resolve('triage');
+    await set('ai_model.triage_classification', 'openai/gpt-4o');
+    const resolved = await config.resolve('triage_classification');
     expect(resolved).toEqual({
       model: 'openai/gpt-4o',
-      instructions: AGENT_PROMPTS.triage,
+      instructions: AGENT_PROMPTS.triage_classification,
     });
   });
 
   describe('resolveModelConfig', () => {
     it('returns the bare model string when no ai_base_url is set', async () => {
-      await expect(config.resolveModelConfig('triage')).resolves.toBe(
-        DEFAULT_MODEL,
-      );
+      await expect(
+        config.resolveModelConfig('triage_classification'),
+      ).resolves.toBe(DEFAULT_MODEL);
     });
 
     it('returns an OpenAI-compatible config object when ai_base_url + ai_api_key + ai_model are set', async () => {
       await set('ai_base_url', 'https://openrouter.ai/api/v1');
       await set('ai_api_key', 'sk-test');
       await set('ai_model', 'anthropic/claude-3-5');
-      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+      await expect(
+        config.resolveModelConfig('triage_classification'),
+      ).resolves.toEqual({
         id: 'anthropic/claude-3-5',
         url: 'https://openrouter.ai/api/v1',
         apiKey: 'sk-test',
@@ -100,7 +108,9 @@ describe('AgentConfigService (integration)', () => {
 
     it('returns a config object without apiKey when only ai_base_url is set', async () => {
       await set('ai_base_url', 'http://localhost:1234/v1');
-      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+      await expect(
+        config.resolveModelConfig('triage_classification'),
+      ).resolves.toEqual({
         id: DEFAULT_MODEL,
         url: 'http://localhost:1234/v1',
       });
@@ -112,7 +122,9 @@ describe('AgentConfigService (integration)', () => {
       await set('ai_base_url', 'https://llm.example.com/v1');
       await set('ai_api_key', 'sk-test');
       await set('ai_model', 'anthropic/claude-3-5');
-      await expect(config.resolveModelConfig('triage')).resolves.toEqual({
+      await expect(
+        config.resolveModelConfig('triage_classification'),
+      ).resolves.toEqual({
         id: 'anthropic/claude-3-5',
         url: 'https://llm.example.com/v1',
         apiKey: 'sk-test',

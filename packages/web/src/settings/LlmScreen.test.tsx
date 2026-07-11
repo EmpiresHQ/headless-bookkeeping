@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 
 describe('LlmScreen', () => {
-  it('renders all eight AI keys, prefilled from the registry read', async () => {
+  it('renders all ten AI keys, prefilled from the registry read', async () => {
     mount();
     await waitFor(() =>
       expect(screen.getByLabelText('Global model')).toHaveValue(
@@ -43,10 +43,12 @@ describe('LlmScreen', () => {
       'Inference base URL',
       'API key',
       'Global model',
-      'Model — triage',
+      'Triage — enrichment model',
+      'Triage — classification model',
       'Model — intent classifier',
       'Model — OCR',
-      'Prompt — triage',
+      'Triage — enrichment prompt',
+      'Triage — classification prompt',
       'Prompt — intent classifier',
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
@@ -60,20 +62,22 @@ describe('LlmScreen', () => {
 
   it('saves a per-agent override to its dotted key', async () => {
     vi.mocked(setSetting).mockResolvedValue({
-      key: 'ai_model.triage',
+      key: 'ai_model.triage_classification',
       value: 'openai/gpt-5-mini',
     });
     mount();
-    await screen.findByLabelText('Model — triage');
-    fireEvent.change(screen.getByLabelText('Model — triage'), {
+    await screen.findByLabelText('Triage — classification model');
+    fireEvent.change(screen.getByLabelText('Triage — classification model'), {
       target: { value: 'openai/gpt-5-mini' },
     });
     fireEvent.click(
-      screen.getByRole('button', { name: 'Save Model — triage' }),
+      screen.getByRole('button', {
+        name: 'Save Triage — classification model',
+      }),
     );
     await waitFor(() =>
       expect(setSetting).toHaveBeenCalledWith(
-        'ai_model.triage',
+        'ai_model.triage_classification',
         'openai/gpt-5-mini',
       ),
     );

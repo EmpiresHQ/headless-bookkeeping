@@ -17,7 +17,11 @@ import { OrgContextResolver } from '../organization/org-context.resolver';
 import type { Agent } from '@mastra/core/agent';
 import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
-import { Pass2AgentService, Pass2Context } from './pass2-agent.service';
+import {
+  Pass2AgentService,
+  Pass2Context,
+  GET_CLASSIFICATION_CONTEXT_TOOL,
+} from './pass2-agent.service';
 import { triageResultSchema, TriageResult } from '../triage/types';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { CategoryService } from '../categories/category.service';
@@ -122,13 +126,55 @@ describe('Pass2AgentService', () => {
     classificationAgent: await requireClassificationAgent(),
   });
 
+  /** The enrichment call's `toolChoice` — production forces this tool rather
+   * than leaving it to `tool_choice=auto` (issue #179). Every enrichment
+   * `generate()` assertion below must account for this second argument. */
+  const ENRICHMENT_GENERATE_OPTIONS = {
+    toolChoice: {
+      type: 'tool' as const,
+      toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
+    },
+  };
+
+  /**
+   * A realistic `getClassificationContext` tool-result chunk, shaped exactly
+   * like the real Mastra `ToolResultChunk` the enrichment agent's
+   * `toolResults` carries. `resolution: 'proposed'` (no matchEntityId) is the
+   * default — most tests don't care about supplier resolution, only that the
+   * tool ran at all (satisfying the missing-tool-call diagnostic).
+   */
+  const classificationContextToolResult = (
+    overrides: {
+      resolution?: 'matched' | 'proposed';
+      matchEntityId?: number;
+    } = {},
+  ) => ({
+    payload: {
+      toolName: 'getClassificationContext',
+      result: {
+        supplier: {
+          resolution: overrides.resolution ?? 'proposed',
+          ...(overrides.matchEntityId !== undefined
+            ? { matchEntityId: overrides.matchEntityId }
+            : {}),
+          name: 'Some Supplier',
+          country: 'EE',
+          goodsVsServices: 'services',
+        },
+        classificationMemory: [],
+        mapping: { accountCode: 'EXPENSE_SOFTWARE', vatCode: 'EE_STANDARD' },
+      },
+    },
+  });
+
   const mockEnrichmentSummary = (
     agent: Agent,
     summary = 'deterministic enrichment summary',
+    toolResults: unknown[] = [classificationContextToolResult()],
   ) =>
     jest
       .spyOn(agent, 'generate')
-      .mockImplementation(async () => generateTextOutput(summary));
+      .mockImplementation(async () => generateTextOutput(summary, toolResults));
 
   const requireClassificationAgent = async (): Promise<Agent> => {
     const agent = await mastraService.buildTriageClassificationAgent();
@@ -145,8 +191,11 @@ describe('Pass2AgentService', () => {
   const generateOutput = (object: unknown): GenerateResult =>
     ({ object, text: '' }) as unknown as GenerateResult;
 
-  const generateTextOutput = (text: string): GenerateResult =>
-    ({ object: undefined, text }) as unknown as GenerateResult;
+  const generateTextOutput = (
+    text: string,
+    toolResults?: unknown[],
+  ): GenerateResult =>
+    ({ object: undefined, text, toolResults }) as unknown as GenerateResult;
 
   describe('classify', () => {
     it('characterizes the caller-facing success contract for classify()', async () => {
@@ -246,6 +295,132 @@ describe('Pass2AgentService', () => {
       expect(buildClassificationSpy).not.toHaveBeenCalled();
     });
 
+    it('reports enrichment-tool-not-called when getClassificationContext was never invoked (issue #179 production failure mode)', async () => {
+      // This is the EXACT bug from issue #179: the model can emit a final
+      // answer (a reusable text summary) without ever calling the tool. Empty
+      // toolResults — not an error, not an empty summary — must be a DISTINCT,
+      // observable category from enrichment-failed/enrichment-incomplete.
+      const enrichmentAgent = await requireEnrichmentAgent();
+      const buildClassificationSpy = jest.spyOn(
+        mastraService,
+        'buildTriageClassificationAgent',
+      );
+      jest
+        .spyOn(enrichmentAgent, 'generate')
+        .mockResolvedValue(generateTextOutput('a reusable summary', []));
+
+      const result = await service.classify('citybee invoice markdown');
+
+      expect(result).toEqual({
+        ok: false,
+        category: 'enrichment-tool-not-called',
+        detail:
+          'enrichment phase completed without invoking getClassificationContext',
+      });
+      // The strict classification phase must never run without the
+      // deterministic anchor — a model-emitted match_entity_id would have
+      // nothing to be checked against.
+      expect(buildClassificationSpy).not.toHaveBeenCalled();
+    });
+
+    it('forces getClassificationContext via toolChoice on the enrichment call', async () => {
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      const enrichmentGenerateSpy = mockEnrichmentSummary(enrichmentAgent);
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      await service.classify('force-tool markdown');
+
+      expect(enrichmentGenerateSpy).toHaveBeenCalledWith(
+        'force-tool markdown',
+        ENRICHMENT_GENERATE_OPTIONS,
+      );
+    });
+
+    it('wires enrichment.supplier.matchEntityId from the getClassificationContext TOOL RESULT — never from result.object', async () => {
+      // The core issue #179 trust-boundary regression: matchEntityId must come
+      // ONLY from toolResults. result.object is deliberately populated here
+      // with a DIFFERENT, wrong id (999) to prove it is never read — the
+      // enrichment agent is built without structuredOutput, so per
+      // @mastra/core's generate() overloads .object is always undefined in
+      // production; this test proves classify() doesn't accidentally trust it
+      // even if some future runtime/mock populated it.
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      const TRUSTED_ENTITY_ID = 37;
+      const WRONG_OBJECT_ID = 999;
+      jest.spyOn(enrichmentAgent, 'generate').mockImplementation(
+        async () =>
+          ({
+            object: { supplier: { matchEntityId: WRONG_OBJECT_ID } },
+            text: 'resolved Citybee OÜ from registration key EE102139798',
+            toolResults: [
+              classificationContextToolResult({
+                resolution: 'matched',
+                matchEntityId: TRUSTED_ENTITY_ID,
+              }),
+            ],
+          }) as unknown as GenerateResult,
+      );
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('citybee invoice markdown');
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('unreachable');
+      expect(result.enrichment?.supplier?.matchEntityId).toBe(
+        TRUSTED_ENTITY_ID,
+      );
+    });
+
+    it('does not set enrichment.supplier.matchEntityId when the tool resolution is "proposed" (no existing supplier)', async () => {
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      mockEnrichmentSummary(enrichmentAgent, 'no existing supplier matched', [
+        classificationContextToolResult({ resolution: 'proposed' }),
+      ]);
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('unknown vendor markdown');
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('unreachable');
+      expect(result.enrichment?.supplier?.matchEntityId).toBeUndefined();
+    });
+
+    it('"exactly once": uses the FIRST getClassificationContext result and logs a warning when the tool ran more than once — does not fail the run', async () => {
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      const FIRST_ENTITY_ID = 11;
+      const SECOND_ENTITY_ID = 22;
+      mockEnrichmentSummary(enrichmentAgent, 'called twice in one turn', [
+        classificationContextToolResult({
+          resolution: 'matched',
+          matchEntityId: FIRST_ENTITY_ID,
+        }),
+        classificationContextToolResult({
+          resolution: 'matched',
+          matchEntityId: SECOND_ENTITY_ID,
+        }),
+      ]);
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('double tool call markdown');
+
+      // Does NOT fail the run — the first result wins.
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('unreachable');
+      expect(result.enrichment?.supplier?.matchEntityId).toBe(FIRST_ENTITY_ID);
+    });
+
     it('retries on strict invalid output and reports invalid-output after max attempts', async () => {
       const { enrichmentAgent, classificationAgent } =
         await requireSplitAgents();
@@ -279,7 +454,6 @@ describe('Pass2AgentService', () => {
     it('runs one enrichment call before strict retries and preserves enrichment on success', async () => {
       const enrichmentAgent = await requireEnrichmentAgent();
       const classificationAgent = await requireClassificationAgent();
-      const legacyBuildSpy = jest.spyOn(mastraService, 'buildTriageAgent');
       const buildEnrichmentSpy = jest.spyOn(
         mastraService,
         'buildTriageEnrichmentAgent',
@@ -294,7 +468,11 @@ describe('Pass2AgentService', () => {
 
       const enrichmentGenerateSpy = jest
         .spyOn(enrichmentAgent, 'generate')
-        .mockImplementation(async () => generateTextOutput(enrichmentSummary));
+        .mockImplementation(async () =>
+          generateTextOutput(enrichmentSummary, [
+            classificationContextToolResult(),
+          ]),
+        );
       const classificationGenerateSpy = jest
         .spyOn(classificationAgent, 'generate')
         .mockResolvedValueOnce(generateOutput({ kind: 'new_expense' }))
@@ -308,7 +486,6 @@ describe('Pass2AgentService', () => {
         result: mockResult,
         enrichment: { summary: enrichmentSummary },
       });
-      expect(legacyBuildSpy).not.toHaveBeenCalled();
       expect(buildEnrichmentSpy).toHaveBeenCalledTimes(1);
       expect(buildEnrichmentSpy).toHaveBeenCalledWith(undefined);
       expect(buildClassificationSpy).toHaveBeenCalledTimes(1);
@@ -316,6 +493,7 @@ describe('Pass2AgentService', () => {
       expect(enrichmentGenerateSpy).toHaveBeenCalledTimes(1);
       expect(enrichmentGenerateSpy).toHaveBeenCalledWith(
         'incoming receipt markdown',
+        ENRICHMENT_GENERATE_OPTIONS,
       );
       expect(classificationGenerateSpy).toHaveBeenCalledTimes(3);
       expect(classificationGenerateSpy).toHaveBeenNthCalledWith(
@@ -338,7 +516,6 @@ describe('Pass2AgentService', () => {
     it('passes org identity context to both split builders', async () => {
       const enrichmentAgent = await requireEnrichmentAgent();
       const classificationAgent = await requireClassificationAgent();
-      const legacyBuildSpy = jest.spyOn(mastraService, 'buildTriageAgent');
       const buildEnrichmentSpy = jest.spyOn(
         mastraService,
         'buildTriageEnrichmentAgent',
@@ -349,7 +526,11 @@ describe('Pass2AgentService', () => {
       );
       jest
         .spyOn(enrichmentAgent, 'generate')
-        .mockImplementation(async () => generateTextOutput('enrichment notes'));
+        .mockImplementation(async () =>
+          generateTextOutput('enrichment notes', [
+            classificationContextToolResult(),
+          ]),
+        );
       jest
         .spyOn(classificationAgent, 'generate')
         .mockResolvedValue(generateOutput(sampleTriageResult()));
@@ -365,7 +546,6 @@ describe('Pass2AgentService', () => {
 
       await service.classify('# Sales Invoice\nBuyer: Some Corp', ctx);
 
-      expect(legacyBuildSpy).not.toHaveBeenCalled();
       expect(buildEnrichmentSpy).toHaveBeenCalledWith({
         iban: 'EE382200221020145685',
         name: 'Acme OÜ',

@@ -1,5 +1,4 @@
 export type AgentKey =
-  | 'triage'
   | 'triage_enrichment'
   | 'triage_classification'
   | 'intent_classifier'
@@ -77,17 +76,6 @@ export type ModelConfig =
 /** Default instructions per agent. Overridable at runtime by a `prompt.<key>` setting row.
  * These were moved verbatim from mastra.service.ts / intent-classifier.service.ts. */
 export const AGENT_PROMPTS: Record<AgentKey, string> = {
-  triage:
-    TRIAGE_RELEVANCE_AND_KIND_GUIDANCE +
-    'Call listCategories to see the available categories, then call ' +
-    'getClassificationContext ONCE with the supplier evidence and your ' +
-    'candidate category — it resolves or proposes the supplier, gathers its ' +
-    'classification memory (an advisory prior, not a rule), and previews the ' +
-    'account + VAT code mapping in a single read. Prefer it over chaining ' +
-    'searchSuppliers, getClassificationMemory, and previewCategoryMapping ' +
-    '(those remain available as fallbacks). ' +
-    'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
-    TRIAGE_OUTPUT_GUIDANCE,
   triage_enrichment:
     TRIAGE_RELEVANCE_AND_KIND_GUIDANCE +
     'This is the deterministic enrichment phase for Pass 2. ' +

@@ -13,12 +13,12 @@ import {
   CustomerProposal,
   SupplierProposal,
   TriageResult,
+  type Pass2Enrichment,
 } from '../triage/types';
 import { CreateExpenseDto } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
-import type { Pass2Enrichment } from './pass2-agent.service';
 import {
   SalesInvoicesService,
   isInvoiceNumberConflict,
@@ -813,7 +813,13 @@ export class ProposeDraftService {
       .values({
         business_object_type: 'expense',
         business_object_id: expenseId,
-        model_id: await this.config.resolveModel('triage'),
+        // The model that ACTUALLY ran classification (issue #179 review): the
+        // strict TriageResult is produced by the `triage_classification`
+        // agent, not the legacy combined `triage` agent (dead code, removed).
+        // The `ai_proposal` row has no second model_id column for the
+        // enrichment model, so this records the classification model — the
+        // one that determined the persisted TriageResult.
+        model_id: await this.config.resolveModel('triage_classification'),
         model_version: 'v1',
         raw_triage_result: JSON.stringify(triageResult),
         ocr_artifact_id: ocrArtifactId,

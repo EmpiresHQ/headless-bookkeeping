@@ -28,7 +28,11 @@ export function createSearchSuppliersTool(entitiesService: EntitiesService) {
   return {
     id: 'searchSuppliers',
     description:
-      'Search for existing suppliers by name or registration key. Returns matching entities with their IDs, names, and countries.',
+      'Search for existing suppliers by a substring match on name or country ' +
+      'ONLY — it does NOT search registration keys or any other identifier. ' +
+      'Returns matching entities with their IDs, names, and countries. For ' +
+      'exact identity resolution (registration key / strong identifiers) use ' +
+      'getClassificationContext instead.',
     inputSchema: searchSuppliersInputSchema,
     outputSchema: searchSuppliersOutputSchema,
     execute: async ({

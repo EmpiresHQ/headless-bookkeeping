@@ -11,7 +11,9 @@ export const searchSuppliersInputSchema = z.object({
   query: z
     .string()
     .describe(
-      'Search query to match against supplier names or registration keys',
+      'Search query matched as a substring against supplier NAME or COUNTRY ' +
+        'only — NOT registration keys or other identifiers. Use ' +
+        'getClassificationContext for exact identity resolution.',
     ),
 });
 

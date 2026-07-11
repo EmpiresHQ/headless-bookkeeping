@@ -11,11 +11,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
-import {
-  Pass2AgentService,
-  Pass2Enrichment,
-  Pass2FailureCategory,
-} from './pass2-agent.service';
+import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
 import {
   ProposeDraftService,
   DraftReplayResult,
@@ -32,6 +28,7 @@ import {
   ManualClassifyDto,
   PendingDraft,
   TriageResult,
+  Pass2Enrichment,
 } from '../triage/types';
 import { matchesOrgIban } from '../intake/iban-match';
 import { classifyDocumentClass } from '../intake/document-class';
@@ -81,6 +78,7 @@ function pass2FailureReason(
   switch (category) {
     case 'enrichment-failed':
     case 'enrichment-incomplete':
+    case 'enrichment-tool-not-called':
       return `AI classification failed during enrichment (${category}): ${detail}`;
     case 'invalid-output':
     case 'transient':
@@ -554,21 +552,13 @@ export class IntakeWorkflowService {
           // 'create' proposal cannot yet produce a draft (Task 43), so it
           // returns `supplier-unresolved` and we route to needs_triage rather
           // than silently dropping a null-supplier draft (ADR-0014/0024).
-          const outcome =
-            enrichment == null
-              ? await this.proposeDraft.proposeDraft(
-                  triageResult,
-                  documentId,
-                  undefined,
-                  claimantId,
-                )
-              : await this.proposeDraft.proposeDraft(
-                  triageResult,
-                  documentId,
-                  undefined,
-                  claimantId,
-                  enrichment,
-                );
+          const outcome = await this.proposeDraft.proposeDraft(
+            triageResult,
+            documentId,
+            undefined,
+            claimantId,
+            enrichment ?? undefined,
+          );
           if (outcome.outcome === 'supplier-unresolved') {
             this.logger.warn(
               `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
@@ -818,21 +808,13 @@ export class IntakeWorkflowService {
     // Explicit supplier id wins in resolveSupplier → a draft is produced and the
     // full posting pipeline runs (post/hold per policy), exactly as a confident
     // intake would.
-    const outcome =
-      pendingReplay.enrichment == null
-        ? await this.proposeDraft.proposeDraft(
-            triageResult,
-            documentId,
-            supplierEntityId,
-            doc.claimant_id,
-          )
-        : await this.proposeDraft.proposeDraft(
-            triageResult,
-            documentId,
-            supplierEntityId,
-            doc.claimant_id,
-            pendingReplay.enrichment,
-          );
+    const outcome = await this.proposeDraft.proposeDraft(
+      triageResult,
+      documentId,
+      supplierEntityId,
+      doc.claimant_id,
+      pendingReplay.enrichment ?? undefined,
+    );
     if (outcome.outcome === 'supplier-unresolved') {
       // Defensive: an explicit supplier id must resolve.
       throw new Error(

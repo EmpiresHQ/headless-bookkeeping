@@ -11,7 +11,7 @@ import {
   notADocumentReason,
 } from './intake-workflow.service';
 import { OcrService } from '../triage/ocr.service';
-import { Pass2AgentService, Pass2Enrichment } from './pass2-agent.service';
+import { Pass2AgentService } from './pass2-agent.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
@@ -22,7 +22,7 @@ import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
 import { BankIngestionService } from '../bank/bank-ingestion.service';
 import { ProcessingGate } from './processing-gate';
-import { TriageResult } from '../triage/types';
+import { TriageResult, Pass2Enrichment } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
   let db: Kysely<Database>;
@@ -404,6 +404,7 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
         triageResult,
         docId,
+        undefined,
         undefined,
         undefined,
       );
@@ -1097,6 +1098,32 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).not.toContain('strict classification');
       }
     });
+
+    it('routes needs_triage and surfaces enrichment-tool-not-called with phase context', async () => {
+      // The issue #179 production failure mode: the deterministic supplier
+      // lookup never ran. Distinct diagnostic — observable apart from a
+      // thrown enrichment error or an empty summary.
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'enrichment-tool-not-called',
+        detail:
+          'enrichment phase completed without invoking getClassificationContext',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'enrichment-tool-not-called',
+        });
+        expect(result.reason).toContain('enrichment');
+        expect(result.reason).toContain('enrichment-tool-not-called');
+        expect(result.reason).not.toContain('strict classification');
+      }
+    });
   });
 
   // ── (c') Pass-1 (OCR) failure routes through the SAME seam ────
@@ -1359,6 +1386,7 @@ describe('IntakeWorkflowService', () => {
         docId,
         3,
         null,
+        undefined,
       );
       // Document moved to triaged.
       const doc = await documentsService.getById(docId);

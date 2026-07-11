@@ -11,11 +11,9 @@ import {
   triageResultSchema,
   TriageResult,
   classifyReasonType,
-} from '../triage/types';
-import {
   pass2EnrichmentSchema,
   type Pass2Enrichment,
-} from '../ai/pass2-agent.service';
+} from '../triage/types';
 import type { ExpenseStatus } from '../expenses/types';
 import { DocumentStorageService } from './document-storage.service';
 import { PreviewRenderer } from './preview-renderer';

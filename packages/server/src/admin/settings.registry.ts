@@ -1,5 +1,6 @@
 /** The settings an operator may set over HTTP. Each entry validates its value.
- * Agent keys are enumerated explicitly (the agent set is fixed: triage, intent_classifier). */
+ * Agent keys are enumerated explicitly (the agent set is fixed: triage_enrichment,
+ * triage_classification, intent_classifier). */
 export interface KnownSetting {
   description: string;
   validate(value: string): boolean;
@@ -21,9 +22,16 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
       'from ai_base_url).',
     validate: nonEmpty,
   },
-  'ai_model.triage': {
+  'ai_model.triage_enrichment': {
     description:
-      'Model override for the triage agent (provider/model, e.g. openai/<model>)',
+      'Model override for the triage enrichment agent — the deterministic ' +
+      'tool-calling phase (provider/model, e.g. openai/<model>)',
+    validate: nonEmpty,
+  },
+  'ai_model.triage_classification': {
+    description:
+      'Model override for the triage classification agent — the strict ' +
+      'structured-output phase (provider/model, e.g. openai/<model>)',
     validate: nonEmpty,
   },
   'ai_model.intent_classifier': {
@@ -45,8 +53,12 @@ export const KNOWN_SETTINGS: Record<string, KnownSetting> = {
     description: 'Inference API key (used with ai_base_url)',
     validate: nonEmpty,
   },
-  'prompt.triage': {
-    description: 'Instruction override for the triage agent',
+  'prompt.triage_enrichment': {
+    description: 'Instruction override for the triage enrichment agent',
+    validate: nonEmpty,
+  },
+  'prompt.triage_classification': {
+    description: 'Instruction override for the triage classification agent',
     validate: nonEmpty,
   },
   'prompt.intent_classifier': {
