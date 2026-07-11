@@ -11,7 +11,11 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { OcrService, OcrFailureCategory } from '../triage/ocr.service';
-import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
+import {
+  Pass2AgentService,
+  Pass2Enrichment,
+  Pass2FailureCategory,
+} from './pass2-agent.service';
 import {
   ProposeDraftService,
   DraftReplayResult,
@@ -69,6 +73,26 @@ export function notADocumentReason(): string {
 export type IntakeFailure =
   | { pass: 'ocr'; category: OcrFailureCategory }
   | { pass: 'classify'; category: Pass2FailureCategory };
+
+function pass2FailureReason(
+  category: Pass2FailureCategory,
+  detail: string,
+): string {
+  switch (category) {
+    case 'enrichment-failed':
+    case 'enrichment-incomplete':
+      return `AI classification failed during enrichment (${category}): ${detail}`;
+    case 'invalid-output':
+    case 'transient':
+      return `AI classification failed during strict classification (${category}): ${detail}`;
+    case 'agent-unavailable':
+      return `AI classification failed (${category}): ${detail}`;
+    default: {
+      const unreachable: never = category;
+      return unreachable;
+    }
+  }
+}
 
 /**
  * Outcome when the workflow routes to human triage.
@@ -186,7 +210,13 @@ export class IntakeWorkflowService {
         document_id: documentId,
         ocr: { ok: true, markdown: ocr.markdown },
         classification: pass2.ok
-          ? { ok: true, result: pass2.result }
+          ? {
+              ok: true,
+              result: pass2.result,
+              ...(pass2.enrichment == null
+                ? {}
+                : { enrichment: pass2.enrichment }),
+            }
           : { ok: false, category: pass2.category, detail: pass2.detail },
       };
     });
@@ -237,6 +267,22 @@ export class IntakeWorkflowService {
       .executeTakeFirst();
 
     if (!expense) {
+      const pendingReplay =
+        await this.documents.getPendingTriageReplay(documentId);
+      if (pendingReplay) {
+        return {
+          document_id: documentId,
+          ocr: { ok: true, markdown: ocr.markdown },
+          classification: {
+            ok: true,
+            result: pendingReplay.triageResult,
+            ...(pendingReplay.enrichment == null
+              ? {}
+              : { enrichment: pendingReplay.enrichment }),
+          },
+        };
+      }
+
       return {
         document_id: documentId,
         ocr: { ok: true, markdown: ocr.markdown },
@@ -385,12 +431,13 @@ export class IntakeWorkflowService {
         );
         return this.routeNeedsTriage(
           documentId,
-          `AI classification failed (${pass2.category}): ${pass2.detail}`,
+          pass2FailureReason(pass2.category, pass2.detail),
           { pass: 'classify', category: pass2.category },
         );
       }
 
       const triageResult = pass2.result;
+      const pass2Enrichment = pass2.enrichment ?? null;
       this.logger.debug(
         `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
       );
@@ -432,12 +479,18 @@ export class IntakeWorkflowService {
         // helper is caught by the safety-net catch below rather than escaping
         // and stranding the document in `pending` (ADR-0024).
         case 'expense':
-          return await this.routeExpense(documentId, triageResult, claimantId);
+          return await this.routeExpense(
+            documentId,
+            triageResult,
+            claimantId,
+            pass2Enrichment,
+          );
         case 'sales_invoice':
           return await this.routeSalesInvoice(
             documentId,
             triageResult,
             ibanMatched,
+            pass2Enrichment,
           );
         case 'bank_statement':
           return await this.routeBankStatement(documentId);
@@ -475,6 +528,7 @@ export class IntakeWorkflowService {
     documentId: number,
     triageResult: TriageResult,
     claimantId?: number | null,
+    enrichment?: Pass2Enrichment | null,
   ): Promise<IntakeWorkflowResult> {
     // ── Kind-level routing within the expense (incoming) path ──────
     // This handles ALL incoming kinds (new_expense / unknown / correction /
@@ -500,12 +554,21 @@ export class IntakeWorkflowService {
           // 'create' proposal cannot yet produce a draft (Task 43), so it
           // returns `supplier-unresolved` and we route to needs_triage rather
           // than silently dropping a null-supplier draft (ADR-0014/0024).
-          const outcome = await this.proposeDraft.proposeDraft(
-            triageResult,
-            documentId,
-            undefined,
-            claimantId,
-          );
+          const outcome =
+            enrichment == null
+              ? await this.proposeDraft.proposeDraft(
+                  triageResult,
+                  documentId,
+                  undefined,
+                  claimantId,
+                )
+              : await this.proposeDraft.proposeDraft(
+                  triageResult,
+                  documentId,
+                  undefined,
+                  claimantId,
+                  enrichment,
+                );
           if (outcome.outcome === 'supplier-unresolved') {
             this.logger.warn(
               `new_expense for document ${documentId} has an unresolved supplier proposal: ${outcome.reason}`,
@@ -515,6 +578,7 @@ export class IntakeWorkflowService {
             await this.documents.setPendingTriageResult(
               documentId,
               triageResult,
+              enrichment,
             );
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
@@ -587,6 +651,7 @@ export class IntakeWorkflowService {
     documentId: number,
     triageResult: TriageResult,
     ibanMatched: boolean,
+    enrichment?: Pass2Enrichment | null,
   ): Promise<IntakeWorkflowResult> {
     const threshold = (await this.policyService.getConfig())
       .auto_post_min_confidence;
@@ -617,7 +682,11 @@ export class IntakeWorkflowService {
       );
       // Keep the exact triage result so an operator can create/select the
       // customer and replay it deterministically (no re-run of the agent).
-      await this.documents.setPendingTriageResult(documentId, triageResult);
+      await this.documents.setPendingTriageResult(
+        documentId,
+        triageResult,
+        enrichment,
+      );
       return this.routeNeedsTriage(
         documentId,
         `Outgoing invoice — ${outcome.reason}`,
@@ -702,13 +771,14 @@ export class IntakeWorkflowService {
 
     // The exact proposal that blocked us. Absent → the needs_triage reason was
     // not supplier-unresolved, so there is nothing here to resolve.
-    const triageResult =
-      await this.documents.getPendingTriageResult(documentId);
-    if (!triageResult) {
+    const pendingReplay =
+      await this.documents.getPendingTriageReplay(documentId);
+    if (!pendingReplay) {
       throw new BadRequestException(
         `Document ${documentId} has no pending supplier proposal to resolve`,
       );
     }
+    const triageResult = pendingReplay.triageResult;
 
     // Validate the chosen Supplier (findById throws 404 if it does not exist).
     const entity = await this.entities.findById(supplierEntityId);
@@ -748,12 +818,21 @@ export class IntakeWorkflowService {
     // Explicit supplier id wins in resolveSupplier → a draft is produced and the
     // full posting pipeline runs (post/hold per policy), exactly as a confident
     // intake would.
-    const outcome = await this.proposeDraft.proposeDraft(
-      triageResult,
-      documentId,
-      supplierEntityId,
-      doc.claimant_id,
-    );
+    const outcome =
+      pendingReplay.enrichment == null
+        ? await this.proposeDraft.proposeDraft(
+            triageResult,
+            documentId,
+            supplierEntityId,
+            doc.claimant_id,
+          )
+        : await this.proposeDraft.proposeDraft(
+            triageResult,
+            documentId,
+            supplierEntityId,
+            doc.claimant_id,
+            pendingReplay.enrichment,
+          );
     if (outcome.outcome === 'supplier-unresolved') {
       // Defensive: an explicit supplier id must resolve.
       throw new Error(

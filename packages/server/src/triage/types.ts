@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import type { Pass2Enrichment } from '../ai/pass2-agent.service';
 
 /**
  * SupplierProposal — the AI's Supplier-identity proposal carried on a
@@ -213,7 +214,7 @@ export interface DocumentDebug {
     | { ok: false; category: string; detail: string };
   // null when OCR failed — there is nothing to classify.
   classification:
-    | { ok: true; result: TriageResult }
+    | { ok: true; result: TriageResult; enrichment?: Pass2Enrichment }
     | { ok: false; category: string; detail: string }
     | null;
 }

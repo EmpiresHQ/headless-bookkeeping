@@ -60,6 +60,7 @@ import * as m060 from './060_add_preview_path_and_expense_ai_fields';
 import * as m061 from './061_create_business_trip';
 import * as m062 from './062_create_allowance';
 import * as m063 from './063_approval_object_type_allowance';
+import * as m064 from './064_add_document_pending_triage_enrichment';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -123,4 +124,5 @@ export const migrations: Record<string, Migration> = {
   '061_create_business_trip': m061,
   '062_create_allowance': m062,
   '063_approval_object_type_allowance': m063,
+  '064_add_document_pending_triage_enrichment': m064,
 };

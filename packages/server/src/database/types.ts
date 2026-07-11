@@ -204,6 +204,9 @@ export interface DocumentTable {
   // Nullable JSON (TEXT): the JSON-stringified TriageResult that blocked this
   // document on the supplier-unresolved route (migration 039). NULL otherwise.
   pending_triage_result: string | null;
+  // Nullable JSON (TEXT): deterministic Pass-2 enrichment retained alongside
+  // pending_triage_result for parked replay/debug flows.
+  pending_triage_enrichment: string | null;
   // Unix seconds — set when intake workflow starts processing; cleared on
   // completion. NULL = idle (not currently in the intake pipeline).
   processing_since: Generated<number | null>;

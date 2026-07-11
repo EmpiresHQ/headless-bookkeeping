@@ -51,7 +51,6 @@ describe('ProposeDraftService (integration)', () => {
   let module: TestingModule;
   let service: ProposeDraftService;
   let expensesService: ExpensesService;
-  let _policyService: PolicyService;
   let salesInvoicesService: {
     createInvoice: jest.Mock;
     generateDraftVoucher: jest.Mock;
@@ -112,7 +111,6 @@ describe('ProposeDraftService (integration)', () => {
 
     service = module.get(ProposeDraftService);
     expensesService = module.get(ExpensesService);
-    _policyService = module.get(PolicyService);
     salesInvoicesService = module.get(SalesInvoicesService);
     postingPipelineService = module.get(PostingPipelineService);
   });
@@ -724,6 +722,96 @@ describe('ProposeDraftService (integration)', () => {
 
       const outcome = await service.proposeDraft(triageResult, 34);
       expect(outcome.outcome).toBe('supplier-unresolved');
+
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 34)
+        .execute();
+      expect(expenses).toHaveLength(0);
+    });
+
+    it('keeps a match when deterministic enrichment agrees with the strict classifier match', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const eeSupplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Agreed Supplier OÜ',
+        registrationKey: 'EE22000000',
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: eeSupplier.id,
+          observed_country: 'EE',
+          observed_registration_key: 'EE22000000',
+        },
+      };
+      const enrichmentContext = {
+        summary: 'supplier match from deterministic enrichment',
+        supplier: { matchEntityId: eeSupplier.id },
+      };
+
+      const result = expectDraft(
+        await service.proposeDraft(
+          triageResult,
+          35,
+          undefined,
+          undefined,
+          enrichmentContext,
+        ),
+      );
+
+      const expense = await expensesService.getExpenseById(result.expenseId);
+      expect(expense.supplier_id).toBe(eeSupplier.id);
+    });
+
+    it('routes to supplier-unresolved when deterministic enrichment matches a different supplier than the strict classifier', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const enrichmentSupplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Deterministic Supplier OÜ',
+        registrationKey: 'EE33000000',
+      });
+      const classifierSupplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Classifier Supplier OÜ',
+        registrationKey: 'EE44000000',
+      });
+
+      const triageResult: TriageResult = {
+        ...sampleTriageResult(),
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: classifierSupplier.id,
+          observed_country: 'EE',
+          observed_registration_key: 'EE44000000',
+        },
+      };
+      const enrichmentContext = {
+        summary: 'supplier match from deterministic enrichment',
+        supplier: { matchEntityId: enrichmentSupplier.id },
+      };
+
+      const outcome = await service.proposeDraft(
+        triageResult,
+        36,
+        undefined,
+        undefined,
+        enrichmentContext,
+      );
+      expect(outcome.outcome).toBe('supplier-unresolved');
+
+      const expenses = await db
+        .selectFrom('expense')
+        .selectAll()
+        .where('document_id', '=', 36)
+        .execute();
+      expect(expenses).toHaveLength(0);
     });
 
     it('returns category-unresolved for a triage category the active plugin does not know', async () => {

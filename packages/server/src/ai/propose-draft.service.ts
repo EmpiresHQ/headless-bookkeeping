@@ -18,6 +18,7 @@ import { CreateExpenseDto } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
+import type { Pass2Enrichment } from './pass2-agent.service';
 import {
   SalesInvoicesService,
   isInvoiceNumberConflict,
@@ -208,6 +209,7 @@ export class ProposeDraftService {
     documentId?: number | null,
     supplierId?: number | null,
     claimantId?: number | null,
+    enrichmentContext?: Pass2Enrichment,
   ): Promise<ProposeDraftOutcome> {
     // Defensive backstop, NOT a routing point: the workflow already decided
     // this is a confident new_expense. Reject anything else so a bypass can
@@ -239,6 +241,7 @@ export class ProposeDraftService {
     const resolved = await this.resolveSupplier(
       triageResult.supplier_proposal,
       supplierId,
+      enrichmentContext,
     );
     if (resolved.outcome === 'supplier-unresolved') {
       return resolved;
@@ -310,6 +313,7 @@ export class ProposeDraftService {
   private async resolveSupplier(
     proposal: SupplierProposal | undefined,
     explicitSupplierId?: number | null,
+    enrichmentContext?: Pass2Enrichment,
   ): Promise<
     | { outcome: 'resolved'; supplierId: number | null }
     | SupplierUnresolvedResult
@@ -321,6 +325,18 @@ export class ProposeDraftService {
       return { outcome: 'resolved', supplierId: null };
     }
     if (proposal.mode === 'match') {
+      const deterministicMatchEntityId =
+        enrichmentContext?.supplier?.matchEntityId;
+      if (
+        deterministicMatchEntityId !== undefined &&
+        deterministicMatchEntityId !== proposal.match_entity_id
+      ) {
+        return {
+          outcome: 'supplier-unresolved',
+          reason: `match proposal references entity ${proposal.match_entity_id}, but deterministic enrichment resolved supplier ${deterministicMatchEntityId}`,
+        };
+      }
+
       // Validate the agent-proposed entity BEFORE trusting it. A hallucinated id
       // (field case: match_entity_id 500001) or a wrong-role match would feed a
       // phantom/incorrect supplier_id into createExpense — an FK violation that

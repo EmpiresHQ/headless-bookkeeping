@@ -12,6 +12,10 @@ import {
   TriageResult,
   classifyReasonType,
 } from '../triage/types';
+import {
+  pass2EnrichmentSchema,
+  type Pass2Enrichment,
+} from '../ai/pass2-agent.service';
 import type { ExpenseStatus } from '../expenses/types';
 import { DocumentStorageService } from './document-storage.service';
 import { PreviewRenderer } from './preview-renderer';
@@ -28,6 +32,11 @@ import {
 
 export function computeSha256(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
+}
+
+export interface PendingTriageReplay {
+  readonly triageResult: TriageResult;
+  readonly enrichment: Pass2Enrichment | null;
 }
 
 @Injectable()
@@ -444,11 +453,16 @@ export class DocumentsService {
   async setPendingTriageResult(
     id: number,
     result: TriageResult | null,
+    enrichment?: Pass2Enrichment | null,
   ): Promise<void> {
     await this.db
       .updateTable('document')
       .set({
         pending_triage_result: result !== null ? JSON.stringify(result) : null,
+        pending_triage_enrichment:
+          result !== null && enrichment != null
+            ? JSON.stringify(enrichment)
+            : null,
       })
       .where('id', '=', id)
       .execute();
@@ -460,15 +474,47 @@ export class DocumentsService {
    * blob fails loudly rather than feeding a half-shaped object into the kernel.
    */
   async getPendingTriageResult(id: number): Promise<TriageResult | null> {
+    const replay = await this.getPendingTriageReplay(id);
+    return replay?.triageResult ?? null;
+  }
+
+  async getPendingTriageReplay(
+    id: number,
+  ): Promise<PendingTriageReplay | null> {
     const row = await this.db
       .selectFrom('document')
-      .select('pending_triage_result')
+      .select(['pending_triage_result', 'pending_triage_enrichment'])
       .where('id', '=', id)
       .executeTakeFirst();
     if (!row || row.pending_triage_result == null) {
       return null;
     }
-    return triageResultSchema.parse(JSON.parse(row.pending_triage_result));
+    return {
+      triageResult: triageResultSchema.parse(
+        JSON.parse(row.pending_triage_result),
+      ),
+      enrichment: this.parsePendingTriageEnrichment(
+        row.pending_triage_enrichment,
+      ),
+    };
+  }
+
+  private parsePendingTriageEnrichment(
+    blob: string | null,
+  ): Pass2Enrichment | null {
+    if (blob == null) {
+      return null;
+    }
+
+    try {
+      const parsed = pass2EnrichmentSchema.safeParse(JSON.parse(blob));
+      return parsed.success ? parsed.data : null;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**

@@ -19,6 +19,21 @@ import { CategoryService } from '../categories/category.service';
 import { MastraService } from './mastra.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
+const EXPECTED_TRIAGE_TOOL_NAMES = [
+  'searchSuppliers',
+  'listCategories',
+  'getClassificationMemory',
+  'previewCategoryMapping',
+  'getClassificationContext',
+] as const;
+
+const EXPECTED_ENRICHMENT_TOOL_NAMES = [
+  'listCategories',
+  'getClassificationMemory',
+  'previewCategoryMapping',
+  'getClassificationContext',
+] as const;
+
 describe('MastraService', () => {
   let db: Kysely<Database>;
   let service: MastraService;
@@ -100,13 +115,10 @@ describe('MastraService', () => {
 
       const toolNames = Object.keys((await agent.listTools()) ?? {});
 
-      expect(toolNames).toContain('searchSuppliers');
-      expect(toolNames).toContain('listCategories');
-      expect(toolNames).toContain('getClassificationMemory');
-      expect(toolNames).toContain('previewCategoryMapping');
-      // The composed deep read is the primary path (granular tools retained).
-      expect(toolNames).toContain('getClassificationContext');
-      expect(toolNames).toHaveLength(5);
+      expect(toolNames).toEqual(
+        expect.arrayContaining(EXPECTED_TRIAGE_TOOL_NAMES),
+      );
+      expect(toolNames).toHaveLength(EXPECTED_TRIAGE_TOOL_NAMES.length);
     });
 
     it('falls back to the default model when no setting row exists', async () => {
@@ -148,10 +160,49 @@ describe('MastraService', () => {
       // the seeded prompt is retained as the leading prefix.
       expect(await agent.getInstructions()).toContain('SEEDED TRIAGE PROMPT');
     });
+  });
 
+  describe('buildBankMappingAgent', () => {
     it('builds a tool-less bank-mapping agent from settings', async () => {
       const agent = await service.buildBankMappingAgent();
+
       expect(agent.model).toBe('openai/gpt-4o-mini');
+      expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
+    });
+  });
+
+  describe('buildTriageEnrichmentAgent', () => {
+    it('builds a read-only enrichment agent led by getClassificationContext', async () => {
+      const buildEnrichmentAgent = Reflect.get(
+        service,
+        'buildTriageEnrichmentAgent',
+      );
+
+      expect(typeof buildEnrichmentAgent).toBe('function');
+
+      const agent = await buildEnrichmentAgent.call(service);
+      const toolNames = Object.keys((await agent.listTools()) ?? {});
+
+      expect(toolNames).toEqual(
+        expect.arrayContaining(EXPECTED_ENRICHMENT_TOOL_NAMES),
+      );
+      expect(toolNames).toHaveLength(EXPECTED_ENRICHMENT_TOOL_NAMES.length);
+      expect(toolNames).not.toContain('searchSuppliers');
+      expect(toolNames).toContain('getClassificationContext');
+    });
+  });
+
+  describe('buildTriageClassificationAgent', () => {
+    it('builds a strict classification agent with no tools', async () => {
+      const buildClassificationAgent = Reflect.get(
+        service,
+        'buildTriageClassificationAgent',
+      );
+
+      expect(typeof buildClassificationAgent).toBe('function');
+
+      const agent = await buildClassificationAgent.call(service);
+
       expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
     });
   });

@@ -85,6 +85,22 @@ export class MastraService {
     };
   }
 
+  private buildEnrichmentTools(): ToolsInput {
+    const {
+      listCategories,
+      getClassificationMemory,
+      previewCategoryMapping,
+      getClassificationContext,
+    } = this.buildTools();
+
+    return {
+      listCategories,
+      getClassificationMemory,
+      previewCategoryMapping,
+      getClassificationContext,
+    };
+  }
+
   /**
    * Build the Pass-2 triage agent fresh from current settings. Read-only tools,
    * endpoint-aware model config. Throws if the @mastra runtime cannot construct
@@ -111,6 +127,48 @@ export class MastraService {
       instructions: finalInstructions,
       model,
       tools: this.buildTools(),
+    });
+  }
+
+  async buildTriageEnrichmentAgent(
+    orgContext?: OrgIdentityContext,
+  ): Promise<Agent> {
+    const instructions =
+      await this.config.resolveInstructions('triage_enrichment');
+    const model = await this.config.resolveModelConfig('triage_enrichment');
+    const categories = await this.categoryService.list();
+    const baseInstructions = withCategoryList(instructions, categories);
+    const finalInstructions = orgContext
+      ? withOrgIdentity(baseInstructions, orgContext)
+      : baseInstructions;
+
+    return new Agent({
+      id: 'triage-enrichment-agent',
+      name: 'Triage Enrichment Agent',
+      instructions: finalInstructions,
+      model,
+      tools: this.buildEnrichmentTools(),
+    });
+  }
+
+  async buildTriageClassificationAgent(
+    orgContext?: OrgIdentityContext,
+  ): Promise<Agent> {
+    const instructions = await this.config.resolveInstructions(
+      'triage_classification',
+    );
+    const model = await this.config.resolveModelConfig('triage_classification');
+    const categories = await this.categoryService.list();
+    const baseInstructions = withCategoryList(instructions, categories);
+    const finalInstructions = orgContext
+      ? withOrgIdentity(baseInstructions, orgContext)
+      : baseInstructions;
+
+    return new Agent({
+      id: 'triage-classification-agent',
+      name: 'Triage Classification Agent',
+      instructions: finalInstructions,
+      model,
     });
   }
 

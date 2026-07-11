@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { z } from 'zod';
 import { MastraService } from './mastra.service';
 import { triageResultSchema, TriageResult } from '../triage/types';
 import { OrgIdentityContext } from './triage-instructions';
 
 const MAX_RETRIES = 3;
+const ENRICHMENT_SECTION_HEADING = 'Deterministic enrichment summary';
 
 /**
  * Why Pass 2 failed to produce a validated TriageResult. Surfaced to the
@@ -13,21 +15,46 @@ const MAX_RETRIES = 3;
  *
  *  - 'agent-unavailable':  the Mastra agent was not initialized (config/runtime
  *                          fault) — no attempt was even made.
+ *  - 'enrichment-failed':  the one-shot enrichment phase threw before strict
+ *                          classification could start.
+ *  - 'enrichment-incomplete': enrichment returned but did not produce the
+ *                          reusable deterministic summary the strict phase
+ *                          requires.
  *  - 'invalid-output':     the agent ran but never produced schema-valid output
- *                          within the bounded retry (the ADR-0024 "invalid
- *                          output → bounded retry → needs_triage" case).
+ *                          within the bounded strict-classification retry (the
+ *                          ADR-0024 "invalid output → bounded retry →
+ *                          needs_triage" case).
  *  - 'transient':         every attempt threw (timeouts/rate-limits) and never
- *                          returned parseable output — likely retryable later.
+ *                          returned parseable output during strict
+ *                          classification — likely retryable later.
  */
 export type Pass2FailureCategory =
   | 'agent-unavailable'
+  | 'enrichment-failed'
+  | 'enrichment-incomplete'
   | 'invalid-output'
   | 'transient';
+
+const pass2EnrichmentSupplierSchema = z.object({
+  matchEntityId: z.number().int().positive().optional(),
+});
+
+const pass2EnrichmentToolContextSchema = z.object({
+  supplier: pass2EnrichmentSupplierSchema.optional(),
+});
+
+export const pass2EnrichmentSchema = z.object({
+  summary: z.string(),
+  supplier: pass2EnrichmentSupplierSchema.optional(),
+});
+
+export type Pass2Enrichment = z.infer<typeof pass2EnrichmentSchema>;
 
 /** A successfully validated Pass-2 classification. */
 export interface Pass2Success {
   ok: true;
   result: TriageResult;
+  enrichment?: Pass2Enrichment;
 }
 
 /** A Pass-2 failure carrying an explicit, observable category. */
@@ -78,6 +105,48 @@ export class Pass2AgentService {
 
   constructor(private readonly mastraService: MastraService) {}
 
+  private toOrgIdentityContext(
+    ctx?: Pass2Context,
+  ): OrgIdentityContext | undefined {
+    return ctx
+      ? { ...ctx.orgContext, directionHint: ctx.directionHint }
+      : undefined;
+  }
+
+  private buildClassificationPrompt(
+    markdown: string,
+    enrichment: Pass2Enrichment,
+  ): string {
+    return `${markdown}\n\n## ${ENRICHMENT_SECTION_HEADING}\n${enrichment.summary}`;
+  }
+
+  private parseEnrichmentSupplier(
+    enrichmentObject: unknown,
+  ): Pass2Enrichment['supplier'] | undefined {
+    const parsed = pass2EnrichmentToolContextSchema.safeParse(enrichmentObject);
+    return parsed.success ? parsed.data.supplier : undefined;
+  }
+
+  private parseEnrichment(result: {
+    object: unknown;
+    text: string;
+  }): Pass2Enrichment | null {
+    const supplier = this.parseEnrichmentSupplier(result.object);
+    const summary = result.text.trim();
+    if (summary.length > 0) {
+      return pass2EnrichmentSchema.parse({ summary, supplier });
+    }
+
+    if (result.object === undefined) {
+      return null;
+    }
+
+    return pass2EnrichmentSchema.parse({
+      summary: JSON.stringify(result.object),
+      supplier,
+    });
+  }
+
   /**
    * Classify markdown content into a validated TriageResult.
    *
@@ -96,22 +165,73 @@ export class Pass2AgentService {
    *          or failure with an explicit category.
    */
   async classify(markdown: string, ctx?: Pass2Context): Promise<Pass2Outcome> {
-    // Build the triage agent on demand so the current settings-backed model /
-    // prompt / inference endpoint apply to this classification. A build failure
-    // (missing model credentials, @mastra runtime unavailable) is the
-    // `agent-unavailable` case.
-    let agent: Awaited<ReturnType<MastraService['buildTriageAgent']>>;
+    const orgIdentityContext = this.toOrgIdentityContext(ctx);
+
+    let enrichmentAgent: Awaited<
+      ReturnType<MastraService['buildTriageEnrichmentAgent']>
+    >;
     try {
-      agent = await this.mastraService.buildTriageAgent(
-        ctx
-          ? { ...ctx.orgContext, directionHint: ctx.directionHint }
-          : undefined,
-      );
+      enrichmentAgent =
+        await this.mastraService.buildTriageEnrichmentAgent(orgIdentityContext);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Mastra triage agent unavailable: ${detail}`);
-      return { ok: false, category: 'agent-unavailable', detail };
+      this.logger.error(
+        `Mastra triage enrichment agent unavailable: ${detail}`,
+      );
+      return {
+        ok: false,
+        category: 'agent-unavailable',
+        detail: `enrichment agent unavailable: ${detail}`,
+      };
     }
+
+    let enrichment: Pass2Enrichment;
+    try {
+      const enrichmentResult = await enrichmentAgent.generate(markdown);
+      const parsedEnrichment = this.parseEnrichment(enrichmentResult);
+      if (parsedEnrichment === null) {
+        this.logger.error('Pass 2 enrichment produced no reusable summary');
+        return {
+          ok: false,
+          category: 'enrichment-incomplete',
+          detail: 'enrichment phase returned no reusable summary',
+        };
+      }
+      enrichment = parsedEnrichment;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Pass 2 enrichment failed: ${detail}`);
+      return {
+        ok: false,
+        category: 'enrichment-failed',
+        detail: `enrichment phase failed: ${detail}`,
+      };
+    }
+
+    let classificationAgent: Awaited<
+      ReturnType<MastraService['buildTriageClassificationAgent']>
+    >;
+    try {
+      classificationAgent =
+        await this.mastraService.buildTriageClassificationAgent(
+          orgIdentityContext,
+        );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Mastra triage classification agent unavailable: ${detail}`,
+      );
+      return {
+        ok: false,
+        category: 'agent-unavailable',
+        detail: `strict classification agent unavailable: ${detail}`,
+      };
+    }
+
+    const classificationPrompt = this.buildClassificationPrompt(
+      markdown,
+      enrichment,
+    );
 
     // Track whether any attempt produced parseable-but-invalid output (vs.
     // every attempt throwing). The former is an `invalid-output` (the model
@@ -125,9 +245,12 @@ export class Pass2AgentService {
       try {
         // Real Mastra API: generate() with a `structuredOutput.schema` returns
         // a FullOutput whose parsed structured object is on `.object`.
-        const result = await agent.generate(markdown, {
-          structuredOutput: { schema: triageResultSchema },
-        });
+        const result = await classificationAgent.generate(
+          classificationPrompt,
+          {
+            structuredOutput: { schema: triageResultSchema },
+          },
+        );
         rawOutput = result.object;
       } catch (error) {
         sawThrow = true;
@@ -143,7 +266,7 @@ export class Pass2AgentService {
       // output returns unvalidated data (model-dependent behavior).
       const parsed = triageResultSchema.safeParse(rawOutput);
       if (parsed.success) {
-        return { ok: true, result: parsed.data };
+        return { ok: true, result: parsed.data, enrichment };
       }
 
       sawInvalidOutput = true;
@@ -164,6 +287,10 @@ export class Pass2AgentService {
     this.logger.error(
       `Pass 2 classification failed after ${MAX_RETRIES} attempts (category=${category})`,
     );
-    return { ok: false, category, detail: lastDetail };
+    return {
+      ok: false,
+      category,
+      detail: `strict classification failed after ${MAX_RETRIES} attempts: ${lastDetail}`,
+    };
   }
 }
