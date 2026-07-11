@@ -48,9 +48,15 @@ export function ResolveSupplierSheet({
 
   useEffect(() => {
     if (!prefilled && draftQ.data !== undefined) {
-      setName(draftQ.data.supplier_proposal.create_name);
-      setCountry(draftQ.data.supplier_proposal.create_country);
-      setRegKey(draftQ.data.supplier_proposal.create_registration_key);
+      const proposal = draftQ.data.supplier_proposal;
+      if (proposal.kind === 'create') {
+        setName(proposal.create_name);
+        setCountry(proposal.create_country);
+        setRegKey(proposal.create_registration_key ?? '');
+      } else {
+        setCountry(proposal.observed_country ?? '');
+        setRegKey(proposal.observed_registration_key ?? '');
+      }
       setPrefilled(true);
     }
   }, [draftQ.data, prefilled]);

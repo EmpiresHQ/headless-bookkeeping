@@ -26,10 +26,13 @@ import { AuditFinding } from '../audit-findings/types';
 import {
   DocumentDebug,
   ManualClassifyDto,
-  PendingDraft,
   TriageResult,
   Pass2Enrichment,
 } from '../triage/types';
+import {
+  buildPendingSupplierProposal,
+  type PendingDraft,
+} from '../triage/pending-draft';
 import { matchesOrgIban } from '../intake/iban-match';
 import { classifyDocumentClass } from '../intake/document-class';
 import { composeOutgoingConfidence } from '../intake/outgoing-confidence';
@@ -929,7 +932,7 @@ export class IntakeWorkflowService {
    */
   async getPendingDraft(documentId: number): Promise<PendingDraft> {
     const tr = await this.documents.getPendingTriageResult(documentId);
-    if (!tr || tr.supplier_proposal?.mode !== 'create') {
+    if (!tr?.supplier_proposal) {
       throw new NotFoundException(
         `Document ${documentId} has no pending supplier proposal`,
       );
@@ -943,14 +946,10 @@ export class IntakeWorkflowService {
       document_id: documentId,
       reason:
         finding?.description ?? 'supplier could not be resolved automatically',
-      supplier_proposal: {
-        create_name: tr.supplier_proposal.create_name,
-        create_country: tr.supplier_proposal.create_country,
-        create_registration_key: tr.supplier_proposal.create_registration_key,
-        create_email: tr.supplier_proposal.create_email,
-        create_phone: tr.supplier_proposal.create_phone,
-        create_address: tr.supplier_proposal.create_address,
-      },
+      supplier_proposal: await buildPendingSupplierProposal(
+        tr.supplier_proposal,
+        this.entities,
+      ),
       draft: {
         category: tr.category,
         gross_amount: tr.gross_amount,

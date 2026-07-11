@@ -752,14 +752,34 @@ export const manualClassifyInvoice = (
     body: JSON.stringify(body),
   });
 
+export interface SuggestedSupplier {
+  id: number;
+  name: string;
+  country: string;
+  registration_key: string | null;
+}
+
+export type PendingSupplierProposal =
+  | {
+      kind: 'create';
+      create_name: string;
+      create_country: string;
+      create_registration_key: string | null;
+      create_email: string | null;
+      create_phone: string | null;
+      create_address: string | null;
+    }
+  | {
+      kind: 'invalid_match';
+      observed_country: string | null;
+      observed_registration_key: string | null;
+      suggested_supplier: SuggestedSupplier | null;
+    };
+
 export interface PendingDraft {
   document_id: number;
   reason: string;
-  supplier_proposal: {
-    create_name: string;
-    create_country: string;
-    create_registration_key: string;
-  };
+  supplier_proposal: PendingSupplierProposal;
   draft: {
     category: string;
     gross_amount: number;

@@ -16,6 +16,7 @@ vi.mock('../api', async (importOriginal) => ({
   completeDocument: vi.fn(),
   retryDocument: vi.fn(),
   deleteDocument: vi.fn(),
+  resolveSupplier: vi.fn(),
   manualClassify: vi.fn(),
   fetchDocumentPreviewObjectUrl: vi.fn(),
   openSignedDocument: vi.fn(),
@@ -73,7 +74,9 @@ const RECLASSIFY = (id: number, grossAmount: number, vatAmount: number) => ({
 /** Opens the classify sheet, waits for its prefill, picks the supplier and
  *  submits — the shared choreography of the two remount-discipline tests. */
 async function openClassifyPickSupplierAndSubmit(grossDisplay: string) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Review extracted data' }),
+  );
   expect(await screen.findByDisplayValue(grossDisplay)).toBeInTheDocument();
   fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
     target: { value: 'circle' },
@@ -147,14 +150,19 @@ describe('TriageDocScreen', () => {
     );
   });
 
-  it('renders N of M, the human reason with the raw sentence, and persisted facts', async () => {
+  it('leads with the semantic decision, keeps the raw reason as collapsed technical detail, and shows persisted facts', async () => {
     renderAt('/inbox/doc/12');
     expect(await screen.findByText('1 of 2')).toBeInTheDocument();
+    // Semantic decision copy leads; the raw machine sentence is diagnostic only.
     expect(
-      screen.getByText(
-        'AI confidence 0.41 — below the 0.8 threshold, check the result',
-      ),
+      screen.getByRole('heading', { name: 'Review the extracted expense' }),
     ).toBeInTheDocument();
+    // The raw reason lives under the collapsed "Technical details" disclosure —
+    // never as the primary copy (design: raw reason is diagnostic data only).
+    const details = screen.getByText('Technical details').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent('AI confidence 0.41 below threshold 0.8');
+    // Persisted intake facts.
     expect(await screen.findByText('−48.20 €')).toBeInTheDocument();
     expect(screen.getByText('01.07.2026')).toBeInTheDocument();
     expect(screen.getByText('OCR text')).toBeInTheDocument();
@@ -167,7 +175,9 @@ describe('TriageDocScreen', () => {
       classification: null,
     });
     renderAt('/inbox/doc/12');
-    fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review extracted data' }),
+    );
     expect(
       await screen.findByText('Classify', { selector: 'h2' }),
     ).toBeInTheDocument();
@@ -184,9 +194,13 @@ describe('TriageDocScreen', () => {
       document_id: 12,
       reason: 'supplier not found',
       supplier_proposal: {
+        kind: 'create',
         create_name: 'X',
         create_country: 'EE',
         create_registration_key: 'Y',
+        create_email: null,
+        create_phone: null,
+        create_address: null,
       },
       draft: {
         category: 'fuel',
@@ -198,23 +212,87 @@ describe('TriageDocScreen', () => {
       },
     });
     renderAt('/inbox/doc/12');
+    // A create-kind proposal offers reviewing/creating the supplier — the
+    // primary opens the resolve sheet once the pending draft has loaded.
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Resolve supplier…' }),
+      await screen.findByRole('button', { name: 'Review and create supplier' }),
     );
     expect(
       await screen.findByText('Resolve supplier', { selector: 'h2' }),
     ).toBeInTheDocument();
   });
 
-  it('dismisses behind a ConfirmDialog and advances to the next item', async () => {
+  it('turns an invalid supplier match into a direct, evidence-backed resolution', async () => {
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        reason_type: 'supplier_unresolved',
+        reason: 'match proposal references entity 705731, which does not exist',
+      }),
+    ]);
+    vi.mocked(api.getPendingDraft).mockResolvedValue({
+      document_id: 12,
+      reason: 'match proposal references entity 705731, which does not exist',
+      supplier_proposal: {
+        kind: 'invalid_match',
+        observed_country: 'EE',
+        observed_registration_key: 'EE102139798',
+        suggested_supplier: {
+          id: 37,
+          name: 'Citybee Eesti OÜ',
+          country: 'EE',
+          registration_key: 'EE102139798',
+        },
+      },
+      draft: {
+        category: 'transport',
+        gross_amount: 1599,
+        vat_amount: 288,
+        currency: 'EUR',
+        tax_point_date: '2026-07-08',
+        supplier_invoice_number: 'EECTB1805772',
+      },
+    });
+    vi.mocked(api.resolveSupplier).mockResolvedValue({
+      kind: 'expense',
+      document_id: 12,
+      expense_id: 500,
+    });
+
+    renderAt('/inbox/doc/12');
+
+    expect(
+      await screen.findByText('Supplier could not be confirmed'),
+    ).toBeInTheDocument();
+    // The server-resolved suggestion and its matching evidence lead the panel.
+    expect(await screen.findByText('Citybee Eesti OÜ')).toBeInTheDocument();
+    expect(screen.getByText('EE102139798')).toBeInTheDocument();
+    // The stale AI entity id is NEVER surfaced as evidence — it exists only in
+    // the collapsed technical reason, never in the decision panel.
+    const details = screen.getByText('Technical details').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent(/705731/);
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Use Citybee Eesti OÜ and book · −15.99 €',
+      }),
+    );
+    await waitFor(() =>
+      expect(api.resolveSupplier).toHaveBeenCalledWith(12, 37),
+    );
+  });
+
+  it('archives behind a ConfirmDialog and advances to the next item', async () => {
     vi.mocked(api.completeDocument).mockResolvedValue({
       id: 12,
       status: 'processed',
     });
     const router = renderAt('/inbox/doc/12');
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Dismiss document' }),
+      await screen.findByRole('button', { name: 'Archive without booking' }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Archive document' }),
     );
     await waitFor(() => expect(api.completeDocument).toHaveBeenCalledWith(12));
     await waitFor(() =>
@@ -232,7 +310,7 @@ describe('TriageDocScreen', () => {
     );
   });
 
-  it('not_a_document gets Dismiss as primary plus a destructive Delete', async () => {
+  it('not_a_document leads with Archive and offers a separate destructive Delete', async () => {
     vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
       ITEM({
         reason_type: 'not_a_document',
@@ -241,10 +319,12 @@ describe('TriageDocScreen', () => {
     ]);
     vi.mocked(api.deleteDocument).mockResolvedValue({ deleted: 12 });
     const router = renderAt('/inbox/doc/12');
+    // Archive without booking is the primary action for a non-document.
     expect(
-      await screen.findByRole('button', { name: 'Delete file…' }),
+      await screen.findByRole('button', { name: 'Archive without booking' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete file…' }));
+    // Deletion is a separate destructive action behind its own confirmation.
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete file' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(api.deleteDocument).toHaveBeenCalledWith(12));
     await waitFor(() => expect(router.state.location.pathname).toBe('/inbox'));
@@ -259,7 +339,7 @@ describe('TriageDocScreen', () => {
     renderAt('/inbox/doc/12'); // low_confidence
     await screen.findByText('1 of 2');
     expect(
-      screen.queryByRole('button', { name: 'Delete file…' }),
+      screen.queryByRole('button', { name: 'Delete file' }),
     ).not.toBeInTheDocument();
   });
 
@@ -271,20 +351,26 @@ describe('TriageDocScreen', () => {
       status: 'processed',
     });
     const router = renderAt('/inbox/doc/12');
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Dismiss document' }),
+      await screen.findByRole('button', { name: 'Archive without booking' }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Archive document' }),
     );
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/inbox/doc/13'),
     );
     expect(await screen.findByText('later.pdf')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry AI' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Classify…' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Review extracted data' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Archive without booking' }),
+    ).toBeEnabled();
     await waitFor(() =>
       expect(
-        screen.queryByRole('button', { name: 'Dismiss document' }),
+        screen.queryByRole('button', { name: 'Archive document' }),
       ).not.toBeInTheDocument(),
     );
   });
@@ -308,7 +394,9 @@ describe('TriageDocScreen', () => {
     );
     // Reopen on doc 13: MUST be a fresh sheet instance — 13's prefill, no
     // stale 12 fields, and a submit button that is not stuck busy ('…').
-    fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review extracted data' }),
+    );
     expect(await screen.findByDisplayValue('99.00')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('48.20')).not.toBeInTheDocument();
     expect(
@@ -336,7 +424,9 @@ describe('TriageDocScreen', () => {
     ]);
     vi.mocked(api.retryDocument).mockResolvedValue({ ok: true });
     const router = renderAt('/inbox/doc/12');
-    fireEvent.click(await screen.findByRole('button', { name: 'Fix file…' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Replace or retry file' }),
+    );
     expect(
       await screen.findByText('Fix file', { selector: 'h2' }),
     ).toBeInTheDocument();
@@ -367,9 +457,11 @@ describe('TriageDocScreen', () => {
     );
     try {
       const router = renderAt('/inbox/doc/12');
-      fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
       fireEvent.click(
-        await screen.findByRole('button', { name: 'Dismiss document' }),
+        await screen.findByRole('button', { name: 'Archive without booking' }),
+      );
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Archive document' }),
       );
       await waitFor(() =>
         expect(router.state.location.pathname).not.toBe('/inbox/doc/12'),
@@ -398,7 +490,9 @@ describe('TriageDocScreen', () => {
     expect(router.state.location.pathname).toBe('/inbox/doc/12');
     // Reopen to retry — same doc, so only a key nonce can remount the sheet
     // whose success path deliberately left busy=true.
-    fireEvent.click(await screen.findByRole('button', { name: 'Classify…' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review extracted data' }),
+    );
     expect(await screen.findByDisplayValue('48.20')).toBeInTheDocument();
     expect(
       await screen.findByRole('button', {

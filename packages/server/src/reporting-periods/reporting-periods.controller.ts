@@ -6,10 +6,19 @@ import {
   Body,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { ReportingPeriodsService } from './reporting-periods.service';
 import { CreateReportingPeriodDto, CreateNextPeriodDto } from './types';
 import type { ReportingPeriod, PeriodWarning } from './types';
+import {
+  reportingPeriodResponseSchema,
+  reportingPeriodsListResponseSchema,
+} from '../openapi-response-schemas';
 
 @ApiTags('reporting-periods')
 @Controller('api/reporting-periods')
@@ -21,6 +30,7 @@ export class ReportingPeriodsController {
     summary: 'List reporting periods',
     description: 'Return all reporting periods.',
   })
+  @ApiOkResponse({ schema: reportingPeriodsListResponseSchema })
   async list(): Promise<{ reportingPeriods: ReportingPeriod[] }> {
     const reportingPeriods = await this.service.list();
     return { reportingPeriods };
@@ -41,6 +51,7 @@ export class ReportingPeriodsController {
     description: 'Fetch a single period.',
   })
   @ApiParam({ name: 'id', description: 'Reporting period id' })
+  @ApiOkResponse({ schema: reportingPeriodResponseSchema })
   async getById(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ReportingPeriod> {

@@ -21,6 +21,7 @@ import {
   ApiParam,
   ApiConsumes,
   ApiBody,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -34,6 +35,10 @@ import {
   DocumentWithSources,
   Channel,
 } from './types';
+import {
+  documentWithSourcesResponseSchema,
+  documentsListResponseSchema,
+} from '../openapi-response-schemas';
 
 @ApiTags('documents')
 @Controller('api/documents')
@@ -118,6 +123,7 @@ export class DocumentsController {
     description:
       'Return all source documents enriched with linked expense, triage reason, and latest channel.',
   })
+  @ApiOkResponse({ schema: documentsListResponseSchema })
   async listDocuments(): Promise<{ documents: DocumentArchiveRow[] }> {
     return { documents: await this.documentsService.listArchiveRows() };
   }
@@ -128,6 +134,7 @@ export class DocumentsController {
     description: 'Fetch a document with its sources.',
   })
   @ApiParam({ name: 'id', description: 'Document id' })
+  @ApiOkResponse({ schema: documentWithSourcesResponseSchema })
   async getDocument(@Param('id') id: string): Promise<DocumentWithSources> {
     const doc = await this.documentsService.getById(Number(id));
     return this.documentsService.hydrate(doc);

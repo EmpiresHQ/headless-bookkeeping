@@ -39,9 +39,13 @@ describe('ResolveSupplierSheet', () => {
       document_id: 12,
       reason: 'supplier unresolved',
       supplier_proposal: {
+        kind: 'create',
         create_name: 'Circle K Eesti AS',
         create_country: 'EE',
         create_registration_key: 'EE100511246',
+        create_email: null,
+        create_phone: null,
+        create_address: null,
       },
       draft: {
         category: 'fuel',

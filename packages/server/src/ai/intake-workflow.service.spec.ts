@@ -51,6 +51,7 @@ describe('IntakeWorkflowService', () => {
   const mockEntities = {
     findById: jest.fn(),
     addIdentifierIfAbsent: jest.fn(),
+    resolveByIdentifier: jest.fn(),
   };
 
   const mockOrganization = {
@@ -187,6 +188,7 @@ describe('IntakeWorkflowService', () => {
     mockProposeDraft.findExistingDraft.mockReset();
     mockProposeDraft.proposeSalesInvoiceDraft.mockReset();
     mockProposeDraft.findExistingInvoiceDraft.mockReset();
+    mockEntities.resolveByIdentifier.mockReset();
     mockProposeDraft.manualClassifyDraft.mockReset();
     mockProposeDraft.manualClassifyInvoiceDraft.mockReset();
     mockEntities.findById.mockReset();
@@ -1309,6 +1311,7 @@ describe('IntakeWorkflowService', () => {
         document_id: docId,
         reason: 'supplier creation not yet implemented (Task 43)',
         supplier_proposal: {
+          kind: 'create',
           create_name: 'Acme OÜ',
           create_country: 'EE',
           create_registration_key: 'EE100200300',
@@ -1325,6 +1328,85 @@ describe('IntakeWorkflowService', () => {
           supplier_invoice_number: 'INV-7',
         },
       });
+    });
+
+    it('replaces an invalid AI match with a supplier suggested by the observed registration key', async () => {
+      const docId = await seedDocument();
+      jest
+        .spyOn(documentsService, 'getPendingTriageResult')
+        .mockResolvedValueOnce(
+          sampleTriageResult({
+            supplier_proposal: {
+              mode: 'match',
+              match_entity_id: 705731,
+              observed_country: 'EE',
+              observed_registration_key: 'EE102139798',
+            },
+          }),
+        );
+      mockEntities.resolveByIdentifier.mockResolvedValueOnce({
+        id: 37,
+        role: 'supplier',
+        country: 'EE',
+        name: 'Citybee Eesti OÜ',
+        goods_vs_services: 'services',
+        created_at: 0,
+        updated_at: 0,
+        identifiers: [
+          {
+            id: 91,
+            entity_id: 37,
+            kind: 'registration_key',
+            value: 'EE102139798',
+            confirmed: true,
+          },
+        ],
+      });
+
+      const result = await service.getPendingDraft(docId);
+
+      expect(mockEntities.resolveByIdentifier).toHaveBeenCalledWith(
+        'registration_key',
+        'EE102139798',
+      );
+      expect(result.supplier_proposal).toEqual({
+        kind: 'invalid_match',
+        observed_country: 'EE',
+        observed_registration_key: 'EE102139798',
+        suggested_supplier: {
+          id: 37,
+          name: 'Citybee Eesti OÜ',
+          country: 'EE',
+          registration_key: 'EE102139798',
+        },
+      });
+      expect(JSON.stringify(result)).not.toContain('705731');
+    });
+
+    it('returns an actionable invalid-match context when no strong identifier resolves', async () => {
+      const docId = await seedDocument();
+      jest
+        .spyOn(documentsService, 'getPendingTriageResult')
+        .mockResolvedValueOnce(
+          sampleTriageResult({
+            supplier_proposal: {
+              mode: 'match',
+              match_entity_id: 705731,
+              observed_country: 'EE',
+              observed_registration_key: null,
+            },
+          }),
+        );
+
+      const result = await service.getPendingDraft(docId);
+
+      expect(result.supplier_proposal).toEqual({
+        kind: 'invalid_match',
+        observed_country: 'EE',
+        observed_registration_key: null,
+        suggested_supplier: null,
+      });
+      expect(mockEntities.resolveByIdentifier).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when no proposal is stored', async () => {

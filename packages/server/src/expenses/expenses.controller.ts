@@ -7,13 +7,22 @@ import {
   Param,
   Body,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { FixedAssetRegistrarService } from '../fixed-assets/fixed-asset-registrar.service';
 import { CreateExpenseDto, PostOverrideDto } from './types';
 import type { Expense } from './types';
 import type { DraftVoucher } from '../ledger/voucher/types';
+import {
+  expenseResponseSchema,
+  expensesListResponseSchema,
+} from '../openapi-response-schemas';
 
 @ApiTags('expenses')
 @Controller('api/expenses')
@@ -39,6 +48,7 @@ export class ExpensesController {
     summary: 'List expenses',
     description: 'Return all expenses.',
   })
+  @ApiOkResponse({ schema: expensesListResponseSchema })
   async getExpenses() {
     return { expenses: await this.expensesService.getExpenses() };
   }
@@ -49,6 +59,7 @@ export class ExpensesController {
     description: 'Fetch a single expense.',
   })
   @ApiParam({ name: 'id', description: 'Expense id' })
+  @ApiOkResponse({ schema: expenseResponseSchema })
   async getExpense(@Param('id') id: string): Promise<Expense> {
     return this.expensesService.getExpenseById(Number(id));
   }

@@ -12,6 +12,25 @@ import { setupSwagger } from './../src/swagger';
 import { fauxMastraService } from './faux-mastra.service';
 import { createHash } from 'crypto';
 
+type JsonSchema = {
+  readonly type?: string;
+  readonly properties?: Record<string, JsonSchema>;
+  readonly items?: JsonSchema;
+  readonly $ref?: string;
+};
+
+type ResponseDoc = {
+  readonly content?: Record<string, { readonly schema?: JsonSchema }>;
+};
+
+type OperationDoc = {
+  readonly responses?: Record<string, ResponseDoc>;
+};
+
+type OpenApiDoc = {
+  readonly paths: Record<string, { readonly get?: OperationDoc }>;
+};
+
 describe('Swagger (e2e)', () => {
   let app: INestApplication<App>;
   let db: Kysely<Database>;
@@ -85,6 +104,66 @@ describe('Swagger (e2e)', () => {
     expect(
       doc.components.schemas?.SetSettingDto?.properties?.value,
     ).toBeDefined();
+  });
+
+  it('documents list envelopes and by-id response schemas for core archive endpoints', async () => {
+    // Given: the generated OpenAPI document from the same setup used by main.ts.
+    const res = await request(app.getHttpServer()).get('/api-json').expect(200);
+    const doc = res.body as OpenApiDoc;
+
+    const listCases = [
+      { path: '/api/expenses', envelope: 'expenses', itemField: 'category' },
+      { path: '/api/documents', envelope: 'documents', itemField: 'filename' },
+      {
+        path: '/api/reporting-periods',
+        envelope: 'reportingPeriods',
+        itemField: 'name',
+      },
+    ];
+
+    for (const listCase of listCases) {
+      // When: a client inspects a list endpoint response schema.
+      const schema =
+        doc.paths[listCase.path]?.get?.responses?.['200']?.content?.[
+          'application/json'
+        ]?.schema;
+
+      // Then: the documented top-level envelope matches the real API shape.
+      expect(schema?.type).toBe('object');
+      expect(Object.keys(schema?.properties ?? {}).sort()).toEqual([
+        listCase.envelope,
+      ]);
+      expect(schema?.properties?.items).toBeUndefined();
+      expect(schema?.properties?.data).toBeUndefined();
+      expect(schema?.properties?.[listCase.envelope]?.type).toBe('array');
+      expect(
+        schema?.properties?.[listCase.envelope]?.items?.properties?.id,
+      ).toBeDefined();
+      expect(
+        schema?.properties?.[listCase.envelope]?.items?.properties?.[
+          listCase.itemField
+        ],
+      ).toBeDefined();
+    }
+
+    const byIdCases = [
+      { path: '/api/expenses/{id}', field: 'category' },
+      { path: '/api/documents/{id}', field: 'sources' },
+      { path: '/api/reporting-periods/{id}', field: 'name' },
+    ];
+
+    for (const byIdCase of byIdCases) {
+      // When: a client inspects a by-id endpoint response schema.
+      const schema =
+        doc.paths[byIdCase.path]?.get?.responses?.['200']?.content?.[
+          'application/json'
+        ]?.schema;
+
+      // Then: the endpoint documents a concrete object payload.
+      expect(schema?.type).toBe('object');
+      expect(schema?.properties?.id).toBeDefined();
+      expect(schema?.properties?.[byIdCase.field]).toBeDefined();
+    }
   });
 
   it('does NOT shadow business routes under /api (e.g. /api/organization)', async () => {

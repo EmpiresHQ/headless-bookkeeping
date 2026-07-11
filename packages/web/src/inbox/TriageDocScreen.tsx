@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Archive, RefreshCw, Trash2 } from 'lucide-react';
 import {
   completeDocument,
   deleteDocument,
-  fmtCents,
   getDocumentDetails,
   retryDocument,
   type TriageOutcome,
 } from '../api';
 import { ScreenHeader } from '../shell/Headers';
-import { signedEuros } from '../lib/money';
 import {
   inboxKeys,
   invalidateInbox,
@@ -19,20 +18,19 @@ import {
   useInboxQueue,
   useNeedsTriage,
 } from '../queries/inbox';
-import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { KeyValue, ListGroup } from '../ui/List';
 import { LinkButton } from '../ui/LinkButton';
 import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
 import { ClassifyInvoiceSheet } from './ClassifyInvoiceSheet';
 import { DocPreviewRow } from './DocPreviewRow';
-import { absoluteDateFromIso, vatRatePct } from './format';
 import { OcrFailedSheet } from './OcrFailedSheet';
-import { outcomeText, triageSubtitle } from './reason';
+import { outcomeText } from './reason';
 import { ResolveSupplierSheet } from './ResolveSupplierSheet';
+import { TriageDecisionPanel } from './TriageDecisionPanel';
+import { TriageDocumentContext } from './TriageDocumentContext';
 
 type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr';
 
@@ -147,135 +145,55 @@ export function TriageDocScreen() {
     );
   }
 
-  const primary = (() => {
-    switch (item.reason_type) {
-      case 'supplier_unresolved':
-        return { label: 'Resolve supplier…', open: 'resolve' as const };
-      case 'low_confidence':
-      case 'category_unresolved':
-        return { label: 'Classify…', open: 'classify' as const };
-      case 'outgoing_invoice':
-        return { label: 'Record sales invoice…', open: 'invoice' as const };
-      case 'ocr_failed':
-        return { label: 'Fix file…', open: 'ocr' as const };
-      default:
-        return null; // Dismiss becomes the primary below
-    }
-  })();
-
-  const classification = detailsQ.data?.classification;
-  const ocr = detailsQ.data?.ocr;
-
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title={title} backTo="/inbox" />
       <div className="px-5 pb-2 pt-1 text-center">
         <p className="truncate text-[17px] font-extrabold">{item.filename}</p>
       </div>
-      <div className="mx-3.5 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-warn">
-          Needs a decision
-        </p>
-        <p className="text-[12.5px] leading-snug text-warn">
-          {triageSubtitle(item)}
-        </p>
-        {triageSubtitle(item) !== item.reason && (
-          <p className="mt-1 text-[11px] leading-snug text-warn opacity-80">
-            {item.reason}
-          </p>
-        )}
-      </div>
+      <TriageDecisionPanel
+        documentId={docId}
+        item={item}
+        busy={busy}
+        onOpen={setSheet}
+        onArchive={() => setConfirm('dismiss')}
+        onResolved={finishTriage}
+      />
       <DocPreviewRow documentId={docId} />
-      {classification != null && classification.ok && (
-        <ListGroup label="AI read (saved at intake)">
-          <KeyValue
-            k="Amount"
-            v={signedEuros(-classification.result.gross_amount)}
-          />
-          <KeyValue
-            k="VAT"
-            v={
-              vatRatePct(
-                classification.result.gross_amount,
-                classification.result.vat_amount,
-              ) !== null
-                ? `${fmtCents(classification.result.vat_amount)} € (${vatRatePct(classification.result.gross_amount, classification.result.vat_amount)}%)`
-                : `${fmtCents(classification.result.vat_amount)} €`
-            }
-          />
-          <KeyValue
-            k="Date"
-            v={absoluteDateFromIso(classification.result.tax_point_date)}
-          />
-          <KeyValue k="Category" v={classification.result.category || '—'} />
-          <KeyValue
-            k="AI confidence"
-            v={
-              <span
-                className={
-                  classification.result.confidence >= 0.9
-                    ? 'text-ok'
-                    : 'text-warn'
-                }
-              >
-                {classification.result.confidence.toFixed(2)}
-              </span>
-            }
-          />
-        </ListGroup>
-      )}
-      {ocr != null && ocr.ok && (
-        <details className="mx-3.5 mb-3 rounded-2xl bg-surface px-3.5 py-3">
-          <summary className="cursor-pointer text-[13px] font-semibold">
-            OCR text
-          </summary>
-          <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap text-[12px] text-ink-2">
-            {ocr.markdown}
-          </pre>
-        </details>
-      )}
+      <TriageDocumentContext details={detailsQ.data} />
 
-      <div className="mx-3.5 mt-2 space-y-2.5">
-        {primary !== null && (
-          <Button
-            className="w-full"
+      <div className="mx-3.5 mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-line pt-3">
+        <button
+          type="button"
+          disabled={busy}
+          className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
+          onClick={() =>
+            void runAction(
+              () => retryDocument(docId),
+              'Queued for a fresh AI run — the queue updates as it lands',
+            )
+          }
+        >
+          <RefreshCw className="size-4" /> Retry AI
+        </button>
+        {item.reason_type !== 'not_a_document' && (
+          <button
+            type="button"
             disabled={busy}
-            onClick={() => setSheet(primary.open)}
-          >
-            {primary.label}
-          </Button>
-        )}
-        <div className="flex gap-2.5">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            disabled={busy}
-            onClick={() =>
-              void runAction(
-                () => retryDocument(docId),
-                'Queued for a fresh AI run — the queue updates as it lands',
-              )
-            }
-          >
-            Retry AI
-          </Button>
-          <Button
-            variant={primary === null ? 'primary' : 'secondary'}
-            className="flex-1"
-            disabled={busy}
+            className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-ink-2 disabled:opacity-50"
             onClick={() => setConfirm('dismiss')}
           >
-            Dismiss
-          </Button>
-        </div>
+            <Archive className="size-4" /> Archive without booking
+          </button>
+        )}
         {item.reason_type === 'not_a_document' && (
           <button
             type="button"
             disabled={busy}
             onClick={() => setConfirm('delete')}
-            className="w-full py-1 text-center text-[13px] font-semibold text-err disabled:opacity-50"
+            className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-err disabled:opacity-50"
           >
-            Delete file…
+            <Trash2 className="size-4" /> Delete file
           </button>
         )}
       </div>
@@ -285,14 +203,14 @@ export function TriageDocScreen() {
         onOpenChange={(o) => {
           if (!o) setConfirm(null);
         }}
-        title="Dismiss this document?"
+        title="Archive without booking?"
         body="It is archived as processed without creating anything. There is no undo."
-        confirmLabel="Dismiss document"
+        confirmLabel="Archive document"
         busy={busy}
         onConfirm={() =>
           void runAction(
             () => completeDocument(docId),
-            'Dismissed — archived without booking',
+            'Archived without booking',
           )
         }
       />
@@ -302,7 +220,7 @@ export function TriageDocScreen() {
           if (!o) setConfirm(null);
         }}
         title="Delete this file?"
-        body="The file is removed entirely. Use Dismiss instead to keep it in the archive."
+        body="The file is removed entirely. Archive it instead if you need to keep the source."
         confirmLabel="Delete"
         destructive
         busy={busy}

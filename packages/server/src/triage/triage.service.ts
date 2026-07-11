@@ -11,10 +11,10 @@ import {
   TriageOutcome,
   DocumentDebug,
   ManualClassifyDto,
-  PendingDraft,
   NeedsTriageItem,
   classifyReasonType,
 } from './types';
+import type { PendingDraft } from './pending-draft';
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.

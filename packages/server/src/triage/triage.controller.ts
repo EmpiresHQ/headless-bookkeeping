@@ -14,10 +14,10 @@ import {
   TriageOutcome,
   DocumentDebug,
   ManualClassifyDto,
-  PendingDraft,
   ResolveSupplierDto,
   NeedsTriageItem,
 } from './types';
+import type { PendingDraft } from './pending-draft';
 
 @ApiTags('triage')
 @Controller()
