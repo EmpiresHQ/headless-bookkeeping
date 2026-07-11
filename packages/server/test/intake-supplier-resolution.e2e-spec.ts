@@ -190,6 +190,7 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
       .expect(200);
     const draft = pd.body as {
       supplier_proposal: {
+        kind: string;
         create_name: string;
         create_country: string;
         create_registration_key: string;
@@ -202,7 +203,9 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
         supplier_invoice_number: string | null;
       };
     };
+    // Discriminated read model: create proposals carry kind: 'create'.
     expect(draft.supplier_proposal).toEqual({
+      kind: 'create',
       create_name: 'Acme OÜ',
       create_country: 'EE',
       create_registration_key: 'EE100200300',
@@ -334,7 +337,23 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     expect(parkedDocument.status).toBe('needs_triage');
     expect(parkedDocument.pending_triage_result).not.toBeNull();
 
-    await http.get(`/api/documents/${documentId}/pending-draft`).expect(404);
+    // The stale match_entity_id (999999) is never surfaced. The operator-facing
+    // read model is an invalid_match: the observed identifiers, and no suggested
+    // supplier (nothing in the book carries reg key EE102139798 here).
+    const pd = await http
+      .get(`/api/documents/${documentId}/pending-draft`)
+      .expect(200);
+    const proposal = (pd.body as { supplier_proposal: unknown })
+      .supplier_proposal;
+    expect(proposal).toEqual({
+      kind: 'invalid_match',
+      observed_country: 'EE',
+      observed_registration_key: 'EE102139798',
+      suggested_supplier: null,
+    });
+    // The stale id may live in the raw diagnostic reason, but never in the
+    // operator-facing supplier proposal / evidence.
+    expect(JSON.stringify(proposal)).not.toContain('999999');
   });
 
   it('resolves a Citybee-shaped invoice with reg key EE102139798 to the pre-seeded supplier', async () => {
@@ -380,5 +399,111 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     expect(expense.gross_amount).toBe(2500);
 
     await http.get(`/api/documents/${documentId}/pending-draft`).expect(404);
+  });
+
+  it('parks a create proposal with NO registration key and exposes it as a null-key create draft', async () => {
+    // Contract behind the production "reading 'trim'" crash: the AI may propose
+    // a create supplier with create_registration_key: null. The read model must
+    // surface that null verbatim so the operator UI tolerates it.
+    const http = authed();
+    jest.spyOn(fauxPass2, 'classify').mockResolvedValueOnce({
+      ok: true,
+      result: {
+        ...createExpenseResult,
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Bolt Operations OÜ',
+          create_country: 'EE',
+          create_registration_key: null,
+          create_email: null,
+          create_phone: null,
+          create_address: null,
+        },
+      },
+    });
+
+    const documentId = await uploadDocument('no-regkey.pdf');
+    const triaged = await http
+      .post(`/api/documents/${documentId}/triage`)
+      .expect(201);
+    expect((triaged.body as { kind: string }).kind).toBe('unknown');
+
+    const pd = await http
+      .get(`/api/documents/${documentId}/pending-draft`)
+      .expect(200);
+    expect(
+      (pd.body as { supplier_proposal: unknown }).supplier_proposal,
+    ).toEqual({
+      kind: 'create',
+      create_name: 'Bolt Operations OÜ',
+      create_country: 'EE',
+      create_registration_key: null,
+      create_email: null,
+      create_phone: null,
+      create_address: null,
+    });
+  });
+
+  it('suggests a supplier for a parked invalid match once one with the observed reg key exists', async () => {
+    const http = authed();
+    jest.spyOn(fauxPass2, 'classify').mockResolvedValueOnce({
+      ok: true,
+      result: {
+        ...createExpenseResult,
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: 999999,
+          observed_country: 'EE',
+          observed_registration_key: 'EE102139798',
+        },
+      },
+    });
+
+    const documentId = await uploadDocument('late-supplier.pdf');
+    await http.post(`/api/documents/${documentId}/triage`).expect(201);
+
+    // No supplier carries that reg key yet → no suggestion.
+    const before = await http
+      .get(`/api/documents/${documentId}/pending-draft`)
+      .expect(200);
+    expect(
+      (
+        before.body as {
+          supplier_proposal: { suggested_supplier: unknown };
+        }
+      ).supplier_proposal.suggested_supplier,
+    ).toBeNull();
+
+    // A supplier with the observed strong identifier now exists.
+    const supplier = await app.get(EntitiesService).onboard({
+      role: 'supplier',
+      name: 'Citybee Eesti OÜ',
+      country: 'EE',
+      registrationKey: 'EE102139798',
+    });
+
+    // The read model resolves the strong identifier to a suggestion — the stale
+    // match id (999999) is never exposed.
+    const after = await http
+      .get(`/api/documents/${documentId}/pending-draft`)
+      .expect(200);
+    expect(
+      (after.body as { supplier_proposal: unknown }).supplier_proposal,
+    ).toEqual({
+      kind: 'invalid_match',
+      observed_country: 'EE',
+      observed_registration_key: 'EE102139798',
+      suggested_supplier: {
+        id: supplier.id,
+        name: 'Citybee Eesti OÜ',
+        country: 'EE',
+        registration_key: 'EE102139798',
+      },
+    });
+    expect(
+      JSON.stringify(
+        (after.body as { supplier_proposal: unknown }).supplier_proposal,
+      ),
+    ).not.toContain('999999');
   });
 });

@@ -222,6 +222,66 @@ describe('TriageDocScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('resolves a supplier_unresolved doc whose proposal has a NULL registration key without crashing', async () => {
+    // End-to-end regression for the production "reading 'trim'" crash: open the
+    // real triage screen for a supplier_unresolved doc whose create proposal
+    // has create_registration_key: null, open the resolve sheet, and resolve
+    // via an existing supplier — the whole path must render and complete.
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        reason_type: 'supplier_unresolved',
+        reason: 'supplier not found',
+      }),
+      ITEM({ id: 13, filename: 'later.pdf', created_at: 200 }),
+    ]);
+    vi.mocked(api.getPendingDraft).mockResolvedValue({
+      document_id: 12,
+      reason: 'supplier not found',
+      supplier_proposal: {
+        kind: 'create',
+        create_name: 'Bolt Operations OÜ',
+        create_country: 'EE',
+        create_registration_key: null,
+        create_email: null,
+        create_phone: null,
+        create_address: null,
+      },
+      draft: {
+        category: 'transport',
+        gross_amount: 1599,
+        vat_amount: 288,
+        currency: 'EUR',
+        tax_point_date: '2026-07-08',
+        supplier_invoice_number: null,
+      },
+    });
+    vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    vi.mocked(api.resolveSupplier).mockResolvedValue({
+      kind: 'expense',
+      document_id: 12,
+      expense_id: 500,
+    });
+    const router = renderAt('/inbox/doc/12');
+    // Open the resolve sheet from the create proposal — no crash on prefill.
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review and create supplier' }),
+    );
+    expect(
+      await screen.findByText('Resolve supplier', { selector: 'h2' }),
+    ).toBeInTheDocument();
+    // Resolve to an existing supplier via search and advance to the next doc.
+    fireEvent.change(await screen.findByPlaceholderText(/search suppliers/i), {
+      target: { value: 'circle' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Circle K Eesti AS/ }));
+    await waitFor(() =>
+      expect(api.resolveSupplier).toHaveBeenCalledWith(12, 3),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+    );
+  });
+
   it('turns an invalid supplier match into a direct, evidence-backed resolution', async () => {
     vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
       ITEM({

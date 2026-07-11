@@ -128,4 +128,122 @@ describe('ResolveSupplierSheet', () => {
     );
     expect(onDone).toHaveBeenCalledWith(OUTCOME);
   });
+
+  // Reg. key is the 3rd textbox (Name, Country, Reg. key); the search box is a
+  // type="search" searchbox, so it is excluded from getAllByRole('textbox').
+  const regKeyInput = () => screen.getAllByRole('textbox')[2];
+
+  it('prefills a create proposal with a NULL registration key without crashing', async () => {
+    // Regression for the production crash "Cannot read properties of null
+    // (reading 'trim')": create_registration_key is `string | null`. A null
+    // value used to land in regKey state and blow up `regKey.trim()` during
+    // render. It must prefill as an empty string instead.
+    vi.mocked(api.getPendingDraft).mockResolvedValue({
+      document_id: 12,
+      reason: 'supplier unresolved',
+      supplier_proposal: {
+        kind: 'create',
+        create_name: 'Bolt Operations OÜ',
+        create_country: 'EE',
+        create_registration_key: null,
+        create_email: null,
+        create_phone: null,
+        create_address: null,
+      },
+      draft: {
+        category: 'transport',
+        gross_amount: 1599,
+        vat_amount: 288,
+        currency: 'EUR',
+        tax_point_date: '2026-07-08',
+        supplier_invoice_number: null,
+      },
+    });
+    renderSheet();
+    // Renders without crashing; name prefilled, reg key empty.
+    expect(
+      await screen.findByDisplayValue('Bolt Operations OÜ'),
+    ).toBeInTheDocument();
+    expect(regKeyInput()).toHaveValue('');
+    // Create is gated on the (missing) reg key…
+    expect(
+      screen.getByRole('button', { name: /Create supplier & book/ }),
+    ).toBeDisabled();
+    // …and typing one in enables it — the field is live, not frozen.
+    fireEvent.change(regKeyInput(), { target: { value: 'EE102139798' } });
+    expect(
+      screen.getByRole('button', { name: /Create supplier & book/ }),
+    ).toBeEnabled();
+  });
+
+  it('prefills an invalid_match proposal from observed identifiers without crashing', async () => {
+    vi.mocked(api.getPendingDraft).mockResolvedValue({
+      document_id: 12,
+      reason: 'match proposal references entity 705731, which does not exist',
+      supplier_proposal: {
+        kind: 'invalid_match',
+        observed_country: 'EE',
+        observed_registration_key: 'EE102139798',
+        suggested_supplier: {
+          id: 37,
+          name: 'Citybee Eesti OÜ',
+          country: 'EE',
+          registration_key: 'EE102139798',
+        },
+      },
+      draft: {
+        category: 'transport',
+        gross_amount: 1599,
+        vat_amount: 288,
+        currency: 'EUR',
+        tax_point_date: '2026-07-08',
+        supplier_invoice_number: null,
+      },
+    });
+    const onDone = renderSheet();
+    // Country + reg key prefill from the observed identifiers; name stays empty
+    // (the invalid match carries no trustworthy name). No crash.
+    expect(await screen.findByDisplayValue('EE102139798')).toBeInTheDocument();
+    const [nameInput] = screen.getAllByRole('textbox');
+    expect(nameInput).toHaveValue('');
+    // Resolving to an existing supplier via search still works end to end.
+    fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
+      target: { value: 'wolt' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Wolt Eesti OÜ/ }));
+    await waitFor(() =>
+      expect(api.resolveSupplier).toHaveBeenCalledWith(12, 3),
+    );
+    expect(onDone).toHaveBeenCalledWith(OUTCOME);
+  });
+
+  it('prefills an invalid_match proposal with all-null observed identifiers without crashing', async () => {
+    vi.mocked(api.getPendingDraft).mockResolvedValue({
+      document_id: 12,
+      reason: 'supplier could not be resolved',
+      supplier_proposal: {
+        kind: 'invalid_match',
+        observed_country: null,
+        observed_registration_key: null,
+        suggested_supplier: null,
+      },
+      draft: {
+        category: 'transport',
+        gross_amount: 1599,
+        vat_amount: 288,
+        currency: 'EUR',
+        tax_point_date: '2026-07-08',
+        supplier_invoice_number: null,
+      },
+    });
+    renderSheet();
+    // All three fields render empty, no crash; create is gated until filled.
+    await waitFor(() => expect(screen.getAllByRole('textbox')).toHaveLength(3));
+    for (const box of screen.getAllByRole('textbox')) {
+      expect(box).toHaveValue('');
+    }
+    expect(
+      screen.getByRole('button', { name: /Create supplier & book/ }),
+    ).toBeDisabled();
+  });
 });
