@@ -19,6 +19,13 @@ import { CategoryService } from '../categories/category.service';
 import { MastraService } from './mastra.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 
+const EXPECTED_ENRICHMENT_TOOL_NAMES = [
+  'listCategories',
+  'getClassificationMemory',
+  'previewCategoryMapping',
+  'getClassificationContext',
+] as const;
+
 describe('MastraService', () => {
   let db: Kysely<Database>;
   let service: MastraService;
@@ -66,8 +73,9 @@ describe('MastraService', () => {
 
     service = module.get(MastraService);
 
-    // Agents are built on demand via buildTriageAgent()/buildBankMappingAgent().
-    // Those statically import @mastra/*; under Jest the specifiers map to
+    // Agents are built on demand via buildTriageEnrichmentAgent() /
+    // buildTriageClassificationAgent() / buildBankMappingAgent(). Those
+    // statically import @mastra/*; under Jest the specifiers map to
     // test/mastra-stub.ts (see moduleNameMapper), so the real Agent API is
     // exercised against the stub classes. Each build re-reads the settings table.
   });
@@ -76,15 +84,30 @@ describe('MastraService', () => {
     await db.destroy();
   });
 
-  describe('buildTriageAgent', () => {
-    it('resolves in DI and builds a triage agent on demand', async () => {
-      expect(service).toBeDefined();
-      expect(await service.buildTriageAgent()).not.toBeNull();
+  describe('buildBankMappingAgent', () => {
+    it('builds a tool-less bank-mapping agent from settings', async () => {
+      const agent = await service.buildBankMappingAgent();
+
+      expect(agent.model).toBe('openai/gpt-4o-mini');
+      expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
+    });
+  });
+
+  describe('buildTriageEnrichmentAgent', () => {
+    it('builds a read-only enrichment agent led by getClassificationContext', async () => {
+      const agent = await service.buildTriageEnrichmentAgent();
+      const toolNames = Object.keys((await agent.listTools()) ?? {});
+
+      expect(toolNames).toEqual(
+        expect.arrayContaining(EXPECTED_ENRICHMENT_TOOL_NAMES),
+      );
+      expect(toolNames).toHaveLength(EXPECTED_ENRICHMENT_TOOL_NAMES.length);
+      expect(toolNames).not.toContain('searchSuppliers');
+      expect(toolNames).toContain('getClassificationContext');
     });
 
     it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', async () => {
-      const agent = await service.buildTriageAgent();
-
+      const agent = await service.buildTriageEnrichmentAgent();
       const toolNames = Object.keys((await agent.listTools()) ?? {});
       const writeKeywords = ['post', 'createDraft', 'proposeDraft'];
 
@@ -95,64 +118,70 @@ describe('MastraService', () => {
       }
     });
 
-    it('agent has the expected read-only tools', async () => {
-      const agent = await service.buildTriageAgent();
-
-      const toolNames = Object.keys((await agent.listTools()) ?? {});
-
-      expect(toolNames).toContain('searchSuppliers');
-      expect(toolNames).toContain('listCategories');
-      expect(toolNames).toContain('getClassificationMemory');
-      expect(toolNames).toContain('previewCategoryMapping');
-      // The composed deep read is the primary path (granular tools retained).
-      expect(toolNames).toContain('getClassificationContext');
-      expect(toolNames).toHaveLength(5);
-    });
-
     it('falls back to the default model when no setting row exists', async () => {
-      const agent = await service.buildTriageAgent();
+      const agent = await service.buildTriageEnrichmentAgent();
       expect(agent.model).toBe('openai/gpt-4o-mini');
-    });
-
-    it('reads the model from the settings table on each build', async () => {
-      await db
-        .insertInto('setting')
-        .values({
-          key: 'ai_model',
-          value: 'openai/gpt-4o',
-          updated_at: Math.floor(Date.now() / 1000),
-        })
-        .execute();
-
-      // No re-initialization step: the next build simply re-reads settings.
-      const agent = await service.buildTriageAgent();
-      expect(agent.model).toBe('openai/gpt-4o');
     });
 
     it('resolves model and instructions from AgentConfigService (per-agent override)', async () => {
       await db
         .insertInto('setting')
         .values([
-          { key: 'ai_model.triage', value: 'openai/gpt-4o', updated_at: 0 },
           {
-            key: 'prompt.triage',
-            value: 'SEEDED TRIAGE PROMPT',
+            key: 'ai_model.triage_enrichment',
+            value: 'openai/gpt-4o',
+            updated_at: 0,
+          },
+          {
+            key: 'prompt.triage_enrichment',
+            value: 'SEEDED ENRICHMENT PROMPT',
             updated_at: 0,
           },
         ])
         .execute();
 
-      const agent = await service.buildTriageAgent();
+      const agent = await service.buildTriageEnrichmentAgent();
       expect(agent.model).toBe('openai/gpt-4o');
-      // withCategoryList appends the valid category keys from the active plugin;
-      // the seeded prompt is retained as the leading prefix.
-      expect(await agent.getInstructions()).toContain('SEEDED TRIAGE PROMPT');
+      expect(await agent.getInstructions()).toContain(
+        'SEEDED ENRICHMENT PROMPT',
+      );
+    });
+  });
+
+  describe('buildTriageClassificationAgent', () => {
+    it('builds a strict classification agent with no tools', async () => {
+      const agent = await service.buildTriageClassificationAgent();
+
+      expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
     });
 
-    it('builds a tool-less bank-mapping agent from settings', async () => {
-      const agent = await service.buildBankMappingAgent();
+    it('falls back to the default model when no setting row exists', async () => {
+      const agent = await service.buildTriageClassificationAgent();
       expect(agent.model).toBe('openai/gpt-4o-mini');
-      expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
+    });
+
+    it('resolves model and instructions from AgentConfigService (per-agent override)', async () => {
+      await db
+        .insertInto('setting')
+        .values([
+          {
+            key: 'ai_model.triage_classification',
+            value: 'openai/gpt-4o',
+            updated_at: 0,
+          },
+          {
+            key: 'prompt.triage_classification',
+            value: 'SEEDED CLASSIFICATION PROMPT',
+            updated_at: 0,
+          },
+        ])
+        .execute();
+
+      const agent = await service.buildTriageClassificationAgent();
+      expect(agent.model).toBe('openai/gpt-4o');
+      expect(await agent.getInstructions()).toContain(
+        'SEEDED CLASSIFICATION PROMPT',
+      );
     });
   });
 });

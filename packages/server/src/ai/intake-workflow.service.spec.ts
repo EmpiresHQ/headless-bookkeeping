@@ -22,7 +22,7 @@ import { EntitiesService } from '../entities/entities.service';
 import { OrganizationService } from '../organization/organization.service';
 import { BankIngestionService } from '../bank/bank-ingestion.service';
 import { ProcessingGate } from './processing-gate';
-import { TriageResult } from '../triage/types';
+import { TriageResult, Pass2Enrichment } from '../triage/types';
 
 describe('IntakeWorkflowService', () => {
   let db: Kysely<Database>;
@@ -80,6 +80,14 @@ describe('IntakeWorkflowService', () => {
       has_buyer_block: false,
       self_identifies_as_invoice: false,
     },
+    ...overrides,
+  });
+
+  const sampleEnrichment = (
+    overrides: Partial<Pass2Enrichment> = {},
+  ): Pass2Enrichment => ({
+    summary:
+      'Resolved supplier evidence: country=EE, registration_key=EE100200300',
     ...overrides,
   });
 
@@ -299,6 +307,74 @@ describe('IntakeWorkflowService', () => {
       expect(details.classification).toBeNull();
       expect(mockPass2Agent.classify).not.toHaveBeenCalled();
     });
+
+    it('returns persisted pending-triage classification context for a parked supplier-unresolved document', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({
+        supplier_proposal: {
+          mode: 'create',
+          create_name: 'Acme OÜ',
+          create_country: 'EE',
+          create_registration_key: 'EE100200300',
+          create_email: null,
+          create_phone: null,
+          create_address: null,
+        },
+      });
+      const enrichment = sampleEnrichment();
+
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: triage,
+        enrichment,
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'supplier-unresolved',
+        reason: 'supplier unresolved',
+      });
+
+      await service.process(docId);
+      mockPass2Agent.classify.mockClear();
+
+      const details = await service.details(docId);
+
+      expect(details.document_id).toBe(docId);
+      expect(details.ocr).toEqual({
+        ok: true,
+        markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
+      });
+      expect(details.classification).toEqual({
+        ok: true,
+        result: triage,
+        enrichment,
+      });
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('debug', () => {
+    it('re-runs OCR + Pass 2 and returns the live classification snapshot', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({ confidence: 0.88 });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: triage,
+      });
+
+      const debug = await service.debug(docId);
+
+      expect(mockPass2Agent.classify).toHaveBeenCalledWith(
+        '# Receipt\nSupplier: Test\nAmount: €15.25',
+      );
+      expect(debug).toMatchObject({
+        document_id: docId,
+        ocr: {
+          ok: true,
+          markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
+        },
+        classification: { ok: true, result: triage },
+      });
+    });
   });
 
   describe('process — routing', () => {
@@ -328,6 +404,7 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
         triageResult,
         docId,
+        undefined,
         undefined,
         undefined,
       );
@@ -520,7 +597,7 @@ describe('IntakeWorkflowService', () => {
       const result = await service.process(docId);
 
       expect(result.status).toBe('needs_triage');
-      expect(setPendingSpy).toHaveBeenCalledWith(docId, triage);
+      expect(setPendingSpy).toHaveBeenCalledWith(docId, triage, null);
 
       setPendingSpy.mockRestore();
     });
@@ -936,7 +1013,8 @@ describe('IntakeWorkflowService', () => {
       mockPass2Agent.classify.mockResolvedValue({
         ok: false,
         category: 'invalid-output',
-        detail: 'schema parse failed',
+        detail:
+          'strict classification failed after 3 attempts: schema parse failed',
       });
 
       const result = await service.process(docId);
@@ -947,6 +1025,8 @@ describe('IntakeWorkflowService', () => {
           pass: 'classify',
           category: 'invalid-output',
         });
+        expect(result.reason).toContain('strict classification');
+        expect(result.reason).not.toContain('enrichment phase');
       }
     });
 
@@ -955,7 +1035,7 @@ describe('IntakeWorkflowService', () => {
       mockPass2Agent.classify.mockResolvedValue({
         ok: false,
         category: 'transient',
-        detail: 'LLM timeout',
+        detail: 'strict classification failed after 3 attempts: LLM timeout',
       });
 
       const result = await service.process(docId);
@@ -966,10 +1046,83 @@ describe('IntakeWorkflowService', () => {
           pass: 'classify',
           category: 'transient',
         });
+        expect(result.reason).toContain('strict classification');
+        expect(result.reason).not.toContain('enrichment phase');
       }
       // The Document still moves to needs_triage (durable wait, ADR-0024).
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('needs_triage');
+    });
+
+    it('routes needs_triage and surfaces enrichment-failed with phase context', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'enrichment-failed',
+        detail: 'enrichment phase failed: tool provider offline',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'enrichment-failed',
+        });
+        expect(result.reason).toContain('enrichment');
+        expect(result.reason).toContain('enrichment-failed');
+        expect(result.reason).not.toContain('strict classification');
+      }
+    });
+
+    it('routes needs_triage and surfaces enrichment-incomplete with phase context', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'enrichment-incomplete',
+        detail: 'enrichment phase returned no reusable summary',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'enrichment-incomplete',
+        });
+        expect(result.reason).toContain('enrichment');
+        expect(result.reason).toContain('enrichment-incomplete');
+        expect(result.reason).toContain('no reusable summary');
+        expect(result.reason).not.toContain('strict classification');
+      }
+    });
+
+    it('routes needs_triage and surfaces enrichment-tool-not-called with phase context', async () => {
+      // The issue #179 production failure mode: the deterministic supplier
+      // lookup never ran. Distinct diagnostic — observable apart from a
+      // thrown enrichment error or an empty summary.
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'enrichment-tool-not-called',
+        detail:
+          'enrichment phase completed without invoking getClassificationContext',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'enrichment-tool-not-called',
+        });
+        expect(result.reason).toContain('enrichment');
+        expect(result.reason).toContain('enrichment-tool-not-called');
+        expect(result.reason).not.toContain('strict classification');
+      }
     });
   });
 
@@ -1233,6 +1386,7 @@ describe('IntakeWorkflowService', () => {
         docId,
         3,
         null,
+        undefined,
       );
       // Document moved to triaged.
       const doc = await documentsService.getById(docId);
@@ -1256,6 +1410,49 @@ describe('IntakeWorkflowService', () => {
 
       resolveSpy.mockRestore();
       clearSpy.mockRestore();
+    });
+
+    it('replays the persisted Pass 2 enrichment when resolving a parked supplier-unresolved document', async () => {
+      const docId = await seedDocument();
+      const enrichment = sampleEnrichment({
+        summary: 'Observed supplier identity: EE100200300 / Acme OÜ',
+      });
+
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: triage,
+        enrichment,
+      });
+      mockProposeDraft.proposeDraft
+        .mockResolvedValueOnce({
+          outcome: 'supplier-unresolved',
+          reason: 'supplier unresolved',
+        })
+        .mockResolvedValueOnce({
+          outcome: 'draft',
+          expenseId: 56,
+          pipelineResult: {},
+        });
+      mockEntities.findById.mockResolvedValue({ id: 3, role: 'supplier' });
+
+      const firstPass = await service.process(docId);
+      expect(firstPass.status).toBe('needs_triage');
+
+      mockProposeDraft.proposeDraft.mockClear();
+
+      const replay = await service.resolveSupplier(docId, 3);
+
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
+        triage,
+        docId,
+        3,
+        null,
+        enrichment,
+      );
+      expect(replay).toEqual({
+        status: 'draft_proposed',
+        draft: { outcome: 'draft', expenseId: 56, pipelineResult: {} },
+      });
     });
 
     it('rejects a document that is not awaiting triage', async () => {

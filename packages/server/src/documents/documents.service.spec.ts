@@ -610,12 +610,82 @@ describe('DocumentsService (unit)', () => {
           self_identifies_as_invoice: false,
         },
       };
+      const enrichment = {
+        summary: 'Observed supplier evidence: Acme OÜ / EE100200300',
+      };
 
-      await service.setPendingTriageResult(doc.id, triage);
+      await service.setPendingTriageResult(doc.id, triage, enrichment);
       expect(await service.getPendingTriageResult(doc.id)).toEqual(triage);
+      expect(await service.getPendingTriageReplay(doc.id)).toEqual({
+        triageResult: triage,
+        enrichment,
+      });
 
       await service.setPendingTriageResult(doc.id, null);
       expect(await service.getPendingTriageResult(doc.id)).toBeNull();
+      expect(await service.getPendingTriageReplay(doc.id)).toBeNull();
+    });
+
+    it('strips unknown fields when replaying the stored triage blob', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-extra-fields',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await db
+        .updateTable('document')
+        .set({
+          pending_triage_result: JSON.stringify({
+            kind: 'new_expense',
+            gross_amount: 1525,
+            vat_amount: 285,
+            tax_point_date: '2026-03-15',
+            category: 'software',
+            document_type: 'invoice',
+            currency: 'EUR',
+            document_vat_marking: null,
+            supplier_invoice_number: 'INV-7',
+            confidence: 0.42,
+            outgoing_signals: {
+              org_name_is_issuer: false,
+              org_vat_is_issuer: false,
+              has_buyer_block: false,
+              self_identifies_as_invoice: false,
+            },
+            enrichment: { summary: 'lost on parse' },
+          }),
+        })
+        .where('id', '=', doc.id)
+        .execute();
+
+      expect(await service.getPendingTriageResult(doc.id)).toEqual({
+        kind: 'new_expense',
+        gross_amount: 1525,
+        vat_amount: 285,
+        tax_point_date: '2026-03-15',
+        category: 'software',
+        document_type: 'invoice',
+        currency: 'EUR',
+        document_vat_marking: null,
+        supplier_invoice_number: 'INV-7',
+        confidence: 0.42,
+        outgoing_signals: {
+          org_name_is_issuer: false,
+          org_vat_is_issuer: false,
+          has_buyer_block: false,
+          self_identifies_as_invoice: false,
+        },
+      });
     });
 
     it('throws when the stored blob is malformed', async () => {
@@ -641,6 +711,71 @@ describe('DocumentsService (unit)', () => {
         .execute();
 
       await expect(service.getPendingTriageResult(doc.id)).rejects.toThrow();
+    });
+
+    it('returns enrichment: null when the stored enrichment blob is malformed', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: 'h-bad-enrichment',
+          filename: 'f.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await db
+        .updateTable('document')
+        .set({
+          pending_triage_result: JSON.stringify({
+            kind: 'new_expense',
+            gross_amount: 1525,
+            vat_amount: 285,
+            tax_point_date: '2026-03-15',
+            category: 'software',
+            document_type: 'invoice',
+            currency: 'EUR',
+            document_vat_marking: null,
+            supplier_invoice_number: 'INV-7',
+            confidence: 0.42,
+            outgoing_signals: {
+              org_name_is_issuer: false,
+              org_vat_is_issuer: false,
+              has_buyer_block: false,
+              self_identifies_as_invoice: false,
+            },
+          }),
+          pending_triage_enrichment: '{not valid enrichment}',
+        })
+        .where('id', '=', doc.id)
+        .execute();
+
+      expect(await service.getPendingTriageReplay(doc.id)).toEqual({
+        triageResult: {
+          kind: 'new_expense',
+          gross_amount: 1525,
+          vat_amount: 285,
+          tax_point_date: '2026-03-15',
+          category: 'software',
+          document_type: 'invoice',
+          currency: 'EUR',
+          document_vat_marking: null,
+          supplier_invoice_number: 'INV-7',
+          confidence: 0.42,
+          outgoing_signals: {
+            org_name_is_issuer: false,
+            org_vat_is_issuer: false,
+            has_buyer_block: false,
+            self_identifies_as_invoice: false,
+          },
+        },
+        enrichment: null,
+      });
     });
   });
 

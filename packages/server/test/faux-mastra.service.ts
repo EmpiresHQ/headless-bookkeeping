@@ -5,7 +5,10 @@ export const fauxMastraService: MastraService = {
   // The agent builders reject so any path that reaches the real LLM in an e2e
   // (where there is no inference endpoint) fails fast and visibly rather than
   // hanging. Suites that exercise classification override Pass2AgentService too.
-  buildTriageAgent: () => Promise.reject(new Error('faux: no agent in e2e')),
+  buildTriageEnrichmentAgent: () =>
+    Promise.reject(new Error('faux: no agent in e2e')),
+  buildTriageClassificationAgent: () =>
+    Promise.reject(new Error('faux: no agent in e2e')),
   buildBankMappingAgent: () =>
     Promise.reject(new Error('faux: no agent in e2e')),
 } as unknown as MastraService;

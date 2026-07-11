@@ -23,8 +23,13 @@ const ENDPOINT_DEFS: SettingDef[] = [
 const MODEL_DEFS: SettingDef[] = [
   { key: 'ai_model', label: 'Global model', placeholder: 'openai/gpt-4o-mini' },
   {
-    key: 'ai_model.triage',
-    label: 'Model — triage',
+    key: 'ai_model.triage_enrichment',
+    label: 'Triage — enrichment model',
+    placeholder: '(inherits global)',
+  },
+  {
+    key: 'ai_model.triage_classification',
+    label: 'Triage — classification model',
     placeholder: '(inherits global)',
   },
   {
@@ -41,8 +46,14 @@ const MODEL_DEFS: SettingDef[] = [
 
 const PROMPT_DEFS: SettingDef[] = [
   {
-    key: 'prompt.triage',
-    label: 'Prompt — triage',
+    key: 'prompt.triage_enrichment',
+    label: 'Triage — enrichment prompt',
+    placeholder: '(built-in default)',
+    multiline: true,
+  },
+  {
+    key: 'prompt.triage_classification',
+    label: 'Triage — classification prompt',
     placeholder: '(built-in default)',
     multiline: true,
   },

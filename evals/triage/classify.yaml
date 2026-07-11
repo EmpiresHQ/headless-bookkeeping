@@ -136,3 +136,25 @@ tests:
             && sp.create_registration_key.replace(/\s/g, '').toUpperCase().includes('EE100200300')
             && typeof sp.create_email === 'string' && sp.create_email.includes('billing@example.ee')
             && typeof sp.create_phone === 'string' && /\d/.test(sp.create_phone);
+
+  - description: Citybee EE car-sharing invoice with reg key EE102139798 → existing-supplier match
+    vars:
+      markdown: |
+        Citybee OÜ
+        Reg. No. 102139798  VAT EE102139798
+        Pärnu mnt 150, Tallinn, Estonia
+        Invoice No. CB-2026-001   Date: 15.06.2026
+        Car sharing service        20,00 EUR
+        VAT 22%                     4,40 EUR
+        Total                      24,40 EUR
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          const o = typeof output === 'string' ? JSON.parse(output) : output;
+          const sp = o.supplier_proposal;
+          return o.kind === 'new_expense'
+            && sp && sp.mode === 'create'
+            && typeof sp.create_registration_key === 'string'
+            && sp.create_registration_key.replace(/\s/g, '').toUpperCase().includes('EE102139798')
+            && sp.create_country === 'EE';

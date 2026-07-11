@@ -201,6 +201,32 @@ export interface PendingDraft {
 }
 
 /**
+ * Pass2Enrichment — the deterministic enrichment phase's captured output
+ * (ADR-0024 / issue #179's split enrichment-then-classify trust boundary).
+ *
+ * Lives here (not in `ai/pass2-agent.service.ts`) so this module — and
+ * DocumentsService, which persists it on `pending_triage_result` — never
+ * needs to import from `ai/`. The AI layer imports this type FROM
+ * `triage/types.ts`, not the other way around.
+ *
+ * `supplier.matchEntityId` is set ONLY when it came from the deterministic
+ * `getClassificationContext` tool result captured during the enrichment call
+ * — never from the model's free-text summary or its own guess. This is the
+ * trusted value `propose-draft.service.ts`'s guard checks a model-emitted
+ * `match_entity_id` against.
+ */
+const pass2EnrichmentSupplierSchema = z.object({
+  matchEntityId: z.number().int().positive().optional(),
+});
+
+export const pass2EnrichmentSchema = z.object({
+  summary: z.string(),
+  supplier: pass2EnrichmentSupplierSchema.optional(),
+});
+
+export type Pass2Enrichment = z.infer<typeof pass2EnrichmentSchema>;
+
+/**
  * Read-only debug snapshot for a document: what Pass-1 OCR transcribed and what
  * Pass-2 (the LLM) classified it as — for understanding a routing decision
  * (e.g. why a document was tagged 'correction'). Re-runs Pass-2 on the (cached)
@@ -213,7 +239,7 @@ export interface DocumentDebug {
     | { ok: false; category: string; detail: string };
   // null when OCR failed — there is nothing to classify.
   classification:
-    | { ok: true; result: TriageResult }
+    | { ok: true; result: TriageResult; enrichment?: Pass2Enrichment }
     | { ok: false; category: string; detail: string }
     | null;
 }

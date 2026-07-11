@@ -12,6 +12,7 @@ import { OcrService } from '../src/triage/ocr.service';
 import { Pass2AgentService } from '../src/ai/pass2-agent.service';
 import { EntitiesService } from '../src/entities/entities.service';
 import { ZodValidationPipe } from '../src/common/pipes/zod-validation.pipe';
+import type { TriageResult } from '../src/triage/types';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { mkdtempSync, rmSync } from 'fs';
@@ -43,34 +44,40 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
   let root: string;
   let apiToken: string;
 
-  /** Deterministic Pass-2: confident create-supplier new_expense. */
-  const fauxPass2 = {
-    classify: () =>
-      Promise.resolve({
-        ok: true,
-        result: {
-          kind: 'new_expense',
-          gross_amount: 1525,
-          vat_amount: 285,
-          tax_point_date: '2026-03-15',
-          category: 'software',
-          supplier_proposal: {
-            mode: 'create',
-            create_name: 'Acme OÜ',
-            create_country: 'EE',
-            create_registration_key: 'EE100200300',
-            create_email: null,
-            create_phone: null,
-            create_address: null,
-          },
-          document_type: 'invoice',
-          currency: 'EUR',
-          document_vat_marking: null,
-          supplier_invoice_number: 'INV-7',
-          confidence: 0.99,
-        },
-      }),
+  const createExpenseResult: TriageResult = {
+    kind: 'new_expense',
+    gross_amount: 1525,
+    vat_amount: 285,
+    tax_point_date: '2026-03-15',
+    category: 'software',
+    supplier_proposal: {
+      mode: 'create',
+      create_name: 'Acme OÜ',
+      create_country: 'EE',
+      create_registration_key: 'EE100200300',
+      create_email: null,
+      create_phone: null,
+      create_address: null,
+    },
+    document_type: 'invoice',
+    currency: 'EUR',
+    document_vat_marking: null,
+    supplier_invoice_number: 'INV-7',
+    confidence: 0.99,
+    outgoing_signals: {
+      org_name_is_issuer: false,
+      org_vat_is_issuer: false,
+      has_buyer_block: false,
+      self_identifies_as_invoice: false,
+    },
   };
+
+  const buildFauxPass2 = (result: TriageResult) => ({
+    classify: () => Promise.resolve({ ok: true as const, result }),
+  });
+
+  /** Deterministic Pass-2: confident create-supplier new_expense. */
+  const fauxPass2 = buildFauxPass2(createExpenseResult);
 
   /** Pass-1 stub — no OCR engine in the test env. */
   const fauxOcr = {
@@ -150,14 +157,19 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
     };
   };
 
-  /** Upload a fresh doc and triage it to needs_triage; returns its id. */
-  async function uploadAndPark(filename: string): Promise<number> {
+  async function uploadDocument(filename: string): Promise<number> {
     const http = authed();
     const up = await http
       .post('/api/documents')
       .attach('file', Buffer.from(`%PDF-1.4 ${filename}`), filename)
       .expect(201);
-    const documentId = (up.body as { document: { id: number } }).document.id;
+    return (up.body as { document: { id: number } }).document.id;
+  }
+
+  /** Upload a fresh doc and triage it to needs_triage; returns its id. */
+  async function uploadAndPark(filename: string): Promise<number> {
+    const http = authed();
+    const documentId = await uploadDocument(filename);
 
     const triaged = await http
       .post(`/api/documents/${documentId}/triage`)
@@ -244,6 +256,128 @@ describe('intake supplier-unresolved resolution (e2e)', () => {
 
     // Completing the document clears the parked proposal.
     await http.post(`/api/documents/${documentId}/complete`).expect(201);
+
+    await http.get(`/api/documents/${documentId}/pending-draft`).expect(404);
+  });
+
+  it('auto-resolves a match proposal to an existing supplier without operator intervention', async () => {
+    const http = authed();
+    const supplier = await app.get(EntitiesService).onboard({
+      role: 'supplier',
+      name: 'Existing Supplier OÜ',
+      country: 'EE',
+      registrationKey: 'EE102139798',
+    });
+
+    jest.spyOn(fauxPass2, 'classify').mockResolvedValueOnce({
+      ok: true,
+      result: {
+        ...createExpenseResult,
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: supplier.id,
+          observed_country: 'EE',
+          observed_registration_key: 'EE102139798',
+        },
+      },
+    });
+
+    const documentId = await uploadDocument('existing-supplier.pdf');
+    const triaged = await http
+      .post(`/api/documents/${documentId}/triage`)
+      .expect(201);
+    expect((triaged.body as { kind: string }).kind).toBe('expense');
+
+    const expenseId = (triaged.body as { expense_id: number }).expense_id;
+    const expense = await http.get(`/api/expenses/${expenseId}`).expect(200);
+    expect((expense.body as { supplier_id: number }).supplier_id).toBe(
+      supplier.id,
+    );
+
+    await http.get(`/api/documents/${documentId}/pending-draft`).expect(404);
+  });
+
+  it('parks on needs_triage when match_entity_id references a non-existent entity', async () => {
+    const http = authed();
+
+    jest.spyOn(fauxPass2, 'classify').mockResolvedValueOnce({
+      ok: true,
+      result: {
+        ...createExpenseResult,
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: 999999,
+          observed_country: 'EE',
+          observed_registration_key: 'EE102139798',
+        },
+      },
+    });
+
+    const documentId = await uploadDocument('invented-match-id.pdf');
+    const triaged = await http
+      .post(`/api/documents/${documentId}/triage`)
+      .expect(201);
+    expect((triaged.body as { kind: string }).kind).toBe('unknown');
+
+    const expenses = await db
+      .selectFrom('expense')
+      .selectAll()
+      .where('document_id', '=', documentId)
+      .execute();
+    expect(expenses).toHaveLength(0);
+
+    const parkedDocument = await db
+      .selectFrom('document')
+      .select(['status', 'pending_triage_result'])
+      .where('id', '=', documentId)
+      .executeTakeFirstOrThrow();
+    expect(parkedDocument.status).toBe('needs_triage');
+    expect(parkedDocument.pending_triage_result).not.toBeNull();
+
+    await http.get(`/api/documents/${documentId}/pending-draft`).expect(404);
+  });
+
+  it('resolves a Citybee-shaped invoice with reg key EE102139798 to the pre-seeded supplier', async () => {
+    const http = authed();
+    const citybeeSupplier = await app.get(EntitiesService).onboard({
+      role: 'supplier',
+      name: 'Citybee OÜ',
+      country: 'EE',
+      registrationKey: 'EE102139798',
+    });
+
+    jest.spyOn(fauxPass2, 'classify').mockResolvedValueOnce({
+      ok: true,
+      result: {
+        ...createExpenseResult,
+        gross_amount: 2500,
+        vat_amount: 500,
+        supplier_invoice_number: 'CB-2026-001',
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: citybeeSupplier.id,
+          observed_country: 'EE',
+          observed_registration_key: 'EE102139798',
+        },
+      },
+    });
+
+    const documentId = await uploadDocument('citybee.pdf');
+    const triaged = await http
+      .post(`/api/documents/${documentId}/triage`)
+      .expect(201);
+    expect((triaged.body as { kind: string }).kind).toBe('expense');
+
+    const expenseId = (triaged.body as { expense_id: number }).expense_id;
+    const expense = await db
+      .selectFrom('expense')
+      .selectAll()
+      .where('id', '=', expenseId)
+      .executeTakeFirstOrThrow();
+
+    expect(expense.supplier_id).toBe(citybeeSupplier.id);
+    expect(expense.category).toBe('software');
+    expect(expense.gross_amount).toBe(2500);
 
     await http.get(`/api/documents/${documentId}/pending-draft`).expect(404);
   });

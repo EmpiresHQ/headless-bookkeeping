@@ -61,3 +61,14 @@ tests:
         Total                   6,40
         VAT 22%                 1,15
         Paid by card
+
+  - description: Citybee invoice — model must call getClassificationContext to resolve supplier, not fabricate an entity id
+    vars:
+      markdown: |
+        Citybee OÜ
+        Reg. No. 102139798  VAT EE102139798
+        Pärnu mnt 150, Tallinn, Estonia
+        Invoice No. CB-2026-001   Date: 15.06.2026
+        Car sharing service        20,00 EUR
+        VAT 22%                     4,40 EUR
+        Total                      24,40 EUR

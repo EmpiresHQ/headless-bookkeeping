@@ -85,32 +85,61 @@ export class MastraService {
     };
   }
 
-  /**
-   * Build the Pass-2 triage agent fresh from current settings. Read-only tools,
-   * endpoint-aware model config. Throws if the @mastra runtime cannot construct
-   * the agent (missing model credentials, ESM load failure) — callers map that
-   * to an `agent-unavailable` outcome.
-   *
-   * @param orgContext - Optional org identity + direction hint. When provided,
-   *   the agent instructions are augmented so the LLM knows which organization
-   *   issued/received the document and can set `document_type`, `kind`,
-   *   `customer_proposal`, and `outgoing_signals` accurately. When absent,
-   *   behavior is identical to before this parameter was added.
-   */
-  async buildTriageAgent(orgContext?: OrgIdentityContext): Promise<Agent> {
-    const { instructions } = await this.config.resolve('triage');
-    const model = await this.config.resolveModelConfig('triage');
+  private buildEnrichmentTools(): ToolsInput {
+    const {
+      listCategories,
+      getClassificationMemory,
+      previewCategoryMapping,
+      getClassificationContext,
+    } = this.buildTools();
+
+    return {
+      listCategories,
+      getClassificationMemory,
+      previewCategoryMapping,
+      getClassificationContext,
+    };
+  }
+
+  async buildTriageEnrichmentAgent(
+    orgContext?: OrgIdentityContext,
+  ): Promise<Agent> {
+    const instructions =
+      await this.config.resolveInstructions('triage_enrichment');
+    const model = await this.config.resolveModelConfig('triage_enrichment');
     const categories = await this.categoryService.list();
     const baseInstructions = withCategoryList(instructions, categories);
     const finalInstructions = orgContext
       ? withOrgIdentity(baseInstructions, orgContext)
       : baseInstructions;
+
     return new Agent({
-      id: 'triage-agent',
-      name: 'Triage Agent',
+      id: 'triage-enrichment-agent',
+      name: 'Triage Enrichment Agent',
       instructions: finalInstructions,
       model,
-      tools: this.buildTools(),
+      tools: this.buildEnrichmentTools(),
+    });
+  }
+
+  async buildTriageClassificationAgent(
+    orgContext?: OrgIdentityContext,
+  ): Promise<Agent> {
+    const instructions = await this.config.resolveInstructions(
+      'triage_classification',
+    );
+    const model = await this.config.resolveModelConfig('triage_classification');
+    const categories = await this.categoryService.list();
+    const baseInstructions = withCategoryList(instructions, categories);
+    const finalInstructions = orgContext
+      ? withOrgIdentity(baseInstructions, orgContext)
+      : baseInstructions;
+
+    return new Agent({
+      id: 'triage-classification-agent',
+      name: 'Triage Classification Agent',
+      instructions: finalInstructions,
+      model,
     });
   }
 
