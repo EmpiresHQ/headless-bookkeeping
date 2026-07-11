@@ -1,3 +1,38 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-ink antialiased;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI',
+      system-ui, sans-serif;
+  }
+}
+
+/* Route transitions (react-router viewTransition). Basic cross-slide;
+   directional pop refinement comes with the Inbox plan. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: 90ms ease both vt-fade-out;
+  }
+  ::view-transition-new(root) {
+    animation: 180ms ease both vt-slide-in;
+  }
+}
+@keyframes vt-slide-in {
+  from {
+    opacity: 0.6;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes vt-fade-out {
+  to {
+    opacity: 0.4;
+  }
+}

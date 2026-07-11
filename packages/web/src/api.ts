@@ -27,17 +27,35 @@ export interface Organization {
   iban: string | null;
 }
 
+/**
+ * The server's identifier kind union is wider than the three addable-alias
+ * kinds (Reality #5, entities/types.ts identifier union): `email`/`tg_user_id`
+ * arrive on employee/director entities (onboarding identity, ADR-0036),
+ * `phone`/`address` exist server-side but no UI writes them.
+ */
 export interface EntityIdentifier {
   id: number;
   entity_id: number;
-  kind: 'registration_key' | 'iban' | 'merchant_descriptor' | 'name_alias';
+  kind:
+    | 'registration_key'
+    | 'iban'
+    | 'merchant_descriptor'
+    | 'name_alias'
+    | 'email'
+    | 'phone'
+    | 'address'
+    | 'tg_user_id';
   value: string;
   confirmed: boolean;
 }
 
+/** The server's entity role enum — verified entities/types.ts:4. Employees
+ *  and directors are the ADR-0036 claimants (there is NO 'claimant' role). */
+export type EntityRole = 'supplier' | 'customer' | 'employee' | 'director';
+
 export interface Entity {
   id: number;
-  role: string;
+  role: EntityRole;
   country: string;
   name: string;
   goods_vs_services: string | null;
@@ -53,6 +71,9 @@ export interface Expense {
   vat_amount: number;
   currency: string;
   tax_point_date: string;
+  // Present on every list row (expenses/types.ts:19) — the Reports INF join
+  // derives "missing invoice number" gaps from it (Plan 05 Reality #11).
+  supplier_invoice_number: string | null;
   status: string;
   // True when the posted voucher is matched to a bank transaction.
   reconciled: boolean;
@@ -66,6 +87,10 @@ export interface SalesInvoice {
   vat_amount: number;
   currency: string;
   tax_point_date: string;
+  due_date: string | null;
+  // Present on every list row (sales-invoices/types.ts:20) — the invoice
+  // detail links its source document with it.
+  document_id: number | null;
   status: string;
   sent_at: number | null;
   // True when the posted voucher is matched to a bank transaction.
@@ -121,7 +146,7 @@ export interface ReportingPeriod {
   name: string;
   start_date: string;
   end_date: string;
-  status: string;
+  status: 'open' | 'locked';
   filed_at: number | null;
 }
 
@@ -168,6 +193,45 @@ export const getCategories = () =>
   apiFetch<{ categories: CategoryDef[] }>('/api/categories').then(
     (r) => r.categories,
   );
+
+/**
+ * Single-expense detail (GET /api/expenses/:id). Display subset for the
+ * approval detail screen: adds document_id + ai_confidence, which the list
+ * subset (Expense) deliberately omits. NOT extending Expense: the single
+ * fetch carries no `reconciled` flag (that is a list-endpoint enrichment).
+ * voucher_id stays off the typed surface (ADR-0001/ADR-0030).
+ */
+export interface ExpenseDetail {
+  id: number;
+  document_id: number | null;
+  supplier_id: number | null;
+  category: string;
+  gross_amount: number;
+  vat_amount: number;
+  currency: string;
+  tax_point_date: string;
+  status: string;
+  supplier_invoice_number: string | null;
+  ai_confidence: number | null;
+  claimant_id: number | null;
+  created_at: number;
+}
+
+export const getExpense = (id: number) =>
+  apiFetch<ExpenseDetail>(`/api/expenses/${id}`);
+
+/** Set the supplier invoice number on a POSTED expense — no ledger impact;
+ *  400 when the expense's reporting period is locked (expenses.service.ts:
+ *  217-233). The Reports INF-gap fix goes through this. */
+export const setExpenseDocumentMetadata = (
+  id: number,
+  patch: { supplier_invoice_number: string | null },
+) =>
+  apiFetch<ExpenseDetail>(`/api/expenses/${id}/document-metadata`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
 
 // ── Document details (OCR + persisted classification — no LLM re-run) ────────
 export interface DebugTriageResult {
@@ -246,10 +310,114 @@ export const createNextPeriod = (input: CreateNextPeriodInput = {}) =>
     body: JSON.stringify(input),
   });
 
-/** Integer cents → display string, e.g. 615700 -> "6157.00". */
-export const fmtCents = (cents: number): string => (cents / 100).toFixed(2);
+/**
+ * Advisory pre-lock warnings (GET /api/reporting-periods/:id/warnings) —
+ * ADR-0015 warn-and-confirm: the server NEVER blocks locking on these.
+ * NOTE: `description` embeds raw cents ("EUR 65000") — do not render it;
+ * join object_id against the shared lists instead (Plan 05 Reality #8).
+ */
+export interface PeriodWarning {
+  type: 'pending_approval' | 'unposted_draft';
+  object_type: 'expense' | 'sales_invoice';
+  object_id: number;
+  description: string;
+}
+
+export const getPeriodWarnings = (periodId: number) =>
+  apiFetch<{ warnings: PeriodWarning[] }>(
+    `/api/reporting-periods/${periodId}/warnings`,
+  ).then((r) => r.warnings);
+
+/**
+ * File (lock) a period — ONE atomic act: freezes the VAT snapshot AND flips
+ * the period to locked (ADR-0009/0037). Idempotent; 409 when an EARLIER
+ * period is still open (filing proceeds oldest-first). There is NO unlock
+ * endpoint — corrections go forward into the open period.
+ */
+export const lockPeriod = (periodId: number) =>
+  apiFetch<ReportingPeriod>(`/api/reporting-periods/${periodId}/lock`, {
+    method: 'POST',
+  });
+
+// ── Statutory submission lifecycle (ADR-0037: append-only event log) ──────
+/** Folded filing status — the kind of the latest event (fold.ts). */
+export type SubmissionStatus =
+  | 'not_started'
+  | 'prepared'
+  | 'submitted'
+  | 'accepted'
+  | 'rejected'
+  | 'correction_submitted'
+  | 'correction_accepted';
+
+export type SubmissionEventKind = Exclude<SubmissionStatus, 'not_started'>;
+
+/** Operator-recordable kinds — `prepared` is system-emitted at lock only
+ *  (statutory-submission/types.ts:15-22; the server zod-rejects it). */
+export type RecordableSubmissionKind = Exclude<SubmissionEventKind, 'prepared'>;
+
+/** Display subset of a persisted event — the snapshot linkage columns
+ *  (report_kind, source_snapshot_*) stay off the typed surface: internal
+ *  artifact plumbing, not operator data (ADR-0001/0030 discipline). */
+export interface SubmissionEvent {
+  id: number;
+  reporting_period_id: number;
+  event_kind: SubmissionEventKind;
+  external_ref: string | null;
+  occurred_at: number;
+  actor: string;
+  note: string | null;
+}
+
+/** Folded state + full ordered history. `currentSnapshotId` deliberately
+ *  omitted (internal artifact id). A period with no events folds to
+ *  status 'not_started' with an empty history. */
+export interface SubmissionState {
+  status: SubmissionStatus;
+  lastExternalRef: string | null;
+  submissionCount: number;
+  history: SubmissionEvent[];
+}
+
+export const getSubmissionState = (periodId: number) =>
+  apiFetch<SubmissionState>(
+    `/api/reporting-periods/${periodId}/submission-state`,
+  );
+
+export interface RecordSubmissionEventInput {
+  event_kind: RecordableSubmissionKind;
+  external_ref?: string;
+  note?: string;
+}
+
+/** Operator-attested lifecycle event (POST …/submission-events). 404s for a
+ *  period with no frozen snapshot ("lock it before recording"). */
+export const recordSubmissionEvent = (
+  periodId: number,
+  input: RecordSubmissionEventInput,
+) =>
+  apiFetch<SubmissionEvent>(
+    `/api/reporting-periods/${periodId}/submission-events`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+
+/** Euro display formatting: integer cents → "48.20". Negatives carry the
+ *  TYPOGRAPHIC minus U+2212 (figure-width under tabular-nums — aligns with
+ *  '+'-signed inflows). App-wide decision, Plan 06 Task 2. */
+export const fmtCents = (cents: number): string =>
+  (cents < 0 ? '−' : '') + (Math.abs(cents) / 100).toFixed(2);
 
 // ── KMD declaration (GET /api/reporting-periods/:id/kmd) ──────────────────
+// Derived on EVERY read from the period's posted vouchers — a live preview
+// while the period is open; stable once locked only because locked periods
+// reject postings. API TRAP (Plan 05 Reality #7): never add a wrapper for
+// POST /api/reporting-periods/:id/vat-report — generating a snapshot on an
+// OPEN period freezes it early and lock() would silently file the STALE
+// snapshot (vat-report.service.ts:44-52 + reporting-periods.service.ts:203).
 export interface KmdDeclaration {
   reporting_period_id: number;
   period_name: string;
@@ -322,19 +490,56 @@ export interface CorrectionRequest {
   patch?: { gross_amount?: number; vat_amount?: number; category?: string };
 }
 
+/**
+ * Correction result (corrections/types.ts:24-38). `redirected` is true when
+ * the original date sat in a LOCKED period and the reversal + correction were
+ * re-dated into the current open period (ADR-0009). Voucher ids stay off the
+ * typed surface (ADR-0001/0030). NOTE: the server's `kind:'credit_note'`
+ * branch needs a creditNote payload this client deliberately never sends —
+ * credit notes go through POST /api/credit-notes (see CorrectSheet).
+ */
+export interface CorrectionOutcome {
+  outcome: string;
+  redirected?: boolean;
+  redirectedToPeriodId?: number;
+}
+
 export const correctExpense = (id: number, req: CorrectionRequest) =>
-  apiFetch<{ outcome: string }>(`/api/expenses/${id}/correct`, {
+  apiFetch<CorrectionOutcome>(`/api/expenses/${id}/correct`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(req),
   });
 
 export const correctInvoice = (id: number, req: CorrectionRequest) =>
-  apiFetch<{ outcome: string }>(`/api/sales-invoices/${id}/correct`, {
+  apiFetch<CorrectionOutcome>(`/api/sales-invoices/${id}/correct`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(req),
   });
+
+// ── Expense posting pipeline (draft → Rules → Policy → post or hold) ───────
+// The endpoint also returns the posted voucher; it stays off the typed surface
+// on purpose (ADR-0001/ADR-0030 — the operator UI never consumes ledger data).
+export interface PolicyDecisionView {
+  action: 'auto-post' | 'hold-for-approval';
+  reason: string;
+}
+
+export const postExpense = (id: number) =>
+  apiFetch<{ expense: Expense; policy: PolicyDecisionView }>(
+    `/api/expenses/${id}/post`,
+    { method: 'POST' },
+  );
+
+/** Draft → Rules → Policy → post or hold, for sales invoices (mirror of
+ *  postExpense; 409 on non-draft). Voucher stays untyped (ADR-0001/0030). */
+export const postInvoice = (id: number) =>
+  apiFetch<{ invoice: SalesInvoice; policy: PolicyDecisionView }>(
+    `/api/sales-invoices/${id}/post`,
+    { method: 'POST' },
+  );
+
 export const deleteEntity = (id: number) =>
   apiFetch<Entity>(`/api/entities/${id}`, { method: 'DELETE' });
 
@@ -358,13 +563,22 @@ export const addEntityAlias = (id: number, input: AddAliasInput) =>
     body: JSON.stringify({ confirmed: true, ...input }),
   });
 
+/**
+ * POST /api/entities body. Identity is PER-ROLE (entities.service.ts:42-85):
+ * supplier/customer REQUIRE registrationKey (400
+ * 'registrationKey is required for supplier/customer entities'); employee/
+ * director REQUIRE email (400 'email is required for employee/director
+ * entities'), optional tgUserId. The server stores these as identifiers
+ * (registration_key / email / tg_user_id); none is editable afterwards.
+ */
 export interface OnboardEntityInput {
-  role: 'supplier' | 'customer';
+  role: EntityRole;
   country: string;
   name: string;
-  // The strong identity key (e.g. VAT / registry no.) used to match the entity.
-  registrationKey: string;
+  registrationKey?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  email?: string;
+  tgUserId?: string;
 }
 
 export const onboardEntity = (input: OnboardEntityInput) =>
@@ -395,10 +609,17 @@ export type TriageOutcome =
   | { kind: 'bank_statement'; document_id: number; job_id: number }
   | { kind: 'unknown'; document_id: number; reason: string };
 
-export const uploadDocument = (file: File) => {
+export const uploadDocument = (
+  file: File,
+  opts: { claimantId?: number | null } = {},
+) => {
   // Multipart: set NO content-type so the browser adds the boundary.
   const body = new FormData();
   body.append('file', file);
+  // ADR-0036: the employee/director who paid out-of-pocket. The server takes
+  // it as a multipart string field (documents.controller.ts:79,109).
+  if (opts.claimantId != null)
+    body.append('claimant_id', String(opts.claimantId));
   return apiFetch<{ document: DocumentRow; deduplicated: boolean }>(
     '/api/documents',
     { method: 'POST', body },
@@ -449,9 +670,16 @@ export async function fetchDocumentPreviewObjectUrl(
  * Open a document's file in a new tab via a freshly-minted signed URL. Opens a
  * blank tab synchronously (inside the click gesture, so the popup blocker does
  * not eat it), then points it at the token-free /shared link once minted.
+ *
+ * Deliberately NOT passing 'noopener'/'noreferrer' to window.open: per the
+ * HTML spec, either flag makes window.open() return null (no reference to
+ * hand back), which silently broke this into always taking the `else`
+ * branch below and navigating the CURRENT tab away instead of opening a new
+ * one (smoke-tested — Task 16). The target is same-origin (our own
+ * /api/documents/:id/shared), so the opener-access trade-off is acceptable.
  */
 export async function openSignedDocument(id: number): Promise<void> {
-  const tab = window.open('', '_blank', 'noreferrer');
+  const tab = window.open('', '_blank');
   try {
     const { url } = await getSignedDocumentUrl(id);
     if (tab) tab.location.href = url;
@@ -477,15 +705,7 @@ export interface NeedsTriageItem {
   filename: string;
   created_at: number;
   reason: string;
-  reason_type:
-    | 'supplier_unresolved'
-    | 'outgoing_invoice'
-    | 'low_confidence'
-    | 'category_unresolved'
-    | 'ocr_failed'
-    | 'unimplemented'
-    | 'not_a_document'
-    | 'unknown';
+  reason_type: TriageReasonType;
 }
 
 export const getNeedsTriageItems = () =>
@@ -597,6 +817,28 @@ export const rejectApproval = (id: number, reason: string) =>
     body: JSON.stringify({ rejected_reason: reason }),
   });
 
+/** Approvals LOG (GET /api/approvals?status=&object_type=) — the Books
+ *  detail joins the newest rejected approval to show WHY a draft came back
+ *  (rejecting returns the object to draft, ADR-0015). */
+export interface ListApprovalsQuery {
+  status?: 'pending' | 'approved' | 'rejected' | 'superseded';
+  object_type?:
+    | 'expense'
+    | 'sales_invoice'
+    | 'allowance'
+    | 'reconciliation_match';
+}
+
+export const listApprovals = (query: ListApprovalsQuery = {}) => {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.object_type) params.set('object_type', query.object_type);
+  const qs = params.toString();
+  return apiFetch<{ approvals: Approval[] }>(
+    qs ? `/api/approvals?${qs}` : '/api/approvals',
+  ).then((r) => r.approvals);
+};
+
 // ── Settings (admin/settings key/value) ───────────────────────────────────
 export interface Setting {
   key: string;
@@ -667,11 +909,17 @@ export interface CreditNote {
   id: number;
   credit_note_number: string;
   status: string;
-  gross_amount: number;
-  vat_amount: number;
+  gross_amount: number; // integer cents
+  vat_amount: number; // integer cents
+  currency: string;
+  tax_point_date: string;
+  created_at: number;
   credits_object_type: string;
   credits_object_id: number;
 }
+
+export const getCreditNote = (id: number) =>
+  apiFetch<CreditNote>(`/api/credit-notes/${id}`);
 
 export async function createCreditNote(body: {
   credits_object_type: 'sales_invoice' | 'expense';
@@ -792,30 +1040,36 @@ export const getReconciliationStatus = (statementId: number) =>
     `/api/bank-statements/${statementId}/reconciliation`,
   );
 
+// The match endpoint stages DRAFT matches and creates one pending approval per
+// match (settlement happens at approval → activation). The client needs the
+// approval ids to approve-on-the-spot, and the match ids to Undo.
+export interface ExecuteMatchesResult {
+  records: { id: number }[];
+  approvals: { id: number; matchId: number }[];
+}
+
 // The execute endpoint accepts the base MatchProposal fields. Strip the display
 // extras before sending; the server also returns ledger data we deliberately
-// ignore (ADR-0030) — typed as the match count only.
+// ignore (ADR-0030) — typed as ExecuteMatchesResult (staged records + their
+// pending approvals, not the ledger data).
 export const executeMatches = (
   statementId: number,
   proposals: MatchProposalView[],
 ) =>
-  apiFetch<{ records: { id: number }[] }>(
-    `/api/bank-statements/${statementId}/match`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        matches: proposals.map((p) => ({
-          bankTransactionId: p.bankTransactionId,
-          voucherId: p.voucherId,
-          matchType: p.matchType,
-          amountMatched: p.amountMatched,
-          confidence: p.confidence,
-          signal: p.signal,
-        })),
-      }),
-    },
-  );
+  apiFetch<ExecuteMatchesResult>(`/api/bank-statements/${statementId}/match`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      matches: proposals.map((p) => ({
+        bankTransactionId: p.bankTransactionId,
+        voucherId: p.voucherId,
+        matchType: p.matchType,
+        amountMatched: p.amountMatched,
+        confidence: p.confidence,
+        signal: p.signal,
+      })),
+    }),
+  });
 
 // Recorded matches (draft + active) on a statement's lines.
 export interface MatchRowView {
@@ -872,14 +1126,11 @@ export const manualMatch = (
     matchType: 'exact' | 'partial';
   },
 ) =>
-  apiFetch<{ records: { id: number }[] }>(
-    `/api/bank-statements/${statementId}/match`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ matches: [{ ...m, signal: 'manual' }] }),
-    },
-  );
+  apiFetch<ExecuteMatchesResult>(`/api/bank-statements/${statementId}/match`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ matches: [{ ...m, signal: 'manual' }] }),
+  });
 
 // Prepayment / Personal post ledger vouchers; the UI ignores the returned
 // voucher (ADR-0030) and only needs success/failure.

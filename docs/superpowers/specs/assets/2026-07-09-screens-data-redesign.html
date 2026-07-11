@@ -1,0 +1,693 @@
+<title>Переосмысление отображения данных — все экраны</title>
+<style>
+  :root{
+    --bg:#f4f4f6; --surface:#ffffff; --ink:#1b1c20; --ink-2:#6b6e78;
+    --line:#e3e4e9; --accent:#0e5a3c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#131318; --surface:#1c1c23; --ink:#eceaf0; --ink-2:#9a9aa6; --line:#2c2c35; --accent:#5fbf94; }
+  }
+  :root[data-theme="dark"]{ --bg:#131318; --surface:#1c1c23; --ink:#eceaf0; --ink-2:#9a9aa6; --line:#2c2c35; --accent:#5fbf94; }
+  :root[data-theme="light"]{ --bg:#f4f4f6; --surface:#ffffff; --ink:#1b1c20; --ink-2:#6b6e78; --line:#e3e4e9; --accent:#0e5a3c; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bg); color:var(--ink);
+    font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding:48px 24px 80px}
+  .wrap{max-width:1200px; margin:0 auto}
+  .eyebrow{font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:600}
+  h1{font-size:32px; letter-spacing:-.02em; margin:8px 0 12px; text-wrap:balance}
+  .lede{color:var(--ink-2); max-width:68ch}
+
+  .rules{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; margin:28px 0 8px}
+  .rule{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px 16px}
+  .rule b{display:block; font-size:14px; margin-bottom:4px}
+  .rule p{font-size:13px; color:var(--ink-2)}
+  .rule .no{color:#a83a2c; text-decoration:line-through}
+  .rule .yes{color:var(--accent); font-weight:600}
+
+  section.scr{margin-top:56px; padding-top:30px; border-top:1px solid var(--line)}
+  .scr-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .scr-num{font-size:13px; font-weight:700; color:var(--accent); border:1.5px solid var(--accent); border-radius:8px; padding:2px 9px}
+  h2{font-size:22px; letter-spacing:-.01em}
+  .now{margin:10px 0 4px; font-size:14px; color:var(--ink-2); max-width:76ch}
+  .now b{color:#a83a2c}
+  .flex{display:flex; gap:30px; flex-wrap:wrap; align-items:flex-start; margin-top:18px}
+  .decisions{flex:1; min-width:320px; max-width:560px}
+  .decisions h4{font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); margin:14px 0 6px}
+  .decisions ul{padding-left:18px}
+  .decisions li{margin:6px 0; font-size:14px}
+  .decisions li b{color:var(--accent)}
+  .cap{font-size:12.5px; color:var(--ink-2); margin-top:10px; text-align:center; width:320px}
+
+  /* phone */
+  .phone{width:320px; height:660px; border-radius:42px; padding:10px; flex:0 0 auto;
+    background:#0b0b0d; box-shadow:0 24px 60px -24px rgba(0,0,0,.45); position:relative}
+  .phone .screen{width:100%; height:100%; border-radius:34px; overflow:hidden; display:flex; flex-direction:column;
+    background:#f2f3f1; color:#191c1a;
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif}
+  .phone .island{position:absolute; top:18px; left:50%; transform:translateX(-50%);
+    width:88px; height:22px; border-radius:12px; background:#0b0b0d; z-index:5}
+
+  /* mock primitives (A+C tokens) */
+  .sb{display:flex; justify-content:space-between; padding:16px 24px 4px; font-size:13px; font-weight:600}
+  .grow{flex:1; overflow:hidden}
+  .lt{padding:12px 20px 8px; display:flex; align-items:flex-end; justify-content:space-between}
+  .lt h3{font-size:27px; font-weight:800; letter-spacing:-.022em}
+  .lt .count{font-size:12.5px; color:#6e756f; font-weight:600; padding-bottom:4px}
+  .nav{display:flex; align-items:center; justify-content:space-between; padding:10px 16px; font-size:15px}
+  .nav .bk{color:#0e5a3c; font-weight:600}
+  .nav .ttl{font-weight:700; font-size:15px}
+  .grp{background:#fff; border-radius:16px; margin:0 14px 12px; overflow:hidden}
+  .gl{font-size:11.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#8a9089; margin:2px 22px 6px; display:flex; justify-content:space-between}
+  .gl .sum{font-variant-numeric:tabular-nums; text-transform:none; letter-spacing:0}
+  .row{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:.5px solid #eef0ec}
+  .row:last-child{border-bottom:0}
+  .ico{width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 auto}
+  .rmain{flex:1; min-width:0}
+  .rt{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .rs{font-size:12px; color:#6e756f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px}
+  .rend{text-align:right; flex:0 0 auto}
+  .amt{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums}
+  .amt.pos{color:#0e7a4a}
+  .chip{display:inline-block; font-size:9.5px; font-weight:700; border-radius:999px; padding:2px 7px; margin-top:2px}
+  .ch-app{background:#e3efe8; color:#0e5a3c}
+  .ch-warn{background:#fdf0d3; color:#8a5a00}
+  .ch-err{background:#fbe9e5; color:#a83a2c}
+  .ch-ok{background:#e3f2e9; color:#14713f}
+  .ch-mut{background:#eef0ec; color:#6e756f}
+  .chev{color:#c2c7c1; font-size:15px; flex:0 0 auto}
+  .kv{display:flex; justify-content:space-between; gap-3:1; padding:9px 14px; border-bottom:.5px solid #eef0ec; font-size:13px}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:#6e756f}
+  .kv .v{font-weight:600; font-variant-numeric:tabular-nums; text-align:right}
+  .actions{display:flex; gap:9px; padding:4px 14px 10px}
+  .btn{flex:1; text-align:center; font-size:14px; font-weight:700; padding:11px 0; border-radius:12px}
+  .primary{background:#0e5a3c; color:#fff}
+  .secondary{background:#e9ebe7; color:#191c1a}
+  .hint{font-size:10.5px; color:#8a9089; text-align:center; padding:0 24px 8px}
+  .hero-a{text-align:center; padding:8px 20px 12px}
+  .hero-a .ha{font-size:28px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .hero-a .hs{font-size:12.5px; color:#6e756f; margin-top:2px}
+  .whybox{margin:0 14px 12px; background:#fdf0d3; border-radius:13px; padding:10px 13px; font-size:12px; color:#6d4a05; line-height:1.45}
+  .whybox b{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px}
+  .search{margin:0 16px 8px; background:#e9ebe7; border-radius:10px; padding:7px 11px; font-size:12.5px; color:#8a9089}
+  .fchips{display:flex; gap:6px; padding:0 16px 10px; flex-wrap:wrap}
+  .fc{font-size:11px; font-weight:600; border-radius:999px; padding:4px 10px; background:#e9ebe7; color:#4d534e}
+  .fc.on{background:#0e3b2c; color:#fff}
+  .seg{display:flex; background:#e5e7e3; border-radius:9px; margin:2px 16px 10px; padding:2px}
+  .seg span{flex:1; text-align:center; font-size:11.5px; font-weight:600; padding:4px 0; border-radius:7px; color:#6e756f}
+  .seg .on{background:#fff; color:#191c1a; box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .stickybar{background:#0e3b2c; color:#fff; margin:0 14px 10px; border-radius:13px; padding:11px 15px;
+    display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700}
+  .stickybar .sub{font-size:10.5px; opacity:.7; font-weight:500}
+  .check{width:19px; height:19px; border-radius:6px; border:2px solid #c2c7c1; flex:0 0 auto}
+  .check.on{background:#0e5a3c; border-color:#0e5a3c; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px}
+  .tl2{position:relative; padding-left:16px; margin:0 14px 12px; background:#fff; border-radius:16px; padding:10px 14px 10px 26px}
+  .tl2::before{content:""; position:absolute; left:13px; top:16px; bottom:16px; width:2px; background:#dfe2dc}
+  .tli2{position:relative; padding:5px 0; font-size:12.5px}
+  .tli2::before{content:""; position:absolute; left:-17px; top:10px; width:9px; height:9px; border-radius:50%; background:#0e5a3c; border:2px solid #fff}
+  .tli2.mut::before{background:#c2c7c1}
+  .tli2 .d{color:#8a9089; font-size:11px}
+  .field{padding:7px 16px}
+  .field label{display:block; font-size:12px; font-weight:700; margin-bottom:3px}
+  .field .inp{background:#fff; border:1px solid #e3e6e0; border-radius:11px; padding:9px 12px; font-size:14px; display:flex; justify-content:space-between; align-items:center}
+  .field .inp .mut{color:#8a9089; font-size:12px}
+  .field .auto{font-size:11px; color:#0e5a3c; margin-top:3px}
+  .catchips{display:flex; gap:6px; flex-wrap:wrap; margin-top:5px}
+  .cc{font-size:11.5px; font-weight:600; border-radius:999px; padding:5px 11px; background:#fff; border:1px solid #e3e6e0; color:#4d534e}
+  .cc.on{background:#0e3b2c; color:#fff; border-color:#0e3b2c}
+  .docrow{display:flex; gap:10px; align-items:center; margin:0 16px 10px; background:#fff; border-radius:13px; padding:9px 12px}
+  .docrow .th{width:38px; height:48px; border-radius:7px; background:linear-gradient(180deg,#e8e8ee,#d6d6df);
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex:0 0 auto}
+  .exp-child{background:#f7f8f5; border-left:3px solid #0e5a3c}
+  .aliases{display:flex; gap:6px; flex-wrap:wrap; padding:9px 14px}
+  .al{font-size:11.5px; font-weight:600; border-radius:999px; padding:4px 10px; background:#eef0ec; color:#4d534e}
+  .al.add{background:#e3efe8; color:#0e5a3c}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">headless-bookkeeping · планы 02–06</div>
+    <h1>Переосмысление отображения данных: каждый экран</h1>
+    <p class="lede">Не «новая тема поверх таблиц», а другой способ показывать данные. Сначала — восемь глобальных правил,
+    потом каждый экран: что не так сейчас (из аудита кода) и как будет.</p>
+  </header>
+
+  <div class="rules">
+    <div class="rule"><b>1 · ID — не данные</b><p><span class="no">ID · Category · Gross</span> → <span class="yes">Контрагент · сумма · статус</span>. Сырой ID уходит в URL и деталь. Первая колонка всегда отвечает «что это?», а не «какой номер строки в базе».</p></div>
+    <div class="rule"><b>2 · У каждого объекта есть деталь</b><p>Сейчас у Expense/Invoice/Approval вообще нет detail-экрана — только строка таблицы. Каждый объект получает свой роут: hero-сумма, факты, провенанс, связи. Ни одного тупика.</p></div>
+    <div class="rule"><b>3 · Причина — человеческим языком</b><p><span class="no">policy_reason: amount_over_ceiling</span> → <span class="yes">«89,00 € выше лимита 50,00 €»</span>. Показываем порог и факт, а не код. Оператор принимает решение, не расшифровывает.</p></div>
+    <div class="rule"><b>4 · Прогрессивное раскрытие</b><p>Список отвечает на «что требует решения», деталь — на «какие факты», раскрытие — на «откуда факты» (OCR markdown, классификация). Не тащить всё в таблицу.</p></div>
+    <div class="rule"><b>5 · Суммы и даты — по стандарту</b><p>Деньги: tabular-nums, справа, входящие зелёным с «+». VAT из списков уходит в деталь. Даты: относительные в списках («2 ч назад»), абсолютные в деталях.</p></div>
+    <div class="rule"><b>6 · Секции с итогами вместо пагинации</b><p>Списки группируются по времени (месяц/сегодня-вчера) с итогом в заголовке секции. Итог месяца — данные, которые сейчас вообще нигде не видны.</p></div>
+    <div class="rule"><b>7 · Формы: prefill → подтверждение</b><p>Всё, что система знает (OCR, память поставщика, ставка VAT страны, последняя категория) — уже заполнено. Оператор сверяет и правит, а не вводит с нуля. Суммы только в евро.</p></div>
+    <div class="rule"><b>8 · Выбор объекта — не ввод ID</b><p><span class="no">«Object ID: ___»</span> (Credit notes сейчас) → <span class="yes">поиск по списку с контекстом</span> (номер, контрагент, сумма, остаток). Руками ID не вводят никогда.</p></div>
+  </div>
+
+  <!-- ============ 1. INBOX ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">1</span><h2>Inbox — очередь решений</h2></div>
+    <p class="now"><b>Сейчас:</b> два несвязанных экрана. Triage — аккордеон «ID + filename + status», Approvals — таблица «ID, Object, Requested by, policy_reason» с approve через <b>window.prompt</b>. Кто контрагент и почему держим — не видно без раскопок.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="lt"><h3>Inbox</h3><span class="count">7 задач</span></div>
+        <div class="seg"><span class="on">Все</span><span>Triage 4</span><span>Approvals 3</span></div>
+        <div class="grow">
+          <p class="gl"><span>Сегодня</span><span class="sum">3</span></p>
+          <div class="grp">
+            <div class="row">
+              <div class="ico" style="background:#e3efe8">✓</div>
+              <div class="rmain"><div class="rt">Telia Eesti AS</div><div class="rs">89,00 € выше лимита 50,00 €</div><span class="chip ch-app">approve?</span></div>
+              <div class="rend"><div class="amt">−89,00 €</div><div class="rs">2 ч назад</div></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="ico" style="background:#fdf0d3">?</div>
+              <div class="rmain"><div class="rt">«Circle K» — кто это?</div><div class="rs">поставщик не найден по ключу</div><span class="chip ch-warn">resolve</span></div>
+              <div class="rend"><div class="amt">−48,20 €</div><div class="rs">4 ч назад</div></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="ico" style="background:#fbe9e5">!</div>
+              <div class="rmain"><div class="rt">invoice_2026-183.pdf</div><div class="rs">OCR не прочитал файл — пересними</div><span class="chip ch-err">retry</span></div>
+              <div class="rend"><div class="rs">6 ч назад</div></div><span class="chev">›</span>
+            </div>
+          </div>
+          <p class="gl"><span>Вчера и раньше</span><span class="sum">4</span></p>
+          <div class="grp">
+            <div class="row">
+              <div class="ico" style="background:#e3efe8">✓</div>
+              <div class="rmain"><div class="rt">Mart Tamm (director)</div><div class="rs">платил из своих — возместить?</div><span class="chip ch-app">approve?</span></div>
+              <div class="rend"><div class="amt">−132,50 €</div><div class="rs">вчера</div></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="ico" style="background:#fdf0d3">?</div>
+              <div class="rmain"><div class="rt">photo_7712.heic</div><div class="rs">уверенность 0.41 — проверь категорию</div><span class="chip ch-warn">classify</span></div>
+              <div class="rend"><div class="amt">−12,90 €</div><div class="rs">вчера</div></div><span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="hint">Старые сверху — очередь разбирается FIFO</div>
+      </div></div>
+      <p class="cap">Строка = решение: кто · почему · сколько · когда</p>
+      <!-- Reconciling note: the implementation renders Earlier before Today
+           — strict FIFO oldest-first, per this mock's own "Старые сверху"
+           caption above. The Today-first section ORDER drawn above (Today
+           group, then Earlier group) is a drawing artifact of this static
+           mock, not a spec for the section order; only the FIFO ordering
+           WITHIN each section, and the section split itself, are binding. -->
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Заголовок строки — контрагент</b>, не filename и не «Expense #214». Filename только если контрагента ещё нет, и тогда подзаголовок — вопрос («кто это?»).</li>
+          <li><b>Подзаголовок — причина с числами:</b> «89,00 € выше лимита 50,00 €», «уверенность 0.41 — проверь категорию». Порог и факт из policy-конфига, не код.</li>
+          <li><b>Сортировка FIFO</b> (старые сверху) с секциями «Сегодня / Вчера и раньше» — очередь должна кончаться, застрявшее — на виду.</li>
+          <li><b>Confidence показываем только низкую</b> — высокая не мусорит список.</li>
+          <li>Desktop: те же строки + hover-кнопки Approve/Reject прямо в строке; хоткеи j/k/e/r. Мобайл: свайпы + деталь.</li>
+          <li>Живое обновление: polling — OCR-статусы меняются сами, без передёргивания руками.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. APPROVAL DETAIL ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">2</span><h2>Approval — деталь решения</h2></div>
+    <p class="now"><b>Сейчас:</b> экрана нет вообще. Approve = <b>window.prompt("имя")</b> с дефолтом «operator» — фиктивный аудит, ноль контекста, к объекту перейти нельзя.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Inbox</span><span class="ttl">1 из 3</span><span style="width:44px"></span></div>
+        <div class="grow">
+          <div class="hero-a">
+            <div class="ha">−89,00 €</div>
+            <div class="hs">Telia Eesti AS · Software &amp; IT</div>
+          </div>
+          <div class="whybox"><b>Почему держим</b>Сумма 89,00 € выше лимита политики 50,00 € для авто-проводки. Остальные проверки пройдены.</div>
+          <div class="docrow"><div class="th">📄</div>
+            <div class="rmain"><div class="rt">arve_07-2026.pdf</div><div class="rs">e-mail · 2 ч назад · смотреть ›</div></div>
+          </div>
+          <div class="grp">
+            <div class="kv"><span class="k">VAT</span><span class="v">16,32 € (22%)</span></div>
+            <div class="kv"><span class="k">Tax point</span><span class="v">03.07.2026</span></div>
+            <div class="kv"><span class="k">Уверенность AI</span><span class="v" style="color:#0e7a4a">0.94</span></div>
+            <div class="kv"><span class="k">Поставщик</span><span class="v" style="color:#0e5a3c">Telia Eesti AS ›</span></div>
+          </div>
+        </div>
+        <div class="actions"><span class="btn secondary">Reject…</span><span class="btn primary">Approve</span></div>
+        <div class="hint">Approve сразу постит · Undo 5 сек · дальше — следующая задача</div>
+      </div></div>
+      <p class="cap">Сумма — герой, причина — объяснение, документ — рядом</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Иерархия: сумма → причина → документ → факты.</b> Решение принимается за 3 секунды, если всё сходится.</li>
+          <li><b>«Почему держим»</b> — жёлтый блок с конкретикой из policy-конфига. Единственное, что реально надо прочитать.</li>
+          <li>Превью документа — тап в fullscreen. Оператор сверяет сумму с бумагой, не верит на слово.</li>
+          <li>Reject — bottom sheet с полем причины (обязательным): причина уходит в draft, объект не удаляется (ADR-0015).</li>
+          <li><b>Режим разбора:</b> «1 из 3» + автопереход к следующему pending после действия. Очередь щёлкается подряд.</li>
+          <li>Работает для всех object_type (expense, invoice, dividend, personal, correction) — шаблон один, факты свои.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. MANUAL CLASSIFY ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">3</span><h2>Triage — ручная классификация</h2></div>
+    <p class="now"><b>Сейчас:</b> простыня из 8 полей подряд (supplier, category, gross, vat, currency, date, vat marking, invoice number) — все пустые текстовые инпуты, документ где-то отдельно, VAT считаешь в уме.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">Отмена</span><span class="ttl">Классификация</span><span style="width:44px"></span></div>
+        <div class="grow">
+          <div class="docrow"><div class="th">🧾</div>
+            <div class="rmain"><div class="rt">cheque_scan_038.jpg</div><div class="rs">OCR прочитан · смотреть рядом ›</div></div>
+          </div>
+          <div class="field"><label>Поставщик</label>
+            <div class="inp">Circle K Eesti AS <span class="mut">найден по алиасу ✓</span></div>
+          </div>
+          <div class="field"><label>Сумма (EUR)</label>
+            <div class="inp" style="font-size:17px; font-weight:700">48,20</div>
+            <div class="auto">из OCR · VAT 22% → 8,67 € посчитан сам</div>
+          </div>
+          <div class="field"><label>Дата</label>
+            <div class="inp">01.07.2026 <span class="mut">из чека</span></div>
+          </div>
+          <div class="field"><label>Категория</label>
+            <div class="catchips">
+              <span class="cc on">Fuel</span><span class="cc">Transport</span><span class="cc">Meals</span><span class="cc">Office</span><span class="cc">все…</span>
+            </div>
+            <div class="auto">Fuel — так вы обычно классифицируете Circle K</div>
+          </div>
+        </div>
+        <div class="actions"><span class="btn primary">Создать расход · −48,20 €</span></div>
+        <div class="hint">Кнопка повторяет сводку — видно, что именно создаётся</div>
+      </div></div>
+      <p class="cap">Всё предзаполнено — оператор сверяет, а не вводит</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Prefill всего:</b> OCR-суммы/даты, supplier по алиасам (ADR-0014), категория из classification memory («так вы обычно классифицируете X»). Пустая форма — только если система реально ничего не знает.</li>
+          <li><b>VAT считается сам</b> от gross по ставке страны, редактируется при необходимости. Не «два поля, сойдись сам».</li>
+          <li><b>Категории — чипы</b> с недавними/предсказанной первыми, «все…» раскрывает полный список. Не select на 20 позиций.</li>
+          <li>Supplier — поиск по существующим + «создать нового» одним шагом (текущий ResolveSupplierForm-флоу, но в одном месте).</li>
+          <li>Документ доступен не покидая форму: сверху строка, тап — split/fullscreen просмотр.</li>
+          <li><b>Кнопка сабмита = сводка:</b> «Создать расход · −48,20 €». Никакого «Submit».</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. EXPENSES LIST ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">4</span><h2>Books / Expenses — список</h2></div>
+    <p class="now"><b>Сейчас:</b> таблица «ID, Category, Gross, VAT, Tax point, Status, Bank» — ID первой колонкой, поставщика <b>вообще нет в списке</b>, итогов нет, фильтров нет, поиска нет.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="lt"><h3>Books</h3><span class="count">июль 2026</span></div>
+        <div class="seg"><span class="on">Expenses</span><span>Invoices</span><span>Docs</span><span>Credit</span></div>
+        <div class="search">⌕ Поставщик, сумма, категория…</div>
+        <div class="fchips"><span class="fc on">Все статусы</span><span class="fc">Draft 1</span><span class="fc">Pending 1</span><span class="fc">⚙</span></div>
+        <div class="grow">
+          <p class="gl"><span>Июль</span><span class="sum">−2 348,10 € · 14 шт</span></p>
+          <div class="grp">
+            <div class="row">
+              <div class="rmain"><div class="rt">Telia Eesti AS</div><div class="rs">Software &amp; IT · 3 июл</div></div>
+              <div class="rend"><div class="amt">−89,00 €</div><span class="chip ch-app">pending</span></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="rmain"><div class="rt">Bolt Operations OÜ</div><div class="rs">Transport · 2 июл · 🏦</div></div>
+              <div class="rend"><div class="amt">−24,90 €</div><span class="chip ch-ok">posted</span></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="rmain"><div class="rt">Circle K Eesti AS</div><div class="rs">Fuel · 1 июл</div></div>
+              <div class="rend"><div class="amt">−48,20 €</div><span class="chip ch-mut">draft</span></div><span class="chev">›</span>
+            </div>
+          </div>
+          <p class="gl"><span>Июнь</span><span class="sum">−3 102,44 € · 21 шт</span></p>
+          <div class="grp">
+            <div class="row">
+              <div class="rmain"><div class="rt">AS Merko Ehitus</div><div class="rs">Rent · 25 июн · 🏦 · исправлен</div></div>
+              <div class="rend"><div class="amt">−650,00 €</div><span class="chip ch-ok">posted</span></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="rmain"><div class="rt">Elisa Eesti AS</div><div class="rs">Communications · 28 июн · 🏦</div></div>
+              <div class="rend"><div class="amt">−35,00 €</div><span class="chip ch-ok">posted</span></div><span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <p class="cap">Поставщик — заголовок; месяц — секция с итогом</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Строка: поставщик / категория·дата / сумма+статус.</b> ID и VAT уходят в деталь. 🏦 = сверен с банком (иконка, не колонка).</li>
+          <li><b>Месячные секции с итогом и количеством</b> — «сколько я потратил в июле» видно без калькулятора. Итог пересчитывается под активным фильтром.</li>
+          <li><b>Фильтры-чипы</b> (статус, категория, период) + поиск — всё в query params, шарится ссылкой, переживает F5.</li>
+          <li>«Исправлен» — маркер в подзаголовке, цепочка коррекций — в детали.</li>
+          <li>Desktop: те же строки как таблица с доп. колонками (VAT, tax point) по приоритету + два-pane с деталью справа.</li>
+          <li>Invoices — зеркально (номер + customer вместо поставщика, Sent-статус чипом).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. EXPENSE DETAIL ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">5</span><h2>Expense — деталь (новый экран)</h2></div>
+    <p class="now"><b>Сейчас:</b> не существует. Ссылка Document→Expense — <b>мёртвый якорь</b> <code>#expense-N</code>. Провенанс коррекций, связь с банком и документом — нигде не видны.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Expenses</span><span class="ttl">Expense</span><span style="width:56px"></span></div>
+        <div class="grow">
+          <div class="hero-a">
+            <div class="ha">−650,00 €</div>
+            <div class="hs">AS Merko Ehitus · Rent <span class="chip ch-ok" style="vertical-align:2px">posted</span></div>
+          </div>
+          <div class="grp">
+            <div class="kv"><span class="k">VAT</span><span class="v">117,21 € (22%)</span></div>
+            <div class="kv"><span class="k">Tax point</span><span class="v">25.06.2026</span></div>
+            <div class="kv"><span class="k">Поставщик</span><span class="v" style="color:#0e5a3c">AS Merko Ehitus ›</span></div>
+            <div class="kv"><span class="k">Документ</span><span class="v" style="color:#0e5a3c">📄 arve-183.pdf ›</span></div>
+            <div class="kv"><span class="k">Банк</span><span class="v" style="color:#0e5a3c">🏦 сверен · SEB 25.06 ›</span></div>
+          </div>
+          <p class="gl"><span>История</span></p>
+          <div class="tl2">
+            <div class="tli2"><b>Исправлен</b> — сумма 605,00 → 650,00 €<div class="d">12 июл · financial correction · причина: «ошибка OCR в сумме»</div></div>
+            <div class="tli2 mut"><b>Проведён</b><div class="d">25 июн · авто (уверенность 0.96)</div></div>
+            <div class="tli2 mut"><b>Создан из документа</b><div class="d">25 июн · e-mail intake</div></div>
+          </div>
+        </div>
+        <div class="actions"><span class="btn secondary">Correct…</span></div>
+        <div class="hint">Posted не редактируется — только correction-flow (ADR-0009)</div>
+      </div></div>
+      <p class="cap">Факты + все связи + история в одном месте</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Все связи кликабельны:</b> поставщик, документ (с превью), банковский матч. Тупики закрыты — из любой точки можно дойти до любой связанной.</li>
+          <li><b>История — timeline:</b> создан → проведён → исправлен, с причинами и ссылками на reversal/correction (ADR-0009 провенанс, сейчас невидимый).</li>
+          <li>Correct — sheet с тремя ветками (cosmetic / financial / credit note) и объяснением, что произойдёт с ledger-ом в каждой.</li>
+          <li>Delete виден только для draft; для posted — объяснение, почему нельзя.</li>
+          <li>Тот же шаблон для Invoice (плюс кнопка «Issue credit note» отсюда — не отдельный экран с вводом ID).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. BANK STATEMENT ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">6</span><h2>Bank — выписка и сверка</h2></div>
+    <p class="now"><b>Сейчас:</b> 746 строк кода, всё-в-одном: сырая неадаптивная таблица из 8 колонок, cap-математика дублируется на клиенте, предложения и ручной матч перемешаны на одном экране.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Bank</span><span class="ttl">Июнь · EUR</span><span style="width:44px"></span></div>
+        <div class="seg"><span>Не сверено 3</span><span class="on">Все 42</span></div>
+        <div class="grow">
+          <p class="gl"><span>Предложения AI</span><span class="sum">выбрано 2</span></p>
+          <div class="grp">
+            <div class="row"><span class="check on">✓</span>
+              <div class="rmain"><div class="rt">Nordic Consulting OÜ</div><div class="rs">→ Invoice №2026-018 · 0.91</div></div>
+              <div class="rend"><div class="amt pos">+1 200,00 €</div><div class="rs">28 июн</div></div>
+            </div>
+            <div class="row"><span class="check on">✓</span>
+              <div class="rmain"><div class="rt">CIRCLE K 4411</div><div class="rs">→ Expense · Circle K · 0.88</div></div>
+              <div class="rend"><div class="amt">−48,20 €</div><div class="rs">27 июн</div></div>
+            </div>
+          </div>
+          <div class="stickybar"><span>Book 2 матча</span><span class="sub">+1 151,80 € нетто</span></div>
+          <p class="gl"><span>Без кандидатов — реши сам</span></p>
+          <div class="grp">
+            <div class="row">
+              <div class="rmain"><div class="rt">WOLT 220627</div><div class="rs">match вручную · personal? · fee?</div></div>
+              <div class="rend"><div class="amt">−18,60 €</div><div class="rs">27 июн</div></div><span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="rmain"><div class="rt">ETTEMAKS · Baltic Trade</div><div class="rs">аванс? два инвойса-кандидата</div></div>
+              <div class="rend"><div class="amt pos">+500,00 €</div><div class="rs">26 июн</div></div><span class="chev">›</span>
+            </div>
+          </div>
+          <p class="gl"><span>Сверено</span><span class="sum">37</span></p>
+          <div class="grp">
+            <div class="row" style="background:#f5faf6; box-shadow:inset 3px 0 0 #14713f">
+              <div class="ico" style="background:#e3f2e9; color:#14713f; font-weight:800">✓</div>
+              <div class="rmain"><div class="rt" style="color:#3d5947">ELISA arve 6/2026</div><div class="rs">→ Expense · Elisa Eesti ›</div></div>
+              <div class="rend"><div class="amt" style="color:#6e756f">−35,00 €</div><div class="rs">24 июн</div></div>
+            </div>
+            <div class="row" style="background:#f5faf6; box-shadow:inset 3px 0 0 #14713f">
+              <div class="ico" style="background:#e3f2e9; color:#14713f; font-weight:800">✓</div>
+              <div class="rmain"><div class="rt" style="color:#3d5947">SWEDBANK makse 171</div><div class="rs">→ Invoice №2026-014 ›</div></div>
+              <div class="rend"><div class="amt" style="color:#6e756f">+800,00 €</div><div class="rs">23 июн</div></div>
+            </div>
+            <div class="row"><div class="rmain"><div class="rs" style="text-align:center">ещё 35 сверенных…</div></div></div>
+          </div>
+        </div>
+      </div></div>
+      <p class="cap">Сматчено = зелёная полоса + ✓ + приглушение; статус виден издалека</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Два яруса: «Предложения AI» и «Реши сам».</b> Высокоуверенные предложения предвыбраны, одна кнопка Book с нетто-суммой. Cap-проверка — только серверная, клиент не дублирует математику.</li>
+          <li><b>Подзаголовок = следующее действие:</b> «→ Invoice №2026-018 · 0.91» или подсказка dispositions («похоже на комиссию»).</li>
+          <li><b>Статус строки читается цветом, без чтения текста:</b> сверено — зелёная полоса слева + ✓-иконка + приглушённые текст и сумма; предложение AI — янтарный чип с уверенностью и чекбокс; не сверено — обычный вес. Подзаголовок сматченной строки — ссылка на объект («→ Expense · Elisa ›»).</li>
+          <li>Default-сегмент — «Не сверено»: экран открывается на работе, а не на архиве.</li>
+          <li>Деталь транзакции: N:M кандидаты чекбоксами с живым остатком («выбрано 500,00 из 500,00 — полное покрытие»), dispositions списком с последствиями (prepayment → liability, personal → нужен approve, ADR-0011/0017). А когда кандидатов нет — см. <b>§6★ ниже, это главный сценарий</b>.</li>
+          <li>Импорт — отдельный flow-экран со степпером (Upload → LLM mapping → Rules → Created) и явным failure + re-upload (ADR-0031, async).</li>
+          <li>Список выписок: счёт + период + <b>badge unmatched</b> — видно, где осталась работа.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6★. NO-INVOICE LINE ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num" style="background:#0e3b2c; color:#3ddc97; border-color:#0e3b2c">6★</span><h2>Строка без счёта — главный сценарий, не edge case</h2></div>
+    <p class="now"><b>Сейчас — главная боль всего продукта:</b> открываешь выписку, а матчить <b>не с чем</b> — счетов в системе нет.
+    Чеки живут в iOS-приложениях банка и вендоров. Ради каждой строки — экспедиция: найти чек в чужом приложении, выгрузить PDF,
+    залить, дождаться OCR, оттриажить, вернуться в выписку, сматчить. <b>Переворачиваем флоу: расход создаётся из самой строки, документ догоняет потом.</b></p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Выписка</span><span class="ttl">Транзакция</span><span style="width:56px"></span></div>
+        <div class="grow">
+          <div class="hero-a">
+            <div class="ha">−18,60 €</div>
+            <div class="hs">WOLT 220627 · 27 июн · карта ···7712</div>
+          </div>
+          <p class="gl"><span>Создать расход из строки</span></p>
+          <div class="grp">
+            <div class="kv"><span class="k">Поставщик</span><span class="v">Wolt Eesti OÜ <span style="color:#0e7a4a">по алиасу ✓</span></span></div>
+            <div class="kv"><span class="k">Категория</span><span class="v">Meals <span style="color:#8a9089; font-weight:500">обычно · 8 из 9</span></span></div>
+            <div class="kv"><span class="k">VAT</span><span class="v">3,35 € (22%, авто)</span></div>
+            <div class="kv"><span class="k">Tax point</span><span class="v">27.06.2026 <span style="color:#8a9089; font-weight:500">из строки</span></span></div>
+          </div>
+          <div class="actions" style="padding-top:0"><span class="btn primary">Создать и сматчить · −18,60 €</span></div>
+          <p class="gl"><span>Документ</span></p>
+          <div class="grp">
+            <div class="row"><div class="ico" style="background:#fdf0d3">📎</div>
+              <div class="rmain"><div class="rt" style="font-size:13px">Чек будет позже</div>
+              <div class="rs">уйдёт в «Ждут документ» · приклеится сам</div></div><span class="check on">✓</span></div>
+            <div class="row"><div class="ico" style="background:#eef0ec">🚫</div>
+              <div class="rmain"><div class="rt" style="font-size:13px">Чека не будет</div>
+              <div class="rs">первичка — сама строка · VAT 0, без вычета · без нагов</div></div><span class="check"></span></div>
+          </div>
+          <p class="gl"><span>Или расценить как</span></p>
+          <div class="grp">
+            <div class="row"><div class="ico" style="background:#fdf0d3">⚑</div>
+              <div class="rmain"><div class="rt">Personal</div><div class="rs">не бизнес · нужен approve</div></div><span class="chev">›</span></div>
+            <div class="row"><div class="ico" style="background:#eef0ec">%</div>
+              <div class="rmain"><div class="rt">Bank fee · Match вручную…</div></div><span class="chev">›</span></div>
+          </div>
+        </div>
+      </div></div>
+      <p class="cap">Один тап: строка выписки → проведённый расход</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Один тап от строки до закрытой позиции.</b> В строке выписки уже есть всё для расхода: сумма, дата, контрагент. Расход создаётся из неё и матчится автоматом — оба вызова (<code>POST /api/expenses</code> + <code>POST /match</code>) в API уже существуют, флоу собирается на клиенте.</li>
+          <li><b>Prefill из трёх источников:</b> контрагент по алиасам (WOLT → Wolt Eesti OÜ, ADR-0014), категория из classification memory («обычно Meals, 8 из 9»), VAT авто по ставке страны, дата из строки. Незнакомый контрагент → мини-шаг «создать поставщика» прямо в этом же sheet.</li>
+          <li><b>«Ждут документ» — очередь вместо экспедиции.</b> Расход без source-документа получает маркер и попадает в очередь в Books. Чек, приплывший позже через intake (переслал письмо, сфоткал, e-mail-коннектор сам вытащил) — автоматически предлагается приклеиться по совпадению «поставщик + сумма ± дата». Охота по iOS-приложениям превращается в «когда-нибудь перешлёшь — само найдёт куда».</li>
+          <li><b>«Чека не будет» — круассан-кейс.</b> Мелкая трата, документа не существует и не появится. Проводим сразу: первичкой служит сама строка выписки, <b>VAT автоматически 0 (без счёта входной VAT не вычитается</b> — форма знает это правило за оператора), в очередь «Ждут документ» не попадает, наги не приходят. В детали расхода источник так и подписан: «строка выписки SEB · 27.06». Guardrail через Policy: no-doc расходы выше настраиваемого порога (например 50 €) уходят на approve — круассан проскочит, «без чека на 500 €» спросит подтверждение.</li>
+          <li><b>Повторяющиеся траты — «как в прошлом месяце»:</b> Telia/AWS/аренда каждый месяц. Если у контрагента есть расход в прошлом периоде — предложение в один тап: категория и VAT из прошлого, сумма из строки.</li>
+          <li><b>Bulk:</b> выделил 6 однотипных строк → «создать 6 расходов» разом, каждая по своему prefill.</li>
+          <li><b>Честно про API:</b> create+match работают уже сейчас; alias-lookup по строке выписки и авто-приклейка позднего документа к существующему расходу — небольшие серверные добавки, помечаю их как требования плана 04 (это осознанное расширение client-only скоупа — оно того стоит, это ядро боли).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6★b. PERSONAL SHEET ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">6★b</span><h2>Personal — что за кликом (спойлер: не план счетов)</h2></div>
+    <p class="now"><b>Принцип:</b> ledger спрятан всегда (ADR-0001). Счёт для личной траты выбирает country plugin по типу организации
+    (ADR-0017: OÜ → долг владельца перед компанией; sole proprietor → owner's drawings). За кликом «Personal» — не выбор счёта,
+    а объяснение последствий и подтверждение.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Выписка</span><span class="ttl">Транзакция</span><span style="width:56px"></span></div>
+        <div class="grow" style="position:relative">
+          <div style="position:absolute; inset:0; background:rgba(10,14,11,.45); z-index:8"></div>
+          <div style="position:absolute; left:0; right:0; bottom:0; background:#fbfbf9; border-radius:26px 26px 0 0; z-index:9; padding:8px 0 16px">
+            <div style="width:38px; height:4.5px; border-radius:3px; background:#d4d7d1; margin:4px auto 12px"></div>
+            <h4 style="font-size:17px; font-weight:800; text-align:center; margin-bottom:2px">Личная трата</h4>
+            <p style="font-size:12px; color:#6e756f; text-align:center; padding:0 28px; margin-bottom:10px">WOLT · −18,60 € · 27 июн</p>
+            <div class="whybox" style="margin:0 14px 10px"><b>Что произойдёт</b>Это не расход компании: не попадёт в P&amp;L, VAT не вычитается. Сумма запишется как твой долг перед компанией — вернёшь переводом или зачтётся при выплате.</div>
+            <div class="grp" style="margin-bottom:10px">
+              <div class="kv"><span class="k">Долг владельца сейчас</span><span class="v">217,80 €</span></div>
+              <div class="kv"><span class="k">Станет</span><span class="v" style="color:#8a5a00">236,40 €</span></div>
+            </div>
+            <div class="actions"><span class="btn secondary">Отмена</span><span class="btn primary">Записать как личное</span></div>
+            <div class="hint">Требует approve — ты и есть approver: одно действие, фиксируется в аудите</div>
+          </div>
+        </div>
+      </div></div>
+      <p class="cap">Объяснение + баланс долга, не бухгалтерия</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Никакого выбора счёта.</b> Проводку резолвит country plugin по org_type — оператор видит только последствия человеческим языком: «не попадёт в P&amp;L, VAT не вычитается, повиснет долгом».</li>
+          <li><b>Живой баланс долга владельца:</b> «сейчас 217,80 € → станет 236,40 €». Эта цифра сегодня вообще нигде не видна — а это ровно то, что владелец хочет знать.</li>
+          <li><b>Approve-on-the-spot:</b> personal требует approval (ADR-0017), но оператор и есть approver — один атрибутируемый тап записывает и disposition, и approval в аудит. Без пинг-понга через Inbox.</li>
+          <li><b>Возврат закрывается тем же флоу:</b> входящий перевод с личного счёта → среди кандидатов у строки появляется «закрыть долг владельца · 236,40 €». Круг замыкается в выписке же.</li>
+          <li>Если у плагина есть advisory для юрисдикции (например, датский kapitalejerlån «верни немедленно») — показывается в этом же sheet жёлтым.</li>
+          <li><b>Bank fee для контраста — вообще без sheet:</b> комиссия банка это один тап + Undo-тост; категорию резолвит плагин, объяснять нечего.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7. KMD DRILL-DOWN ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">7</span><h2>Reports / KMD — трассируемая декларация</h2></div>
+    <p class="now"><b>Сейчас:</b> сырая таблица «Row 1…Row 7 → число». Почему в Row 5 такая цифра — узнать невозможно. Периоды — generic-таблица без submission-статуса.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Reports</span><span class="ttl">Июль 2026</span><span class="chip ch-app" style="margin:0">open</span></div>
+        <div class="grow">
+          <p class="gl"><span>KMD · live-превью</span></p>
+          <div class="grp">
+            <div class="kv"><span class="k">Row 1 · käive 22%</span><span class="v">4 830,00</span></div>
+            <div class="kv"><span class="k">Row 4 · выходной VAT</span><span class="v">1 062,60</span></div>
+            <div class="kv" style="background:#f7f8f5"><span class="k" style="font-weight:700; color:#191c1a">Row 5 · входной VAT ▾</span><span class="v">438,53</span></div>
+            <div class="kv exp-child"><span class="k">Telia Eesti AS · Software</span><span class="v">16,32 ›</span></div>
+            <div class="kv exp-child"><span class="k">AS Merko Ehitus · Rent</span><span class="v">117,21 ›</span></div>
+            <div class="kv exp-child"><span class="k">ещё 12 расходов…</span><span class="v">305,00</span></div>
+            <div class="kv" style="background:#f2f7f3"><span class="k" style="font-weight:700; color:#0e3b2c">Net VAT due</span><span class="v" style="color:#0e3b2c; font-size:15px">624,07 €</span></div>
+          </div>
+          <div class="whybox"><b>INF-приложение</b>У Merko Ehitus (1 счёт ≥ 1000 €) нет номера счёта поставщика. <u>Дописать номер ›</u></div>
+          <p class="gl"><span>Не решено в периоде</span></p>
+          <div class="grp">
+            <div class="row">
+              <div class="rmain"><div class="rt">2 approvals · 1 draft</div><div class="rs">попадут в декларацию после решения</div></div><span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><span class="btn secondary">KMD XML ↓</span><span class="btn primary">Закрыть период…</span></div>
+      </div></div>
+      <p class="cap">Каждая строка декларации раскрывается до расходов</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Drill-down:</b> каждая строка KMD раскрывается в составляющие объекты, каждый кликабелен → деталь. Цифра трассируется до расхода в два тапа — киллер-фича доверия к отчёту.</li>
+          <li>Явная маркировка <b>live-превью vs frozen snapshot</b> (open/locked период) — сейчас неразличимо.</li>
+          <li>INF-предупреждение ведёт прямо к полю конкретного расхода (metadata-PATCH, пока период open), не «где-то что-то не так».</li>
+          <li>«Не решено в периоде» — виден straggler-хвост до закрытия, ссылкой в Inbox с фильтром.</li>
+          <li>Lock — sheet-flow: список нерешённого + «поздние документы уйдут в следующий период» + подтверждение (ADR-0015 warn-and-confirm).</li>
+          <li>Периоды-список: статус open/locked + fold submission-событий (accepted ✓ / rejected / not filed) + timeline подачи с «Add event» (ADR-0037).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 8. ENTITY DETAIL ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">8</span><h2>Entities — карточка контрагента</h2></div>
+    <p class="now"><b>Сейчас:</b> таблица с inline-edit + панель алиасов, приклеенная внизу страницы отдельно от строки. Память классификации (ADR-0014) не видна вообще.</p>
+    <div class="flex">
+      <div>
+      <div class="phone"><div class="island"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>􀛨</span></div>
+        <div class="nav"><span class="bk">‹ Entities</span><span class="ttl">Поставщик</span><span style="color:#0e5a3c; font-weight:600; font-size:13px">Edit</span></div>
+        <div class="grow">
+          <div class="hero-a">
+            <div class="ha" style="font-size:21px">Circle K Eesti AS</div>
+            <div class="hs">supplier · Эстония · товары</div>
+          </div>
+          <div class="grp">
+            <div class="kv"><span class="k">Reg. key</span><span class="v">EE100511246</span></div>
+            <div class="kv"><span class="k">Расходов</span><span class="v" style="color:#0e5a3c">12 · −680,40 € ›</span></div>
+            <div class="kv"><span class="k">Документов</span><span class="v" style="color:#0e5a3c">14 ›</span></div>
+          </div>
+          <p class="gl"><span>Алиасы — как его пишут в документах</span></p>
+          <div class="grp">
+            <div class="aliases">
+              <span class="al">CIRCLE K 4411</span><span class="al">Circle K AS</span><span class="al">CIRCLEK EESTI</span><span class="al add">+ добавить</span>
+            </div>
+          </div>
+          <p class="gl"><span>Память классификации</span></p>
+          <div class="grp">
+            <div class="kv"><span class="k">Обычно категория</span><span class="v">Fuel (11 из 12)</span></div>
+            <div class="kv"><span class="k">Используется как</span><span class="v">подсказка AI, не правило</span></div>
+          </div>
+        </div>
+      </div></div>
+      <p class="cap">Идентичность + связи + память в одной карточке</p>
+      </div>
+      <div class="decisions">
+        <h4>Решения</h4>
+        <ul>
+          <li><b>Деталь-роут вместо inline-edit в таблице:</b> reg key (иммутабельный — видно почему), связанные расходы/документы счётчиками-ссылками с суммой.</li>
+          <li><b>Алиасы — чипы в карточке</b>, не отдельная панель внизу страницы. Добавление на месте.</li>
+          <li><b>Память классификации видима:</b> «обычно Fuel (11 из 12) · подсказка AI, не правило» — оператор понимает, почему AI предлагает то, что предлагает (ADR-0014 advisory).</li>
+          <li>Список: имя + role-чип (supplier/customer/claimant) + страна, поиск. ID — нет.</li>
+          <li>Claimant-роли видны отдельным фильтром (для reimbursement-флоу, ADR-0036).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 9-12 text-only ============ -->
+  <section class="scr">
+    <div class="scr-head"><span class="scr-num">9+</span><h2>Остальные экраны — решения без макетов</h2></div>
+    <div class="rules" style="margin-top:18px">
+      <div class="rule"><b>Documents — архив</b><p>Крупный thumb + заголовок = поставщик (filename — только пока не распознан) + канал-иконка + relative time + статус-чип. Фильтры-чипы: Все / Processed / Needs triage / <b>Discarded</b> (ADR-0038) / Errors. Деталь строго из персистнутых intake-артефактов (ADR-0039): классификация KeyValue, OCR-markdown в collapsible, ссылка на созданный expense. Upload-sheet: файл + опциональный claimant-dropdown (ADR-0036).</p></div>
+      <div class="rule"><b>Credit notes</b><p>Создание — из детали инвойса/расхода (кнопка «Issue credit note»), объект уже известен. Отдельная форма остаётся, но <span class="no">«Object ID: ___»</span> → выбор из списка с поиском (номер · контрагент · сумма · остаток). Суммы в евро (фикс cent-бага). Список — как Books-сегмент со ссылками на объект.</p></div>
+      <div class="rule"><b>Bank import — flow</b><p>Отдельный экран со степпером: Upload → LLM выводит mapping → Rules применяются → Statement создан. Каждый шаг со статусом, ошибка схемы = явный failure-экран с «загрузить заново» (ADR-0031: свежий inference каждый раз, «дрейф формата — не событие»).</p></div>
+      <div class="rule"><b>Settings — все формы</b><p>Grouped-list хаб (iOS Settings). Org: country/currency — селекты ISO, не free-text. Policy/Risk gate: <span class="no">центы</span> → евро, thresholds с объяснением эффекта («расходы выше X идут на approve»). Mailbox: коннекторы со статусом sync + last error видимым. Enroll: QR + понятная ошибка при неконфигурированном public_api_url. Categories: read-only справочник с пояснением «владеет country plugin».</p></div>
+    </div>
+  </section>
+
+  <div style="margin-top:56px; padding:22px 26px; background:var(--surface); border:1px solid var(--line); border-radius:16px; max-width:860px">
+    <b style="font-size:16px">Что это меняет в планах 02–06</b>
+    <p style="font-size:14px; color:var(--ink-2); margin-top:8px">Каждый план получает не «перекрасить экран», а конкретные data-display-спеки из этого документа:
+    план 02 — Inbox (§1–3), план 03 — Books (§4–5 + Documents + Credit notes + очередь «Ждут документ»),
+    план 04 — Bank (<b>§6★ «расход из строки» — центральный сценарий всего редизайна</b> + §6 + import; включает два небольших
+    серверных дополнения: alias-lookup по строке и авто-приклейку позднего документа),
+    план 05 — Reports (§7), план 06 — Settings + Entities (§8–9). После твоего одобрения вношу это в spec как
+    каноничное описание экранов.</p>
+  </div>
+</div>

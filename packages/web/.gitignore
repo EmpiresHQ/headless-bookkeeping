@@ -1,3 +1,11 @@
 node_modules
 dist
 *.tsbuildinfo
+
+# Compiled tsconfig.node.json artifacts — emitted into repo-root
+# node_modules/.tmp since Plan 06 Task 2; committed copies used to SHADOW
+# vite.config.ts for Vite's dev server (P01 footgun).
+/vite.config.js
+/vite.config.d.ts
+/tsconfig.node.tsbuildinfo
+/tsconfig.tsbuildinfo
