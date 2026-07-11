@@ -103,4 +103,31 @@ describe('EntitiesScreen', () => {
     expect(await screen.findByText('boom')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
+
+  it('Team-empty state explains the claimant dropdown and preselects the employee role', async () => {
+    // Suppliers/customers only — no team members on this install.
+    vi.mocked(getEntities).mockResolvedValue([ROWS[0], ROWS[1]]);
+    mount('/settings/entities?seg=team');
+    expect(await screen.findByText('No team members yet')).toBeInTheDocument();
+    expect(screen.getByText(/claimant dropdown/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add employee' }));
+    expect(await screen.findByLabelText('Role')).toHaveValue('employee');
+  });
+
+  it('create sheet resets across open/close/reopen (remount-on-open discipline)', async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+    fireEvent.change(await screen.findByLabelText('Name'), {
+      target: { value: 'Half-typed OÜ' },
+    });
+    fireEvent.change(screen.getByLabelText('Role'), {
+      target: { value: 'employee' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Name')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+    expect(await screen.findByLabelText('Name')).toHaveValue('');
+    expect(screen.getByLabelText('Role')).toHaveValue('supplier');
+  });
 });

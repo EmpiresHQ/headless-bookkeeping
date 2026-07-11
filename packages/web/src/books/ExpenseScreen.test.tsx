@@ -1,8 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { booksKeys } from '../queries/books';
 import { AppToaster } from '../ui/toast';
 import { ExpenseScreen } from './ExpenseScreen';
 
@@ -17,8 +24,10 @@ vi.mock('../api', async (io) => ({
   deleteExpense: vi.fn(),
   // CorrectSheet (mounted for posted expenses from Task 6 on) reads these:
   getCategories: vi.fn(),
+  correctExpense: vi.fn(),
 }));
 import {
+  correctExpense,
   deleteExpense,
   getCategories,
   getDocuments,
@@ -80,7 +89,7 @@ function mountAt(
   vi.mocked(listApprovals).mockResolvedValue(rejections as never);
   vi.mocked(getCategories).mockResolvedValue([] as never);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const utils = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/books/expenses/12']}>
         <AppToaster />
@@ -91,6 +100,7 @@ function mountAt(
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...utils, qc };
 }
 
 describe('ExpenseScreen', () => {
@@ -182,6 +192,72 @@ describe('ExpenseScreen', () => {
     expect(
       await screen.findByRole('button', { name: /Post correction/ }),
     ).toBeInTheDocument();
+  });
+
+  it('CorrectSheet resets across open/close/reopen', async () => {
+    mountAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Correct…' }));
+    const reason = await screen.findByPlaceholderText('Why this correction…');
+    fireEvent.change(reason, { target: { value: 'wrong VAT rate' } });
+    expect(reason).toHaveValue('wrong VAT rate');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Correct…' }));
+    expect(
+      await screen.findByPlaceholderText('Why this correction…'),
+    ).toHaveValue('');
+  });
+
+  it('a successful correction keeps the sheet mounted through the posted→reversed status flip (no unmount-while-open), then closes normally', async () => {
+    const { qc } = mountAt();
+    await screen.findByText('AS Merko Ehitus · rent');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Correct…' }));
+    fireEvent.change(
+      await screen.findByPlaceholderText('Why this correction…'),
+      { target: { value: 'wrong VAT rate' } },
+    );
+    vi.mocked(correctExpense).mockResolvedValue({ outcome: 'ok' } as never);
+
+    // Mount is NOT gated on `detail.status` any more (that gate stays on the
+    // TRIGGER only) — the refetch below flips status posted→reversed while
+    // the sheet is still open, driven directly through the cache the same
+    // way the real invalidateBooks(qc) refetch inside CorrectSheet's own
+    // submit() would. Nobody has asked the sheet to close at this point.
+    vi.mocked(getExpense).mockResolvedValue({
+      ...DETAIL,
+      status: 'reversed',
+    } as never);
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: booksKeys.expense(12) });
+    });
+
+    // The TRIGGER is gone (gated on status) — but the sheet itself, still
+    // logically open, must not have been unmounted alongside it. The
+    // pre-fix `{detail.status === 'posted' && <CorrectSheet ...>}` shape
+    // would have yanked the whole (still-open) sheet out of the tree here.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Correct…' })).toBeNull(),
+    );
+    expect(
+      screen.getByPlaceholderText('Why this correction…'),
+    ).toBeInTheDocument();
+
+    // Now drive the sheet's own successful submit — it must still close
+    // normally afterward (invalidate-before-toast ordering untouched).
+    fireEvent.click(screen.getByRole('button', { name: /Post correction/ }));
+    await waitFor(() =>
+      expect(correctExpense).toHaveBeenCalledWith(12, {
+        kind: 'financial',
+        reason: 'wrong VAT rate',
+        patch: { gross_amount: 65000, vat_amount: 11721, category: 'rent' },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
+    );
   });
 
   it('auto-post success renders the POSTED toast (a posted-rendered-as-held regression must fail this)', async () => {

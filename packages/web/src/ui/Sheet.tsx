@@ -1,4 +1,4 @@
-import { useLayoutEffect, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { Drawer } from 'vaul';
 
 /** Bottom sheet for actions attached to the current screen (spec: action =
@@ -24,29 +24,33 @@ export function Sheet({
   // calling onOpenChange (e.g. CreateMenu's row onPick) via the layout
   // effect below.
   //
-  // KNOWN RESIDUAL GAP (Task 14 smoke finding, NOT fully closed by either
-  // blur path or by onCloseAutoFocus preventDefault below): whenever the
-  // element that opened a sheet (its "trigger") remains mounted after the
-  // sheet closes, Radix's own FocusScope still restores focus to that
-  // trigger through an internal mechanism outside onOpenChange/
-  // onCloseAutoFocus, landing while the trigger's ancestor is still
-  // aria-hidden — reproduced on Escape-close for CreateEntitySheet's
-  // "+ Add", Books' CreateMenu "+", and by extension any sheet whose
-  // trigger persists. The browser logs the warning synchronously at the
-  // moment of that transient conflict, so no application-level blur
-  // timing (sync, layout-effect, or rAF-deferred — all tried) suppresses
-  // it after the fact. A real fix needs either migrating these sheets off
-  // the "parent unmounts to close" pattern so Radix can run its own
-  // graceful close lifecycle, or neutralizing the trigger's focusability
-  // while its sheet is open. Documented, not fixed here (structural).
+  // RESIDUAL GAP CLOSED (Plan 07 Task 7, closed out at the ExpenseScreen/
+  // InvoiceScreen CorrectSheet sites): every sheet call site now keeps its
+  // sheet MOUNTED once first opened (open flag + remount-on-open epoch key,
+  // lib/useSheet) so Radix runs its graceful close lifecycle and focus
+  // restoration lands AFTER aria-hidden lifts — including sites whose
+  // TRIGGER is gated on business state (e.g. a 'posted' status) that can
+  // itself flip mid-close from the same action that closes the sheet; only
+  // the trigger stays gated, the mount does not. The blur belts below
+  // remain as defense-in-depth for direct open-prop flips.
   const handleOpenChange = (o: boolean) => {
     if (!o && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     onOpenChange(o);
   };
+  // OPEN edge (Plan 07 Task 9 smoke): the trigger button keeps focus after
+  // the click that opens the sheet, and vaul deliberately prevents Radix's
+  // open-autofocus (autoFocus=false — no mobile keyboard pop). Radix then
+  // marks the app root aria-hidden with the still-focused trigger inside it
+  // and the browser logs the same "Blocked aria-hidden" warning at OPEN that
+  // Task 7 closed at CLOSE. Blur the outside-focused element on the open
+  // edge too. Skipped when mounting closed (always-mounted sheets must not
+  // steal focus from the screen at initial render).
+  const everOpen = useRef(open);
+  if (open) everOpen.current = true;
   useLayoutEffect(() => {
-    if (!open && document.activeElement instanceof HTMLElement) {
+    if (everOpen.current && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
   }, [open]);

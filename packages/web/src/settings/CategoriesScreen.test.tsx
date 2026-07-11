@@ -8,8 +8,20 @@ vi.mock('../api', async (io) => ({
   getCategories: vi.fn(),
   getOrganization: vi.fn(),
 }));
-import { getCategories, getOrganization } from '../api';
+import { getCategories, getOrganization, type Organization } from '../api';
 import { CategoriesScreen } from './CategoriesScreen';
+
+const ORG: Organization = {
+  id: 1,
+  country: 'EE',
+  base_currency: null,
+  vat_registered: true,
+  org_type: 'company',
+  created_at: 0,
+  name: 'Acme OÜ',
+  vat_registration_number: null,
+  iban: null,
+};
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -28,7 +40,7 @@ beforeEach(() => {
     { key: 'software', label: 'Software', accountCode: 'EXPENSE_SOFTWARE' },
     { key: 'fuel', label: 'Fuel', accountCode: 'EXPENSE_FUEL' },
   ]);
-  vi.mocked(getOrganization).mockResolvedValue({ country: 'EE' } as never);
+  vi.mocked(getOrganization).mockResolvedValue(ORG);
 });
 
 describe('CategoriesScreen', () => {

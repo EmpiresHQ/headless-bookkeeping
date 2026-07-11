@@ -7,6 +7,7 @@ import {
   syncMailboxConnector,
   type MailboxConnector,
 } from '../api';
+import { useSheet } from '../lib/useSheet';
 import {
   invalidateMailbox,
   useAdminSettings,
@@ -58,7 +59,7 @@ export function MailboxScreen() {
   const [params, setParams] = useSearchParams();
   const connectorsQ = useMailboxConnectors();
   const settingsQ = useAdminSettings();
-  const [imapOpen, setImapOpen] = useState(false);
+  const imap = useSheet();
   const [removeTarget, setRemoveTarget] = useState<MailboxConnector | null>(
     null,
   );
@@ -208,7 +209,7 @@ export function MailboxScreen() {
       <div className="mx-3.5 mb-3.5 flex flex-wrap gap-2">
         <Button onClick={() => void connect('gmail')}>Connect Gmail</Button>
         <Button onClick={() => void connect('outlook')}>Connect Outlook</Button>
-        <Button variant="secondary" onClick={() => setImapOpen(true)}>
+        <Button variant="secondary" onClick={() => imap.open()}>
           Add IMAP mailbox…
         </Button>
       </div>
@@ -232,7 +233,13 @@ export function MailboxScreen() {
         ))}
       </div>
 
-      {imapOpen && <AddImapSheet open onClose={() => setImapOpen(false)} />}
+      {imap.epoch > 0 && (
+        <AddImapSheet
+          key={imap.epoch}
+          open={imap.isOpen}
+          onClose={imap.close}
+        />
+      )}
       <ConfirmDialog
         open={removeTarget !== null}
         onOpenChange={(o) => !removing && !o && setRemoveTarget(null)}

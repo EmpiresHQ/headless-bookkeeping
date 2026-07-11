@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 /**
@@ -18,6 +19,21 @@ export function useSeg<T extends string>(
   const [params, setParams] = useSearchParams();
   const raw = params.get('seg') ?? params.get('tab');
   const seg = segments.includes(raw as T) ? (raw as T) : fallback;
+
+  // Normalize a legacy ?tab= into ?seg= on ARRIVAL (P04 T13 deferred: the
+  // alias was honored on read but lingered in the address bar until the
+  // first segment switch). Idempotent — the second pass sees no ?tab= —
+  // so StrictMode double-invoke and re-renders are safe.
+  useEffect(() => {
+    if (!params.has('tab')) return;
+    const p = new URLSearchParams(params);
+    const raw = p.get('tab');
+    if (raw !== null && segments.includes(raw as T) && !p.has('seg'))
+      p.set('seg', raw);
+    p.delete('tab');
+    setParams(p, { replace: true });
+  }, [params, segments, setParams]);
+
   const setSeg = (next: T) => {
     const p = new URLSearchParams(params);
     p.set('seg', next);

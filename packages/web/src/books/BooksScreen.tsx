@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSeg } from '../lib/useSeg';
+import { useSheet } from '../lib/useSheet';
 import { LargeTitleHeader } from '../shell/Headers';
 import { SearchInput } from '../ui/SearchInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
@@ -9,7 +10,6 @@ import {
   NewExpenseSheet,
   NewInvoiceSheet,
   UploadSheet,
-  type CreateKind,
 } from './create';
 import { CreditNotesSegment } from './CreditNotesSegment';
 import { DocumentsSegment } from './DocumentsSegment';
@@ -28,7 +28,14 @@ export function BooksScreen() {
   const [seg, setSeg] = useSeg<Segment>(SEGMENTS, 'expenses', SEGMENT_PARAMS);
   const q = params.get('q') ?? '';
   const [createOpen, setCreateOpen] = useState(false);
-  const [sheet, setSheet] = useState<CreateKind | null>(null);
+  const expenseSheet = useSheet();
+  const invoiceSheet = useSheet();
+  const uploadSheet = useSheet();
+  const sheetOf = {
+    expense: expenseSheet,
+    invoice: invoiceSheet,
+    upload: uploadSheet,
+  } as const;
 
   const setQ = (next: string) => {
     const p = new URLSearchParams(params);
@@ -79,18 +86,31 @@ export function BooksScreen() {
         onOpenChange={setCreateOpen}
         onPick={(kind) => {
           setCreateOpen(false);
-          setSheet(kind);
+          sheetOf[kind].open();
         }}
       />
-      {/* Sheets reset by REMOUNT — rendered only while open. */}
-      {sheet === 'expense' && (
-        <NewExpenseSheet open onOpenChange={(o) => !o && setSheet(null)} />
+      {/* Sheets reset by REMOUNT-ON-OPEN (epoch key) — mounted from first
+          open so vaul runs its close lifecycle (Plan 07 Task 7). */}
+      {expenseSheet.epoch > 0 && (
+        <NewExpenseSheet
+          key={`expense-${expenseSheet.epoch}`}
+          open={expenseSheet.isOpen}
+          onOpenChange={(o) => !o && expenseSheet.close()}
+        />
       )}
-      {sheet === 'invoice' && (
-        <NewInvoiceSheet open onOpenChange={(o) => !o && setSheet(null)} />
+      {invoiceSheet.epoch > 0 && (
+        <NewInvoiceSheet
+          key={`invoice-${invoiceSheet.epoch}`}
+          open={invoiceSheet.isOpen}
+          onOpenChange={(o) => !o && invoiceSheet.close()}
+        />
       )}
-      {sheet === 'upload' && (
-        <UploadSheet open onOpenChange={(o) => !o && setSheet(null)} />
+      {uploadSheet.epoch > 0 && (
+        <UploadSheet
+          key={`upload-${uploadSheet.epoch}`}
+          open={uploadSheet.isOpen}
+          onOpenChange={(o) => !o && uploadSheet.close()}
+        />
       )}
     </div>
   );

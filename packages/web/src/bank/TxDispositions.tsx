@@ -1,4 +1,5 @@
 import { fmtCents, type BankTransaction } from '../api';
+import { signedEuros } from '../lib/money';
 import { Button } from '../ui/Button';
 import { GroupLabel } from '../ui/List';
 import { Sheet } from '../ui/Sheet';
@@ -233,7 +234,7 @@ export function IncomingOpen({
       </div>
       <div className="sticky bottom-0 bg-gradient-to-t from-bg via-bg/95 to-transparent px-4 pb-3.5 pt-3">
         <Button className="h-[46px] w-full" onClick={onPrepayment}>
-          Record prepayment · +{fmtCents(tx.amount)} €
+          Record prepayment · {signedEuros(tx.amount)}
         </Button>
       </div>
     </>

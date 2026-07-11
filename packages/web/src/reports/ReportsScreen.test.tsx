@@ -206,6 +206,27 @@ describe('ReportsScreen', () => {
     );
   });
 
+  it('NewPeriodSheet resets across open/close/reopen', async () => {
+    mountList();
+    await screen.findByText('July 2026');
+    fireEvent.click(screen.getByRole('button', { name: /New period/ }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Override dates/ }),
+    );
+    fireEvent.change(await screen.findByLabelText('Start date'), {
+      target: { value: '2026-08-01' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Start date')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /New period/ }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Override dates/ }),
+    );
+    expect(await screen.findByLabelText('Start date')).toHaveValue('');
+  });
+
   it('empty state offers opening the first period', async () => {
     mountList([]);
     expect(

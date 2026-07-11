@@ -9,7 +9,12 @@ import {
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import { outcomeText } from '../inbox/reason';
-import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
+import {
+  centsToEuroInput,
+  eurosToCents,
+  signedEuros,
+  vatFromGross,
+} from '../lib/money';
 import { invalidateBooks } from '../queries/books';
 import {
   useCategories,
@@ -210,7 +215,7 @@ export function NewExpenseSheet({
           onClick={() => void submit()}
         >
           {m.grossParsed !== null && m.grossParsed > 0
-            ? `Create expense · −${centsToEuroInput(m.grossParsed)} €`
+            ? `Create expense · ${signedEuros(-m.grossParsed)}`
             : 'Create expense'}
         </Button>
       </div>
@@ -340,7 +345,7 @@ export function NewInvoiceSheet({
           onClick={() => void submit()}
         >
           {m.grossParsed !== null && m.grossParsed > 0
-            ? `Create invoice · +${centsToEuroInput(m.grossParsed)} €`
+            ? `Create invoice · ${signedEuros(m.grossParsed)}`
             : 'Create invoice'}
         </Button>
       </div>

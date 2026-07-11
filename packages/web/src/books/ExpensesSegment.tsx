@@ -1,5 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
-import { fmtCents, type Expense } from '../api';
+import { type Expense } from '../api';
+import { signedEuros } from '../lib/money';
 import {
   documentedExpenseIds,
   entityName,
@@ -138,7 +139,7 @@ export function ExpensesSegment({ q }: { q: string }) {
           label={
             <GroupHeader
               label={g.label}
-              trailing={`−${fmtCents(g.totalCents)} € · ${g.count}`}
+              trailing={`${signedEuros(-g.totalCents)} · ${g.count}`}
             />
           }
         >

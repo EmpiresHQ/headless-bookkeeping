@@ -141,4 +141,68 @@ describe('PolicyScreen', () => {
     });
     expect(screen.getByLabelText('Auto-post ceiling (€)')).toHaveValue('99.00');
   });
+
+  it('negative ceiling: honest error copy, no misleading hint, Save disabled', async () => {
+    mount();
+    await screen.findByLabelText('Auto-post ceiling (€)');
+    fireEvent.change(screen.getByLabelText('Auto-post ceiling (€)'), {
+      target: { value: '-5' },
+    });
+    // Today this renders the hint "Expenses above −5.00 € are held for
+    // approval" beside a silently disabled button (P06 T11 deferred).
+    expect(
+      screen.getByText('The ceiling cannot be negative — enter 0 or more'),
+    ).toBeInTheDocument();
+    // Scoped to the ceiling's own hint pattern — the unrelated
+    // "Always-approve operations" field's static hint also contains the
+    // substring "are held for approval" and would false-positive a bare
+    // /are held for approval/ regex.
+    expect(screen.queryByText(/^Expenses above/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save policy' })).toBeDisabled();
+    expect(updatePolicyConfig).not.toHaveBeenCalled();
+  });
+
+  it('ingest select echoes the picked value during the in-flight write (no snap-back)', async () => {
+    let resolveWrite!: (v: { key: string; value: string }) => void;
+    vi.mocked(setSetting).mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveWrite = res;
+        }),
+    );
+    mount();
+    await waitFor(() =>
+      expect(screen.getByLabelText('Ingest policy')).toHaveValue('quarantine'),
+    );
+    fireEvent.change(screen.getByLabelText('Ingest policy'), {
+      target: { value: 'open' },
+    });
+    // While the PUT is in flight the select shows the operator's pick —
+    // no snap-back to the cached value.
+    expect(screen.getByLabelText('Ingest policy')).toHaveValue('open');
+    // …and lands on refetched server truth once it settles.
+    vi.mocked(getSettings).mockResolvedValue([
+      { key: 'ingest_policy', value: 'open' },
+    ]);
+    resolveWrite({ key: 'ingest_policy', value: 'open' });
+    expect(await screen.findByText('Ingest policy — open')).toBeInTheDocument();
+    expect(screen.getByLabelText('Ingest policy')).toHaveValue('open');
+  });
+
+  it('failed ingest write reverts the select to server truth with the error toast', async () => {
+    vi.mocked(setSetting).mockRejectedValue(
+      new Error('Invalid value for setting ingest_policy'),
+    );
+    mount();
+    await waitFor(() =>
+      expect(screen.getByLabelText('Ingest policy')).toHaveValue('quarantine'),
+    );
+    fireEvent.change(screen.getByLabelText('Ingest policy'), {
+      target: { value: 'open' },
+    });
+    expect(
+      await screen.findByText('Invalid value for setting ingest_policy'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Ingest policy')).toHaveValue('quarantine');
+  });
 });

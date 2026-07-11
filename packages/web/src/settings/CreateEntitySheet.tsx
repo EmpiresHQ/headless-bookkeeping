@@ -32,14 +32,16 @@ const NEEDS_REG_KEY: readonly EntityRole[] = ['supplier', 'customer'];
 export function CreateEntitySheet({
   open,
   onClose,
+  defaultRole = 'supplier',
 }: {
   open: boolean;
   onClose: () => void;
+  defaultRole?: EntityRole;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [role, setRole] = useState<EntityRole>('supplier');
+  const [role, setRole] = useState<EntityRole>(defaultRole);
   const [name, setName] = useState('');
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');

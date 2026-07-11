@@ -70,8 +70,15 @@ function Frame({ children }: { children: React.ReactNode }) {
 function IngestPolicyGroup({ current }: { current: string }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  // Optimistic local echo (P06 T11 deferred): the select shows the picked
+  // value during the in-flight write instead of snapping back to the cached
+  // value until the refetch lands. Cleared in `finally`: on success the
+  // AWAITED invalidate has already refreshed `current` to the echoed value;
+  // on failure the select honestly reverts to server truth.
+  const [echo, setEcho] = useState<string | null>(null);
   const onChange = async (value: string) => {
     setBusy(true);
+    setEcho(value);
     try {
       await setSetting('ingest_policy', value);
       await invalidateAdminSettings(qc);
@@ -80,6 +87,7 @@ function IngestPolicyGroup({ current }: { current: string }) {
       toastErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setEcho(null);
     }
   };
   return (
@@ -92,7 +100,7 @@ function IngestPolicyGroup({ current }: { current: string }) {
         >
           <SelectInput
             aria-label="Ingest policy"
-            value={current}
+            value={echo ?? current}
             disabled={busy}
             onChange={(e) => void onChange(e.target.value)}
           >
@@ -153,9 +161,15 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
     confidenceNum >= 0 &&
     confidenceNum <= 1;
   const valid = ceilingCents !== null && ceilingCents >= 0 && confidenceOk;
+  const ceilingError =
+    ceilingCents === null
+      ? 'Enter an amount like 50.00'
+      : ceilingCents < 0
+        ? 'The ceiling cannot be negative — enter 0 or more'
+        : null;
 
   const save = async () => {
-    if (ceilingCents === null || !confidenceOk) return;
+    if (ceilingCents === null || ceilingCents < 0 || !confidenceOk) return;
     setBusy(true);
     try {
       await updatePolicyConfig({
@@ -185,9 +199,9 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
       <div className="mx-3.5 mb-3.5 space-y-4 rounded-2xl bg-surface p-4">
         <Field
           label="Auto-post ceiling (€)"
-          error={ceilingCents === null ? 'Enter an amount like 50.00' : null}
+          error={ceilingError}
           hint={
-            ceilingCents !== null
+            ceilingError === null && ceilingCents !== null
               ? `Expenses above ${fmtCents(ceilingCents)} € are held for approval`
               : undefined
           }

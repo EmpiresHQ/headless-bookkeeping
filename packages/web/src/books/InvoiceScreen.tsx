@@ -1,9 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteInvoice, postInvoice } from '../api';
+import { deleteInvoice, fmtCents, postInvoice } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
+import { signedEuros } from '../lib/money';
+import { useSheet } from '../lib/useSheet';
 import {
   entityName,
   invalidateBooks,
@@ -44,7 +46,7 @@ export function InvoiceScreen() {
     inv?.status === 'draft',
   );
 
-  const [correctOpen, setCorrectOpen] = useState(false);
+  const correctSheet = useSheet();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -98,7 +100,7 @@ export function InvoiceScreen() {
           `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
         );
       } else {
-        toastOk(`Posted · +${(inv.gross_amount / 100).toFixed(2)} €`);
+        toastOk(`Posted · ${signedEuros(inv.gross_amount)}`);
       }
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -156,7 +158,7 @@ export function InvoiceScreen() {
         <KeyValue k="Invoice no." v={inv.invoice_number} />
         <KeyValue
           k="VAT"
-          v={`${(inv.vat_amount / 100).toFixed(2)} €${rate != null ? ` (${rate}%)` : ''}`}
+          v={`${fmtCents(inv.vat_amount)} €${rate != null ? ` (${rate}%)` : ''}`}
         />
         <KeyValue k="Tax point" v={absoluteDateFromIso(inv.tax_point_date)} />
         {inv.due_date != null && (
@@ -240,7 +242,7 @@ export function InvoiceScreen() {
             <Button
               variant="secondary"
               className="w-full"
-              onClick={() => setCorrectOpen(true)}
+              onClick={() => correctSheet.open()}
             >
               Correct…
             </Button>
@@ -263,11 +265,20 @@ export function InvoiceScreen() {
         )}
       </div>
 
-      {inv.status === 'posted' && (
+      {/* Mount is reachable independent of `inv.status`: a successful
+       *  financial correction flips status posted→reversed via the
+       *  invalidate-then-refetch inside CorrectSheet's own submit() BEFORE
+       *  it calls onOpenChange(false) — gating the mount on `status ===
+       *  'posted'` would unmount the still-closing sheet mid-transition
+       *  (aria-hidden race + killed exit animation). The TRIGGER above
+       *  stays gated on status; only the mount moved to the sheet's own
+       *  open/close lifecycle (epoch keeps state fresh per open, P07 T7
+       *  discipline). */}
+      {correctSheet.epoch > 0 && (
         <CorrectSheet
-          key={inv.id}
-          open={correctOpen}
-          onOpenChange={setCorrectOpen}
+          key={`${inv.id}-${correctSheet.epoch}`}
+          open={correctSheet.isOpen}
+          onOpenChange={(o) => !o && correctSheet.close()}
           objectType="sales_invoice"
           objectId={inv.id}
           grossCents={inv.gross_amount}

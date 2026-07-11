@@ -4,11 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   completeDocument,
   deleteDocument,
+  fmtCents,
   getDocumentDetails,
   retryDocument,
   type TriageOutcome,
 } from '../api';
 import { ScreenHeader } from '../shell/Headers';
+import { signedEuros } from '../lib/money';
 import {
   inboxKeys,
   invalidateInbox,
@@ -27,7 +29,7 @@ import { toastErr, toastOk } from '../ui/toast';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
 import { ClassifyInvoiceSheet } from './ClassifyInvoiceSheet';
 import { DocPreviewRow } from './DocPreviewRow';
-import { absoluteDateFromIso, signedEuros, vatRatePct } from './format';
+import { absoluteDateFromIso, vatRatePct } from './format';
 import { OcrFailedSheet } from './OcrFailedSheet';
 import { outcomeText, triageSubtitle } from './reason';
 import { ResolveSupplierSheet } from './ResolveSupplierSheet';
@@ -197,8 +199,8 @@ export function TriageDocScreen() {
                 classification.result.gross_amount,
                 classification.result.vat_amount,
               ) !== null
-                ? `${(classification.result.vat_amount / 100).toFixed(2)} € (${vatRatePct(classification.result.gross_amount, classification.result.vat_amount)}%)`
-                : `${(classification.result.vat_amount / 100).toFixed(2)} €`
+                ? `${fmtCents(classification.result.vat_amount)} € (${vatRatePct(classification.result.gross_amount, classification.result.vat_amount)}%)`
+                : `${fmtCents(classification.result.vat_amount)} €`
             }
           />
           <KeyValue

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -77,5 +77,62 @@ describe('BooksScreen', () => {
     );
     expect(await screen.findByText('New expense')).toBeInTheDocument();
     expect(screen.getByText('Upload a document')).toBeInTheDocument();
+  });
+
+  it('New expense sheet resets across open/close/reopen', async () => {
+    mount();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add to the books' }),
+    );
+    fireEvent.click(await screen.findByText('New expense'));
+    fireEvent.change(await screen.findByLabelText('Gross (€)'), {
+      target: { value: '48.20' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Gross (€)')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add to the books' }));
+    fireEvent.click(await screen.findByText('New expense'));
+    expect(await screen.findByLabelText('Gross (€)')).toHaveValue('');
+  });
+
+  it('New invoice sheet resets across open/close/reopen', async () => {
+    mount();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add to the books' }),
+    );
+    fireEvent.click(await screen.findByText('New sales invoice'));
+    fireEvent.change(await screen.findByLabelText('Invoice number'), {
+      target: { value: 'INV-HALF' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Invoice number')).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add to the books' }));
+    fireEvent.click(await screen.findByText('New sales invoice'));
+    expect(await screen.findByLabelText('Invoice number')).toHaveValue('');
+  });
+
+  it('Upload sheet resets its file selection across open/close/reopen', async () => {
+    mount();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add to the books' }),
+    );
+    fireEvent.click(await screen.findByText('Upload a document'));
+    const fileInput = await screen.findByLabelText('File');
+    const file = new File(['x'], 'half-typed.pdf', {
+      type: 'application/pdf',
+    });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(screen.getByRole('button', { name: /Upload/ })).not.toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('File')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Add to the books' }));
+    fireEvent.click(await screen.findByText('Upload a document'));
+    expect(
+      await screen.findByRole('button', { name: /Upload/ }),
+    ).toBeDisabled();
   });
 });

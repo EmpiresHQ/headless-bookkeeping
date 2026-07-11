@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -76,10 +76,12 @@ describe('TxMatched', () => {
     expect(screen.getByText('Expense #61')).toBeInTheDocument();
     expect(screen.getByText('full · 35.00 of 35.00 €')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Unmatch' }));
-    await vi.waitFor(() =>
-      expect(api.unmatchMatch).toHaveBeenCalledWith(3, 41),
-    );
-    await vi.waitFor(() => expect(onChanged).toHaveBeenCalled());
+    await waitFor(() => expect(api.unmatchMatch).toHaveBeenCalledWith(3, 41));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    // Settle: the success toast is the last update of the unmatch flow.
+    expect(
+      await screen.findByText('Match removed — the line is unmatched again'),
+    ).toBeInTheDocument();
   });
 
   it('offers Confirm match as primary for staged drafts', async () => {
@@ -124,9 +126,11 @@ describe('TxMatched', () => {
     );
     expect(screen.getByText('staged')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm match' }));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(api.approveApproval).toHaveBeenCalledWith(88, 'operator'),
     );
     expect(onChanged).toHaveBeenCalled();
+    // Settle: the undo-toast is the last update of the confirm flow.
+    expect(await screen.findByText('Confirmed · 35.00 €')).toBeInTheDocument();
   });
 });

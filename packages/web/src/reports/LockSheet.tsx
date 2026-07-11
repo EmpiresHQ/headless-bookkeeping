@@ -6,6 +6,7 @@ import {
   type PeriodWarning,
   type ReportingPeriod,
 } from '../api';
+import { signedEuros } from '../lib/money';
 import { entityName } from '../queries/books';
 import {
   invalidateReports,
@@ -58,14 +59,14 @@ export function LockSheet({
       const e = expenses.find((x) => x.id === w.object_id);
       if (e !== undefined) {
         const who = entityName(entities, e.supplier_id) ?? e.category;
-        return `${who} · −${fmtCents(e.gross_amount)} € — ${suffix}`;
+        return `${who} · ${signedEuros(-e.gross_amount)} — ${suffix}`;
       }
       return `Expense — ${suffix}`;
     }
     const inv = invoices.find((x) => x.id === w.object_id);
     if (inv !== undefined) {
       const who = entityName(entities, inv.customer_id) ?? inv.invoice_number;
-      return `${who} · +${fmtCents(inv.gross_amount)} € — ${suffix}`;
+      return `${who} · ${signedEuros(inv.gross_amount)} — ${suffix}`;
     }
     return `Invoice — ${suffix}`;
   };

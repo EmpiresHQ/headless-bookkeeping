@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useInboxCount } from '../queries/inbox';
+import { SkeletonRows } from '../ui/Feedback';
 import { Sidebar } from './Sidebar';
 import { TabBar } from './TabBar';
 
@@ -18,7 +20,15 @@ export function AppLayout({ onSignOut }: { onSignOut: () => void }) {
     <div className="min-h-screen bg-bg text-ink">
       <Sidebar onSignOut={onSignOut} inboxCount={inboxCount} />
       <div className="pb-24 lg:pb-6 lg:pl-56">
-        <Outlet context={{ onSignOut } satisfies ShellOutletContext} />
+        <Suspense
+          fallback={
+            <div className="mx-auto max-w-3xl pt-6">
+              <SkeletonRows count={4} />
+            </div>
+          }
+        >
+          <Outlet context={{ onSignOut } satisfies ShellOutletContext} />
+        </Suspense>
       </div>
       <TabBar inboxCount={inboxCount} />
     </div>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { approveApproval, rejectApproval } from '../api';
+import { approveApproval, fmtCents, rejectApproval } from '../api';
 import { ScreenHeader } from '../shell/Headers';
+import { signedEuros } from '../lib/money';
 import {
   invalidateInbox,
   nextRouteAfter,
@@ -20,12 +21,7 @@ import { LinkButton } from '../ui/LinkButton';
 import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { DocPreviewRow } from './DocPreviewRow';
-import {
-  absoluteDate,
-  absoluteDateFromIso,
-  signedEuros,
-  vatRatePct,
-} from './format';
+import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 import { humanizePolicyReason } from './reason';
 import { RejectSheet } from './RejectSheet';
 
@@ -204,8 +200,8 @@ export function ApprovalScreen() {
             k="VAT"
             v={
               vatRatePct(e.gross_amount, e.vat_amount) !== null
-                ? `${(e.vat_amount / 100).toFixed(2)} € (${vatRatePct(e.gross_amount, e.vat_amount)}%)`
-                : `${(e.vat_amount / 100).toFixed(2)} €`
+                ? `${fmtCents(e.vat_amount)} € (${vatRatePct(e.gross_amount, e.vat_amount)}%)`
+                : `${fmtCents(e.vat_amount)} €`
             }
           />
           <KeyValue k="Tax point" v={absoluteDateFromIso(e.tax_point_date)} />
@@ -251,7 +247,7 @@ export function ApprovalScreen() {
         />
         <WhyHeldBox reason={approval.policy_reason} />
         <ListGroup label="Facts">
-          <KeyValue k="VAT" v={`${(inv.vat_amount / 100).toFixed(2)} €`} />
+          <KeyValue k="VAT" v={`${fmtCents(inv.vat_amount)} €`} />
           <KeyValue k="Tax point" v={absoluteDateFromIso(inv.tax_point_date)} />
           <KeyValue k="Invoice number" v={inv.invoice_number} />
         </ListGroup>

@@ -7,7 +7,12 @@ import {
   type TriageOutcome,
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
-import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
+import {
+  centsToEuroInput,
+  eurosToCents,
+  signedEuros,
+  vatFromGross,
+} from '../lib/money';
 import { inboxKeys } from '../queries/inbox';
 import { useCustomers } from '../queries/shared';
 import { Button } from '../ui/Button';
@@ -278,7 +283,7 @@ export function ClassifyInvoiceSheet({
           onClick={() => void submit()}
         >
           {grossCents !== null && grossCents > 0
-            ? `Record invoice · +${(grossCents / 100).toFixed(2)} €`
+            ? `Record invoice · ${signedEuros(grossCents)}`
             : 'Record invoice'}
         </Button>
       </div>

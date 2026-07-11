@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { centsToEuroInput, eurosToCents, vatFromGross } from './money';
+import {
+  centsToEuroInput,
+  eurosToCents,
+  signedEuros,
+  vatFromGross,
+} from './money';
 
 describe('eurosToCents', () => {
   it('parses plain euros', () => {
@@ -32,5 +37,21 @@ describe('vatFromGross', () => {
   });
   it('is zero at rate 0', () => {
     expect(vatFromGross(1860, 0)).toBe(0);
+  });
+});
+
+describe('signedEuros — the app-wide signed-display idiom (Plan 07 Task 1)', () => {
+  it('signs by the input sign: U+2212 minus, ASCII plus, zero unsigned', () => {
+    expect(signedEuros(-4820)).toBe('−48.20 €');
+    expect(signedEuros(4820)).toBe('+48.20 €');
+    expect(signedEuros(0)).toBe('0.00 €');
+  });
+
+  it('cannot double-sign: negating an already-negative value yields a plus', () => {
+    // The failure mode this idiom kills: a literal '−' prefixed to
+    // fmtCents(negative) would render '−−48.20'. signedEuros signs exactly
+    // once, whatever the caller passes.
+    expect(signedEuros(-(-4820))).toBe('+48.20 €');
+    expect(signedEuros(-0)).toBe('0.00 €');
   });
 });

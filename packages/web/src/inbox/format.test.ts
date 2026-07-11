@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  absoluteDate,
-  absoluteDateFromIso,
-  signedEuros,
-  vatRatePct,
-} from './format';
+import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 
 describe('absolute dates', () => {
   it('formats unix seconds as dd.mm.yyyy', () => {
@@ -25,13 +20,5 @@ describe('vatRatePct', () => {
   it('returns null when not computable', () => {
     expect(vatRatePct(0, 0)).toBeNull();
     expect(vatRatePct(100, 100)).toBeNull();
-  });
-});
-
-describe('signedEuros', () => {
-  it('formats signed euro amounts', () => {
-    expect(signedEuros(-8900)).toBe('−89.00 €');
-    expect(signedEuros(120000)).toBe('+1200.00 €');
-    expect(signedEuros(0)).toBe('0.00 €');
   });
 });

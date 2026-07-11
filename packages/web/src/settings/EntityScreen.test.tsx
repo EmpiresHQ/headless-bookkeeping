@@ -283,4 +283,56 @@ describe('EntityScreen (asset §8 card)', () => {
       await screen.findByRole('link', { name: /Expenses · 2/ }),
     ).toBeInTheDocument();
   });
+
+  it('bookings row states its count basis (posted + pending, not drafts)', async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    // The bookings row only renders once the shared expenses list settles
+    // (P04 no-transient-false-zero gate above) — a second async wait,
+    // consistent with the existing "waits for the expenses list to settle"
+    // pin in this file.
+    expect(
+      await screen.findByText('Posted and pending — drafts not counted'),
+    ).toBeInTheDocument();
+  });
+
+  it("alias Kind select offers exactly the three server-accepted kinds (AddAliasInput['kind'])", async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
+    const options = within(screen.getByLabelText('Kind')).getAllByRole(
+      'option',
+    );
+    expect(options.map((o) => (o as HTMLOptionElement).value)).toEqual([
+      'merchant_descriptor',
+      'iban',
+      'name_alias',
+    ]);
+  });
+
+  it('alias and edit sheets reset across open/close/reopen', async () => {
+    mount();
+    await screen.findByText('Circle K Eesti AS');
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
+    fireEvent.change(await screen.findByLabelText('Value'), {
+      target: { value: 'HALF-TYPED' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Value')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
+    expect(await screen.findByLabelText('Value')).toHaveValue('');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Value')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.change(await screen.findByLabelText('Name'), {
+      target: { value: 'Scratch that' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByLabelText('Name')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(await screen.findByLabelText('Name')).toHaveValue(
+      'Circle K Eesti AS',
+    );
+  });
 });

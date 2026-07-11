@@ -195,4 +195,24 @@ describe('SubmissionsScreen', () => {
     // The state query never fires pre-lock (the events attach to the snapshot).
     expect(getSubmissionState).not.toHaveBeenCalled();
   });
+
+  it('Add-event sheet resets across open/close/reopen', async () => {
+    mountAt(6);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Record what happened…' }),
+    );
+    fireEvent.change(await screen.findByLabelText('What happened'), {
+      target: { value: 'accepted' },
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByLabelText('What happened')).toBeNull(),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Record what happened…' }),
+    );
+    expect(await screen.findByLabelText('What happened')).toHaveValue(
+      'submitted',
+    );
+  });
 });
