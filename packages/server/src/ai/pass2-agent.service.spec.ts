@@ -126,14 +126,13 @@ describe('Pass2AgentService', () => {
     classificationAgent: await requireClassificationAgent(),
   });
 
-  /** The enrichment call's `toolChoice` — production forces this tool rather
-   * than leaving it to `tool_choice=auto` (issue #179). Every enrichment
-   * `generate()` assertion below must account for this second argument. */
+  /** The enrichment call's second argument — production forces the
+   * deterministic tool on the FIRST loop step only via `prepareStep`
+   * (issue #179; a static `toolChoice` would compel the tool on EVERY
+   * agentic-loop step). Every enrichment `generate()` assertion below must
+   * account for this second argument. */
   const ENRICHMENT_GENERATE_OPTIONS = {
-    toolChoice: {
-      type: 'tool' as const,
-      toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
-    },
+    prepareStep: expect.any(Function),
   };
 
   /**
@@ -323,7 +322,7 @@ describe('Pass2AgentService', () => {
       expect(buildClassificationSpy).not.toHaveBeenCalled();
     });
 
-    it('forces getClassificationContext via toolChoice on the enrichment call', async () => {
+    it('forces getClassificationContext on step 0 only — later steps return to auto (a static force would compel the tool on every loop step)', async () => {
       const { enrichmentAgent, classificationAgent } =
         await requireSplitAgents();
       const enrichmentGenerateSpy = mockEnrichmentSummary(enrichmentAgent);
@@ -337,6 +336,20 @@ describe('Pass2AgentService', () => {
         'force-tool markdown',
         ENRICHMENT_GENERATE_OPTIONS,
       );
+      const options = (enrichmentGenerateSpy.mock.calls[0] as unknown[])[1] as {
+        prepareStep: (args: { stepNumber: number }) => {
+          toolChoice: unknown;
+        };
+      };
+      expect(options.prepareStep({ stepNumber: 0 })).toEqual({
+        toolChoice: {
+          type: 'tool',
+          toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
+        },
+      });
+      expect(options.prepareStep({ stepNumber: 1 })).toEqual({
+        toolChoice: 'auto',
+      });
     });
 
     it('wires enrichment.supplier.matchEntityId from the getClassificationContext TOOL RESULT — never from result.object', async () => {

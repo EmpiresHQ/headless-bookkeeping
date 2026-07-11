@@ -314,11 +314,24 @@ export class Pass2AgentService {
     try {
       // Force the deterministic supplier lookup rather than leaving it to
       // `tool_choice=auto` (the issue #179 production failure: a model can
-      // emit a final answer without ever calling the tool). The missing-tool
-      // check below is the belt-and-braces diagnostic for when forcing isn't
-      // honored by the runtime.
+      // emit a final answer without ever calling the tool). The force is
+      // scoped to the FIRST loop step only: a static `toolChoice` applies to
+      // EVERY step of Mastra's agentic loop, which would compel the model to
+      // re-call the tool on each iteration (up to the step cap) and finish
+      // with no reusable text. Step 0 forces the lookup; later steps return
+      // to `auto` so the model can write the enrichment summary. The
+      // missing-tool check below is the belt-and-braces diagnostic for when
+      // forcing isn't honored by the runtime.
       const enrichmentResult = (await enrichmentAgent.generate(markdown, {
-        toolChoice: { type: 'tool', toolName: GET_CLASSIFICATION_CONTEXT_TOOL },
+        prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+          stepNumber === 0
+            ? {
+                toolChoice: {
+                  type: 'tool' as const,
+                  toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
+                },
+              }
+            : { toolChoice: 'auto' as const },
       })) as unknown as EnrichmentGenerateResult;
       const { enrichment: parsedEnrichment, toolCalled } =
         this.parseEnrichment(enrichmentResult);
