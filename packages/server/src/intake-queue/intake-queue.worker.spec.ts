@@ -14,6 +14,7 @@ function makeDeps(docs: FakeDoc[]) {
       next.attempts += 1;
       return { id: next.id, claimant_id: null };
     }),
+    setReprocessKicker: jest.fn(),
   };
 
   const workflow = {
@@ -138,19 +139,44 @@ describe('IntakeQueueWorker', () => {
 });
 
 describe('IntakeQueueWorker.onModuleInit under test', () => {
-  it('does not arm setInterval when NODE_ENV=test', () => {
-    // Jest sets NODE_ENV='test' by default — verify the early-return guard.
+  it('does not arm setInterval when NODE_ENV=test but still registers the reprocess kicker', () => {
+    // Jest sets NODE_ENV='test' by default — verify the early-return guard,
+    // and that kicker registration happens BEFORE it (so Retry works in tests).
     const setIntervalSpy = jest.spyOn(global, 'setInterval');
+    const setReprocessKicker = jest.fn();
 
-    const worker = new IntakeQueueWorker({} as never, {} as never);
+    const worker = new IntakeQueueWorker(
+      { setReprocessKicker } as never,
+      {} as never,
+    );
 
     worker.onModuleInit();
 
+    expect(setReprocessKicker).toHaveBeenCalledTimes(1);
     expect(setIntervalSpy).not.toHaveBeenCalled();
 
     // onModuleDestroy must be a safe no-op (timer is null).
     expect(() => worker.onModuleDestroy()).not.toThrow();
 
     setIntervalSpy.mockRestore();
+  });
+
+  it('registers a kicker that wakes the worker (drains the queue)', async () => {
+    const docs: FakeDoc[] = [{ id: 1, attempts: 0, done: false }];
+    const deps = makeDeps(docs);
+    const worker = new IntakeQueueWorker(
+      deps.documents as never,
+      deps.workflow as never,
+    );
+
+    worker.onModuleInit();
+
+    // Invoke the callback the worker handed to DocumentsService.
+    const kicker = deps.documents.setReprocessKicker.mock
+      .calls[0][0] as () => void;
+    kicker();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(deps.processed).toEqual([1]);
   });
 });

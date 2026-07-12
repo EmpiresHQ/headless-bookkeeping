@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
@@ -39,11 +40,26 @@ export interface PendingTriageReplay {
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
+  /**
+   * Optional listener the IntakeQueueWorker registers at init so a successful
+   * `reprocessDocument` can wake the worker immediately (instead of waiting on
+   * the backstop poll). Kept as a plain callback so the dependency direction
+   * stays one-way (IntakeQueueModule → DocumentsModule) with no module cycle.
+   */
+  private reprocessKicker: (() => void) | null = null;
+
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly storage: DocumentStorageService,
     private readonly previewRenderer: PreviewRenderer,
   ) {}
+
+  /** Register the worker's wake callback. Idempotent; last registration wins. */
+  setReprocessKicker(kicker: () => void): void {
+    this.reprocessKicker = kicker;
+  }
 
   async upload(input: UploadDocumentInput): Promise<UploadDocumentResult> {
     const hash = computeSha256(input.buffer);
@@ -371,9 +387,17 @@ export class DocumentsService {
    *
    * Use when a systemic fix (e.g. a HEIC decoder becoming available, or an OCR
    * configuration change) makes a previously-failing document retriable.
+   *
+   * Returns `{ requeued }` so the caller can tell a real re-queue from a silent
+   * no-op (the guarded UPDATE matches zero rows when the document is not in
+   * `needs_triage`) — the caller only kicks the worker, and only reports
+   * success, when `requeued` is true. `priorStatus` names the actual status
+   * observed on a no-op, for diagnostics.
    */
-  async reprocessDocument(id: number): Promise<void> {
-    await this.db
+  async reprocessDocument(
+    id: number,
+  ): Promise<{ requeued: boolean; priorStatus: DocumentStatus | null }> {
+    const res = await this.db
       .updateTable('document')
       .set({
         status: 'pending',
@@ -382,17 +406,54 @@ export class DocumentsService {
       })
       .where('id', '=', id)
       .where('status', '=', 'needs_triage')
-      .execute();
+      .executeTakeFirst();
+
+    const rows = Number(res.numUpdatedRows ?? 0);
+    if (rows === 1) {
+      this.logger.debug(
+        `reprocessDocument(${id}): needs_triage → pending, fresh slate ` +
+          `(processing_attempts=0, processing_since=null); rows=${rows}. ` +
+          `Kicking intake worker.`,
+      );
+      // Wake the worker so re-processing is prompt, not poll-delayed.
+      this.reprocessKicker?.();
+      return { requeued: true, priorStatus: 'needs_triage' };
+    }
+
+    // No-op: the WHERE status='needs_triage' guard matched nothing. Read the
+    // actual status so the previously-silent failure is observable per document.
+    const current = await this.db
+      .selectFrom('document')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    const priorStatus = (current?.status ?? null) as DocumentStatus | null;
+    this.logger.warn(
+      `reprocessDocument(${id}): NO-OP — status is ` +
+        `'${priorStatus ?? 'MISSING'}', not 'needs_triage'; rows=${rows}. ` +
+        `Retry did not re-queue this document.`,
+    );
+    return { requeued: false, priorStatus };
   }
 
   /**
    * Atomically claim the oldest claimable 'pending' document for processing.
    *
-   * Claimable = status 'pending', attempts below the cap, and not currently
-   * in flight (processing_since NULL or older than `staleSeconds` — the latter
-   * reclaims a document stranded by a crash). On a win it stamps
-   * processing_since = now and increments processing_attempts, then returns the
-   * id. Returns null when the queue is empty or another claimer won the race.
+   * Claimable = status 'pending', its bytes stored (storage_path NOT NULL),
+   * attempts below the cap, and not currently in flight (processing_since NULL
+   * or older than `staleSeconds` — the latter reclaims a document stranded by a
+   * crash). On a win it stamps processing_since = now and increments
+   * processing_attempts, then returns the id. Returns null when the queue is
+   * empty or another claimer won the race.
+   *
+   * The storage_path guard closes an upload/worker race: `upload()` inserts the
+   * document row as status='pending' with storage_path NULL and only sets
+   * storage_path AFTER writing the file (two separate, autocommitted steps). A
+   * poll landing in that window would otherwise claim a document with no stored
+   * bytes, OCR would throw "has no stored file", and a perfectly readable
+   * document would be mislabelled `ocr_failed`. Skipping storage_path-null rows
+   * lets the very next poll (≤1.5s later, once upload finishes) claim it
+   * cleanly.
    */
   async claimNextPending(
     staleSeconds: number,
@@ -405,6 +466,7 @@ export class DocumentsService {
       .selectFrom('document')
       .select(['id', 'claimant_id'])
       .where('status', '=', 'pending')
+      .where('storage_path', 'is not', null)
       .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
         eb.or([
@@ -428,6 +490,7 @@ export class DocumentsService {
       })
       .where('id', '=', candidate.id)
       .where('status', '=', 'pending')
+      .where('storage_path', 'is not', null)
       .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
         eb.or([
@@ -439,6 +502,10 @@ export class DocumentsService {
 
     if (!res) return null;
     if (Number(res.numUpdatedRows) !== 1) return null;
+    this.logger.debug(
+      `claimNextPending: claimed document ${candidate.id} for processing ` +
+        `(claimant_id=${candidate.claimant_id ?? 'null'})`,
+    );
     return { id: candidate.id, claimant_id: candidate.claimant_id ?? null };
   }
 
