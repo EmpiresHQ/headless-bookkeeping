@@ -1,4 +1,4 @@
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -12,6 +12,7 @@ import {
   DOCUMENT_STORAGE_ROOT,
 } from './document-storage.service';
 import { PreviewRenderer } from './preview-renderer';
+import type { DocumentStatus } from './types';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 
@@ -786,7 +787,11 @@ describe('DocumentsService (unit)', () => {
     async function insertPending(
       hash: string,
       createdAt: number,
-      opts: { processingSince?: number | null; attempts?: number } = {},
+      opts: {
+        processingSince?: number | null;
+        attempts?: number;
+        storagePath?: string | null;
+      } = {},
     ): Promise<number> {
       const row = await db
         .insertInto('document')
@@ -795,7 +800,13 @@ describe('DocumentsService (unit)', () => {
           filename: `${hash}.png`,
           mime_type: 'image/png',
           size_bytes: 1,
-          storage_path: null,
+          // A claimable document has its bytes stored. Default to a non-null
+          // path so these tests model the post-upload steady state; the
+          // storage_path-null case (the upload/worker race) is its own test.
+          storage_path:
+            opts.storagePath === undefined
+              ? `${hash}/${hash}.png`
+              : opts.storagePath,
           status: 'pending',
           created_at: createdAt,
           processing_since: opts.processingSince ?? null,
@@ -868,6 +879,34 @@ describe('DocumentsService (unit)', () => {
       expect(second).toBeNull();
     });
 
+    it('does not claim a pending document whose bytes are not yet stored (storage_path NULL)', async () => {
+      // Reproduces the upload/worker race: upload() inserts the row as
+      // status='pending' with storage_path=NULL and only sets storage_path
+      // AFTER writing the file. The worker must not claim it in that window —
+      // OCR would fail with "no stored file" and mislabel a good document
+      // ocr_failed.
+      await insertPending('no-bytes', 1000, { storagePath: null });
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBeNull();
+    });
+
+    it('claims the document once its bytes are stored (storage_path set)', async () => {
+      const withBytes = await insertPending('has-bytes', 1000, {
+        storagePath: 'has-bytes/has-bytes.png',
+      });
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toEqual({ id: withBytes, claimant_id: null });
+    });
+
+    it('skips the storage_path-null document and claims the next stored one', async () => {
+      // FIFO order would pick the older no-bytes doc first, but it must be
+      // skipped in favour of the younger doc whose bytes are stored.
+      await insertPending('older-no-bytes', 1000, { storagePath: null });
+      const younger = await insertPending('younger-stored', 2000);
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toEqual({ id: younger, claimant_id: null });
+    });
+
     it('ignores non-pending documents', async () => {
       const row = await db
         .insertInto('document')
@@ -885,6 +924,82 @@ describe('DocumentsService (unit)', () => {
       expect(row.status).toBe('processed');
       const id = await service.claimNextPending(STALE, MAX);
       expect(id).toBeNull();
+    });
+  });
+
+  describe('reprocessDocument', () => {
+    async function insertWithStatus(
+      hash: string,
+      status: DocumentStatus,
+    ): Promise<number> {
+      const row = await db
+        .insertInto('document')
+        .values({
+          hash,
+          filename: `${hash}.png`,
+          mime_type: 'image/png',
+          size_bytes: 1,
+          storage_path: null,
+          status,
+          created_at: 1000,
+          processing_since: 999,
+          processing_attempts: 2,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    it('resets a needs_triage document to pending with a fresh slate, reports requeued, and kicks the worker', async () => {
+      const kicker = jest.fn();
+      service.setReprocessKicker(kicker);
+      const id = await insertWithStatus('nt', 'needs_triage');
+
+      const result = await service.reprocessDocument(id);
+
+      expect(result).toEqual({ requeued: true, priorStatus: 'needs_triage' });
+      expect(kicker).toHaveBeenCalledTimes(1); // worker woken promptly
+
+      const row = await db
+        .selectFrom('document')
+        .select(['status', 'processing_since', 'processing_attempts'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('pending');
+      expect(row.processing_since).toBeNull();
+      expect(row.processing_attempts).toBe(0);
+    });
+
+    it('is a no-op for a non-needs_triage document: reports the actual prior status, warns, and does NOT kick', async () => {
+      const kicker = jest.fn();
+      service.setReprocessKicker(kicker);
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const id = await insertWithStatus('done', 'processed');
+
+      const result = await service.reprocessDocument(id);
+
+      expect(result).toEqual({ requeued: false, priorStatus: 'processed' });
+      expect(kicker).not.toHaveBeenCalled();
+
+      // Row untouched — the guarded UPDATE matched zero rows.
+      const row = await db
+        .selectFrom('document')
+        .select(['status', 'processing_since', 'processing_attempts'])
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe('processed');
+      expect(row.processing_attempts).toBe(2);
+
+      // The silent no-op is now observable as a WARN naming the doc + status.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`reprocessDocument(${id})`),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('processed'),
+      );
+      warnSpy.mockRestore();
     });
   });
 

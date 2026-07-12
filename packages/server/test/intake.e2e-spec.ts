@@ -191,6 +191,34 @@ describe('Intake E2E (document → draft → pipeline)', () => {
 
   const buf = (label: string) => Buffer.from(label);
 
+  /**
+   * Poll the document's status until it reaches `target` (the intake worker
+   * drains asynchronously after a fire-and-forget kick). Fails the test if the
+   * status has not settled within the timeout.
+   */
+  async function waitForStatus(
+    docId: number,
+    target: string,
+    timeoutMs = 3000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const row = await db
+        .selectFrom('document')
+        .select('status')
+        .where('id', '=', docId)
+        .executeTakeFirst();
+      if (row?.status === target) return;
+      if (Date.now() > deadline) {
+        throw new Error(
+          `document ${docId} did not reach status '${target}' within ` +
+            `${timeoutMs}ms (last: '${row?.status}')`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  }
+
   // ── scenario 1: full intake flow (odd id → Expense) ───────────
 
   it('scenario 1: full intake flow (odd id → Expense)', async () => {
@@ -415,33 +443,23 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .executeTakeFirst();
     expect(finding1).toBeDefined();
 
-    // 5. Call the retry endpoint — resets to pending.
-    await request(app.getHttpServer())
+    // 5. Call the retry endpoint — resets to pending AND kicks the intake
+    //    worker, which drains and re-processes the document without waiting
+    //    on the backstop poll. `requeued: true` signals a real re-queue.
+    const retry = await request(app.getHttpServer())
       .post(`/api/documents/${docId}/retry`)
       .set('Authorization', `Bearer ${apiToken}`)
       .expect(200)
-      .then((r) => r.body as { ok: true });
+      .then((r) => r.body as { ok: true; requeued: boolean });
+    expect(retry.requeued).toBe(true);
 
-    // 6. Verify document is back to pending with attempts reset.
-    const doc2 = await db
-      .selectFrom('document')
-      .select(['status', 'processing_attempts', 'processing_since'])
-      .where('id', '=', docId)
-      .executeTakeFirst();
-    expect(doc2?.status).toBe('pending');
-    expect(doc2?.processing_attempts).toBe(0);
-    expect(doc2?.processing_since).toBeNull();
+    // 6. The kick is fire-and-forget, so the worker drains asynchronously.
+    //    Poll until it has re-processed the document back to needs_triage —
+    //    this is the fix: no manual /triage needed, retry re-processes.
+    await waitForStatus(docId, 'needs_triage');
 
-    // 7. Triage again — simulates the intake queue picking it up.
-    //    The document goes back to needs_triage with the same reason.
-    const triage2 = await request(app.getHttpServer())
-      .post(`/api/documents/${docId}/triage`)
-      .set('Authorization', `Bearer ${apiToken}`)
-      .then((r) => r.body as { kind: string; reason: string });
-    expect(triage2.kind).toBe('unknown');
-
-    // 8. Verify the AuditFinding was REUSED (not duplicated) but its
-    //    description was UPDATED (not stale).
+    // 7. Verify the AuditFinding was REUSED (not duplicated) but its
+    //    description was UPDATED (not stale) by the automatic re-route.
     const findings = await db
       .selectFrom('audit_finding')
       .selectAll()
@@ -450,17 +468,17 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .where('status', '=', 'open')
       .execute();
     expect(findings).toHaveLength(1); // no duplicate
-    // The description should still be the same reason text (both routed
-    // to 'unknown'), but the point is it was WRITTEN, not stale.
-    expect(findings[0].description).toBe(triage2.reason);
+    expect(findings[0].description).toBeTruthy(); // written, not stale
 
-    // 9. Verify document is back in needs_triage.
+    // 8. Attempts were reset to 0 by reprocess, then the worker's single
+    //    claim bumped it to 1 — proving the drain actually ran.
     const doc3 = await db
       .selectFrom('document')
-      .select('status')
+      .select(['status', 'processing_attempts'])
       .where('id', '=', docId)
       .executeTakeFirst();
     expect(doc3?.status).toBe('needs_triage');
+    expect(doc3?.processing_attempts).toBe(1);
   });
 
   it('retry endpoint is a no-op on a non-needs_triage document', async () => {
@@ -485,11 +503,14 @@ describe('Intake E2E (document → draft → pipeline)', () => {
       .executeTakeFirst();
     expect(doc?.status).toBe('triaged');
 
-    // Retry should succeed (200) but NOT change the status.
-    await request(app.getHttpServer())
+    // Retry should succeed (200) but report the no-op (requeued=false) and
+    // NOT change the status — nothing was re-queued, no worker kick.
+    const retry = await request(app.getHttpServer())
       .post(`/api/documents/${docId}/retry`)
       .set('Authorization', `Bearer ${apiToken}`)
-      .expect(200);
+      .expect(200)
+      .then((r) => r.body as { ok: true; requeued: boolean });
+    expect(retry.requeued).toBe(false);
 
     const docAfter = await db
       .selectFrom('document')

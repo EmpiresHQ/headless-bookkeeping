@@ -40,6 +40,13 @@ export class IntakeQueueWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    // Register the reprocess-kick listener FIRST — before the test-env
+    // early-return — so a Retry re-queue wakes the worker in every environment
+    // (production and e2e), not just when the backstop poll is armed.
+    this.documents.setReprocessKicker(() => {
+      void this.kick();
+    });
+
     if (process.env.NODE_ENV === 'test') return;
     this.timer = setInterval(() => {
       void this.kick();
@@ -79,6 +86,9 @@ export class IntakeQueueWorker implements OnModuleInit, OnModuleDestroy {
           )) !== null
         ) {
           try {
+            this.logger.debug(
+              `drainLoop: processing claimed document ${claimed.id}`,
+            );
             await this.workflow.process(claimed.id, claimed.claimant_id);
           } catch (err) {
             // process()'s own finally cleared processing_since; the attempt

@@ -14,6 +14,7 @@ import {
   HttpStatus,
   BadRequestException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -43,6 +44,8 @@ import {
 @ApiTags('documents')
 @Controller('api/documents')
 export class DocumentsController {
+  private readonly logger = new Logger(DocumentsController.name);
+
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly urlSigner: DocumentUrlSignerService,
@@ -286,6 +289,11 @@ export class DocumentsController {
    * Reset a `needs_triage` document back to `pending` so the intake queue
    * picks it up for a fresh OCR + classification run.  Idempotent — a
    * no-op when the document is not in `needs_triage`.
+   *
+   * On a successful re-queue `reprocessDocument` kicks the intake worker so
+   * processing starts promptly instead of waiting on the next backstop poll.
+   * The `requeued` flag lets the caller (and the operator SPA) distinguish a
+   * real re-queue from an idempotent no-op — the endpoint stays 200 either way.
    */
   @Post(':id/retry')
   @ApiOperation({
@@ -295,8 +303,26 @@ export class DocumentsController {
   })
   @ApiParam({ name: 'id', description: 'Document id' })
   @HttpCode(HttpStatus.OK)
-  async retryDocument(@Param('id') id: string): Promise<{ ok: true }> {
-    await this.documentsService.reprocessDocument(Number(id));
-    return { ok: true };
+  async retryDocument(
+    @Param('id') id: string,
+  ): Promise<{ ok: true; requeued: boolean }> {
+    const docId = Number(id);
+    this.logger.debug(`retryDocument(${docId}): operator requested reprocess`);
+
+    const { requeued, priorStatus } =
+      await this.documentsService.reprocessDocument(docId);
+
+    if (requeued) {
+      this.logger.debug(
+        `retryDocument(${docId}): re-queued to pending; intake worker kicked`,
+      );
+    } else {
+      this.logger.warn(
+        `retryDocument(${docId}): reprocess was a no-op ` +
+          `(status='${priorStatus ?? 'unknown'}') — nothing re-queued`,
+      );
+    }
+
+    return { ok: true, requeued };
   }
 }
