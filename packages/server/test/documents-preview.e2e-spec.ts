@@ -24,11 +24,15 @@ import { fauxMastraService } from './faux-mastra.service';
 
 const FIXED_HASH = 'deadbeefdeadbeefdeadbeefdeadbeef';
 const FIXED_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG magic bytes
+const FIXED_LG_PNG = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff,
+]); // distinct bytes so the lg response is distinguishable from the thumb
 
 describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
   let app: INestApplication;
   let db: Kysely<Database>;
   let token: string;
+  let getPreviewMock: jest.Mock;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -36,6 +40,17 @@ describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
     db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: rawDb }),
     });
+
+    getPreviewMock = jest
+      .fn()
+      .mockImplementation(async (id: number, variant?: string) => {
+        if (id === 1) {
+          return variant === 'lg'
+            ? { buffer: FIXED_LG_PNG, hash: FIXED_HASH }
+            : { buffer: FIXED_PNG, hash: FIXED_HASH };
+        }
+        throw new NotFoundException(`Document ${id} not found`);
+      });
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -46,10 +61,7 @@ describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
       .useValue(fauxMastraService)
       .overrideProvider(DocumentsService)
       .useValue({
-        getPreview: jest.fn().mockImplementation(async (id: number) => {
-          if (id === 1) return { buffer: FIXED_PNG, hash: FIXED_HASH };
-          throw new NotFoundException(`Document ${id} not found`);
-        }),
+        getPreview: getPreviewMock,
         // IntakeQueueWorker.onModuleInit registers a reprocess-kick listener on
         // DocumentsService before the test-env early-return, so the stub must
         // expose it or app.init() throws.
@@ -78,6 +90,7 @@ describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
 
     expect(res.headers['content-type']).toMatch(/^image\/png/);
     expect(res.headers['etag']).toBe(`"${FIXED_HASH}"`);
+    expect(getPreviewMock).toHaveBeenCalledWith(1, 'thumb');
   });
 
   it('returns 404 for an unknown document id', async () => {
@@ -85,5 +98,27 @@ describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
       .get('/api/documents/9999/preview')
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
+  });
+
+  it('?size=lg passes the lg variant to the service, returns image/png, and a variant-distinct ETag', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/documents/1/preview?size=lg')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(res.headers['content-type']).toMatch(/^image\/png/);
+    expect(getPreviewMock).toHaveBeenCalledWith(1, 'lg');
+    expect(res.headers['etag']).toBe(`"${FIXED_HASH}-lg"`);
+    expect(res.headers['etag']).not.toBe(`"${FIXED_HASH}"`);
+  });
+
+  it('an unknown ?size value falls back to thumb rather than 400ing', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/documents/1/preview?size=bogus')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(getPreviewMock).toHaveBeenCalledWith(1, 'thumb');
+    expect(res.headers['etag']).toBe(`"${FIXED_HASH}"`);
   });
 });

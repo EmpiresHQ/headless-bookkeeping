@@ -659,11 +659,17 @@ export const getSignedDocumentUrl = (id: number) =>
  * the Bearer header, which an <img src> cannot send — so we fetch the bytes
  * (token attached) and hand back a blob: URL. The CALLER must revoke it with
  * URL.revokeObjectURL when the image unmounts.
+ *
+ * Pass `{ size: 'lg' }` for the larger, sharper lightbox variant
+ * (`?size=lg`); omitted/default fetches the ~256px thumbnail — backwards
+ * compatible with every existing caller.
  */
 export async function fetchDocumentPreviewObjectUrl(
   id: number,
+  opts: { size?: 'lg' } = {},
 ): Promise<string> {
-  const res = await apiFetchRaw(`/api/documents/${id}/preview`);
+  const qs = opts.size === 'lg' ? '?size=lg' : '';
+  const res = await apiFetchRaw(`/api/documents/${id}/preview${qs}`);
   return URL.createObjectURL(await res.blob());
 }
 

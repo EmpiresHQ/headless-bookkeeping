@@ -17,7 +17,7 @@ import {
 } from '../triage/types';
 import type { ExpenseStatus } from '../expenses/types';
 import { DocumentStorageService } from './document-storage.service';
-import { PreviewRenderer } from './preview-renderer';
+import { PreviewRenderer, PreviewVariant } from './preview-renderer';
 import {
   Document,
   DocumentArchiveRow,
@@ -308,9 +308,10 @@ export class DocumentsService {
   }
 
   /**
-   * Return the thumbnail PNG bytes and the document hash (for ETag) for a
-   * document.
+   * Return the preview PNG bytes and the document hash (for ETag) for a
+   * document, for the given variant.
    *
+   * thumb (default):
    * - If `preview_path` is already set: read the stored bytes directly.
    * - If `preview_path` is NULL: invoke PreviewRenderer to render once,
    *   persist the path to the DB row (lazy self-heal for pre-existing docs),
@@ -318,10 +319,24 @@ export class DocumentsService {
    * - If render returns null (non-visual file): throw NotFoundException so the
    *   UI shows its fallback icon.
    *
+   * lg:
+   * - NO DB column backs this variant — storage existence IS the cache.
+   *   Compute the deterministic path `{id}/previews/{hash}@lg.png` and try to
+   *   read it directly; on a miss, render once from the raw stored bytes and
+   *   read back. `document.preview_path` (the thumb cache) is never touched.
+   * - If render returns null: throw NotFoundException.
+   *
    * Throws NotFoundException for an unknown document id.
    */
-  async getPreview(id: number): Promise<{ buffer: Buffer; hash: string }> {
+  async getPreview(
+    id: number,
+    variant: PreviewVariant = 'thumb',
+  ): Promise<{ buffer: Buffer; hash: string }> {
     const doc = await this.getById(id);
+
+    if (variant === 'lg') {
+      return this.getLargePreview(doc);
+    }
 
     if (doc.preview_path) {
       const buffer = await this.storage.readFile(doc.preview_path);
@@ -335,7 +350,11 @@ export class DocumentsService {
       );
     }
     const rawBytes = await this.storage.readFile(doc.storage_path);
-    const previewPath = await this.previewRenderer.render(doc, rawBytes);
+    const previewPath = await this.previewRenderer.render(
+      doc,
+      rawBytes,
+      'thumb',
+    );
 
     if (previewPath === null) {
       throw new NotFoundException(
@@ -351,6 +370,40 @@ export class DocumentsService {
       .execute();
 
     const buffer = await this.storage.readFile(previewPath);
+    return { buffer, hash: doc.hash };
+  }
+
+  /**
+   * lg variant: storage existence is the cache — no DB column. The path is
+   * deterministic from the document's own hash (content-addressed), so we can
+   * probe for it directly before falling back to a render.
+   */
+  private async getLargePreview(
+    doc: Document,
+  ): Promise<{ buffer: Buffer; hash: string }> {
+    const lgPath = `${doc.id}/previews/${doc.hash}@lg.png`;
+    try {
+      const buffer = await this.storage.readFile(lgPath);
+      return { buffer, hash: doc.hash };
+    } catch {
+      // Cache miss — fall through to render.
+    }
+
+    if (!doc.storage_path) {
+      throw new NotFoundException(
+        `Document ${doc.id} has no stored file to render`,
+      );
+    }
+    const rawBytes = await this.storage.readFile(doc.storage_path);
+    const renderedPath = await this.previewRenderer.render(doc, rawBytes, 'lg');
+
+    if (renderedPath === null) {
+      throw new NotFoundException(
+        `Document ${doc.id} cannot be rendered as a preview`,
+      );
+    }
+
+    const buffer = await this.storage.readFile(renderedPath);
     return { buffer, hash: doc.hash };
   }
 
@@ -630,7 +683,7 @@ export class DocumentsService {
     const filePaths = await this.db.transaction().execute(async (trx) => {
       const doc = await trx
         .selectFrom('document')
-        .select(['id', 'storage_path'])
+        .select(['id', 'storage_path', 'preview_path', 'hash'])
         .where('id', '=', id)
         .executeTakeFirst();
       if (!doc) throw new NotFoundException(`Document ${id} not found`);
@@ -678,6 +731,12 @@ export class DocumentsService {
         .execute();
       const paths = [
         doc.storage_path,
+        doc.preview_path,
+        // lg preview is never DB-tracked (storage existence is its own
+        // cache) but its path is deterministic from the document's hash, so
+        // it can always be listed for cleanup — DocumentStorageService.
+        // deleteFile swallows ENOENT when it was never rendered.
+        `${doc.id}/previews/${doc.hash}@lg.png`,
         ...artifacts.map((a) => a.storage_path),
       ].filter((p): p is string => p !== null);
 

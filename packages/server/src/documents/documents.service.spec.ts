@@ -1243,6 +1243,102 @@ describe('DocumentsService (unit)', () => {
         NotFoundException,
       );
     });
+
+    describe('lg variant', () => {
+      it('(f) returns a pre-seeded @lg file straight from storage, without calling the renderer', async () => {
+        const lgBuffer = Buffer.from('pre-seeded lg png bytes');
+        const { document: doc } = await service.upload({
+          buffer: Buffer.from('pdf content lg'),
+          filename: 'invoice-lg.pdf',
+          mimeType: 'application/pdf',
+          channel: 'upload',
+          sourceIdentifier: null,
+        });
+
+        await storageService.saveFile(
+          doc.id,
+          `previews/${doc.hash}@lg.png`,
+          lgBuffer,
+        );
+
+        renderMock.mockClear();
+        const result = await service.getPreview(doc.id, 'lg');
+
+        expect(result.buffer).toEqual(lgBuffer);
+        expect(result.hash).toBe(doc.hash);
+        expect(renderMock).not.toHaveBeenCalled();
+      });
+
+      it('(g) renders and persists to storage when @lg is missing, WITHOUT touching preview_path', async () => {
+        const lgPngBytes = Buffer.from('rendered lg png');
+        const { document: doc } = await service.upload({
+          buffer: Buffer.from('pdf content lg 2'),
+          filename: 'report-lg.pdf',
+          mimeType: 'application/pdf',
+          channel: 'upload',
+          sourceIdentifier: null,
+        });
+
+        const rowBefore = await db
+          .selectFrom('document')
+          .select('preview_path')
+          .where('id', '=', doc.id)
+          .executeTakeFirstOrThrow();
+        expect(rowBefore.preview_path).toBeNull();
+
+        renderMock.mockClear();
+        const expectedLgPath = `${doc.id}/previews/${doc.hash}@lg.png`;
+        renderMock.mockImplementationOnce(
+          async (
+            d: { id: number; hash: string },
+            _bytes: Buffer,
+            variant: string,
+          ) => {
+            expect(variant).toBe('lg');
+            await storageService.saveFile(
+              d.id,
+              `previews/${d.hash}@lg.png`,
+              lgPngBytes,
+            );
+            return expectedLgPath;
+          },
+        );
+
+        const result = await service.getPreview(doc.id, 'lg');
+
+        expect(result.buffer).toEqual(lgPngBytes);
+        expect(result.hash).toBe(doc.hash);
+        expect(renderMock).toHaveBeenCalledTimes(1);
+        expect(renderMock).toHaveBeenCalledWith(
+          expect.objectContaining({ id: doc.id }),
+          expect.any(Buffer),
+          'lg',
+        );
+
+        // preview_path (the thumb cache) must stay untouched by the lg path.
+        const rowAfter = await db
+          .selectFrom('document')
+          .select('preview_path')
+          .where('id', '=', doc.id)
+          .executeTakeFirstOrThrow();
+        expect(rowAfter.preview_path).toBeNull();
+      });
+
+      it('(h) throws NotFoundException when the lg renderer returns null', async () => {
+        const { document: doc } = await service.upload({
+          buffer: Buffer.from('binary blob lg'),
+          filename: 'data-lg.bin',
+          mimeType: 'application/octet-stream',
+          channel: 'upload',
+          sourceIdentifier: null,
+        });
+        // renderMock returns null by default.
+
+        await expect(service.getPreview(doc.id, 'lg')).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------

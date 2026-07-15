@@ -1,5 +1,6 @@
 /**
- * PreviewRenderer - turns a Document's stored bytes into a single thumbnail PNG.
+ * PreviewRenderer - turns a Document's stored bytes into a rendered PNG
+ * variant (a small thumbnail, or a larger sharp preview for the lightbox).
  *
  * Dispatch table:
  *   PDF                       -> pdftoppm (page 1 only, low DPI) -> sharp resize -> PNG
@@ -7,10 +8,12 @@
  *   HEIC (or magic-byte HEIC) -> HeicDecoder.toPng -> sharp resize -> PNG
  *   anything else / corrupt   -> null (never throws)
  *
- * Thumbnail path convention: `{docId}/previews/{hash}.png`
- *   Scoped under the document's storage namespace (same as its raw file).
- *   Content-addressed by sha256 hash, so the path is stable: re-rendering
- *   the same document always writes to the same key.
+ * Variant table (VARIANTS below) controls the longest-edge cap, PDF raster
+ * DPI, and filename suffix per variant:
+ *   thumb -> `{docId}/previews/{hash}.png`      (CRITICAL: no suffix — existing
+ *             preview_path DB rows point at this exact filename)
+ *   lg    -> `{docId}/previews/{hash}@lg.png`   (lazily rendered; storage
+ *             existence IS the cache, no DB column)
  *
  * This is the single render path shared by early intake (Task 3) and the lazy
  * fallback preview endpoint (Task 4). It lives in DocumentsModule with no
@@ -29,15 +32,21 @@ import { Document } from './types';
 
 const execFileAsync = promisify(execFile);
 
-/** Longest edge of the generated thumbnail in pixels. */
-const THUMBNAIL_SIZE = 256;
+export type PreviewVariant = 'thumb' | 'lg';
 
 /**
- * Low DPI for preview rendering. At 50 DPI a typical A4 page (842 pt) renders
- * at ~584 px; sharp then downscales that to <=256 px.
- * Much faster than OCR-grade 200 DPI and produces far less memory pressure.
+ * Per-variant render parameters.
+ *  - maxEdge: longest edge cap in pixels (sharp `resize`, withoutEnlargement).
+ *  - dpi: pdftoppm raster DPI for PDFs. thumb stays at the historical 50 DPI
+ *    (fast, low memory); lg renders at 150 DPI so `maxEdge` has real detail
+ *    to downscale from instead of upscaling a blurry 50-DPI raster.
+ *  - suffix: appended to the content-addressed filename. thumb's suffix MUST
+ *    stay '' — existing preview_path DB rows point at `previews/{hash}.png`.
  */
-const PREVIEW_DPI = '50';
+const VARIANTS = {
+  thumb: { maxEdge: 256, dpi: '50', suffix: '' },
+  lg: { maxEdge: 1600, dpi: '150', suffix: '@lg' },
+} as const;
 
 const RASTER_MIME_TYPES = new Set([
   'image/jpeg',
@@ -66,33 +75,41 @@ export class PreviewRenderer {
   ) {}
 
   /**
-   * Render `bytes` to a ~256px PNG thumbnail and persist it via storage.
+   * Render `bytes` to a PNG variant (thumb or lg) and persist it via storage.
    *
    * @param document  The Document row - used for `id` (storage namespace)
-   *                  and `hash` (stable thumbnail key).
+   *                  and `hash` (stable content-addressed key).
    * @param bytes     The raw file bytes to render.
-   * @returns  Relative storage path of the thumbnail, or `null` on any failure.
+   * @param variant   Which variant to render — defaults to 'thumb'.
+   * @returns  Relative storage path of the rendered variant, or `null` on any
+   *           failure.
    */
-  async render(document: Document, bytes: Buffer): Promise<string | null> {
+  async render(
+    document: Document,
+    bytes: Buffer,
+    variant: PreviewVariant = 'thumb',
+  ): Promise<string | null> {
     try {
-      const pngBuf = await this.renderToPng(document.mime_type, bytes);
+      const spec = VARIANTS[variant];
+      const pngBuf = await this.renderToPng(document.mime_type, bytes, spec);
       if (!pngBuf) return null;
 
       // DocumentStorageService.saveFile(id, filename) writes to
       // {root}/{id}/{filename} and returns join(String(id), filename).
-      // We use filename=`previews/{hash}.png` so the returned relative path
-      // is `{id}/previews/{hash}.png` - stable and content-addressed.
-      const thumbnailFilename = `previews/${document.hash}.png`;
+      // We use filename=`previews/{hash}{suffix}.png` so the returned
+      // relative path is `{id}/previews/{hash}{suffix}.png` - stable and
+      // content-addressed. thumb's suffix is '' (unchanged filename).
+      const filename = `previews/${document.hash}${spec.suffix}.png`;
       const relativePath = await this.storage.saveFile(
         document.id,
-        thumbnailFilename,
+        filename,
         pngBuf,
       );
       return relativePath;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.warn(
-        `Preview render failed for document ${document.id}: ${err.message}`,
+        `Preview render failed for document ${document.id} (variant=${variant}): ${err.message}`,
       );
       return null;
     }
@@ -105,30 +122,34 @@ export class PreviewRenderer {
   private async renderToPng(
     mimeType: string,
     bytes: Buffer,
+    spec: (typeof VARIANTS)[PreviewVariant],
   ): Promise<Buffer | null> {
     // HEIC detection: check mime_type first, then fall back to magic bytes.
     // iOS/browsers can send wrong or empty MIME for HEIC files.
     if (HEIC_MIME_TYPES.has(mimeType) || isHeicMagicBytes(bytes)) {
-      return this.renderHeic(bytes);
+      return this.renderHeic(bytes, spec);
     }
 
     if (mimeType === 'application/pdf') {
-      return this.renderPdf(bytes);
+      return this.renderPdf(bytes, spec);
     }
 
     if (RASTER_MIME_TYPES.has(mimeType)) {
-      return this.renderRaster(bytes);
+      return this.renderRaster(bytes, spec);
     }
 
     // Unsupported MIME type.
     return null;
   }
 
-  /** Resize any raster image to a <=THUMBNAIL_SIZE PNG via sharp. */
-  private async renderRaster(bytes: Buffer): Promise<Buffer | null> {
+  /** Resize any raster image to <=spec.maxEdge PNG via sharp. */
+  private async renderRaster(
+    bytes: Buffer,
+    spec: (typeof VARIANTS)[PreviewVariant],
+  ): Promise<Buffer | null> {
     try {
       return await sharp(bytes)
-        .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+        .resize(spec.maxEdge, spec.maxEdge, {
           fit: 'inside',
           withoutEnlargement: true,
         })
@@ -141,8 +162,11 @@ export class PreviewRenderer {
     }
   }
 
-  /** Rasterise page 1 of a PDF at low DPI, then resize to thumbnail. */
-  private async renderPdf(bytes: Buffer): Promise<Buffer | null> {
+  /** Rasterise page 1 of a PDF at spec.dpi, then resize to spec.maxEdge. */
+  private async renderPdf(
+    bytes: Buffer,
+    spec: (typeof VARIANTS)[PreviewVariant],
+  ): Promise<Buffer | null> {
     let dir: string | undefined;
     try {
       dir = await mkdtemp(join(tmpdir(), 'preview-pdf-'));
@@ -150,11 +174,11 @@ export class PreviewRenderer {
       await writeFile(inPath, bytes);
 
       // `-singlefile` writes exactly one file (no page-number suffix).
-      // `-l 1` stops after page 1. `-r PREVIEW_DPI` keeps the raster small.
+      // `-l 1` stops after page 1. `-r spec.dpi` keeps the raster small.
       await execFileAsync('pdftoppm', [
         '-png',
         '-r',
-        PREVIEW_DPI,
+        spec.dpi,
         '-l',
         '1',
         '-singlefile',
@@ -163,7 +187,7 @@ export class PreviewRenderer {
       ]);
 
       const pageBuffer = await readFile(join(dir, 'page.png'));
-      return this.renderRaster(pageBuffer);
+      return this.renderRaster(pageBuffer, spec);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.warn(`PDF preview render failed: ${err.message}`);
@@ -174,10 +198,13 @@ export class PreviewRenderer {
     }
   }
 
-  /** Decode HEIC to PNG via HeicDecoder, then resize to thumbnail. */
-  private async renderHeic(bytes: Buffer): Promise<Buffer | null> {
+  /** Decode HEIC to PNG via HeicDecoder, then resize to spec.maxEdge. */
+  private async renderHeic(
+    bytes: Buffer,
+    spec: (typeof VARIANTS)[PreviewVariant],
+  ): Promise<Buffer | null> {
     const pngBuffer = await this.heicDecoder.toPng(bytes);
     if (!pngBuffer) return null;
-    return this.renderRaster(pngBuffer);
+    return this.renderRaster(pngBuffer, spec);
   }
 }

@@ -90,6 +90,10 @@ export function DocPreviewRow({
 }) {
   const [src, setSrc] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  // Sticks at true once the lightbox has been opened at least once — drives
+  // the lazy lg fetch below (fetch once, keep the blob across reopens/closes).
+  const [hasOpenedLightbox, setHasOpenedLightbox] = useState(false);
+  const [lgSrc, setLgSrc] = useState<string | null>(null);
 
   useEffect(() => {
     let revoked = false;
@@ -110,11 +114,36 @@ export function DocPreviewRow({
     };
   }, [documentId]);
 
+  // Lazily fetch the sharp lg variant once the lightbox is first opened — the
+  // thumb (`src`) stays visible as an instant placeholder until this swaps in.
+  useEffect(() => {
+    if (!hasOpenedLightbox) return;
+    let revoked = false;
+    let objectUrl: string | null = null;
+    fetchDocumentPreviewObjectUrl(documentId, { size: 'lg' })
+      .then((url) => {
+        if (revoked) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setLgSrc(url);
+      })
+      .catch(() => undefined); // lg fetch failed → stay on the thumb
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [hasOpenedLightbox, documentId]);
+
   return (
     <>
       <ListGroup label="Document">
         <ListRow
-          onClick={() => setLightboxOpen(true)}
+          onClick={() => {
+            setLightboxOpen(true);
+            setHasOpenedLightbox(true);
+          }}
           leading={
             src !== null ? (
               <img
@@ -137,7 +166,7 @@ export function DocPreviewRow({
       </ListGroup>
       {lightboxOpen && (
         <DocumentPreviewLightbox
-          src={src}
+          src={lgSrc ?? src}
           onClose={() => setLightboxOpen(false)}
           onOpenOriginal={() => void openSignedDocument(documentId)}
         />

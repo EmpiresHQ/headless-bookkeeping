@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { triageDocument, uploadDocument } from '../api';
+import { DocThumb } from '../books/DocThumb';
 import { signedEuros } from '../lib/money';
 import { useSeg } from '../lib/useSeg';
 import { relativeTime } from '../relativeTime';
@@ -32,7 +33,10 @@ import {
 
 const SEGMENTS: readonly InboxSegment[] = ['all', 'triage', 'approvals'];
 
-function EntryIcon({ entry }: { entry: InboxEntry }) {
+/** The fallback reason glyph — used directly for approval rows (no document
+ *  id to fetch a thumbnail for) and as DocThumb's `fallback` for triage rows
+ *  (no preview / non-visual document). */
+function ReasonGlyph({ entry }: { entry: InboxEntry }) {
   const [bg, glyph] =
     entry.kind === 'approval'
       ? ['bg-tint text-accent', '✓']
@@ -61,7 +65,13 @@ function QueueRow({
     return (
       <ListRow
         to={entry.route}
-        leading={<EntryIcon entry={entry} />}
+        leading={
+          <DocThumb
+            id={entry.item.id}
+            className="h-[34px] w-[34px] rounded-[10px] border border-line"
+            fallback={<ReasonGlyph entry={entry} />}
+          />
+        }
         title={entry.item.filename}
         subtitle={triageSubtitle(entry.item)}
         chip={
@@ -79,7 +89,7 @@ function QueueRow({
   return (
     <ListRow
       to={entry.route}
-      leading={<EntryIcon entry={entry} />}
+      leading={<ReasonGlyph entry={entry} />}
       title={d.title}
       subtitle={humanizePolicyReason(entry.approval.policy_reason)}
       chip={<Chip tone="accent">approve?</Chip>}
