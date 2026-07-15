@@ -787,7 +787,11 @@ describe('DocumentsService (unit)', () => {
     async function insertPending(
       hash: string,
       createdAt: number,
-      opts: { processingSince?: number | null; attempts?: number } = {},
+      opts: {
+        processingSince?: number | null;
+        attempts?: number;
+        storagePath?: string | null;
+      } = {},
     ): Promise<number> {
       const row = await db
         .insertInto('document')
@@ -796,7 +800,13 @@ describe('DocumentsService (unit)', () => {
           filename: `${hash}.png`,
           mime_type: 'image/png',
           size_bytes: 1,
-          storage_path: null,
+          // A claimable document has its bytes stored. Default to a non-null
+          // path so these tests model the post-upload steady state; the
+          // storage_path-null case (the upload/worker race) is its own test.
+          storage_path:
+            opts.storagePath === undefined
+              ? `${hash}/${hash}.png`
+              : opts.storagePath,
           status: 'pending',
           created_at: createdAt,
           processing_since: opts.processingSince ?? null,
@@ -867,6 +877,34 @@ describe('DocumentsService (unit)', () => {
       // Second call: document is now at the cap — must be excluded.
       const second = await service.claimNextPending(STALE, MAX);
       expect(second).toBeNull();
+    });
+
+    it('does not claim a pending document whose bytes are not yet stored (storage_path NULL)', async () => {
+      // Reproduces the upload/worker race: upload() inserts the row as
+      // status='pending' with storage_path=NULL and only sets storage_path
+      // AFTER writing the file. The worker must not claim it in that window —
+      // OCR would fail with "no stored file" and mislabel a good document
+      // ocr_failed.
+      await insertPending('no-bytes', 1000, { storagePath: null });
+      const id = await service.claimNextPending(STALE, MAX);
+      expect(id).toBeNull();
+    });
+
+    it('claims the document once its bytes are stored (storage_path set)', async () => {
+      const withBytes = await insertPending('has-bytes', 1000, {
+        storagePath: 'has-bytes/has-bytes.png',
+      });
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toEqual({ id: withBytes, claimant_id: null });
+    });
+
+    it('skips the storage_path-null document and claims the next stored one', async () => {
+      // FIFO order would pick the older no-bytes doc first, but it must be
+      // skipped in favour of the younger doc whose bytes are stored.
+      await insertPending('older-no-bytes', 1000, { storagePath: null });
+      const younger = await insertPending('younger-stored', 2000);
+      const claimed = await service.claimNextPending(STALE, MAX);
+      expect(claimed).toEqual({ id: younger, claimant_id: null });
     });
 
     it('ignores non-pending documents', async () => {

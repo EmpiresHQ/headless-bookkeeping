@@ -439,11 +439,21 @@ export class DocumentsService {
   /**
    * Atomically claim the oldest claimable 'pending' document for processing.
    *
-   * Claimable = status 'pending', attempts below the cap, and not currently
-   * in flight (processing_since NULL or older than `staleSeconds` — the latter
-   * reclaims a document stranded by a crash). On a win it stamps
-   * processing_since = now and increments processing_attempts, then returns the
-   * id. Returns null when the queue is empty or another claimer won the race.
+   * Claimable = status 'pending', its bytes stored (storage_path NOT NULL),
+   * attempts below the cap, and not currently in flight (processing_since NULL
+   * or older than `staleSeconds` — the latter reclaims a document stranded by a
+   * crash). On a win it stamps processing_since = now and increments
+   * processing_attempts, then returns the id. Returns null when the queue is
+   * empty or another claimer won the race.
+   *
+   * The storage_path guard closes an upload/worker race: `upload()` inserts the
+   * document row as status='pending' with storage_path NULL and only sets
+   * storage_path AFTER writing the file (two separate, autocommitted steps). A
+   * poll landing in that window would otherwise claim a document with no stored
+   * bytes, OCR would throw "has no stored file", and a perfectly readable
+   * document would be mislabelled `ocr_failed`. Skipping storage_path-null rows
+   * lets the very next poll (≤1.5s later, once upload finishes) claim it
+   * cleanly.
    */
   async claimNextPending(
     staleSeconds: number,
@@ -456,6 +466,7 @@ export class DocumentsService {
       .selectFrom('document')
       .select(['id', 'claimant_id'])
       .where('status', '=', 'pending')
+      .where('storage_path', 'is not', null)
       .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
         eb.or([
@@ -479,6 +490,7 @@ export class DocumentsService {
       })
       .where('id', '=', candidate.id)
       .where('status', '=', 'pending')
+      .where('storage_path', 'is not', null)
       .where('processing_attempts', '<', maxAttempts)
       .where((eb) =>
         eb.or([
