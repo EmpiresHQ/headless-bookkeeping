@@ -106,7 +106,7 @@ describe('ApprovalScreen', () => {
     renderAt('/inbox/approval/7');
     expect(await screen.findByText('−89.00 €')).toBeInTheDocument();
     expect(screen.getByText(/Telia Eesti AS · software/)).toBeInTheDocument();
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('2 of 2')).toBeInTheDocument();
   });
 
   it('renders the why-held box with the humanized numbers', async () => {

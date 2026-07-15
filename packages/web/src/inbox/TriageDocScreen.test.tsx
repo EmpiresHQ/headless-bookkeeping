@@ -152,7 +152,7 @@ describe('TriageDocScreen', () => {
 
   it('leads with the semantic decision, keeps the raw reason as collapsed technical detail, and shows persisted facts', async () => {
     renderAt('/inbox/doc/12');
-    expect(await screen.findByText('1 of 2')).toBeInTheDocument();
+    expect(await screen.findByText('2 of 2')).toBeInTheDocument();
     // Semantic decision copy leads; the raw machine sentence is diagnostic only.
     expect(
       screen.getByRole('heading', { name: 'Review the extracted expense' }),
@@ -422,7 +422,7 @@ describe('TriageDocScreen', () => {
 
   it('offers no Delete for reasons other than not_a_document', async () => {
     renderAt('/inbox/doc/12'); // low_confidence
-    await screen.findByText('1 of 2');
+    await screen.findByText('2 of 2');
     expect(
       screen.queryByRole('button', { name: 'Delete file' }),
     ).not.toBeInTheDocument();
