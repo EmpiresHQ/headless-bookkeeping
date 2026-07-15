@@ -18,6 +18,7 @@ import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { IntakeWorkflowService } from './intake-workflow.service';
 import { ProcessingGate } from './processing-gate';
+import { DuplicateGuardService } from './duplicate-guard.service';
 
 /**
  * AiModule — registers the Mastra runtime + tool layer, the Pass 2 agent
@@ -64,6 +65,7 @@ import { ProcessingGate } from './processing-gate';
     Pass2AgentService,
     IntakeWorkflowService,
     ProcessingGate,
+    DuplicateGuardService,
   ],
   exports: [
     MastraService,
