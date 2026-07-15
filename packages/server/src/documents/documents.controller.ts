@@ -20,6 +20,7 @@ import {
   ApiTags,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiConsumes,
   ApiBody,
   ApiOkResponse,
@@ -219,30 +220,47 @@ export class DocumentsController {
   }
 
   /**
-   * Stream the thumbnail PNG for a document.
+   * Stream the preview PNG for a document.
    *
    * If `preview_path` is NULL (pre-existing or render-failed doc), renders
    * once via PreviewRenderer, persists the path, then streams — so old
    * documents self-heal on first view with no backfill job.
    *
+   * `?size=lg` streams a larger, sharper variant for the lightbox — lazily
+   * rendered and cached by storage existence alone (no DB column). Any other
+   * (or absent) value serves the ~256px thumbnail; unknown values fall back
+   * to thumb rather than 400ing.
+   *
    * Returns 404 for non-visual files (render → null) or missing docs.
-   * Sets ETag = document hash so the browser caches across reloads.
+   * Sets ETag = document hash (variant-distinct: lg gets a `-lg` suffix) so
+   * the browser caches across reloads without conflating the two variants.
    */
   @Get(':id/preview')
   @ApiOperation({
-    summary: "Stream a document's thumbnail PNG",
+    summary: "Stream a document's preview PNG",
     description:
-      'Returns a ~256px PNG thumbnail. Renders lazily on first request if not yet cached.',
+      'Returns a ~256px PNG thumbnail, or a larger sharp variant with ?size=lg. Renders lazily on first request if not yet cached.',
   })
   @ApiParam({ name: 'id', description: 'Document id' })
+  @ApiQuery({
+    name: 'size',
+    required: false,
+    enum: ['lg'],
+    description: 'Pass "lg" for a larger, sharper preview (lightbox use).',
+  })
   async getDocumentPreview(
     @Param('id') id: string,
+    @Query('size') size: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const { buffer, hash } = await this.documentsService.getPreview(Number(id));
+    const variant = size === 'lg' ? 'lg' : 'thumb';
+    const { buffer, hash } = await this.documentsService.getPreview(
+      Number(id),
+      variant,
+    );
     res.set({
       'Content-Type': 'image/png',
-      ETag: `"${hash}"`,
+      ETag: `"${hash}${variant === 'lg' ? '-lg' : ''}"`,
     });
     return new StreamableFile(buffer);
   }

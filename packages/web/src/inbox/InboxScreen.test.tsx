@@ -19,6 +19,7 @@ vi.mock('../api', async (importOriginal) => ({
   getReportingPeriods: vi.fn(),
   uploadDocument: vi.fn(),
   triageDocument: vi.fn(),
+  fetchDocumentPreviewObjectUrl: vi.fn(),
 }));
 
 import * as api from '../api';
@@ -108,6 +109,11 @@ describe('InboxScreen', () => {
       },
     ]);
     vi.mocked(api.getReportingPeriods).mockResolvedValue([]);
+    // Default: resolves to a thumbnail blob URL. Individual tests override
+    // with a rejection to exercise the fallback glyph.
+    vi.mocked(api.fetchDocumentPreviewObjectUrl).mockResolvedValue(
+      'blob:thumb',
+    );
   });
 
   afterEach(() => {
@@ -149,6 +155,51 @@ describe('InboxScreen', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('classify')).toBeInTheDocument();
+  });
+
+  describe('document thumbnails', () => {
+    it('renders the document thumbnail on the triage row when the preview fetch resolves', async () => {
+      renderAt('/inbox');
+      expect(
+        await screen.findByText('cheque_scan_038.jpg'),
+      ).toBeInTheDocument();
+
+      expect(api.fetchDocumentPreviewObjectUrl).toHaveBeenCalledWith(12);
+      // The <img> has alt="" (decorative) so it is excluded from the a11y
+      // tree's "img" role — query the DOM directly instead of by role.
+      await waitFor(() => {
+        const img = document.body.querySelector('img');
+        expect(img).not.toBeNull();
+        expect(img).toHaveAttribute('src', 'blob:thumb');
+      });
+    });
+
+    it('falls back to the reason glyph when the preview fetch rejects, and the row still navigates', async () => {
+      vi.mocked(api.fetchDocumentPreviewObjectUrl).mockRejectedValue(
+        new Error('no preview'),
+      );
+      renderAt('/inbox');
+      const row = await screen.findByText('cheque_scan_038.jpg');
+      expect(row).toBeInTheDocument();
+
+      // Fallback glyph renders instead of an <img>.
+      await waitFor(() => {
+        expect(document.body.querySelector('img')).toBeNull();
+      });
+      expect(screen.getByText('?')).toBeInTheDocument();
+
+      const link = row.closest('a');
+      expect(link).toHaveAttribute('href', '/inbox/doc/12');
+    });
+
+    it('does not fetch a thumbnail for an approval row (no document id) and shows the checkmark glyph', async () => {
+      renderAt('/inbox');
+      expect(await screen.findByText('Telia Eesti AS')).toBeInTheDocument();
+
+      // The approval's object_id (214) must never be used as a document id.
+      expect(api.fetchDocumentPreviewObjectUrl).not.toHaveBeenCalledWith(214);
+      expect(screen.getByText('✓')).toBeInTheDocument();
+    });
   });
 
   it('filters by segment from ?seg=', async () => {

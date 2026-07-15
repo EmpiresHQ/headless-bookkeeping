@@ -294,4 +294,72 @@ describe('PreviewRenderer', () => {
       '[preview-renderer.spec] pdftoppm not found — PDF rendering tests skipped',
     );
   }
+
+  // ── lg variant ────────────────────────────────────────────────────────────
+  describe('lg variant', () => {
+    it('renders a JPEG to a PNG capped at 1600px on its longest edge, with an @lg-suffixed path', async () => {
+      const bytes = await largeJpeg(); // 2000x1500
+      const doc = makeDoc({ mime_type: 'image/jpeg', filename: 'photo.jpg' });
+
+      const path = await renderer.render(doc, bytes, 'lg');
+
+      expect(path).not.toBeNull();
+      expect(path).toMatch(/previews\/.*@lg\.png$/);
+
+      const saved = storage.saved.get(path!);
+      expect(saved).toBeDefined();
+      expect(isPng(saved!)).toBe(true);
+
+      const meta = await sharp(saved!).metadata();
+      expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(1600);
+    });
+
+    it('does not upscale a small PNG for the lg variant', async () => {
+      const bytes = await smallPng(); // 100x100
+      const doc = makeDoc({ mime_type: 'image/png', filename: 'small.png' });
+
+      const path = await renderer.render(doc, bytes, 'lg');
+
+      expect(path).not.toBeNull();
+      const saved = storage.saved.get(path!);
+      expect(saved).toBeDefined();
+      const meta = await sharp(saved!).metadata();
+      expect(meta.width).toBeLessThanOrEqual(100);
+      expect(meta.height).toBeLessThanOrEqual(100);
+    });
+
+    maybePdf('lg PDF (requires poppler pdftoppm)', () => {
+      it('renders page 1 of a PDF wider than the thumb cap but within the lg cap', async () => {
+        const bytes = blankPdf();
+        const doc = makeDoc({
+          mime_type: 'application/pdf',
+          filename: 'doc.pdf',
+        });
+
+        const path = await renderer.render(doc, bytes, 'lg');
+
+        expect(path).not.toBeNull();
+        expect(path).toMatch(/previews\/.*@lg\.png$/);
+
+        const saved = storage.saved.get(path!);
+        expect(saved).toBeDefined();
+        const meta = await sharp(saved!).metadata();
+        expect(meta.width!).toBeGreaterThan(256);
+        expect(meta.width!).toBeLessThanOrEqual(1600);
+      });
+    });
+
+    it('thumb (default variant) still writes to the unsuffixed previews/{hash}.png path — regression pin', async () => {
+      const bytes = await smallPng();
+      const doc = makeDoc({ mime_type: 'image/png', filename: 'small.png' });
+
+      const path = await renderer.render(doc, bytes); // default variant
+      const pathExplicitThumb = await renderer.render(doc, bytes, 'thumb');
+
+      expect(path).toMatch(/previews\/[^/]+\.png$/);
+      expect(path).not.toMatch(/@lg/);
+      expect(path).toBe(`1/previews/${doc.hash}.png`);
+      expect(pathExplicitThumb).toBe(path);
+    });
+  });
 });
