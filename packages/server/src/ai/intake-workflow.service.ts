@@ -30,6 +30,7 @@ import {
   Pass2Enrichment,
   TriageReasonType,
   classifyReasonType,
+  extractedSupplierFromProposal,
 } from '../triage/types';
 import {
   buildPendingSupplierProposal,
@@ -217,18 +218,36 @@ export class IntakeWorkflowService {
         };
       }
       const pass2 = await this.pass2Agent.classify(ocr.markdown);
+      if (!pass2.ok) {
+        return {
+          document_id: documentId,
+          ocr: { ok: true, markdown: ocr.markdown },
+          classification: {
+            ok: false,
+            category: pass2.category,
+            detail: pass2.detail,
+          },
+        };
+      }
+      // Strip supplier_proposal / customer_proposal off the wire — same trust
+      // boundary as details()'s pendingReplay path below: a raw proposal can
+      // carry match_entity_id, which the client must never see. Only the
+      // sanitized ExtractedSupplier projection crosses.
+      const {
+        supplier_proposal,
+        customer_proposal: _customer_proposal,
+        ...safeResult
+      } = pass2.result;
+      const extracted = extractedSupplierFromProposal(supplier_proposal);
       return {
         document_id: documentId,
         ocr: { ok: true, markdown: ocr.markdown },
-        classification: pass2.ok
-          ? {
-              ok: true,
-              result: pass2.result,
-              ...(pass2.enrichment == null
-                ? {}
-                : { enrichment: pass2.enrichment }),
-            }
-          : { ok: false, category: pass2.category, detail: pass2.detail },
+        classification: {
+          ok: true,
+          result: safeResult,
+          ...(pass2.enrichment == null ? {} : { enrichment: pass2.enrichment }),
+          ...(extracted == null ? {} : { extracted_supplier: extracted }),
+        },
       };
     });
   }
@@ -281,15 +300,27 @@ export class IntakeWorkflowService {
       const pendingReplay =
         await this.documents.getPendingTriageReplay(documentId);
       if (pendingReplay) {
+        // Strip supplier_proposal / customer_proposal off the wire — a raw
+        // proposal can carry match_entity_id (the AI's unverified guess at an
+        // existing Supplier Entity), which the client must never see (trust
+        // boundary, see ExtractedSupplier). Both fields are optional on
+        // TriageResult, so safeResult still satisfies the type.
+        const {
+          supplier_proposal,
+          customer_proposal: _customer_proposal,
+          ...safeResult
+        } = pendingReplay.triageResult;
+        const extracted = extractedSupplierFromProposal(supplier_proposal);
         return {
           document_id: documentId,
           ocr: { ok: true, markdown: ocr.markdown },
           classification: {
             ok: true,
-            result: pendingReplay.triageResult,
+            result: safeResult,
             ...(pendingReplay.enrichment == null
               ? {}
               : { enrichment: pendingReplay.enrichment }),
+            ...(extracted == null ? {} : { extracted_supplier: extracted }),
           },
         };
       }
@@ -301,6 +332,9 @@ export class IntakeWorkflowService {
       };
     }
 
+    // No extracted_supplier here: once a document has a linked Expense the
+    // original SupplierProposal is no longer persisted anywhere to project it
+    // from — the Expense only stores the resolved supplier_id.
     return {
       document_id: documentId,
       ocr: { ok: true, markdown: ocr.markdown },

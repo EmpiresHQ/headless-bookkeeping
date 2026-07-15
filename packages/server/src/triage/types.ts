@@ -53,6 +53,51 @@ export const supplierProposalSchema = z.discriminatedUnion('mode', [
 
 export type SupplierProposal = z.infer<typeof supplierProposalSchema>;
 
+/**
+ * ExtractedSupplier — a SANITIZED, flat projection of a SupplierProposal safe
+ * to hand to the client for prefilling the "New supplier…" form (Task: prefill
+ * classify-expense from OCR). Trust boundary: a 'match' proposal exposes ONLY
+ * the identity strings the agent OBSERVED on the document (`observed_country`,
+ * `observed_registration_key`) — it NEVER carries `match_entity_id`. That id is
+ * the AI's own (unverified) guess at an existing Supplier Entity; leaking it to
+ * the client would let a stale/wrong match silently steer which entity gets
+ * associated if the operator's "New supplier…" flow were ever wired to it. A
+ * 'create' proposal is fully trusted (there is no existing-entity id to leak),
+ * so its fields pass through directly.
+ */
+export interface ExtractedSupplier {
+  name: string | null;
+  country: string | null;
+  registration_key: string | null;
+}
+
+/**
+ * Pure mapper: SupplierProposal -> ExtractedSupplier | null. See
+ * {@link ExtractedSupplier} for the trust-boundary rationale — the 'match'
+ * branch deliberately omits `match_entity_id` and exposes only observed
+ * identity strings (nullable — a document may not print them).
+ */
+export function extractedSupplierFromProposal(
+  sp: SupplierProposal | undefined,
+): ExtractedSupplier | null {
+  if (sp == null) return null;
+  if (sp.mode === 'create') {
+    return {
+      name: sp.create_name,
+      country: sp.create_country,
+      registration_key: sp.create_registration_key,
+    };
+  }
+  if (sp.mode === 'match') {
+    return {
+      name: null,
+      country: sp.observed_country ?? null,
+      registration_key: sp.observed_registration_key ?? null,
+    };
+  }
+  return null;
+}
+
 // Reuse the supplier discriminated-union shape for the customer counterparty —
 // identical match/create semantics (ADR-0014). A 'create' proposal parks to
 // needs_triage in v1 exactly like supplier 'create'.
@@ -213,7 +258,12 @@ export interface DocumentDebug {
     | { ok: false; category: string; detail: string };
   // null when OCR failed — there is nothing to classify.
   classification:
-    | { ok: true; result: TriageResult; enrichment?: Pass2Enrichment }
+    | {
+        ok: true;
+        result: TriageResult;
+        enrichment?: Pass2Enrichment;
+        extracted_supplier?: ExtractedSupplier;
+      }
     | { ok: false; category: string; detail: string }
     | null;
 }

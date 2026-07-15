@@ -279,6 +279,154 @@ describe('ClassifyExpenseSheet', () => {
     );
   });
 
+  it('prefills the new-supplier form from extracted_supplier (create proposal)', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([]); // no match — forces create
+    vi.mocked(api.getDocumentDetails).mockResolvedValue({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'CITYBEE …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'EUR',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+        extracted_supplier: {
+          name: 'Citybee Eesti OÜ',
+          country: 'EE',
+          registration_key: 'EE102139798',
+        },
+      },
+    });
+    vi.mocked(api.onboardEntity).mockResolvedValue({
+      id: 9,
+      role: 'supplier',
+      country: 'EE',
+      name: 'Citybee Eesti OÜ',
+      goods_vs_services: null,
+    });
+    renderSheet();
+    await screen.findByDisplayValue('48.20');
+
+    fireEvent.click(screen.getByRole('button', { name: 'New supplier…' }));
+
+    expect(screen.getByLabelText('Name')).toHaveValue('Citybee Eesti OÜ');
+    expect(screen.getByLabelText('Country')).toHaveValue('EE');
+    expect(screen.getByLabelText('Reg. key')).toHaveValue('EE102139798');
+
+    const add = screen.getByRole('button', { name: 'Add supplier' });
+    expect(add).toBeEnabled();
+    fireEvent.click(add);
+
+    await waitFor(() =>
+      expect(api.onboardEntity).toHaveBeenCalledWith({
+        role: 'supplier',
+        name: 'Citybee Eesti OÜ',
+        country: 'EE',
+        registrationKey: 'EE102139798',
+      }),
+    );
+    // Creating the supplier must NOT book.
+    expect(api.manualClassify).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the search text for Name when extracted_supplier has no name (match proposal)', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([]); // no match for "citybee"
+    vi.mocked(api.getDocumentDetails).mockResolvedValue({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'CITYBEE …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'EUR',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+        extracted_supplier: {
+          name: null,
+          country: 'EE',
+          registration_key: 'EE123',
+        },
+      },
+    });
+    renderSheet();
+    await screen.findByDisplayValue('48.20');
+
+    fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
+      target: { value: 'citybee' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'New supplier…' }));
+
+    expect(screen.getByLabelText('Name')).toHaveValue('citybee'); // search fallback
+    expect(screen.getByLabelText('Country')).toHaveValue('EE');
+    expect(screen.getByLabelText('Reg. key')).toHaveValue('EE123');
+  });
+
+  it('never clobbers a field the operator already typed once the AI extraction lands', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([]);
+    let resolveDetails!: (
+      v: Awaited<ReturnType<typeof api.getDocumentDetails>>,
+    ) => void;
+    vi.mocked(api.getDocumentDetails).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetails = resolve;
+      }),
+    );
+    renderSheet();
+
+    // Open the create form and type a Country BEFORE the details land.
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'New supplier…' }),
+    );
+    fireEvent.change(screen.getByLabelText('Country'), {
+      target: { value: 'DK' },
+    });
+
+    resolveDetails({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'X …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'EUR',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+        extracted_supplier: {
+          name: 'X',
+          country: 'EE',
+          registration_key: 'EE999',
+        },
+      },
+    });
+
+    // Name was untouched — fills from the extraction.
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('X'));
+    // Country was already typed — stays untouched by the later extraction.
+    expect(screen.getByLabelText('Country')).toHaveValue('DK');
+  });
+
   it('requires the registration key to add a supplier', async () => {
     renderSheet();
     await screen.findByDisplayValue('48.20');
