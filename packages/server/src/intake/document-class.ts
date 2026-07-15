@@ -3,6 +3,8 @@ export type DocumentType =
   | 'receipt'
   | 'bank_statement'
   | 'credit_note'
+  | 'order_confirmation'
+  | 'proforma'
   | 'other';
 
 export type IntakeRoute =

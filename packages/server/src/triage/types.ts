@@ -109,7 +109,15 @@ export const triageResultSchema = z.object({
   // confidence is treated as 0 (conservative — never auto-posts on a guess).
   // document_type now also drives routing (bank_statement → CSV path, etc.).
   document_type: z
-    .enum(['receipt', 'invoice', 'bank_statement', 'credit_note', 'other'])
+    .enum([
+      'receipt',
+      'invoice',
+      'bank_statement',
+      'credit_note',
+      'order_confirmation',
+      'proforma',
+      'other',
+    ])
     .default('other'),
   currency: z.string().length(3).default('EUR'),
   document_vat_marking: z.string().nullable().default(null),
@@ -227,6 +235,8 @@ export type TriageReasonType =
   | 'classification_failed'
   | 'unimplemented'
   | 'not_a_document'
+  | 'non_postable_document'
+  | 'possible_duplicate'
   | 'unknown';
 
 export interface NeedsTriageItem {
@@ -246,6 +256,8 @@ export const TRIAGE_REASON_TYPES: readonly TriageReasonType[] = [
   'classification_failed',
   'unimplemented',
   'not_a_document',
+  'non_postable_document',
+  'possible_duplicate',
   'unknown',
 ] as const;
 
@@ -288,6 +300,16 @@ export function classifyReasonType(description: string): TriageReasonType {
   // text is intentionally distinct (notADocumentReason()).
   if (description.toLowerCase().includes('not a business accounting document'))
     return 'not_a_document';
+  // Non-postable document (order confirmation / proforma): not a primary tax
+  // document — parked until the final invoice arrives. Checked before the
+  // classification-failed / supplier buckets so its distinct marker text wins.
+  if (description.toLowerCase().includes('not a primary tax document'))
+    return 'non_postable_document';
+  // Duplicate-posting gate: a candidate that matches an already-booked
+  // expense/invoice. Checked BEFORE the supplier bucket because the reason
+  // text intentionally interpolates "same supplier" details.
+  if (description.toLowerCase().includes('possible duplicate of'))
+    return 'possible_duplicate';
   // A Pass-2 (AI classification/enrichment) failure — the file and OCR are
   // fine, only the agent classification failed. Checked BEFORE the supplier /
   // OCR buckets because pass2FailureReason details interpolate raw error text
