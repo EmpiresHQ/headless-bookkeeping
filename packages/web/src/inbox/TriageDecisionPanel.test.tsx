@@ -225,6 +225,7 @@ describe('TriageDecisionPanel', () => {
       ['category_unresolved', 'Choose category', 'classify'],
       ['outgoing_invoice', 'Review sales invoice', 'invoice'],
       ['ocr_failed', 'Replace or retry file', 'ocr'],
+      ['classification_failed', 'Classify manually', 'classify'],
     ] as const;
 
     it.each(cases)('%s → %s opens %s', (reason_type, label, sheet) => {

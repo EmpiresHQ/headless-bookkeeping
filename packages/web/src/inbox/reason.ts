@@ -53,6 +53,8 @@ export function triageSubtitle(
       return 'Category not recognized — pick one';
     case 'ocr_failed':
       return 'OCR could not read the file — retry or replace';
+    case 'classification_failed':
+      return 'AI classification failed — retry or classify manually';
     case 'not_a_document':
       return 'Does not look like a business document';
     case 'unimplemented':
@@ -68,6 +70,7 @@ export function triageChipLabel(rt: TriageReasonType | null): string {
       return 'resolve';
     case 'low_confidence':
     case 'category_unresolved':
+    case 'classification_failed':
       return 'classify';
     case 'outgoing_invoice':
       return 'invoice';
