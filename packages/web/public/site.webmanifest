@@ -1,0 +1,24 @@
+{
+  "name": "Headless Bookkeeping",
+  "short_name": "HBK",
+  "description": "Operational bookkeeping inbox, books, bank reconciliation, and reports.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F2F3F1",
+  "theme_color": "#0E3B2C",
+  "icons": [
+    {
+      "src": "/brand-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

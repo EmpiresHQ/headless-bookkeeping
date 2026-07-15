@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { BrandMark } from './BrandMark';
 import { NAV_ITEMS } from './nav';
 
 export function Sidebar({
@@ -12,9 +13,7 @@ export function Sidebar({
     // sanctioned one-off (approved mockup), no token — Plan 06 Task 2
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col gap-0.5 border-r border-line bg-[#ECEEEA] p-3 lg:flex">
       <div className="flex items-center gap-2 px-3 pb-4 pt-1 text-sm font-extrabold">
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-accent-deep text-xs text-signal">
-          ◆
-        </span>
+        <BrandMark className="h-6 w-6" />
         books
       </div>
       {NAV_ITEMS.map(({ to, label, Icon }) => (
