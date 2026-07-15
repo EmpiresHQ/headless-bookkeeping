@@ -183,6 +183,31 @@ describe('TriageDocScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('routes classification_failed to the classify sheet as the single primary', async () => {
+    // Pass-2 (AI classification) failure — the file/OCR are fine, only the
+    // agent classification failed; the primary action is still manual
+    // classify, exactly like low_confidence/category_unresolved.
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        reason_type: 'classification_failed',
+        reason:
+          'AI classification failed during enrichment (enrichment-incomplete): enrichment phase returned no reusable summary',
+      }),
+    ]);
+    vi.mocked(api.getDocumentReclassify).mockResolvedValue({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'x' },
+      classification: null,
+    });
+    renderAt('/inbox/doc/12');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Classify manually' }),
+    );
+    expect(
+      await screen.findByText('Classify', { selector: 'h2' }),
+    ).toBeInTheDocument();
+  });
+
   it('routes supplier_unresolved to the resolve sheet', async () => {
     vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
       ITEM({

@@ -122,6 +122,7 @@ export type TriageReasonType =
   | 'low_confidence'
   | 'category_unresolved'
   | 'ocr_failed'
+  | 'classification_failed'
   | 'unimplemented'
   | 'not_a_document'
   | 'unknown';

@@ -224,6 +224,7 @@ export type TriageReasonType =
   | 'low_confidence'
   | 'category_unresolved'
   | 'ocr_failed'
+  | 'classification_failed'
   | 'unimplemented'
   | 'not_a_document'
   | 'unknown';
@@ -247,6 +248,12 @@ export function classifyReasonType(description: string): TriageReasonType {
   // text is intentionally distinct (notADocumentReason()).
   if (description.toLowerCase().includes('not a business accounting document'))
     return 'not_a_document';
+  // A Pass-2 (AI classification/enrichment) failure — the file and OCR are
+  // fine, only the agent classification failed. Checked BEFORE the supplier /
+  // OCR buckets because pass2FailureReason details interpolate raw error text
+  // (e.g. Zod paths containing "supplier") that would otherwise mis-bucket.
+  if (description.includes('AI classification failed'))
+    return 'classification_failed';
   if (description.includes('supplier')) return 'supplier_unresolved';
   if (
     description.includes('confidence') ||
@@ -254,11 +261,7 @@ export function classifyReasonType(description: string): TriageReasonType {
   )
     return 'low_confidence';
   if (description.includes('unknown category')) return 'category_unresolved';
-  if (
-    description.includes('OCR') ||
-    description.includes('transcription') ||
-    description.includes('classification failed')
-  )
+  if (description.includes('OCR') || description.includes('transcription'))
     return 'ocr_failed';
   if (description.includes('not yet implemented')) return 'unimplemented';
   // 'AI could not classify the document' — the agent returned kind='unknown'.

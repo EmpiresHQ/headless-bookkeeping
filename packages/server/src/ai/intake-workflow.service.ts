@@ -74,7 +74,7 @@ export type IntakeFailure =
   | { pass: 'ocr'; category: OcrFailureCategory }
   | { pass: 'classify'; category: Pass2FailureCategory };
 
-function pass2FailureReason(
+export function pass2FailureReason(
   category: Pass2FailureCategory,
   detail: string,
 ): string {

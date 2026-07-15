@@ -64,6 +64,9 @@ describe('triageSubtitle', () => {
     expect(triageSubtitle({ reason: 'x', reason_type: 'ocr_failed' })).toBe(
       'OCR could not read the file — retry or replace',
     );
+    expect(
+      triageSubtitle({ reason: 'x', reason_type: 'classification_failed' }),
+    ).toBe('AI classification failed — retry or classify manually');
     expect(triageSubtitle({ reason: 'x', reason_type: 'not_a_document' })).toBe(
       'Does not look like a business document',
     );
@@ -84,6 +87,7 @@ describe('triageChipLabel / outcomeText', () => {
     expect(triageChipLabel('low_confidence')).toBe('classify');
     expect(triageChipLabel('outgoing_invoice')).toBe('invoice');
     expect(triageChipLabel('ocr_failed')).toBe('retry');
+    expect(triageChipLabel('classification_failed')).toBe('classify');
     expect(triageChipLabel(null)).toBe('review');
   });
   it('describes triage outcomes without IDs', () => {

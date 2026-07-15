@@ -1,3 +1,5 @@
+import { pass2FailureReason } from '../ai/intake-workflow.service';
+import type { Pass2FailureCategory } from '../ai/pass2-agent.service';
 import { classifyReasonType } from './types';
 
 describe('classifyReasonType', () => {
@@ -49,11 +51,14 @@ describe('classifyReasonType', () => {
         'OCR transcription failed (unreadable): file too blurry',
       ),
     ).toBe('ocr_failed');
+    // A Pass-2 failure string is NOT an OCR failure — the file/OCR are fine,
+    // only the agent classification failed (the bug this module fixes: this
+    // used to fall into the 'classification failed' OCR-bucket keyword).
     expect(
       classifyReasonType(
         'AI classification failed (timeout): agent unavailable',
       ),
-    ).toBe('ocr_failed');
+    ).toBe('classification_failed');
   });
   it('maps unimplemented kinds', () => {
     expect(
@@ -67,5 +72,67 @@ describe('classifyReasonType', () => {
   });
   it('falls back to unknown', () => {
     expect(classifyReasonType('some unexpected reason')).toBe('unknown');
+  });
+});
+
+// Contract between pass2FailureReason() and classifyReasonType(): every
+// Pass-2 failure string it can produce must bucket to 'classification_failed'
+// — never 'ocr_failed' or 'supplier_unresolved'. The file/OCR are fine when
+// Pass 2 fails; only the agent classification step failed.
+describe('classifyReasonType(pass2FailureReason(...)) contract', () => {
+  const PASS2_FAILURE_CATEGORIES: Pass2FailureCategory[] = [
+    'enrichment-failed',
+    'enrichment-incomplete',
+    'enrichment-tool-not-called',
+    'invalid-output',
+    'transient',
+    'agent-unavailable',
+  ];
+
+  it.each(PASS2_FAILURE_CATEGORIES)(
+    'maps every pass2FailureReason category (%s) to classification_failed',
+    (category) => {
+      expect(
+        classifyReasonType(pass2FailureReason(category, 'some detail')),
+      ).toBe('classification_failed');
+    },
+  );
+
+  it('is not mis-bucketed as supplier_unresolved by a Zod path in the detail', () => {
+    // Guards the supplier-bucket-order hazard: pass2FailureReason interpolates
+    // raw error text, which for an invalid-output failure can be a Zod path
+    // like "supplier_proposal.match_entity_id".
+    expect(
+      classifyReasonType(
+        pass2FailureReason(
+          'invalid-output',
+          'Zod error at supplier_proposal.match_entity_id',
+        ),
+      ),
+    ).toBe('classification_failed');
+  });
+
+  it('is not mis-bucketed as ocr_failed by an "OCR" mention in the detail', () => {
+    expect(
+      classifyReasonType(
+        pass2FailureReason('transient', 'OCR-ish text in the detail'),
+      ),
+    ).toBe('classification_failed');
+  });
+
+  it('maps the literal production string (enrichment-incomplete) to classification_failed', () => {
+    expect(
+      classifyReasonType(
+        'AI classification failed during enrichment (enrichment-incomplete): enrichment phase returned no reusable summary',
+      ),
+    ).toBe('classification_failed');
+  });
+
+  it('still maps a genuine OCR failure to ocr_failed', () => {
+    expect(
+      classifyReasonType(
+        'OCR transcription failed (unreadable): file too blurry',
+      ),
+    ).toBe('ocr_failed');
   });
 });

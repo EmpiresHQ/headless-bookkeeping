@@ -51,6 +51,10 @@ const COPY = {
     'The source file could not be read',
     'Replace the file or retry OCR before classifying it.',
   ],
+  classification_failed: [
+    'AI classification failed',
+    'The file was read fine, but the AI could not classify it. Retry the AI run or classify it manually.',
+  ],
   not_a_document: [
     'No booking is needed',
     'This file does not appear to be an accounting document.',
@@ -139,6 +143,7 @@ function GenericDecision(props: Props) {
     category_unresolved: ['Choose category', 'classify', FileSearch],
     outgoing_invoice: ['Review sales invoice', 'invoice', ReceiptText],
     ocr_failed: ['Replace or retry file', 'ocr', FileUp],
+    classification_failed: ['Classify manually', 'classify', FileSearch],
     unimplemented: ['Classify manually', 'classify', FileSearch],
     unknown: ['Classify manually', 'classify', FileSearch],
   } as const;

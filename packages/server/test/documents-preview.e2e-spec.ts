@@ -50,6 +50,10 @@ describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
           if (id === 1) return { buffer: FIXED_PNG, hash: FIXED_HASH };
           throw new NotFoundException(`Document ${id} not found`);
         }),
+        // IntakeQueueWorker.onModuleInit registers a reprocess-kick listener on
+        // DocumentsService before the test-env early-return, so the stub must
+        // expose it or app.init() throws.
+        setReprocessKicker: jest.fn(),
       })
       .compile();
 
