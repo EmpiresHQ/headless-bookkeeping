@@ -403,6 +403,9 @@ describe('DividendsService (integration)', () => {
       getCategories(): CategoryDef[] {
         return [];
       }
+      getDocumentClassificationHints(): string {
+        return '';
+      }
       classifyKmd(_vatCode: string): KmdBaseClassification {
         return {
           outputBaseRow: null,
@@ -641,6 +644,9 @@ describe('DividendsService (integration)', () => {
       }
       getCategories(): CategoryDef[] {
         return [];
+      }
+      getDocumentClassificationHints(): string {
+        return '';
       }
       classifyKmd(_vatCode: string): KmdBaseClassification {
         return {
