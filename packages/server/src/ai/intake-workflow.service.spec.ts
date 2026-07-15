@@ -305,6 +305,9 @@ describe('IntakeWorkflowService', () => {
         expect(details.classification.result.tax_point_date).toBe('2026-03-15');
         expect(details.classification.result.category).toBe('transport');
         expect(details.classification.result.document_vat_marking).toBe('23%');
+        // No SupplierProposal is persisted on the Expense path — extracted_supplier
+        // is absent (there is nothing to project it from).
+        expect(details.classification.extracted_supplier).toBeUndefined();
       }
       // pass2Agent must NEVER be called — this is the key contract.
       expect(mockPass2Agent.classify).not.toHaveBeenCalled();
@@ -383,12 +386,58 @@ describe('IntakeWorkflowService', () => {
         ok: true,
         markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
       });
+      // supplier_proposal is stripped off the wire (trust boundary); its
+      // sanitized projection surfaces as extracted_supplier instead.
+      const { supplier_proposal: _sp, ...triageWithoutProposal } = triage;
       expect(details.classification).toEqual({
+        ok: true,
+        result: triageWithoutProposal,
+        enrichment,
+        extracted_supplier: {
+          name: 'Acme OÜ',
+          country: 'EE',
+          registration_key: 'EE100200300',
+        },
+      });
+      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+    });
+
+    it('match proposal exposes observed identity, never the entity id', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: 77,
+          observed_country: 'EE',
+          observed_registration_key: 'EE100200300',
+        },
+      });
+      const enrichment = sampleEnrichment();
+
+      mockPass2Agent.classify.mockResolvedValue({
         ok: true,
         result: triage,
         enrichment,
       });
-      expect(mockPass2Agent.classify).not.toHaveBeenCalled();
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'supplier-unresolved',
+        reason: 'supplier unresolved',
+      });
+
+      await service.process(docId);
+      mockPass2Agent.classify.mockClear();
+
+      const details = await service.details(docId);
+
+      expect(details.classification).toMatchObject({
+        ok: true,
+        extracted_supplier: {
+          name: null,
+          country: 'EE',
+          registration_key: 'EE100200300',
+        },
+      });
+      expect(JSON.stringify(details)).not.toContain('match_entity_id');
     });
   });
 

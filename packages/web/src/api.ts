@@ -248,6 +248,15 @@ export interface DebugTriageResult {
   confidence: number;
 }
 
+/** A sanitized, flat projection of the AI's supplier proposal, safe to prefill
+ *  the "New supplier…" form with. Trust boundary: NEVER carries a
+ *  match_entity_id — see server's triage/types.ts ExtractedSupplier. */
+export interface ExtractedSupplier {
+  name: string | null;
+  country: string | null;
+  registration_key: string | null;
+}
+
 /** Read-only details for a document: cached OCR + classification from the
  *  linked Expense. Never re-invokes the LLM (ADR-0039). */
 export interface DocumentDetails {
@@ -256,7 +265,11 @@ export interface DocumentDetails {
     | { ok: true; markdown: string }
     | { ok: false; category: string; detail: string };
   classification:
-    | { ok: true; result: DebugTriageResult }
+    | {
+        ok: true;
+        result: DebugTriageResult;
+        extracted_supplier?: ExtractedSupplier;
+      }
     | { ok: false; category: string; detail: string }
     | null;
 }

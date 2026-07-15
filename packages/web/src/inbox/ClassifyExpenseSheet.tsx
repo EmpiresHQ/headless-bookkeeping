@@ -115,6 +115,15 @@ export function ClassifyExpenseSheet({
       setInvoiceNumber((cur) =>
         cur === '' ? (c.result.supplier_invoice_number ?? '') : cur,
       );
+      // Seed the inline "New supplier…" create fields too — untouched-only,
+      // same functional-update pattern, so a field the operator already typed
+      // into (or the search-text fallback below) is never clobbered.
+      const ex = c.extracted_supplier;
+      if (ex != null) {
+        setNewName((cur) => (cur === '' ? (ex.name ?? '') : cur));
+        setNewCountry((cur) => (cur === '' ? (ex.country ?? '') : cur));
+        setNewRegKey((cur) => (cur === '' ? (ex.registration_key ?? '') : cur));
+      }
       setPrefilled(true);
     } else if (
       !prefilled &&
@@ -286,7 +295,9 @@ export function ClassifyExpenseSheet({
             <button
               type="button"
               onClick={() => {
-                setNewName(supplierSearch);
+                // Fallback only — never clobbers a name already seeded from
+                // the AI extraction (or typed by the operator).
+                setNewName((cur) => (cur === '' ? supplierSearch : cur));
                 setCreatingSupplier(true);
               }}
               className="mt-1.5 text-[13px] font-semibold text-accent"
