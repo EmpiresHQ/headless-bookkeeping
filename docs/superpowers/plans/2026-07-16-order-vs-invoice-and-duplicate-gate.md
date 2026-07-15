@@ -385,7 +385,7 @@ git commit -m "feat(plugins): add getDocumentClassificationHints() with EE order
 ## Task 4: Inject plugin hints into the Pass-2 prompt
 
 **Files:**
-- Modify: `packages/server/src/ai/triage-instructions.ts:20` (add `withDocumentHints`)
+- Modify: `packages/server/src/ai/triage-instructions.ts:20` (add `withDocumentHints`) AND `:55` (the `withOrgIdentity` hardcoded `document_type` list — see Step 3b)
 - Modify: `packages/server/src/ai/mastra.service.ts:104-144` (both triage builders)
 - Test: `packages/server/src/ai/triage-instructions.spec.ts`, `packages/server/src/ai/mastra.service.spec.ts`
 
@@ -450,6 +450,10 @@ In `mastra.service.ts`, in BOTH `buildTriageEnrichmentAgent` and `buildTriageCla
       : withHints;
 ```
 Add `withDocumentHints` to the existing import from `./triage-instructions`. (If a builder already resolves `org`/`plugin` for another reason, reuse it — do not resolve twice.)
+
+- [ ] **Step 3b: Fix the stale hardcoded `document_type` list in `withOrgIdentity`**
+
+`triage-instructions.ts:55` (inside `withOrgIdentity`) currently tells the model, on the IBAN-matched path, `` `\nReport \`document_type\` accurately (invoice | receipt | bank_statement | credit_note | other).` `` — a CLOSED 5-value list that omits the two new types, actively contradicting the hints appended by Step 3. Add the two values so the line reads: `` (invoice | receipt | bank_statement | credit_note | order_confirmation | proforma | other) ``. This is a required consumer-sync of the widened enum (flagged by the Task-1 review); without it the classification prompt on the outgoing/IBAN path denies the new types exist.
 
 - [ ] **Step 4: Write the end-to-end prompt test, then run**
 
@@ -648,7 +652,7 @@ git commit -m "feat(ai): add two-tier structured DuplicateGuardService (exact nu
 ## Task 6: Wire the gate into routeExpense (and the resolveSupplier bypass)
 
 **Files:**
-- Modify: `packages/server/src/ai/intake-workflow.service.ts` — constructor (inject `DuplicateGuardService`), `routeExpense` (`:544-590`, the `new_expense` confident branch, BEFORE `proposeDraft`), and `resolveSupplier` (`:743+`, before its `proposeDraft` call).
+- Modify: `packages/server/src/ai/intake-workflow.service.ts` (MAIN line anchors) — constructor at `:198` (inject `DuplicateGuardService` after `@InjectKysely() db`), `routeExpense` `new_expense` confident branch at `:576` with `proposeDraft` at `:585` (gate goes BEFORE it), and `resolveSupplier` at `:773` with `proposeDraft` at `:841` (gate goes after the teach-identifiers block `:814-836`, before `:841`).
 - Test: extend `intake-workflow.service.spec.ts`.
 
 **Interfaces:**
@@ -665,12 +669,13 @@ Expected: FAIL — document posts instead of parking (gate not wired).
 
 - [ ] **Step 3: Implement**
 
-Inject the guard in the constructor (line 186 block):
+Inject the guard in the constructor (`:198` block, add after the `@InjectKysely() private readonly db: Kysely<Database>,` line):
 ```typescript
     private readonly duplicateGuard: DuplicateGuardService,
 ```
+Add the import for `DuplicateGuardService` from `./duplicate-guard.service`.
 
-In `routeExpense`, inside `case 'new_expense':` after the `confidence >= threshold` check and BEFORE `proposeDraft` (around line 555), add the gate. The `supplier_proposal` match id is the resolved supplier; use it when present (a `create` proposal has no id yet and falls through to the existing supplier-unresolved path, so only gate when we have a supplier id):
+In `routeExpense`, inside `case 'new_expense':` (main `:575`) right after the `if (triageResult.confidence >= threshold) {` line (`:576`) and BEFORE the `proposeDraft` call (`:585`), add the gate. The `supplier_proposal` match id is the resolved supplier; use it when present (a `create` proposal has no id yet and falls through to the existing supplier-unresolved path, so only gate when we have a supplier id):
 ```typescript
         if (triageResult.confidence >= threshold) {
           const supplierId =
@@ -694,7 +699,7 @@ In `routeExpense`, inside `case 'new_expense':` after the `confidence >= thresho
           // ... existing proposeDraft call unchanged ...
 ```
 
-In `resolveSupplier`, after the operator's `supplierEntityId` is known and before its `proposeDraft` call, run the same check with `supplierId: supplierEntityId` (the operator just chose the supplier) using the stored pending triage figures. Park to `needs_triage` with `dup.reason` if it matches. (The idempotent already-`triaged` replay branch at line 749 must stay ABOVE this — never gate a replay.)
+In `resolveSupplier` (main `:773`), insert the same check AFTER the teach-identifiers block (`:814-836`) and BEFORE the `proposeDraft` call (`:841`), using `supplierId: supplierEntityId` (the operator just chose the supplier) and the stored `triageResult` figures (`triageResult.gross_amount`, `.tax_point_date`, `.supplier_invoice_number`). Park to `needs_triage` with `dup.reason` if it matches. CRITICAL: the idempotent already-`triaged`/`processed` replay branch (`:780-785`) is ABOVE this and must stay there — never gate a replay (a replay is not a new posting).
 
 - [ ] **Step 4: Run to verify it passes**
 
