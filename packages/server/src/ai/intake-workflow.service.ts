@@ -17,6 +17,7 @@ import {
   DraftReplayResult,
 } from './propose-draft.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { DuplicateGuardService } from './duplicate-guard.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EntitiesService } from '../entities/entities.service';
@@ -208,6 +209,7 @@ export class IntakeWorkflowService {
     private readonly bankIngestion: BankIngestionService,
     private readonly gate: ProcessingGate,
     @InjectKysely() private readonly db: Kysely<Database>,
+    private readonly duplicateGuard: DuplicateGuardService,
   ) {}
 
   /**
@@ -578,10 +580,14 @@ export class IntakeWorkflowService {
             `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
           );
           // proposeDraft trusts this validated, already-routed new_expense. It
-          // performs the EXPLICIT supplier-proposal → Supplier resolution: a
-          // 'create' proposal cannot yet produce a draft (Task 43), so it
-          // returns `supplier-unresolved` and we route to needs_triage rather
-          // than silently dropping a null-supplier draft (ADR-0014/0024).
+          // performs the EXPLICIT supplier-proposal → Supplier resolution (a
+          // 'match' proposal resolves to its entity id; a 'create' proposal
+          // identifier-resolves via ADR-0014 find-or-onboard, or returns
+          // `supplier-unresolved` when no strong identifier anchors it — we
+          // never silently drop a null-supplier draft), then runs the
+          // duplicate gate over whichever supplier it resolved to, covering
+          // BOTH a 'match' proposal and a 'create' proposal that resolved to
+          // an existing supplier.
           const outcome = await this.proposeDraft.proposeDraft(
             triageResult,
             documentId,
@@ -605,6 +611,12 @@ export class IntakeWorkflowService {
           if (outcome.outcome === 'category-unresolved') {
             this.logger.warn(
               `new_expense for document ${documentId} has an unresolved category: ${outcome.reason}`,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason);
+          }
+          if (outcome.outcome === 'possible-duplicate') {
+            this.logger.warn(
+              `Duplicate gate blocked auto-post for document ${documentId}: ${outcome.reason}`,
             );
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
@@ -835,6 +847,22 @@ export class IntakeWorkflowService {
       );
     }
 
+    // The operator just chose this supplier explicitly — still run it through
+    // the same duplicate gate as the auto-post path so a human-resolved
+    // supplier can't book a second posting for a purchase already recorded.
+    const dup = await this.duplicateGuard.check({
+      supplierId: supplierEntityId,
+      supplierInvoiceNumber: triageResult.supplier_invoice_number,
+      grossAmount: triageResult.gross_amount,
+      taxPointDate: triageResult.tax_point_date,
+    });
+    if (dup) {
+      this.logger.warn(
+        `Duplicate gate (tier ${dup.tier}) blocked resolveSupplier for document ${documentId}: ${dup.reason}`,
+      );
+      return this.routeNeedsTriage(documentId, dup.reason);
+    }
+
     // Explicit supplier id wins in resolveSupplier → a draft is produced and the
     // full posting pipeline runs (post/hold per policy), exactly as a confident
     // intake would.
@@ -858,6 +886,16 @@ export class IntakeWorkflowService {
       // cannot regress to an unknown category.
       throw new Error(
         `proposeDraft returned category-unresolved for document ${documentId} during supplier resolution: ${outcome.reason}`,
+      );
+    }
+    if (outcome.outcome === 'possible-duplicate') {
+      // Defensive: proposeDraft's duplicate gate only runs on the AUTO path
+      // (no explicit supplierId). This call passes `supplierEntityId`
+      // explicitly, so the gate is always skipped here — this call already
+      // ran its OWN pre-call duplicate check above. This arm exists only to
+      // satisfy the ProposeDraftOutcome type; it should be unreachable.
+      throw new Error(
+        `proposeDraft returned possible-duplicate for document ${documentId} despite an explicit supplier id — this should be unreachable`,
       );
     }
 

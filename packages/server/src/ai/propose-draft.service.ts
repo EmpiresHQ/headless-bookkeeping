@@ -18,6 +18,7 @@ import {
 import { CreateExpenseDto } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
+import { DuplicateGuardService } from './duplicate-guard.service';
 import { CategoryService } from '../categories/category.service';
 import {
   SalesInvoicesService,
@@ -70,15 +71,30 @@ export interface CategoryUnresolvedResult {
 }
 
 /**
+ * Returned when the duplicate gate (backstop for the classification layer)
+ * flags this proposal as a likely re-submission of an already-booked expense
+ * — same supplier + invoice number (Tier 1), or same supplier + gross amount
+ * + a tax point date within the fuzzy window (Tier 2). See
+ * {@link DuplicateGuardService}. The caller routes to needs_triage rather
+ * than silently posting a second expense for the same purchase.
+ */
+export interface PossibleDuplicateResult {
+  outcome: 'possible-duplicate';
+  reason: string;
+}
+
+/**
  * Discriminated outcome of a fresh proposeDraft call: either a created draft
- * or an explicit "supplier could not be resolved, route to triage" signal, or
- * an explicit "category not in the active plugin's category set, route to
- * triage" signal.
+ * or an explicit "supplier could not be resolved, route to triage" signal, an
+ * explicit "category not in the active plugin's category set, route to
+ * triage" signal, or an explicit "possible duplicate, route to triage" signal
+ * from the duplicate gate.
  */
 export type ProposeDraftOutcome =
   | ProposeDraftResult
   | SupplierUnresolvedResult
-  | CategoryUnresolvedResult;
+  | CategoryUnresolvedResult
+  | PossibleDuplicateResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -183,23 +199,32 @@ export class ProposeDraftService {
     private readonly config: AgentConfigService,
     private readonly categoryService: CategoryService,
     private readonly salesInvoicesService: SalesInvoicesService,
+    private readonly duplicateGuard: DuplicateGuardService,
   ) {}
 
   /**
    * Process a TriageResult through the posting pipeline.
    *
    * Returns a discriminated {@link ProposeDraftOutcome}: a created draft, or an
-   * explicit `supplier-unresolved` signal when the supplier_proposal asks to
-   * CREATE a Supplier (deferred — Task 43), or a `category-unresolved` signal
-   * when the AI emits a category outside the active plugin's set (both route to
-   * needs_triage). The former is NEVER a silent null-supplier draft; the caller
-   * routes it to needs_triage.
+   * explicit `supplier-unresolved` signal when the supplier_proposal's
+   * `create` mode finds no strong identifier to anchor a Supplier (or the
+   * anchor is ambiguous), a `category-unresolved` signal when the AI emits a
+   * category outside the active plugin's set, or a `possible-duplicate`
+   * signal from the duplicate gate (all route to needs_triage). Note: a
+   * `create` proposal is NOT always unresolved — ADR-0014's multi-key
+   * find-or-onboard can identifier-resolve it to an EXISTING supplier, and
+   * that resolved supplier is run through the SAME duplicate gate as a
+   * `match` proposal below (this is exactly the bypass a routeExpense-only
+   * gate missed). None of these signals is ever a silent null-supplier draft;
+   * the caller routes each to needs_triage.
    *
    * @param triageResult - The validated AI triage output
    * @param documentId - Optional document ID to associate with the expense
    * @param supplierId - Optional explicit supplier ID. When omitted, the
    *   supplier is resolved from `triageResult.supplier_proposal` (a 'match'
-   *   proposal resolves to its entity id; a 'create' proposal is unresolved).
+   *   proposal resolves to its entity id; a 'create' proposal does ADR-0014
+   *   multi-key find-or-onboard, which may resolve it to an EXISTING
+   *   supplier or, if no strong identifier anchors it, leave it unresolved).
    * @param claimantId - Optional claimant Entity id. When set, the expense is
    *   a personal-reimbursement claim and the Cr leg posts to CLAIMANT_PAYABLE
    *   (Task 6/VoucherProjection). Propagated from the document's claimant_id.
@@ -247,6 +272,24 @@ export class ProposeDraftService {
       return resolved;
     }
     const resolvedSupplierId = resolved.supplierId;
+
+    // Duplicate gate (backstop for the classification layer). Runs ONLY on the
+    // AUTO path — when the caller passed no explicit supplierId. This covers BOTH
+    // a 'match' proposal AND a 'create' proposal that identifier-resolved to an
+    // existing supplier (ADR-0014), which is exactly the bypass a routeExpense-only
+    // gate missed. Explicit-id callers (workflow resolveSupplier, which gates
+    // pre-call; manualClassify, a human override) are intentionally not gated here.
+    if (supplierId == null && resolvedSupplierId != null) {
+      const dup = await this.duplicateGuard.check({
+        supplierId: resolvedSupplierId,
+        supplierInvoiceNumber: triageResult.supplier_invoice_number,
+        grossAmount: triageResult.gross_amount,
+        taxPointDate: triageResult.tax_point_date,
+      });
+      if (dup) {
+        return { outcome: 'possible-duplicate', reason: dup.reason };
+      }
+    }
 
     // Step 1: Create the Expense via ExpensesService.
     const createExpenseDto: CreateExpenseDto = {

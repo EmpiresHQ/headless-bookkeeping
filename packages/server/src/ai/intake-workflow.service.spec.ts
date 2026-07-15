@@ -19,6 +19,7 @@ import {
   type Pass2FailureCategory,
 } from './pass2-agent.service';
 import { ProposeDraftService } from './propose-draft.service';
+import { DuplicateGuardService } from './duplicate-guard.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -98,6 +99,10 @@ describe('IntakeWorkflowService', () => {
 
   const mockBankIngestion = {
     startImport: jest.fn(),
+  };
+
+  const mockDuplicateGuard = {
+    check: jest.fn(),
   };
 
   const sampleTriageResult = (
@@ -202,6 +207,7 @@ describe('IntakeWorkflowService', () => {
         { provide: EntitiesService, useValue: mockEntities },
         { provide: OrganizationService, useValue: mockOrganization },
         { provide: BankIngestionService, useValue: mockBankIngestion },
+        { provide: DuplicateGuardService, useValue: mockDuplicateGuard },
         AuditFindingsService,
         PolicyService,
         DocumentStorageService,
@@ -233,6 +239,7 @@ describe('IntakeWorkflowService', () => {
     mockEntities.addIdentifierIfAbsent.mockReset();
     mockOrganization.getOrganization.mockReset();
     mockBankIngestion.startImport.mockReset();
+    mockDuplicateGuard.check.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -250,6 +257,9 @@ describe('IntakeWorkflowService', () => {
       name: null,
       vat_registration_number: null,
     });
+    // Default: no duplicate found, so the gate is a no-op unless a test
+    // explicitly wires a match.
+    mockDuplicateGuard.check.mockResolvedValue(null);
   });
 
   afterEach(async () => {
@@ -458,6 +468,90 @@ describe('IntakeWorkflowService', () => {
       expect(doc.status).toBe('triaged');
       // processing_since is cleared after successful completion.
       expect(doc.processing_since).toBeNull();
+    });
+
+    it('parks a confident new_expense that proposeDraft flags as a possible duplicate, instead of posting', async () => {
+      // The duplicate gate now lives INSIDE proposeDraft (it must cover both a
+      // 'match' proposal AND a 'create' proposal that identifier-resolved to an
+      // existing supplier — a bypass a routeExpense-only gate missed). This
+      // workflow-level test only asserts routing: a `possible-duplicate`
+      // outcome from proposeDraft parks to needs_triage instead of posting.
+      const docId = await seedDocument();
+      const triageResult = sampleTriageResult({
+        confidence: 0.94,
+        supplier_proposal: { mode: 'match', match_entity_id: 7 },
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: triageResult,
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValueOnce({
+        outcome: 'possible-duplicate',
+        reason:
+          'possible duplicate of expense #84: same supplier, gross amount ' +
+          '15.25, tax point 2026-03-15 (existing 2026-03-10).',
+      });
+
+      const result = await service.process(docId);
+
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
+        triageResult,
+        docId,
+        undefined,
+        undefined,
+        undefined,
+      );
+      expect(result.status).toBe('needs_triage');
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('possible_duplicate');
+      expect(finding?.description).toContain(
+        'possible duplicate of expense #84',
+      );
+    });
+
+    it('posts a confident new_expense when proposeDraft returns a normal draft (no duplicate flagged)', async () => {
+      const docId = await seedDocument();
+      const triageResult = sampleTriageResult({
+        confidence: 0.94,
+        supplier_proposal: { mode: 'match', match_entity_id: 7 },
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: triageResult,
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'draft',
+        expenseId: 43,
+        pipelineResult: {
+          businessObject: { id: 43, status: 'posted' },
+          voucher: null,
+          policy: { action: 'auto-post', reason: 'All rules passed' },
+        },
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('draft_proposed');
+      if (result.status === 'draft_proposed') {
+        expect(result.draft.expenseId).toBe(43);
+      }
+      expect(mockProposeDraft.proposeDraft).toHaveBeenCalledWith(
+        triageResult,
+        docId,
+        undefined,
+        undefined,
+        undefined,
+      );
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('triaged');
     });
 
     it('creates AuditFinding for uncertain new_expense (confidence < threshold)', async () => {
@@ -1660,6 +1754,39 @@ describe('IntakeWorkflowService', () => {
 
       resolveSpy.mockRestore();
       clearSpy.mockRestore();
+    });
+
+    it('parks to needs_triage instead of posting when DuplicateGuard flags the operator-chosen supplier as a possible duplicate', async () => {
+      const docId = await seedNeedsTriageWithProposal();
+      mockEntities.findById.mockResolvedValue({ id: 3, role: 'supplier' });
+      mockDuplicateGuard.check.mockResolvedValueOnce({
+        tier: 1,
+        existingExpenseId: 77,
+        reason:
+          'possible duplicate of expense #77: same supplier and invoice ' +
+          'number INV-1.',
+      });
+
+      const result = await service.resolveSupplier(docId, 3);
+
+      expect(mockDuplicateGuard.check).toHaveBeenCalledWith({
+        supplierId: 3,
+        supplierInvoiceNumber: triage.supplier_invoice_number,
+        grossAmount: triage.gross_amount,
+        taxPointDate: triage.tax_point_date,
+      });
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+      expect(result.status).toBe('needs_triage');
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('possible_duplicate');
     });
 
     it('replays the persisted Pass 2 enrichment when resolving a parked supplier-unresolved document', async () => {
