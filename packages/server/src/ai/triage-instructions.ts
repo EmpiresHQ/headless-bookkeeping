@@ -20,6 +20,21 @@ export function withCategoryList(
 }
 
 /**
+ * Append the active country plugin's document-classification vocabulary to the
+ * base triage prompt, so the model distinguishes local order-confirmation /
+ * proforma titles from a real invoice at generation time. Jurisdiction-specific
+ * wording lives in the plugin, not here. Empty/blank hints leave the base
+ * prompt unchanged.
+ */
+export function withDocumentHints(
+  baseInstructions: string,
+  hints: string,
+): string {
+  if (hints.trim().length === 0) return baseInstructions;
+  return `${baseInstructions}\n\n${hints}`;
+}
+
+/**
  * Org identity context passed into the Pass-2 agent when the intake pipeline
  * has already determined the document's direction (incoming vs outgoing) by
  * matching the organization's IBAN against the document.
@@ -52,7 +67,7 @@ export function withOrgIdentity(
     instructions +
     `\n\nYOUR ORGANIZATION: name="${org.name ?? 'unknown'}", VAT="${org.vatNumber ?? 'unknown'}", IBAN="${org.iban ?? 'unknown'}".` +
     `\nThis document has been pre-classified as direction="${org.directionHint}" (decided by matching your IBAN against the document — trust it).` +
-    `\nReport \`document_type\` accurately (invoice | receipt | bank_statement | credit_note | other).` +
+    `\nReport \`document_type\` accurately (invoice | receipt | bank_statement | credit_note | order_confirmation | proforma | other).` +
     `\nWhen direction is "outgoing", set kind="new_sales_invoice", extract the CUSTOMER (buyer) into \`customer_proposal\` and the document's OWN invoice number (the schema field is named \`supplier_invoice_number\` for legacy reasons — for an outgoing invoice this is YOUR invoice number) into \`supplier_invoice_number\`, and set the \`outgoing_signals\` booleans truthfully (does YOUR org name / VAT appear as the issuer/seller? is there a distinct buyer block? does the document call itself an invoice?).` +
     `\nWhen direction is "incoming", behave as before: kind="new_expense" with a \`supplier_proposal\`.`
   );

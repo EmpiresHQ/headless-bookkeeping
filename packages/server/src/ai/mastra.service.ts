@@ -9,6 +9,7 @@ import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
 import {
   withCategoryList,
+  withDocumentHints,
   withOrgIdentity,
   OrgIdentityContext,
 } from './triage-instructions';
@@ -108,10 +109,15 @@ export class MastraService {
       await this.config.resolveInstructions('triage_enrichment');
     const model = await this.config.resolveModelConfig('triage_enrichment');
     const categories = await this.categoryService.list();
-    const baseInstructions = withCategoryList(instructions, categories);
+    const org = await this.organizationService.getOrganization();
+    const plugin = this.pluginLoader.resolve(org.country);
+    const withHints = withDocumentHints(
+      withCategoryList(instructions, categories),
+      plugin.getDocumentClassificationHints(),
+    );
     const finalInstructions = orgContext
-      ? withOrgIdentity(baseInstructions, orgContext)
-      : baseInstructions;
+      ? withOrgIdentity(withHints, orgContext)
+      : withHints;
 
     return new Agent({
       id: 'triage-enrichment-agent',
@@ -130,10 +136,15 @@ export class MastraService {
     );
     const model = await this.config.resolveModelConfig('triage_classification');
     const categories = await this.categoryService.list();
-    const baseInstructions = withCategoryList(instructions, categories);
+    const org = await this.organizationService.getOrganization();
+    const plugin = this.pluginLoader.resolve(org.country);
+    const withHints = withDocumentHints(
+      withCategoryList(instructions, categories),
+      plugin.getDocumentClassificationHints(),
+    );
     const finalInstructions = orgContext
-      ? withOrgIdentity(baseInstructions, orgContext)
-      : baseInstructions;
+      ? withOrgIdentity(withHints, orgContext)
+      : withHints;
 
     return new Agent({
       id: 'triage-classification-agent',
