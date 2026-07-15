@@ -49,9 +49,10 @@ const SUPPLIER: Entity = {
   goods_vs_services: null,
 };
 
-/** Reclassify payload keyed by document id — lets one mockImplementation
- *  serve BOTH docs so the remount pin can tell 12's prefill from 13's. */
-const RECLASSIFY = (id: number, grossAmount: number, vatAmount: number) => ({
+/** Persisted-details payload keyed by document id — lets one
+ *  mockImplementation serve BOTH docs so the remount pin can tell 12's
+ *  prefill from 13's. */
+const DETAILS = (id: number, grossAmount: number, vatAmount: number) => ({
   document_id: id,
   ocr: { ok: true as const, markdown: 'x' },
   classification: {
@@ -169,11 +170,6 @@ describe('TriageDocScreen', () => {
   });
 
   it('routes low_confidence to the classify sheet as the single primary', async () => {
-    vi.mocked(api.getDocumentReclassify).mockResolvedValue({
-      document_id: 12,
-      ocr: { ok: true, markdown: 'x' },
-      classification: null,
-    });
     renderAt('/inbox/doc/12');
     fireEvent.click(
       await screen.findByRole('button', { name: 'Review extracted data' }),
@@ -194,11 +190,6 @@ describe('TriageDocScreen', () => {
           'AI classification failed during enrichment (enrichment-incomplete): enrichment phase returned no reusable summary',
       }),
     ]);
-    vi.mocked(api.getDocumentReclassify).mockResolvedValue({
-      document_id: 12,
-      ocr: { ok: true, markdown: 'x' },
-      classification: null,
-    });
     renderAt('/inbox/doc/12');
     fireEvent.click(
       await screen.findByRole('button', { name: 'Classify manually' }),
@@ -462,10 +453,10 @@ describe('TriageDocScreen', () => {
 
   it('remounts the classify sheet per document — fresh fields and a live submit after advancing', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
-    vi.mocked(api.getDocumentReclassify).mockImplementation((id) =>
+    vi.mocked(api.getDocumentDetails).mockImplementation((id) =>
       id === 12
-        ? Promise.resolve(RECLASSIFY(12, 4820, 867))
-        : Promise.resolve(RECLASSIFY(id, 9900, 1785)),
+        ? Promise.resolve(DETAILS(12, 4820, 867))
+        : Promise.resolve(DETAILS(id, 9900, 1785)),
     );
     vi.mocked(api.manualClassify).mockResolvedValue({
       kind: 'expense',
@@ -561,9 +552,6 @@ describe('TriageDocScreen', () => {
 
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
-    vi.mocked(api.getDocumentReclassify).mockResolvedValue(
-      RECLASSIFY(12, 4820, 867),
-    );
     vi.mocked(api.manualClassify).mockResolvedValue({
       kind: 'unknown',
       document_id: 12,
