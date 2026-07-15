@@ -1,22 +1,13 @@
 import { useEffect, useState } from 'react';
+import { FileImage } from 'lucide-react';
 import { fetchDocumentPreviewObjectUrl } from '../api';
 
 /** Archive-row thumbnail: bearer-only /preview bytes → blob URL, revoked on
- *  unmount (same choreography as inbox/DocPreviewRow — StrictMode-safe).
- *  Rows without a preview (preview_path null) never fetch — the legacy
- *  component gated on it, and firing an authenticated /preview request for
- *  every archive row is wasted work when there is nothing to show. */
-export function DocThumb({
-  id,
-  hasPreview,
-}: {
-  id: number;
-  hasPreview: boolean;
-}) {
+ *  unmount (same choreography as inbox/DocPreviewRow — StrictMode-safe). */
+export function DocThumb({ id }: { id: number }) {
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hasPreview) return;
     let revoked = false;
     let objectUrl: string | null = null;
     fetchDocumentPreviewObjectUrl(id)
@@ -33,7 +24,7 @@ export function DocThumb({
       revoked = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [id, hasPreview]);
+  }, [id]);
 
   return src !== null ? (
     <img
@@ -46,7 +37,7 @@ export function DocThumb({
       aria-hidden
       className="flex h-12 w-9 items-center justify-center rounded-md bg-line text-base"
     >
-      📄
+      <FileImage className="h-4 w-4 text-ink-3" aria-hidden />
     </span>
   );
 }

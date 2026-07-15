@@ -91,17 +91,15 @@ describe('DocumentsSegment', () => {
     expect(screen.queryByText('AS Merko Ehitus')).toBeNull();
   });
 
-  it('DocThumb only fetches a preview for rows WITH a preview_path — a null preview_path never fires the authenticated request', async () => {
+  it('DocThumb asks the preview endpoint for every row so old documents can lazy-render server-side', async () => {
     vi.mocked(fetchDocumentPreviewObjectUrl).mockClear();
     mount();
     await screen.findByText('AS Merko Ehitus');
     await screen.findByText('weird.jpg');
-    // Doc 9 has preview_path 'p' → fetched.
     await waitFor(() =>
       expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledWith(9),
     );
-    // Doc 10 has preview_path: null → never fetched, and no other row fetches.
-    expect(fetchDocumentPreviewObjectUrl).not.toHaveBeenCalledWith(10);
-    expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledTimes(1);
+    expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledWith(10);
+    expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledTimes(2);
   });
 });

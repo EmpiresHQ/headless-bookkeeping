@@ -11,6 +11,7 @@ vi.mock('../api', async (io) => ({
   getDocuments: vi.fn(),
   getDocumentDetails: vi.fn(),
   fetchDocumentPreviewObjectUrl: vi.fn().mockResolvedValue('blob:x'),
+  openSignedDocument: vi.fn(),
   copyDocumentShareLink: vi.fn(),
   retryDocument: vi.fn(),
   deleteDocument: vi.fn(),
@@ -20,6 +21,7 @@ import {
   deleteDocument,
   getDocumentDetails,
   getDocuments,
+  openSignedDocument,
   type DocumentArchiveRow,
 } from '../api';
 
@@ -104,6 +106,21 @@ describe('DocumentScreen', () => {
     expect(
       await screen.findByText(/Link copied — valid ~1 hour/),
     ).toBeInTheDocument();
+  });
+
+  it('opens the preview in a lightbox and keeps the original file behind an explicit action', async () => {
+    vi.mocked(openSignedDocument).mockResolvedValue(undefined);
+    mountAt();
+    await userEvent.click(await screen.findByText('Source document'));
+    expect(
+      screen.getByRole('dialog', { name: 'Document preview' }),
+    ).toBeInTheDocument();
+    expect(openSignedDocument).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Open original' }),
+    );
+    await waitFor(() => expect(openSignedDocument).toHaveBeenCalledWith(9));
   });
 
   it('delete is REPLACED by the guard explanation when the linked expense is posted', async () => {
