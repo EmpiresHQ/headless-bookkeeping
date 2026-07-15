@@ -220,8 +220,8 @@ describe('InboxScreen', () => {
       within(hero as HTMLElement).getByText('−89.00 €'),
     ).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /Start clearing · 2/ });
-    // FIFO first = the 2-day-old approval.
-    expect(cta).toHaveAttribute('href', '/inbox/approval/7');
+    // Newest first = the fresh triage doc (created an hour ago).
+    expect(cta).toHaveAttribute('href', '/inbox/doc/12');
   });
 
   it('hides the hero when no period is open', async () => {

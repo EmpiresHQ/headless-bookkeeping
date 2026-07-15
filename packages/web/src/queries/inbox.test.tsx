@@ -84,12 +84,12 @@ describe('buildQueue', () => {
   const triage = [T(1, 300), T(2, 100)];
   const approvals = [A(7, 200)];
 
-  it('merges both sources FIFO oldest-first', () => {
+  it('merges both sources newest-first', () => {
     const q = buildQueue(triage, approvals, 'all');
     expect(q.map((e) => e.route)).toEqual([
-      '/inbox/doc/2',
-      '/inbox/approval/7',
       '/inbox/doc/1',
+      '/inbox/approval/7',
+      '/inbox/doc/2',
     ]);
   });
 
@@ -115,7 +115,7 @@ describe('sections and progress', () => {
 
   it('computes N of M for a detail route', () => {
     expect(queuePosition(entries, '/inbox/doc/1')).toEqual({
-      pos: 1,
+      pos: 2,
       total: 2,
     });
     expect(queuePosition(entries, '/inbox/doc/999')).toBeNull();

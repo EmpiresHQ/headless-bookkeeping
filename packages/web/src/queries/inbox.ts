@@ -79,8 +79,9 @@ export type InboxEntry =
   | { kind: 'triage'; createdAt: number; route: string; item: NeedsTriageItem }
   | { kind: 'approval'; createdAt: number; route: string; approval: Approval };
 
-/** Merge the two sources into ONE FIFO queue (oldest first — the queue must
- *  end; stuck items stay on top). Segment filters, never re-orders. */
+/** Merge the two sources into ONE queue, NEWEST first — the operator sees the
+ *  most recently arrived tasks on top (and clears from there). Segment filters,
+ *  never re-orders. */
 export function buildQueue(
   triage: NeedsTriageItem[],
   approvals: Approval[],
@@ -104,7 +105,7 @@ export function buildQueue(
           route: `/inbox/approval/${approval.id}`,
           approval,
         }));
-  return [...t, ...a].sort((x, y) => x.createdAt - y.createdAt);
+  return [...t, ...a].sort((x, y) => y.createdAt - x.createdAt);
 }
 
 export function startOfTodayUnix(now: Date = new Date()): number {
