@@ -59,3 +59,34 @@ describe('classifyDocumentClass', () => {
     ).toBe('expense');
   });
 });
+
+describe('classifyDocumentClass — non-postable documents', () => {
+  it('routes an order_confirmation to non_postable (no IBAN)', () => {
+    expect(
+      classifyDocumentClass({
+        documentType: 'order_confirmation',
+        ibanMatched: false,
+      }),
+    ).toEqual({
+      route: 'non_postable',
+      direction: 'incoming',
+      docType: 'order_confirmation',
+    });
+  });
+
+  it('routes a proforma to non_postable even when IBAN matches', () => {
+    expect(
+      classifyDocumentClass({ documentType: 'proforma', ibanMatched: true }),
+    ).toEqual({
+      route: 'non_postable',
+      direction: 'incoming',
+      docType: 'proforma',
+    });
+  });
+
+  it('still routes a plain invoice to expense', () => {
+    expect(
+      classifyDocumentClass({ documentType: 'invoice', ibanMatched: false }),
+    ).toEqual({ route: 'expense', direction: 'incoming', docType: 'invoice' });
+  });
+});

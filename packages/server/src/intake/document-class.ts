@@ -11,6 +11,7 @@ export type IntakeRoute =
   | 'expense'
   | 'sales_invoice'
   | 'bank_statement'
+  | 'non_postable'
   | 'unsupported';
 
 export interface DocumentClass {
@@ -38,6 +39,16 @@ export function classifyDocumentClass(input: {
   ibanMatched: boolean;
 }): DocumentClass {
   const { documentType, ibanMatched } = input;
+
+  // Order confirmations and proformas are NOT primary tax documents in any
+  // direction — they precede or estimate a real invoice. Park them; never post.
+  if (documentType === 'order_confirmation' || documentType === 'proforma') {
+    return {
+      route: 'non_postable',
+      direction: 'incoming',
+      docType: documentType,
+    };
+  }
 
   if (documentType === 'bank_statement') {
     return {

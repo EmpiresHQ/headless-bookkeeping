@@ -1252,6 +1252,33 @@ describe('IntakeWorkflowService', () => {
       expect(finding?.reason_type).toBe('not_a_document');
     });
 
+    it('persists non_postable_document for a confident order_confirmation, and never proposes a draft', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          kind: 'new_expense',
+          document_type: 'order_confirmation',
+          confidence: 0.95,
+        }),
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('non_postable_document');
+    });
+
     it('flips ocr_failed -> classification_failed on re-route, updating BOTH fields', async () => {
       const docId = await seedDocument();
       mockOcrService.transcribe.mockResolvedValue({

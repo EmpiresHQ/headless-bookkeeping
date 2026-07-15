@@ -66,6 +66,18 @@ export function notADocumentReason(): string {
 }
 
 /**
+ * The needs_triage reason for a document classified as `order_confirmation` or
+ * `proforma` — a document that is NOT a primary tax document in either
+ * direction because it precedes or estimates a real invoice. Phrased with the
+ * stable marker "not a primary tax document" so classifyReasonType tags it
+ * `non_postable_document`. Such a document must never be auto-posted; the
+ * real invoice will be booked separately when it arrives.
+ */
+export function nonPostableReason(docType: string): string {
+  return `This is not a primary tax document (classified as ${docType} — e.g. an order confirmation, proforma, or quote). Intake did not book it; the real invoice will be booked when it arrives. Held for human review.`;
+}
+
+/**
  * Which pass failed, and why, when a needs_triage route was driven by a typed
  * pass failure. The two intake passes — Pass 1 (OCR transcription) and Pass 2
  * (agent classification) — surface failures through the SAME shape, so the
@@ -505,6 +517,11 @@ export class IntakeWorkflowService {
           );
         case 'bank_statement':
           return await this.routeBankStatement(documentId);
+        case 'non_postable':
+          return this.routeNeedsTriage(
+            documentId,
+            nonPostableReason(documentClass.docType),
+          );
         case 'unsupported':
           return this.routeNeedsTriage(
             documentId,
