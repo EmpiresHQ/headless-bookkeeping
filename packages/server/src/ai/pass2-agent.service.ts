@@ -12,6 +12,15 @@ import { getClassificationContextOutputSchema } from './tools/tool-schemas';
 const MAX_RETRIES = 3;
 const ENRICHMENT_SECTION_HEADING = 'Deterministic enrichment summary';
 
+/** Enrichment attempts are FULL agentic runs (up to ENRICHMENT_MAX_STEPS LLM
+ * calls each), so the retry budget is tighter than the strict-classification
+ * MAX_RETRIES: one retry catches transient throws; systemic faults (runtime
+ * ignoring the forced toolChoice) won't be fixed by hammering. */
+const ENRICHMENT_MAX_ATTEMPTS = 2;
+/** Explicit cap on the enrichment agentic loop (Mastra's default is 5). One
+ * forced tool step + room for a few auto tool calls + the final text turn. */
+const ENRICHMENT_MAX_STEPS = 8;
+
 /** The one tool the enrichment phase MUST call — the deterministic supplier
  * lookup whose result is the ONLY trusted source of `matchEntityId` (issue
  * #179's trust boundary). Forced via `toolChoice` when the runtime supports
@@ -114,20 +123,26 @@ export function extractPass2EnrichmentSupplier(
  *
  *  - 'agent-unavailable':  the Mastra agent was not initialized (config/runtime
  *                          fault) — no attempt was even made.
- *  - 'enrichment-failed':  the one-shot enrichment phase threw before strict
- *                          classification could start.
- *  - 'enrichment-incomplete': enrichment returned but did not produce the
- *                          reusable deterministic summary the strict phase
- *                          requires.
- *  - 'enrichment-tool-not-called': enrichment completed with a reusable
- *                          summary, but NEVER invoked getClassificationContext
- *                          — the deterministic supplier lookup the trust
- *                          boundary depends on did not run. This is the exact
- *                          production failure mode from issue #179 (the model
- *                          emitting a final answer without the tool call);
- *                          distinct from a thrown error or an empty summary so
- *                          it stays observable instead of silently letting the
- *                          strict phase run with no deterministic anchor.
+ *  - 'enrichment-failed':  every bounded enrichment attempt (ENRICHMENT_MAX_ATTEMPTS)
+ *                          threw before strict classification could start.
+ *  - 'enrichment-incomplete': DEFENSIVE / effectively unreachable — an empty
+ *                          summary with no tool call now degrades to
+ *                          'enrichment-tool-not-called' (never null), and an
+ *                          empty summary WITH a tool call degrades to an
+ *                          advisory stub summary instead of failing (see
+ *                          {@link buildEnrichmentStubSummary}). Kept in the
+ *                          union as a belt-and-braces category should
+ *                          parseEnrichment ever return a null enrichment.
+ *  - 'enrichment-tool-not-called': every bounded enrichment attempt completed
+ *                          with a reusable summary but NEVER invoked
+ *                          getClassificationContext — the deterministic
+ *                          supplier lookup the trust boundary depends on did
+ *                          not run. This is the exact production failure mode
+ *                          from issue #179 (the model emitting a final answer
+ *                          without the tool call); distinct from a thrown
+ *                          error or an empty summary so it stays observable
+ *                          instead of silently letting the strict phase run
+ *                          with no deterministic anchor.
  *  - 'invalid-output':     the agent ran but never produced schema-valid output
  *                          within the bounded strict-classification retry (the
  *                          ADR-0024 "invalid output → bounded retry →
@@ -177,6 +192,19 @@ export interface Pass2Context {
   directionHint: 'incoming' | 'outgoing';
 }
 
+/** Advisory stub used when enrichment completed its deterministic tool work
+ * but emitted no prose. Carries the ONLY fact the strict (tool-less) phase
+ * cannot recover from the raw markdown: the deterministic supplier match. */
+export function buildEnrichmentStubSummary(
+  supplier: Pass2Enrichment['supplier'],
+): string {
+  const supplierLine =
+    supplier?.matchEntityId !== undefined
+      ? `The deterministic supplier lookup matched existing supplier entity id ${supplier.matchEntityId} — propose { mode: 'match', match_entity_id: ${supplier.matchEntityId} }.`
+      : 'The deterministic supplier lookup found no existing supplier match.';
+  return `(No enrichment summary was produced.) ${supplierLine} Classify from the document text above.`;
+}
+
 /**
  * Pass2AgentService — runs the Pass 2 Mastra agent over Pass-1 markdown
  * and emits a Zod-validated TriageResult.
@@ -184,11 +212,15 @@ export interface Pass2Context {
  * Flow — a SPLIT, enrichment-first trust boundary (issue #179 / ADR-0024):
  * 1. Enrichment call: builds the tool-enabled `triage_enrichment` agent and
  *    calls `agent.generate(markdown, { toolChoice: { type: 'tool', toolName:
- *    'getClassificationContext' } })` — NO `structuredOutput`, so
- *    `result.object` is always undefined and is never read. The deterministic
- *    `getClassificationContext` tool result is read from `result.toolResults`
- *    instead; a matched supplier's entity id from THAT tool result is the
- *    ONLY trusted source of `enrichment.supplier.matchEntityId`.
+ *    'getClassificationContext' }, maxSteps: ENRICHMENT_MAX_STEPS })` — NO
+ *    `structuredOutput`, so `result.object` is always undefined and is never
+ *    read. The deterministic `getClassificationContext` tool result is read
+ *    from `result.toolResults` instead; a matched supplier's entity id from
+ *    THAT tool result is the ONLY trusted source of
+ *    `enrichment.supplier.matchEntityId`. Bounded retry: up to
+ *    ENRICHMENT_MAX_ATTEMPTS attempts; a completed turn with the tool called
+ *    but no summary text degrades to an advisory stub (see
+ *    {@link buildEnrichmentStubSummary}) rather than failing the run.
  * 2. Strict classification call: builds the tool-less `triage_classification`
  *    agent, injects the enrichment summary as context, and calls
  *    `agent.generate(prompt, { structuredOutput: { schema } })`, reading the
@@ -258,17 +290,32 @@ export class Pass2AgentService {
   private parseEnrichment(result: EnrichmentGenerateResult): {
     enrichment: Pass2Enrichment | null;
     toolCalled: boolean;
+    degraded: boolean;
   } {
     const { supplier, toolCalled } = this.extractSupplierFromToolResults(
       result.toolResults,
     );
     const summary = result.text.trim();
     if (summary.length === 0) {
-      return { enrichment: null, toolCalled };
+      if (!toolCalled) {
+        return { enrichment: null, toolCalled, degraded: false };
+      }
+      // The tool ran but the model emitted no prose — degrade to an advisory
+      // stub carrying the deterministic supplier match instead of discarding
+      // a completed enrichment turn as a hard failure.
+      return {
+        enrichment: pass2EnrichmentSchema.parse({
+          summary: buildEnrichmentStubSummary(supplier),
+          supplier,
+        }),
+        toolCalled,
+        degraded: true,
+      };
     }
     return {
       enrichment: pass2EnrichmentSchema.parse({ summary, supplier }),
       toolCalled,
+      degraded: false,
     };
   }
 
@@ -310,58 +357,86 @@ export class Pass2AgentService {
       };
     }
 
-    let enrichment: Pass2Enrichment;
-    try {
-      // Force the deterministic supplier lookup rather than leaving it to
-      // `tool_choice=auto` (the issue #179 production failure: a model can
-      // emit a final answer without ever calling the tool). The force is
-      // scoped to the FIRST loop step only: a static `toolChoice` applies to
-      // EVERY step of Mastra's agentic loop, which would compel the model to
-      // re-call the tool on each iteration (up to the step cap) and finish
-      // with no reusable text. Step 0 forces the lookup; later steps return
-      // to `auto` so the model can write the enrichment summary. The
-      // missing-tool check below is the belt-and-braces diagnostic for when
-      // forcing isn't honored by the runtime.
-      const enrichmentResult = (await enrichmentAgent.generate(markdown, {
-        prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-          stepNumber === 0
-            ? {
-                toolChoice: {
-                  type: 'tool' as const,
-                  toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
-                },
-              }
-            : { toolChoice: 'auto' as const },
-      })) as unknown as EnrichmentGenerateResult;
-      const { enrichment: parsedEnrichment, toolCalled } =
-        this.parseEnrichment(enrichmentResult);
-      if (parsedEnrichment === null) {
-        this.logger.error('Pass 2 enrichment produced no reusable summary');
-        return {
-          ok: false,
-          category: 'enrichment-incomplete',
-          detail: 'enrichment phase returned no reusable summary',
-        };
-      }
-      if (!toolCalled) {
-        this.logger.error(
-          `Pass 2 enrichment completed without calling ${GET_CLASSIFICATION_CONTEXT_TOOL} — the deterministic supplier lookup did not run`,
+    // Force the deterministic supplier lookup rather than leaving it to
+    // `tool_choice=auto` (the issue #179 production failure: a model can
+    // emit a final answer without ever calling the tool). The force is
+    // scoped to the FIRST loop step only: a static `toolChoice` applies to
+    // EVERY step of Mastra's agentic loop, which would compel the model to
+    // re-call the tool on each iteration (up to the step cap) and finish
+    // with no reusable text. Step 0 forces the lookup; later steps return
+    // to `auto` so the model can write the enrichment summary. The
+    // missing-tool check below is the belt-and-braces diagnostic for when
+    // forcing isn't honored by the runtime. `maxSteps` bounds the agentic
+    // loop explicitly (Mastra's default is 5) so a runtime that never
+    // settles cannot run away.
+    let enrichment: Pass2Enrichment | undefined;
+    let lastFailure: Pass2Failure = {
+      ok: false,
+      category: 'enrichment-failed',
+      detail: 'enrichment phase never ran',
+    };
+    for (let attempt = 1; attempt <= ENRICHMENT_MAX_ATTEMPTS; attempt++) {
+      let enrichmentResult: EnrichmentGenerateResult;
+      try {
+        enrichmentResult = (await enrichmentAgent.generate(markdown, {
+          maxSteps: ENRICHMENT_MAX_STEPS,
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber === 0
+              ? {
+                  toolChoice: {
+                    type: 'tool' as const,
+                    toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
+                  },
+                }
+              : { toolChoice: 'auto' as const },
+        })) as unknown as EnrichmentGenerateResult;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Pass 2 enrichment attempt ${attempt}/${ENRICHMENT_MAX_ATTEMPTS} threw: ${detail}`,
         );
-        return {
+        lastFailure = {
+          ok: false,
+          category: 'enrichment-failed',
+          detail: `enrichment phase failed: ${detail}`,
+        };
+        continue;
+      }
+
+      const parsed = this.parseEnrichment(enrichmentResult);
+      if (!parsed.toolCalled) {
+        this.logger.warn(
+          `Pass 2 enrichment attempt ${attempt}/${ENRICHMENT_MAX_ATTEMPTS} completed without calling ${GET_CLASSIFICATION_CONTEXT_TOOL}`,
+        );
+        lastFailure = {
           ok: false,
           category: 'enrichment-tool-not-called',
           detail: `enrichment phase completed without invoking ${GET_CLASSIFICATION_CONTEXT_TOOL}`,
         };
+        continue;
       }
-      enrichment = parsedEnrichment;
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Pass 2 enrichment failed: ${detail}`);
-      return {
-        ok: false,
-        category: 'enrichment-failed',
-        detail: `enrichment phase failed: ${detail}`,
-      };
+      if (parsed.enrichment === null) {
+        // Defensive: unreachable with degrade-to-stub (null implies !toolCalled).
+        lastFailure = {
+          ok: false,
+          category: 'enrichment-incomplete',
+          detail: 'enrichment phase returned no reusable summary',
+        };
+        continue;
+      }
+      if (parsed.degraded) {
+        this.logger.warn(
+          `Pass 2 enrichment produced no summary text (toolResults=${enrichmentResult.toolResults?.length ?? 0}, supplierMatched=${parsed.enrichment.supplier?.matchEntityId !== undefined}) — degrading to stub summary`,
+        );
+      }
+      enrichment = parsed.enrichment;
+      break;
+    }
+    if (enrichment === undefined) {
+      this.logger.error(
+        `Pass 2 enrichment failed after ${ENRICHMENT_MAX_ATTEMPTS} attempts (category=${lastFailure.category})`,
+      );
+      return lastFailure;
     }
 
     let classificationAgent: Awaited<

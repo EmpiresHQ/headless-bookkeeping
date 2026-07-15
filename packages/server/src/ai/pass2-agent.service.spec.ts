@@ -21,6 +21,7 @@ import {
   Pass2AgentService,
   Pass2Context,
   GET_CLASSIFICATION_CONTEXT_TOOL,
+  buildEnrichmentStubSummary,
 } from './pass2-agent.service';
 import { triageResultSchema, TriageResult } from '../triage/types';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
@@ -129,10 +130,12 @@ describe('Pass2AgentService', () => {
   /** The enrichment call's second argument — production forces the
    * deterministic tool on the FIRST loop step only via `prepareStep`
    * (issue #179; a static `toolChoice` would compel the tool on EVERY
-   * agentic-loop step). Every enrichment `generate()` assertion below must
-   * account for this second argument. */
+   * agentic-loop step), and caps the agentic loop with an explicit
+   * `maxSteps`. Every enrichment `generate()` assertion below must account
+   * for this second argument. */
   const ENRICHMENT_GENERATE_OPTIONS = {
     prepareStep: expect.any(Function),
+    maxSteps: 8,
   };
 
   /**
@@ -254,13 +257,13 @@ describe('Pass2AgentService', () => {
       }
     });
 
-    it('reports enrichment-failed when the enrichment phase throws and never enters strict classification', async () => {
+    it('reports enrichment-failed (after exhausting retries) when the enrichment phase always throws and never enters strict classification', async () => {
       const enrichmentAgent = await requireEnrichmentAgent();
       const buildClassificationSpy = jest.spyOn(
         mastraService,
         'buildTriageClassificationAgent',
       );
-      jest
+      const enrichmentGenerateSpy = jest
         .spyOn(enrichmentAgent, 'generate')
         .mockRejectedValue(new Error('tool provider offline'));
 
@@ -272,15 +275,42 @@ describe('Pass2AgentService', () => {
         detail: 'enrichment phase failed: tool provider offline',
       });
       expect(buildClassificationSpy).not.toHaveBeenCalled();
+      // Retried up to ENRICHMENT_MAX_ATTEMPTS (2) — called exactly twice, not
+      // hammered indefinitely and not given up after a single throw.
+      expect(enrichmentGenerateSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('reports enrichment-incomplete when enrichment returns no reusable summary', async () => {
+    it('retries the enrichment phase once on a throw and succeeds on the second attempt', async () => {
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      const enrichmentGenerateSpy = jest
+        .spyOn(enrichmentAgent, 'generate')
+        .mockRejectedValueOnce(new Error('transient enrichment blip'))
+        .mockImplementationOnce(async () =>
+          generateTextOutput('recovered enrichment summary', [
+            classificationContextToolResult(),
+          ]),
+        );
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('enrichment-retry markdown');
+
+      expect(result.ok).toBe(true);
+      expect(enrichmentGenerateSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports enrichment-tool-not-called (after exhausting retries) when enrichment returns no reusable summary AND no tool call', async () => {
+      // An empty summary with NO tool call is indistinguishable from the
+      // model never calling the tool — both bucket to enrichment-tool-not-called
+      // (parseEnrichment only degrades to a stub when the tool WAS called).
       const enrichmentAgent = await requireEnrichmentAgent();
       const buildClassificationSpy = jest.spyOn(
         mastraService,
         'buildTriageClassificationAgent',
       );
-      jest
+      const enrichmentGenerateSpy = jest
         .spyOn(enrichmentAgent, 'generate')
         .mockResolvedValue(generateTextOutput('   '));
 
@@ -288,10 +318,13 @@ describe('Pass2AgentService', () => {
 
       expect(result).toEqual({
         ok: false,
-        category: 'enrichment-incomplete',
-        detail: 'enrichment phase returned no reusable summary',
+        category: 'enrichment-tool-not-called',
+        detail:
+          'enrichment phase completed without invoking getClassificationContext',
       });
       expect(buildClassificationSpy).not.toHaveBeenCalled();
+      // Retried up to ENRICHMENT_MAX_ATTEMPTS (2) before giving up.
+      expect(enrichmentGenerateSpy).toHaveBeenCalledTimes(2);
     });
 
     it('reports enrichment-tool-not-called when getClassificationContext was never invoked (issue #179 production failure mode)', async () => {
@@ -304,7 +337,7 @@ describe('Pass2AgentService', () => {
         mastraService,
         'buildTriageClassificationAgent',
       );
-      jest
+      const enrichmentGenerateSpy = jest
         .spyOn(enrichmentAgent, 'generate')
         .mockResolvedValue(generateTextOutput('a reusable summary', []));
 
@@ -320,6 +353,84 @@ describe('Pass2AgentService', () => {
       // deterministic anchor — a model-emitted match_entity_id would have
       // nothing to be checked against.
       expect(buildClassificationSpy).not.toHaveBeenCalled();
+      // Retried up to ENRICHMENT_MAX_ATTEMPTS (2) before giving up.
+      expect(enrichmentGenerateSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('recovers when the tool is not called on attempt 1 but IS called on attempt 2', async () => {
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      const enrichmentGenerateSpy = jest
+        .spyOn(enrichmentAgent, 'generate')
+        .mockImplementationOnce(async () =>
+          generateTextOutput('a reusable summary', []),
+        )
+        .mockImplementationOnce(async () =>
+          generateTextOutput('a reusable summary', [
+            classificationContextToolResult(),
+          ]),
+        );
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('retry-recovers markdown');
+
+      expect(result.ok).toBe(true);
+      expect(enrichmentGenerateSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('degrades to a stub summary when enrichment completes with an empty summary but the tool WAS called (matched supplier)', async () => {
+      // The runtime completed its deterministic tool work but emitted no
+      // prose — this must NOT be treated as a hard failure; it degrades to
+      // an advisory stub carrying the deterministic supplier match instead.
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      jest.spyOn(enrichmentAgent, 'generate').mockImplementation(async () =>
+        generateTextOutput('', [
+          classificationContextToolResult({
+            resolution: 'matched',
+            matchEntityId: 42,
+          }),
+        ]),
+      );
+      const classificationGenerateSpy = jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('empty-summary matched markdown');
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('unreachable');
+      expect(result.enrichment?.supplier?.matchEntityId).toBe(42);
+      expect(result.enrichment?.summary).toContain('match_entity_id: 42');
+      const [prompt] = classificationGenerateSpy.mock.calls[0] as [string];
+      expect(prompt).toContain('## Deterministic enrichment summary');
+      expect(prompt).toContain('match_entity_id: 42');
+    });
+
+    it('degrades to a stub summary with no supplier match when enrichment completes with an empty summary and resolution "proposed"', async () => {
+      const { enrichmentAgent, classificationAgent } =
+        await requireSplitAgents();
+      jest
+        .spyOn(enrichmentAgent, 'generate')
+        .mockImplementation(async () =>
+          generateTextOutput('', [
+            classificationContextToolResult({ resolution: 'proposed' }),
+          ]),
+        );
+      jest
+        .spyOn(classificationAgent, 'generate')
+        .mockResolvedValue(generateOutput(sampleTriageResult()));
+
+      const result = await service.classify('empty-summary proposed markdown');
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('unreachable');
+      expect(result.enrichment?.supplier?.matchEntityId).toBeUndefined();
+      expect(result.enrichment?.summary).toContain(
+        'found no existing supplier match',
+      );
     });
 
     it('forces getClassificationContext on step 0 only — later steps return to auto (a static force would compel the tool on every loop step)', async () => {
@@ -807,6 +918,34 @@ describe('Pass2AgentService', () => {
         vatNumber: null,
         directionHint: 'incoming',
       });
+    });
+  });
+
+  describe('buildEnrichmentStubSummary (pure helper)', () => {
+    it('carries the matched supplier entity id as a proposal instruction', () => {
+      const summary = buildEnrichmentStubSummary({ matchEntityId: 42 });
+
+      expect(summary).toContain('matched existing supplier entity id 42');
+      expect(summary).toContain(
+        "propose { mode: 'match', match_entity_id: 42 }",
+      );
+    });
+
+    it('states no supplier match was found when supplier is undefined', () => {
+      const summary = buildEnrichmentStubSummary(undefined);
+
+      expect(summary).toContain(
+        'The deterministic supplier lookup found no existing supplier match.',
+      );
+      expect(summary).not.toContain('matched existing supplier entity id');
+    });
+
+    it('states no supplier match was found when matchEntityId is absent', () => {
+      const summary = buildEnrichmentStubSummary({});
+
+      expect(summary).toContain(
+        'The deterministic supplier lookup found no existing supplier match.',
+      );
     });
   });
 
