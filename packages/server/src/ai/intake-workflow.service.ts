@@ -28,6 +28,8 @@ import {
   ManualClassifyDto,
   TriageResult,
   Pass2Enrichment,
+  TriageReasonType,
+  classifyReasonType,
 } from '../triage/types';
 import {
   buildPendingSupplierProposal,
@@ -73,6 +75,14 @@ export function notADocumentReason(): string {
 export type IntakeFailure =
   | { pass: 'ocr'; category: OcrFailureCategory }
   | { pass: 'classify'; category: Pass2FailureCategory };
+
+/** Map a typed pass failure to its persisted TriageReasonType: Pass 1 (OCR)
+ * failures are ocr_failed regardless of category (none of the OCR categories
+ * means "not a document" — that routes via notADocumentReason() with no
+ * failure); Pass 2 failures are classification_failed. */
+export function failureToReasonType(failure: IntakeFailure): TriageReasonType {
+  return failure.pass === 'ocr' ? 'ocr_failed' : 'classification_failed';
+}
 
 export function pass2FailureReason(
   category: Pass2FailureCategory,
@@ -974,6 +984,10 @@ export class IntakeWorkflowService {
     reason: string,
     failure?: IntakeFailure,
   ): Promise<NeedsTriageOutcome> {
+    const reasonType: TriageReasonType = failure
+      ? failureToReasonType(failure)
+      : classifyReasonType(reason);
+
     // Deterministic idempotency guard: reuse an existing open finding.
     let finding = await this.auditFindings.findOpenByReference(
       'needs_triage',
@@ -986,14 +1000,20 @@ export class IntakeWorkflowService {
         finding_type: 'needs_triage',
         severity: 'medium',
         description: reason,
+        reason_type: reasonType,
         referenced_object_type: 'document',
         referenced_object_id: documentId,
       });
     } else {
-      // Update the description so a retry that fails for a DIFFERENT reason
-      // surfaces the new reason to the operator, not the stale original.
-      await this.auditFindings.updateDescription(finding.id, reason);
-      finding = { ...finding, description: reason };
+      // Update the description AND reason_type so a retry that fails for a
+      // DIFFERENT reason surfaces the new reason (and correct bucket) to the
+      // operator, not the stale original.
+      await this.auditFindings.updateTriageReason(
+        finding.id,
+        reason,
+        reasonType,
+      );
+      finding = { ...finding, description: reason, reason_type: reasonType };
     }
 
     await this.transitionDocument(documentId, 'needs_triage');

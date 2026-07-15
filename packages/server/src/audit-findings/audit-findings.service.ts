@@ -17,6 +17,11 @@ import {
   FINDING_STATUSES,
   REFERENCED_OBJECT_TYPES,
 } from './types';
+import {
+  TriageReasonType,
+  isTriageReasonType,
+  TRIAGE_REASON_TYPES,
+} from '../triage/types';
 
 @Injectable()
 export class AuditFindingsService {
@@ -50,6 +55,14 @@ export class AuditFindingsService {
     }
   }
 
+  private assertReasonType(reasonType: TriageReasonType | undefined): void {
+    if (reasonType !== undefined && !isTriageReasonType(reasonType)) {
+      throw new Error(
+        `Invalid reason_type "${reasonType as string}". Must be one of: ${TRIAGE_REASON_TYPES.join(', ')}`,
+      );
+    }
+  }
+
   /**
    * Create a new AuditFinding. Validates the typed kind, reference type, and
    * severity up-front so an unknown value can never be persisted (and so an
@@ -59,6 +72,7 @@ export class AuditFindingsService {
     this.assertFindingType(dto.finding_type);
     this.assertSeverity(dto.severity);
     this.assertReferencedObjectType(dto.referenced_object_type);
+    this.assertReasonType(dto.reason_type);
 
     const now = Math.floor(Date.now() / 1000);
     const result = await this.db
@@ -75,6 +89,7 @@ export class AuditFindingsService {
         snoozed_at: null,
         transitioned_by: null,
         transition_reason: null,
+        reason_type: dto.reason_type ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -209,15 +224,22 @@ export class AuditFindingsService {
   }
 
   /**
-   * Update the description of an open finding. Used when a document is
-   * re-routed to needs_triage after a retry — the old description would
-   * otherwise stay stale, showing the ORIGINAL failure reason to the
-   * operator even though the re-run may have failed for a different reason.
+   * Update the description AND reason_type of an open finding. Used when a
+   * document is re-routed to needs_triage after a retry — the old
+   * description (and its stale reason_type) would otherwise show the
+   * ORIGINAL failure reason to the operator even though the re-run may have
+   * failed for a different reason (e.g. an OCR failure retried into a
+   * Pass-2 failure must flip ocr_failed -> classification_failed, not just
+   * the free text).
    */
-  async updateDescription(id: number, description: string): Promise<void> {
+  async updateTriageReason(
+    id: number,
+    description: string,
+    reasonType: TriageReasonType,
+  ): Promise<void> {
     await this.db
       .updateTable('audit_finding')
-      .set({ description })
+      .set({ description, reason_type: reasonType })
       .where('id', '=', id)
       .where('status', '=', 'open')
       .execute();
@@ -262,6 +284,7 @@ export class AuditFindingsService {
       snoozed_at: (row.snoozed_at as number) ?? null,
       transitioned_by: (row.transitioned_by as string) ?? null,
       transition_reason: (row.transition_reason as string) ?? null,
+      reason_type: (row.reason_type as TriageReasonType) ?? null,
     };
   }
 }

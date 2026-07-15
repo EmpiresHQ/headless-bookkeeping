@@ -11,7 +11,7 @@ import { Database } from '../database/types';
 import {
   triageResultSchema,
   TriageResult,
-  classifyReasonType,
+  resolveReasonType,
   pass2EnrichmentSchema,
   type Pass2Enrichment,
 } from '../triage/types';
@@ -233,6 +233,7 @@ export class DocumentsService {
         'claimant.name as claimant_name',
         // Audit finding reason
         'af.description as reason',
+        'af.reason_type',
         // Latest channel: correlated scalar sub-select — returns ONE value per
         // document row, guarding multiplicity from the sources side.
         sql<string | null>`(
@@ -248,7 +249,8 @@ export class DocumentsService {
 
     return rows.map((r) => {
       const reason = r.reason ?? null;
-      const reason_type = reason !== null ? classifyReasonType(reason) : null;
+      const reason_type =
+        reason !== null ? resolveReasonType(r.reason_type, reason) : null;
       return {
         id: r.id,
         hash: r.hash,

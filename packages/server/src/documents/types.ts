@@ -76,7 +76,8 @@ export interface DocumentArchiveRow extends Document {
   reason: string | null;
   /**
    * Classified reason type (same union as NeedsTriageItem.reason_type); null when reason is null.
-   * Type mirrors triage/types.ts TriageReasonType — kept in sync via classifyReasonType import.
+   * Resolved via triage/types.ts resolveReasonType(): the persisted audit_finding.reason_type
+   * wins, falling back to classifyReasonType(reason) for legacy rows.
    */
   reason_type: TriageReasonType | null;
   /** The linked expense id (latest expense by id), or null if no expense. */

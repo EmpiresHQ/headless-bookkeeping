@@ -237,6 +237,46 @@ export interface NeedsTriageItem {
   reason_type: TriageReasonType;
 }
 
+export const TRIAGE_REASON_TYPES: readonly TriageReasonType[] = [
+  'supplier_unresolved',
+  'outgoing_invoice',
+  'low_confidence',
+  'category_unresolved',
+  'ocr_failed',
+  'classification_failed',
+  'unimplemented',
+  'not_a_document',
+  'unknown',
+] as const;
+
+export function isTriageReasonType(v: unknown): v is TriageReasonType {
+  return (
+    typeof v === 'string' &&
+    (TRIAGE_REASON_TYPES as readonly string[]).includes(v)
+  );
+}
+
+/**
+ * Resolve a finding's reason_type: the persisted write-time value wins;
+ * a NULL (legacy row) or unrecognized value falls back to the legacy
+ * string-sniffing classifier.
+ */
+export function resolveReasonType(
+  persisted: string | null | undefined,
+  description: string,
+): TriageReasonType {
+  return isTriageReasonType(persisted)
+    ? persisted
+    : classifyReasonType(description);
+}
+
+/**
+ * Legacy string-sniffing classifier: derives a TriageReasonType from a
+ * finding's free-text description. This is the PERMANENT fallback for
+ * findings written before migration 065 persisted reason_type at write time
+ * (see {@link resolveReasonType}) — it is not slated for removal, since old
+ * rows never get backfilled.
+ */
 export function classifyReasonType(description: string): TriageReasonType {
   // Checked FIRST: a detected OUTGOING invoice that parked to needs_triage. The
   // routeSalesInvoice park reasons all carry the stable "outgoing invoice"

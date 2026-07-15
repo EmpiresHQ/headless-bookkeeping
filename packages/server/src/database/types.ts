@@ -376,6 +376,9 @@ export interface AuditFindingTable {
   snoozed_at: number | null;
   transitioned_by: string | null;
   transition_reason: string | null;
+  // triage reason classification, persisted at write time (migration 065).
+  // One of TriageReasonType; NULL for non-needs_triage findings and legacy rows.
+  reason_type: string | null;
 }
 
 // Conversation: the durable, auditable thread of Messages on a single channel

@@ -12,7 +12,7 @@ import {
   DocumentDebug,
   ManualClassifyDto,
   NeedsTriageItem,
-  classifyReasonType,
+  resolveReasonType,
 } from './types';
 import type { PendingDraft } from './pending-draft';
 
@@ -50,6 +50,7 @@ export class TriageService {
         'd.filename',
         'd.created_at',
         'af.description as reason',
+        'af.reason_type',
       ])
       .orderBy('d.created_at', 'desc')
       .execute();
@@ -59,7 +60,7 @@ export class TriageService {
       filename: r.filename,
       created_at: r.created_at,
       reason: r.reason,
-      reason_type: classifyReasonType(r.reason ?? ''),
+      reason_type: resolveReasonType(r.reason_type, r.reason ?? ''),
     }));
   }
 
