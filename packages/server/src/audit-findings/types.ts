@@ -1,3 +1,5 @@
+import type { TriageReasonType } from '../triage/types';
+
 /** Severity levels for AuditFinding — drives SecretaryAgent nag cadence. */
 export type FindingSeverity = 'low' | 'medium' | 'high' | 'critical';
 
@@ -105,6 +107,7 @@ export interface CreateAuditFindingDto {
   description: string;
   referenced_object_type?: ReferencedObjectType;
   referenced_object_id?: number;
+  reason_type?: TriageReasonType;
 }
 
 /** Persisted AuditFinding record (ADR-0018). */
@@ -124,6 +127,8 @@ export interface AuditFinding {
   transitioned_by: string | null;
   /** Why the last lifecycle transition happened (audit trail). */
   transition_reason: string | null;
+  /** Persisted write-time triage reason classification (migration 065); null for non-triage findings and legacy rows. */
+  reason_type: TriageReasonType | null;
 }
 
 /** Optional attribution for a guarded lifecycle transition. */

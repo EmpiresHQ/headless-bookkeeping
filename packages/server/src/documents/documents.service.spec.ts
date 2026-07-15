@@ -1303,6 +1303,7 @@ describe('DocumentsService (unit)', () => {
     async function insertAuditFinding(
       documentId: number,
       description: string,
+      reasonType: string | null = null,
     ): Promise<void> {
       const now = Math.floor(Date.now() / 1000);
       await db
@@ -1319,6 +1320,7 @@ describe('DocumentsService (unit)', () => {
           snoozed_at: null,
           transitioned_by: null,
           transition_reason: null,
+          reason_type: reasonType,
         })
         .execute();
     }
@@ -1428,6 +1430,85 @@ describe('DocumentsService (unit)', () => {
       expect(row).toBeDefined();
       expect(row!.reason).toBe('OCR classification failed: low confidence');
       expect(row!.reason_type).toBe('low_confidence');
+    });
+
+    it('the persisted reason_type wins over the legacy description-sniffing classifier', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const docRow = await db
+        .insertInto('document')
+        .values({
+          hash: 'hash-persisted-wins',
+          filename: 'pass2-fail.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'upload',
+          source_identifier: null,
+          received_at: now,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+      // A description that mentions "OCR" — the legacy classifyReasonType()
+      // string-sniffer would mis-bucket this as 'ocr_failed' (the exact bug
+      // migration 065 fixes). The persisted reason_type must win.
+      await insertAuditFinding(
+        docRow.id,
+        'AI classification failed during enrichment (enrichment-incomplete): OCR-ish text in the detail',
+        'classification_failed',
+      );
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === docRow.id);
+      expect(row).toBeDefined();
+      expect(row!.reason_type).toBe('classification_failed');
+    });
+
+    it('falls back to the legacy classifier when reason_type is NULL (legacy row)', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const docRow = await db
+        .insertInto('document')
+        .values({
+          hash: 'hash-legacy-fallback',
+          filename: 'legacy.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'needs_triage',
+          created_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('document_source')
+        .values({
+          document_id: docRow.id,
+          channel: 'upload',
+          source_identifier: null,
+          received_at: now,
+          captured_at: null,
+          precheck_json: null,
+        })
+        .execute();
+      await insertAuditFinding(
+        docRow.id,
+        'OCR transcription failed (unreadable): file too blurry',
+        null,
+      );
+
+      const rows = await service.listArchiveRows();
+      const row = rows.find((r) => r.id === docRow.id);
+      expect(row).toBeDefined();
+      expect(row!.reason_type).toBe('ocr_failed');
     });
 
     it('returns null reason/reason_type for a non-needs_triage document', async () => {

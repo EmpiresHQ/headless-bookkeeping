@@ -141,6 +141,69 @@ describe('AuditFindingsService (real-DI)', () => {
       );
       expect(f.referenced_object_type).toBe('sales_invoice');
     });
+
+    it('persists reason_type when provided', async () => {
+      const f = await service.create(
+        createFindingDto({ reason_type: 'ocr_failed' }),
+      );
+      expect(f.reason_type).toBe('ocr_failed');
+    });
+
+    it('defaults reason_type to null when omitted', async () => {
+      const f = await service.create(createFindingDto());
+      expect(f.reason_type).toBeNull();
+    });
+
+    it('rejects an invalid reason_type', async () => {
+      const dto = createFindingDto({
+        // @ts-expect-error testing an unknown reason_type
+        reason_type: 'made_up_reason',
+      });
+      await expect(service.create(dto)).rejects.toThrow('Invalid reason_type');
+    });
+  });
+
+  describe('updateTriageReason()', () => {
+    it('updates description and reason_type on an open finding', async () => {
+      const created = await service.create(
+        createFindingDto({
+          description: 'OCR transcription failed (unreadable): bad scan',
+          reason_type: 'ocr_failed',
+        }),
+      );
+
+      await service.updateTriageReason(
+        created.id,
+        'AI classification failed during enrichment (enrichment-incomplete): no summary',
+        'classification_failed',
+      );
+
+      const [row] = await service.list();
+      expect(row.description).toBe(
+        'AI classification failed during enrichment (enrichment-incomplete): no summary',
+      );
+      expect(row.reason_type).toBe('classification_failed');
+    });
+
+    it('is a no-op on a resolved finding (guarded by status=open)', async () => {
+      const created = await service.create(
+        createFindingDto({
+          description: 'original reason',
+          reason_type: 'ocr_failed',
+        }),
+      );
+      await service.resolve(created.id);
+
+      await service.updateTriageReason(
+        created.id,
+        'new reason',
+        'classification_failed',
+      );
+
+      const [row] = await service.list();
+      expect(row.description).toBe('original reason');
+      expect(row.reason_type).toBe('ocr_failed');
+    });
   });
 
   describe('list()', () => {
@@ -181,6 +244,13 @@ describe('AuditFindingsService (real-DI)', () => {
     it('throws on invalid severity filter', async () => {
       // @ts-expect-error testing invalid severity filter
       await expect(service.list('invalid')).rejects.toThrow('Invalid severity');
+    });
+
+    it('returns reason_type on mapped rows', async () => {
+      await service.create(createFindingDto({ reason_type: 'low_confidence' }));
+
+      const [row] = await service.list();
+      expect(row.reason_type).toBe('low_confidence');
     });
   });
 

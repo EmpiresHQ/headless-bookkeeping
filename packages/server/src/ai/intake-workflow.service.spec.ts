@@ -9,9 +9,15 @@ import {
   IntakeWorkflowService,
   unimplementedKindReason,
   notADocumentReason,
+  failureToReasonType,
+  type IntakeFailure,
 } from './intake-workflow.service';
 import { OcrService } from '../triage/ocr.service';
-import { Pass2AgentService } from './pass2-agent.service';
+import type { OcrFailureCategory } from '../triage/ocr.service';
+import {
+  Pass2AgentService,
+  type Pass2FailureCategory,
+} from './pass2-agent.service';
 import { ProposeDraftService } from './propose-draft.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
@@ -23,6 +29,38 @@ import { OrganizationService } from '../organization/organization.service';
 import { BankIngestionService } from '../bank/bank-ingestion.service';
 import { ProcessingGate } from './processing-gate';
 import { TriageResult, Pass2Enrichment } from '../triage/types';
+
+describe('failureToReasonType (pure helper)', () => {
+  const OCR_CATEGORIES: OcrFailureCategory[] = [
+    'provider-unavailable',
+    'unreadable',
+    'transient',
+  ];
+  const PASS2_CATEGORIES: Pass2FailureCategory[] = [
+    'agent-unavailable',
+    'enrichment-failed',
+    'enrichment-incomplete',
+    'enrichment-tool-not-called',
+    'invalid-output',
+    'transient',
+  ];
+
+  it.each(OCR_CATEGORIES)(
+    'maps every OCR failure category (%s) to ocr_failed',
+    (category) => {
+      const failure: IntakeFailure = { pass: 'ocr', category };
+      expect(failureToReasonType(failure)).toBe('ocr_failed');
+    },
+  );
+
+  it.each(PASS2_CATEGORIES)(
+    'maps every Pass-2 failure category (%s) to classification_failed',
+    (category) => {
+      const failure: IntakeFailure = { pass: 'classify', category };
+      expect(failureToReasonType(failure)).toBe('classification_failed');
+    },
+  );
+});
 
 describe('IntakeWorkflowService', () => {
   let db: Kysely<Database>;
@@ -1159,6 +1197,108 @@ describe('IntakeWorkflowService', () => {
     });
   });
 
+  // ── Persisted reason_type (migration 065, write-time classification) ──
+  describe('process — reason_type persistence', () => {
+    it('persists ocr_failed for a Pass-1 (OCR) failure', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: false,
+        category: 'unreadable',
+        detail: 'blurry scan',
+      });
+
+      await service.process(docId);
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('ocr_failed');
+    });
+
+    it('persists classification_failed for a Pass-2 enrichment-incomplete failure', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'enrichment-incomplete',
+        detail: 'enrichment phase returned no reusable summary',
+      });
+
+      await service.process(docId);
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('classification_failed');
+    });
+
+    it('persists not_a_document for the relevance-gate route', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ kind: 'not_a_document' }),
+      });
+
+      await service.process(docId);
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('not_a_document');
+    });
+
+    it('flips ocr_failed -> classification_failed on re-route, updating BOTH fields', async () => {
+      const docId = await seedDocument();
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: false,
+        category: 'unreadable',
+        detail: 'blurry scan',
+      });
+
+      const first = await service.process(docId);
+      expect(first.status).toBe('needs_triage');
+      const findingAfterFirst = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(findingAfterFirst?.reason_type).toBe('ocr_failed');
+
+      // Simulate a systemic fix (e.g. an OCR provider coming back online) that
+      // makes the document retriable, then a DIFFERENT failure this time.
+      await documentsService.reprocessDocument(docId);
+      mockOcrService.transcribe.mockResolvedValue({
+        ok: true,
+        markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
+      });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'enrichment-incomplete',
+        detail: 'enrichment phase returned no reusable summary',
+      });
+
+      const second = await service.process(docId);
+      expect(second.status).toBe('needs_triage');
+
+      const findingAfterSecond = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      // Same finding reused (idempotency guard), both fields flipped.
+      expect(findingAfterSecond?.id).toBe(findingAfterFirst?.id);
+      expect(findingAfterSecond?.reason_type).toBe('classification_failed');
+      expect(findingAfterSecond?.description).toContain(
+        'enrichment-incomplete',
+      );
+    });
+  });
+
   // ── (a)+(b) Idempotent re-run owned by the workflow ───────────
   describe('process — idempotency', () => {
     it('re-running a needs_triage Document does NOT double-create the finding', async () => {
@@ -1295,6 +1435,7 @@ describe('IntakeWorkflowService', () => {
           finding_type: 'needs_triage',
           severity: 'medium',
           description: 'supplier creation not yet implemented (Task 43)',
+          reason_type: null,
           referenced_object_type: 'document',
           referenced_object_id: docId,
           status: 'open',

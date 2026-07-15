@@ -1,6 +1,11 @@
 import { pass2FailureReason } from '../ai/intake-workflow.service';
 import type { Pass2FailureCategory } from '../ai/pass2-agent.service';
-import { classifyReasonType } from './types';
+import {
+  classifyReasonType,
+  isTriageReasonType,
+  resolveReasonType,
+  TRIAGE_REASON_TYPES,
+} from './types';
 
 describe('classifyReasonType', () => {
   it('maps supplier reason', () => {
@@ -134,5 +139,59 @@ describe('classifyReasonType(pass2FailureReason(...)) contract', () => {
         'OCR transcription failed (unreadable): file too blurry',
       ),
     ).toBe('ocr_failed');
+  });
+});
+
+describe('isTriageReasonType', () => {
+  it.each(TRIAGE_REASON_TYPES)('accepts every known reason type (%s)', (rt) => {
+    expect(isTriageReasonType(rt)).toBe(true);
+  });
+
+  it('rejects an unrecognized string', () => {
+    expect(isTriageReasonType('made_up_reason')).toBe(false);
+  });
+
+  it('rejects non-string values', () => {
+    expect(isTriageReasonType(null)).toBe(false);
+    expect(isTriageReasonType(undefined)).toBe(false);
+    expect(isTriageReasonType(42)).toBe(false);
+  });
+});
+
+describe('resolveReasonType', () => {
+  it('prefers the persisted value when it is a valid TriageReasonType', () => {
+    // The description would legacy-classify as ocr_failed (mentions "OCR"),
+    // but the persisted write-time value must win — this is the exact bug
+    // migration 065 fixes (a Pass-2 failure mislabeled via string-sniffing).
+    expect(
+      resolveReasonType(
+        'classification_failed',
+        'AI classification failed during enrichment (enrichment-incomplete): OCR-ish text',
+      ),
+    ).toBe('classification_failed');
+  });
+
+  it('falls back to classifyReasonType when persisted is null (legacy row)', () => {
+    expect(
+      resolveReasonType(
+        null,
+        'OCR transcription failed (unreadable): file too blurry',
+      ),
+    ).toBe('ocr_failed');
+  });
+
+  it('falls back to classifyReasonType when persisted is undefined', () => {
+    expect(
+      resolveReasonType(undefined, 'AI confidence 0.61 below threshold 0.8'),
+    ).toBe('low_confidence');
+  });
+
+  it('falls back to classifyReasonType when persisted is an unrecognized value (junk)', () => {
+    expect(
+      resolveReasonType(
+        'not_a_real_reason_type',
+        'AI confidence 0.61 below threshold 0.8',
+      ),
+    ).toBe('low_confidence');
   });
 });

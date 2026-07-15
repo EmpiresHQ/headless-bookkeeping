@@ -61,6 +61,7 @@ import * as m061 from './061_create_business_trip';
 import * as m062 from './062_create_allowance';
 import * as m063 from './063_approval_object_type_allowance';
 import * as m064 from './064_add_document_pending_triage_enrichment';
+import * as m065 from './065_add_audit_finding_reason_type';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -125,4 +126,5 @@ export const migrations: Record<string, Migration> = {
   '062_create_allowance': m062,
   '063_approval_object_type_allowance': m063,
   '064_add_document_pending_triage_enrichment': m064,
+  '065_add_audit_finding_reason_type': m065,
 };
