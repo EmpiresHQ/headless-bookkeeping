@@ -112,6 +112,23 @@ export class NullCountryPlugin implements CountryPlugin {
     }));
   }
 
+  getDocumentClassificationHints(): string {
+    return (
+      'DOCUMENT-TYPE GUIDANCE:\n' +
+      '- An "order confirmation", "order", "sales order", "purchase order", ' +
+      'or "order receipt" — even if it shows a total or is marked paid — is ' +
+      'NOT a tax invoice. Set document_type="order_confirmation".\n' +
+      '- A "pro forma invoice" / "proforma" / "quote" / "quotation" / ' +
+      '"estimate" is NOT a real invoice. Set document_type="proforma".\n' +
+      '- A "delivery note" / "packing slip" with no payable amount is not an ' +
+      'accounting document. Set kind="not_a_document".\n' +
+      '- A real invoice states "Invoice", carries an invoice number, a due ' +
+      'date, and an explicit VAT breakdown. Set document_type="invoice".\n' +
+      'When an order confirmation and a separate invoice describe the same ' +
+      'purchase, ONLY the invoice is the postable primary document.'
+    );
+  }
+
   private static readonly FIXED_ASSET_DEFAULTS: Record<
     AssetClass,
     FixedAssetDefaults

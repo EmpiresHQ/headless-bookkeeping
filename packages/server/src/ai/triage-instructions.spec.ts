@@ -1,4 +1,4 @@
-import { withCategoryList } from './triage-instructions';
+import { withCategoryList, withDocumentHints } from './triage-instructions';
 
 describe('withCategoryList', () => {
   const cats = [
@@ -21,5 +21,18 @@ describe('withCategoryList', () => {
 
   it('is a no-op suffix when there are no categories', () => {
     expect(withCategoryList('BASE', [])).toBe('BASE');
+  });
+});
+
+describe('withDocumentHints', () => {
+  it('appends non-empty hints', () => {
+    const out = withDocumentHints('BASE', 'HINTBLOCK');
+    expect(out).toContain('BASE');
+    expect(out).toContain('HINTBLOCK');
+  });
+
+  it('returns the base unchanged for empty hints', () => {
+    expect(withDocumentHints('BASE', '')).toBe('BASE');
+    expect(withDocumentHints('BASE', '   ')).toBe('BASE');
   });
 });

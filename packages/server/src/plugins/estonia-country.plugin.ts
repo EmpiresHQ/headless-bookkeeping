@@ -199,6 +199,29 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     }));
   }
 
+  // ── Document classification vocabulary (EE) ───────────────────────────────
+
+  getDocumentClassificationHints(): string {
+    return (
+      'DOCUMENT-TYPE GUIDANCE (Estonian documents):\n' +
+      '- "Tellimus", "Tellimuse kinnitus", "Tellimuse number" = an ORDER / ' +
+      'order confirmation. Even if it shows "Kokku tasuda" or "Makstud" ' +
+      '(paid), it is NOT a tax invoice. Set document_type="order_confirmation".\n' +
+      '- "Ettemaksuarve" = prepayment/pro-forma invoice; "Pakkumine" / ' +
+      '"Hinnapakkumine" = quote. Neither is a final invoice — set ' +
+      'document_type="proforma". "Saateleht" = delivery note; a Saateleht ' +
+      'with no payable amount is not postable — set document_type="other" ' +
+      'and set kind="not_a_document".\n' +
+      '- "Arve" (an invoice) with "Arve nr", "Maksetähtpäev" (due date) and a ' +
+      '"Käibemaks" VAT breakdown (e.g. 24%) IS the primary tax document. Set ' +
+      'document_type="invoice".\n' +
+      '- A document titled "Arve nr X / Tellimus nr Y" is the INVOICE for order ' +
+      'Y — classify it as invoice, not as an order.\n' +
+      'When both a Tellimus and an Arve describe the same purchase, ONLY the ' +
+      'Arve is postable.'
+    );
+  }
+
   // ── Fixed-asset norms (ADR-0035) ──────────────────────────────────────────
   private static readonly FIXED_ASSET_DEFAULTS: Record<
     AssetClass,

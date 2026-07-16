@@ -103,6 +103,22 @@ describe('triageResultSchema — sales-invoice kind, outgoing_signals, document_
   });
 });
 
+describe('document_type — order_confirmation / proforma', () => {
+  it('parses the two new non-postable document types', () => {
+    for (const document_type of ['order_confirmation', 'proforma'] as const) {
+      const r = triageResultSchema.parse({
+        kind: 'new_expense',
+        gross_amount: 5200,
+        vat_amount: 1006,
+        tax_point_date: '2026-07-15',
+        category: 'it_equipment',
+        document_type,
+      });
+      expect(r.document_type).toBe(document_type);
+    }
+  });
+});
+
 /**
  * The supplier_proposal contract (ADR-0014 / ADR-0024 friction #7): the Zod
  * discriminated union must admit EXACTLY ONE of

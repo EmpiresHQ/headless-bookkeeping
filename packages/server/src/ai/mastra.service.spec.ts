@@ -146,6 +146,13 @@ describe('MastraService', () => {
         'SEEDED ENRICHMENT PROMPT',
       );
     });
+
+    it('injects the active country plugin document-classification hints', async () => {
+      const agent = await service.buildTriageEnrichmentAgent();
+      // Default seeded organization is country="IE", which has no dedicated
+      // plugin and falls back to NullCountryPlugin's hints.
+      expect(await agent.getInstructions()).toContain('DOCUMENT-TYPE GUIDANCE');
+    });
   });
 
   describe('buildTriageClassificationAgent', () => {
@@ -182,6 +189,13 @@ describe('MastraService', () => {
       expect(await agent.getInstructions()).toContain(
         'SEEDED CLASSIFICATION PROMPT',
       );
+    });
+
+    it('injects the active country plugin document-classification hints', async () => {
+      const agent = await service.buildTriageClassificationAgent();
+      // Default seeded organization is country="IE", which has no dedicated
+      // plugin and falls back to NullCountryPlugin's hints.
+      expect(await agent.getInstructions()).toContain('DOCUMENT-TYPE GUIDANCE');
     });
   });
 });

@@ -430,6 +430,19 @@ describe('EstoniaCountryPlugin — getCategories()', () => {
   });
 });
 
+describe('getDocumentClassificationHints', () => {
+  const ee = new EstoniaCountryPlugin();
+
+  it('names the Estonian order/proforma vocabulary and the invoice marker', () => {
+    const hints = ee.getDocumentClassificationHints();
+    expect(hints).toMatch(/Tellimus/i); // order
+    expect(hints).toMatch(/ettemaksuarve/i); // prepayment/proforma
+    expect(hints).toMatch(/Arve/); // invoice
+    expect(hints).toMatch(/order_confirmation/);
+    expect(hints).toMatch(/proforma/);
+  });
+});
+
 describe('EstoniaCountryPlugin — fixed assets', () => {
   const ee = new EstoniaCountryPlugin();
   const org = { country: 'EE', vatRegistered: true, baseCurrency: null };

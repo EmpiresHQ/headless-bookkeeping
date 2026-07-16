@@ -23,6 +23,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
 import { AgentConfigService } from './agent-config.service';
+import { DuplicateGuardService } from './duplicate-guard.service';
 import { CategoryService } from '../categories/category.service';
 import {
   ProposeDraftService,
@@ -140,6 +141,7 @@ describe('ProposeDraftService (integration)', () => {
         EntitiesService,
         AgentConfigService,
         CategoryService,
+        DuplicateGuardService,
         {
           provide: SalesInvoicesService,
           useValue: {
@@ -1032,6 +1034,168 @@ describe('ProposeDraftService (integration)', () => {
       expect(expense.claimant_id).toBe(claimant.id);
       // SQLite stores booleans as integers (1 = true).
       expect(expense.company_addressed_receipt).toBe(1);
+    });
+
+    describe('duplicate gate', () => {
+      it('gates the AUTO path (no explicit supplierId): an existing duplicate blocks a second post', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Dup Test Supplier',
+          registrationKey: 'IE50000000',
+        });
+
+        // Seed an existing (already-booked) expense for this supplier + invoice
+        // number — Tier 1 exact match in DuplicateGuardService.
+        const existing = await expensesService.createExpense({
+          document_id: null,
+          supplier_id: supplier.id,
+          category: 'transport',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-10',
+          document_vat_marking: null,
+          supplier_invoice_number: 'DUP-001',
+        });
+
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          supplier_invoice_number: 'DUP-001',
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        };
+
+        // AUTO path: no explicit supplierId — resolution comes solely from the
+        // supplier_proposal, exactly like the routeExpense caller.
+        const outcome = await service.proposeDraft(triageResult, 50);
+
+        expect(outcome.outcome).toBe('possible-duplicate');
+        if (outcome.outcome === 'possible-duplicate') {
+          expect(outcome.reason).toContain(
+            `possible duplicate of expense #${existing.id}`,
+          );
+        }
+
+        // No second expense was created for this document.
+        const expenses = await db
+          .selectFrom('expense')
+          .selectAll()
+          .where('document_id', '=', 50)
+          .execute();
+        expect(expenses).toHaveLength(0);
+      });
+
+      it('skips the gate on the EXPLICIT-supplierId path even when a duplicate exists', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Dup Test Supplier 2',
+          registrationKey: 'IE50000001',
+        });
+
+        const existing = await expensesService.createExpense({
+          document_id: null,
+          supplier_id: supplier.id,
+          category: 'transport',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-10',
+          document_vat_marking: null,
+          supplier_invoice_number: 'DUP-002',
+        });
+
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          supplier_invoice_number: 'DUP-002',
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        };
+
+        // Explicit supplierId (e.g. the workflow's resolveSupplier, which gates
+        // pre-call itself) — proposeDraft's own gate is intentionally skipped.
+        const result = expectDraft(
+          await service.proposeDraft(triageResult, 51, supplier.id),
+        );
+        expect(result.expenseId).not.toBe(existing.id);
+
+        const expenses = await db
+          .selectFrom('expense')
+          .selectAll()
+          .where('document_id', '=', 51)
+          .execute();
+        expect(expenses).toHaveLength(1);
+      });
+
+      it('gates a CREATE proposal that identifier-resolves to an existing supplier (ADR-0014 bypass)', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Dup Test Supplier 3',
+          registrationKey: 'IE50000002',
+        });
+
+        // Seed an existing (already-booked) expense for this supplier + invoice
+        // number — Tier 1 exact match in DuplicateGuardService.
+        const existing = await expensesService.createExpense({
+          document_id: null,
+          supplier_id: supplier.id,
+          category: 'transport',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-10',
+          document_vat_marking: null,
+          supplier_invoice_number: 'DUP-003',
+        });
+
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          supplier_invoice_number: 'DUP-003',
+          // A genuine CREATE proposal — no match_entity_id at all. ADR-0014's
+          // multi-key find-or-onboard in resolveSupplier identifier-resolves
+          // this to the EXISTING supplier above via the registration key, so
+          // the duplicate gate must still catch it (this is exactly the
+          // bypass the CRITICAL fix closes: a routeExpense-only gate never
+          // saw this path because it only computed a supplierId for
+          // mode === 'match').
+          supplier_proposal: {
+            mode: 'create',
+            create_name: 'Dup Test Supplier 3',
+            create_country: 'IE',
+            create_registration_key: 'IE50000002',
+            create_email: null,
+            create_phone: null,
+            create_address: null,
+          },
+        };
+
+        // AUTO path: no explicit supplierId — resolution comes solely from the
+        // supplier_proposal, exactly like the routeExpense caller.
+        const outcome = await service.proposeDraft(triageResult, 52);
+
+        // Non-vacuousness: prove the create proposal actually identifier-
+        // resolved to the seeded supplier rather than falling through to
+        // supplier-unresolved — otherwise the possible-duplicate assertion
+        // below would prove nothing about the gate.
+        expect(outcome.outcome).not.toBe('supplier-unresolved');
+        expect(outcome.outcome).toBe('possible-duplicate');
+        if (outcome.outcome === 'possible-duplicate') {
+          expect(outcome.reason).toContain(
+            `possible duplicate of expense #${existing.id}`,
+          );
+        }
+
+        // No second expense was created for this document.
+        const expenses = await db
+          .selectFrom('expense')
+          .selectAll()
+          .where('document_id', '=', 52)
+          .execute();
+        expect(expenses).toHaveLength(0);
+      });
     });
   });
 

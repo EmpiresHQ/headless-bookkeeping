@@ -160,6 +160,16 @@ export interface CountryPlugin extends CountryPluginRetrieval {
   getCategories(): CategoryDef[];
 
   /**
+   * Jurisdiction-specific document-classification vocabulary appended to the
+   * Pass-2 prompt. Tells the model which LOCAL document titles are NOT primary
+   * tax documents (order confirmations, proformas, quotes, delivery notes →
+   * document_type "order_confirmation"/"proforma"/"other") versus a real
+   * invoice, so a paid order confirmation is not misread as an invoice.
+   * Return '' to add nothing.
+   */
+  getDocumentClassificationHints(): string;
+
+  /**
    * Resolves a user-facing Category to a kernel Account + VAT code.
    *
    * The mapping may depend on:

@@ -142,6 +142,32 @@ describe('classifyReasonType(pass2FailureReason(...)) contract', () => {
   });
 });
 
+describe('new reason types (order/proforma park + duplicate gate)', () => {
+  it('registers both new reason types on the type guard and array', () => {
+    expect(isTriageReasonType('non_postable_document')).toBe(true);
+    expect(isTriageReasonType('possible_duplicate')).toBe(true);
+    expect(TRIAGE_REASON_TYPES).toEqual(
+      expect.arrayContaining(['non_postable_document', 'possible_duplicate']),
+    );
+  });
+  it('maps a non-postable (order confirmation / proforma) park reason', () => {
+    expect(
+      classifyReasonType(
+        'Order confirmation — not a primary tax document; awaiting the final invoice',
+      ),
+    ).toBe('non_postable_document');
+  });
+  it('maps a duplicate-gate reason, winning over the generic supplier check', () => {
+    // Contains the word "supplier" — must still resolve to possible_duplicate
+    // because the duplicate branch is ordered before the supplier branch.
+    expect(
+      classifyReasonType(
+        'possible duplicate of expense #84 (same supplier, 52.00 gross, 2026-07-15)',
+      ),
+    ).toBe('possible_duplicate');
+  });
+});
+
 describe('isTriageReasonType', () => {
   it.each(TRIAGE_REASON_TYPES)('accepts every known reason type (%s)', (rt) => {
     expect(isTriageReasonType(rt)).toBe(true);
