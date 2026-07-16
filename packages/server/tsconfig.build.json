@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  // Pin the build program to src/ so the entrypoints land at dist/main.js and
+  // dist/cli.js. Without this, any .ts outside src/ (e.g. scripts/) widens the
+  // inferred tsc rootDir to packages/server/ and shifts output down into
+  // dist/src/, breaking the `node dist/main.js` entrypoint (prod outage, PR #189).
+  "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "test",
