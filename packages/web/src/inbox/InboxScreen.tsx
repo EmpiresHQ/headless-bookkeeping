@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { triageDocument, uploadDocument } from '../api';
-import { DocThumb } from '../books/DocThumb';
+import { DocThumbLightbox } from './DocThumbLightbox';
 import { signedEuros } from '../lib/money';
 import { useSeg } from '../lib/useSeg';
 import { relativeTime } from '../relativeTime';
@@ -66,7 +66,7 @@ function QueueRow({
       <ListRow
         to={entry.route}
         leading={
-          <DocThumb
+          <DocThumbLightbox
             id={entry.item.id}
             className="h-[34px] w-[34px] rounded-[10px] border border-line"
             fallback={<ReasonGlyph entry={entry} />}
