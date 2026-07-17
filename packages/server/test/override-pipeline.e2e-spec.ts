@@ -42,6 +42,15 @@ describe('Override Pipeline E2E', () => {
       throw error instanceof Error ? error : new Error('Migration failed');
     }
 
+    // This suite exercises the override pipeline, which posts vouchers via
+    // auto-post as a precondition; the auto_post_enabled kill switch
+    // defaults to false, so enable it here. The kill switch's own
+    // off-by-default behaviour is covered by policy.service.spec.ts.
+    await db
+      .insertInto('policy_config')
+      .values({ key: 'auto_post_enabled', value: 'true', updated_at: 0 })
+      .execute();
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })

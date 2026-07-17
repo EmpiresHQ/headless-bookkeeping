@@ -49,6 +49,15 @@ describe('Pipeline (e2e)', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
+    // This suite exercises the posting pipeline itself (auto-post is a
+    // precondition of what it tests); the auto_post_enabled kill switch
+    // defaults to false, so enable it here. The kill switch's own
+    // off-by-default behaviour is covered by policy.service.spec.ts.
+    await db
+      .insertInto('policy_config')
+      .values({ key: 'auto_post_enabled', value: 'true', updated_at: 0 })
+      .execute();
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ExpensesController, SalesInvoicesController],
       providers: [
