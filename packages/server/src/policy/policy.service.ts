@@ -29,6 +29,7 @@ const DEFAULT_CONFIG: PolicyConfig = {
   auto_post_min_confidence: 0.8,
   unknown_supplier_requires_approval: true,
   always_approve_operations: ['correction', 'reversal', 'vat_lock'],
+  auto_post_enabled: false,
 };
 
 /**
@@ -85,7 +86,17 @@ export class PolicyService {
       };
     }
 
-    // 3. Amount ceiling check (sum of debit base_amounts = voucher size).
+    // 3. Master kill switch: auto-posting disabled → every posting holds for
+    //    human confirmation, regardless of amount/confidence/supplier.
+    if (!config.auto_post_enabled) {
+      return {
+        action: 'hold-for-approval',
+        reason:
+          'Auto-posting is disabled — all postings require manual confirmation',
+      };
+    }
+
+    // 4. Amount ceiling check (sum of debit base_amounts = voucher size).
     //    Both sides are in BASE-CURRENCY minor units — no currency conversion
     //    happens or is needed here (the ceiling is base-currency-native).
     const totalBaseAmount = voucher.lines
@@ -98,7 +109,7 @@ export class PolicyService {
       };
     }
 
-    // 4. AI confidence gate — only when confidence is provided.
+    // 5. AI confidence gate — only when confidence is provided.
     if (context?.confidence !== undefined) {
       const threshold = config.auto_post_min_confidence;
       if (context.confidence < threshold) {
@@ -109,7 +120,7 @@ export class PolicyService {
       }
     }
 
-    // 5. Unknown-supplier gate.
+    // 6. Unknown-supplier gate.
     if (
       context?.supplierKnown === false &&
       config.unknown_supplier_requires_approval
@@ -120,7 +131,7 @@ export class PolicyService {
       };
     }
 
-    // 6. Default: auto-post.
+    // 7. Default: auto-post.
     return {
       action: 'auto-post',
       reason: 'All rules passed and amount within ceiling',
@@ -160,6 +171,10 @@ export class PolicyService {
         byKey.get('always_approve_operations'),
         DEFAULT_CONFIG.always_approve_operations,
       ),
+      auto_post_enabled: this.parseBoolean(
+        byKey.get('auto_post_enabled'),
+        DEFAULT_CONFIG.auto_post_enabled,
+      ),
     };
   }
 
@@ -194,6 +209,12 @@ export class PolicyService {
       entries.push({
         key: 'always_approve_operations',
         value: JSON.stringify(patch.always_approve_operations),
+      });
+    }
+    if (patch.auto_post_enabled !== undefined) {
+      entries.push({
+        key: 'auto_post_enabled',
+        value: patch.auto_post_enabled ? 'true' : 'false',
       });
     }
 

@@ -60,8 +60,16 @@ describe('PostingPipelineService afterPost hook (integration)', () => {
 
     pipeline = module.get(PostingPipelineService);
 
-    // Seed a draft expense to satisfy the status-transition claim.
+    // These tests exercise the posting/afterPost mechanics, not the
+    // auto_post_enabled master switch (which defaults to false and would
+    // otherwise hold every posting for approval instead of auto-posting).
     const now = Math.floor(Date.now() / 1000);
+    await db
+      .insertInto('policy_config')
+      .values({ key: 'auto_post_enabled', value: 'true', updated_at: now })
+      .execute();
+
+    // Seed a draft expense to satisfy the status-transition claim.
     await db
       .insertInto('expense')
       .values({

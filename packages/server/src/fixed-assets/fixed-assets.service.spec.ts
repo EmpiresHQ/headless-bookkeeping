@@ -58,6 +58,19 @@ describe('FixedAssetsService disposal (integration)', () => {
       .where('key', '=', 'auto_post_amount_ceiling')
       .execute();
 
+    // This suite proves fixed-asset disposal mechanics, not the
+    // auto_post_enabled master switch (which defaults to false and would
+    // otherwise hold every posting — acquisition and disposal — for
+    // approval instead of auto-posting).
+    await db
+      .insertInto('policy_config')
+      .values({
+        key: 'auto_post_enabled',
+        value: 'true',
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+      .execute();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },

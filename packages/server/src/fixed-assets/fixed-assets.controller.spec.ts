@@ -58,6 +58,19 @@ describe('FixedAssetsController (integration)', () => {
       .where('key', '=', 'auto_post_amount_ceiling')
       .execute();
 
+    // This suite proves the fixed-assets controller/list/dispose surface,
+    // not the auto_post_enabled master switch (which defaults to false and
+    // would otherwise hold every posting for approval instead of
+    // auto-posting, so the register would never be populated).
+    await db
+      .insertInto('policy_config')
+      .values({
+        key: 'auto_post_enabled',
+        value: 'true',
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+      .execute();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [FixedAssetsController],
       providers: [
