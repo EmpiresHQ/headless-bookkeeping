@@ -52,6 +52,15 @@ describe('Reconciliation E2E (full flow)', () => {
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
 
+    // This suite exercises the reconciliation flow, which posts vouchers
+    // via auto-post as a precondition; the auto_post_enabled kill switch
+    // defaults to false, so enable it here. The kill switch's own
+    // off-by-default behaviour is covered by policy.service.spec.ts.
+    await db
+      .insertInto('policy_config')
+      .values({ key: 'auto_post_enabled', value: 'true', updated_at: 0 })
+      .execute();
+
     root = mkdtempSync(join(tmpdir(), 'reconciliation-e2e-'));
 
     const module: TestingModule = await Test.createTestingModule({
