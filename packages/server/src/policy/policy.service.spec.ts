@@ -97,6 +97,15 @@ describe('PolicyService (real-DI)', () => {
   });
 
   describe('decide()', () => {
+    // These tests each target ONE gate (ceiling / confidence / supplier /
+    // semantic). The master switch defaults to false (hold-for-approval for
+    // everything), so it must be explicitly enabled here to keep exercising
+    // the gate each test actually names. The switch itself is covered by its
+    // own describe block below.
+    beforeEach(async () => {
+      await service.updateConfig({ auto_post_enabled: true });
+    });
+
     it('auto-posts when all rules pass and amount is within ceiling', async () => {
       const voucher = draftVoucher();
       const results: RuleResult[] = [
@@ -483,7 +492,13 @@ describe('PolicyService (real-DI)', () => {
         auto_post_min_confidence: 0.8,
         unknown_supplier_requires_approval: true,
         always_approve_operations: ['correction', 'reversal', 'vat_lock'],
+        auto_post_enabled: false,
       });
+    });
+
+    it('defaults auto_post_enabled to false when no row is seeded (kill switch)', async () => {
+      const config = await service.getConfig();
+      expect(config.auto_post_enabled).toBe(false);
     });
 
     it('reflects an updated ceiling row in getConfig()', async () => {
@@ -534,6 +549,70 @@ describe('PolicyService (real-DI)', () => {
       expect(updated.unknown_supplier_requires_approval).toBe(false);
       expect(updated.always_approve_operations).toEqual(['reversal']);
     });
+
+    it('round-trips auto_post_enabled: true (kill switch)', async () => {
+      const updated = await service.updateConfig({ auto_post_enabled: true });
+      expect(updated.auto_post_enabled).toBe(true);
+      expect((await service.getConfig()).auto_post_enabled).toBe(true);
+    });
+  });
+
+  describe('decide() — auto_post_enabled master switch', () => {
+    const passingResults: RuleResult[] = [
+      passedResult('structural', false),
+      passedResult('hard_process', false),
+      passedResult('semantic', true),
+    ];
+    // Draft passes every other gate: amount under ceiling, confidence above
+    // threshold, supplier known. Only the master switch is in play.
+    const passingContext: PolicyContext = {
+      confidence: 0.95,
+      supplierKnown: true,
+    };
+
+    it('holds for approval when auto_post_enabled is false, even though every other gate passes', async () => {
+      // Default config: auto_post_enabled is false (no row seeded).
+      const voucher = draftVoucher();
+
+      const decision = await service.decide(
+        voucher,
+        passingResults,
+        passingContext,
+      );
+      expect(decision.action).toBe('hold-for-approval');
+      expect(decision.reason).toContain('Auto-posting is disabled');
+    });
+
+    it('auto-posts when auto_post_enabled is true and every other gate passes', async () => {
+      await service.updateConfig({ auto_post_enabled: true });
+      const voucher = draftVoucher();
+
+      const decision = await service.decide(
+        voucher,
+        passingResults,
+        passingContext,
+      );
+      expect(decision.action).toBe('auto-post');
+    });
+
+    it('holds with the semantic-failure reason (not the kill-switch reason) when auto-post is disabled and a semantic rule fails without override', async () => {
+      // Default config: auto_post_enabled is false (no row seeded). The
+      // semantic-failure check must run BEFORE the kill switch, so the
+      // approver still sees the specific semantic reason, not the generic
+      // "Auto-posting is disabled" message.
+      const voucher = draftVoucher();
+      const results: RuleResult[] = [
+        passedResult('structural', false),
+        passedResult('hard_process', false),
+        failedResult('semantic', true, 'Invalid VAT code'),
+      ];
+
+      const decision = await service.decide(voucher, results);
+      expect(decision.action).toBe('hold-for-approval');
+      expect(decision.reason).toContain('Semantic rule failure');
+      expect(decision.reason).toContain('Invalid VAT code');
+      expect(decision.reason).not.toContain('Auto-posting is disabled');
+    });
   });
 
   describe('decide() — reads config from the table', () => {
@@ -542,6 +621,13 @@ describe('PolicyService (real-DI)', () => {
       passedResult('hard_process', false),
       passedResult('semantic', true),
     ];
+
+    beforeEach(async () => {
+      // These tests target the ceiling/confidence gates specifically; the
+      // master switch must be enabled or the kill switch would short-circuit
+      // before those gates are ever reached.
+      await service.updateConfig({ auto_post_enabled: true });
+    });
 
     it('holds a previously auto-posting voucher once the ceiling row is lowered', async () => {
       // Voucher of 20000 base-currency minor units: auto-posts under the

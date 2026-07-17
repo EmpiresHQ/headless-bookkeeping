@@ -359,6 +359,19 @@ describe('ProposeDraftService (integration)', () => {
     });
 
     it('holds for approval when confidence is below threshold (0.5)', async () => {
+      // This test proves the AI-confidence gate specifically, not the
+      // auto_post_enabled master switch (which defaults to false and would
+      // otherwise hold with the kill-switch reason instead of the
+      // confidence-gate reason asserted below).
+      await db
+        .insertInto('policy_config')
+        .values({
+          key: 'auto_post_enabled',
+          value: 'true',
+          updated_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
       const lowConfidenceResult: TriageResult = {
         ...sampleTriageResult(),
         confidence: 0.5,
@@ -376,6 +389,18 @@ describe('ProposeDraftService (integration)', () => {
     });
 
     it('auto-posts when confidence is at or above threshold (0.94)', async () => {
+      // This test proves the confidence gate lets auto-post through at/above
+      // threshold, not the auto_post_enabled master switch (which defaults
+      // to false and would otherwise hold regardless of confidence).
+      await db
+        .insertInto('policy_config')
+        .values({
+          key: 'auto_post_enabled',
+          value: 'true',
+          updated_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
       // Create a supplier so supplierKnown = true (otherwise unknown-supplier gate holds).
       const entitiesService = module.get(EntitiesService);
       const supplier = await entitiesService.onboard({
@@ -394,6 +419,18 @@ describe('ProposeDraftService (integration)', () => {
     });
 
     it('writes an ai_proposal row after proposeDraft (auto-post path)', async () => {
+      // This test proves ai_proposal provenance on the auto-post path, not the
+      // auto_post_enabled master switch (which defaults to false and would
+      // otherwise hold instead of auto-posting).
+      await db
+        .insertInto('policy_config')
+        .values({
+          key: 'auto_post_enabled',
+          value: 'true',
+          updated_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
       // Seed a per-agent model override — this is a discriminating value that
       // differs from the old hardcoded literal 'openai/gpt-4o-mini'. Provenance
       // must record the model that ACTUALLY ran classification

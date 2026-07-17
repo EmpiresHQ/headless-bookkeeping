@@ -120,6 +120,18 @@ describe('Posting seam consolidation (integration)', () => {
     approvals = module.get(ApprovalsService);
     expenses = module.get(ExpensesService);
     voucherRepo = module.get(VoucherRepository);
+
+    // This suite proves posting-seam/idempotency mechanics, not the
+    // auto_post_enabled master switch (which defaults to false and would
+    // otherwise hold every pipeline posting for approval).
+    await db
+      .insertInto('policy_config')
+      .values({
+        key: 'auto_post_enabled',
+        value: 'true',
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+      .execute();
   });
 
   afterEach(async () => {

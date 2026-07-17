@@ -30,6 +30,8 @@ export interface PolicyConfig {
   unknown_supplier_requires_approval: boolean;
   /** Operations that always bypass amount/confidence gates (stub list). */
   always_approve_operations: string[];
+  /** Master switch: when false, ALL postings hold for confirmation (no auto-post), regardless of amount/confidence/supplier. Default false. */
+  auto_post_enabled: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export const updatePolicyConfigSchema = z
     auto_post_min_confidence: z.number(),
     unknown_supplier_requires_approval: z.boolean(),
     always_approve_operations: z.array(z.string()),
+    auto_post_enabled: z.boolean(),
   })
   .partial();
 
