@@ -61,6 +61,7 @@ evals/**/output.*
 .agents/
 .claude/worktrees/
 .superpowers/
+.omo/
 CLAUDE.md
 
 # Monorepo package build artifacts and coverage
