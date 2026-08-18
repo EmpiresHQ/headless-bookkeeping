@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { VatReportService } from './vat-report.service';
-import type { VatReport, KmdDeclaration } from './types';
+import type { VatReport, KmdDeclaration, VatReportPreview } from './types';
 
 @ApiTags('vat-report')
 @Controller('api')
@@ -19,19 +19,50 @@ export class VatReportController {
   constructor(private readonly service: VatReportService) {}
 
   /**
-   * Generate (or retrieve existing) VAT report snapshot for a reporting period.
+   * FREEZE a VAT report snapshot for a reporting period (or return the existing
+   * one). Not a calculator — see `preview` below for that.
    * POST /api/reporting-periods/:id/vat-report
    */
   @Post('reporting-periods/:id/vat-report')
   @ApiOperation({
-    summary: 'Create a VAT report for a period',
-    description: 'Compute and store the VAT report for a reporting period.',
+    summary: 'Freeze the VAT report for a period (permanent)',
+    description:
+      'Compute the VAT report for a reporting period and FREEZE it as an ' +
+      'immutable snapshot. The snapshot is permanent: vat_report rows reject ' +
+      'UPDATE and DELETE at the database level, and a later call returns the ' +
+      'stored copy unchanged rather than recomputing — so figures frozen now ' +
+      'will NOT pick up vouchers posted, corrected or reversed afterwards, and ' +
+      'the period lock will file this copy. Call this when filing. To see the ' +
+      'current figures without freezing anything, use ' +
+      'GET /api/reporting-periods/{id}/vat-report/preview instead.',
   })
   @ApiParam({ name: 'id', description: 'Reporting period id' })
   async generate(
     @Param('id', ParseIntPipe) periodId: number,
   ): Promise<VatReport> {
     return this.service.generate(periodId);
+  }
+
+  /**
+   * Read-only preview: the period's current VAT figures, nothing stored.
+   * GET /api/reporting-periods/:id/vat-report/preview
+   */
+  @Get('reporting-periods/:id/vat-report/preview')
+  @ApiOperation({
+    summary: 'Preview the VAT report for a period (read-only)',
+    description:
+      'Compute what the period currently declares WITHOUT storing anything — ' +
+      'safe to call repeatedly while the period is open and vouchers are still ' +
+      'moving. Returns the same figures the POST endpoint would freeze, plus ' +
+      'frozen_snapshot_id: when that is non-null a snapshot already exists, ' +
+      'these live figures may differ from it, and it is the frozen copy that ' +
+      'filing will use.',
+  })
+  @ApiParam({ name: 'id', description: 'Reporting period id' })
+  async previewReport(
+    @Param('id', ParseIntPipe) periodId: number,
+  ): Promise<VatReportPreview> {
+    return this.service.preview(periodId);
   }
 
   /**

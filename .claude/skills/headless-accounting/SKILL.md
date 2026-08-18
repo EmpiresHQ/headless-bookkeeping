@@ -175,13 +175,27 @@ curl -H "$H" -H "$J" -X POST $B/api/documents/<id>/complete -d '{}' # mark proce
 # an expense can be linked to a document at creation: document_id field on POST /api/expenses
 ```
 
-### Produce the VAT report
+### Read the VAT figures (safe, read-only)
+```bash
+curl -H "$H" "$B/api/reporting-periods/<id>/vat-report/preview"
+# → the same shape the snapshot would have, computed LIVE and stored nowhere.
+#   `frozen_snapshot_id` non-null ⇒ a snapshot already exists; these live figures
+#   may differ from it, and filing will use the FROZEN one.
+curl -H "$H" "$B/api/reporting-periods/<id>/kmd"   # KMD declaration rows, also derived live
+```
+
+### Freeze the VAT report (permanent — only when filing)
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/reporting-periods/<id>/vat-report -d '{}'
-# → input_vat/output_vat by code, total_payable/total_receivable, voucher_ids, merkle_root (really computed). Idempotent.
 curl -H "$H" $B/api/vat-reports/<id>
 curl -H "$H" $B/api/vat-reports/<id>/vouchers
 ```
+> ⚠️ **This FREEZES a snapshot — it is not a calculator.** "Idempotent" means
+> *return-existing*, not *recompute*: once a snapshot exists, later calls return the
+> stored copy, and `vat_report` rows reject UPDATE/DELETE at the database level. A
+> snapshot taken while the period is open will NOT pick up later postings,
+> corrections or reversals, and `POST .../lock` files that stale copy silently.
+> **Use the preview above to look at numbers.** Call this only when filing.
 
 ### Close a period (file VAT) — immutable snapshot
 ```bash
