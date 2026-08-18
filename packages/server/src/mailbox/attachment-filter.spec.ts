@@ -71,12 +71,26 @@ describe('isHarvestable', () => {
       isHarvestable({ ...base, disposition: 'inline', contentId: null }),
     ).toBe(false);
   });
-  it('rejects an attachment with a contentId', () => {
+  // Gmail stamps a Content-ID (<f_xxxxxxxx>) on EVERY attachment sent from the
+  // web UI, including ordinary ones. Rejecting on contentId alone silently drops
+  // every human-sent invoice while automated senders (which omit it) get through.
+  it('accepts a PDF attachment that also carries a contentId (Gmail web)', () => {
     expect(
       isHarvestable({
         ...base,
         disposition: 'attachment',
-        contentId: '<image@example.com>',
+        contentId: '<f_mrem2ni90>',
+      }),
+    ).toBe(true);
+  });
+  it('rejects a cid part with no disposition (embedded logo)', () => {
+    expect(
+      isHarvestable({
+        ...base,
+        filename: 'logo.png',
+        contentType: 'image/png',
+        disposition: null,
+        contentId: '<logo@example.com>',
       }),
     ).toBe(false);
   });
