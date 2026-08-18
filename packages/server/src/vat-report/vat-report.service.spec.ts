@@ -535,6 +535,48 @@ describe('VAT report snapshot generation (integration)', () => {
     expect(second.generated_at).toBe(first.generated_at);
   });
 
+  // ── (h) Preview: read-only, never freezes ──────────────────────────────
+
+  describe('preview (read-only)', () => {
+    it('computes the same figures as generate WITHOUT storing a snapshot', async () => {
+      const preview = await vatReportService.preview(1);
+
+      // Nothing was frozen.
+      expect(preview.frozen_snapshot_id).toBeNull();
+      const stored = await db
+        .selectFrom('vat_report')
+        .selectAll()
+        .where('reporting_period_id', '=', 1)
+        .execute();
+      expect(stored).toHaveLength(0);
+
+      // ...and the figures match what generate would freeze.
+      const generated = await vatReportService.generate(1);
+      expect(preview.total_input_vat).toBe(generated.total_input_vat);
+      expect(preview.total_output_vat).toBe(generated.total_output_vat);
+      expect(preview.total_payable).toBe(generated.total_payable);
+      expect(preview.total_receivable).toBe(generated.total_receivable);
+      expect(preview.merkle_root).toBe(generated.merkle_root);
+      expect(preview.voucher_ids).toEqual(generated.voucher_ids);
+    });
+
+    it('recomputes live once a snapshot exists, and points at the frozen one', async () => {
+      const frozen = await vatReportService.generate(1);
+
+      const preview = await vatReportService.preview(1);
+      // The caller can see that a frozen snapshot is already in the way —
+      // this is exactly the drift that a re-run of generate() would hide.
+      expect(preview.frozen_snapshot_id).toBe(frozen.id);
+      expect(preview.total_input_vat).toBe(frozen.total_input_vat);
+    });
+
+    it('throws NotFoundException for an unknown period id', async () => {
+      await expect(vatReportService.preview(999)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
   // ── (f) NotFoundException for unknown period ───────────────────────────
 
   it('(f) generate throws NotFoundException for unknown period id', async () => {

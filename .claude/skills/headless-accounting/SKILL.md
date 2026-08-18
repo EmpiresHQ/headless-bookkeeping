@@ -48,6 +48,16 @@ AI suggests   →   Rules validate   →   Policy decides   →   Voucher posts
 
 The AI has no `forcePost()` / `bypassApproval()` / direct write to `voucher`. Every posting path goes through Rules → Policy → a deterministic, balanced, immutable Voucher.
 
+## When to use this skill
+
+- Onboarding: "explain how the system works", "where do I start".
+- Running / testing: install, dev/prod/docker, unit/e2e.
+- Configuration: change an AI agent's model or prompt, understand the config hierarchy.
+- Runtime: "how do I post a document", "how is a draft created", "how does approval work", "how do I add a channel".
+- Before ANY change to ledger/posting/rules/policy — check it against the invariants below.
+
+---
+
 ## ⛔ Operating mode: remote HTTP API only
 
 **This is the working contract. The system runs remotely. You do NOT:**
@@ -70,6 +80,102 @@ Architecture, domain model, the `src/` map and file paths in this document exist
 | Scheduling | `@nestjs/schedule` (cron agents) |
 | Tests | Jest 30 (unit + e2e); `@mastra/core` is stubbed in tests |
 | Deploy | Docker Compose (multi-stage) |
+
+---
+
+## Onboarding: install and run (OPERATOR zone — not for the agent)
+
+> This section is for the operator deploying an instance. An agent in remote-API mode does not go here (no installing, running or migrating). It is kept so you understand where the instance you call over HTTP comes from.
+
+### Prerequisites
+- **Node 24+** (`.nvmrc` = `24`; `engines.node` = `>=24`). On Node 22 `better-sqlite3` fails with a `NODE_MODULE_VERSION` mismatch.
+- **npm** (there is a `package-lock.json`; Docker uses `npm ci`).
+- To build `better-sqlite3`: Python 3, make, g++ (installed in Docker via `apk add python3 make g++`).
+
+### Install and run
+```bash
+nvm use 24            # or nvm install 24
+npm ci                # install dependencies
+npm run start:dev     # dev with hot reload on http://localhost:3000
+curl http://localhost:3000/health   # smoke check
+```
+
+Production / Docker:
+```bash
+npm run build && npm run start          # build into dist/ and run
+# or the container:
+docker compose up -d                    # build + run, ./data volume, healthcheck on /health
+docker compose logs -f app
+```
+
+### First-run configuration
+- **There is no separate `.env`.** Only `PORT` (default 3000) and `NODE_ENV` are read from the environment. All business configuration lives in the database (`organization` and `setting` tables).
+- **Migrations run automatically** on boot in `DatabaseModule.onModuleInit()` (Kysely `Migrator.migrateToLatest()`). They are idempotent.
+- First-run seed: one `organization` (Ireland/`IE`, not VAT-registered, base currency inherited from the plugin → EUR) and a base chart of accounts. **There is no CLI seeder** — everything else is entered over the API.
+
+### Tests, lint, build
+```bash
+npm test            # unit; npm run test:watch / test:cov
+npm run test:e2e    # e2e (test/jest-e2e.json)
+npm run lint        # eslint --fix
+npm run format      # prettier
+npm run build       # nest build → dist/
+```
+
+> SQLite is synchronous: stop `start:dev` before running the tests, or you may hit "database is locked".
+
+---
+
+## AI agent configuration (AgentConfigService)
+
+Three levels, mutable at runtime (no redeploy):
+
+1. **Environment** — `PORT`, `NODE_ENV` (infrastructure only).
+2. **DB settings** (`setting` table, key/value) — agent models and prompts, channel tokens, policies.
+3. **One hardcoded default** — `DEFAULT_MODEL = 'openai/gpt-4o-mini'` in `src/ai/agent-config.ts`. This is the **only** model literal in the whole codebase.
+
+### Resolution hierarchy (`src/ai/agent-config.service.ts`)
+
+```
+Model:   ai_model.<agent>  →  ai_model  →  DEFAULT_MODEL
+Prompt:  prompt.<agent>    →  AGENT_PROMPTS[<agent>]  (default in code)
+```
+
+Service API:
+```ts
+resolveModel(key): Promise<string>
+resolveInstructions(key): Promise<string>
+resolve(key): Promise<{ model, instructions }>   // both in parallel
+```
+
+**Known agent keys** (`AgentKey = 'triage' | 'intent_classifier'`):
+
+| Setting key | Value | Purpose | Default |
+|---|---|---|---|
+| `ai_model` | model string | global model for every agent | `DEFAULT_MODEL` |
+| `ai_model.triage` | model string | Pass-2 triage agent's model | `ai_model` / `DEFAULT_MODEL` |
+| `ai_model.intent_classifier` | model string | intent classifier's model | `ai_model` / `DEFAULT_MODEL` |
+| `prompt.triage` | text | triage agent's system prompt | `AGENT_PROMPTS.triage` |
+| `prompt.intent_classifier` | text | classifier's system prompt | `AGENT_PROMPTS.intent_classifier` |
+
+Other keys: `telegram_bot_token`, `telegram_webhook_secret`, `telegram_allowlist`, `approvers`, `email_whitelist`, `ingest_policy` (`known-only` | `quarantine` | `open`). Full reference — `docs/CONFIG.md` (section 4 — LLM profiles).
+
+### How to change a model / prompt
+> ⚠️ **There is NO HTTP endpoint for `setting`.** The settings table is edited at deploy time / directly in the DB. A remote agent working over the API **cannot** change models, prompts, policy, channels or tokens — that is an operator task (and it is the right guard: the agent does not rewrite its own guardrails). See "What is NOT reachable over the API".
+
+Operator edit (deploy time, via Kysely; `key` is UNIQUE → re-insert replaces):
+```ts
+await db.insertInto('setting').values({
+  key: 'ai_model.triage',
+  value: 'anthropic/claude-opus-4-1',
+  updated_at: Math.floor(Date.now() / 1000),
+}).execute();
+```
+
+**Caching caveat:** `MastraService` and `IntentClassifierService` resolve config **once in `onModuleInit()`** and cache the agent in memory — a setting change only takes effect after a restart (or service re-init). `ProposeDraftService` reads the model **fresh on every call** (used only to record provenance in `ai_proposal`).
+
+### DI topology
+`AgentConfigModule` (imports `DatabaseModule`, exports `AgentConfigService`) is wired into **two** modules — `AiModule` and `InteractionModule`. NestJS singleton scope → one shared instance.
 
 ---
 
@@ -175,13 +281,27 @@ curl -H "$H" -H "$J" -X POST $B/api/documents/<id>/complete -d '{}' # mark proce
 # an expense can be linked to a document at creation: document_id field on POST /api/expenses
 ```
 
-### Produce the VAT report
+### Read the VAT figures (safe, read-only)
+```bash
+curl -H "$H" "$B/api/reporting-periods/<id>/vat-report/preview"
+# → the same shape the snapshot would have, computed LIVE and stored nowhere.
+#   `frozen_snapshot_id` non-null ⇒ a snapshot already exists; these live figures
+#   may differ from it, and filing will use the FROZEN one.
+curl -H "$H" "$B/api/reporting-periods/<id>/kmd"   # KMD declaration rows, also derived live
+```
+
+### Freeze the VAT report (permanent — only when filing)
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/reporting-periods/<id>/vat-report -d '{}'
-# → input_vat/output_vat by code, total_payable/total_receivable, voucher_ids, merkle_root (really computed). Idempotent.
 curl -H "$H" $B/api/vat-reports/<id>
 curl -H "$H" $B/api/vat-reports/<id>/vouchers
 ```
+> ⚠️ **This FREEZES a snapshot — it is not a calculator.** "Idempotent" means
+> *return-existing*, not *recompute*: once a snapshot exists, later calls return the
+> stored copy, and `vat_report` rows reject UPDATE/DELETE at the database level. A
+> snapshot taken while the period is open will NOT pick up later postings,
+> corrections or reversals, and `POST .../lock` files that stale copy silently.
+> **Use the preview above to look at numbers.** Call this only when filing.
 
 ### Close a period (file VAT) — immutable snapshot
 ```bash
@@ -319,6 +439,34 @@ Document statuses: `pending → triaged | needs_triage`, `triaged → processed`
 - ❌ Mutate `Conversation`/`Message` directly — only via the service (the router owns the aggregate).
 
 **Inviolable invariants:** structural (debit=credit in base currency, account existence, positive amounts/rates, currency consistency, immutability via triggers) and hard_process (period lock) are **not overridable**. Only a **semantic** rule is overridable — and only with a **logged Override** (`ruleType + reason`), atomically in the same transaction as the post.
+
+---
+
+## Quick reference
+
+```bash
+# run / test
+nvm use 24 && npm ci
+npm run start:dev          # dev, :3000
+docker compose up -d       # container
+npm test                   # unit
+npm run test:e2e           # e2e
+npm run lint && npm run build
+
+# health
+curl http://localhost:3000/health
+```
+
+| What | Where |
+|---|---|
+| NestJS root | `src/app.module.ts`, entry `src/main.ts` |
+| Pipeline / write chokepoint | `src/ledger/pipeline/posting-pipeline.service.ts`, `src/ledger/posting/posting.service.ts` |
+| The three rule tiers | `src/rules/`; risk gate — `src/policy/` |
+| Country plugin | `src/plugins/country-plugin.interface.ts` |
+| Intake / triage | `src/ai/intake-workflow.service.ts`, `src/ai/propose-draft.service.ts` |
+| Router / intents | `src/interaction/router/` |
+| Agent config | `src/ai/agent-config.ts`, `agent-config.service.ts` |
+| Migrations | `src/database/migrations/` |
 
 ---
 

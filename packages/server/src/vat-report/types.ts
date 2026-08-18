@@ -68,3 +68,35 @@ export interface VatReport {
   merkle_root: string | null;
   generated_at: number;
 }
+
+/**
+ * The figures a VAT report is made of, without the snapshot identity. Shared by
+ * the frozen {@link VatReport} and the read-only preview, so both are computed
+ * by exactly one code path and cannot drift apart.
+ */
+export interface ComputedVatReport {
+  reporting_period_id: number;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  vat_summary: VatSummaryLine[];
+  total_input_vat: number;
+  total_output_vat: number;
+  total_payable: number;
+  total_receivable: number;
+  voucher_ids: number[];
+  merkle_root: string | null;
+}
+
+/**
+ * A live, unfrozen VAT report: what the period declares right now. Carries no
+ * `id` or `generated_at` because nothing was stored.
+ *
+ * `frozen_snapshot_id` names an already-frozen snapshot for the same period, if
+ * one exists. When it is non-null the figures here may differ from that
+ * snapshot — and it is the snapshot, not these numbers, that `POST .../vat-report`
+ * and the period lock will use.
+ */
+export interface VatReportPreview extends ComputedVatReport {
+  frozen_snapshot_id: number | null;
+}

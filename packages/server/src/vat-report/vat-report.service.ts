@@ -5,7 +5,13 @@ import { Database } from '../database/types';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { OrganizationService } from '../organization/organization.service';
-import { VatReport, VatSummaryLine, KmdDeclaration } from './types';
+import {
+  VatReport,
+  VatSummaryLine,
+  KmdDeclaration,
+  ComputedVatReport,
+  VatReportPreview,
+} from './types';
 import { computeVoucherHash } from '../ledger/posting/voucher-hash';
 import { computeMerkleRoot } from './merkle';
 
@@ -37,11 +43,18 @@ export class VatReportService {
    * Idempotent: if a snapshot already exists for this period, returns the
    * existing frozen report unchanged (same Merkle root, never recomputed).
    */
+  /**
+   * FREEZES a snapshot. If one already exists for the period it is returned
+   * unchanged (same Merkle root, never recomputed) — the filed return must stay
+   * reproducible (ADR-0009). Because the freeze is permanent and `vat_report`
+   * rows are immutable by trigger, do NOT call this just to look at the
+   * figures: use {@link preview}, which computes the same numbers and stores
+   * nothing.
+   */
   async generate(
     periodId: number,
     executor: Kysely<Database> = this.db,
   ): Promise<VatReport> {
-    // Check if a snapshot already exists for this period
     const existing = await executor
       .selectFrom('vat_report')
       .selectAll()
@@ -52,6 +65,64 @@ export class VatReportService {
       return this.mapRow(existing);
     }
 
+    const computed = await this.compute(periodId, executor);
+
+    const row = await executor
+      .insertInto('vat_report')
+      .values({
+        reporting_period_id: periodId,
+        period_name: computed.period_name,
+        start_date: computed.start_date,
+        end_date: computed.end_date,
+        vat_summary: JSON.stringify(computed.vat_summary),
+        total_input_vat: computed.total_input_vat,
+        total_output_vat: computed.total_output_vat,
+        total_payable: computed.total_payable,
+        total_receivable: computed.total_receivable,
+        voucher_ids: JSON.stringify(computed.voucher_ids),
+        merkle_root: computed.merkle_root,
+        generated_at: Math.floor(Date.now() / 1000),
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.mapRow(row);
+  }
+
+  /**
+   * Read-only view of what the period currently declares. Computes exactly what
+   * {@link generate} would freeze, but stores nothing — safe to call as often as
+   * you like while the period is still open and vouchers keep moving.
+   *
+   * `frozen_snapshot_id` is non-null when a snapshot already exists: the live
+   * figures below may then differ from the frozen ones, and `generate` would
+   * hand back the frozen copy rather than these. That drift is the thing this
+   * endpoint exists to make visible.
+   */
+  async preview(
+    periodId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<VatReportPreview> {
+    const computed = await this.compute(periodId, executor);
+
+    const frozen = await executor
+      .selectFrom('vat_report')
+      .select('id')
+      .where('reporting_period_id', '=', periodId)
+      .executeTakeFirst();
+
+    return { ...computed, frozen_snapshot_id: frozen?.id ?? null };
+  }
+
+  /**
+   * The pure computation behind both {@link generate} and {@link preview}:
+   * aggregate the period's posted vouchers into VAT boxes and a Merkle root.
+   * Reads only — it never writes.
+   */
+  private async compute(
+    periodId: number,
+    executor: Kysely<Database>,
+  ): Promise<ComputedVatReport> {
     // Fetch the period to get its date range
     const period = await executor
       .selectFrom('reporting_period')
@@ -190,29 +261,19 @@ export class VatReportService {
 
     const merkleRoot = computeMerkleRoot(leafHashes);
 
-    const generatedAt = Math.floor(Date.now() / 1000);
-
-    // Insert the snapshot
-    const row = await executor
-      .insertInto('vat_report')
-      .values({
-        reporting_period_id: periodId,
-        period_name: period.name,
-        start_date: period.start_date,
-        end_date: period.end_date,
-        vat_summary: JSON.stringify(vatSummary),
-        total_input_vat,
-        total_output_vat,
-        total_payable,
-        total_receivable,
-        voucher_ids: JSON.stringify(voucherIds),
-        merkle_root: merkleRoot,
-        generated_at: generatedAt,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-
-    return this.mapRow(row);
+    return {
+      reporting_period_id: periodId,
+      period_name: period.name,
+      start_date: period.start_date,
+      end_date: period.end_date,
+      vat_summary: vatSummary,
+      total_input_vat,
+      total_output_vat,
+      total_payable,
+      total_receivable,
+      voucher_ids: voucherIds,
+      merkle_root: merkleRoot,
+    };
   }
 
   /**

@@ -141,13 +141,31 @@ curl -H "$H" -H "$J" -X POST $B/api/documents/<id>/complete -d '{}' # mark proce
 # an expense can be linked to a document at creation: document_id field on POST /api/expenses
 ```
 
-### Produce the VAT report
+### Read the VAT figures (safe, read-only)
+```bash
+curl -H "$H" "$B/api/reporting-periods/<id>/vat-report/preview"
+# → the same shape the snapshot would have (input/output by code, totals,
+#   voucher_ids, merkle_root) computed LIVE and stored nowhere. Call it freely.
+#   `frozen_snapshot_id` is non-null when a snapshot already exists — then these
+#   live figures may differ from it, and filing will use the FROZEN one.
+curl -H "$H" "$B/api/reporting-periods/<id>/kmd"   # KMD declaration rows, also derived live
+```
+
+### Freeze the VAT report (permanent — only when filing)
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/reporting-periods/<id>/vat-report -d '{}'
-# → input_vat/output_vat by code, total_payable/total_receivable, voucher_ids, merkle_root (really computed). Idempotent.
 curl -H "$H" $B/api/vat-reports/<id>
 curl -H "$H" $B/api/vat-reports/<id>/vouchers
 ```
+> ⚠️ **This FREEZES a snapshot — it is not a calculator.** "Idempotent" here means
+> *return-existing*, not *recompute*: once a snapshot exists for the period, every
+> later call hands back that stored copy, and `vat_report` rows reject UPDATE and
+> DELETE at the database level. So a snapshot taken while the period is still open
+> will **not** pick up vouchers posted, corrected or reversed afterwards — and
+> `POST .../lock` files that stale copy silently. Undoing it means dropping the
+> immutability triggers by hand on the live DB — precisely the break-glass ADR-0012
+> forbids. **To look at the numbers, use the preview above.** Call this only when
+> you actually mean to file.
 
 ### Close a period (file VAT) — immutable snapshot
 ```bash
