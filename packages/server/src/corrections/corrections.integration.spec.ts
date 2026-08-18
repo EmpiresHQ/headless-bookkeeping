@@ -253,6 +253,124 @@ describe('Corrections (integration)', () => {
     });
   });
 
+  describe('reversal-only (duplicate / erroneous posting)', () => {
+    it('posts a mirrored reversal alone, leaves the object reversed on its ORIGINAL voucher', async () => {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 5200,
+        vat_amount: 1000,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
+
+      const result = await correctionsService.correctExpense(expense.id, {
+        kind: 'reversal',
+        reason: 'Duplicate of expense 85 (same purchase, order + invoice)',
+      });
+
+      expect(result.outcome).toBe('posted_reversal');
+      expect(result.reversalVoucherId).toBeDefined();
+      // No replacement voucher: that is the whole point of a reversal-only.
+      expect(result.correctedVoucherId).toBeUndefined();
+
+      const reversal = await voucherRepo.getVoucherById(
+        result.reversalVoucherId as number,
+      );
+      expect(reversal!.reverses_id).toBe(posted.id);
+      expect(reversal!.corrects_object_type).toBeNull();
+      expect(reversal!.corrects_object_id).toBeNull();
+
+      // Mirrored lines net the original to zero.
+      const revLines = await lineRepo.getLinesByVoucherId(reversal!.id);
+      const origLines = await lineRepo.getLinesByVoucherId(posted.id);
+      expect(revLines).toHaveLength(origLines.length);
+      for (let i = 0; i < origLines.length; i++) {
+        expect(revLines[i].account_id).toBe(origLines[i].account_id);
+        expect(revLines[i].base_amount).toBe(origLines[i].base_amount);
+        expect(revLines[i].is_debit).toBe(!origLines[i].is_debit);
+      }
+
+      // The object is terminal, still pointing at the voucher it actually
+      // produced — there is no corrected voucher to re-point it at.
+      const after = await expensesService.getExpenseById(expense.id);
+      expect(after.status).toBe('reversed');
+      expect(after.voucher_id).toBe(posted.id);
+      expect(after.gross_amount).toBe(5200);
+    });
+
+    it('refuses to reverse an already-reversed object', async () => {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 5200,
+        vat_amount: 1000,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
+
+      await correctionsService.correctExpense(expense.id, {
+        kind: 'reversal',
+        reason: 'first',
+      });
+      const second = await correctionsService.correctExpense(expense.id, {
+        kind: 'reversal',
+        reason: 'second',
+      });
+      expect(second.outcome).toBe('unsupported_status');
+    });
+
+    it('redirects a reversal out of a locked period into the current open one', async () => {
+      const expense = await expensesService.createExpense({
+        category: 'software',
+        gross_amount: 5200,
+        vat_amount: 1000,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+      });
+      const draft = await expensesService.generateDraftVoucher(expense.id);
+      const posted = await postingService.postVoucher(draft);
+      await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
+
+      await db
+        .insertInto('reporting_period')
+        .values({
+          name: '2026-03',
+          start_date: '2026-03-01',
+          end_date: '2026-03-31',
+          status: 'locked',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+      await db
+        .insertInto('reporting_period')
+        .values({
+          name: '2026-04',
+          start_date: '2026-04-01',
+          end_date: '2026-04-30',
+          status: 'open',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
+      const result = await correctionsService.correctExpense(expense.id, {
+        kind: 'reversal',
+        reason: 'duplicate found after filing',
+      });
+
+      expect(result.outcome).toBe('posted_reversal');
+      expect(result.redirected).toBe(true);
+      const reversal = await voucherRepo.getVoucherById(
+        result.reversalVoucherId as number,
+      );
+      expect(reversal!.tax_point_date).toBe('2026-04-01');
+    });
+  });
+
   describe('locked-period redirect (ADR-0009)', () => {
     it('re-dates reversal + correction into the current open period', async () => {
       // 1. Create and post an expense dated in what will become a locked period.

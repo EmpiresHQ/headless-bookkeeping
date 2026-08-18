@@ -142,7 +142,18 @@ export class CorrectionsService {
       return { outcome: 'credit_note_created', creditNoteId: cn.id };
     }
 
-    // 2. Financial + draft/pending
+    // 2. Reversal-only — undo a posting with no replacement. Only a posted
+    // object can be reversed: a draft has no voucher to undo (delete it), and
+    // an already-`reversed` object falls through to `unsupported_status` below,
+    // which is what keeps this idempotent.
+    if (request.kind === 'reversal') {
+      if (status === 'posted' && voucherId !== null) {
+        return this.reversePostedObject(params, voucherId);
+      }
+      return { outcome: 'unsupported_status' };
+    }
+
+    // 3. Financial + draft/pending
     if (status === 'draft' || status === 'pending') {
       if (request.patch) {
         await params.updateDraft(request.patch);
@@ -151,17 +162,75 @@ export class CorrectionsService {
       return { outcome: 'draft_edited', draftVoucher: draft };
     }
 
-    // 3. Financial + posted
+    // 4. Financial + posted
     if (status === 'posted' && voucherId !== null) {
       return this.correctPostedObject(params, voucherId);
     }
 
-    // 4. Correct-a-correction policy (ADR-0006): a corrected object is left in
+    // 5. Correct-a-correction policy (ADR-0006): a corrected object is left in
     // the terminal `reversed` state, re-pointed at its corrected Voucher. It is
     // NOT re-correctable — `reversed` has no outgoing transition. A second
     // correction request therefore lands here, and we reject it EXPLICITLY
     // rather than silently no-op-ing, so the caller gets a clear signal.
     return { outcome: 'unsupported_status' };
+  }
+
+  /**
+   * Reversal-only: post the mirrored reversal of a posted Voucher and leave the
+   * object terminal, WITHOUT minting a replacement. The object keeps pointing
+   * at its original Voucher — unlike a `financial` correction, there is no
+   * corrected voucher to re-point it at, and rewriting `voucher_id` to the
+   * reversal would misread as "this expense produced the reversal".
+   */
+  private async reversePostedObject(
+    params: CorrectionParams,
+    voucherId: number,
+  ): Promise<CorrectionResult> {
+    const originalVoucher =
+      await this.voucherRepository.getVoucherById(voucherId);
+    if (!originalVoucher) {
+      throw new NotFoundException(`Voucher ${voucherId} not found`);
+    }
+
+    // Same guard as the correction path: never stack a reversal on a reversal.
+    if (this.isCorrectionArtifact(originalVoucher)) {
+      throw new ConflictException(
+        `Voucher ${voucherId} is itself a reversal/correction and cannot be reversed again`,
+      );
+    }
+
+    const originalLines =
+      await this.voucherLineRepository.getLinesByVoucherId(voucherId);
+    const target = await this.resolveCorrectionTarget(originalVoucher);
+
+    const reversalDraft = await this.buildReversalDraft(
+      originalVoucher.voucher_number,
+      target.taxPointDate,
+      originalLines,
+      voucherId,
+      params.request.reason,
+    );
+
+    const [reversal] = await this.postingService.postVouchersAtomic(
+      [reversalDraft],
+      {
+        afterPost: (trx) =>
+          this.statusTransition.transition(
+            trx,
+            params.objectType,
+            params.objectId,
+            'posted',
+            'reversed',
+          ),
+      },
+    );
+
+    return {
+      outcome: 'posted_reversal',
+      reversalVoucherId: reversal.id,
+      redirected: target.redirected,
+      redirectedToPeriodId: target.redirectedToPeriodId,
+    };
   }
 
   /**
