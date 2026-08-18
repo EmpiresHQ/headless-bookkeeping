@@ -1,4 +1,16 @@
-export type CorrectionType = 'cosmetic' | 'financial' | 'credit_note';
+/**
+ * `reversal` undoes a posting outright — no replacement voucher. It exists for
+ * entries that should never have been booked at all (a duplicate of another
+ * object, a personal expense that reached the books), where `financial` is the
+ * wrong shape: that one always mints a corrected voucher, and there is nothing
+ * to correct TO. ADR-0010 assumes duplicates are caught at triage, before a
+ * voucher exists; when one slips through, this is the only sound way back.
+ */
+export type CorrectionType =
+  | 'cosmetic'
+  | 'financial'
+  | 'credit_note'
+  | 'reversal';
 
 export type CorrectionKind = 'supersession' | 'reversal';
 
