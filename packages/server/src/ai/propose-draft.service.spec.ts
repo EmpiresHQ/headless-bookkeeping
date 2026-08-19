@@ -23,7 +23,6 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
 import { AgentConfigService } from './agent-config.service';
-import { DuplicateGuardService } from './duplicate-guard.service';
 import { CategoryService } from '../categories/category.service';
 import {
   ProposeDraftService,
@@ -37,6 +36,8 @@ import {
   extractPass2EnrichmentSupplier,
   type EnrichmentToolResultChunk,
 } from './pass2-agent.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { DuplicateExpenseException } from '../expenses/duplicate-expense.exception';
 
 /**
  * Build a `toolResults` array shaped exactly like a real enrichment turn's
@@ -137,11 +138,11 @@ describe('ProposeDraftService (integration)', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         EntitiesService,
         AgentConfigService,
         CategoryService,
-        DuplicateGuardService,
         {
           provide: SalesInvoicesService,
           useValue: {
@@ -1084,7 +1085,7 @@ describe('ProposeDraftService (integration)', () => {
         });
 
         // Seed an existing (already-booked) expense for this supplier + invoice
-        // number — Tier 1 exact match in DuplicateGuardService.
+        // number — rule 1 (supplier + normalised invoice number).
         const existing = await expensesService.createExpense({
           document_id: null,
           supplier_id: supplier.id,
@@ -1099,6 +1100,7 @@ describe('ProposeDraftService (integration)', () => {
 
         const triageResult: TriageResult = {
           ...sampleTriageResult(),
+          document_type: 'invoice',
           supplier_invoice_number: 'DUP-001',
           supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
         };
@@ -1123,7 +1125,7 @@ describe('ProposeDraftService (integration)', () => {
         expect(expenses).toHaveLength(0);
       });
 
-      it('skips the gate on the EXPLICIT-supplierId path even when a duplicate exists', async () => {
+      it('translates the createExpense guard into possible-duplicate on the EXPLICIT-supplierId path', async () => {
         const entitiesService = module.get(EntitiesService);
         const supplier = await entitiesService.onboard({
           role: 'supplier',
@@ -1146,23 +1148,36 @@ describe('ProposeDraftService (integration)', () => {
 
         const triageResult: TriageResult = {
           ...sampleTriageResult(),
+          document_type: 'invoice',
           supplier_invoice_number: 'DUP-002',
           supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
         };
 
-        // Explicit supplierId (e.g. the workflow's resolveSupplier, which gates
-        // pre-call itself) — proposeDraft's own gate is intentionally skipped.
-        const result = expectDraft(
-          await service.proposeDraft(triageResult, 51, supplier.id),
+        // The deterministic guard in ExpensesService.createExpense covers every
+        // creation path (issue #195), including the explicit-supplierId one.
+        // proposeDraft translates its ConflictException into the typed
+        // `possible-duplicate` outcome so the workflow can route the document to
+        // needs_triage — a 409/500 must never escape to the intake queue.
+        const outcome = await service.proposeDraft(
+          triageResult,
+          51,
+          supplier.id,
         );
-        expect(result.expenseId).not.toBe(existing.id);
+
+        expect(outcome.outcome).toBe('possible-duplicate');
+        if (outcome.outcome === 'possible-duplicate') {
+          expect(outcome.existingExpenseId).toBe(existing.id);
+          expect(outcome.reason).toContain(
+            `possible duplicate of expense #${existing.id}`,
+          );
+        }
 
         const expenses = await db
           .selectFrom('expense')
           .selectAll()
           .where('document_id', '=', 51)
           .execute();
-        expect(expenses).toHaveLength(1);
+        expect(expenses).toHaveLength(0);
       });
 
       it('gates a CREATE proposal that identifier-resolves to an existing supplier (ADR-0014 bypass)', async () => {
@@ -1175,7 +1190,7 @@ describe('ProposeDraftService (integration)', () => {
         });
 
         // Seed an existing (already-booked) expense for this supplier + invoice
-        // number — Tier 1 exact match in DuplicateGuardService.
+        // number — rule 1 (supplier + normalised invoice number).
         const existing = await expensesService.createExpense({
           document_id: null,
           supplier_id: supplier.id,
@@ -1190,6 +1205,7 @@ describe('ProposeDraftService (integration)', () => {
 
         const triageResult: TriageResult = {
           ...sampleTriageResult(),
+          document_type: 'invoice',
           supplier_invoice_number: 'DUP-003',
           // A genuine CREATE proposal — no match_entity_id at all. ADR-0014's
           // multi-key find-or-onboard in resolveSupplier identifier-resolves
@@ -1232,6 +1248,166 @@ describe('ProposeDraftService (integration)', () => {
           .where('document_id', '=', 52)
           .execute();
         expect(expenses).toHaveLength(0);
+      });
+
+      it('never carries allow_duplicate into createExpense on the AI path', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Dup Test Supplier 4',
+          registrationKey: 'IE50000003',
+        });
+
+        const createSpy = jest.spyOn(expensesService, 'createExpense');
+
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          document_type: 'invoice',
+          supplier_invoice_number: 'DUP-004',
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        };
+        await service.proposeDraft(triageResult, 53);
+
+        expect(createSpy).toHaveBeenCalled();
+        for (const [dto] of createSpy.mock.calls) {
+          // The escape hatch is an OPERATOR decision (issue #195): the AI path
+          // must never be able to override its own guard.
+          expect(dto).not.toHaveProperty('allow_duplicate');
+        }
+        createSpy.mockRestore();
+      });
+    });
+
+    describe('receipt handling (issue #195)', () => {
+      it('returns receipt-matched instead of a second expense when a receipt duplicates an existing expense', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Receipt Supplier',
+          registrationKey: 'IE60000000',
+        });
+
+        // The dominant production pattern: a vendor emails the invoice and the
+        // payment receipt as two attachments. The invoice landed first.
+        const invoice = await expensesService.createExpense({
+          document_id: null,
+          supplier_id: supplier.id,
+          category: 'transport',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+          document_vat_marking: null,
+          supplier_invoice_number: '2AUEKTA30001',
+        });
+
+        // The receipt for the SAME purchase: the number was not extracted, so
+        // the amount+date fallback recognises it.
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          document_type: 'receipt',
+          supplier_invoice_number: null,
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        };
+
+        const outcome = await service.proposeDraft(triageResult, 60);
+
+        expect(outcome.outcome).toBe('receipt-matched');
+        if (outcome.outcome === 'receipt-matched') {
+          expect(outcome.existingExpenseId).toBe(invoice.id);
+          expect(outcome.reason).toContain(`expense #${invoice.id}`);
+        }
+
+        const expenses = await db
+          .selectFrom('expense')
+          .selectAll()
+          .where('document_id', '=', 60)
+          .execute();
+        expect(expenses).toHaveLength(0);
+      });
+
+      it('routes a receipt matching ANOTHER RECEIPT to possible-duplicate instead of filing it silently', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Citybee OU',
+          registrationKey: 'IE60000002',
+        });
+
+        // A car-sharing / cafe vendor that prints no invoice number. Ride 1 is
+        // a receipt and becomes its own expense.
+        const ride1 = await expensesService.createExpense({
+          document_id: null,
+          supplier_id: supplier.id,
+          category: 'transport',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          ai_document_type: 'receipt',
+        });
+
+        // Ride 2 the same day for the same fare is a SECOND, real purchase. The
+        // amount+date fallback matches it, but the matched original is itself a
+        // receipt — not the invoice half of an invoice+receipt email pair — so
+        // silently filing it would drop a deductible expense with no human ever
+        // seeing it.
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          document_type: 'receipt',
+          supplier_invoice_number: null,
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        };
+
+        const outcome = await service.proposeDraft(triageResult, 62);
+
+        expect(outcome.outcome).toBe('possible-duplicate');
+        if (outcome.outcome === 'possible-duplicate') {
+          expect(outcome.existingExpenseId).toBe(ride1.id);
+        }
+
+        const expenses = await db
+          .selectFrom('expense')
+          .selectAll()
+          .where('document_id', '=', 62)
+          .execute();
+        expect(expenses).toHaveLength(0);
+      });
+
+      it('still creates an expense for a receipt that matches NOTHING (the normal case)', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Lone Receipt Supplier',
+          registrationKey: 'IE60000001',
+        });
+
+        // 4 of the 5 receipt-derived expenses in production are the ONLY
+        // document for their purchase (restaurant, cafe, subscription). The
+        // receipt rule must not generalise to "receipts never create expenses".
+        const triageResult: TriageResult = {
+          ...sampleTriageResult(),
+          document_type: 'receipt',
+          supplier_invoice_number: null,
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        };
+
+        const outcome = await service.proposeDraft(triageResult, 61);
+
+        expect(outcome.outcome).toBe('draft');
+        const expenses = await db
+          .selectFrom('expense')
+          .selectAll()
+          .where('document_id', '=', 61)
+          .execute();
+        expect(expenses).toHaveLength(1);
+        expect(expenses[0].ai_document_type).toBe('receipt');
       });
     });
   });
@@ -1473,6 +1649,71 @@ describe('ProposeDraftService (integration)', () => {
       expect(row.ai_confidence).toBeNull();
       expect(row.ai_document_type).toBeNull();
       expect(row.ai_kind).toBeNull();
+    });
+
+    it('refuses a duplicate by default and lets an operator override it with allow_duplicate', async () => {
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name: 'Manual Dup Supplier OÜ',
+        registrationKey: 'EE123456790',
+      });
+
+      const seedDoc = async (hash: string): Promise<number> =>
+        db
+          .insertInto('document')
+          .values({
+            hash,
+            filename: `${hash}.pdf`,
+            mime_type: 'application/pdf',
+            size_bytes: 1,
+            status: 'needs_triage',
+            claimant_id: null,
+            created_at: Math.floor(Date.now() / 1000),
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+          .then((r) => r.id);
+
+      const base = {
+        supplier_id: supplier.id,
+        category: 'transport',
+        document_vat_marking: null,
+        gross_amount: 2000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-06-01',
+        supplier_invoice_number: 'MAN-1',
+      };
+
+      const first = await service.manualClassifyDraft(
+        await seedDoc('m1'),
+        base,
+      );
+      expect(first.outcome).toBe('draft');
+
+      // Same supplier + number: the guard refuses, and the operator sees a 409
+      // naming the original rather than a second expense appearing silently.
+      await expect(
+        service.manualClassifyDraft(await seedDoc('m2'), base),
+      ).rejects.toBeInstanceOf(DuplicateExpenseException);
+
+      // The operator disagrees and says so explicitly.
+      const forced = await service.manualClassifyDraft(await seedDoc('m3'), {
+        ...base,
+        allow_duplicate: true,
+      });
+      expect(forced.outcome).toBe('draft');
+      expect(forced.expenseId).not.toBe(first.expenseId);
+
+      // ...and that decision is on the record (ADR-0026).
+      const entry = await db
+        .selectFrom('audit_log')
+        .selectAll()
+        .where('action', '=', 'expense.duplicate_guard.override')
+        .executeTakeFirstOrThrow();
+      expect(entry.target_id).toBe(forced.expenseId);
     });
   });
 });

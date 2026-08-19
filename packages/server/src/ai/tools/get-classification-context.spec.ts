@@ -21,6 +21,7 @@ import {
 import { createGetClassificationContextTool } from './index';
 import { PeriodLockService } from '../../reporting-periods/period-lock.service';
 import { CategoryService } from '../../categories/category.service';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 
 /**
  * Unit tests for the composed deep read `getClassificationContext`.
@@ -64,6 +65,7 @@ describe('getClassificationContext (composed deep read)', () => {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        AuditLogService,
         ExpensesService,
         {
           provide: PeriodLockService,
@@ -159,8 +161,10 @@ describe('getClassificationContext (composed deep read)', () => {
       goodsVsServices: 'goods',
     });
 
-    // Historical purchases: software twice, meals once.
-    for (const category of ['software', 'software', 'meals']) {
+    // Historical purchases: software twice, meals once. Each carries its own
+    // invoice number — three real purchases, not one booked three times, so the
+    // duplicate guard (issue #195) correctly lets all three through.
+    for (const [i, category] of ['software', 'software', 'meals'].entries()) {
       await expensesService.createExpense({
         supplier_id: supplier.id,
         category,
@@ -168,6 +172,7 @@ describe('getClassificationContext (composed deep read)', () => {
         vat_amount: 200,
         currency: 'EUR',
         tax_point_date: '2026-01-01',
+        supplier_invoice_number: `WM-100${i}`,
       });
     }
 

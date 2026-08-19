@@ -408,6 +408,13 @@ export const manualClassifyExpenseSchema = z.object({
   currency: z.string().length(3),
   tax_point_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   supplier_invoice_number: z.string().nullable().optional(),
+  /**
+   * Operator override for the duplicate guard (issue #195). A human looking at
+   * the document may know the two entries really are separate purchases; the
+   * guard yields to that, and the decision is written to audit_log. Never set
+   * by the AI path — only an explicit operator payload can carry it.
+   */
+  allow_duplicate: z.boolean().optional(),
 });
 
 export const manualClassifySalesInvoiceSchema = z.object({

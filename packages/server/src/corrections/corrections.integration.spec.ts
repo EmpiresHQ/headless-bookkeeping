@@ -25,6 +25,7 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { CorrectionsService } from './corrections.service';
 import { CorrectionRequest } from './types';
 import { CategoryService } from '../categories/category.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('Corrections (integration)', () => {
   let db: Kysely<Database>;
@@ -67,6 +68,7 @@ describe('Corrections (integration)', () => {
         StatusTransitionService,
         PeriodLockService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         SalesInvoicesService,
         CreditNotesService,
@@ -264,7 +266,11 @@ describe('Corrections (integration)', () => {
       });
       const draft = await expensesService.generateDraftVoucher(expense.id);
       const posted = await postingService.postVoucher(draft);
-      await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
 
       const result = await correctionsService.correctExpense(expense.id, {
         kind: 'reversal',
@@ -311,7 +317,11 @@ describe('Corrections (integration)', () => {
       });
       const draft = await expensesService.generateDraftVoucher(expense.id);
       const posted = await postingService.postVoucher(draft);
-      await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
 
       await correctionsService.correctExpense(expense.id, {
         kind: 'reversal',
@@ -334,7 +344,11 @@ describe('Corrections (integration)', () => {
       });
       const draft = await expensesService.generateDraftVoucher(expense.id);
       const posted = await postingService.postVoucher(draft);
-      await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
+      await expensesService.updateExpenseStatus(
+        expense.id,
+        'posted',
+        posted.id,
+      );
 
       await db
         .insertInto('reporting_period')

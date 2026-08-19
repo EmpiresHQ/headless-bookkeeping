@@ -15,9 +15,11 @@ import { Pass2AgentService, Pass2FailureCategory } from './pass2-agent.service';
 import {
   ProposeDraftService,
   DraftReplayResult,
+  ReceiptMatchedResult,
 } from './propose-draft.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
-import { DuplicateGuardService } from './duplicate-guard.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { findDuplicateExpense } from '../expenses/duplicate-detection';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EntitiesService } from '../entities/entities.service';
@@ -44,13 +46,15 @@ import { ProcessingGate } from './processing-gate';
 
 /**
  * The needs_triage reason for a TriageResult `kind` the agent classifies
- * confidently but the kernel does NOT yet act on (correction, duplicate —
- * Task 43). Phrased so the route is unmistakably an "unimplemented kind", not a
- * low-confidence or genuinely-unknown classification.
+ * confidently but the kernel does NOT yet act on. Phrased so the route is
+ * unmistakably an "unimplemented kind", not a low-confidence or
+ * genuinely-unknown classification.
+ *
+ * `duplicate` used to share this reason; issue #195 gave it a real one (see
+ * {@link IntakeWorkflowService.duplicateKindReason}), leaving `correction` as
+ * the only genuinely unimplemented kind.
  */
-export function unimplementedKindReason(
-  kind: 'correction' | 'duplicate',
-): string {
+export function unimplementedKindReason(kind: 'correction'): string {
   return `Triage kind '${kind}' is not yet implemented (Task 43): the document was classified as a ${kind}, but the kernel cannot act on it yet — held for human review.`;
 }
 
@@ -162,13 +166,28 @@ export interface BankImportStartedOutcome {
 }
 
 /**
+ * Outcome when an incoming RECEIPT was recognised as evidence for an
+ * INVOICE-derived expense that already exists (issue #195). The document is
+ * filed as `processed` with an audit_log trace; no expense, no voucher and no
+ * human work item is created. A receipt matching another RECEIPT is two
+ * purchases, not one, and routes to needs_triage instead.
+ */
+export interface ReceiptMatchedOutcome {
+  status: 'receipt_matched';
+  /** The expense this receipt evidences. */
+  expenseId: number;
+  reason: string;
+}
+
+/**
  * The result of running the intake workflow for a single document.
  */
 export type IntakeWorkflowResult =
   | NeedsTriageOutcome
   | DraftProposedOutcome
   | DraftProposedInvoiceOutcome
-  | BankImportStartedOutcome;
+  | BankImportStartedOutcome
+  | ReceiptMatchedOutcome;
 
 /**
  * IntakeWorkflowService — the single DEEP owner of "Document -> outcome".
@@ -210,7 +229,7 @@ export class IntakeWorkflowService {
     private readonly bankIngestion: BankIngestionService,
     private readonly gate: ProcessingGate,
     @InjectKysely() private readonly db: Kysely<Database>,
-    private readonly duplicateGuard: DuplicateGuardService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -654,6 +673,9 @@ export class IntakeWorkflowService {
             );
             return this.routeNeedsTriage(documentId, outcome.reason);
           }
+          if (outcome.outcome === 'receipt-matched') {
+            return this.fileMatchedReceipt(documentId, outcome);
+          }
           await this.documents.setStatus(documentId, 'triaged');
           return { status: 'draft_proposed', draft: outcome };
         }
@@ -675,19 +697,33 @@ export class IntakeWorkflowService {
         );
 
       case 'correction':
-      case 'duplicate':
-        // These kinds are GENUINELY classified by the agent but the kernel
-        // handling is NOT YET IMPLEMENTED (Task 43). The reason marks them as
-        // unimplemented-kind routes — explicitly distinct from a low-confidence
-        // new_expense or a genuinely-unknown classification — so a human (and
-        // any later automation) can tell "we recognised this but can't act on
-        // it yet" apart from "the AI was unsure".
+        // GENUINELY classified by the agent, but the kernel handling is NOT YET
+        // IMPLEMENTED. The reason marks this as an unimplemented-kind route —
+        // explicitly distinct from a low-confidence new_expense or a
+        // genuinely-unknown classification — so a human (and any later
+        // automation) can tell "we recognised this but can't act on it yet"
+        // apart from "the AI was unsure".
         this.logger.warn(
-          `Unimplemented kind '${triageResult.kind}' for document ${documentId} — routing to needs_triage (Task 43)`,
+          `Unimplemented kind 'correction' for document ${documentId} — routing to needs_triage`,
         );
         return this.routeNeedsTriage(
           documentId,
-          unimplementedKindReason(triageResult.kind),
+          unimplementedKindReason('correction'),
+        );
+
+      case 'duplicate':
+        // The AI verdict is ADVISORY (ADR-0012): `kind: 'duplicate'` never
+        // blocks anything by itself — the deterministic key decides, and it is
+        // applied here only to write a reason a human can act on. The model is
+        // right often enough to be worth surfacing and wrong often enough not
+        // to be trusted with swallowing an expense, so either way the document
+        // goes to a human — with a real sentence, not a stub (issue #195).
+        this.logger.warn(
+          `AI classified document ${documentId} as a duplicate — routing to needs_triage`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          await this.duplicateKindReason(triageResult, claimantId),
         );
 
       default: {
@@ -881,22 +917,6 @@ export class IntakeWorkflowService {
       );
     }
 
-    // The operator just chose this supplier explicitly — still run it through
-    // the same duplicate gate as the auto-post path so a human-resolved
-    // supplier can't book a second posting for a purchase already recorded.
-    const dup = await this.duplicateGuard.check({
-      supplierId: supplierEntityId,
-      supplierInvoiceNumber: triageResult.supplier_invoice_number,
-      grossAmount: triageResult.gross_amount,
-      taxPointDate: triageResult.tax_point_date,
-    });
-    if (dup) {
-      this.logger.warn(
-        `Duplicate gate (tier ${dup.tier}) blocked resolveSupplier for document ${documentId}: ${dup.reason}`,
-      );
-      return this.routeNeedsTriage(documentId, dup.reason);
-    }
-
     // Explicit supplier id wins in resolveSupplier → a draft is produced and the
     // full posting pipeline runs (post/hold per policy), exactly as a confident
     // intake would.
@@ -923,14 +943,19 @@ export class IntakeWorkflowService {
       );
     }
     if (outcome.outcome === 'possible-duplicate') {
-      // Defensive: proposeDraft's duplicate gate only runs on the AUTO path
-      // (no explicit supplierId). This call passes `supplierEntityId`
-      // explicitly, so the gate is always skipped here — this call already
-      // ran its OWN pre-call duplicate check above. This arm exists only to
-      // satisfy the ProposeDraftOutcome type; it should be unreachable.
-      throw new Error(
-        `proposeDraft returned possible-duplicate for document ${documentId} despite an explicit supplier id — this should be unreachable`,
+      // The operator just chose this supplier explicitly, and against it the
+      // deterministic key inside createExpense recognises the document as one
+      // already recorded. A human-resolved supplier must not be able to book a
+      // second posting for one purchase, so it goes back to the queue naming
+      // the original rather than posting (issue #195).
+      this.logger.warn(
+        `Duplicate gate blocked resolveSupplier for document ${documentId}: ${outcome.reason}`,
       );
+      return this.routeNeedsTriage(documentId, outcome.reason);
+    }
+    if (outcome.outcome === 'receipt-matched') {
+      // A receipt whose expense already exists: file it, do not re-queue it.
+      return this.fileMatchedReceipt(documentId, outcome);
     }
 
     // Settle the human-wait: triaged + resolve finding + clear the proposal.
@@ -1061,6 +1086,136 @@ export class IntakeWorkflowService {
   }
 
   // ── Private helpers ──────────────────────────────────────────
+
+  /**
+   * File a receipt whose expense already exists (issue #195).
+   *
+   * A vendor emailing the invoice and the payment receipt as two attachments is
+   * the normal flow, not an anomaly, so this must NOT queue work for a human —
+   * but it must leave a trace, because "no expense was created for this
+   * document" is otherwise indistinguishable from a silent drop.
+   *
+   * The document goes straight to `processed` via `DocumentsService.setStatus`,
+   * following `routeBankStatement`: `transitionDocument`'s table has no
+   * `processed` target and would silently no-op, leaving the document to be
+   * re-picked by the intake queue forever.
+   *
+   * Note the replay guard in `processInner` cannot short-circuit a re-run of one
+   * of these: `processed` with no expense of its own looks like a partially
+   * applied legacy state, so a deliberate re-process re-runs the passes and
+   * lands here again, writing a second identical trace. Harmless (nothing is
+   * booked either way, and audit_log is append-only by design) and not worth a
+   * schema change — linking a receipt to the expense it evidences needs
+   * `expense.document_id` to stop being single-valued, tracked as a follow-up
+   * on issue #195.
+   */
+  private async fileMatchedReceipt(
+    documentId: number,
+    outcome: ReceiptMatchedResult,
+  ): Promise<ReceiptMatchedOutcome> {
+    this.logger.log(
+      `Document ${documentId} is a receipt for expense #${outcome.existingExpenseId} — filing as processed without a second expense`,
+    );
+
+    await this.documents.setStatus(documentId, 'processed');
+    await this.documents.setPendingTriageResult(documentId, null);
+
+    // A receipt reaching here from resolveSupplier was parked; close its item.
+    const finding = await this.auditFindings.findOpenByReference(
+      'needs_triage',
+      'document',
+      documentId,
+    );
+    if (finding) {
+      await this.auditFindings.resolve(finding.id, {
+        reason: `receipt for expense #${outcome.existingExpenseId}`,
+      });
+    }
+
+    await this.auditLog.record({
+      actor: 'system',
+      action: 'document.duplicate_guard.receipt_matched',
+      outcome: 'processed',
+      target_type: 'document',
+      target_id: documentId,
+      detail: {
+        expense_id: outcome.existingExpenseId,
+        reason: outcome.reason,
+      },
+    });
+
+    return {
+      status: 'receipt_matched',
+      expenseId: outcome.existingExpenseId,
+      reason: outcome.reason,
+    };
+  }
+
+  /**
+   * The needs_triage reason for a document the agent classified as
+   * `kind: 'duplicate'`.
+   *
+   * The AI verdict is advisory (ADR-0012), so this never decides anything — it
+   * only chooses which sentence the operator reads. When the deterministic key
+   * of issue #195 corroborates the model against the supplier's existing
+   * expenses, the reason names the suspected original; when it does not, the
+   * reason says so plainly instead of implying the kernel agreed.
+   *
+   * Only a `match` supplier proposal is resolved here: this path books nothing,
+   * so it must not onboard a Supplier as a side effect of writing a sentence.
+   */
+  private async duplicateKindReason(
+    triageResult: TriageResult,
+    claimantId?: number | null,
+  ): Promise<string> {
+    const proposal = triageResult.supplier_proposal;
+    const supplierId =
+      proposal?.mode === 'match' ? proposal.match_entity_id : null;
+
+    if (supplierId != null) {
+      const peers = await this.db
+        .selectFrom('expense')
+        .select([
+          'id',
+          'supplier_id',
+          'supplier_invoice_number',
+          'currency',
+          'gross_amount',
+          'tax_point_date',
+          'status',
+          'claimant_id',
+          'ai_document_type',
+        ])
+        .where('supplier_id', '=', supplierId)
+        .where('status', '!=', 'reversed')
+        .execute();
+
+      const detection = findDuplicateExpense(
+        {
+          supplier_id: supplierId,
+          supplier_invoice_number: triageResult.supplier_invoice_number,
+          currency: triageResult.currency,
+          gross_amount: triageResult.gross_amount,
+          tax_point_date: triageResult.tax_point_date,
+          claimant_id: claimantId ?? null,
+        },
+        peers,
+      );
+
+      if (detection) {
+        return (
+          `The AI classified this document as a duplicate and the deterministic ` +
+          `key agrees: ${detection.reason} Nothing was booked — held for human review.`
+        );
+      }
+    }
+
+    return (
+      `The AI classified this document as a possible duplicate of an expense ` +
+      `already recorded, but the deterministic key found no matching expense. ` +
+      `Nothing was booked — held for human review.`
+    );
+  }
 
   /**
    * Route a Document to human triage: create (or reuse) the `needs_triage`

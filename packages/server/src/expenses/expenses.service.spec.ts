@@ -17,6 +17,7 @@ import { EntitiesService } from '../entities/entities.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('ExpensesService (integration)', () => {
   let db: Kysely<Database>;
@@ -57,6 +58,7 @@ describe('ExpensesService (integration)', () => {
             assertValid: async () => {},
           },
         },
+        AuditLogService,
         ExpensesService,
       ],
     }).compile();
@@ -456,6 +458,7 @@ describe('ExpensesService (integration)', () => {
           EntitiesService,
           PeriodLockService,
           { provide: CategoryService, useValue: strictCategoryService },
+          AuditLogService,
           ExpensesService,
         ],
       }).compile();

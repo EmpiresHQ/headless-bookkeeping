@@ -20,6 +20,7 @@ import { AgentConfigService } from './agent-config.service';
 import { MastraService } from './mastra.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { EE_CLASSIFICATION_EVALS } from './__fixtures__/ee-classification-evals';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 /**
  * Pass-2 EE classification evals — an env-gated, real-model regression lock
@@ -113,6 +114,7 @@ run('Pass-2 classification evals (EE)', () => {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        AuditLogService,
         ExpensesService,
         PeriodLockService,
         CategoryService,

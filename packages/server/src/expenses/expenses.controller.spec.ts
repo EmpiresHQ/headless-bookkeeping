@@ -25,6 +25,7 @@ import { ExpensesService } from './expenses.service';
 import { NotFoundException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
 import { FixedAssetRegistrarService } from '../fixed-assets/fixed-asset-registrar.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('ExpensesController (integration)', () => {
   let db: Kysely<Database>;
@@ -64,6 +65,7 @@ describe('ExpensesController (integration)', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         FixedAssetRegistrarService,
         {

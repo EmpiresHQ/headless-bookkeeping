@@ -32,6 +32,7 @@ import { AllowanceService } from '../allowances/allowance.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('ApprovalsController (integration)', () => {
   let db: Kysely<Database>;
@@ -72,6 +73,7 @@ describe('ApprovalsController (integration)', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         SalesInvoicesService,
         {

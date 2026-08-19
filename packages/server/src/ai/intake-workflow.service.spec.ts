@@ -19,7 +19,7 @@ import {
   type Pass2FailureCategory,
 } from './pass2-agent.service';
 import { ProposeDraftService } from './propose-draft.service';
-import { DuplicateGuardService } from './duplicate-guard.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { PolicyService } from '../policy/policy.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -99,10 +99,6 @@ describe('IntakeWorkflowService', () => {
 
   const mockBankIngestion = {
     startImport: jest.fn(),
-  };
-
-  const mockDuplicateGuard = {
-    check: jest.fn(),
   };
 
   const sampleTriageResult = (
@@ -207,7 +203,7 @@ describe('IntakeWorkflowService', () => {
         { provide: EntitiesService, useValue: mockEntities },
         { provide: OrganizationService, useValue: mockOrganization },
         { provide: BankIngestionService, useValue: mockBankIngestion },
-        { provide: DuplicateGuardService, useValue: mockDuplicateGuard },
+        AuditLogService,
         AuditFindingsService,
         PolicyService,
         DocumentStorageService,
@@ -239,7 +235,6 @@ describe('IntakeWorkflowService', () => {
     mockEntities.addIdentifierIfAbsent.mockReset();
     mockOrganization.getOrganization.mockReset();
     mockBankIngestion.startImport.mockReset();
-    mockDuplicateGuard.check.mockReset();
 
     // Defaults.
     mockOcrService.transcribe.mockResolvedValue({
@@ -259,7 +254,6 @@ describe('IntakeWorkflowService', () => {
     });
     // Default: no duplicate found, so the gate is a no-op unless a test
     // explicitly wires a match.
-    mockDuplicateGuard.check.mockResolvedValue(null);
   });
 
   afterEach(async () => {
@@ -566,6 +560,65 @@ describe('IntakeWorkflowService', () => {
       );
     });
 
+    it('files a matched RECEIPT away as processed with an audit_log trace, without creating work for a human', async () => {
+      // The dominant production pattern: a vendor emails the invoice and the
+      // payment receipt as two attachments. The receipt evidences a purchase
+      // already recorded, so it must be filed, not queued (issue #195).
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          confidence: 0.94,
+          document_type: 'receipt',
+          supplier_proposal: { mode: 'match', match_entity_id: 7 },
+        }),
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValueOnce({
+        outcome: 'receipt-matched',
+        existingExpenseId: 84,
+        reason:
+          'receipt for expense #84: possible duplicate of expense #84: same ' +
+          'supplier, gross amount 15.25 and tax point date 2026-03-15.',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('receipt_matched');
+      if (result.status === 'receipt_matched') {
+        expect(result.expenseId).toBe(84);
+      }
+
+      // Filed, not parked.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('processed');
+      expect(
+        await auditFindingsService.findOpenByReference(
+          'needs_triage',
+          'document',
+          docId,
+        ),
+      ).toBeUndefined();
+
+      // ...but it left a trace.
+      const entry = await db
+        .selectFrom('audit_log')
+        .selectAll()
+        .where('action', '=', 'document.duplicate_guard.receipt_matched')
+        .executeTakeFirstOrThrow();
+      expect(entry.target_type).toBe('document');
+      expect(entry.target_id).toBe(docId);
+      expect(entry.outcome).toBe('processed');
+      const detail = JSON.parse(entry.detail ?? '{}') as {
+        expense_id: number;
+        reason: string;
+      };
+      expect(detail.expense_id).toBe(84);
+      expect(detail.reason).toContain('receipt for expense #84');
+
+      // No expense, no voucher: the receipt path books nothing.
+      expect(await db.selectFrom('expense').selectAll().execute()).toEqual([]);
+    });
+
     it('posts a confident new_expense when proposeDraft returns a normal draft (no duplicate flagged)', async () => {
       const docId = await seedDocument();
       const triageResult = sampleTriageResult({
@@ -674,7 +727,74 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
     });
 
-    it('routes duplicate kind to needs_triage with an explicit unimplemented-kind reason', async () => {
+    it('routes duplicate kind to needs_triage NAMING the suspected original when the deterministic key agrees', async () => {
+      // The AI verdict stays advisory (ADR-0012): it routes the document to a
+      // human, but the sentence a human reads comes from the deterministic key,
+      // not from the model.
+      const docId = await seedDocument();
+      const supplier = await db
+        .insertInto('entity')
+        .values({
+          role: 'supplier',
+          name: 'Anomaly',
+          country: 'IE',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      const existing = await db
+        .insertInto('expense')
+        .values({
+          supplier_id: supplier.id,
+          category: 'software',
+          gross_amount: 1525,
+          vat_amount: 285,
+          currency: 'EUR',
+          tax_point_date: '2026-03-15',
+          supplier_invoice_number: 'RI7USPNX0014',
+          status: 'draft',
+          created_at: Math.floor(Date.now() / 1000),
+          updated_at: Math.floor(Date.now() / 1000),
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          kind: 'duplicate',
+          confidence: 0.99,
+          // OCR damage: I read as 1, plus a stray hyphen. Normalisation folds
+          // both, so the key still names the original.
+          supplier_invoice_number: 'R17USPNX-0014',
+          supplier_proposal: { mode: 'match', match_entity_id: supplier.id },
+        }),
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.reason).toContain(
+          `possible duplicate of expense #${existing.id}`,
+        );
+        // The dangling Task 43 reference is gone.
+        expect(result.reason).not.toContain('not yet implemented');
+        expect(result.reason).not.toContain('Task 43');
+        expect(result.failure).toBeUndefined();
+      }
+      // Advisory, not authoritative: the kind alone never books anything.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.reason_type).toBe('possible_duplicate');
+    });
+
+    it('routes duplicate kind to needs_triage with an honest reason when the deterministic key finds NO match', async () => {
       const docId = await seedDocument();
       mockPass2Agent.classify.mockResolvedValue({
         ok: true,
@@ -685,9 +805,11 @@ describe('IntakeWorkflowService', () => {
 
       expect(result.status).toBe('needs_triage');
       if (result.status === 'needs_triage') {
-        expect(result.reason).toBe(unimplementedKindReason('duplicate'));
-        expect(result.reason).toContain('not yet implemented');
-        expect(result.reason).toContain("'duplicate'");
+        // A real sentence, not a stub: it says what the model claimed and that
+        // the kernel could not corroborate it.
+        expect(result.reason).not.toContain('not yet implemented');
+        expect(result.reason).not.toContain('Task 43');
+        expect(result.reason).toContain('possible duplicate of');
         expect(result.reason).not.toContain('could not classify');
       }
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
@@ -1805,11 +1927,14 @@ describe('IntakeWorkflowService', () => {
       clearSpy.mockRestore();
     });
 
-    it('parks to needs_triage instead of posting when DuplicateGuard flags the operator-chosen supplier as a possible duplicate', async () => {
+    it('parks to needs_triage instead of posting when the operator-chosen supplier makes this a possible duplicate', async () => {
       const docId = await seedNeedsTriageWithProposal();
       mockEntities.findById.mockResolvedValue({ id: 3, role: 'supplier' });
-      mockDuplicateGuard.check.mockResolvedValueOnce({
-        tier: 1,
+      // The guard lives in createExpense and reaches this caller through
+      // proposeDraft's typed outcome (issue #195) — an operator resolving a
+      // supplier must not be able to book a second posting for one purchase.
+      mockProposeDraft.proposeDraft.mockResolvedValueOnce({
+        outcome: 'possible-duplicate',
         existingExpenseId: 77,
         reason:
           'possible duplicate of expense #77: same supplier and invoice ' +
@@ -1818,13 +1943,6 @@ describe('IntakeWorkflowService', () => {
 
       const result = await service.resolveSupplier(docId, 3);
 
-      expect(mockDuplicateGuard.check).toHaveBeenCalledWith({
-        supplierId: 3,
-        supplierInvoiceNumber: triage.supplier_invoice_number,
-        grossAmount: triage.gross_amount,
-        taxPointDate: triage.tax_point_date,
-      });
-      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
       expect(result.status).toBe('needs_triage');
 
       const doc = await documentsService.getById(docId);
@@ -1836,6 +1954,43 @@ describe('IntakeWorkflowService', () => {
         docId,
       );
       expect(finding?.reason_type).toBe('possible_duplicate');
+    });
+
+    it('files a parked RECEIPT whose expense already exists instead of re-queuing it', async () => {
+      // Reachable path: a receipt is parked as supplier-unresolved; the
+      // operator later onboards the supplier, by which time the invoice for the
+      // same purchase is booked. The document is filed as `processed`, its open
+      // item is resolved and an audit_log trace is written — no second expense,
+      // no work for a human (issue #195).
+      const docId = await seedNeedsTriageWithProposal();
+      mockEntities.findById.mockResolvedValue({ id: 3, role: 'supplier' });
+      mockProposeDraft.proposeDraft.mockResolvedValueOnce({
+        outcome: 'receipt-matched',
+        existingExpenseId: 88,
+        reason:
+          'receipt for expense #88: possible duplicate of expense #88: same ' +
+          'supplier and invoice number INV-2.',
+      });
+
+      const result = await service.resolveSupplier(docId, 3);
+
+      expect(result).toEqual({
+        status: 'receipt_matched',
+        expenseId: 88,
+        reason:
+          'receipt for expense #88: possible duplicate of expense #88: same ' +
+          'supplier and invoice number INV-2.',
+      });
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('processed');
+      expect(
+        await auditFindingsService.findOpenByReference(
+          'needs_triage',
+          'document',
+          docId,
+        ),
+      ).toBeUndefined();
     });
 
     it('replays the persisted Pass 2 enrichment when resolving a parked supplier-unresolved document', async () => {

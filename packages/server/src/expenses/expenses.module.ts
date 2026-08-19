@@ -12,6 +12,7 @@ import { PostingPipelineModule } from '../ledger/pipeline/posting-pipeline.modul
 import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { FixedAssetsModule } from '../fixed-assets/fixed-assets.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 
@@ -30,6 +31,7 @@ import { ExpensesService } from './expenses.service';
     PeriodLockModule,
     CategoriesModule,
     FixedAssetsModule,
+    AuditLogModule,
   ],
   controllers: [ExpensesController],
   providers: [ExpensesService],
