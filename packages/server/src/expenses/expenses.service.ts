@@ -10,7 +10,13 @@ import { DraftVoucher } from '../ledger/voucher/types';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { CategoryService } from '../categories/category.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { Expense, CreateExpenseDto, ExpenseStatus } from './types';
+import {
+  DuplicateDetection,
+  findDuplicateExpense,
+} from './duplicate-detection';
+import { DuplicateExpenseException } from './duplicate-expense.exception';
 
 @Injectable()
 export class ExpensesService {
@@ -19,10 +25,65 @@ export class ExpensesService {
     private readonly projection: VoucherProjectionService,
     private readonly periodLock: PeriodLockService,
     private readonly categoryService: CategoryService,
+    private readonly auditLog: AuditLogService,
   ) {}
+
+  /**
+   * The deterministic duplicate key of issue #195, applied at the single choke
+   * point every creation path goes through. Returns the expense this candidate
+   * appears to duplicate, or null.
+   *
+   * Scoped to the supplier's own non-reversed expenses — `supplier_id` is the
+   * first component of both rules, so nothing outside it can match, and a
+   * candidate with no supplier is not comparable at all.
+   */
+  private async detectDuplicate(
+    dto: CreateExpenseDto,
+  ): Promise<DuplicateDetection | null> {
+    const supplierId = dto.supplier_id;
+    if (supplierId == null) return null;
+
+    const peers = await this.db
+      .selectFrom('expense')
+      .select([
+        'id',
+        'supplier_id',
+        'supplier_invoice_number',
+        'currency',
+        'gross_amount',
+        'tax_point_date',
+        'status',
+        'claimant_id',
+        'ai_document_type',
+      ])
+      .where('supplier_id', '=', supplierId)
+      .where('status', '!=', 'reversed')
+      .execute();
+
+    return findDuplicateExpense(
+      {
+        supplier_id: supplierId,
+        supplier_invoice_number: dto.supplier_invoice_number,
+        currency: dto.currency,
+        gross_amount: dto.gross_amount,
+        tax_point_date: dto.tax_point_date,
+        claimant_id: dto.claimant_id ?? null,
+      },
+      peers,
+    );
+  }
 
   async createExpense(dto: CreateExpenseDto): Promise<Expense> {
     await this.categoryService.assertValid(dto.category);
+
+    // Duplicate guard (issue #195 / ADR-0010). It refuses CREATION and nothing
+    // else: it runs before the insert, so no voucher, posting or period lock is
+    // ever involved and there is nothing to reverse afterwards.
+    const duplicate = await this.detectDuplicate(dto);
+    if (duplicate && dto.allow_duplicate !== true) {
+      throw new DuplicateExpenseException(duplicate);
+    }
+
     const now = Math.floor(Date.now() / 1000);
     const result = await this.db
       .insertInto('expense')
@@ -56,6 +117,26 @@ export class ExpensesService {
       })
       .returningAll()
       .executeTakeFirstOrThrow();
+
+    // Only an override that actually overrode something is worth a trace, and
+    // only once the expense really exists (audit_log is append-only, ADR-0026,
+    // so a speculative entry could not be taken back).
+    if (duplicate) {
+      await this.auditLog.record({
+        actor: 'operator',
+        action: 'expense.duplicate_guard.override',
+        outcome: 'allowed',
+        target_type: 'expense',
+        target_id: result.id,
+        detail: {
+          duplicate_of_expense_id: duplicate.existingExpenseId,
+          matched_on: duplicate.matchedOn,
+          supplier_id: dto.supplier_id ?? null,
+          supplier_invoice_number: dto.supplier_invoice_number ?? null,
+          reason: duplicate.reason,
+        },
+      });
+    }
 
     return this.mapRow(result);
   }

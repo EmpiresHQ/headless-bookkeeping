@@ -36,6 +36,7 @@ import { CategoryService } from '../../categories/category.service';
 import { StatusTransitionService } from '../status/status-transition.service';
 import { DraftVoucher } from '../voucher/types';
 import { SemanticValidationContext } from '../../rules/types';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 
 /**
  * Consolidation proofs for the single deep posting seam (ADR-0019).
@@ -88,6 +89,7 @@ describe('Posting seam consolidation (integration)', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         SalesInvoicesService,
         {

@@ -27,6 +27,7 @@ import { triageResultSchema, TriageResult } from '../triage/types';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { CategoryService } from '../categories/category.service';
 import { withOrgIdentity } from './triage-instructions';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 type GenerateResult = Awaited<ReturnType<Agent['generate']>>;
 
@@ -80,6 +81,7 @@ describe('Pass2AgentService', () => {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        AuditLogService,
         ExpensesService,
         {
           provide: PeriodLockService,

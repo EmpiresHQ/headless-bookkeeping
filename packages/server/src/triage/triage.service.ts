@@ -3,7 +3,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import {
   IntakeWorkflowService,
-  NeedsTriageOutcome,
+  IntakeWorkflowResult,
 } from '../ai/intake-workflow.service';
 import { DocumentsService } from '../documents/documents.service';
 import { Database } from '../database/types';
@@ -72,39 +72,71 @@ export class TriageService {
 
     // The workflow owns routing AND the Document status transition; it is also
     // idempotent (a re-run reuses the existing finding/draft).
-    const result = await this.workflow.process(documentId);
+    return this.toTriageOutcome(
+      documentId,
+      await this.workflow.process(documentId),
+    );
+  }
 
-    if (result.status === 'draft_proposed') {
-      return {
-        kind: 'expense',
-        document_id: documentId,
-        expense_id: result.draft.expenseId,
-      };
+  /**
+   * Map any {@link IntakeWorkflowResult} onto the HTTP-facing TriageOutcome.
+   *
+   * ONE mapper for every entry point (`route`, `resolveSupplier`,
+   * `manualClassify`). The three used to map their own subset, each narrowing
+   * the union with an `as` cast on the way out, so a new workflow outcome
+   * compiled everywhere and was reported correctly in only one place: a
+   * `receipt_matched` reached the operator as "still needs review" from
+   * `resolveSupplier` while the workflow had already filed the document as
+   * `processed`. The switch below is exhaustive, so the compiler now names
+   * every entry point the next outcome has to be considered in.
+   */
+  private toTriageOutcome(
+    documentId: number,
+    result: IntakeWorkflowResult,
+  ): TriageOutcome {
+    switch (result.status) {
+      case 'draft_proposed':
+        return {
+          kind: 'expense',
+          document_id: documentId,
+          expense_id: result.draft.expenseId,
+        };
+
+      case 'draft_proposed_invoice':
+        return {
+          kind: 'invoice',
+          document_id: documentId,
+          invoice_id: result.invoiceId,
+        };
+
+      case 'bank_import_started':
+        return {
+          kind: 'bank_statement',
+          document_id: documentId,
+          job_id: result.jobId,
+        };
+
+      case 'receipt_matched':
+        // The document evidences an expense that already exists (issue #195):
+        // no second expense was created, and the workflow has already filed the
+        // document as `processed` and resolved its finding — so the caller is
+        // told which expense it belongs to rather than being handed an
+        // 'unknown' the UI renders as "still needs review".
+        return {
+          kind: 'expense',
+          document_id: documentId,
+          expense_id: result.expenseId,
+        };
+
+      case 'needs_triage':
+        // The workflow created (or reused) the AuditFinding and moved the
+        // Document to 'needs_triage'.
+        return {
+          kind: 'unknown',
+          document_id: documentId,
+          reason: result.reason,
+        };
     }
-
-    if (result.status === 'draft_proposed_invoice') {
-      return {
-        kind: 'invoice',
-        document_id: documentId,
-        invoice_id: result.invoiceId,
-      };
-    }
-
-    if (result.status === 'bank_import_started') {
-      return {
-        kind: 'bank_statement',
-        document_id: documentId,
-        job_id: result.jobId,
-      };
-    }
-
-    // needs_triage — the workflow created (or reused) the AuditFinding and
-    // moved the Document to 'needs_triage'.
-    return {
-      kind: 'unknown',
-      document_id: documentId,
-      reason: result.reason,
-    };
   }
 
   /** Read-only OCR + LLM-classification snapshot for debugging a document.
@@ -145,33 +177,10 @@ export class TriageService {
     supplierEntityId: number,
   ): Promise<TriageOutcome> {
     await this.documents.getById(documentId); // 404 if the document is unknown
-    const result = await this.workflow.resolveSupplier(
+    return this.toTriageOutcome(
       documentId,
-      supplierEntityId,
+      await this.workflow.resolveSupplier(documentId, supplierEntityId),
     );
-    if (result.status === 'draft_proposed') {
-      return {
-        kind: 'expense',
-        document_id: documentId,
-        expense_id: result.draft.expenseId,
-      };
-    }
-
-    if (result.status === 'draft_proposed_invoice') {
-      return {
-        kind: 'invoice',
-        document_id: documentId,
-        invoice_id: result.invoiceId,
-      };
-    }
-
-    // resolveSupplier can only yield needs_triage at this point.
-    const needsTriage = result as NeedsTriageOutcome;
-    return {
-      kind: 'unknown',
-      document_id: documentId,
-      reason: needsTriage.reason,
-    };
   }
 
   /**
@@ -183,29 +192,9 @@ export class TriageService {
     dto: ManualClassifyDto,
   ): Promise<TriageOutcome> {
     await this.documents.getById(documentId); // 404 if unknown
-    const result = await this.workflow.manualClassify(documentId, dto);
-    if (result.status === 'draft_proposed') {
-      return {
-        kind: 'expense',
-        document_id: documentId,
-        expense_id: result.draft.expenseId,
-      };
-    }
-
-    if (result.status === 'draft_proposed_invoice') {
-      return {
-        kind: 'invoice',
-        document_id: documentId,
-        invoice_id: result.invoiceId,
-      };
-    }
-
-    // manualClassify can only yield needs_triage at this point.
-    const needsTriage = result as NeedsTriageOutcome;
-    return {
-      kind: 'unknown',
-      document_id: documentId,
-      reason: needsTriage.reason,
-    };
+    return this.toTriageOutcome(
+      documentId,
+      await this.workflow.manualClassify(documentId, dto),
+    );
   }
 }

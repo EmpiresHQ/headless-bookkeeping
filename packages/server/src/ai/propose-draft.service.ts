@@ -18,7 +18,7 @@ import {
 import { CreateExpenseDto } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
-import { DuplicateGuardService } from './duplicate-guard.service';
+import { DuplicateExpenseException } from '../expenses/duplicate-expense.exception';
 import { CategoryService } from '../categories/category.service';
 import {
   SalesInvoicesService,
@@ -71,16 +71,48 @@ export interface CategoryUnresolvedResult {
 }
 
 /**
- * Returned when the duplicate gate (backstop for the classification layer)
- * flags this proposal as a likely re-submission of an already-booked expense
- * — same supplier + invoice number (Tier 1), or same supplier + gross amount
- * + a tax point date within the fuzzy window (Tier 2). See
- * {@link DuplicateGuardService}. The caller routes to needs_triage rather
- * than silently posting a second expense for the same purchase.
+ * Returned when the deterministic duplicate key (issue #195, applied inside
+ * `ExpensesService.createExpense`) recognises this proposal as a re-submission
+ * of an already-recorded expense — same supplier + normalised invoice number,
+ * or, when the INCOMING document prints no number, same supplier + currency +
+ * gross amount + tax point date + claimant.
+ *
+ * The guard signals by throwing {@link DuplicateExpenseException}; proposeDraft
+ * translates it into this typed outcome so the caller can route the document to
+ * needs_triage naming the original, instead of a 409 escaping to the intake
+ * queue as an unhandled error.
  */
 export interface PossibleDuplicateResult {
   outcome: 'possible-duplicate';
   reason: string;
+  /** The expense this proposal appears to duplicate. */
+  existingExpenseId: number;
+}
+
+/**
+ * Returned when an incoming RECEIPT matches an INVOICE-derived expense that
+ * already exists (issue #195). A vendor emailing the invoice and the payment
+ * receipt as two attachments is the normal flow, not an anomaly: the receipt is
+ * evidence for a purchase already recorded, so it must neither create a second
+ * expense nor queue work for a human. The caller marks the document `processed`
+ * and writes an audit_log entry.
+ *
+ * This is deliberately NOT "receipts never create expenses": the outcome only
+ * arises when the deterministic key actually matched. A receipt that matches
+ * nothing takes the ordinary draft path — in production, 4 of 5 receipt-derived
+ * expenses are the only document for their purchase.
+ *
+ * Nor is it "a matching receipt is always filed": when the matched expense is
+ * itself receipt-derived there is no invoice half to be the original, and the
+ * receipt-only vendors (restaurant, cafe, car-sharing) are exactly the ones
+ * that print no number and repeat an amount within a day. Two such receipts are
+ * two purchases, so that case is a {@link PossibleDuplicateResult} for a human.
+ */
+export interface ReceiptMatchedResult {
+  outcome: 'receipt-matched';
+  reason: string;
+  /** The expense this receipt evidences. */
+  existingExpenseId: number;
 }
 
 /**
@@ -94,7 +126,8 @@ export type ProposeDraftOutcome =
   | ProposeDraftResult
   | SupplierUnresolvedResult
   | CategoryUnresolvedResult
-  | PossibleDuplicateResult;
+  | PossibleDuplicateResult
+  | ReceiptMatchedResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -199,7 +232,6 @@ export class ProposeDraftService {
     private readonly config: AgentConfigService,
     private readonly categoryService: CategoryService,
     private readonly salesInvoicesService: SalesInvoicesService,
-    private readonly duplicateGuard: DuplicateGuardService,
   ) {}
 
   /**
@@ -273,25 +305,11 @@ export class ProposeDraftService {
     }
     const resolvedSupplierId = resolved.supplierId;
 
-    // Duplicate gate (backstop for the classification layer). Runs ONLY on the
-    // AUTO path — when the caller passed no explicit supplierId. This covers BOTH
-    // a 'match' proposal AND a 'create' proposal that identifier-resolved to an
-    // existing supplier (ADR-0014), which is exactly the bypass a routeExpense-only
-    // gate missed. Explicit-id callers (workflow resolveSupplier, which gates
-    // pre-call; manualClassify, a human override) are intentionally not gated here.
-    if (supplierId == null && resolvedSupplierId != null) {
-      const dup = await this.duplicateGuard.check({
-        supplierId: resolvedSupplierId,
-        supplierInvoiceNumber: triageResult.supplier_invoice_number,
-        grossAmount: triageResult.gross_amount,
-        taxPointDate: triageResult.tax_point_date,
-      });
-      if (dup) {
-        return { outcome: 'possible-duplicate', reason: dup.reason };
-      }
-    }
-
-    // Step 1: Create the Expense via ExpensesService.
+    // Step 1: Create the Expense via ExpensesService. The duplicate gate lives
+    // THERE (issue #195), at the single choke point every creation path goes
+    // through, so no path — auto, explicit-supplier or manual — can slip past
+    // it. Note the DTO below deliberately has no `allow_duplicate` key: the
+    // escape hatch is an operator decision and the AI must never take it.
     const createExpenseDto: CreateExpenseDto = {
       document_id: documentId ?? null,
       supplier_id: resolvedSupplierId,
@@ -311,7 +329,42 @@ export class ProposeDraftService {
       ai_kind: triageResult.kind,
     };
 
-    const expense = await this.expensesService.createExpense(createExpenseDto);
+    let expense;
+    try {
+      expense = await this.expensesService.createExpense(createExpenseDto);
+    } catch (e) {
+      if (!(e instanceof DuplicateExpenseException)) throw e;
+      // The deterministic key recognised this document. Translate the 409 into
+      // a typed outcome rather than letting it escape as an unhandled error on
+      // the intake queue.
+      //
+      // A RECEIPT that matches an INVOICE-derived expense is the normal
+      // invoice+receipt email pair: it evidences a purchase already recorded,
+      // so the caller files it away silently.
+      //
+      // A receipt that matches ANOTHER RECEIPT is not that pair. The receipt-
+      // only population is exactly the restaurant/cafe/car-sharing vendors that
+      // print no invoice number and repeat identical amounts on one day, so the
+      // amount+date fallback fires on two genuinely distinct purchases. Filing
+      // the second one silently would drop a deductible expense with no
+      // expense, no voucher and no work item — only an audit_log line. Those
+      // go to a human like any other suspected duplicate.
+      if (
+        triageResult.document_type === 'receipt' &&
+        e.existingDocumentType !== 'receipt'
+      ) {
+        return {
+          outcome: 'receipt-matched',
+          reason: `receipt for expense #${e.existingExpenseId}: ${e.message}`,
+          existingExpenseId: e.existingExpenseId,
+        };
+      }
+      return {
+        outcome: 'possible-duplicate',
+        reason: e.message,
+        existingExpenseId: e.existingExpenseId,
+      };
+    }
 
     // Step 2: Run the existing posting pipeline (generateDraftVoucher → Rules → Policy → post).
     // Thread confidence and supplier-known status to Policy.
@@ -536,6 +589,11 @@ export class ProposeDraftService {
    * Create an expense and run the posting pipeline from operator-supplied data,
    * bypassing the AI classification passes. Used by the manual-classify endpoint
    * when a human operator fills in all fields directly (no AI confidence gate).
+   *
+   * Deliberately does NOT translate a {@link DuplicateExpenseException} into a
+   * typed outcome the way `proposeDraft` does: this call has a human on the
+   * other end of it, so the 409 travels back to them naming the original, and
+   * they either drop the document or re-submit with `allow_duplicate: true`.
    */
   async manualClassifyDraft(
     documentId: number,
@@ -548,6 +606,7 @@ export class ProposeDraftService {
       currency: string;
       tax_point_date: string;
       supplier_invoice_number?: string | null;
+      allow_duplicate?: boolean;
     },
   ): Promise<ProposeDraftResult> {
     const createExpenseDto: CreateExpenseDto = {
@@ -560,6 +619,12 @@ export class ProposeDraftService {
       tax_point_date: dto.tax_point_date,
       document_vat_marking: dto.document_vat_marking,
       supplier_invoice_number: dto.supplier_invoice_number ?? null,
+      // Operator override for the duplicate guard (issue #195). Unlike
+      // proposeDraft's AI-built DTO, this one is filled in by a human who is
+      // looking at the document, so it may carry the escape hatch. Absent
+      // unless the operator explicitly asked for it; createExpense records the
+      // override in audit_log when it actually overrode a detection.
+      allow_duplicate: dto.allow_duplicate,
     };
 
     const expense = await this.expensesService.createExpense(createExpenseDto);

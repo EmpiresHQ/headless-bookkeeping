@@ -91,6 +91,7 @@ describe('admin CLI (yargs)', () => {
         noProjection,
         noPeriodLock,
         noCategoryService,
+        new AuditLogService(db),
       ),
       salesInvoices: new SalesInvoicesService(db, noProjection),
       entities: new EntitiesService(db),

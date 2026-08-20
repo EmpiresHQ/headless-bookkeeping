@@ -63,6 +63,7 @@ import { Database } from '../src/database/types';
 import { migrations } from '../src/database/migrations';
 import { EntitiesService } from '../src/entities/entities.service';
 import { ExpensesService } from '../src/expenses/expenses.service';
+import { AuditLogService } from '../src/audit-log/audit-log.service';
 import { VoucherProjectionService } from '../src/ledger/projection/voucher-projection.service';
 import { PluginLoader } from '../src/plugins/plugin-loader.service';
 import { NullCountryPlugin } from '../src/plugins/null-country.plugin';
@@ -107,6 +108,7 @@ async function main(): Promise<void> {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        AuditLogService,
         ExpensesService,
         PeriodLockService,
         CategoryService,

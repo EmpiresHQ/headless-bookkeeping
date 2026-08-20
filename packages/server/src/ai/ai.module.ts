@@ -18,7 +18,7 @@ import { ProposeDraftService } from './propose-draft.service';
 import { Pass2AgentService } from './pass2-agent.service';
 import { IntakeWorkflowService } from './intake-workflow.service';
 import { ProcessingGate } from './processing-gate';
-import { DuplicateGuardService } from './duplicate-guard.service';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 /**
  * AiModule — registers the Mastra runtime + tool layer, the Pass 2 agent
@@ -55,6 +55,7 @@ import { DuplicateGuardService } from './duplicate-guard.service';
     OcrModule,
     AuditFindingsModule,
     PolicyModule,
+    AuditLogModule,
     // forwardRef: BankModule imports AiModule (for MastraService); AiModule
     // imports BankModule (for BankIngestionService used in intake workflow).
     forwardRef(() => BankModule),
@@ -65,7 +66,6 @@ import { DuplicateGuardService } from './duplicate-guard.service';
     Pass2AgentService,
     IntakeWorkflowService,
     ProcessingGate,
-    DuplicateGuardService,
   ],
   exports: [
     MastraService,

@@ -26,6 +26,7 @@ import { CategoryService } from '../categories/category.service';
 import { FixedAssetRegistrarService } from './fixed-asset-registrar.service';
 import { FixedAssetsService } from './fixed-assets.service';
 import { FixedAssetsController } from './fixed-assets.controller';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('FixedAssetsController (integration)', () => {
   let db: Kysely<Database>;
@@ -77,6 +78,7 @@ describe('FixedAssetsController (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         FixedAssetsService,
         FixedAssetRegistrarService,
+        AuditLogService,
         ExpensesService,
         CategoryService,
         VoucherProjectionService,

@@ -55,6 +55,11 @@ export const createExpenseSchema = z.object({
   ai_confidence: z.number().min(0).max(1).nullable().optional(),
   ai_document_type: z.string().nullable().optional(),
   ai_kind: z.string().nullable().optional(),
+  // Operator escape hatch for the duplicate guard (issue #195). Never
+  // persisted on the expense row and never set by the AI intake path: only a
+  // human deliberately re-posting a flagged document may pass it, and doing so
+  // writes an audit_log entry.
+  allow_duplicate: z.boolean().optional(),
 });
 
 export class CreateExpenseDto extends createZodDto(createExpenseSchema) {}

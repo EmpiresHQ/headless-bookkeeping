@@ -18,6 +18,7 @@ import { AgentConfigService } from './agent-config.service';
 import { CategoryService } from '../categories/category.service';
 import { MastraService } from './mastra.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 const EXPECTED_ENRICHMENT_TOOL_NAMES = [
   'listCategories',
@@ -56,6 +57,7 @@ describe('MastraService', () => {
         CurrencyService,
         VoucherProjectionService,
         EntitiesService,
+        AuditLogService,
         ExpensesService,
         {
           provide: PeriodLockService,

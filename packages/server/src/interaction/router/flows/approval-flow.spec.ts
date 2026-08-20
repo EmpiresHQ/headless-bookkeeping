@@ -35,6 +35,7 @@ import { TelegramApprovalSupportService } from '../../telegram-approval-support.
 import { ApprovalFlow } from './approval-flow';
 import type { DispatchContext } from '../flow-dispatcher';
 import type { RoutedIntent } from '../types';
+import { AuditLogService } from '../../../audit-log/audit-log.service';
 
 describe('ApprovalFlow', () => {
   let db: Kysely<Database>;
@@ -112,6 +113,7 @@ describe('ApprovalFlow', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         SalesInvoicesService,
         { provide: ReconciliationService, useValue: reconcileStub },

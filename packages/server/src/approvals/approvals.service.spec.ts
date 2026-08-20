@@ -32,6 +32,7 @@ import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { CategoryService } from '../categories/category.service';
 import { seedEntity } from '../../test/helpers/seed-entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('ApprovalsService (integration)', () => {
   let db: Kysely<Database>;
@@ -84,6 +85,7 @@ describe('ApprovalsService (integration)', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         SalesInvoicesService,
         { provide: ReconciliationService, useValue: reconciliationStub },

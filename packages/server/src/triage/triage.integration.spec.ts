@@ -21,6 +21,7 @@ import { IntakeWorkflowService } from '../ai/intake-workflow.service';
 import { TriageService } from './triage.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { CategoryService } from '../categories/category.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 /**
  * Integration test for the triage pipeline:
@@ -73,6 +74,7 @@ describe('TriageService (integration)', () => {
         OrgContextResolver,
         CurrencyService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         {
           provide: PeriodLockService,
@@ -288,6 +290,36 @@ describe('TriageService (integration)', () => {
         kind: 'expense',
         document_id: doc.id,
         expense_id: 55,
+      });
+    });
+
+    it('maps a receipt_matched outcome to the expense the receipt evidences', async () => {
+      // A receipt parked as supplier-unresolved; by the time the operator
+      // onboards the supplier, the invoice for the same purchase is booked. The
+      // workflow files the document as `processed` and resolves its finding, so
+      // reporting it as still needing review would keep the operator on a
+      // document that no longer needs triage (issue #195).
+      const uploadResult = await documents.upload({
+        filename: 'parked-receipt.pdf',
+        buffer: Buffer.from('fake'),
+        mimeType: 'application/pdf',
+        channel: 'upload',
+      });
+      const doc = uploadResult.document;
+      await documents.setStatus(doc.id, 'needs_triage');
+
+      mockWorkflow.resolveSupplier.mockResolvedValue({
+        status: 'receipt_matched',
+        expenseId: 77,
+        reason: 'receipt for expense #77: possible duplicate of expense #77.',
+      });
+
+      const out = await triage.resolveSupplier(doc.id, 3);
+
+      expect(out).toEqual({
+        kind: 'expense',
+        document_id: doc.id,
+        expense_id: 77,
       });
     });
 

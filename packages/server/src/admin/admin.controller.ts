@@ -207,6 +207,23 @@ export class AdminController {
   }
 
   /**
+   * GET /admin/duplicate-candidates — list existing duplicate expense groups.
+   */
+  @ApiOperation({
+    summary: 'List duplicate expense candidates (admin)',
+    description:
+      'Group existing non-reversed expenses with the same deterministic key ' +
+      'the creation guard uses: (supplier, normalised invoice number), ' +
+      'falling back to (supplier, currency, gross amount, tax point date, ' +
+      'claimant) only when the later document carries no number at all. ' +
+      'Read-only — it changes nothing.',
+  })
+  @Get('duplicate-candidates')
+  async getDuplicateCandidates() {
+    return this.adminService.getDuplicateCandidates();
+  }
+
+  /**
    * GET /admin/health — public health check with DB probe.
    */
   @ApiOperation({

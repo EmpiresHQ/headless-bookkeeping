@@ -30,6 +30,7 @@ import { EstoniaCountryPlugin } from './../src/plugins/estonia-country.plugin';
 import { CurrencyService } from './../src/currency/currency.service';
 import { VoucherProjectionService } from './../src/ledger/projection/voucher-projection.service';
 import { ZodValidationPipe } from './../src/common/pipes/zod-validation.pipe';
+import { AuditLogService } from '../src/audit-log/audit-log.service';
 
 describe('Pipeline (e2e)', () => {
   let app: INestApplication<App>;
@@ -71,6 +72,7 @@ describe('Pipeline (e2e)', () => {
         PolicyService,
         PostingPipelineService,
         VoucherProjectionService,
+        AuditLogService,
         ExpensesService,
         FixedAssetRegistrarService,
         {
