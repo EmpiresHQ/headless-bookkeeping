@@ -11,6 +11,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 import { AllowanceService } from './allowance.service';
 
 const ALLOWANCE_TYPES = [
@@ -35,13 +36,14 @@ const createAllowanceSchema = z.object({
   period_end: z.string().regex(DATE_REGEX).optional(),
 });
 
+class CreateAllowanceDto extends createZodDto(createAllowanceSchema) {}
+
 @Controller('api/allowances')
 export class AllowanceController {
   constructor(private readonly service: AllowanceService) {}
 
   @Post()
-  async create(@Body() body: unknown) {
-    const dto = createAllowanceSchema.parse(body);
+  async create(@Body() dto: CreateAllowanceDto) {
     return this.service.createAllowance({
       claimantId: dto.claimant_id,
       type: dto.type,
