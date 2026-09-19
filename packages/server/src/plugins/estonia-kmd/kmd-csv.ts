@@ -5,7 +5,6 @@
 // Jurisdiction-pure: no DB, no NestJS.
 import { StatutoryReportInput } from '../statutory-report.types';
 import { buildInfPart, InfRow } from './kmd-inf';
-import { transactionsNetByRate } from './kmd-xml';
 
 /** Minor units (cents) → euros with exactly 2 fraction digits. */
 function eur(cents: number): string {
@@ -48,13 +47,12 @@ function renderKmd6Row(
   hasSales: boolean,
   hasPurchases: boolean,
 ): string {
-  const netByRate = transactionsNetByRate(input);
-
-  const t24 = netByRate.get(24) ?? 0;
-  const t9 = netByRate.get(9) ?? 0;
-  const t13 = netByRate.get(13) ?? 0;
-
-  const inputVatTotal = input.totals.totalInputVat;
+  const d = input.declaration;
+  const t24 = d.row1_base_24;
+  const t9 = d.row2_base_9;
+  const t13 = d.row2_base_13;
+  const inputVatTotal = d.row5_input_vat;
+  const amount = (value: number) => (value === 0 ? '' : eur(value));
 
   const cols: string[] = [
     'KMD6',
@@ -68,8 +66,8 @@ function renderKmd6Row(
     t9 !== 0 ? eur(t9) : '', // transactions9
     '', // transactions5
     t13 !== 0 ? eur(t13) : '', // transactions13
-    '', // transactionsZeroVat
-    '', // euSupplyInclGoodsAndServicesZeroVat
+    amount(d.row3_base_zero), // transactionsZeroVat
+    amount(d.vd_intra_eu_services), // euSupplyInclGoodsAndServicesZeroVat
     '', // euSupplyGoodsZeroVat
     '', // exportZeroVat
     '', // salePassengersWithReturnVat
@@ -80,9 +78,9 @@ function renderKmd6Row(
     '', // numberOfCars
     '', // carsPartialVat
     '', // numberOfCarsPartial
-    '', // euAcquisitionsGoodsAndServicesTotal
+    amount(d.row6_intra_eu_acquisition), // euAcquisitionsGoodsAndServicesTotal
     '', // euAcquisitionsGoods
-    '', // acquisitionOtherGoodsAndServicesTotal
+    amount(d.row7_other_acquisition), // acquisitionOtherGoodsAndServicesTotal
     '', // acquisitionImmovablesAndScrapMetalAndGold
     '', // supplyExemptFromTax
     '', // supplySpecialArrangements

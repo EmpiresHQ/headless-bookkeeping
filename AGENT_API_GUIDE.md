@@ -82,6 +82,12 @@ curl -H "$H" -H "$J" -X PUT $B/api/organization \
 ```
 `org_type`: `company | sole_proprietor`. Seed: IE, base_currency=null (→ EUR from the plugin).
 
+For Estonian KMD exports, also set `registry_code` to the company's 8-digit
+commercial registry code via `PUT /api/organization` (or Settings → Organization).
+Keep `vat_registration_number` as the separate `EE…` VAT number. Existing
+organizations receive `registry_code: null` on upgrade; final KMD export requires
+a valid registry code and never infers it from the VAT number.
+
 ### Open a reporting period (without it, posting hits the period-lock)
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/reporting-periods \

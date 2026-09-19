@@ -51,6 +51,8 @@ export class OrganizationService {
     if (dto.org_type !== undefined) updates.org_type = dto.org_type;
     if (dto.vat_registration_number !== undefined)
       updates.vat_registration_number = dto.vat_registration_number;
+    if (dto.registry_code !== undefined)
+      updates.registry_code = dto.registry_code;
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.iban !== undefined) updates.iban = dto.iban;
 
@@ -75,6 +77,7 @@ export class OrganizationService {
     org_type,
     created_at,
     vat_registration_number,
+    registry_code,
     name,
     iban,
   }: {
@@ -85,6 +88,7 @@ export class OrganizationService {
     org_type: string;
     created_at: number;
     vat_registration_number: string | null;
+    registry_code: string | null;
     name: string | null;
     iban: string | null;
   }): Organization {
@@ -96,6 +100,7 @@ export class OrganizationService {
       org_type,
       created_at,
       vat_registration_number,
+      registry_code,
       name,
       iban,
     };

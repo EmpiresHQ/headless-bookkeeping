@@ -24,6 +24,7 @@ export interface Organization {
   created_at: number;
   name: string | null;
   vat_registration_number: string | null;
+  registry_code: string | null;
   iban: string | null;
 }
 
@@ -162,6 +163,7 @@ export interface UpdateOrganizationDto {
   org_type?: 'company' | 'sole_proprietor';
   name?: string | null;
   vat_registration_number?: string | null;
+  registry_code?: string | null;
   iban?: string | null;
 }
 

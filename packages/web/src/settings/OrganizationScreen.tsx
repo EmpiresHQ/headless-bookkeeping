@@ -64,6 +64,7 @@ function OrgForm({ data }: { data: Organization }) {
   const [vatNumber, setVatNumber] = useState(
     data.vat_registration_number ?? '',
   );
+  const [registryCode, setRegistryCode] = useState(data.registry_code ?? '');
   const [iban, setIban] = useState(data.iban ?? '');
   const [currency, setCurrency] = useState(data.base_currency ?? '');
 
@@ -84,6 +85,7 @@ function OrgForm({ data }: { data: Organization }) {
       setVatRegistered(data.vat_registered);
       setName(data.name ?? '');
       setVatNumber(data.vat_registration_number ?? '');
+      setRegistryCode(data.registry_code ?? '');
       setIban(data.iban ?? '');
       setCurrency(data.base_currency ?? '');
     }
@@ -111,6 +113,7 @@ function OrgForm({ data }: { data: Organization }) {
         base_currency: currency.trim() ? currency.trim().toUpperCase() : null,
         name: name.trim() ? name.trim() : null,
         vat_registration_number: vatNumber.trim() ? vatNumber.trim() : null,
+        registry_code: registryCode.trim() || null,
         iban: iban.trim() ? iban.trim() : null,
       });
       // The saved snapshot is the new clean baseline — a subsequent
@@ -183,7 +186,7 @@ function OrgForm({ data }: { data: Organization }) {
       </label>
       <Field
         label="VAT registration number"
-        hint="Declarant identity — a locked period's FINAL KMD download fails without it"
+        hint="VAT registration number (KMKR)"
       >
         <TextInput
           aria-label="VAT registration number"
@@ -193,6 +196,20 @@ function OrgForm({ data }: { data: Organization }) {
             setVatNumber(e.target.value);
           }}
           placeholder="e.g. EE123456789"
+        />
+      </Field>
+      <Field
+        label="Registry code"
+        hint="Commercial registry code — required for the final KMD (8 digits for Estonia)"
+      >
+        <TextInput
+          aria-label="Registry code"
+          value={registryCode}
+          onChange={(e) => {
+            dirty.current = true;
+            setRegistryCode(e.target.value);
+          }}
+          placeholder="e.g. 17499653"
         />
       </Field>
       <Field label="IBAN">

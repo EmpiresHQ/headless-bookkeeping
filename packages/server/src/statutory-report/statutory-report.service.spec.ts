@@ -1,3 +1,7 @@
+import { DraftVoucherLine } from '../ledger/voucher/types';
+import { validateAgainstKmdXsd } from '../plugins/estonia-kmd/xsd-validate';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -41,6 +45,7 @@ describe('StatutoryReportService.generate (integration)', () => {
   let creditNotes: CreditNotesService;
   let posting: PostingService;
   let auditFindings: AuditFindingsService;
+  let vatReports: VatReportService;
 
   const PERIOD_ID = 1; // seeded 2024-Q1
 
@@ -85,6 +90,7 @@ describe('StatutoryReportService.generate (integration)', () => {
     }).compile();
 
     service = module.get(StatutoryReportService);
+    vatReports = module.get(VatReportService);
     organization = module.get(OrganizationService);
     salesInvoices = module.get(SalesInvoicesService);
     creditNotes = module.get(CreditNotesService);
@@ -96,6 +102,7 @@ describe('StatutoryReportService.generate (integration)', () => {
       country: 'EE',
       vat_registered: true,
       vat_registration_number: 'EE100000001',
+      registry_code: '17499653',
       name: 'Test OÜ',
     });
   });
@@ -200,6 +207,7 @@ describe('StatutoryReportService.generate (integration)', () => {
     expect(xml).toContain('CN-');
     // A sales credit note must carry a NEGATIVE invoiceSum (mirror voucher, net < 0).
     expect(xml).toMatch(/<invoiceSum>-/);
+    expect(xml).toContain('<transactions24>1000.00</transactions24>');
   });
 
   it('hard-blocks final generation when the declarant reg number is missing', async () => {
@@ -209,11 +217,128 @@ describe('StatutoryReportService.generate (integration)', () => {
       .set({ status: 'locked' })
       .where('id', '=', PERIOD_ID)
       .execute();
-    await organization.updateOrganization({ vat_registration_number: null });
+    await organization.updateOrganization({ registry_code: null });
 
     await expect(
       service.generate(PERIOD_ID, { formats: ['xml'] }),
-    ).rejects.toThrow(/registration number/i);
+    ).rejects.toThrow(/registry code/i);
+  });
+
+  it('exports the July issue figures from signed ledger bases, including reversals', async () => {
+    const period = await db
+      .insertInto('reporting_period')
+      .values({
+        name: '2026-07',
+        start_date: '2026-07-01',
+        end_date: '2026-07-31',
+        status: 'open',
+        created_at: 0,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    const line = (
+      account_code: string,
+      base_amount: number,
+      is_debit: boolean,
+      vat_code: string | null,
+    ): DraftVoucherLine => ({
+      account_code,
+      base_amount,
+      amount: base_amount,
+      is_debit,
+      vat_code,
+      currency: 'EUR',
+      fx_rate: 1,
+    });
+    for (const [base, reverse] of [
+      [920, true],
+      [920, false],
+      [5320, true],
+      [5320, false], // Synthetic retained base matching the issue's total; omitted from its line list.
+      [1472, false],
+      [12900, false],
+    ] as const) {
+      const vat = Math.round(base * 0.24);
+      const lines = [
+        line('EXPENSE_SOFTWARE', base, true, 'EE_REVERSE_CHARGE'),
+        line('AP', base, false, null),
+        line('VAT_RECEIVABLE', vat, true, 'EE_REVERSE_CHARGE'),
+        line('VAT_PAYABLE', vat, false, 'EE_REVERSE_CHARGE'),
+      ];
+      const original = await posting.postVoucher({
+        tax_point_date: '2026-07-10',
+        lines,
+      });
+      if (reverse)
+        await posting.postVoucher({
+          tax_point_date: '2026-07-11',
+          reverses_id: original.id,
+          lines: lines.map((l) => ({ ...l, is_debit: !l.is_debit })),
+        });
+    }
+    await posting.postVoucher({
+      tax_point_date: '2026-07-12',
+      lines: [
+        line('AR', 800000, true, null),
+        line('REVENUE', 800000, false, 'EE_OUTPUT_0_EU'),
+      ],
+    });
+    const d = await vatReports.buildDeclaration(period.id);
+    expect(d).toMatchObject({
+      row1_base_24: 20612,
+      row7_other_acquisition: 20612,
+      row3_base_zero: 800000,
+      vd_intra_eu_services: 800000,
+      row4_output_vat: 4947,
+      row5_input_vat: 4947,
+    });
+    const result = await service.generate(period.id, {
+      formats: ['xml', 'csv'],
+    });
+    const xml = result.artifacts.find(
+      (a) => a.mimeType === 'application/xml',
+    )!.content;
+    expect(xml).toContain('<taxPayerRegCode>17499653</taxPayerRegCode>');
+    expect(xml).not.toContain('<taxPayerRegCode>EE');
+    for (const [tag, amount] of [
+      ['transactions24', d.row1_base_24],
+      ['transactionsZeroVat', d.row3_base_zero],
+      ['euSupplyInclGoodsAndServicesZeroVat', d.vd_intra_eu_services],
+      ['inputVatTotal', d.row5_input_vat],
+      ['acquisitionOtherGoodsAndServicesTotal', d.row7_other_acquisition],
+    ] as const) {
+      expect(xml).toContain(
+        '<' + tag + '>' + (amount / 100).toFixed(2) + '</' + tag + '>',
+      );
+    }
+    const xsd = readFileSync(
+      join(__dirname, '../../test/fixtures/vatdeclaration.xsd'),
+      'utf8',
+    );
+    expect(validateAgainstKmdXsd(xml, xsd)).toEqual({
+      valid: true,
+      errors: [],
+    });
+    const csv = result.artifacts.find(
+      (a) => a.mimeType === 'text/csv',
+    )!.content;
+    const cols = csv.split('\r\n')[0].split(';');
+    expect(cols[5]).toBe('206.12');
+    expect(cols[11]).toBe('8000.00');
+    expect(cols[12]).toBe('8000.00');
+    expect(cols[25]).toBe('206.12');
+  });
+
+  it('rejects a VAT number used as registry code for a final declaration', async () => {
+    await db
+      .updateTable('reporting_period')
+      .set({ status: 'locked' })
+      .where('id', '=', PERIOD_ID)
+      .execute();
+    await organization.updateOrganization({ registry_code: 'EE100000001' });
+    await expect(
+      service.generate(PERIOD_ID, { formats: ['xml'] }),
+    ).rejects.toThrow('8-digit commercial registry code');
   });
 
   it('creates a statutory_report_incomplete audit finding for each plugin warning', async () => {

@@ -367,6 +367,8 @@ export class VatReportService {
       end_date: period.end_date,
       row1_base_24: 0,
       row2_base_reduced: 0,
+      row2_base_9: 0,
+      row2_base_13: 0,
       row3_base_zero: 0,
       row4_output_vat: 0,
       row5_input_vat: 0,
@@ -392,14 +394,13 @@ export class VatReportService {
         continue;
       }
 
-      // Everything else with a VAT code is a taxable-base line. Its magnitude is
-      // signed by its own normal side, so a reversal subtracts.
       if (!line.vat_code) continue;
-      const base = line.is_debit
-        ? this.ledgerBalance.signedBaseAmount(line)
-        : this.ledgerBalance.signedBaseAmount(line, { creditPositive: true });
-
       const k = plugin.classifyKmd(line.vat_code);
+      // Fix the normal side by classification: acquisitions are debit-positive,
+      // supplies credit-positive. Reversals must subtract from the same base.
+      const base = this.ledgerBalance.signedBaseAmount(line, {
+        creditPositive: k.acquisitionRow === null,
+      });
       if (k.review) flags.add(k.review);
 
       switch (k.outputBaseRow) {
@@ -408,6 +409,8 @@ export class VatReportService {
           break;
         case 2:
           d.row2_base_reduced += base;
+          if (plugin.getVatRate(line.vat_code) === 0.09) d.row2_base_9 += base;
+          if (plugin.getVatRate(line.vat_code) === 0.13) d.row2_base_13 += base;
           break;
         case 3:
           d.row3_base_zero += base;

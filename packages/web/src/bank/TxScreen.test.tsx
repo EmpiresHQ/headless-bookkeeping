@@ -87,6 +87,7 @@ function mockLine(
     org_type: 'company',
     created_at: 0,
     name: null,
+    registry_code: null,
     vat_registration_number: null,
     iban: null,
   });

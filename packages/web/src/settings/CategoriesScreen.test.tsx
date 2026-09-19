@@ -19,6 +19,7 @@ const ORG: Organization = {
   org_type: 'company',
   created_at: 0,
   name: 'Acme OÜ',
+  registry_code: null,
   vat_registration_number: null,
   iban: null,
 };

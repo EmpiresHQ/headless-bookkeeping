@@ -17,7 +17,7 @@ it('accepts a minimal schema-valid document', () => {
   const ok = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<vatDeclaration>',
-    '<taxPayerRegCode>EE100000001</taxPayerRegCode>',
+    '<taxPayerRegCode>17499653</taxPayerRegCode>',
     '<year>2026</year>',
     '<month>5</month>',
     '<declarationType>1</declarationType>',
