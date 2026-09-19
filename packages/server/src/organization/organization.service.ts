@@ -15,8 +15,15 @@ const SINGLETON_ID = 1;
 export class OrganizationService {
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
 
-  async getOrganization(): Promise<Organization> {
-    const row = await this.db
+  /**
+   * `executor` lets a caller read the singleton inside its own transaction.
+   * Required, not cosmetic: the SQLite dialect holds a single connection, so a
+   * read issued against the root `db` while a transaction is open deadlocks.
+   */
+  async getOrganization(
+    executor: Kysely<Database> = this.db,
+  ): Promise<Organization> {
+    const row = await executor
       .selectFrom('organization')
       .selectAll()
       .executeTakeFirst();

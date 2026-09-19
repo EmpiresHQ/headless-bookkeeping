@@ -20,7 +20,9 @@ const resolverReturning = (
   };
 };
 
-const supplier = (over: Partial<EntityWithIdentifiers> = {}): EntityWithIdentifiers => ({
+const supplier = (
+  over: Partial<EntityWithIdentifiers> = {},
+): EntityWithIdentifiers => ({
   id: 37,
   role: 'supplier',
   country: 'EE',

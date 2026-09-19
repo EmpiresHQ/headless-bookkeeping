@@ -17,6 +17,8 @@ export interface RecordEventInput {
   report_kind: string;
   source_snapshot_type: string;
   source_snapshot_id: number;
+  /** The exact filing-payload version this event identifies (issue #200). */
+  source_payload_id?: number | null;
   actor: string;
   external_ref?: string | null;
   note?: string | null;
@@ -44,18 +46,20 @@ export class StatutorySubmissionService {
   async recordEvent(
     reportingPeriodId: number,
     input: RecordEventInput,
+    executor: Kysely<Database> = this.db,
   ): Promise<SubmissionEvent> {
     const occurredAt = this.now();
     const externalRef = input.external_ref ?? null;
     const note = input.note ?? null;
 
-    const row = await this.db
+    const row = await executor
       .insertInto('statutory_submission_event')
       .values({
         reporting_period_id: reportingPeriodId,
         report_kind: input.report_kind,
         source_snapshot_type: input.source_snapshot_type,
         source_snapshot_id: input.source_snapshot_id,
+        source_payload_id: input.source_payload_id ?? null,
         event_kind: input.event_kind,
         external_ref: externalRef,
         occurred_at: occurredAt,
@@ -65,20 +69,24 @@ export class StatutorySubmissionService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    await this.auditLog.record({
-      actor: input.actor,
-      action: `statutory_submission.event.${input.event_kind}`,
-      outcome: 'recorded',
-      target_type: 'reporting_period',
-      target_id: reportingPeriodId,
-      detail: {
-        event_kind: input.event_kind,
-        report_kind: input.report_kind,
-        source_snapshot_type: input.source_snapshot_type,
-        source_snapshot_id: input.source_snapshot_id,
-        external_ref: externalRef,
+    await this.auditLog.record(
+      {
+        actor: input.actor,
+        action: `statutory_submission.event.${input.event_kind}`,
+        outcome: 'recorded',
+        target_type: 'reporting_period',
+        target_id: reportingPeriodId,
+        detail: {
+          event_kind: input.event_kind,
+          report_kind: input.report_kind,
+          source_snapshot_type: input.source_snapshot_type,
+          source_snapshot_id: input.source_snapshot_id,
+          source_payload_id: input.source_payload_id ?? null,
+          external_ref: externalRef,
+        },
       },
-    });
+      executor,
+    );
 
     return this.mapRow(row);
   }
@@ -98,6 +106,7 @@ export class StatutorySubmissionService {
       history.map((h) => ({
         event_kind: h.event_kind,
         source_snapshot_id: h.source_snapshot_id,
+        source_payload_id: h.source_payload_id,
         occurred_at: h.occurred_at,
         external_ref: h.external_ref,
       })),
@@ -106,6 +115,7 @@ export class StatutorySubmissionService {
     return {
       status: folded.status,
       currentSnapshotId: folded.currentSnapshotId,
+      currentPayloadId: folded.currentPayloadId,
       lastExternalRef: folded.lastExternalRef,
       submissionCount: folded.submissionCount,
       history,
@@ -135,11 +145,22 @@ export class StatutorySubmissionService {
       );
     }
 
+    // Pin the exact filing-payload version that is current for the bound
+    // snapshot RIGHT NOW, so a later reconciliation appending a corrected
+    // payload can never retroactively change what this event identifies.
+    const payload = await this.db
+      .selectFrom('statutory_filing_snapshot')
+      .select('id')
+      .where('vat_report_id', '=', period.vat_report_snapshot_id)
+      .orderBy('id', 'desc')
+      .executeTakeFirst();
+
     return this.recordEvent(reportingPeriodId, {
       event_kind: dto.event_kind,
       report_kind: 'EE_KMD',
       source_snapshot_type: 'vat_report',
       source_snapshot_id: period.vat_report_snapshot_id,
+      source_payload_id: payload?.id ?? null,
       actor: 'operator',
       external_ref: dto.external_ref ?? null,
       note: dto.note ?? null,
@@ -152,6 +173,7 @@ export class StatutorySubmissionService {
     report_kind: string;
     source_snapshot_type: string;
     source_snapshot_id: number;
+    source_payload_id: number | null;
     event_kind: string;
     external_ref: string | null;
     occurred_at: number;
@@ -164,6 +186,7 @@ export class StatutorySubmissionService {
       report_kind: row.report_kind,
       source_snapshot_type: row.source_snapshot_type,
       source_snapshot_id: row.source_snapshot_id,
+      source_payload_id: row.source_payload_id,
       event_kind: row.event_kind as EventKind,
       external_ref: row.external_ref,
       occurred_at: row.occurred_at,

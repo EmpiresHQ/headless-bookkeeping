@@ -15,6 +15,17 @@ import {
 import { computeVoucherHash } from '../ledger/posting/voucher-hash';
 import { computeMerkleRoot } from './merkle';
 
+/**
+ * What one {@link VatReportService.freeze} did: the snapshot the period should
+ * now be filed against, whether it was newly inserted, and the drifted snapshot
+ * it replaced (retained, immutable, simply no longer current).
+ */
+export interface FreezeResult {
+  report: VatReport;
+  created: boolean;
+  superseded: VatReport | null;
+}
+
 @Injectable()
 export class VatReportService {
   constructor(
@@ -44,28 +55,33 @@ export class VatReportService {
    * existing frozen report unchanged (same Merkle root, never recomputed).
    */
   /**
-   * FREEZES a snapshot. If one already exists for the period it is returned
-   * unchanged (same Merkle root, never recomputed) — the filed return must stay
-   * reproducible (ADR-0009). Because the freeze is permanent and `vat_report`
-   * rows are immutable by trigger, do NOT call this just to look at the
-   * figures: use {@link preview}, which computes the same numbers and stores
-   * nothing.
+   * Freeze the snapshot a period is FILED against, and hand back what changed.
+   *
+   * Reuse-if-identical, append-if-drifted (issue #200):
+   *  - recompute the period's current figures;
+   *  - compare them against the period's CANDIDATE snapshot — the one the
+   *    period is bound to if it has one, else the most recent row;
+   *  - identical ⇒ return that row untouched (so filing stays idempotent and
+   *    no duplicate rows accumulate);
+   *  - different (or none) ⇒ INSERT a new snapshot and report the drifted one
+   *    as `superseded`.
+   *
+   * A drifted row is never edited and never deleted — `vat_report` is immutable
+   * by trigger (ADR-0009) and the submission events that pin it keep pointing at
+   * the exact artifact they filed. It is simply no longer the current one, which
+   * is what stops a snapshot frozen by an earlier draft export from being filed
+   * as if it were complete.
    */
-  async generate(
+  async freeze(
     periodId: number,
     executor: Kysely<Database> = this.db,
-  ): Promise<VatReport> {
-    const existing = await executor
-      .selectFrom('vat_report')
-      .selectAll()
-      .where('reporting_period_id', '=', periodId)
-      .executeTakeFirst();
-
-    if (existing) {
-      return this.mapRow(existing);
-    }
-
+  ): Promise<FreezeResult> {
     const computed = await this.compute(periodId, executor);
+    const candidate = await this.candidateSnapshot(periodId, executor);
+
+    if (candidate && this.matchesComputed(candidate, computed)) {
+      return { report: candidate, created: false, superseded: null };
+    }
 
     const row = await executor
       .insertInto('vat_report')
@@ -86,7 +102,112 @@ export class VatReportService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    return this.mapRow(row);
+    return {
+      report: this.mapRow(row),
+      created: true,
+      superseded: candidate,
+    };
+  }
+
+  /**
+   * FREEZES a snapshot for the period and returns it.
+   *
+   * A `locked` period returns the exact snapshot it was filed against, always
+   * and unchanged — a filed return must stay reproducible (ADR-0009) and no
+   * later call may repoint it (use {@link ReportingPeriodsService.reconcileFilingSnapshot}
+   * for the audited repair path). An OPEN period delegates to {@link freeze}:
+   * an identical existing snapshot is returned as-is, a drifted one is
+   * superseded by a fresh, complete snapshot.
+   *
+   * Because the freeze is permanent, do NOT call this just to look at the
+   * figures: use {@link preview}, which computes the same numbers and stores
+   * nothing.
+   */
+  async generate(
+    periodId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<VatReport> {
+    const period = await executor
+      .selectFrom('reporting_period')
+      .select(['id', 'status', 'vat_report_snapshot_id'])
+      .where('id', '=', periodId)
+      .executeTakeFirst();
+
+    if (!period) {
+      throw new NotFoundException(`Reporting period ${periodId} not found`);
+    }
+
+    if (period.status === 'locked' && period.vat_report_snapshot_id !== null) {
+      const bound = await executor
+        .selectFrom('vat_report')
+        .selectAll()
+        .where('id', '=', period.vat_report_snapshot_id)
+        .executeTakeFirst();
+      if (bound) return this.mapRow(bound);
+    }
+
+    return (await this.freeze(periodId, executor)).report;
+  }
+
+  /**
+   * The snapshot a fresh freeze is measured against: the one the period is
+   * bound to, else the most recently frozen row for the period.
+   */
+  private async candidateSnapshot(
+    periodId: number,
+    executor: Kysely<Database>,
+  ): Promise<VatReport | null> {
+    const period = await executor
+      .selectFrom('reporting_period')
+      .select(['vat_report_snapshot_id'])
+      .where('id', '=', periodId)
+      .executeTakeFirst();
+
+    const row = period?.vat_report_snapshot_id
+      ? await executor
+          .selectFrom('vat_report')
+          .selectAll()
+          .where('id', '=', period.vat_report_snapshot_id)
+          .executeTakeFirst()
+      : await executor
+          .selectFrom('vat_report')
+          .selectAll()
+          .where('reporting_period_id', '=', periodId)
+          .orderBy('id', 'desc')
+          .executeTakeFirst();
+
+    return row ? this.mapRow(row) : null;
+  }
+
+  /**
+   * Does a stored snapshot still say exactly what the period says now? Compares
+   * every filed figure AND the covered-voucher commitment — a snapshot with the
+   * same totals but a different voucher set is NOT the same filing.
+   */
+  private matchesComputed(
+    snapshot: VatReport,
+    computed: ComputedVatReport,
+  ): boolean {
+    const boxes = (lines: VatSummaryLine[]): string =>
+      JSON.stringify(
+        [...lines].sort((a, b) =>
+          (a.vat_code ?? '').localeCompare(b.vat_code ?? ''),
+        ),
+      );
+
+    return (
+      snapshot.period_name === computed.period_name &&
+      snapshot.start_date === computed.start_date &&
+      snapshot.end_date === computed.end_date &&
+      snapshot.total_input_vat === computed.total_input_vat &&
+      snapshot.total_output_vat === computed.total_output_vat &&
+      snapshot.total_payable === computed.total_payable &&
+      snapshot.total_receivable === computed.total_receivable &&
+      snapshot.merkle_root === computed.merkle_root &&
+      JSON.stringify(snapshot.voucher_ids) ===
+        JSON.stringify(computed.voucher_ids) &&
+      boxes(snapshot.vat_summary) === boxes(computed.vat_summary)
+    );
   }
 
   /**
@@ -94,10 +215,14 @@ export class VatReportService {
    * {@link generate} would freeze, but stores nothing — safe to call as often as
    * you like while the period is still open and vouchers keep moving.
    *
-   * `frozen_snapshot_id` is non-null when a snapshot already exists: the live
-   * figures below may then differ from the frozen ones, and `generate` would
-   * hand back the frozen copy rather than these. That drift is the thing this
-   * endpoint exists to make visible.
+   * `frozen_snapshot_id` names the snapshot this period would be measured
+   * against right now — the one it is BOUND to if it has been filed, else the
+   * most recently frozen row. When it is non-null the live figures below may
+   * differ from that snapshot's. For a locked period that difference is a real
+   * problem (a filed period's ledger cannot move) and the statutory export
+   * raises `filing_snapshot_drift` for it; for an open period it just means a
+   * snapshot was frozen early, and the next freeze will supersede it rather
+   * than hand it back.
    */
   async preview(
     periodId: number,
@@ -105,11 +230,7 @@ export class VatReportService {
   ): Promise<VatReportPreview> {
     const computed = await this.compute(periodId, executor);
 
-    const frozen = await executor
-      .selectFrom('vat_report')
-      .select('id')
-      .where('reporting_period_id', '=', periodId)
-      .executeTakeFirst();
+    const frozen = await this.candidateSnapshot(periodId, executor);
 
     return { ...computed, frozen_snapshot_id: frozen?.id ?? null };
   }
@@ -342,7 +463,7 @@ export class VatReportService {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
 
-    const org = await this.organization.getOrganization();
+    const org = await this.organization.getOrganization(executor);
     const plugin = this.pluginLoader.resolve(org.country);
 
     const lines = await executor

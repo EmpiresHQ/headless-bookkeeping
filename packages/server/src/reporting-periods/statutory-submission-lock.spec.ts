@@ -14,6 +14,9 @@ import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 
 describe('ReportingPeriod lock → prepared event (integration)', () => {
   let db: Kysely<Database>;
@@ -71,6 +74,9 @@ describe('ReportingPeriod lock → prepared event (integration)', () => {
         EstoniaCountryPlugin,
         AuditLogService,
         StatutorySubmissionService,
+        StatutoryReportService,
+        AuditFindingsService,
+        OrgContextResolver,
       ],
     }).compile();
 

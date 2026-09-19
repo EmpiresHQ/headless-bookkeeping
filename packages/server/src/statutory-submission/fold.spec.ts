@@ -3,6 +3,7 @@ import { foldSubmissionState, FoldEvent } from './fold';
 const ev = (over: Partial<FoldEvent>): FoldEvent => ({
   event_kind: 'prepared',
   source_snapshot_id: 1,
+  source_payload_id: null,
   occurred_at: 1000,
   external_ref: null,
   ...over,

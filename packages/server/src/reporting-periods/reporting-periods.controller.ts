@@ -14,7 +14,11 @@ import {
 } from '@nestjs/swagger';
 import { ReportingPeriodsService } from './reporting-periods.service';
 import { CreateReportingPeriodDto, CreateNextPeriodDto } from './types';
-import type { ReportingPeriod, PeriodWarning } from './types';
+import type {
+  ReportingPeriod,
+  PeriodWarning,
+  FilingReconciliation,
+} from './types';
 import {
   reportingPeriodResponseSchema,
   reportingPeriodsListResponseSchema,
@@ -86,6 +90,28 @@ export class ReportingPeriodsController {
   @ApiParam({ name: 'id', description: 'Reporting period id' })
   async lock(@Param('id', ParseIntPipe) id: number): Promise<ReportingPeriod> {
     return this.service.lock(id);
+  }
+
+  @Post(':id/filing/reconcile')
+  @ApiOperation({
+    summary: "Reconcile a locked period's filing state",
+    description:
+      'Repair a LOCKED period bound to a stale or incomplete filing state — ' +
+      'the supported correction path for periods filed before the draft-export ' +
+      'freeze bug was fixed. Never unlocks and never edits or deletes anything: ' +
+      'it appends a complete VAT snapshot (if the bound one no longer describes ' +
+      "the period's posted vouchers), appends a frozen filing payload version, " +
+      'and appends a `prepared` submission event pinning both. Earlier snapshots ' +
+      'and payload versions stay addressable, so what was already submitted ' +
+      'remains exactly reproducible. Idempotent: a healthy period writes nothing ' +
+      'and returns changed=false. It does not file anything with the tax ' +
+      'authority — an already-submitted period needs a parandusdeklaratsioon.',
+  })
+  @ApiParam({ name: 'id', description: 'Reporting period id' })
+  async reconcileFiling(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<FilingReconciliation> {
+    return this.service.reconcileFilingSnapshot(id);
   }
 
   @Get(':id/warnings')

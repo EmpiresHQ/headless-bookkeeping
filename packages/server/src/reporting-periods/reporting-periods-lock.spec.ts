@@ -20,6 +20,9 @@ import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrganizationService } from '../organization/organization.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 // ValidationError not used in these tests
 // import { ValidationError } from '../ledger/posting/types';
 import { DraftVoucher } from '../ledger/voucher/types';
@@ -97,6 +100,9 @@ describe('ReportingPeriod lock + filing guard (integration)', () => {
         OrganizationService,
         AuditLogService,
         StatutorySubmissionService,
+        StatutoryReportService,
+        AuditFindingsService,
+        OrgContextResolver,
       ],
       controllers: [ReportingPeriodsController],
     }).compile();

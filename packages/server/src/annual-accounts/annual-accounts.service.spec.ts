@@ -20,6 +20,8 @@ import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.
 import { VatReportService } from '../vat-report/vat-report.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import type { AnnualAccountsInput } from '../plugins/annual-accounts.types';
 import { AnnualAccountsService } from './annual-accounts.service';
 
@@ -135,6 +137,8 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
         VatReportService,
         AuditLogService,
         StatutorySubmissionService,
+        StatutoryReportService,
+        AuditFindingsService,
         ReportingPeriodsService,
         AnnualAccountsService,
       ],

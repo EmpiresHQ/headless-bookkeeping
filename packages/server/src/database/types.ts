@@ -34,6 +34,7 @@ export interface Database {
   credit_note: CreditNoteTable;
   fixed_asset: FixedAssetTable;
   statutory_submission_event: StatutorySubmissionEventTable;
+  statutory_filing_snapshot: StatutoryFilingSnapshotTable;
   mailbox_connector: MailboxConnectorTable;
   business_trip: BusinessTripTable;
   allowance: AllowanceTable;
@@ -577,11 +578,38 @@ export interface StatutorySubmissionEventTable {
   // 'prepared' | 'submitted' | 'accepted' | 'rejected'
   //   | 'correction_submitted' | 'correction_accepted'
   event_kind: string;
+  // The exact statutory_filing_snapshot version this event identifies (issue
+  // #200). NULL for events recorded before migration 068, and for periods
+  // whose plugin freezes no filing payload.
+  source_payload_id: number | null;
   // e-MTA confirmation id (nullable).
   external_ref: string | null;
   occurred_at: number;
   actor: string;
   note: string | null;
+}
+
+// Issue #200: the COMPLETE filing state a period is filed against — the frozen
+// `StatutoryReportInput` (declarant identity, signed declaration bases, VAT
+// boxes/totals and per-document INF lines) bound to one frozen `vat_report`.
+// Append-only via BEFORE UPDATE/DELETE triggers (ADR-0009): a correction
+// appends a newer row for the same `vat_report_id`; which version an export
+// renders is pinned per submission event (statutory_submission_event
+// .source_payload_id), never decided by recency alone.
+export interface StatutoryFilingSnapshotTable {
+  id: Generated<number>;
+  reporting_period_id: number;
+  vat_report_id: number;
+  // Jurisdiction/report identifier, e.g. 'EE_KMD'.
+  report_kind: string;
+  // The country whose plugin rendered this filing, frozen so a later
+  // organization.country change cannot alter an already-filed artifact.
+  country: string;
+  // JSON string: the frozen StatutoryReportInput.
+  payload: string;
+  // Why this row exists: 'lock' | 'reconcile'.
+  reason: string;
+  created_at: number;
 }
 
 export interface MailboxConnectorTable {
