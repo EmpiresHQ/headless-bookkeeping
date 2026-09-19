@@ -10,6 +10,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 import { BusinessTripService } from './business-trip.service';
 
 const createBusinessTripSchema = z.object({
@@ -20,13 +21,14 @@ const createBusinessTripSchema = z.object({
   purpose: z.string().optional(),
 });
 
+class CreateBusinessTripDto extends createZodDto(createBusinessTripSchema) {}
+
 @Controller('api/business-trips')
 export class BusinessTripController {
   constructor(private readonly service: BusinessTripService) {}
 
   @Post()
-  async create(@Body() body: unknown) {
-    const dto = createBusinessTripSchema.parse(body);
+  async create(@Body() dto: CreateBusinessTripDto) {
     return this.service.createBusinessTrip({
       claimantId: dto.claimant_id,
       departureDate: dto.departure_date,
