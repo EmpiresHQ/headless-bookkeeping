@@ -23,7 +23,9 @@ export class StatutoryReportController {
   @ApiOperation({
     summary: 'Render a statutory report',
     description:
-      'Render the statutory report (e.g. annual accounts) for a period.',
+      'Render the statutory report for a period. An OPEN period yields a ' +
+      'read-only draft and freezes nothing; a LOCKED period replays the frozen ' +
+      'filing payload it was filed against.',
   })
   @ApiParam({ name: 'id', description: 'Reporting period id' })
   @ApiQuery({
@@ -31,17 +33,39 @@ export class StatutoryReportController {
     required: false,
     description: 'Output format: xml | csv | all (default: xml)',
   })
+  @ApiQuery({
+    name: 'filing_version',
+    required: false,
+    description:
+      'Locked periods only: render one specific frozen filing-payload version ' +
+      "(statutory_filing_snapshot id) instead of the one the period's filing " +
+      'state currently pins — e.g. to reproduce exactly what an earlier ' +
+      '`submitted` event identifies.',
+  })
   async download(
     @Param('id') id: string,
     @Query('format') format = 'xml',
+    @Query('filing_version') filingVersion: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
     if (!VALID_FORMATS.has(format)) {
       throw new BadRequestException(`Unsupported format: ${format}`);
     }
+    let filingVersionId: number | undefined;
+    if (filingVersion !== undefined && filingVersion !== '') {
+      filingVersionId = Number(filingVersion);
+      if (!Number.isInteger(filingVersionId) || filingVersionId <= 0) {
+        throw new BadRequestException(
+          `Invalid filing_version: ${filingVersion}`,
+        );
+      }
+    }
     const formats: StatutoryFormat[] =
       format === 'all' ? ['xml', 'csv'] : [format as StatutoryFormat];
-    const { artifacts } = await this.service.generate(Number(id), { formats });
+    const { artifacts } = await this.service.generate(Number(id), {
+      formats,
+      filingVersionId,
+    });
     if (artifacts.length === 0) {
       throw new BadRequestException('No statutory report artifacts produced');
     }

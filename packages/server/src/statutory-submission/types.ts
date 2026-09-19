@@ -38,6 +38,15 @@ export interface SubmissionEvent {
   report_kind: string;
   source_snapshot_type: string;
   source_snapshot_id: number;
+  /**
+   * The exact `statutory_filing_snapshot` version this event identifies
+   * (issue #200). `statutory_filing_snapshot` is append-only and
+   * latest-row-wins, so a reconciliation may append a corrected payload
+   * against the SAME `source_snapshot_id`; pinning the version here keeps an
+   * already-submitted event reproducible byte-for-byte. NULL for events
+   * recorded before migration 068 and for plugins that freeze no payload.
+   */
+  source_payload_id: number | null;
   event_kind: EventKind;
   external_ref: string | null;
   occurred_at: number;
@@ -49,6 +58,8 @@ export interface SubmissionEvent {
 export interface SubmissionState {
   status: SubmissionStatus;
   currentSnapshotId: number | null;
+  /** The filing-payload version the current filing state identifies. */
+  currentPayloadId: number | null;
   lastExternalRef: string | null;
   submissionCount: number;
   history: SubmissionEvent[];

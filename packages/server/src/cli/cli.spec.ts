@@ -6,6 +6,9 @@ import { migrations } from '../database/migrations';
 import { ApiTokenService } from '../auth/api-token.service';
 import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -74,18 +77,42 @@ describe('admin CLI (yargs)', () => {
     deps = {
       tokens: new ApiTokenService(db),
       organization: new OrganizationService(db),
-      periods: new ReportingPeriodsService(
-        db,
-        new VatReportService(
+      periods: (() => {
+        const pluginLoader = new PluginLoader(
+          new NullCountryPlugin(),
+          new EstoniaCountryPlugin(),
+        );
+        const organizationService = new OrganizationService(db);
+        const ledgerBalance = new LedgerBalanceService(db);
+        const vatReportService = new VatReportService(
           db,
-          new LedgerBalanceService(db),
-          new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
-          new OrganizationService(db),
-        ),
-        new OrganizationService(db),
-        new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
-        new StatutorySubmissionService(db, new AuditLogService(db)),
-      ),
+          ledgerBalance,
+          pluginLoader,
+          organizationService,
+        );
+        const submissions = new StatutorySubmissionService(
+          db,
+          new AuditLogService(db),
+        );
+        const auditFindings = new AuditFindingsService(db);
+        return new ReportingPeriodsService(
+          db,
+          vatReportService,
+          organizationService,
+          pluginLoader,
+          submissions,
+          new StatutoryReportService(
+            db,
+            ledgerBalance,
+            vatReportService,
+            new OrgContextResolver(organizationService, pluginLoader),
+            auditFindings,
+            submissions,
+            pluginLoader,
+          ),
+          auditFindings,
+        );
+      })(),
       expenses: new ExpensesService(
         db,
         noProjection,

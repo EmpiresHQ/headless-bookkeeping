@@ -71,3 +71,30 @@ opaque `supplier_invoice_number` while the period is open).
 - The current domain produces one VAT rate per document, so INF emits one line per
   document. Mixed-rate line-item documents would require grouping by `vat_code`
   within a document — explicitly deferred.
+
+## Amendment (issue #200, 2026-09-20): draft reads live, final replays frozen
+
+Decision 4 said a `locked` period yields a deterministic `final` "built from the
+snapshot's immutable vouchers" and an `open` period a `draft` preview. The
+implementation reached both through `VatReportService.generate`, which **freezes**
+— so downloading a draft froze the filing state, and a later lock filed that
+premature snapshot while the XML was assembled from live data.
+
+Corrected:
+
+- A **draft** is assembled entirely from `VatReportService.preview` and the live
+  tables. It stores nothing.
+- Closing a period freezes, atomically, a complete `vat_report` **and** a
+  `statutory_filing_snapshot` holding the whole `StatutoryReportInput`. A
+  snapshot that drifted (frozen early) is superseded by a fresh one rather than
+  reused; the stale row is retained, immutable, and flagged as an audit finding.
+- A **final** replays that frozen payload verbatim — including the declarant
+  identity and the **rendering jurisdiction**. Resolving the plugin from
+  `organization.country` at export time would let a later country change alter,
+  or (via `NullCountryPlugin`) silently empty, an already-filed artifact.
+- A locked period with no frozen payload has no reproducible final: the export
+  **refuses (409)** and points at the reconciliation endpoint. It offers no
+  "reconstructed" variant on purpose — neither the KMD XML nor the CSV has a
+  field that marks an artifact as a rebuild, so any file produced there would be
+  indistinguishable from a real filing to a caller reading only the bytes. The
+  live figures remain available through the read-only VAT-report preview.

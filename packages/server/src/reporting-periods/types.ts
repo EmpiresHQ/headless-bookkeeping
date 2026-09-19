@@ -38,3 +38,28 @@ export interface PeriodWarning {
   object_id: number;
   description: string;
 }
+
+/**
+ * What one filing-state reconciliation did to a locked period (issue #200).
+ * Append-only by construction: nothing is edited or deleted, so both the
+ * previous and the current snapshot/payload versions stay addressable and
+ * renderable.
+ */
+export interface FilingReconciliation {
+  reporting_period_id: number;
+  /** False ⇒ the period was already complete and current; nothing was written. */
+  changed: boolean;
+  /** True ⇒ a stale VAT snapshot was superseded by a fresh complete one. */
+  snapshot_superseded: boolean;
+  previous_snapshot_id: number | null;
+  current_snapshot_id: number;
+  /** The filing-payload version the filing state pinned before / after. */
+  previous_payload_id: number | null;
+  current_payload_id: number;
+  /**
+   * True ⇒ the period had already been reported to the tax authority, so the
+   * corrected figures need a parandusdeklaratsioon. The system never files it.
+   */
+  correction_declaration_required: boolean;
+  notes: string[];
+}

@@ -37,7 +37,12 @@ it('adds a nullable registry code without changing existing VAT identity and rol
       .set({ registry_code: '17499653' })
       .where('id', '=', 1)
       .execute();
-    expect((await migrator.migrateDown()).error).toBeUndefined();
+    // Roll back TO the pre-066 state by name, not with a single migrateDown():
+    // later migrations keep being added, and `migrateDown` only undoes the last
+    // one, so a step-count-based rollback silently stops testing 066.
+    expect(
+      (await migrator.migrateTo('065_add_audit_finding_reason_type')).error,
+    ).toBeUndefined();
     const row = await db
       .selectFrom('organization')
       .selectAll()

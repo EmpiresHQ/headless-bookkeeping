@@ -10,6 +10,9 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { StatutoryReportService } from './statutory-report.service';
+import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { AccountService } from '../ledger/account/account.service';
@@ -46,6 +49,7 @@ describe('StatutoryReportService.generate (integration)', () => {
   let posting: PostingService;
   let auditFindings: AuditFindingsService;
   let vatReports: VatReportService;
+  let periods: ReportingPeriodsService;
 
   const PERIOD_ID = 1; // seeded 2024-Q1
 
@@ -86,6 +90,9 @@ describe('StatutoryReportService.generate (integration)', () => {
         AuditFindingsService,
         VatReportService,
         StatutoryReportService,
+        StatutorySubmissionService,
+        AuditLogService,
+        ReportingPeriodsService,
       ],
     }).compile();
 
@@ -96,6 +103,7 @@ describe('StatutoryReportService.generate (integration)', () => {
     creditNotes = module.get(CreditNotesService);
     posting = module.get(PostingService);
     auditFindings = module.get(AuditFindingsService);
+    periods = module.get(ReportingPeriodsService);
 
     // Make EE the active plugin and give the declarant a valid reg number.
     await organization.updateOrganization({
@@ -211,17 +219,30 @@ describe('StatutoryReportService.generate (integration)', () => {
   });
 
   it('hard-blocks final generation when the declarant reg number is missing', async () => {
-    // Lock the period (mode = final) and clear the declarant reg number.
+    // File the period with no declarant reg number: the gap is FROZEN into the
+    // filing payload, so the final export blocks on what was filed rather than
+    // on whatever the organization record happens to say now.
+    await organization.updateOrganization({ registry_code: null });
+    await periods.lock(PERIOD_ID);
+
+    await expect(
+      service.generate(PERIOD_ID, { formats: ['xml'] }),
+    ).rejects.toThrow(/registry code/i);
+  });
+
+  it('refuses a final export for a period locked before any filing state was frozen', async () => {
+    // A period filed before issue #200 was fixed: locked, but nothing frozen.
     await db
       .updateTable('reporting_period')
       .set({ status: 'locked' })
       .where('id', '=', PERIOD_ID)
       .execute();
-    await organization.updateOrganization({ registry_code: null });
 
+    // No artifact is handed out at all: the formats carry no marker that would
+    // distinguish a rebuild from a real filing.
     await expect(
       service.generate(PERIOD_ID, { formats: ['xml'] }),
-    ).rejects.toThrow(/registry code/i);
+    ).rejects.toThrow(/no frozen filing state/i);
   });
 
   it('exports the July issue figures from signed ledger bases, including reversals', async () => {
@@ -330,12 +351,8 @@ describe('StatutoryReportService.generate (integration)', () => {
   });
 
   it('rejects a VAT number used as registry code for a final declaration', async () => {
-    await db
-      .updateTable('reporting_period')
-      .set({ status: 'locked' })
-      .where('id', '=', PERIOD_ID)
-      .execute();
     await organization.updateOrganization({ registry_code: 'EE100000001' });
+    await periods.lock(PERIOD_ID);
     await expect(
       service.generate(PERIOD_ID, { formats: ['xml'] }),
     ).rejects.toThrow('8-digit commercial registry code');

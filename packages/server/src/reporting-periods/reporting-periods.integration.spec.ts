@@ -4,6 +4,9 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from './reporting-periods.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -65,12 +68,27 @@ describe('ReportingPeriodsService (integration)', () => {
       pluginLoader,
       organizationService,
     );
+    const submissions = new StatutorySubmissionService(
+      db,
+      new AuditLogService(db),
+    );
+    const auditFindings = new AuditFindingsService(db);
     service = new ReportingPeriodsService(
       db,
       vatReportService,
       organizationService,
       pluginLoader,
-      new StatutorySubmissionService(db, new AuditLogService(db)),
+      submissions,
+      new StatutoryReportService(
+        db,
+        new LedgerBalanceService(db),
+        vatReportService,
+        new OrgContextResolver(organizationService, pluginLoader),
+        auditFindings,
+        submissions,
+        pluginLoader,
+      ),
+      auditFindings,
     );
   });
 

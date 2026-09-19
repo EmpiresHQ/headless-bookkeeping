@@ -79,3 +79,33 @@ lifecycle lives entirely in the event log; the period row is **not** extended.
 - This adds external-lifecycle visibility — the one thing open-accounting's stored
   `SUBMITTED/ACCEPTED` status had over us — **without** giving up derive-on-read,
   the immutable snapshot, or no-break-glass.
+
+## Amendment (issue #200, 2026-09-20): events pin the filing-payload version too
+
+Decision 5 ("every `submitted` pins the exact `source_snapshot_id`") was not
+sufficient once the *complete* filing state — declarant identity, rendering
+jurisdiction, declaration bases and INF detail — became a frozen artifact of its
+own (`statutory_filing_snapshot`, migration 067). That table is append-only, so a
+reconciliation can append a corrected payload against an **unchanged**
+`vat_report`; an already-`submitted` event would then keep naming the same
+snapshot while the document rendered for it silently became the newer payload.
+
+Each event therefore also carries `source_payload_id` (migration 068, nullable
+for events predating it). The fold exposes `currentPayloadId` alongside
+`currentSnapshotId`, and the export renders **the version the filing state pins**
+— `?filing_version=<id>` renders any earlier one. What was told to the tax
+authority stays reproducible per event.
+
+Two further consequences:
+
+- **The `prepared` event is written inside the filing transaction.** It is what
+  tells a later export which payload the filing state identifies, so a period
+  bound to artifacts whose event never landed would export the wrong version.
+  Snapshot, payload, binding and event now commit or roll back together; a retry
+  after a fault starts clean.
+- **A reconciliation re-`prepared`s a period; it files nothing.** Whether a
+  *parandusdeklaratsioon* is still owed is derived from the event log (was the
+  period ever reported externally, and does any `submitted` /
+  `correction_submitted` event name the current snapshot+payload?), so the
+  obligation survives repeated reconciliations and clears only when the corrected
+  version is itself reported. See `docs/runbooks/filing-state-reconciliation.md`.
