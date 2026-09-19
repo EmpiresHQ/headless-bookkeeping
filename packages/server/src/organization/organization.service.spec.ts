@@ -49,4 +49,22 @@ describe('OrganizationService (integration)', () => {
     const fetched = await service.getOrganization();
     expect(fetched.iban).toBe('EE382200221020145685');
   });
+  it('keeps the commercial registry code separate from the VAT number', async () => {
+    expect((await service.getOrganization()).registry_code).toBeNull();
+    await service.updateOrganization({
+      registry_code: '17499653',
+      vat_registration_number: 'EE102983355',
+    });
+    expect(await service.getOrganization()).toMatchObject({
+      registry_code: '17499653',
+      vat_registration_number: 'EE102983355',
+    });
+    await service.updateOrganization({ name: 'Updated company' });
+    expect((await service.getOrganization()).registry_code).toBe('17499653');
+    await service.updateOrganization({ registry_code: null });
+    expect((await service.getOrganization()).registry_code).toBeNull();
+    expect((await service.getOrganization()).vat_registration_number).toBe(
+      'EE102983355',
+    );
+  });
 });

@@ -1,3 +1,4 @@
+import { emptyKmdDeclaration } from '../../test/kmd-fixture';
 // src/plugins/estonia-country.plugin.spec.ts
 import { EstoniaCountryPlugin } from './estonia-country.plugin';
 import {
@@ -242,9 +243,15 @@ describe('EstoniaCountryPlugin — retrieval + distribution tax', () => {
 describe('generateStatutoryReports', () => {
   const plugin = new EstoniaCountryPlugin();
   const input = {
-    declarant: { regNumber: 'EE100000001', name: 'Test OÜ' },
+    declarant: { regNumber: '17499653', name: 'Test OÜ' },
     period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
     mode: 'final' as const,
+    declaration: {
+      ...emptyKmdDeclaration,
+      row1_base_24: 200000,
+      row4_output_vat: 48000,
+      net_vat_due: 48000,
+    },
     boxes: [
       {
         vat_code: 'EE_OUTPUT_24',

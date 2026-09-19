@@ -27,6 +27,7 @@ const ORG: Organization = {
   org_type: 'company',
   created_at: 0,
   name: 'Acme OÜ',
+  registry_code: null,
   vat_registration_number: 'EE123456789',
   iban: null,
 };
@@ -75,6 +76,9 @@ describe('OrganizationScreen', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Name')).toHaveValue('Acme OÜ'),
     );
+    fireEvent.change(screen.getByLabelText('Registry code'), {
+      target: { value: ' 17499653 ' },
+    });
     fireEvent.change(screen.getByLabelText('IBAN'), {
       target: { value: '  EE382200221020145685  ' },
     });
@@ -86,6 +90,7 @@ describe('OrganizationScreen', () => {
         vat_registered: true,
         base_currency: null,
         name: 'Acme OÜ',
+        registry_code: '17499653',
         vat_registration_number: 'EE123456789',
         iban: 'EE382200221020145685', // trimmed
       }),

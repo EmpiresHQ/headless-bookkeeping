@@ -1,3 +1,4 @@
+import { emptyKmdDeclaration } from '../../test/kmd-fixture';
 import { NullCountryPlugin } from './null-country.plugin';
 import {
   CategoryDef,
@@ -127,6 +128,7 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
         },
         mode: 'final',
         boxes: [],
+        declaration: emptyKmdDeclaration,
         totals: { totalInputVat: 0, totalOutputVat: 0, totalPayable: 0 },
         salesLines: [],
         purchaseLines: [],

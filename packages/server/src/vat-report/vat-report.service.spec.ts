@@ -1018,6 +1018,86 @@ describe('VAT report snapshot generation (integration)', () => {
       expect(d.review_flags).toEqual([]);
     });
 
+    it('keeps 9% and 13% bases separate without reverse-calculating rounded VAT', async () => {
+      for (const [code, base, rate] of [
+        ['EE_OUTPUT_9', 10001, 0.09],
+        ['EE_OUTPUT_13', 20002, 0.13],
+      ] as const) {
+        const vat = Math.round(base * rate);
+        const makeLine = (
+          account_code: string,
+          amount: number,
+          is_debit: boolean,
+          vat_code: string | null,
+        ) => ({
+          account_code,
+          amount,
+          base_amount: amount,
+          is_debit,
+          vat_code,
+          currency: 'EUR',
+          fx_rate: 1,
+        });
+        await seedPostedVoucher('2024-02-15', [
+          makeLine('AR', base + vat, true, null),
+          makeLine('REVENUE', base, false, code),
+          makeLine('VAT_PAYABLE', vat, false, code),
+        ]);
+      }
+      expect(await vatReportService.buildDeclaration(1)).toMatchObject({
+        row2_base_reduced: 30003,
+        row2_base_9: 10001,
+        row2_base_13: 20002,
+      });
+    });
+
+    it.each([
+      ['EE_REVERSE_CHARGE', 'EXPENSE_SOFTWARE', true, 'row1_base_24'],
+      ['EE_OUTPUT_24', 'REVENUE', false, 'row1_base_24'],
+      ['EE_OUTPUT_9', 'REVENUE', false, 'row2_base_reduced'],
+      ['EE_OUTPUT_13', 'REVENUE', false, 'row2_base_reduced'],
+      ['EE_OUTPUT_0_EU', 'REVENUE', false, 'row3_base_zero'],
+      ['EE_ZERO', 'REVENUE', false, 'row3_base_zero'],
+    ] as const)(
+      'nets %s and its reversal to zero',
+      async (code, account, debit, row) => {
+        const lines = [
+          {
+            account_code: account,
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1,
+            vat_code: code,
+            is_debit: debit,
+          },
+          {
+            account_code: debit ? 'AP' : 'AR',
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1,
+            vat_code: null,
+            is_debit: !debit,
+          },
+        ];
+        const original = await seedPostedVoucher('2024-02-15', lines);
+        const reversal = await seedPostedVoucher(
+          '2024-02-16',
+          lines.map((line) => ({ ...line, is_debit: !line.is_debit })),
+        );
+        // Seed helper writes posted vouchers directly; the sign test intentionally
+        // exercises mirror lines, independent of reversal metadata.
+        expect(reversal).not.toBe(original);
+        const d = await vatReportService.buildDeclaration(1);
+        expect(d[row]).toBe(0);
+        expect(d.row7_other_acquisition).toBe(0);
+        expect(d.vd_intra_eu_services).toBe(0);
+        expect(d.row2_base_9).toBe(0);
+        expect(d.row2_base_13).toBe(0);
+      },
+    );
+
     it('throws NotFoundException for an unknown period', async () => {
       await expect(vatReportService.buildDeclaration(999)).rejects.toThrow(
         NotFoundException,

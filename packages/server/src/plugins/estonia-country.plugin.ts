@@ -136,8 +136,8 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     'SE',
   ]);
 
-  /** Estonian VAT registration number: prefix EE followed by exactly 9 digits. */
-  private static readonly REG_RE = /^EE\d{9}$/;
+  /** Commercial registry code identifying the KMD declarant. */
+  private static readonly REG_RE = /^\d{8}$/;
 
   /**
    * v1 PLACEHOLDER rates (deterministic for tests). Live ECB integration is
@@ -439,12 +439,12 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     if (!reg) {
       warnings.push({
         code: 'missing_declarant_reg_number',
-        message: 'KMD declarant has no VAT registration number',
+        message: 'KMD declarant has no commercial registry code',
       });
     } else if (!EstoniaCountryPlugin.REG_RE.test(reg)) {
       warnings.push({
         code: 'invalid_declarant_reg_number',
-        message: `Declarant reg number ${reg} is not EE + 9 digits`,
+        message: `Declarant reg number ${reg} must be an 8-digit commercial registry code`,
       });
     }
 

@@ -1,4 +1,4 @@
-import type { VatSummaryLine } from '../vat-report/types';
+import type { KmdDeclaration, VatSummaryLine } from '../vat-report/types';
 
 export type StatutoryFormat = 'xml' | 'csv';
 
@@ -15,10 +15,12 @@ export interface StatutoryDocLine {
 }
 
 export interface StatutoryReportInput {
+  /** Commercial registry code, not the VAT registration number. */
   declarant: { regNumber: string | null; name: string | null };
   period: { name: string; startDate: string; endDate: string };
   mode: 'final' | 'draft';
   boxes: VatSummaryLine[];
+  declaration: KmdDeclaration;
   totals: {
     totalInputVat: number;
     totalOutputVat: number;

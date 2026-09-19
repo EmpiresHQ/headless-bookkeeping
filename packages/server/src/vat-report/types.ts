@@ -31,6 +31,9 @@ export interface KmdDeclaration {
   row1_base_24: number;
   /** Row 2 — 9%/13% reduced-rate taxable supply base. */
   row2_base_reduced: number;
+  /** Separate reduced-rate bases required by the KMD XML format. */
+  row2_base_9: number;
+  row2_base_13: number;
   /** Row 3 — 0% supply base (intra-EU services, exports). */
   row3_base_zero: number;
   /** Row 4 — total output VAT due (from VAT_PAYABLE control lines). */

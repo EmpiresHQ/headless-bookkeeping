@@ -49,8 +49,8 @@ delegates here. Credit notes flow into INF assembly as ordinary (negative) lines
 
 **4. Reporting modes.** A `locked` period yields a deterministic `final` report
 (built from the snapshot's immutable vouchers); an `open` period yields a `draft`
-preview from live tables. A `final` report without a declarant VAT registration
-number is hard-blocked; INF data gaps (missing invoice number on a qualifying
+preview from live tables. A `final` report without a valid declarant commercial
+registry code is hard-blocked; INF data gaps (missing invoice number on a qualifying
 line, etc.) surface as `statutory_report_incomplete` audit findings so they can be
 fixed pre-lock (a metadata-only `PATCH /expenses/:id/document-metadata` sets the
 opaque `supplier_invoice_number` while the period is open).
@@ -60,11 +60,14 @@ opaque `supplier_invoice_number` while the period is open).
   kernel assembly and REST/SPA path are unchanged.
 - XML correctness is anchored to the official XSD in CI, so "it imports into
   e-MTA" is a tested property, not a hope. Schema bumps are plugin-only changes.
-- The KMD declaration-body box net values are back-derived per rate from output
-  VAT (`net = round(vat / rate)`) because the VAT snapshot stores VAT amounts, not
-  per-rate taxable bases; INF line amounts come straight from `base_amount`. If a
-  future requirement needs exact per-rate taxable bases on the boxes, the
-  assembly must carry them in the neutral input.
+- As corrected for #196, the input carries the declaration built from signed
+  ledger bases. XML and CSV use these exact amounts, including zero-rated
+  supplies and reverse-charge acquisitions; reduced 9% and 13% bases stay
+  separate. Supply bases are credit-positive and acquisition bases debit-positive,
+  so reversals subtract. VAT amounts are never divided by rates to infer bases.
+- Declarant identity uses `organization.registry_code` (8 digits for an Estonian
+  company), separately from `vat_registration_number`. Migration 066 leaves it
+  null for existing organizations; the operator must enter it before final export.
 - The current domain produces one VAT rate per document, so INF emits one line per
   document. Mixed-rate line-item documents would require grouping by `vat_code`
   within a document — explicitly deferred.

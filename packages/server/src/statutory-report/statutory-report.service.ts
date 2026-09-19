@@ -36,8 +36,9 @@ interface AssemblyLine {
  *
  * The VAT boxes/totals are NOT recomputed here — they are taken verbatim from
  * {@link VatReportService.generate} (the single authoritative VAT projection).
- * This service adds only the per-document INF detail (sales/purchase lines) the
- * declaration annexes need, keyed by document role and account code.
+ * The declaration comes from buildDeclaration, which includes signed taxable
+ * bases that cannot be recovered from VAT amounts. This service also adds the
+ * per-document INF detail needed by the annexes.
  *
  * Sign convention (LedgerBalanceService): output-side amounts (sales,
  * VAT_PAYABLE) are read credit-positive; input-side amounts (purchases,
@@ -76,10 +77,10 @@ export class StatutoryReportService {
 
     const { organization, plugin } = await this.orgResolver.resolve();
 
-    // Hard block: a final filing must carry a declarant VAT registration number.
-    if (mode === 'final' && !organization.vat_registration_number) {
+    // A final filing must identify the declarant by its commercial registry code.
+    if (mode === 'final' && !organization.registry_code) {
       throw new BadRequestException(
-        'Cannot generate a final KMD without a declarant VAT registration number',
+        'Cannot generate a final KMD without a declarant registry code',
       );
     }
 
@@ -94,7 +95,7 @@ export class StatutoryReportService {
 
     const input: StatutoryReportInput = {
       declarant: {
-        regNumber: organization.vat_registration_number,
+        regNumber: organization.registry_code,
         name: organization.name,
       },
       period: {
@@ -104,6 +105,7 @@ export class StatutoryReportService {
       },
       mode,
       boxes: report.vat_summary,
+      declaration: await this.vatReport.buildDeclaration(periodId),
       totals: {
         totalInputVat: report.total_input_vat,
         totalOutputVat: report.total_output_vat,
@@ -114,6 +116,14 @@ export class StatutoryReportService {
     };
 
     const result = plugin.generateStatutoryReports(input, opts);
+
+    if (mode === 'final') {
+      const invalidIdentity = result.warnings.find(
+        (w) => w.code === 'invalid_declarant_reg_number',
+      );
+      if (invalidIdentity)
+        throw new BadRequestException(invalidIdentity.message);
+    }
 
     for (const w of result.warnings) {
       await this.auditFindings.create({

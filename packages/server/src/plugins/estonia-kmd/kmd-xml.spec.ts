@@ -1,3 +1,4 @@
+import { emptyKmdDeclaration } from '../../../test/kmd-fixture';
 import { renderKmdXml } from './kmd-xml';
 import { validateAgainstKmdXsd } from './xsd-validate';
 import { readFileSync } from 'fs';
@@ -10,9 +11,15 @@ const xsd = readFileSync(
 );
 
 const input: StatutoryReportInput = {
-  declarant: { regNumber: 'EE100000001', name: 'Test OÜ' },
+  declarant: { regNumber: '17499653', name: 'Test OÜ' },
   period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
   mode: 'final',
+  declaration: {
+    ...emptyKmdDeclaration,
+    row1_base_24: 200000,
+    row4_output_vat: 48000,
+    net_vat_due: 48000,
+  },
   boxes: [
     {
       vat_code: 'EE_OUTPUT_24',
@@ -43,7 +50,7 @@ it('produces XSD-valid KMD XML with declarant + period', () => {
   const res = validateAgainstKmdXsd(xml, xsd);
   expect(res.errors).toEqual([]);
   expect(res.valid).toBe(true);
-  expect(xml).toContain('<taxPayerRegCode>EE100000001</taxPayerRegCode>');
+  expect(xml).toContain('<taxPayerRegCode>17499653</taxPayerRegCode>');
 });
 
 it('includes the INF Part A row for a ≥€1000 partner', () => {
@@ -84,4 +91,45 @@ it('stays XSD-valid with a purchase line and a credit note (negative)', () => {
   };
   const res = validateAgainstKmdXsd(renderKmdXml(withB), xsd);
   expect(res.errors).toEqual([]);
+});
+
+it('exports all supported non-zero declaration fields in schema order without deriving bases from VAT', () => {
+  const xml = renderKmdXml({
+    ...input,
+    declaration: {
+      ...emptyKmdDeclaration,
+      row1_base_24: 20612,
+      row2_base_reduced: 30003,
+      row2_base_9: 10001,
+      row2_base_13: 20002,
+      row3_base_zero: 810000,
+      vd_intra_eu_services: 800000,
+      row4_output_vat: 8447,
+      row5_input_vat: 4947,
+      row6_intra_eu_acquisition: 12345,
+      row7_other_acquisition: 20612,
+    },
+  });
+  for (const [tag, amount] of [
+    ['transactions24', '206.12'],
+    ['transactions9', '100.01'],
+    ['transactions13', '200.02'],
+    ['transactionsZeroVat', '8100.00'],
+    ['euSupplyInclGoodsAndServicesZeroVat', '8000.00'],
+    ['inputVatTotal', '49.47'],
+    ['euAcquisitionsGoodsAndServicesTotal', '123.45'],
+    ['acquisitionOtherGoodsAndServicesTotal', '206.12'],
+  ]) {
+    expect(xml).toContain('<' + tag + '>' + amount + '</' + tag + '>');
+  }
+  expect(validateAgainstKmdXsd(xml, xsd)).toEqual({ valid: true, errors: [] });
+});
+
+it('preserves negative declaration bases for credit notes', () => {
+  const xml = renderKmdXml({
+    ...input,
+    declaration: { ...emptyKmdDeclaration, row1_base_24: -10001 },
+  });
+  expect(xml).toContain('<transactions24>-100.01</transactions24>');
+  expect(validateAgainstKmdXsd(xml, xsd)).toEqual({ valid: true, errors: [] });
 });
