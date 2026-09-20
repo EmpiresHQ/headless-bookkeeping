@@ -21,6 +21,9 @@ import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
+import { OrgContextResolver } from '../organization/org-context.resolver';
+import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
 import { MatchProposal } from './reconciliation.types';
 
@@ -33,6 +36,7 @@ describe('ReconciliationService (integration)', () => {
   let bankStatementService: BankStatementService;
   let entitiesService: EntitiesService;
   let postingService: PostingService;
+  let prepaymentService: PrepaymentService;
   let voucherCounter = 0;
 
   beforeEach(async () => {
@@ -66,6 +70,9 @@ describe('ReconciliationService (integration)', () => {
         FXRealizedService,
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
+        PrepaymentService,
+        OrgContextResolver,
         ReconciliationService,
       ],
     }).compile();
@@ -74,6 +81,7 @@ describe('ReconciliationService (integration)', () => {
     entitiesService = module.get(EntitiesService);
     reconciliationService = module.get(ReconciliationService);
     postingService = module.get(PostingService);
+    prepaymentService = module.get(PrepaymentService);
   });
 
   afterEach(async () => {
@@ -2084,6 +2092,183 @@ describe('ReconciliationService (integration)', () => {
       expect(remaining).toBe(0);
     });
   });
+
+  // ── Issue #201: prepayment settlement is gated at the WRITE path ────
+
+  describe('activateMatch — prepayment advance guard (#201)', () => {
+    const OWNER_IBAN = 'IE29AIBK93115212345678';
+    const STRANGER_IBAN = 'IE64IRCE92050112345678';
+
+    /** An owned advance plus a second incoming line from the same customer. */
+    async function seedOwnedAdvance(iban?: string) {
+      const customer = await seedCustomer(OWNER_IBAN);
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-15',
+          amount: 10000,
+          counterparty_iban: OWNER_IBAN,
+        },
+        {
+          transaction_date: '2025-01-16',
+          amount: 5000,
+          counterparty_iban: iban ?? OWNER_IBAN,
+        },
+      ]);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        stmt.transactions[0].id,
+        customer.id,
+      );
+      return { customer, advance, settlingLine: stmt.transactions[1] };
+    }
+
+    it('activates a prepayment match whose bank line names the advance owner', async () => {
+      const { advance, settlingLine } = await seedOwnedAdvance();
+
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: settlingLine.id,
+          voucherId: advance.id,
+          matchType: 'prepayment',
+          amountMatched: 5000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+
+      await expect(
+        reconciliationService.activateMatch(staged.records[0].id),
+      ).resolves.toMatchObject({ matchId: staged.records[0].id });
+    });
+
+    it('refuses to settle an advance from another counterparty line', async () => {
+      const { advance, settlingLine } = await seedOwnedAdvance(STRANGER_IBAN);
+
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: settlingLine.id,
+          voucherId: advance.id,
+          matchType: 'prepayment',
+          amountMatched: 5000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+
+      // A bank line nobody owns is not a match for somebody's advance — the
+      // numeric outstanding alone would have let this through.
+      await expect(
+        reconciliationService.activateMatch(staged.records[0].id),
+      ).rejects.toThrow('unknown or ambiguous');
+    });
+
+    it('refuses to settle an advance with no resolved owner', async () => {
+      await seedCustomer(OWNER_IBAN);
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-15', amount: 10000 },
+        {
+          transaction_date: '2025-01-16',
+          amount: 5000,
+          counterparty_iban: OWNER_IBAN,
+        },
+      ]);
+      // No counterparty on the originating line → an UNRESOLVED advance.
+      const advance = await prepaymentService.createCustomerPrepayment(
+        stmt.transactions[0].id,
+      );
+
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[1].id,
+          voucherId: advance.id,
+          matchType: 'prepayment',
+          amountMatched: 5000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+
+      await expect(
+        reconciliationService.activateMatch(staged.records[0].id),
+      ).rejects.toThrow('no resolved counterparty');
+    });
+
+    it('refuses to settle a voucher that carries no advance record', async () => {
+      const customer = await seedCustomer(OWNER_IBAN);
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        customer.id,
+        10000,
+        'INV-201',
+        '2025-01-15',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-16',
+          amount: 5000,
+          counterparty_iban: OWNER_IBAN,
+        },
+      ]);
+
+      // A direct call claiming an ordinary AR voucher is a prepayment.
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId: invoiceVoucherId,
+          matchType: 'prepayment',
+          amountMatched: 5000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+
+      await expect(
+        reconciliationService.activateMatch(staged.records[0].id),
+      ).rejects.toThrow('no prepayment advance record');
+    });
+
+    it('refuses a draft staged before the advance was reversed', async () => {
+      const { advance, settlingLine } = await seedOwnedAdvance();
+
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: settlingLine.id,
+          voucherId: advance.id,
+          matchType: 'prepayment',
+          amountMatched: 5000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+
+      // The advance is reversed while the match sits in approval.
+      await postingService.postVoucher({
+        tax_point_date: '2025-01-17',
+        reverses_id: advance.id,
+        reason: 'reversal',
+        lines: [
+          {
+            account_code: 'CUSTOMER_PREPAYMENTS',
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1.0,
+            is_debit: true,
+          },
+          {
+            account_code: 'BANK_EUR',
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+        ],
+      });
+
+      await expect(
+        reconciliationService.activateMatch(staged.records[0].id),
+      ).rejects.toThrow('reversed');
+    });
+  });
 });
 
 /**
@@ -2153,6 +2338,9 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
         FXRealizedService,
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
+        PrepaymentService,
+        OrgContextResolver,
         ReconciliationService,
       ],
     })

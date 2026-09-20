@@ -12,6 +12,7 @@ import { EntitiesService } from '../src/entities/entities.service';
 import { MastraService } from '../src/ai/mastra.service';
 import { fauxMastraService } from './faux-mastra.service';
 import { createHash } from 'crypto';
+import { ZodValidationPipe } from '../src/common/pipes/zod-validation.pipe';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -75,6 +76,10 @@ describe('Reconciliation E2E (full flow)', () => {
       .compile();
 
     app = module.createNestApplication();
+    // The production pipe: DTO schemas must hold over real HTTP, including a
+    // POST sent with no body at all (issue #201 added an optional body to
+    // `POST /api/bank-transactions/:id/prepayment`).
+    app.useGlobalPipes(new ZodValidationPipe());
     await app.init();
 
     apiToken = 'test-token-e2e-12345';
@@ -684,10 +689,13 @@ describe('Reconciliation E2E (full flow)', () => {
     const _statementId = Reflect.get(statement, 'id') as number;
     const txnId = Reflect.get(transactions[0], 'id') as number;
 
-    // Create prepayment.
+    // Create prepayment, naming the counterparty it belongs to. An advance
+    // owns its counterparty from creation (issue #201); an unowned one is
+    // reported and refused rather than drawn down against anybody's invoice.
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
       .set('Authorization', `Bearer ${apiToken}`)
+      .send({ entity_id: customerId })
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 

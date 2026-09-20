@@ -21,6 +21,9 @@ import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
+import { OrgContextResolver } from '../organization/org-context.resolver';
+import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
 
 /**
@@ -75,6 +78,9 @@ describe('FXRealizedService (integration)', () => {
         FXRealizedService,
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
+        PrepaymentService,
+        OrgContextResolver,
         ReconciliationService,
       ],
     }).compile();
@@ -901,6 +907,9 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         FXRealizedService,
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
+        PrepaymentService,
+        OrgContextResolver,
         ReconciliationService,
       ],
     })

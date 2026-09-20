@@ -43,6 +43,13 @@ import { ApiTokenGuard } from './auth/api-token.guard';
 import { MailboxModule } from './mailbox/mailbox.module';
 import { AllowancesModule } from './allowances/allowances.module';
 
+/**
+ * Human-readable log output: a developer convenience for a long-lived process,
+ * never in production (structured JSON) and never under test (see below).
+ */
+const PRETTY_LOGS =
+  process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
+
 @Module({
   imports: [
     // Pino logger — must be first so every other module's lifecycle logs
@@ -50,20 +57,24 @@ import { AllowancesModule } from './allowances/allowances.module';
     // pino-pretty gives colourised, human-readable output; in production
     // raw JSON goes to stdout for log aggregation. pino-http auto-logs
     // every request/response (method, url, status, responseTime).
+    //
+    // NOT under test: a transport runs in a worker thread (thread-stream) that
+    // the Nest lifecycle never shuts down, so each booted app leaks one — an
+    // e2e file that boots a few apps then hangs after its last assertion
+    // passes. Tests log through the plain synchronous stream instead.
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV !== 'production' ? 'debug' : 'info',
-        transport:
-          process.env.NODE_ENV !== 'production'
-            ? {
-                target: 'pino-pretty',
-                options: {
-                  colorize: true,
-                  translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
-                  ignore: 'pid,hostname',
-                },
-              }
-            : undefined,
+        transport: PRETTY_LOGS
+          ? {
+              target: 'pino-pretty',
+              options: {
+                colorize: true,
+                translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
+                ignore: 'pid,hostname',
+              },
+            }
+          : undefined,
         autoLogging: true,
       },
     }),

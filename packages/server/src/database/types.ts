@@ -38,6 +38,8 @@ export interface Database {
   mailbox_connector: MailboxConnectorTable;
   business_trip: BusinessTripTable;
   allowance: AllowanceTable;
+  prepayment_advance: PrepaymentAdvanceTable;
+  prepayment_allocation: PrepaymentAllocationTable;
 }
 
 export interface OrganizationTable {
@@ -662,4 +664,48 @@ export interface AllowanceTable {
   voucher_id: number | null;
   created_at: number;
   updated_at: number;
+}
+
+// Prepayment advance: the reconciliation record of ONE posted advance voucher —
+// who it belongs to and where the money came from (issue #201). The Voucher
+// stays the accounting evidence; this row says what it MEANS.
+export interface PrepaymentAdvanceTable {
+  id: Generated<number>;
+  // The posted advance voucher (one advance per voucher).
+  voucher_id: number;
+  // 'customer' (liability we owe) | 'supplier' (asset we prepaid).
+  kind: string;
+  account_code: string;
+  // The owning counterparty. NULL = unresolved: visible, but NOT allocatable —
+  // an advance is never attributed to whoever happens to ask.
+  entity_id: number | null;
+  // Source bank provenance.
+  bank_transaction_id: number | null;
+  original_base_amount: number;
+  currency: string;
+  // SQLite boolean: 1 = remaining balance UNKNOWN (an unlinked historical
+  // draw-down of this kind exists) → reported as unknown and blocked from
+  // allocation. Cleared only by explicitly linking those draw-downs.
+  needs_review: Generated<number>;
+  // 'service' | 'backfill' | 'operator'
+  origin: string;
+  created_at: number;
+}
+
+// Prepayment allocation: ONE draw-down — source advance → target invoice, for
+// one counterparty, evidenced by one posted allocation voucher. Released (stops
+// consuming the advance) exactly when that voucher is reversed, derived from
+// `voucher.reverses_id` rather than a second status column.
+export interface PrepaymentAllocationTable {
+  id: Generated<number>;
+  advance_id: number;
+  invoice_voucher_id: number;
+  // The counterparty both sides shared. NULL only for backfilled rows.
+  entity_id: number | null;
+  base_amount: number;
+  currency: string;
+  allocation_voucher_id: number;
+  // 'service' | 'backfill' | 'operator'
+  origin: string;
+  created_at: number;
 }
