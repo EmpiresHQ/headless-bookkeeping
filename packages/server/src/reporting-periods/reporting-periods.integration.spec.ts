@@ -1,3 +1,4 @@
+import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
@@ -60,7 +61,7 @@ describe('ReportingPeriodsService (integration)', () => {
     const organizationService = new OrganizationService(db);
     const pluginLoader = new PluginLoader(
       new NullCountryPlugin(),
-      new EstoniaCountryPlugin(),
+      new EstoniaCountryPlugin(unusedFxRateService()),
     );
     const vatReportService = new VatReportService(
       db,

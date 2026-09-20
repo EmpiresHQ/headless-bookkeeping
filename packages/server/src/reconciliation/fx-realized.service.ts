@@ -1,4 +1,8 @@
 import {
+  BANK_STATEMENT_RATE_SOURCE,
+  IDENTITY_RATE_SOURCE,
+} from '../fx/fx-rate.types';
+import {
   Injectable,
   BadRequestException,
   ConflictException,
@@ -46,6 +50,25 @@ export interface SettlementSlice {
    * `actualBase` falls back to the booked figure and NO difference is invented.
    */
   computable: boolean;
+  /**
+   * HOW {@link actualBase} was reached — the provenance the settlement's cash
+   * leg must persist (issue #203).
+   *
+   * It is not one thing, and labelling it as one was a lie in two directions:
+   *
+   *   - a statement kept in a FOREIGN account (BANK_USD on a EUR-base org) has
+   *     no base figure of its own, so the cash is valued at the prescribed
+   *     REFERENCE rate — the ECB's, on the publication actually in force. On a
+   *     Saturday transaction that publication is the preceding Friday's, and
+   *     calling it "the bank's rate on the transaction date" loses both facts.
+   *   - a statement kept in the BASE account carries the base figure already,
+   *     derived by the bank from its own rate. There the valuation genuinely
+   *     is the statement's.
+   *
+   * So the slice reports which of the two happened, and the posted line says
+   * so rather than guessing.
+   */
+  valuation: { source: string; date: string };
 }
 
 /**
@@ -172,7 +195,10 @@ export class FXRealizedService {
       amount: absRealized,
       currency: baseCurrency,
       base_amount: absRealized,
+      // Realized FX is booked wholly in base currency; no rate is applied.
       fx_rate: 1.0,
+      fx_rate_date: txn.transaction_date,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       is_debit: isGain,
     };
     const fxLine = {
@@ -181,6 +207,8 @@ export class FXRealizedService {
       currency: baseCurrency,
       base_amount: absRealized,
       fx_rate: 1.0,
+      fx_rate_date: txn.transaction_date,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       is_debit: !isGain,
     };
 
@@ -327,11 +355,24 @@ export class FXRealizedService {
       txn.source_amount !== null && txn.fx_rate !== null
         ? Math.round(Math.abs(txn.source_amount * txn.fx_rate))
         : Math.abs(txn.amount);
-    const { baseAmount: actualBaseFull } = await this.currencyService.toBase(
+    const {
+      baseAmount: actualBaseFull,
+      rateDate: valuationRateDate,
+      rateSource: valuationRateSource,
+    } = await this.currencyService.toBase(
       actualInTxnCcyFull,
       txn.currency,
       txn.transaction_date,
     );
+
+    // A base-currency line needed no reference rate — but when it carries a
+    // foreign leg, the base figure on it is the BANK's own conversion, not a
+    // bare identity. That distinction is the whole of ADR-0004's Wave-5 rule,
+    // so it is kept rather than flattened into "identity".
+    const valuation =
+      valuationRateSource === IDENTITY_RATE_SOURCE && isForeignLeg
+        ? { source: BANK_STATEMENT_RATE_SOURCE, date: txn.transaction_date }
+        : { source: valuationRateSource, date: valuationRateDate };
     const { baseAmount: lineBookedBase } = await this.currencyService.toBase(
       Math.abs(txn.amount),
       txn.currency,
@@ -353,6 +394,7 @@ export class FXRealizedService {
         realized: 0,
         direction: null,
         computable: false,
+        valuation,
       };
     }
 
@@ -409,6 +451,7 @@ export class FXRealizedService {
       direction:
         realized === 0 ? null : determineFXDirection(realized, isIncoming),
       computable: true,
+      valuation,
     };
   }
 
@@ -514,6 +557,8 @@ export class FXRealizedService {
         'voucher_line.currency',
         'voucher_line.base_amount',
         'voucher_line.fx_rate',
+        'voucher_line.fx_rate_date',
+        'voucher_line.fx_rate_source',
         'voucher_line.vat_code',
         'voucher_line.is_debit',
       ])
@@ -545,6 +590,11 @@ export class FXRealizedService {
         currency: l.currency,
         base_amount: l.base_amount,
         fx_rate: l.fx_rate,
+        // Provenance travels with the line it mirrors (issue #203): a reversal
+        // must be explicable by the same rate evidence as the original, and a
+        // legacy line's NULL provenance stays NULL rather than being invented.
+        fx_rate_date: l.fx_rate_date,
+        fx_rate_source: l.fx_rate_source,
         vat_code: l.vat_code,
         is_debit: !l.is_debit,
       })),

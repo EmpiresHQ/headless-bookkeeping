@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OrganizationService } from '../organization/organization.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 
 /**
  * The result of converting a monetary amount to base currency.
@@ -17,6 +18,15 @@ export interface BaseConversion {
   rate: number;
   /** The resolved base currency code (e.g. "EUR"). */
   baseCurrency: string;
+  /**
+   * The publication date `rate` was taken from (YYYY-MM-DD) — NOT always the
+   * requested date, because authorities do not publish on non-business days
+   * (issue #203). Persisted on the VoucherLine so a fallback is visible after
+   * the fact instead of being re-derived from rates that may have moved.
+   */
+  rateDate: string;
+  /** Who published `rate`: an authority id ("ECB"), or "identity". */
+  rateSource: string;
 }
 
 @Injectable()
@@ -62,7 +72,10 @@ export class CurrencyService {
    *   2. the same-currency short-circuit (identity, never hits the plugin —
    *      NullCountryPlugin throws on real cross-currency pairs),
    *   3. fetching the country-plugin prescribed reference rate (ADR-0002 keeps
-   *      the plugin as the sole rate source; the kernel never invents a rate),
+   *      the plugin as the sole rate source; the kernel never invents a rate).
+   *      Since #203 that lookup is ASYNCHRONOUS and authoritative — it may hit
+   *      the network — so this method must never be called inside an open
+   *      SQLite transaction (better-sqlite3 single connection),
    *   4. the multiply, and
    *   5. rounding to base-currency minor units via the active plugin's rule
    *      ({@link CountryPlugin.roundToBaseMinorUnits}) — rounding to minor units
@@ -84,11 +97,24 @@ export class CurrencyService {
     const baseCurrency = await this.getBaseCurrency();
 
     if (currency === baseCurrency) {
-      return { baseAmount: amount, rate: 1.0, baseCurrency };
+      // Identity: no rate is needed, and none is invented. The provenance is
+      // still recorded explicitly so an identity line stays distinguishable
+      // from a legacy line whose provenance is simply unknown (#203).
+      return {
+        baseAmount: amount,
+        rate: 1.0,
+        baseCurrency,
+        rateDate: date,
+        rateSource: IDENTITY_RATE_SOURCE,
+      };
     }
 
     const plugin = await this.resolvePlugin();
-    const rate = plugin.getReferenceRate(currency, baseCurrency, date);
+    const { rate, rateDate, source } = await plugin.getReferenceRate(
+      currency,
+      baseCurrency,
+      date,
+    );
 
     return {
       baseAmount: plugin.roundToBaseMinorUnits(
@@ -96,6 +122,8 @@ export class CurrencyService {
       ),
       rate,
       baseCurrency,
+      rateDate,
+      rateSource: source,
     };
   }
 

@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   NotFoundException,
@@ -152,7 +153,14 @@ export class PrepaymentService {
 
     const { plugin } = await this.orgContextResolver.resolve();
     const baseCurrency = await this.currencyService.getBaseCurrency();
-    const fxRate = plugin.getReferenceRate(
+    // Resolved BEFORE the settling transaction opens: since #203 this is an
+    // authoritative lookup that may reach the network, and better-sqlite3's
+    // single synchronous connection forbids that inside an open transaction.
+    const {
+      rate: fxRate,
+      rateDate,
+      source: rateSource,
+    } = await plugin.getReferenceRate(
       txn.currency,
       baseCurrency,
       txn.transaction_date,
@@ -165,6 +173,8 @@ export class PrepaymentService {
       currency: txn.currency,
       base_amount: baseAmount,
       fx_rate: fxRate,
+      fx_rate_date: rateDate,
+      fx_rate_source: rateSource,
       is_debit: opts.bankIsDebit,
     };
 
@@ -173,7 +183,11 @@ export class PrepaymentService {
       amount: baseAmount,
       currency: baseCurrency,
       base_amount: baseAmount,
+      // The prepayment leg is denominated in base currency: an identity
+      // conversion, recorded as such so it is not read as unattributed.
       fx_rate: 1.0,
+      fx_rate_date: txn.transaction_date,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       is_debit: !opts.bankIsDebit,
     };
 
@@ -512,6 +526,7 @@ export class PrepaymentService {
           currency,
           base_amount: drawAmount,
           fx_rate: 1.0,
+          fx_rate_source: IDENTITY_RATE_SOURCE,
           is_debit: true,
         },
         {
@@ -520,6 +535,7 @@ export class PrepaymentService {
           currency,
           base_amount: drawAmount,
           fx_rate: 1.0,
+          fx_rate_source: IDENTITY_RATE_SOURCE,
           is_debit: false,
         },
       ],

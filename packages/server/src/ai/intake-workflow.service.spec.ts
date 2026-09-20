@@ -1,3 +1,4 @@
+import { FxRateUnavailableError } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -2269,6 +2270,103 @@ describe('IntakeWorkflowService', () => {
 
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('triaged');
+    });
+  });
+
+  /**
+   * Issue #203: a document in a currency we cannot authoritatively value on
+   * its own tax-point date is an EXPECTED outcome, not a crash. It must be
+   * HELD for a human, with a reason they can act on — and nothing may reach
+   * the ledger at a rate we invented.
+   */
+  describe('an unavailable reference rate holds the document', () => {
+    const arrangeExpense = () => {
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ currency: 'USD' }),
+        enrichment: sampleEnrichment(),
+      });
+    };
+
+    it('routes to needs_triage with an actionable reason, not "Unexpected error"', async () => {
+      const docId = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError(
+          'USD',
+          'EUR',
+          '2026-03-15',
+          'ECB published no rate on 2026-03-15 nor in the 7 day(s) before it',
+          'no_rate_for_date',
+        ),
+      );
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.description).toContain('USD→EUR');
+      expect(finding?.description).toContain('2026-03-15');
+      // The old behaviour surfaced this as an unforeseen fault, which told the
+      // operator nothing about what to do.
+      expect(finding?.description).not.toContain('Unexpected error');
+    });
+
+    it('posts NO voucher and leaves no expense behind', async () => {
+      const docId = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError('USD', 'EUR', '2026-03-15', 'no rate'),
+      );
+
+      await service.process(docId);
+
+      expect(await db.selectFrom('voucher').selectAll().execute()).toEqual([]);
+      expect(await db.selectFrom('expense').selectAll().execute()).toEqual([]);
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('tells a retryable outage apart from a rate that will never exist', async () => {
+      const outageDoc = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError(
+          'USD',
+          'EUR',
+          '2026-03-15',
+          'ECB responded 503',
+          'upstream_unavailable',
+        ),
+      );
+
+      await service.process(outageDoc);
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        outageDoc,
+      );
+      // An outage is worth retrying; an unsupported pair is not, and the
+      // operator is told which this is.
+      expect(finding?.description).toMatch(/Retry once the rate source/i);
+    });
+
+    it('does not release the processing lock holding the document hostage', async () => {
+      const docId = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError('USD', 'EUR', '2026-03-15', 'no rate'),
+      );
+
+      await service.process(docId);
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.processing_since).toBeNull();
     });
   });
 });

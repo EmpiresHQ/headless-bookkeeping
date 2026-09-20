@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
@@ -165,7 +166,16 @@ export class SettlementVoucherService {
       amount: bankAmount,
       currency: txn.account_currency ?? txn.currency,
       base_amount: cashBase,
+      // The cash leg's provenance is whatever actually valued it, carried
+      // through from the slice (issue #203): the bank's own conversion when
+      // the statement is kept in base currency, and the prescribed reference
+      // rate — with the publication date really in force, which on a weekend
+      // is the preceding Friday's — when it is kept in a foreign account.
+      // Claiming "bank rate, transaction date" for both was false in the
+      // second case and threw away the publication date.
       fx_rate: cashBase / bankAmount,
+      fx_rate_date: slice.valuation.date,
+      fx_rate_source: slice.valuation.source,
       is_debit: leg.openedAsDebit, // an AR receipt debits the bank
     };
 
@@ -175,6 +185,8 @@ export class SettlementVoucherService {
       currency: baseCurrency,
       base_amount: amountMatched,
       fx_rate: 1,
+      fx_rate_date: txn.transaction_date,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       is_debit: !leg.openedAsDebit, // clears the side the item was opened on
     };
 
@@ -194,6 +206,8 @@ export class SettlementVoucherService {
         currency: baseCurrency,
         base_amount: Math.abs(residual),
         fx_rate: 1,
+        fx_rate_date: txn.transaction_date,
+        fx_rate_source: IDENTITY_RATE_SOURCE,
         is_debit: residual < 0,
       });
     }
@@ -260,6 +274,8 @@ export class SettlementVoucherService {
         'voucher_line.currency',
         'voucher_line.base_amount',
         'voucher_line.fx_rate',
+        'voucher_line.fx_rate_date',
+        'voucher_line.fx_rate_source',
         'voucher_line.vat_code',
         'voucher_line.is_debit',
       ])
@@ -275,6 +291,11 @@ export class SettlementVoucherService {
         currency: l.currency,
         base_amount: l.base_amount,
         fx_rate: l.fx_rate,
+        // Provenance travels with the line it mirrors (issue #203): a reversal
+        // must be explicable by the same rate evidence as the original, and a
+        // legacy line's NULL provenance stays NULL rather than being invented.
+        fx_rate_date: l.fx_rate_date,
+        fx_rate_source: l.fx_rate_source,
         vat_code: l.vat_code,
         is_debit: !l.is_debit,
       })),

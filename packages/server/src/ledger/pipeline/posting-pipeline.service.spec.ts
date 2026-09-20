@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../../test/fx-fixtures';
 import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -55,6 +56,7 @@ describe('PostingPipelineService afterPost hook (integration)', () => {
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
       ],
     }).compile();
 

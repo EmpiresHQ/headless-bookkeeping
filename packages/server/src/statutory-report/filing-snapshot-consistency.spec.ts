@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -70,6 +71,7 @@ describe('Filing-state consistency (issue #200)', () => {
         OrgContextResolver,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         LedgerBalanceService,
         AccountService,

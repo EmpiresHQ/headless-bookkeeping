@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import { Injectable } from '@nestjs/common';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
@@ -37,6 +38,8 @@ export class AllowanceProjectionService {
       currency: allowance.currency,
       base_amount: allowance.tax_free_amount,
       fx_rate: 1,
+      fx_rate_date: allowance.period_start,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       vat_code: NULL_VAT_CODE,
       is_debit: true,
     });
@@ -49,6 +52,8 @@ export class AllowanceProjectionService {
         currency: allowance.currency,
         base_amount: allowance.taxable_amount,
         fx_rate: 1,
+        fx_rate_date: allowance.period_start,
+        fx_rate_source: IDENTITY_RATE_SOURCE,
         vat_code: NULL_VAT_CODE,
         is_debit: true,
         metadata: { payroll_flag: true },
@@ -62,6 +67,8 @@ export class AllowanceProjectionService {
       currency: allowance.currency,
       base_amount: allowance.gross_amount,
       fx_rate: 1,
+      fx_rate_date: allowance.period_start,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       vat_code: NULL_VAT_CODE,
       is_debit: false,
     });

@@ -4,6 +4,7 @@ import { CurrencyService } from '../../currency/currency.service';
 import { SupplierFacts } from '../../plugins/country-plugin.interface';
 import { DraftVoucher, DraftVoucherLine } from '../voucher/types';
 import { EconomicFacts, Direction } from './types';
+import { ResolvedFxRate } from '../../fx/fx-rate.types';
 
 /**
  * VoucherProjectionService — the single deep module that projects a business
@@ -66,17 +67,24 @@ export class VoucherProjectionService {
     // Single owner of currency→base conversion (ADR-0004): one uniform rate per
     // draft, sourced from the country plugin, rounded by the currency module.
     // We take the rate from the same place we book it.
-    const { rate: fxRate } = await this.currencyService.toBase(
-      netAmount,
-      facts.currency,
-      facts.taxPointDate,
-    );
+    // The rate AND its provenance: which publication date it came from and
+    // who published it (issue #203). Both travel onto every line, so a posted
+    // voucher records the rate it was booked at *and* why that rate governs —
+    // a Saturday tax point legitimately carrying Friday's publication is then
+    // visible as such, instead of looking like a date-blind constant.
+    const fx: ResolvedFxRate = await this.currencyService
+      .toBase(netAmount, facts.currency, facts.taxPointDate)
+      .then((c) => ({
+        rate: c.rate,
+        rateDate: c.rateDate,
+        source: c.rateSource,
+      }));
     // Round each leg to base-currency minor units via the active plugin's rule
     // (ADR-0002: rounding is a jurisdiction rule). The plugin is the same one
     // resolved above; CurrencyService owns the multiply, the plugin the round.
     const baseAmount = (amount: number) =>
       plugin.roundToBaseMinorUnits(
-        this.currencyService.convertToBase(amount, facts.currency, fxRate),
+        this.currencyService.convertToBase(amount, facts.currency, fx.rate),
       );
 
     // Cross-border treatment is a purchase-side concern (the supplier's VAT
@@ -98,7 +106,7 @@ export class VoucherProjectionService {
             mapping,
             cross.vatCode ?? mapping.vatCode,
             plugin.getVatRate(cross.vatCode ?? mapping.vatCode),
-            fxRate,
+            fx,
             baseAmount,
           ),
         };
@@ -107,8 +115,8 @@ export class VoucherProjectionService {
 
     const lines: DraftVoucherLine[] =
       direction === 'purchase'
-        ? this.purchaseLines(facts, mapping, fxRate, baseAmount)
-        : this.saleLines(facts, netAmount, mapping, fxRate, baseAmount);
+        ? this.purchaseLines(facts, mapping, fx, baseAmount)
+        : this.saleLines(facts, netAmount, mapping, fx, baseAmount);
 
     return {
       voucher_number: 'PENDING',
@@ -136,7 +144,7 @@ export class VoucherProjectionService {
     mapping: { accountCode: string; vatCode: string },
     reverseChargeCode: string,
     rate: number,
-    fxRate: number,
+    fx: ResolvedFxRate,
     baseAmount: (amount: number) => number,
   ): DraftVoucherLine[] {
     const base = facts.grossAmount;
@@ -151,7 +159,9 @@ export class VoucherProjectionService {
         amount: base,
         currency: facts.currency,
         base_amount: baseAmount(base),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: reverseChargeCode,
         is_debit: true,
       },
@@ -160,7 +170,9 @@ export class VoucherProjectionService {
         amount: rcVat,
         currency: facts.currency,
         base_amount: baseAmount(rcVat),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: reverseChargeCode,
         is_debit: true,
       },
@@ -169,7 +181,9 @@ export class VoucherProjectionService {
         amount: base,
         currency: facts.currency,
         base_amount: baseAmount(base),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: null,
         is_debit: false,
       },
@@ -178,7 +192,9 @@ export class VoucherProjectionService {
         amount: rcVat,
         currency: facts.currency,
         base_amount: baseAmount(rcVat),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: reverseChargeCode,
         is_debit: false,
       },
@@ -199,7 +215,7 @@ export class VoucherProjectionService {
   private purchaseLines(
     facts: EconomicFacts,
     mapping: { accountCode: string; vatCode: string },
-    fxRate: number,
+    fx: ResolvedFxRate,
     baseAmount: (amount: number) => number,
   ): DraftVoucherLine[] {
     // When the receipt is not company-addressed (or unknown), no VAT reclaim.
@@ -225,7 +241,9 @@ export class VoucherProjectionService {
         amount: effectiveNetAmount,
         currency: facts.currency,
         base_amount: baseAmount(effectiveNetAmount),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: effectiveVatCode,
         is_debit: true,
       },
@@ -236,7 +254,9 @@ export class VoucherProjectionService {
               amount: effectiveVatAmount,
               currency: facts.currency,
               base_amount: baseAmount(effectiveVatAmount),
-              fx_rate: fxRate,
+              fx_rate: fx.rate,
+              fx_rate_date: fx.rateDate,
+              fx_rate_source: fx.source,
               vat_code: mapping.vatCode,
               is_debit: true,
             },
@@ -247,7 +267,9 @@ export class VoucherProjectionService {
         amount: facts.grossAmount,
         currency: facts.currency,
         base_amount: baseAmount(facts.grossAmount),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: null,
         is_debit: false,
       },
@@ -265,7 +287,7 @@ export class VoucherProjectionService {
     facts: EconomicFacts,
     netAmount: number,
     mapping: { accountCode: string; vatCode: string },
-    fxRate: number,
+    fx: ResolvedFxRate,
     baseAmount: (amount: number) => number,
   ): DraftVoucherLine[] {
     return [
@@ -274,7 +296,9 @@ export class VoucherProjectionService {
         amount: facts.grossAmount,
         currency: facts.currency,
         base_amount: baseAmount(facts.grossAmount),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: null,
         is_debit: true,
       },
@@ -283,7 +307,9 @@ export class VoucherProjectionService {
         amount: netAmount,
         currency: facts.currency,
         base_amount: baseAmount(netAmount),
-        fx_rate: fxRate,
+        fx_rate: fx.rate,
+        fx_rate_date: fx.rateDate,
+        fx_rate_source: fx.source,
         vat_code: mapping.vatCode,
         is_debit: false,
       },
@@ -294,7 +320,9 @@ export class VoucherProjectionService {
               amount: facts.vatAmount,
               currency: facts.currency,
               base_amount: baseAmount(facts.vatAmount),
-              fx_rate: fxRate,
+              fx_rate: fx.rate,
+              fx_rate_date: fx.rateDate,
+              fx_rate_source: fx.source,
               vat_code: mapping.vatCode,
               is_debit: false,
             },

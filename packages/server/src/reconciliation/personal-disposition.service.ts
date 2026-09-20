@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   NotFoundException,
@@ -99,14 +100,24 @@ export class PersonalDispositionService {
     const baseCurrency = await this.currencyService.getBaseCurrency();
     // Guard the plugin call to the cross-currency case only: same-currency is
     // an identity (rate 1.0) and the null plugin throws on a real FX pair.
-    const fxRate =
-      txn.currency === baseCurrency
-        ? 1.0
-        : plugin.getReferenceRate(
-            txn.currency,
-            baseCurrency,
-            txn.transaction_date,
-          );
+    // Resolved BEFORE the transaction opens (#203: the lookup is now
+    // authoritative and may reach the network; better-sqlite3's single
+    // synchronous connection forbids that inside an open transaction).
+    const {
+      rate: fxRate,
+      rateDate,
+      source: rateSource,
+    } = txn.currency === baseCurrency
+      ? {
+          rate: 1.0,
+          rateDate: txn.transaction_date,
+          source: IDENTITY_RATE_SOURCE,
+        }
+      : await plugin.getReferenceRate(
+          txn.currency,
+          baseCurrency,
+          txn.transaction_date,
+        );
     const baseAmount = Math.round(absAmount * fxRate);
 
     const draft: DraftVoucher = {
@@ -119,6 +130,8 @@ export class PersonalDispositionService {
           currency: baseCurrency,
           base_amount: baseAmount,
           fx_rate: 1.0,
+          fx_rate_date: txn.transaction_date,
+          fx_rate_source: IDENTITY_RATE_SOURCE,
           is_debit: true,
         },
         {
@@ -127,6 +140,8 @@ export class PersonalDispositionService {
           currency: txn.currency,
           base_amount: baseAmount,
           fx_rate: fxRate,
+          fx_rate_date: rateDate,
+          fx_rate_source: rateSource,
           is_debit: false,
         },
       ],

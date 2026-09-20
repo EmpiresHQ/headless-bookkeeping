@@ -1,3 +1,4 @@
+import { fxTestProviders } from './fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -89,6 +90,7 @@ describe('Pipeline (e2e)', () => {
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         CurrencyService,
       ],
     }).compile();

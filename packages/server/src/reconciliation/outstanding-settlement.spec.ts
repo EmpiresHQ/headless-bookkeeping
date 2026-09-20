@@ -1,3 +1,8 @@
+import { expectDbRefusal } from '../../test/expect-db-refusal';
+import {
+  fxTestProviders,
+  SETTLEMENT_SCENARIO_RATES,
+} from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -97,6 +102,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(SETTLEMENT_SCENARIO_RATES),
         PluginLoader,
         CurrencyService,
         FXRealizedService,
@@ -1797,5 +1803,196 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     expect(
       await outstanding.getRemainingVoucherBalance(leftover.voucherId),
     ).toBe(92);
+  });
+
+  // ── FX provenance on the settlement's own legs (issue #203) ──────────
+
+  /**
+   * A settlement's cash leg must record HOW its base value was actually
+   * reached. The two ways are genuinely different, and labelling both as "the
+   * bank's rate on the transaction date" was false for one of them and threw
+   * away the publication date for the other.
+   */
+  describe('settlement leg provenance', () => {
+    const legsOf = async (matchId: number) =>
+      db
+        .selectFrom('voucher_line')
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select([
+          'account.code as code',
+          'voucher_line.fx_rate as fx_rate',
+          'voucher_line.fx_rate_date as fx_rate_date',
+          'voucher_line.fx_rate_source as fx_rate_source',
+        ])
+        .where(
+          'voucher_line.voucher_id',
+          '=',
+          (await settlementVoucherOf(matchId))!,
+        )
+        .orderBy('account.code')
+        .execute();
+
+    /** A USD statement line dated `date`, settling `voucherId` for `booked`. */
+    const settleUsdStatement = async (
+      voucherId: number,
+      date: string,
+      booked: number,
+    ) => {
+      const stmt = await banks.createStatement({
+        account_code: 'BANK_USD',
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        transactions: [
+          {
+            transaction_date: date,
+            description: 'USD receipt',
+            amount: 10000,
+            currency: 'USD',
+            status: 'open',
+          },
+        ],
+      });
+      return settleLine(stmt.transactions[0].id, voucherId, booked);
+    };
+
+    it('a SATURDAY settlement on a USD account records the Friday publication that valued it', async () => {
+      await useEstoniaPlugin();
+      const customerId = await seedCustomer();
+      const { voucherId } = await postInvoiceInCurrency(
+        customerId,
+        10000,
+        'USD',
+      );
+
+      // 2026-05-16 is a Saturday. The ECB published nothing; the rate in force
+      // is Friday 2026-05-15's, and the cash on a USD account has no base
+      // figure of its own, so that reference rate is what valued it.
+      const matchId = await settleUsdStatement(voucherId, '2026-05-16', 9200);
+
+      expect(await legsOf(matchId)).toEqual([
+        {
+          code: 'AR',
+          fx_rate: 1,
+          fx_rate_date: '2026-05-16',
+          fx_rate_source: 'identity',
+        },
+        {
+          code: 'BANK_USD',
+          fx_rate: 0.92,
+          // Not the transaction date, and not the bank's rate: the ECB
+          // publication actually applied.
+          fx_rate_date: '2026-05-15',
+          fx_rate_source: 'ECB',
+        },
+      ]);
+    });
+
+    it('the stored provenance survives the source changing afterwards', async () => {
+      await useEstoniaPlugin();
+      const customerId = await seedCustomer();
+      const { voucherId } = await postInvoiceInCurrency(
+        customerId,
+        10000,
+        'USD',
+      );
+      const matchId = await settleUsdStatement(voucherId, '2026-05-16', 9200);
+      const before = await legsOf(matchId);
+
+      // Upstream revises the very publication this settlement was booked
+      // against. The cache is append-only and the posted line is immutable, so
+      // history stays reproducible — the settlement still explains itself by
+      // the 2026-05-15 observation it actually used.
+      const cached = await db
+        .selectFrom('fx_reference_rate')
+        .selectAll()
+        .execute();
+      await expectDbRefusal(
+        () =>
+          db
+            .updateTable('fx_reference_rate')
+            .set({ rate: 9.9 })
+            .where('rate_date', '=', '2026-05-15')
+            .execute(),
+        /immutable/,
+      );
+      expect(
+        await db.selectFrom('fx_reference_rate').selectAll().execute(),
+      ).toEqual(cached);
+
+      expect(await legsOf(matchId)).toEqual(before);
+    });
+
+    it('a base-currency statement keeps the BANK as the source of its valuation', async () => {
+      await useEstoniaPlugin();
+      const supplierId = await seedSupplier();
+      const { voucherId } = await postExpenseInCurrency(
+        supplierId,
+        1000,
+        'USD',
+      );
+
+      // A EUR statement line that carries the USD payment's own conversion:
+      // the base figure is on the statement, so the bank valued it, not a
+      // reference rate. That distinction is ADR-0004's Wave-5 rule and must
+      // survive.
+      const stmt = await banks.createStatement({
+        account_code: 'BANK_EUR',
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        transactions: [
+          {
+            transaction_date: '2026-05-16',
+            description: 'Paid 1000 USD',
+            amount: -950,
+            currency: 'EUR',
+            source_currency: 'USD',
+            source_amount: 1000,
+            fx_rate: 0.95,
+            status: 'open',
+          },
+        ],
+      });
+      const matchId = await settleLine(stmt.transactions[0].id, voucherId, 920);
+
+      const bank = (await legsOf(matchId)).find((l) => l.code === 'BANK_EUR');
+      expect(bank).toMatchObject({
+        fx_rate_source: 'bank_statement',
+        fx_rate_date: '2026-05-16',
+      });
+    });
+
+    it('a reversal mirrors the provenance of the leg it reverses', async () => {
+      await useEstoniaPlugin();
+      const customerId = await seedCustomer();
+      const { voucherId } = await postInvoiceInCurrency(
+        customerId,
+        10000,
+        'USD',
+      );
+      const matchId = await settleUsdStatement(voucherId, '2026-05-16', 9200);
+      const settlementId = (await settlementVoucherOf(matchId))!;
+
+      await reconciliation.unmatch(matchId);
+
+      const reversal = await db
+        .selectFrom('voucher_line')
+        .innerJoin('voucher', 'voucher.id', 'voucher_line.voucher_id')
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select([
+          'account.code as code',
+          'voucher_line.fx_rate_date as fx_rate_date',
+          'voucher_line.fx_rate_source as fx_rate_source',
+        ])
+        .where('voucher.reverses_id', '=', settlementId)
+        .execute();
+
+      const bank = reversal.find((l) => l.code === 'BANK_USD');
+      // The reversal must be explicable by the SAME rate evidence as the
+      // original, not re-resolved against whatever the source says now.
+      expect(bank).toMatchObject({
+        fx_rate_date: '2026-05-15',
+        fx_rate_source: 'ECB',
+      });
+    });
   });
 });

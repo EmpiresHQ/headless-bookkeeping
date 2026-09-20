@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   NotFoundException,
@@ -176,7 +177,11 @@ export class FixedAssetsService {
       amount: base_amount,
       currency: 'EUR',
       base_amount,
+      // A depreciation charge is booked wholly in base currency: no rate was
+      // applied, and that is recorded rather than left blank (issue #203).
       fx_rate: 1,
+      fx_rate_date: null,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       vat_code: null,
       is_debit,
     };

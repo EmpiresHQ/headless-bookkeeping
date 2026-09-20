@@ -1,3 +1,8 @@
+import {
+  FxRateUnavailableError,
+  IDENTITY_RATE_SOURCE,
+  ResolvedFxRate,
+} from '../fx/fx-rate.types';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CategoryDef,
@@ -161,16 +166,33 @@ export class NullCountryPlugin implements CountryPlugin {
     return 'EUR';
   }
 
+  /**
+   * The neutral plugin names no rate authority, so it can answer only the
+   * identity. A cross-currency pair is REFUSED, not guessed: which authority
+   * governs a conversion is a jurisdiction rule (ADR-0002/ADR-0004), and a
+   * deployment running on the neutral fallback has not declared one.
+   */
   getReferenceRate(
     fromCurrency: string,
     toCurrency: string,
-    _date: string,
-  ): number {
+    date: string,
+  ): Promise<ResolvedFxRate> {
     if (fromCurrency === toCurrency) {
-      return 1.0;
+      return Promise.resolve({
+        rate: 1.0,
+        rateDate: date,
+        source: IDENTITY_RATE_SOURCE,
+      });
     }
-    throw new Error(
-      `Cross-currency FX not supported in null plugin: ${fromCurrency} → ${toCurrency}`,
+    return Promise.reject(
+      new FxRateUnavailableError(
+        fromCurrency,
+        toCurrency,
+        date,
+        'the neutral country plugin declares no rate authority; register a ' +
+          'country plugin for this deployment',
+        'unsupported_pair',
+      ),
     );
   }
 

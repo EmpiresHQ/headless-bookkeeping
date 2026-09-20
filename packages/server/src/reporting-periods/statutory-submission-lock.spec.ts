@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -72,6 +73,7 @@ describe('ReportingPeriod lock → prepared event (integration)', () => {
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         AuditLogService,
         StatutorySubmissionService,
         StatutoryReportService,

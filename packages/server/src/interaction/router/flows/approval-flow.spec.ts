@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../../../test/fx-fixtures';
 // allow: SIZE_OK — approval integration cases share one in-memory harness because the task verifies this exact spec path.
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -101,6 +102,7 @@ describe('ApprovalFlow', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrgContextResolver,
         CurrencyService,

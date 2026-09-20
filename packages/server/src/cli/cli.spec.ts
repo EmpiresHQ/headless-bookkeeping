@@ -1,3 +1,4 @@
+import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
@@ -80,7 +81,7 @@ describe('admin CLI (yargs)', () => {
       periods: (() => {
         const pluginLoader = new PluginLoader(
           new NullCountryPlugin(),
-          new EstoniaCountryPlugin(),
+          new EstoniaCountryPlugin(unusedFxRateService()),
         );
         const organizationService = new OrganizationService(db);
         const ledgerBalance = new LedgerBalanceService(db);

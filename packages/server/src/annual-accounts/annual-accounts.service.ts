@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   NotFoundException,
@@ -206,6 +207,7 @@ export class AnnualAccountsService {
             currency: 'EUR',
             base_amount: totalCharge,
             fx_rate: 1,
+            fx_rate_source: IDENTITY_RATE_SOURCE,
           },
           ...[...byClass.entries()].map(([code, amount]) => ({
             account_code: code,
@@ -214,6 +216,7 @@ export class AnnualAccountsService {
             currency: 'EUR',
             base_amount: amount,
             fx_rate: 1,
+            fx_rate_source: IDENTITY_RATE_SOURCE,
           })),
         ],
       };
