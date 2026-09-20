@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -43,6 +44,7 @@ describe('SalesInvoicesService (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrgContextResolver,
         CurrencyService,

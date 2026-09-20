@@ -5,6 +5,8 @@ export interface Database {
   account: AccountTable;
   voucher: VoucherTable;
   voucher_line: VoucherLineTable;
+  fx_reference_rate: FxReferenceRateTable;
+  fx_rate_probe: FxRateProbeTable;
   voucher_sequence: VoucherSequenceTable;
   expense: ExpenseTable;
   sales_invoice: SalesInvoiceTable;
@@ -102,6 +104,14 @@ export interface VoucherLineTable {
   // Cents in base currency (EUR).
   base_amount: number;
   fx_rate: number;
+  // Provenance of `fx_rate` (issue #203). NULL on lines posted before the
+  // provenance columns existed — such a line stays distinguishable as
+  // "rate source unknown" rather than being retroactively blessed.
+  // The publication date the rate was taken from (YYYY-MM-DD). Differs from
+  // the voucher's tax point whenever the authority published nothing that day.
+  fx_rate_date: string | null;
+  // The publishing authority ('ECB'), or 'identity' / 'bank_statement'.
+  fx_rate_source: string | null;
   vat_code: string | null;
   // SQLite boolean (0/1): 1 = debit, 0 = credit.
   is_debit: number;
@@ -720,4 +730,34 @@ export interface PrepaymentAllocationTable {
   // 'service' | 'backfill' | 'operator'
   origin: string;
   created_at: number;
+}
+
+/**
+ * An append-only cache of authoritative reference-rate publications
+ * (issue #203). One row = one observation: on `rate_date`, `source` published
+ * that 1 `base_currency` buys `rate` units of `quote_currency`.
+ */
+export interface FxReferenceRateTable {
+  id: Generated<number>;
+  source: string;
+  base_currency: string;
+  quote_currency: string;
+  rate_date: string;
+  rate: number;
+  fetched_at: number;
+}
+
+/**
+ * A window of dates the rate authority was actually asked about (issue #203).
+ * Separates "we looked and there was nothing" from "we never looked", so a
+ * cached older observation is never mistaken for coverage of a later date.
+ */
+export interface FxRateProbeTable {
+  id: Generated<number>;
+  source: string;
+  base_currency: string;
+  quote_currency: string;
+  from_date: string;
+  to_date: string;
+  probed_at: number;
 }

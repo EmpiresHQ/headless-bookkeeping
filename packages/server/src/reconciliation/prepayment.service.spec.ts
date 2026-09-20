@@ -1,3 +1,5 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
+import { FxRateUnavailableError, ResolvedFxRate } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -62,6 +64,7 @@ describe('PrepaymentService (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         OrgContextResolver,
@@ -1949,10 +1952,31 @@ describe('PrepaymentService — cross-currency bank account', () => {
     CountryPlugin,
     'getReferenceRate' | 'getDefaultBaseCurrency'
   > = {
-    getReferenceRate(from: string, to: string): number {
-      if (from === to) return 1.0;
-      if (from === 'USD' && to === 'EUR') return 0.9;
-      throw new Error(`Unexpected pair ${from} → ${to}`);
+    // A deterministic fixture rate with real provenance (issue #203): the
+    // pair, the publication date it came from and who published it. The
+    // numeric scenario is unchanged — 100 USD still books as 90 EUR.
+    getReferenceRate(
+      from: string,
+      to: string,
+      date: string,
+    ): Promise<ResolvedFxRate> {
+      if (from === to) {
+        return Promise.resolve({
+          rate: 1.0,
+          rateDate: date,
+          source: 'fixture',
+        });
+      }
+      if (from === 'USD' && to === 'EUR') {
+        return Promise.resolve({
+          rate: 0.9,
+          rateDate: date,
+          source: 'fixture',
+        });
+      }
+      return Promise.reject(
+        new FxRateUnavailableError(from, to, date, 'not in this fixture'),
+      );
     },
     getDefaultBaseCurrency: () => 'EUR',
   };
@@ -1986,6 +2010,7 @@ describe('PrepaymentService — cross-currency bank account', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         OrgContextResolver,

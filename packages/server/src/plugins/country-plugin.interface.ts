@@ -1,3 +1,4 @@
+import { ResolvedFxRate } from '../fx/fx-rate.types';
 import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
 import type { AllowanceType, AllowanceRates } from './allowance-rates.types';
 import type {
@@ -212,30 +213,46 @@ export interface CountryPlugin extends CountryPluginRetrieval {
   getDefaultBaseCurrency(): string;
 
   /**
-   * Returns the reference exchange rate for converting between two currencies
-   * as of a given date.
+   * Returns the AUTHORITATIVE reference exchange rate for converting between
+   * two currencies as of a given date, together with the provenance that makes
+   * the result reproducible.
    *
    * Rate semantics: how many `toCurrency` units does 1 `fromCurrency` unit buy.
-   * E.g., USD→EUR rate of 0.85 means 1 USD = 0.85 EUR.
+   * E.g., USD→EUR rate of 0.85 means 1 USD = 0.85 EUR. The rate must be a
+   * positive number; when the two currencies are the same it is exactly 1.0.
    *
-   * The rate must be a positive number.
-   * When the two currencies are the same, the rate is exactly 1.0.
+   * The returned {@link ResolvedFxRate} also carries:
+   *   - `rateDate`, the publication date the rate was actually taken from,
+   *     which is NOT always `date`: authorities do not publish on weekends or
+   *     holidays, and each jurisdiction's statute says which neighbouring
+   *     publication then governs. The applied date is returned so it can be
+   *     persisted, rather than being re-derived (differently) later.
+   *   - `source`, the publishing authority.
    *
-   * In v1 (before real FX integration), the null plugin only supports
-   * same-currency conversions (EUR→EUR = 1.0). Cross-currency throws.
+   * This is ASYNCHRONOUS because a real rate is an observation that must be
+   * looked up — from a cache, and on a miss from the authority over the
+   * network (issue #203; the former synchronous signature is exactly what
+   * forced a hardcoded placeholder map into the production posting path).
+   * Callers MUST therefore resolve rates BEFORE opening a SQLite transaction:
+   * better-sqlite3 runs one synchronous connection and an awaited round trip
+   * inside an open transaction deadlocks. Every posting path in the kernel
+   * already prepares its draft pre-transaction for this same reason.
    *
    * @param fromCurrency - The source currency code (e.g. "USD")
    * @param toCurrency - The target currency code (e.g. "EUR")
-   * @param date - The date for which to fetch the rate (YYYY-MM-DD).
-   *   Determines which historical rate to use.
-   * @returns The exchange rate as a positive number
-   * @throws Error if the rate is not available for the given pair or date
+   * @param date - The tax-point / transaction date (YYYY-MM-DD) whose rate
+   *   governs. Determines which historical publication is used.
+   * @returns The applied rate with its publication date and source
+   * @throws {FxRateUnavailableError} when no authoritative rate governs the
+   *   pair and date. Implementations MUST NOT substitute a latest, current or
+   *   constant rate: an unsupported base amount in an immutable ledger is
+   *   worse than a refused posting (ADR-0012, no break-glass).
    */
   getReferenceRate(
     fromCurrency: string,
     toCurrency: string,
     date: string,
-  ): number;
+  ): Promise<ResolvedFxRate>;
 
   /**
    * Rounds a fractional base-currency amount to integer minor units (cents).

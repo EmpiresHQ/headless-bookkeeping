@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { DraftVoucherLine } from '../ledger/voucher/types';
 import { validateAgainstKmdXsd } from '../plugins/estonia-kmd/xsd-validate';
 import { readFileSync } from 'fs';
@@ -75,6 +76,7 @@ describe('StatutoryReportService.generate (integration)', () => {
         OrgContextResolver,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         LedgerBalanceService,
         AccountService,

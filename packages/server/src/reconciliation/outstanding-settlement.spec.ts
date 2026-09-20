@@ -1,3 +1,7 @@
+import {
+  fxTestProviders,
+  SETTLEMENT_SCENARIO_RATES,
+} from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -97,6 +101,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(SETTLEMENT_SCENARIO_RATES),
         PluginLoader,
         CurrencyService,
         FXRealizedService,

@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -80,6 +81,7 @@ describe('settlement atomicity and legacy repair (#202)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         FXRealizedService,

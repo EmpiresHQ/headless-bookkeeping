@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { FxLookupPolicy, FxRateService } from '../fx/fx-rate.service';
+import { ResolvedFxRate } from '../fx/fx-rate.types';
 import {
   CategoryDef,
   CategoryMappingResult,
@@ -80,6 +82,8 @@ function labelFor(key: string): string {
  */
 @Injectable()
 export class EstoniaCountryPlugin implements CountryPlugin {
+  constructor(private readonly fxRates: FxRateService) {}
+
   /**
    * VAT_RATES: numeric rates (0.0–1.0) for every EE VAT code.
    * Reverse-charge is self-accounted at the standard 24% rate.
@@ -140,13 +144,31 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   private static readonly REG_RE = /^\d{8}$/;
 
   /**
-   * v1 PLACEHOLDER rates (deterministic for tests). Live ECB integration is
-   * deferred (tracked debt) — getReferenceRate is a pure sync function so it
-   * cannot fetch.
+   * The FX lookup rule Estonian VAT law prescribes (issue #203 — this replaces
+   * a hardcoded placeholder map that ignored the date entirely).
+   *
+   * KMS § 29 lg 13: for a non-import transaction whose VAT data is in a
+   * foreign currency, the rate applied is the European Central Bank euro rate
+   * *in force* ("kehtiv") on the day determined under § 11 — the tax point.
+   * This is Estonia's enactment of EU VAT Directive Art. 91.
+   *
+   * The ECB publishes around 16:00 CET on working days only, never on TARGET
+   * closing days. Because the statute says "in force" rather than "published
+   * that day", the last publication governs until the next one: a Saturday tax
+   * point applies Friday's rate, and 1 January applies the preceding working
+   * day's. Hence `on-or-before`.
+   *
+   * The lookback is bounded at 7 days. The longest real ECB gap is the Easter
+   * or Christmas/New Year TARGET run (at most four consecutive closing days),
+   * so seven days covers every legitimate gap with margin, while a silence
+   * longer than that means something is wrong upstream — and a fortnight-old
+   * rate is not "in force", it is stale. In that case the conversion is
+   * REFUSED, never completed with the newest rate we happen to hold.
    */
-  private static readonly RATES: Record<string, number> = {
-    'USD→EUR': 0.92,
-    'GBP→EUR': 1.16,
+  private static readonly FX_POLICY: FxLookupPolicy = {
+    source: 'ECB',
+    fallback: 'on-or-before',
+    maxLookbackDays: 7,
   };
 
   // ── Identity ──────────────────────────────────────────────────────────────
@@ -257,18 +279,29 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   // ── FX ────────────────────────────────────────────────────────────────────
 
+  /**
+   * The prescribed VAT-base rate for `date`, from the ECB, with the
+   * publication date and source that were actually applied.
+   *
+   * The plugin owns the RULE (which authority, how a non-publication day
+   * resolves, how far back a rate stays in force); {@link FxRateService} owns
+   * the mechanism (cache, one fetch, direction and cross-rate arithmetic).
+   * Neither owns a rate value — there is no longer any rate constant in this
+   * file, which is the point of #203.
+   *
+   * @throws {FxRateUnavailableError} when the ECB quotes no such pair, or
+   *   published nothing for `date` or the seven days before it.
+   */
   getReferenceRate(
     fromCurrency: string,
     toCurrency: string,
-    _date: string,
-  ): number {
-    if (fromCurrency === toCurrency) return 1.0;
-    const direct = EstoniaCountryPlugin.RATES[`${fromCurrency}→${toCurrency}`];
-    if (direct !== undefined) return direct;
-    const inverse = EstoniaCountryPlugin.RATES[`${toCurrency}→${fromCurrency}`];
-    if (inverse !== undefined) return 1.0 / inverse;
-    throw new Error(
-      `EE plugin: no reference rate for ${fromCurrency} → ${toCurrency} (live FX deferred)`,
+    date: string,
+  ): Promise<ResolvedFxRate> {
+    return this.fxRates.resolve(
+      fromCurrency,
+      toCurrency,
+      date,
+      EstoniaCountryPlugin.FX_POLICY,
     );
   }
 

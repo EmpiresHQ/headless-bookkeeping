@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   BadRequestException,
@@ -172,7 +173,10 @@ export class FXRealizedService {
       amount: absRealized,
       currency: baseCurrency,
       base_amount: absRealized,
+      // Realized FX is booked wholly in base currency; no rate is applied.
       fx_rate: 1.0,
+      fx_rate_date: txn.transaction_date,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       is_debit: isGain,
     };
     const fxLine = {
@@ -181,6 +185,8 @@ export class FXRealizedService {
       currency: baseCurrency,
       base_amount: absRealized,
       fx_rate: 1.0,
+      fx_rate_date: txn.transaction_date,
+      fx_rate_source: IDENTITY_RATE_SOURCE,
       is_debit: !isGain,
     };
 
@@ -514,6 +520,8 @@ export class FXRealizedService {
         'voucher_line.currency',
         'voucher_line.base_amount',
         'voucher_line.fx_rate',
+        'voucher_line.fx_rate_date',
+        'voucher_line.fx_rate_source',
         'voucher_line.vat_code',
         'voucher_line.is_debit',
       ])
@@ -545,6 +553,11 @@ export class FXRealizedService {
         currency: l.currency,
         base_amount: l.base_amount,
         fx_rate: l.fx_rate,
+        // Provenance travels with the line it mirrors (issue #203): a reversal
+        // must be explicable by the same rate evidence as the original, and a
+        // legacy line's NULL provenance stays NULL rather than being invented.
+        fx_rate_date: l.fx_rate_date,
+        fx_rate_source: l.fx_rate_source,
         vat_code: l.vat_code,
         is_debit: !l.is_debit,
       })),

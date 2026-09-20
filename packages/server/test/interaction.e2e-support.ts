@@ -1,3 +1,5 @@
+import { FX_RATE_SOURCE } from '../src/fx/fx-rate.types';
+import { ECB_FIXTURE_RATES, FixtureFxRateSource } from './fx-fixtures';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import SqliteDb from 'better-sqlite3';
@@ -134,6 +136,10 @@ export async function createInteractionE2eHarness(): Promise<InteractionE2eHarne
     .useValue(fauxMastraService)
     .overrideProvider(TelegramApi)
     .useValue(telegramApi)
+    // Issue #203: bind the rate boundary to a deterministic fixture so the
+    // booted app never reaches the ECB.
+    .overrideProvider(FX_RATE_SOURCE)
+    .useValue(new FixtureFxRateSource(ECB_FIXTURE_RATES))
     .compile();
 
   const app = moduleRef.createNestApplication();

@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { SqliteConstraintFilter } from './common/filters/sqlite-constraint.filter';
 import { DatabaseModule } from './database/database.module';
+import { FxModule } from './fx/fx.module';
 import { OrganizationModule } from './organization/organization.module';
 import { CurrencyModule } from './currency/currency.module';
 import { PluginsModule } from './plugins/plugins.module';
@@ -96,6 +97,7 @@ const PRETTY_LOGS =
       exclude: ['/api{/*any}', '/admin{/*any}', '/health{/*any}'],
     }),
     DatabaseModule,
+    FxModule,
     OrganizationModule,
     CurrencyModule,
     PluginsModule,

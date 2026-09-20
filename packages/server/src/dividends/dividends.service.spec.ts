@@ -1,3 +1,5 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
+import { FxRateUnavailableError, ResolvedFxRate } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -338,10 +340,23 @@ describe('DividendsService (integration)', () => {
       getReferenceRate(
         fromCurrency: string,
         toCurrency: string,
-        _date: string,
-      ): number {
-        if (fromCurrency === toCurrency) return 1.0;
-        throw new Error('Cross-currency not supported');
+        date: string,
+      ): Promise<ResolvedFxRate> {
+        if (fromCurrency === toCurrency) {
+          return Promise.resolve({
+            rate: 1.0,
+            rateDate: date,
+            source: 'fixture',
+          });
+        }
+        return Promise.reject(
+          new FxRateUnavailableError(
+            fromCurrency,
+            toCurrency,
+            date,
+            'this fixture quotes no cross-currency pair',
+          ),
+        );
       }
       roundToBaseMinorUnits(amount: number): number {
         return Math.round(amount);
@@ -580,10 +595,23 @@ describe('DividendsService (integration)', () => {
       getReferenceRate(
         fromCurrency: string,
         toCurrency: string,
-        _date: string,
-      ): number {
-        if (fromCurrency === toCurrency) return 1.0;
-        throw new Error('Cross-currency not supported');
+        date: string,
+      ): Promise<ResolvedFxRate> {
+        if (fromCurrency === toCurrency) {
+          return Promise.resolve({
+            rate: 1.0,
+            rateDate: date,
+            source: 'fixture',
+          });
+        }
+        return Promise.reject(
+          new FxRateUnavailableError(
+            fromCurrency,
+            toCurrency,
+            date,
+            'this fixture quotes no cross-currency pair',
+          ),
+        );
       }
       roundToBaseMinorUnits(amount: number): number {
         return Math.round(amount);
@@ -819,6 +847,7 @@ describe('DividendsService (integration)', () => {
           // Real PluginLoader with real plugins — no stubs.
           NullCountryPlugin,
           EstoniaCountryPlugin,
+          ...fxTestProviders(),
           PluginLoader,
           CurrencyService,
           OrgContextResolver,

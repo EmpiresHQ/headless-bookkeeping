@@ -44,6 +44,7 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
   let getReferenceRate: jest.Mock;
   let getDefaultBaseCurrency: jest.Mock;
   let roundToBaseMinorUnits: jest.Mock;
+  let mockRate: (rate: number, rateDate?: string) => jest.Mock;
 
   const buildService = (
     org: {
@@ -56,6 +57,15 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
     rounding: (amount: number) => number = (amount) => Math.round(amount),
   ) => {
     getReferenceRate = jest.fn();
+    // The plugin now answers with the rate AND its provenance (#203).
+    // `mockRate` keeps each test's numeric intent while supplying the
+    // publication date and source the conversion must carry onto the line.
+    mockRate = (rate: number, rateDate = 'FIXTURE_DATE') =>
+      getReferenceRate.mockResolvedValue({
+        rate,
+        rateDate,
+        source: 'fixture',
+      });
     getDefaultBaseCurrency = jest.fn().mockReturnValue('EUR');
     roundToBaseMinorUnits = jest.fn(rounding);
     getOrganization = jest.fn().mockResolvedValue(org);
@@ -79,6 +89,10 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
       baseAmount: 12345,
       rate: 1.0,
       baseCurrency: 'EUR',
+      // An identity conversion is recorded as one, rather than left blank:
+      // a blank source is what a pre-#203 line looks like.
+      rateDate: '2026-01-15',
+      rateSource: 'identity',
     });
     // The plugin's reference-rate path must NOT be touched for same currency
     // (NullCountryPlugin throws on real cross-currency pairs).
@@ -88,7 +102,7 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
   it('foreign currency → multiply by the plugin reference rate and round (Math.round)', async () => {
     buildService({ country: 'IE', base_currency: null });
     // 100 USD * 0.9876 = 98.76 → rounds to 99
-    getReferenceRate.mockReturnValue(0.9876);
+    mockRate(0.9876);
 
     const result = await service.toBase(100, 'USD', '2026-01-15');
 
@@ -97,13 +111,17 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
       baseAmount: 99,
       rate: 0.9876,
       baseCurrency: 'EUR',
+      // The provenance the plugin resolved travels out with the conversion,
+      // so the caller books the rate and its evidence together.
+      rateDate: 'FIXTURE_DATE',
+      rateSource: 'fixture',
     });
   });
 
   it('foreign currency → rounds half away from zero like Math.round', async () => {
     buildService({ country: 'IE', base_currency: null });
     // 1 unit * 2.5 = 2.5 → Math.round → 3
-    getReferenceRate.mockReturnValue(2.5);
+    mockRate(2.5);
 
     const result = await service.toBase(1, 'USD', '2026-01-15');
 
@@ -113,7 +131,7 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
   it('base-currency resolution: uses the Organization override when set', async () => {
     buildService({ country: 'IE', base_currency: 'USD' });
     // Source EUR ≠ base USD → goes through the plugin.
-    getReferenceRate.mockReturnValue(1.1);
+    mockRate(1.1);
 
     const result = await service.toBase(100, 'EUR', '2026-01-15');
 
@@ -140,7 +158,7 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
       Math.floor(amount),
     );
     // 100 USD * 0.9876 = 98.76 → Math.round would give 99, floor gives 98.
-    getReferenceRate.mockReturnValue(0.9876);
+    mockRate(0.9876);
 
     const result = await service.toBase(100, 'USD', '2026-01-15');
 
@@ -151,7 +169,7 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
   it('null-plugin rounding keeps Math.round semantics (half away from zero)', async () => {
     buildService({ country: 'IE', base_currency: null });
     // 1 * 2.5 = 2.5 → Math.round → 3 (byte-identical to the former hardcoded rule).
-    getReferenceRate.mockReturnValue(2.5);
+    mockRate(2.5);
 
     const result = await service.toBase(1, 'USD', '2026-01-15');
 

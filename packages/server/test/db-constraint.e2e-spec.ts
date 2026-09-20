@@ -1,3 +1,5 @@
+import { FX_RATE_SOURCE } from '../src/fx/fx-rate.types';
+import { ECB_FIXTURE_RATES, FixtureFxRateSource } from './fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -30,6 +32,11 @@ describe('DB constraint → 4xx (e2e)', () => {
       .useValue(db)
       .overrideProvider(MastraService)
       .useValue(fauxMastraService)
+      // Issue #203: the FX rate source is the ONE boundary at which
+      // authoritative rates enter the system. An e2e test binds it to a
+      // deterministic fixture, so booting the app never reaches the ECB.
+      .overrideProvider(FX_RATE_SOURCE)
+      .useValue(new FixtureFxRateSource(ECB_FIXTURE_RATES))
       .compile();
 
     app = moduleFixture.createNestApplication();

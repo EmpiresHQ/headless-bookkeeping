@@ -367,6 +367,11 @@ export class PostingService {
           currency: l.currency,
           base_amount: l.base_amount,
           fx_rate: l.fx_rate,
+          // Issue #203: WHICH publication the rate came from, and from whom.
+          // A generator that did not supply it writes NULL — never a guessed
+          // source, which would make an unattributed rate look authoritative.
+          fx_rate_date: l.fx_rate_date ?? null,
+          fx_rate_source: l.fx_rate_source ?? null,
           vat_code: l.vat_code ?? null,
           is_debit: l.is_debit ? 1 : 0,
         })),
@@ -382,6 +387,8 @@ export class PostingService {
       currency: r.currency,
       base_amount: r.base_amount,
       fx_rate: r.fx_rate,
+      fx_rate_date: r.fx_rate_date,
+      fx_rate_source: r.fx_rate_source,
       vat_code: r.vat_code,
       is_debit: toBool(r.is_debit),
     }));
