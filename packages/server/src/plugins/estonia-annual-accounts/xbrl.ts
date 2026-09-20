@@ -273,11 +273,14 @@ export function renderAnnualAccountsXbrl(
     const ppe = signed('tangibleFixedAssets', field);
     const payables = signed('payablesAndPrepayments', field);
     const capital = signed('issuedCapital', field);
+    // Brought-forward earnings come from the kernel for BOTH columns. Deriving
+    // the comparative one as `retained.prior − priorNetIncome` assumed the
+    // retained balance had absorbed the prior result, which it only has when a
+    // closing sweep was posted — and this design has none (issue #206).
     const retained =
       field === 'current'
         ? input.retainedEarningsBroughtForward
-        : // Prior brought-forward = prior retained line minus the prior result.
-          get('retainedEarnings').prior - input.priorNetIncome;
+        : input.priorRetainedEarningsBroughtForward;
     const result =
       field === 'current' ? input.periodNetIncome : input.priorNetIncome;
 

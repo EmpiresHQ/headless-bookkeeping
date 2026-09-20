@@ -59,6 +59,9 @@ function baseInput(
     periodNetIncome: 16000,
     priorNetIncome: 22000,
     retainedEarningsBroughtForward: 24500,
+    // The comparative column's own brought-forward figure (issue #206): 2025
+    // opened with 2500 accumulated and earned 22000, closing at 24500.
+    priorRetainedEarningsBroughtForward: 2500,
     declarant: { regNumber: '17499653', name: 'Test OÜ' },
     ...over,
   };
@@ -120,6 +123,7 @@ describe('renderAnnualAccountsXbrl', () => {
       periodNetIncome: 0,
       priorNetIncome: 0,
       retainedEarningsBroughtForward: 0,
+      priorRetainedEarningsBroughtForward: 0,
     });
     expect(xbrl).toContain(
       '<et-gaap:PropertyPlantAndEquipment contextRef="i-2026-12-31" unitRef="EUR" decimals="2">1200.00</et-gaap:PropertyPlantAndEquipment>',
@@ -254,6 +258,7 @@ describe('renderAnnualAccountsXbrl', () => {
       periodNetIncome: 2500,
       priorNetIncome: 0,
       retainedEarningsBroughtForward: 0,
+      priorRetainedEarningsBroughtForward: 0,
     });
     // A year that did not exist gets no invented dates.
     expect(xbrl).not.toContain('C-PRIOR');

@@ -701,6 +701,7 @@ describe('EstoniaCountryPlugin — annual accounts', () => {
     periodNetIncome: 0,
     priorNetIncome: 0,
     retainedEarningsBroughtForward: 0,
+    priorRetainedEarningsBroughtForward: 0,
     declarant: { regNumber: '12345678', name: 'Test OÜ' },
   };
 

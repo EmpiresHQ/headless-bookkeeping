@@ -25,7 +25,10 @@ import { StatutoryReportService } from '../statutory-report/statutory-report.ser
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import type { AnnualAccountsInput } from '../plugins/annual-accounts.types';
 import { validateEtGaapInstance } from '../../test/xbrl/validate-xbrl-instance';
-import { AnnualAccountsService } from './annual-accounts.service';
+import {
+  AnnualAccountsService,
+  CLOSING_TRANSFER_REASON_PREFIX,
+} from './annual-accounts.service';
 
 describe('AnnualAccountsService.generate — draft (integration)', () => {
   let db: Kysely<Database>;
@@ -592,6 +595,7 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       periodNetIncome: 0,
       priorNetIncome: 0,
       retainedEarningsBroughtForward: 0,
+      priorRetainedEarningsBroughtForward: 0,
       declarant: { regNumber: 'EE123456789', name: 'Test OÜ' },
     };
     const warnings = service.diagnoseInput(input);
@@ -959,5 +963,463 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
     expect(after.warnings.map((w) => w.code)).toContain(
       'depreciation_not_yet_posted',
     );
+  });
+
+  // ── Issue #206: brought-forward earnings ─────────────────────────────────
+
+  /**
+   * Add an OPEN reporting period. The carry-forward scenarios need a third
+   * year the fixture does not seed; `finalize` locks years in filing order, so
+   * they are created open and locked through `finalize` like any other year.
+   */
+  async function addPeriod(
+    name: string,
+    start: string,
+    end: string,
+  ): Promise<number> {
+    await db
+      .insertInto('reporting_period')
+      .values({
+        name,
+        start_date: start,
+        end_date: end,
+        status: 'open',
+        created_at: 1,
+      } as never)
+      .execute();
+    return periodId(name);
+  }
+
+  /** The equity section of one balance-sheet column, in EUR as filed. */
+  function equityColumn(
+    xbrl: string,
+    instant: string,
+  ): {
+    capital: number;
+    retained: number;
+    result: number;
+    equity: number;
+    assets: number;
+    liabilitiesAndEquity: number;
+  } {
+    return {
+      capital: xbrlFact(xbrl, 'et-gaap:IssuedCapital', instant),
+      retained: xbrlFact(xbrl, 'et-gaap:RetainedEarningsLoss', instant),
+      result: xbrlFact(xbrl, 'et-gaap:AnnualPeriodProfitLoss', instant),
+      equity: xbrlFact(xbrl, 'et-gaap:Equity', instant),
+      assets: xbrlFact(xbrl, 'et-gaap:Assets', instant),
+      liabilitiesAndEquity: xbrlFact(
+        xbrl,
+        'et-gaap:LiabilitiesAndEquity',
+        instant,
+      ),
+    };
+  }
+
+  /** The issue's own reproduction: a EUR 100 sale plus 24 VAT, in 2026. */
+  async function sell(date: string, netMinor: number): Promise<number> {
+    const vat = Math.round(netMinor * 0.24);
+    return postVoucher(date, [
+      { code: 'AR', isDebit: true, base: netMinor + vat },
+      { code: 'REVENUE', isDebit: false, base: netMinor },
+      { code: 'VAT_PAYABLE', isDebit: false, base: vat },
+    ]);
+  }
+
+  /**
+   * An operator's explicit closing sweep of `netMinor` of profit into retained
+   * earnings, marked with the documented `reason` that states the intent —
+   * the shape alone is not evidence of it.
+   */
+  async function sweep(
+    date: string,
+    netMinor: number,
+    yearSwept: string,
+  ): Promise<number> {
+    return postVoucher(
+      date,
+      [
+        { code: 'REVENUE', isDebit: true, base: netMinor },
+        { code: 'RETAINED_EARNINGS', isDebit: false, base: netMinor },
+      ],
+      { reason: `${CLOSING_TRANSFER_REASON_PREFIX} for ${yearSwept}` },
+    );
+  }
+
+  it('carries a closed profitable year into the next year, which balances and finalizes', async () => {
+    // 1. A EUR 100 sale + VAT 24 in 2026, then finalize 2026.
+    await sell('2026-06-01', 10000);
+    await service.finalize(await periodId('2026'));
+
+    // 2. An EMPTY 2027 — no transactions at all.
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    const draft = await service.generate(id2027);
+
+    // The 2026 profit is brought forward, so the sheet balances: assets 124
+    // (receivable) = VAT liability 24 + accumulated profit 100.
+    expect(draft.warnings.map((w) => w.code)).not.toContain(
+      'balance_sheet_imbalance',
+    );
+    const col = equityColumn(draft.artifacts[0].content, 'i-2027-12-31');
+    expect(col.retained).toBe(100);
+    expect(col.result).toBe(0);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(validateEtGaapInstance(draft.artifacts[0].content).errors).toEqual(
+      [],
+    );
+
+    // 3. And the year can be closed.
+    const final = await service.finalize(id2027);
+    expect(final.artifacts[0].content).toBe(draft.artifacts[0].content);
+    expect(
+      (
+        await db
+          .selectFrom('reporting_period')
+          .select('status')
+          .where('id', '=', id2027)
+          .executeTakeFirstOrThrow()
+      ).status,
+    ).toBe('locked');
+  });
+
+  it('shows the comparative column its own brought-forward earnings, not the current one', async () => {
+    // 2025 (the fixture's locked year) earns 60; 2026 earns 100.
+    await sell('2025-06-01', 6000);
+    await sell('2026-06-01', 10000);
+    const xbrl = (await service.generate(await periodId('2026'))).artifacts[0]
+      .content;
+
+    // Current column (2026): 60 brought forward from 2025, 100 this year.
+    const current = equityColumn(xbrl, 'i-2026-12-31');
+    expect(current.retained).toBe(60);
+    expect(current.result).toBe(100);
+    expect(current.assets).toBe(current.liabilitiesAndEquity);
+
+    // Comparative column (2025): nothing brought forward, 60 earned. The old
+    // renderer derived this as `retained.prior − priorNetIncome`, which assumed
+    // the retained balance already contained the prior result.
+    const prior = equityColumn(xbrl, 'i-2025-12-31');
+    expect(prior.retained).toBe(0);
+    expect(prior.result).toBe(60);
+    expect(prior.assets).toBe(prior.liabilitiesAndEquity);
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('accumulates several prior years, including a loss year', async () => {
+    // 2025: +100. 2026: −40 (a loss). 2027 carries +60 forward.
+    await sell('2025-06-01', 10000);
+    await postVoucher('2026-03-01', [
+      { code: 'EXPENSE_RENT', isDebit: true, base: 4000 },
+      { code: 'AP', isDebit: false, base: 4000 },
+    ]);
+    await service.finalize(await periodId('2026'));
+
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    const xbrl = (await service.generate(id2027)).artifacts[0].content;
+    const col = equityColumn(xbrl, 'i-2027-12-31');
+    expect(col.retained).toBe(60);
+    expect(col.result).toBe(0);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('reports a carried-forward loss as negative brought-forward earnings', async () => {
+    await postVoucher('2026-03-01', [
+      { code: 'EXPENSE_RENT', isDebit: true, base: 4000 },
+      { code: 'AP', isDebit: false, base: 4000 },
+    ]);
+    await service.finalize(await periodId('2026'));
+
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    const xbrl = (await service.generate(id2027)).artifacts[0].content;
+    const col = equityColumn(xbrl, 'i-2027-12-31');
+    expect(col.retained).toBe(-40);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+  });
+
+  it('nets a dividend declared out of brought-forward earnings exactly once', async () => {
+    await sell('2026-06-01', 10000);
+    await service.finalize(await periodId('2026'));
+
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    // Declaring a dividend charges RETAINED_EARNINGS — an equity movement, not
+    // a closing transfer (it has a liability leg), so it must reduce the
+    // brought-forward line and nothing else.
+    await postVoucher('2027-04-01', [
+      { code: 'RETAINED_EARNINGS', isDebit: true, base: 3000 },
+      { code: 'DIVIDEND_PAYABLE', isDebit: false, base: 3000 },
+    ]);
+
+    const xbrl = (await service.generate(id2027)).artifacts[0].content;
+    const col = equityColumn(xbrl, 'i-2027-12-31');
+    expect(col.retained).toBe(70);
+    expect(col.result).toBe(0);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('keeps the current result when a closing transfer sweeps the year on its last day', async () => {
+    await sell('2026-06-01', 10000);
+    // An explicit P&L → retained sweep dated at the year end, marked with the
+    // documented reason. 2026 really did earn 100; the sweep only moves where
+    // the 100 sits, so the reported result stays 100 and nothing is brought
+    // forward INTO 2026.
+    await sweep('2026-12-31', 10000, '2026');
+
+    const xbrl2026 = (await service.generate(await periodId('2026')))
+      .artifacts[0].content;
+    const col2026 = equityColumn(xbrl2026, 'i-2026-12-31');
+    expect(col2026.retained).toBe(0);
+    expect(col2026.result).toBe(100);
+    expect(col2026.assets).toBe(col2026.liabilitiesAndEquity);
+    // The swept revenue is not trading income of 2026 twice over: the income
+    // statement still reports the sale once.
+    expect(xbrlFact(xbrl2026, 'et-gaap:Revenue', DURATION_2026)).toBe(100);
+    expect(xbrlFact(xbrl2026, 'et-gaap:TotalProfitLoss', DURATION_2026)).toBe(
+      100,
+    );
+    expect(validateEtGaapInstance(xbrl2026).errors).toEqual([]);
+
+    // And 2027 brings the swept 100 forward ONCE — not 200.
+    await service.finalize(await periodId('2026'));
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    const col2027 = equityColumn(
+      (await service.generate(id2027)).artifacts[0].content,
+      'i-2027-12-31',
+    );
+    expect(col2027.retained).toBe(100);
+    expect(col2027.result).toBe(0);
+    expect(col2027.assets).toBe(col2027.liabilitiesAndEquity);
+  });
+
+  it('keeps a closing transfer dated on the new year’s opening day out of the new year’s result', async () => {
+    await sell('2026-06-01', 10000);
+    await service.finalize(await periodId('2026'));
+
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    // The sweep of 2026's profit, booked on the first day of 2027 — the other
+    // ordinary place to put it. It must NOT read as a 2027 trading loss of
+    // 100, and the 100 must be brought forward once, not twice.
+    await sweep('2027-01-01', 10000, '2026');
+    // Real 2027 trading ON THE SAME DAY as the sweep, plus more later: the
+    // year's own result must be the trading, whatever the sweep leaves the
+    // revenue account standing at on that date.
+    await sell('2027-01-01', 2000);
+    await sell('2027-05-01', 3000);
+
+    const xbrl = (await service.generate(id2027)).artifacts[0].content;
+    const col = equityColumn(xbrl, 'i-2027-12-31');
+    expect(col.retained).toBe(100);
+    expect(col.result).toBe(50);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    // The income statement reports 2027's own trading only.
+    expect(xbrlFact(xbrl, 'et-gaap:Revenue', 'd-2027-01-01_2027-12-31')).toBe(
+      50,
+    );
+    expect(
+      xbrlFact(xbrl, 'et-gaap:TotalProfitLoss', 'd-2027-01-01_2027-12-31'),
+    ).toBe(50);
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('counts an equity contra account (owner drawings) in brought-forward earnings', async () => {
+    await sell('2026-06-01', 10000);
+    // A sole proprietor's drawing: Dr OWNERS_DRAWINGS / Cr BANK. The account is
+    // equity and the Estonia plugin folds it into the retained-earnings line,
+    // so leaving it out of brought-forward equity unbalances the sheet.
+    await postVoucher('2026-02-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 5000 },
+      { code: 'EQUITY', isDebit: false, base: 5000 },
+    ]);
+    await postVoucher('2026-08-01', [
+      { code: 'OWNERS_DRAWINGS', isDebit: true, base: 2000 },
+      { code: 'BANK_EUR', isDebit: false, base: 2000 },
+    ]);
+
+    const xbrl = (await service.generate(await periodId('2026'))).artifacts[0]
+      .content;
+    const col = equityColumn(xbrl, 'i-2026-12-31');
+    expect(col.capital).toBe(50);
+    expect(col.retained).toBe(-20);
+    expect(col.result).toBe(100);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('treats a drawings reclassification as the expense adjustment it is, not a sweep', async () => {
+    // The shape a sweep would have — only a P&L account and an equity account —
+    // but the intent is the opposite: a previously expensed personal purchase
+    // is moved to the owner. It really does reduce the year's rent expense, and
+    // the year's profit must show that; the counterpart is drawings, never
+    // accumulated profit, which is what tells the two apart.
+    await sell('2026-06-01', 10000);
+    await postVoucher('2026-03-01', [
+      { code: 'EXPENSE_RENT', isDebit: true, base: 3000 },
+      { code: 'AP', isDebit: false, base: 3000 },
+    ]);
+    await postVoucher('2026-09-01', [
+      { code: 'OWNERS_DRAWINGS', isDebit: true, base: 3000 },
+      { code: 'EXPENSE_RENT', isDebit: false, base: 3000 },
+    ]);
+
+    const xbrl = (await service.generate(await periodId('2026'))).artifacts[0]
+      .content;
+    const col = equityColumn(xbrl, 'i-2026-12-31');
+    // The expense is gone from the year, so the result is the full 100 …
+    expect(col.result).toBe(100);
+    // … and the drawing sits on the accumulated-earnings line, once.
+    expect(col.retained).toBe(-30);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    // The income statement reports no rent expense left to report.
+    expect(xbrlFact(xbrl, 'et-gaap:OtherOperatingExpense', DURATION_2026)).toBe(
+      0,
+    );
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('treats a partial charge to retained earnings as an adjustment, not a sweep', async () => {
+    // Same two account TYPES as a sweep and the right equity account, but it
+    // leaves a balance behind on the expense account, so it closes nothing and
+    // stays ordinary activity of 2026.
+    await sell('2026-06-01', 10000);
+    await postVoucher('2026-03-01', [
+      { code: 'EXPENSE_RENT', isDebit: true, base: 3000 },
+      { code: 'AP', isDebit: false, base: 3000 },
+    ]);
+    await postVoucher('2026-09-01', [
+      { code: 'RETAINED_EARNINGS', isDebit: true, base: 1000 },
+      { code: 'EXPENSE_RENT', isDebit: false, base: 1000 },
+    ]);
+
+    const xbrl = (await service.generate(await periodId('2026'))).artifacts[0]
+      .content;
+    const col = equityColumn(xbrl, 'i-2026-12-31');
+    expect(col.result).toBe(80);
+    expect(col.retained).toBe(-10);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(xbrlFact(xbrl, 'et-gaap:OtherOperatingExpense', DURATION_2026)).toBe(
+      -20,
+    );
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('nets a reversed closing transfer instead of inventing trading income', async () => {
+    await sell('2026-06-01', 10000);
+    await service.finalize(await periodId('2026'));
+
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    const sweepId = await sweep('2027-01-01', 10000, '2026');
+    // The operator thinks better of it and reverses the sweep months later —
+    // the only correction route there is (ADR-0012: no editing posted history).
+    // The reversal restores the revenue balance, so recognising the sweep but
+    // not its reversal would report 2027 as having earned that 100 by trading.
+    await postVoucher(
+      '2027-06-01',
+      [
+        { code: 'RETAINED_EARNINGS', isDebit: true, base: 10000 },
+        { code: 'REVENUE', isDebit: false, base: 10000 },
+      ],
+      {
+        reason: `Reversal of ${CLOSING_TRANSFER_REASON_PREFIX} for 2026`,
+        reversesId: sweepId,
+      },
+    );
+
+    const xbrl = (await service.generate(id2027)).artifacts[0].content;
+    const col = equityColumn(xbrl, 'i-2027-12-31');
+    // The pair nets: 2027 traded nothing, and the 100 is still brought forward.
+    expect(col.result).toBe(0);
+    expect(col.retained).toBe(100);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(xbrlFact(xbrl, 'et-gaap:Revenue', 'd-2027-01-01_2027-12-31')).toBe(
+      0,
+    );
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('does not reclassify a money movement that merely claims to be a closing transfer', async () => {
+    await sell('2026-06-01', 10000);
+    // The documented reason on a voucher that moves cash. Intent alone cannot
+    // pull a bank movement out of the year's trading, so it stays ordinary
+    // activity and the year's result keeps the expense.
+    await postVoucher(
+      '2026-09-01',
+      [
+        { code: 'EXPENSE_RENT', isDebit: true, base: 3000 },
+        { code: 'BANK_EUR', isDebit: false, base: 3000 },
+      ],
+      { reason: `${CLOSING_TRANSFER_REASON_PREFIX} for 2026` },
+    );
+
+    const col = equityColumn(
+      (await service.generate(await periodId('2026'))).artifacts[0].content,
+      'i-2026-12-31',
+    );
+    expect(col.result).toBe(70);
+    expect(col.retained).toBe(0);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+  });
+
+  it('still balances an UNMARKED sweep, reading it exactly as posted', async () => {
+    await sell('2026-06-01', 10000);
+    await service.finalize(await periodId('2026'));
+
+    const id2027 = await addPeriod('2027', '2027-01-01', '2027-12-31');
+    // A sweep with nothing to say it is one. Its shape is indistinguishable
+    // from an adjustment, so the report does NOT guess: the P&L leg counts in
+    // the year it is dated in. Total equity is still right and the sheet still
+    // balances — only the split between the two equity lines follows the
+    // posting, which is the documented cost of requiring explicit intent.
+    await postVoucher('2027-01-01', [
+      { code: 'REVENUE', isDebit: true, base: 10000 },
+      { code: 'RETAINED_EARNINGS', isDebit: false, base: 10000 },
+    ]);
+
+    const draft = await service.generate(id2027);
+    expect(draft.warnings.map((w) => w.code)).not.toContain(
+      'balance_sheet_imbalance',
+    );
+    const col = equityColumn(draft.artifacts[0].content, 'i-2027-12-31');
+    expect(col.equity).toBe(100);
+    expect(col.retained).toBe(200);
+    expect(col.result).toBe(-100);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    // And the year can still be closed: the gating check is the balance, and
+    // the balance holds.
+    await expect(service.finalize(id2027)).resolves.toBeDefined();
+  });
+
+  it('leaves a marked reclassification between two expense categories in the income statement', async () => {
+    await sell('2026-06-01', 10000);
+    await postVoucher('2026-03-01', [
+      { code: 'EXPENSE_OTHER', isDebit: true, base: 3000 },
+      { code: 'AP', isDebit: false, base: 3000 },
+    ]);
+    // Carries the marker, but moves an amount BETWEEN two income-statement
+    // categories — there is no retained-earnings leg, so it transfers nothing
+    // into equity and both legs must stay in the statement, re-labelled. The
+    // two accounts deliberately map to DIFFERENT RTJ lines, so mistaking this
+    // for a sweep would be visible as the reclassification undoing itself.
+    await postVoucher(
+      '2026-09-01',
+      [
+        { code: 'EXPENSE_SALARY', isDebit: true, base: 3000 },
+        { code: 'EXPENSE_OTHER', isDebit: false, base: 3000 },
+      ],
+      { reason: `${CLOSING_TRANSFER_REASON_PREFIX} for 2026` },
+    );
+
+    const xbrl = (await service.generate(await periodId('2026'))).artifacts[0]
+      .content;
+    const col = equityColumn(xbrl, 'i-2026-12-31');
+    // Still a 30 expense against 100 of revenue, now booked as labour.
+    expect(col.result).toBe(70);
+    expect(col.retained).toBe(0);
+    expect(col.assets).toBe(col.liabilitiesAndEquity);
+    expect(xbrlFact(xbrl, 'et-gaap:EmployeeExpense', DURATION_2026)).toBe(-30);
+    expect(xbrlFact(xbrl, 'et-gaap:OtherOperatingExpense', DURATION_2026)).toBe(
+      0,
+    );
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
   });
 });

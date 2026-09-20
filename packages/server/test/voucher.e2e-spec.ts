@@ -16,6 +16,7 @@ import { VoucherRepository } from './../src/ledger/voucher/voucher.repository';
 import { VoucherLineRepository } from './../src/ledger/voucher/voucher-line.repository';
 import { VoucherController } from './../src/ledger/voucher/voucher.controller';
 import { ZodValidationPipe } from './../src/common/pipes/zod-validation.pipe';
+import { CLOSING_TRANSFER_REASON_PREFIX } from './../src/annual-accounts/annual-accounts.service';
 
 describe('Voucher (e2e)', () => {
   let app: INestApplication<App>;
@@ -90,6 +91,42 @@ describe('Voucher (e2e)', () => {
     expect(typeof Reflect.get(res.body, 'posted_at')).toBe('number');
     expect(res.body).toHaveProperty('lines');
     expect(Array.isArray(Reflect.get(res.body, 'lines'))).toBe(true);
+  });
+
+  it('POST /api/vouchers persists an operator-stated reason verbatim', async () => {
+    // `reason` is newly accepted on this endpoint (issue #206) so that an
+    // operator can state an intent the annual report cannot infer from the
+    // lines — the documented closing-transfer marker. It must survive real
+    // request validation and reach the immutable voucher unchanged, because
+    // AnnualAccountsService matches on its exact prefix.
+    const reason = `${CLOSING_TRANSFER_REASON_PREFIX} for 2026`;
+    const res = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, reason })
+      .expect(201);
+    expect(Reflect.get(res.body, 'reason')).toBe(reason);
+
+    // Read it back by the id the server assigned — the voucher number is minted
+    // server-side, so the request body's is not what identifies the row.
+    const stored = await db
+      .selectFrom('voucher')
+      .select('reason')
+      .where('id', '=', Reflect.get(res.body, 'id') as number)
+      .executeTakeFirstOrThrow();
+    expect(stored.reason).toBe(reason);
+  });
+
+  it('POST /api/vouchers still posts without a reason, and rejects an empty one', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced })
+      .expect(201);
+    expect(Reflect.get(res.body, 'reason')).toBeNull();
+
+    await request(app.getHttpServer())
+      .post('/api/vouchers')
+      .send({ ...balanced, reason: '' })
+      .expect(400);
   });
 
   it('POST /api/vouchers rejects an unbalanced voucher (400) atomically', async () => {

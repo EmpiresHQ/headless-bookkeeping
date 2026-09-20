@@ -52,6 +52,7 @@ const input: AnnualAccountsInput = {
   periodNetIncome: 16000,
   priorNetIncome: 22000,
   retainedEarningsBroughtForward: 24500,
+  priorRetainedEarningsBroughtForward: 2500,
   declarant: { regNumber: '17499653', name: 'Test OÜ' },
 };
 

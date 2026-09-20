@@ -109,6 +109,7 @@ describe('NullCountryPlugin — retrieval + distribution tax', () => {
       periodNetIncome: 0,
       priorNetIncome: 0,
       retainedEarningsBroughtForward: 0,
+      priorRetainedEarningsBroughtForward: 0,
       declarant: { regNumber: null, name: null },
     };
     const result = plugin.generateAnnualAccounts(input, {
