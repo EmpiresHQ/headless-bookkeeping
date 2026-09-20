@@ -35,6 +35,7 @@ export interface Database {
   audit_log: AuditLogTable;
   credit_note: CreditNoteTable;
   fixed_asset: FixedAssetTable;
+  fixed_asset_depreciation: FixedAssetDepreciationTable;
   statutory_submission_event: StatutorySubmissionEventTable;
   statutory_filing_snapshot: StatutoryFilingSnapshotTable;
   mailbox_connector: MailboxConnectorTable;
@@ -600,6 +601,34 @@ export interface FixedAssetTable {
   // Unix seconds when disposed; NULL = active.
   retired_at: number | null;
   disposal_voucher_id: number | null;
+}
+
+// FixedAssetDepreciation: WHICH posted depreciation belongs to WHICH asset
+// (migration 075, issue #208).
+//
+// Attribution metadata OVER the ledger, never a parallel ledger: every row
+// names an amount that already exists as an ACCUM_DEPRECIATION_* credit on the
+// posted voucher it points at. The annual close posts ONE voucher with one
+// line per asset CLASS, so without this table there is no way to tell how much
+// of a class's posted depreciation belongs to a single asset — which is what
+// made a disposal re-charge depreciation the close had already posted (#208)
+// and every asset card deduct its peers' depreciation (#214).
+//
+// Written inside the SAME transaction as the voucher it attributes, so an
+// attributed charge and its ledger lines can never exist apart.
+export interface FixedAssetDepreciationTable {
+  id: Generated<number>;
+  fixed_asset_id: number;
+  // The posted voucher carrying the ACCUM_DEPRECIATION_* credit.
+  voucher_id: number;
+  // Credit-positive: the share of that voucher's contra credit for this asset.
+  amount_minor: number;
+  // ISO date the charge runs through (the close's period end, or the
+  // disposal date) — the asset's accumulated-depreciation high-water mark.
+  charge_through_date: string;
+  // 'annual_close' | 'disposal_catch_up' | 'legacy_backfill'
+  source: string;
+  created_at: number;
 }
 
 // StatutorySubmissionEvent: append-only, jurisdiction-neutral log of the

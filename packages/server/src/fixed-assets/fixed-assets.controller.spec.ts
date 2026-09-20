@@ -25,6 +25,7 @@ import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.serv
 import { ExpensesService } from '../expenses/expenses.service';
 import { CategoryService } from '../categories/category.service';
 import { FixedAssetRegistrarService } from './fixed-asset-registrar.service';
+import { DepreciationAttributionService } from './depreciation-attribution.service';
 import { FixedAssetsService } from './fixed-assets.service';
 import { FixedAssetsController } from './fixed-assets.controller';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -78,6 +79,7 @@ describe('FixedAssetsController (integration)', () => {
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         FixedAssetsService,
+        DepreciationAttributionService,
         FixedAssetRegistrarService,
         AuditLogService,
         ExpensesService,

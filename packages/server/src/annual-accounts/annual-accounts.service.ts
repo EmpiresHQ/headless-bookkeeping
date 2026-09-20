@@ -15,6 +15,10 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { depreciationCharge } from '../fixed-assets/depreciation-engine';
+import {
+  AttributionRow,
+  DepreciationAttributionService,
+} from '../fixed-assets/depreciation-attribution.service';
 import { addDays } from '../reporting-periods/period-dates';
 import type {
   AccountBalanceRow,
@@ -83,6 +87,16 @@ export const CLOSING_TRANSFER_REASON_PREFIX =
  */
 export const ANNUAL_DEPRECIATION_REASON_PREFIX =
   'Annual depreciation charge for ';
+
+/**
+ * The ISO day before `date` — the as-of cutoff for "everything posted BEFORE
+ * this period", used to isolate what was attributed INSIDE the period.
+ */
+function priorDay(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * A posted P&L → retained-earnings CLOSING TRANSFER: an operator's explicit
@@ -181,6 +195,10 @@ export class AnnualAccountsService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly ledgerBalance: LedgerBalanceService,
     private readonly orgResolver: OrgContextResolver,
+    // WHICH posted depreciation belongs to WHICH asset (issue #208). The draft
+    // needs it to net per asset rather than per class, and finalize needs it to
+    // record the split of the voucher it posts.
+    private readonly attribution: DepreciationAttributionService,
     // Only the finalize path (Task 8) posts/locks; optional so the draft path
     // (and its self-contained spec) construct without wiring these.
     @Optional() private readonly postingService?: PostingService,
@@ -286,10 +304,8 @@ export class AnnualAccountsService {
       );
     }
 
-    const { input, plugin, diagnostics, unpostedByClass } = await this.assemble(
-      periodId,
-      'final',
-    );
+    const { input, plugin, diagnostics, unpostedByClass, unpostedByAsset } =
+      await this.assemble(periodId, 'final');
 
     // Render now so we can hard-block on plugin warnings too (unmapped
     // nonzero) — and so a renderer refusal lands BEFORE anything is posted or
@@ -373,8 +389,55 @@ export class AnnualAccountsService {
       // A VAT-period finalize (the pre-#207 legacy path, still supported) keeps
       // posting as ordinary system-generated activity: it has no financial year
       // to claim, and it never needed the exception.
-      await this.postingService.postVoucher(
-        draft,
+      // WHOSE charge this is, recorded atomically with the voucher (issue
+      // #208). The lines stay per class — the voucher shape, the #207
+      // `annual_close_period_id` stamp and the VAT-snapshot exception are
+      // unchanged — while the split behind them is now persisted, so a later
+      // disposal can deduct this asset's own charge instead of re-charging it.
+      //
+      // The split is written only when it RECONCILES to what is being posted.
+      // When a legacy unattributed close inside the same year reduced the
+      // class line below the sum of the per-asset remainders, which asset the
+      // reduction belongs to is unknown; attributing anyway would claim more
+      // than the voucher posted. The class is then left unattributed, which is
+      // reported by the unattributed-depreciation endpoint and refuses a
+      // dependent disposal until an allocation is supplied — rather than
+      // quietly inventing a split.
+      const postedByClassLine = new Map(
+        unpostedByClass.map((c) => [c.assetClass, c.chargeMinor]),
+      );
+      const assetSharesByClass = new Map<AssetClass, AssetAnnualCharge[]>();
+      for (const a of unpostedByAsset) {
+        const list = assetSharesByClass.get(a.assetClass) ?? [];
+        list.push(a);
+        assetSharesByClass.set(a.assetClass, list);
+      }
+      const attributionRows: AttributionRow[] = [];
+      for (const [cls, shares] of assetSharesByClass) {
+        const sum = shares.reduce((s, a) => s + a.chargeMinor, 0);
+        if (sum !== (postedByClassLine.get(cls) ?? 0)) continue;
+        for (const a of shares) {
+          attributionRows.push({
+            fixedAssetId: a.assetId,
+            voucherId: 0, // replaced with the posted voucher's id below
+            amountMinor: a.chargeMinor,
+            chargeThroughDate: period.end_date,
+            source: 'annual_close',
+          });
+        }
+      }
+
+      await this.postingService.postVouchersAtomic(
+        [draft],
+        {
+          afterPost: async (trx, vouchers) => {
+            if (attributionRows.length === 0) return;
+            await this.attribution.attributeTx(
+              trx,
+              attributionRows.map((r) => ({ ...r, voucherId: vouchers[0].id })),
+            );
+          },
+        },
         period.kind === 'annual'
           ? { kind: 'annual-close', financialYearId: period.id }
           : { kind: 'system-generated' },
@@ -479,6 +542,11 @@ export class AnnualAccountsService {
      * per class — what `finalize` posts and what the draft folds in virtually.
      */
     unpostedByClass: ClassAnnualCharge[];
+    /**
+     * The same remainder PER ASSET — what `finalize` records as the attribution
+     * of the voucher it posts, so the next disposal knows whose charge it was.
+     */
+    unpostedByAsset: AssetAnnualCharge[];
     period: { id: number; name: string; start_date: string; end_date: string };
   }> {
     const period = await this.db
@@ -597,12 +665,46 @@ export class AnnualAccountsService {
     // ledger, so only what is still UNPOSTED may be virtualized: folding the
     // full charge on top of an already-posted close double-counted it, and a
     // second download of a finalized year showed twice the depreciation.
-    const postedByClass = await this.postedAnnualDepreciation(period);
+    const { byClass: postedByClass, closeVoucherIds } =
+      await this.postedAnnualDepreciation(period);
     const postedDepreciationMinor = [...postedByClass.values()].reduce(
       (s, v) => s + v,
       0,
     );
-    const unpostedByClass = this.unpostedCharges(charges, postedByClass);
+
+    // Netting is now PER ASSET (issue #208): what the ledger carries for an
+    // asset is read from the attribution table, not inferred from the class
+    // total, so one asset's posted charge can no longer cancel a peer's
+    // unposted one. Only the part of a close that is NOT attributed to
+    // individual assets — a legacy close from before migration 075 — still has
+    // to be netted at class level, exactly as it was before.
+    const attributedByAsset = await this.attributedInPeriod(
+      assetRows.map((r) => r.id),
+      period.start_date,
+      period.end_date,
+    );
+    // Depreciation posted INSIDE this year that no asset owns. Only the year's
+    // own window matters: an older ambiguity sits outside the period's ledger
+    // balances and outside its netting, so it neither changes these figures nor
+    // has any business blocking this year.
+    const unattributedInPeriod = (
+      await this.attribution.unattributedDepreciation(period.end_date)
+    ).filter((u) => u.taxPointDate >= period.start_date);
+
+    const attributedCloseByClass =
+      await this.attribution.attributedByClass(closeVoucherIds);
+    const unattributedCloseByClass = new Map<AssetClass, number>();
+    for (const [cls, postedMinor] of postedByClass) {
+      const gap = postedMinor - (attributedCloseByClass.get(cls) ?? 0);
+      if (gap > 0) unattributedCloseByClass.set(cls, gap);
+    }
+
+    const { byClass: unpostedByClass, byAsset: unpostedByAsset } =
+      this.unpostedCharges(
+        charges,
+        attributedByAsset,
+        unattributedCloseByClass,
+      );
 
     // Fold the still-unposted charge into the balances so draft == final
     // numbers, and so a repeat download after finalization adds nothing:
@@ -703,9 +805,21 @@ export class AnnualAccountsService {
     const diagnostics = this.diagnose(input, {
       virtualChargeMinor: virtualCharge,
       postedChargeMinor: postedDepreciationMinor,
+      unattributed: unattributedInPeriod.map((u) => ({
+        voucherId: u.voucherId,
+        assetClass: u.assetClass,
+        unattributedMinor: u.unattributedMinor,
+      })),
     });
 
-    return { input, plugin, diagnostics, unpostedByClass, period };
+    return {
+      input,
+      plugin,
+      diagnostics,
+      unpostedByClass,
+      unpostedByAsset,
+      period,
+    };
   }
 
   /**
@@ -784,7 +898,7 @@ export class AnnualAccountsService {
     name: string;
     start_date: string;
     end_date: string;
-  }): Promise<Map<AssetClass, number>> {
+  }): Promise<{ byClass: Map<AssetClass, number>; closeVoucherIds: number[] }> {
     const closeVouchers = await this.db
       .selectFrom('voucher')
       .select('id')
@@ -799,7 +913,8 @@ export class AnnualAccountsService {
       )
       .execute();
     const posted = new Map<AssetClass, number>();
-    if (closeVouchers.length === 0) return posted;
+    if (closeVouchers.length === 0)
+      return { byClass: posted, closeVoucherIds: [] };
 
     const closeIds = closeVouchers.map((v) => v.id);
     const reversals = await this.db
@@ -832,34 +947,89 @@ export class AnnualAccountsService {
       const signed = line.is_debit ? -line.base_amount : line.base_amount;
       posted.set(cls, (posted.get(cls) ?? 0) + signed);
     }
-    return posted;
+    return { byClass: posted, closeVoucherIds: closeIds };
   }
 
   /**
-   * The part of the year's charge that is NOT yet in the ledger, per asset
-   * class: the engine's charge for the class minus what the annual-close
-   * voucher already posted for it, floored at zero. Flooring matters because an
-   * already-posted close is IMMUTABLE history: if it charged more than the
-   * engine now computes, the report shows the posted figure rather than
-   * virtually un-posting real ledger lines.
+   * The part of the year's charge that is NOT yet in the ledger, computed PER
+   * ASSET and then aggregated to the class the voucher posts at.
+   *
+   * Per asset, because the voucher's lines are per class but the charge is not:
+   * netting a class total against a class total let one asset's already-posted
+   * charge cancel a LIVING PEER's unposted one, so the peer silently went
+   * uncharged for the year. Each asset's remainder is floored at zero on its
+   * own (`charge − attributed`), so an over-charged asset can no longer absorb
+   * a peer's charge — an already-posted close is immutable history and is never
+   * virtually un-posted.
+   *
+   * `unattributedCloseByClass` is what a close inside this year posted but
+   * could not be attributed to individual assets — a legacy close from before
+   * migration 075 whose split would not re-derive. That part can only be netted
+   * at class level, exactly as this method netted every charge before.
+   *
+   * Class-level netting is not a figure anyone may FILE: if the asset the
+   * legacy close charged has since been retired, the netting comes off a living
+   * peer's charge instead. So a year with unattributed depreciation inside it
+   * raises a BLOCKING `depreciation_unattributed` diagnostic (see
+   * {@link diagnose}), which stops `finalize` and marks the draft incomplete.
+   * What survives here is only the DRAFT's view of such a year — the same
+   * numbers it showed before — presented as blocked rather than as complete.
    */
   private unpostedCharges(
     charges: AssetAnnualCharge[],
-    postedByClass: Map<AssetClass, number>,
-  ): ClassAnnualCharge[] {
+    attributedByAsset: Map<number, number>,
+    unattributedCloseByClass: Map<AssetClass, number>,
+  ): { byClass: ClassAnnualCharge[]; byAsset: AssetAnnualCharge[] } {
+    const byAsset: AssetAnnualCharge[] = [];
     const chargeByClass = new Map<AssetClass, number>();
     for (const c of charges) {
+      const remaining = Math.max(
+        0,
+        c.chargeMinor - (attributedByAsset.get(c.assetId) ?? 0),
+      );
+      if (remaining === 0) continue;
+      byAsset.push({ ...c, chargeMinor: remaining });
       chargeByClass.set(
         c.assetClass,
-        (chargeByClass.get(c.assetClass) ?? 0) + c.chargeMinor,
+        (chargeByClass.get(c.assetClass) ?? 0) + remaining,
       );
     }
-    const unposted: ClassAnnualCharge[] = [];
+
+    const byClass: ClassAnnualCharge[] = [];
     for (const [assetClass, chargeMinor] of chargeByClass) {
-      const remaining = chargeMinor - (postedByClass.get(assetClass) ?? 0);
-      if (remaining > 0) unposted.push({ assetClass, chargeMinor: remaining });
+      const remaining =
+        chargeMinor - (unattributedCloseByClass.get(assetClass) ?? 0);
+      if (remaining > 0) byClass.push({ assetClass, chargeMinor: remaining });
     }
-    return unposted;
+    return { byClass, byAsset };
+  }
+
+  /**
+   * Depreciation already ATTRIBUTED to each asset by a voucher dated inside
+   * this period — what the ledger demonstrably carries for that asset this
+   * year, reversal-netted as of the period end (issue #208).
+   *
+   * It covers a close posted by an earlier finalize attempt (the #205 retry)
+   * and the catch-up a disposal posted during the year. The latter matters in
+   * both directions: the disposed asset's own charge must not be posted a
+   * second time by the close, and — because each asset nets only against its
+   * own attribution — the disposal must not swallow a living peer's charge.
+   */
+  private async attributedInPeriod(
+    assetIds: number[],
+    startDate: string,
+    endDate: string,
+  ): Promise<Map<number, number>> {
+    const throughEnd = await this.attribution.postedByAsset(assetIds, endDate);
+    const beforeStart = await this.attribution.postedByAsset(
+      assetIds,
+      priorDay(startDate),
+    );
+    const inPeriod = new Map<number, number>();
+    for (const id of assetIds) {
+      inPeriod.set(id, (throughEnd.get(id) ?? 0) - (beforeStart.get(id) ?? 0));
+    }
+    return inPeriod;
   }
 
   /**
@@ -1115,7 +1285,20 @@ export class AnnualAccountsService {
    */
   protected diagnose(
     input: AnnualAccountsInput,
-    depreciation?: { virtualChargeMinor: number; postedChargeMinor: number },
+    depreciation?: {
+      virtualChargeMinor: number;
+      postedChargeMinor: number;
+      /**
+       * Depreciation posted INSIDE the reported year that is not attributed to
+       * individual assets (issue #208) — see the `depreciation_unattributed`
+       * diagnostic below.
+       */
+      unattributed?: Array<{
+        voucherId: number;
+        assetClass: string;
+        unattributedMinor: number;
+      }>;
+    },
   ): DiagnosticWarning[] {
     const warnings: DiagnosticWarning[] = [];
 
@@ -1178,6 +1361,34 @@ export class AnnualAccountsService {
         severity: 'soft',
       });
     }
+    // 3b. Unattributed depreciation inside the reported year — BLOCKING.
+    //
+    // While some of the year's posted depreciation cannot be tied to
+    // individual assets, this year's charge cannot be computed correctly, in
+    // either direction:
+    //  - a hand-posted charge is not netted at all, so the close would post
+    //    the asset's FULL year on top of it and over-charge the year;
+    //  - an unattributed legacy close can only be netted at class level, and
+    //    if the asset it charged has since been retired, that netting comes
+    //    off a LIVING PEER's charge and silently under-charges the year.
+    // Neither is a figure to file, and neither is a warning to attach to one:
+    // a `block` stops `finalize` outright, and the draft says the same thing
+    // rather than presenting the numbers as complete. Already-finalized years
+    // still render (a locked period is refused by `finalize`, not by this),
+    // and nothing posted is rewritten — the fix is an allocation, through
+    // POST /api/fixed-assets/depreciation-allocations.
+    for (const u of depreciation?.unattributed ?? []) {
+      warnings.push({
+        code: 'depreciation_unattributed',
+        message:
+          `Voucher ${u.voucherId} posts ${u.unattributedMinor} of ${u.assetClass} ` +
+          `depreciation inside ${input.period.name} that is not attributed to individual ` +
+          `assets, so this year's charge cannot be computed. Allocate it ` +
+          `(POST /api/fixed-assets/depreciation-allocations) and retry.`,
+        severity: 'block',
+      });
+    }
+
     if (depreciation && depreciation.postedChargeMinor !== 0) {
       warnings.push({
         code: 'depreciation_already_posted',

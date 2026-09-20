@@ -4,6 +4,8 @@ import { OrganizationModule } from '../organization/organization.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { AccountModule } from '../ledger/account/account.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
+import { DepreciationAttributionService } from './depreciation-attribution.service';
 import { FixedAssetRegistrarService } from './fixed-asset-registrar.service';
 import { FixedAssetsService } from './fixed-assets.service';
 import { FixedAssetsController } from './fixed-assets.controller';
@@ -15,9 +17,18 @@ import { FixedAssetsController } from './fixed-assets.controller';
     PluginsModule,
     PostingModule,
     AccountModule,
+    AuditLogModule,
   ],
   controllers: [FixedAssetsController],
-  providers: [FixedAssetRegistrarService, FixedAssetsService],
-  exports: [FixedAssetRegistrarService, FixedAssetsService],
+  providers: [
+    FixedAssetRegistrarService,
+    FixedAssetsService,
+    DepreciationAttributionService,
+  ],
+  exports: [
+    FixedAssetRegistrarService,
+    FixedAssetsService,
+    DepreciationAttributionService,
+  ],
 })
 export class FixedAssetsModule {}
