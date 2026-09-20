@@ -192,3 +192,43 @@ export interface ExecuteMatchResult {
   records: ReconciliationMatchRecord[];
   approvals: { id: number; matchId: number }[];
 }
+
+/** One subledger position in the open-item reconciliation (issue #202). */
+export interface OpenItemView {
+  voucherId: number;
+  objectType: 'sales_invoice' | 'expense';
+  objectId: number;
+  objectLabel: string;
+  entityId: number | null;
+  counterpartyName: string | null;
+  /** Still collectible (AR) / payable (AP). */
+  remaining: number;
+  /** Settled beyond the obligation — owed back to the counterparty. */
+  surplus: number;
+  /** The document was cancelled; nothing is collectible, but a surplus may be owed. */
+  cancelled: boolean;
+}
+
+/**
+ * The subledger vs control-account reconciliation: every open or over-settled
+ * position, the cash whose settlement was never booked, and the totals that
+ * must tie.
+ */
+export interface OpenItemReconciliation {
+  items: OpenItemView[];
+  unpostedSettlements: {
+    matchId: number;
+    bankTransactionId: number;
+    voucherId: number;
+    amountMatched: number;
+  }[];
+  totals: {
+    openItems: number;
+    surplus: number;
+    unpostedSettlements: number;
+    controlAr: number;
+    controlAp: number;
+    /** Control minus reconciled subledger. Zero when everything ties. */
+    unexplained: number;
+  };
+}

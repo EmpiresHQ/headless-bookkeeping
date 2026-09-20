@@ -17,6 +17,7 @@ import type {
   ReconciliationStatusRow,
   MatchCandidatesResult,
   MatchRowView,
+  OpenItemReconciliation,
 } from './reconciliation.types';
 
 @ApiTags('reconciliation')
@@ -106,9 +107,42 @@ export class ReconciliationController {
   }
 
   /**
-   * Undo a reconciliation match — deletes the sub-ledger link and reverses its
-   * realized-FX voucher (if any). The statement id scopes the route; the match
-   * id identifies the link.
+   * The subledger vs AR/AP control reconciliation: every open or over-settled
+   * position (including cancelled documents whose payment is owed back), the
+   * cash whose settlement was never booked, and the totals that must tie.
+   */
+  @ApiOperation({
+    summary: 'Open-item reconciliation',
+    description:
+      'Open and over-settled subledger positions against the AR/AP control accounts.',
+  })
+  @Get('open-items')
+  async getOpenItems(): Promise<OpenItemReconciliation> {
+    return this.service.getOpenItemReconciliation();
+  }
+
+  /**
+   * The ACTIVE matches whose settlement was never booked to the ledger — the
+   * finite, attributable list behind any AR/AP control-vs-open-items
+   * difference (issue #202). Matches activated before migration 070 carry no
+   * settlement voucher and none is invented for them; an operator re-books one
+   * by unmatching and re-approving it.
+   */
+  @ApiOperation({
+    summary: 'List unposted settlements',
+    description:
+      'Active cash matches with no settlement voucher in the ledger.',
+  })
+  @Get('unposted-settlements')
+  async listUnpostedSettlements() {
+    return this.service.listUnpostedSettlements();
+  }
+
+  /**
+   * Undo a reconciliation match — deletes the sub-ledger link and reverses the
+   * ledger artifacts it posted (its settlement voucher, and its realized-FX
+   * voucher if any). The statement id scopes the route; the match id
+   * identifies the link.
    */
   @ApiOperation({
     summary: 'Remove a match',

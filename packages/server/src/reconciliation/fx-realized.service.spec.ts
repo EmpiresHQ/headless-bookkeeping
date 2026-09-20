@@ -25,6 +25,7 @@ import { PrepaymentAllocationRepository } from './prepayment-allocation.reposito
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 
 /**
  * Integration test for FX realized auto-posting (Task 25 / ADR-0004).
@@ -76,6 +77,7 @@ describe('FXRealizedService (integration)', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,
@@ -665,7 +667,7 @@ describe('FXRealizedService (integration)', () => {
   });
 
   describe('FX on match activation', () => {
-    it('posts the FX voucher when a foreign-currency match is activated', async () => {
+    it('carries the FX inside the settlement voucher when a foreign match is activated', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedForeignCurrencySalesInvoiceVoucher(
         customer.id,
@@ -695,29 +697,43 @@ describe('FXRealizedService (integration)', () => {
         },
       ]);
 
-      // Staging creates the draft but posts no FX.
+      // Staging creates the draft but posts nothing.
       expect(result.records.length).toBe(1);
 
-      // FX posts when the match is ACTIVATED (the approval seam).
-      const { fxVoucherId } = await reconciliationService.activateMatch(
-        result.records[0].id,
-      );
-      expect(fxVoucherId).not.toBeNull();
+      // 10 000 USD booked at 7.0 = 70 000; the bank delivered 71 400 of cash.
+      // The settlement clears the BOOKED receivable, banks the ACTUAL cash and
+      // books the 1 400 difference as the realized gain — one voucher, posted
+      // with the activation itself.
+      const { fxVoucherId, settlementVoucherId } =
+        await reconciliationService.activateMatch(result.records[0].id);
+      expect(settlementVoucherId).not.toBeNull();
+      // No second, standalone FX voucher on the base bank account.
+      expect(fxVoucherId).toBeNull();
 
-      const persistedLines = await db
+      const lines = await db
         .selectFrom('voucher_line')
-        .selectAll()
-        .where('voucher_id', '=', fxVoucherId!)
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select([
+          'account.code as code',
+          'voucher_line.is_debit as is_debit',
+          'voucher_line.base_amount as base_amount',
+        ])
+        .where('voucher_line.voucher_id', '=', settlementVoucherId!)
+        .orderBy('account.code')
         .execute();
-      expect(persistedLines.length).toBe(2);
+      expect(lines).toEqual([
+        { code: 'AR', is_debit: 0, base_amount: 70_000 },
+        { code: 'BANK_EUR', is_debit: 1, base_amount: 71_400 },
+        { code: 'FX_GAIN_LOSS', is_debit: 0, base_amount: 1_400 },
+      ]);
 
-      // The FX voucher is recorded on the match so an unmatch can reverse it.
       const row = await db
         .selectFrom('reconciliation_match')
-        .select('fx_voucher_id')
+        .select(['fx_voucher_id', 'settlement_voucher_id'])
         .where('id', '=', result.records[0].id)
         .executeTakeFirstOrThrow();
-      expect(row.fx_voucher_id).toBe(fxVoucherId);
+      expect(row.settlement_voucher_id).toBe(settlementVoucherId);
+      expect(row.fx_voucher_id).toBeNull();
     });
 
     it('posts no FX for a same-currency match', async () => {
@@ -905,6 +921,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,
