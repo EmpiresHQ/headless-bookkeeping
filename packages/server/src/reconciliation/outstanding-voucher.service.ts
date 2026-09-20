@@ -69,7 +69,8 @@ interface CandidateRow {
  *
  * This module owns the join chain and the polarity once, exposes intent-named
  * reads, and routes EVERY remaining balance through {@link LedgerBalanceService}
- * `getVoucherNetBase` minus already-matched — the canonical
+ * `getVoucherNetBase` minus every linked settlement — cash matched, advance
+ * allocated (issue #201) and credit-noted (issue #202) — the canonical
  * receivable/payable-outstanding primitive (ADR-0008: AR/AP live in the gap
  * between accrual and settlement). Prepayments (ADR-0011: a liability drawn
  * down by later invoices) share the same chain and remaining-balance path.
@@ -197,8 +198,8 @@ export class OutstandingVoucherService {
    * The remaining unmatched balance for an AR/AP Voucher — the path used by the
    * AR/AP candidate reads above and by direct invoice-number lookups. AR/AP net
    * base (canonical maths in {@link LedgerBalanceService}, netted by
-   * debit/credit sign, abs'd) minus what reconciliation has already matched.
-   * Never the single-line `base_amount`.
+   * debit/credit sign, abs'd) minus EVERY linked settlement: cash matched,
+   * advance allocated, and credit-noted. Never the single-line `base_amount`.
    */
   async getRemainingVoucherBalance(
     voucherId: number,
@@ -244,7 +245,90 @@ export class OutstandingVoucherService {
 
     const alreadyMatched = await this.getAlreadyMatched(voucherId, executor);
     const allocated = await this.getAlreadyAllocated(voucherId, side, executor);
-    return Math.max(0, totalBase - alreadyMatched - allocated);
+    const credited = await this.getAlreadyCredited(voucherId, side, executor);
+    return Math.max(0, totalBase - alreadyMatched - allocated - credited);
+  }
+
+  /**
+   * Base amount of this AR/AP Voucher's outstanding already cancelled by POSTED
+   * **Credit note**s against its business object (issue #202) — the THIRD way an
+   * outstanding is consumed, beside cash (`reconciliation_match`) and an advance
+   * (`prepayment_allocation`).
+   *
+   * A credit note is its own document with its own Voucher (never a reversal of
+   * the original, see {@link CreditNotesService}), so the credited amount is
+   * invisible to `getVoucherNetBase` of the INVOICE voucher: the ledger AR of a
+   * fully credited invoice is zero while its outstanding read the full gross,
+   * and reconciliation kept offering the invoice as collectible.
+   *
+   * The amount taken is the credit Voucher's OWN AR/AP net base — the real
+   * base-currency effect it posted, not the credit note's `gross_amount` (which
+   * is denominated in the document currency). A credit note whose Voucher has
+   * been reversed releases its credit, read from the ledger through the same
+   * `reverses_id` rule that releases a prepayment allocation, so every
+   * settlement type reverses by one rule.
+   *
+   * Only the `arap` side can be credited: a credit note always names a
+   * `sales_invoice` or an `expense`, never a prepayment.
+   */
+  private async getAlreadyCredited(
+    voucherId: number,
+    side: OutstandingSide,
+    executor: DbExecutor,
+  ): Promise<number> {
+    if (side !== 'arap') return 0;
+
+    const notes = await executor
+      .selectFrom('credit_note')
+      .select('credit_note.voucher_id as voucher_id')
+      .where('credit_note.status', '=', 'posted')
+      .where('credit_note.voucher_id', 'is not', null)
+      .where((eb) =>
+        eb.or([
+          eb.and([
+            eb('credit_note.credits_object_type', '=', 'sales_invoice'),
+            eb.exists(
+              eb
+                .selectFrom('sales_invoice')
+                .select('sales_invoice.id')
+                .whereRef(
+                  'sales_invoice.id',
+                  '=',
+                  'credit_note.credits_object_id',
+                )
+                .where('sales_invoice.voucher_id', '=', voucherId),
+            ),
+          ]),
+          eb.and([
+            eb('credit_note.credits_object_type', '=', 'expense'),
+            eb.exists(
+              eb
+                .selectFrom('expense')
+                .select('expense.id')
+                .whereRef('expense.id', '=', 'credit_note.credits_object_id')
+                .where('expense.voucher_id', '=', voucherId),
+            ),
+          ]),
+        ]),
+      )
+      .execute();
+
+    let total = 0;
+    for (const note of notes) {
+      const creditVoucherId = note.voucher_id;
+      if (creditVoucherId === null) continue;
+      const released = await this.allocations.isVoucherReversed(
+        creditVoucherId,
+        executor,
+      );
+      if (released) continue;
+      total += await this.ledgerBalance.getVoucherNetBase(
+        creditVoucherId,
+        AR_AP_CODES,
+        executor,
+      );
+    }
+    return total;
   }
 
   /**
