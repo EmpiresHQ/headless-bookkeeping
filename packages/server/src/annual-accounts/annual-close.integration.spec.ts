@@ -679,6 +679,118 @@ describe('Annual close over a filed monthly VAT calendar (integration)', () => {
     });
   });
 
+  it('does not charge the year twice when a legacy full-year VAT period already closed it', async () => {
+    // THE TRANSITION CASE. Before financial years existed, the only way to run
+    // the annual accounts was over a full-year VAT period — so an upgraded
+    // database can hold a legacy "2026" VAT period that was already finalized,
+    // with the year's depreciation posted under ITS name. Creating the proper
+    // financial year over the same dates must not re-charge the year.
+    await periods.create({
+      name: '2026',
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+    });
+    await posting.postVoucher(
+      draft('2026-01-02', [
+        { code: 'BANK_EUR', isDebit: true, base: 50000 },
+        { code: 'EQUITY', isDebit: false, base: 50000 },
+      ]),
+    );
+    const acq = await posting.postVoucher(
+      draft('2026-01-10', [
+        { code: 'FIXED_ASSETS_VEHICLES', isDebit: true, base: 20000 },
+        { code: 'BANK_EUR', isDebit: false, base: 20000 },
+      ]),
+    );
+    await db
+      .insertInto('fixed_asset')
+      .values({
+        name: 'Van',
+        asset_class: 'vehicle',
+        acquisition_voucher_id: acq.id,
+        acquisition_date: '2026-01-10',
+        cost_base_minor: 20000,
+        useful_life_years: 5,
+        residual_value_minor: 0,
+        retired_at: null,
+      } as never)
+      .execute();
+
+    // The legacy close: annual accounts over the VAT period, which posts the
+    // year's charge under the reason "Annual depreciation charge for 2026".
+    await annual.finalize(await periodId('2026'));
+    const legacyCharge = await db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(['vl.base_amount'])
+      .where('a.code', '=', 'DEPRECIATION_EXPENSE')
+      .where('v.reason', '=', 'Annual depreciation charge for 2026')
+      .execute();
+    expect(legacyCharge).toEqual([{ base_amount: 4000 }]);
+
+    // Now the operator adopts the financial-year scope for the same year.
+    const fyId = (
+      await periods.create({
+        name: 'FY2026',
+        start_date: '2026-01-01',
+        end_date: '2026-12-31',
+        kind: 'annual',
+      })
+    ).id;
+
+    // The draft must read the charge the ledger already carries — once.
+    const xbrl = (await annual.generate(fyId)).artifacts[0].content;
+    expect(
+      fact(
+        xbrl,
+        'et-gaap:DepreciationAndImpairmentLossReversal',
+        'd-2026-01-01_2026-12-31',
+      ),
+    ).toBe(-40);
+
+    // And finalizing the year must post no second charge.
+    await annual.finalize(fyId);
+    const allCharges = await db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(['vl.base_amount', 'v.reason'])
+      .where('a.code', '=', 'DEPRECIATION_EXPENSE')
+      .execute();
+    expect(allCharges).toEqual([
+      { base_amount: 4000, reason: 'Annual depreciation charge for 2026' },
+    ]);
+  });
+
+  it("does not net the PREVIOUS year's close out of this year's charge", async () => {
+    // The counterpart of the transition case: recognition is per YEAR. FY2025's
+    // own close is posted on 2025-12-31 and is already reflected in the opening
+    // accumulated depreciation, so it must not be subtracted from what 2026
+    // still has to charge — which is what a window open at the start would do.
+    await seedTwoYears();
+    const fy2025 = await periodId('FY2025');
+    await annual.finalize(fy2025);
+    expect(
+      await db
+        .selectFrom('voucher')
+        .selectAll()
+        .where('annual_close_period_id', '=', fy2025)
+        .execute(),
+    ).toHaveLength(1);
+
+    const xbrl = (await annual.generate(await periodId('FY2026'))).artifacts[0]
+      .content;
+    // A full second year of the van: 20000 / 5 = 4000 minor = €40.
+    expect(
+      fact(
+        xbrl,
+        'et-gaap:DepreciationAndImpairmentLossReversal',
+        'd-2026-01-01_2026-12-31',
+      ),
+    ).toBe(-40);
+  });
+
   it('refuses to produce a VAT declaration or a KMD export for a financial year', async () => {
     await seedTwoYears();
     const fyId = await periodId('FY2026');

@@ -71,6 +71,20 @@ export const CLOSING_TRANSFER_REASON_PREFIX =
   'Closing transfer of retained earnings';
 
 /**
+ * The documented `reason` prefix of the annual-close depreciation voucher, which
+ * names the period it was posted for: `Annual depreciation charge for FY2026`.
+ *
+ * It is the idempotency key of the close, and — for a year closed BEFORE the
+ * financial-year scope existed, under a full-year VAT period's name — the only
+ * mark that year's charge carries. Recognition is by prefix + date, never by the
+ * exact current period name, so adopting a financial year for an already closed
+ * year does not charge it a second time (issue #207). Disposal catch-up
+ * depreciation (#208) carries its own distinct reason and is never matched.
+ */
+export const ANNUAL_DEPRECIATION_REASON_PREFIX =
+  'Annual depreciation charge for ';
+
+/**
  * A posted P&L → retained-earnings CLOSING TRANSFER: an operator's explicit
  * year-end sweep of a closed year's result into accumulated profit.
  *
@@ -440,7 +454,7 @@ export class AnnualAccountsService {
    * vouchers debit the same expense account but never carry this reason.
    */
   private annualDepreciationReason(periodName: string): string {
-    return `Annual depreciation charge for ${periodName}`;
+    return `${ANNUAL_DEPRECIATION_REASON_PREFIX}${periodName}`;
   }
 
   /** Test seam: run the diagnostics over a hand-built input (Task 8 unit test). */
@@ -732,37 +746,57 @@ export class AnnualAccountsService {
   }
 
   /**
-   * What the POSTED ledger already charges as this period's annual-close
+   * What the POSTED ledger already charges as this YEAR's annual-close
    * depreciation, per asset class, in normal (credit) direction.
    *
-   * Identity is the voucher `reason` — {@link annualDepreciationReason} — not the
-   * account: disposal catch-up depreciation (#208) debits the very same
-   * DEPRECIATION_EXPENSE and credits the same ACCUM_* accounts, and must NOT be
-   * mistaken for the annual close. A reversal of the annual-close voucher is
-   * included with its own sign (`voucher.reverses_id` points back at the
-   * original), so a reversal booked INSIDE the year nets the close back to zero
-   * and its charge becomes virtual again rather than silently disappearing from
-   * the report.
+   * Identity is an annual close dated INSIDE the reported span — either a
+   * voucher this kernel stamped (`annual_close_period_id`, issue #207) or one
+   * carrying the documented {@link ANNUAL_DEPRECIATION_REASON_PREFIX}. It is
+   * deliberately NOT "the close posted under this period's exact name":
+   * an upgraded database can hold a year already closed over a legacy full-year
+   * VAT period ("Annual depreciation charge for 2026") which the operator then
+   * adopts a financial year for ("FY2026") — the same twelve months, a different
+   * period name. Matching the name alone made that year's charge invisible, so
+   * the report added the whole charge on top of the one the ledger already
+   * carried (double depreciation) and a finalize posted a second voucher.
    *
-   * Both sides are read through the SAME `tax_point_date` window the balances
-   * this nets against are read through (cumulative up to the period end). A
-   * reversal booked in a LATER year is outside that window, so it is excluded
-   * here exactly as it is excluded from the period's ledger balances — a later
-   * correction does not retroactively rewrite an already-filed year's report.
+   * The account is still not the identity: disposal catch-up depreciation
+   * (#208) debits the very same DEPRECIATION_EXPENSE and credits the same
+   * ACCUM_* accounts, carries neither the stamp nor the reason, and must keep
+   * counting as ordinary activity rather than being swept into the annual
+   * total. A reversal of a recognised close is included with its own sign
+   * (`voucher.reverses_id` points back at it), so a reversal booked INSIDE the
+   * year nets the close back to zero and its charge becomes virtual again
+   * rather than silently disappearing from the report.
+   *
+   * The window is the reported span [start_date, end_date] — the year whose
+   * charge this nets. Closing it at the START as well as the end is what keeps
+   * an EARLIER year's close (its own charge, already reflected in the opening
+   * accumulated balance) from being subtracted from this year's. A reversal
+   * booked in a LATER year is outside the window, so it is excluded here exactly
+   * as it is excluded from the period's ledger balances — a later correction
+   * does not retroactively rewrite an already-filed year's report.
    *
    * Unposted (`posted_at IS NULL`) vouchers carry no balance, so they are
    * excluded — the ledger balances this nets against only count posted lines.
    */
   private async postedAnnualDepreciation(period: {
     name: string;
+    start_date: string;
     end_date: string;
   }): Promise<Map<AssetClass, number>> {
     const closeVouchers = await this.db
       .selectFrom('voucher')
       .select('id')
-      .where('reason', '=', this.annualDepreciationReason(period.name))
       .where('posted_at', 'is not', null)
+      .where('tax_point_date', '>=', period.start_date)
       .where('tax_point_date', '<=', period.end_date)
+      .where((eb) =>
+        eb.or([
+          eb('annual_close_period_id', 'is not', null),
+          eb('reason', 'like', `${ANNUAL_DEPRECIATION_REASON_PREFIX}%`),
+        ]),
+      )
       .execute();
     const posted = new Map<AssetClass, number>();
     if (closeVouchers.length === 0) return posted;
@@ -773,6 +807,7 @@ export class AnnualAccountsService {
       .select('id')
       .where('reverses_id', 'in', closeIds)
       .where('posted_at', 'is not', null)
+      .where('tax_point_date', '>=', period.start_date)
       .where('tax_point_date', '<=', period.end_date)
       .execute();
 
