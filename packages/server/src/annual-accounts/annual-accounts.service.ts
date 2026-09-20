@@ -14,6 +14,7 @@ import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PostingService } from '../ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { depreciationCharge } from '../fixed-assets/depreciation-engine';
+import { addDays } from '../reporting-periods/period-dates';
 import type {
   AccountBalanceRow,
   AnnualAccountsInput,
@@ -45,6 +46,85 @@ const ACCUM_BY_CLASS: Record<AssetClass, string> = {
   machinery: 'ACCUM_DEPRECIATION_EQUIPMENT',
   furniture: 'ACCUM_DEPRECIATION_FURNITURE',
 };
+
+/**
+ * The CONTRIBUTED-capital equity accounts. Every other equity account holds
+ * accumulated result (`RETAINED_EARNINGS`, and `OWNERS_DRAWINGS` for a sole
+ * proprietor's drawings), so it belongs to the brought-forward-earnings line
+ * rather than to capital. Splitting equity this way — instead of naming
+ * `RETAINED_EARNINGS` alone — is what keeps a drawings balance inside reported
+ * equity instead of dropping it out of the balance sheet (issue #206).
+ */
+const CAPITAL_ACCOUNT_CODES = ['EQUITY', 'SHARE_CAPITAL'];
+
+/** The accumulated-profit account a closing sweep discharges the P&L into. */
+const RETAINED_EARNINGS_CODE = 'RETAINED_EARNINGS';
+
+/**
+ * The documented `reason` prefix that marks a voucher as an explicit P&L →
+ * retained-earnings closing transfer (see {@link ClosingTransfer}). A prefix
+ * rather than an exact string, so the operator can name the year being swept:
+ * `Closing transfer of retained earnings for 2026`.
+ */
+export const CLOSING_TRANSFER_REASON_PREFIX =
+  'Closing transfer of retained earnings';
+
+/**
+ * A posted P&L → retained-earnings CLOSING TRANSFER: an operator's explicit
+ * year-end sweep of a closed year's result into accumulated profit.
+ *
+ * The kernel posts none of its own — ADR-0034 §3 deliberately has no year-end
+ * sweep, and the sweep that opens the next year is out of the annual-accounts
+ * PRD's scope — so a sweep, when it exists at all, is an operator's own
+ * voucher. It still has to be told apart from ordinary activity, because its
+ * P&L leg is NOT trading of the period it is dated in: booked on the closed
+ * year's last day it would erase that year's reported profit, and booked on the
+ * new year's opening day it would report the new year as an equal loss.
+ *
+ * Identity is EXPLICIT PERSISTED INTENT: the voucher `reason` starts with
+ * {@link CLOSING_TRANSFER_REASON_PREFIX}. This is the same mechanism the annual
+ * depreciation close in this service already relies on (see
+ * `annualDepreciationReason`), and it is the only stable one available. The
+ * shape of a sweep is not evidence of intent: `Dr OWNERS_DRAWINGS /
+ * Cr EXPENSE_RENT` reclassifying a previously expensed personal purchase has
+ * exactly the same two-account shape while genuinely reducing the year's
+ * expense. Nor is a resulting zero P&L balance evidence: a real sale dated on
+ * the same day as the sweep leaves a balance behind, and a later reversal
+ * re-opens one, so a balance probe would classify the same voucher differently
+ * depending on what else happened around it.
+ *
+ * A marked voucher is recognised only if it is also STRUCTURALLY a transfer:
+ * every line on a revenue/expense account or on `RETAINED_EARNINGS`, with at
+ * least one leg on EACH side. A marked reclassification between two expense
+ * accounts has no retained leg and stays inside the income statement. A sweep's
+ * counterpart is accumulated profit by definition, so no other equity account
+ * qualifies (owner drawings never do), and a marked voucher that moves real
+ * money stays ordinary activity rather than having a cash movement
+ * reclassified out of the year's result.
+ *
+ * A REVERSAL of a recognised transfer — `reverses_id` pointing back at it, the
+ * correction route ADR-0012/§8 prescribes — is recognised with it, carrying its
+ * own sign and its own date. Otherwise reversing a sweep would restore the P&L
+ * balance while the original stayed excluded, inventing trading income in the
+ * year the correction was booked.
+ *
+ * An UNMARKED sweep is simply read as posted: its P&L leg counts in the period
+ * it is dated in. Total equity is still right and the balance sheet still
+ * balances — only the split between the brought-forward and current-result
+ * lines follows the posting. Recognition only ever moves an amount BETWEEN
+ * those two equity lines, so the accounting identity, and with it the
+ * balance-sheet check, holds whichever way a voucher is classified. This is
+ * presentation, never a balancing plug, and nothing posted is ever rewritten.
+ */
+interface ClosingTransfer {
+  taxPointDate: string;
+  /** The P&L legs, as their signed contribution to each account's NORMAL-side balance. */
+  pnlLines: Array<{
+    code: string;
+    type: 'revenue' | 'expense';
+    normalSide: number;
+  }>;
+}
 
 /**
  * The year's depreciation charge for one register row, with the asset's identity
@@ -351,6 +431,32 @@ export class AnnualAccountsService {
       balances.push({ code: a.code, type, current, prior: prior_ });
     }
 
+    // ── Explicit closing transfers: equity movement, not trading. ──
+    // An operator may sweep a closed year's P&L into retained earnings by hand,
+    // dated either on the closed year's last day or on the new year's opening
+    // day. Both are ordinary postings, and both would otherwise distort the
+    // reported result of the year they fall in — the opening-day one turning an
+    // empty year into a loss. Take their P&L legs out of the affected period's
+    // flow; `closingTransferResult` then adds the same amount back on the
+    // brought-forward line, so the two lines still sum to the same equity.
+    const closingTransfers = await this.loadClosingTransfers(period.end_date);
+    this.removeClosingTransferFlows(
+      balances,
+      closingTransfers,
+      'current',
+      period.start_date,
+      period.end_date,
+    );
+    if (prior) {
+      this.removeClosingTransferFlows(
+        balances,
+        closingTransfers,
+        'prior',
+        prior.start_date,
+        prior.end_date,
+      );
+    }
+
     // ── Fixed-asset register snapshot + virtual annual depreciation. ──
     const assetRows = await this.db
       .selectFrom('fixed_asset')
@@ -425,9 +531,35 @@ export class AnnualAccountsService {
     const periodNetIncome = this.netIncome(balances, 'current');
     const priorNetIncome = this.netIncome(balances, 'prior');
 
-    // Retained earnings brought forward = RETAINED_EARNINGS closing balance.
+    // ── Brought-forward earnings, complete (issue #206). ──
+    // Two components, because the design has NO year-end sweep (ADR-0034 §3):
+    //  (a) the closing balance of the accumulated-result equity accounts — what
+    //      an explicit sweep, a dividend or a drawing has already moved there;
+    //  (b) the cumulative result of every earlier date, which without a sweep is
+    //      still sitting on the revenue/expense accounts. Reading only (a) is
+    //      the bug: a closed profitable year left no trace in the next year's
+    //      equity, so the next year could not balance or be finalized.
+    // They cannot double-count: a sweep that raises (a) zeroes the very P&L it
+    // came from, which is what (b) reads. Plus (c) the closing transfers dated
+    // INSIDE this period, whose P&L legs were just taken out of the period's
+    // flow above and belong here instead.
     const retainedEarningsBroughtForward =
-      balances.find((b) => b.code === 'RETAINED_EARNINGS')?.current ?? 0;
+      this.accumulatedResultEquity(balances, 'current') +
+      (await this.cumulativeResultBefore(period.start_date)) +
+      this.closingTransferResult(
+        closingTransfers,
+        period.start_date,
+        period.end_date,
+      );
+    const priorRetainedEarningsBroughtForward = prior
+      ? this.accumulatedResultEquity(balances, 'prior') +
+        (await this.cumulativeResultBefore(prior.start_date)) +
+        this.closingTransferResult(
+          closingTransfers,
+          prior.start_date,
+          prior.end_date,
+        )
+      : 0;
 
     const input: AnnualAccountsInput = {
       period: {
@@ -448,6 +580,7 @@ export class AnnualAccountsService {
       periodNetIncome,
       priorNetIncome,
       retainedEarningsBroughtForward,
+      priorRetainedEarningsBroughtForward,
       declarant: {
         // The COMMERCIAL REGISTRY code identifies the declarant in the business
         // register the annual report is filed with. The VAT number belongs to a
@@ -599,6 +732,218 @@ export class AnnualAccountsService {
     return unposted;
   }
 
+  /**
+   * Every posted closing transfer dated up to `endDate`, plus the posted
+   * reversals of those transfers — see {@link ClosingTransfer} for what
+   * identifies one and why.
+   *
+   * The `reason`-marked vouchers are found first, their reversals are looked up
+   * through `reverses_id`, and the whole set is then checked structurally: a
+   * voucher counts only if every line is on a revenue/expense account or on
+   * `RETAINED_EARNINGS`, with at least one of each. A reversal is kept only
+   * when the transfer it reverses was itself kept, so the pair always nets.
+   *
+   * The `tax_point_date <= endDate` window is the same one the balances this is
+   * netted against are read through, so a correction booked in a LATER year
+   * does not retroactively rewrite an already-filed year's report.
+   */
+  private async loadClosingTransfers(
+    endDate: string,
+  ): Promise<ClosingTransfer[]> {
+    const marked = await this.db
+      .selectFrom('voucher')
+      .select('id')
+      .where('posted_at', 'is not', null)
+      .where('tax_point_date', '<=', endDate)
+      .where('reason', 'like', `${CLOSING_TRANSFER_REASON_PREFIX}%`)
+      .execute();
+    if (marked.length === 0) return [];
+    const markedIds = marked.map((v) => v.id);
+
+    const reversals = await this.db
+      .selectFrom('voucher')
+      .select(['id', 'reverses_id'])
+      .where('posted_at', 'is not', null)
+      .where('tax_point_date', '<=', endDate)
+      .where('reverses_id', 'in', markedIds)
+      .execute();
+
+    const lines = await this.db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
+      .select([
+        'v.id as voucherId',
+        'v.tax_point_date as taxPointDate',
+        'a.code',
+        'a.type',
+        'vl.base_amount',
+        'vl.is_debit',
+      ])
+      .where('v.id', 'in', [...markedIds, ...reversals.map((r) => r.id)])
+      .execute();
+
+    const byVoucher = new Map<
+      number,
+      {
+        taxPointDate: string;
+        pnlLines: ClosingTransfer['pnlLines'];
+        /** Nothing on the voucher but P&L accounts and RETAINED_EARNINGS. */
+        structural: boolean;
+        /** RETAINED_EARNINGS is actually one of them. */
+        hasRetainedLeg: boolean;
+      }
+    >();
+    for (const line of lines) {
+      let entry = byVoucher.get(line.voucherId);
+      if (!entry) {
+        entry = {
+          taxPointDate: line.taxPointDate,
+          pnlLines: [],
+          structural: true,
+          hasRetainedLeg: false,
+        };
+        byVoucher.set(line.voucherId, entry);
+      }
+      if (line.type === 'revenue' || line.type === 'expense') {
+        // Normal side: revenue is credit-positive, expense debit-positive.
+        const normalSide =
+          line.type === 'revenue'
+            ? line.is_debit
+              ? -line.base_amount
+              : line.base_amount
+            : line.is_debit
+              ? line.base_amount
+              : -line.base_amount;
+        entry.pnlLines.push({ code: line.code, type: line.type, normalSide });
+      } else if (line.code === RETAINED_EARNINGS_CODE) {
+        entry.hasRetainedLeg = true;
+      } else {
+        // Real money, or another equity account: an adjustment, not a sweep.
+        entry.structural = false;
+      }
+    }
+
+    /**
+     * Marked (or reversing) AND structurally a transfer: BOTH sides present —
+     * at least one P&L leg and the RETAINED_EARNINGS leg — and nothing else on
+     * the voucher. Requiring the retained leg is what keeps a marked P&L-only
+     * reclassification (say `Dr EXPENSE_RENT / Cr EXPENSE_OTHER`) out: it moves
+     * an amount between income-statement categories and must stay in them.
+     */
+    const keep = (id: number): boolean => {
+      const entry = byVoucher.get(id);
+      return (
+        entry !== undefined &&
+        entry.structural &&
+        entry.hasRetainedLeg &&
+        entry.pnlLines.length > 0
+      );
+    };
+
+    const recognised = new Set<number>(markedIds.filter(keep));
+    for (const r of reversals) {
+      // A reversal only counts alongside the transfer it undoes.
+      if (
+        r.reverses_id !== null &&
+        recognised.has(r.reverses_id) &&
+        keep(r.id)
+      ) {
+        recognised.add(r.id);
+      }
+    }
+
+    return [...recognised].map((id) => {
+      const entry = byVoucher.get(id) as {
+        taxPointDate: string;
+        pnlLines: ClosingTransfer['pnlLines'];
+      };
+      return { taxPointDate: entry.taxPointDate, pnlLines: entry.pnlLines };
+    });
+  }
+
+  /**
+   * Take the P&L legs of the closing transfers dated in [`startDate`,`endDate`]
+   * out of that column's revenue/expense flows, so the reported income
+   * statement is the period's own trading and its sub-items still sum to the
+   * reported result (the XBRL calculation linkbase checks exactly that).
+   *
+   * Nothing posted is rewritten: the vouchers stay in the ledger untouched and
+   * the amount reappears on the brought-forward line.
+   */
+  private removeClosingTransferFlows(
+    balances: AccountBalanceRow[],
+    transfers: ClosingTransfer[],
+    field: 'current' | 'prior',
+    startDate: string,
+    endDate: string,
+  ): void {
+    for (const t of transfers) {
+      if (t.taxPointDate < startDate || t.taxPointDate > endDate) continue;
+      for (const line of t.pnlLines) {
+        const row = balances.find((b) => b.code === line.code);
+        if (row) row[field] -= line.normalSide;
+      }
+    }
+  }
+
+  /**
+   * The net result (credit-positive) carried by the closing transfers dated in
+   * [`startDate`,`endDate`] — the amount {@link removeClosingTransferFlows}
+   * took off the period's trading result, which belongs on the brought-forward
+   * line instead.
+   */
+  private closingTransferResult(
+    transfers: ClosingTransfer[],
+    startDate: string,
+    endDate: string,
+  ): number {
+    let total = 0;
+    for (const t of transfers) {
+      if (t.taxPointDate < startDate || t.taxPointDate > endDate) continue;
+      for (const line of t.pnlLines) {
+        // Credit-positive result: a revenue normal-side balance adds, an
+        // expense normal-side balance subtracts.
+        total += line.type === 'revenue' ? line.normalSide : -line.normalSide;
+      }
+    }
+    return total;
+  }
+
+  /**
+   * The closing balance of the accumulated-result equity accounts — all equity
+   * except {@link CAPITAL_ACCOUNT_CODES} — credit-positive.
+   */
+  private accumulatedResultEquity(
+    balances: AccountBalanceRow[],
+    field: 'current' | 'prior',
+  ): number {
+    return balances
+      .filter(
+        (b) => b.type === 'equity' && !CAPITAL_ACCOUNT_CODES.includes(b.code),
+      )
+      .reduce((sum, b) => sum + b[field], 0);
+  }
+
+  /**
+   * The cumulative result (revenue − expense, credit-positive) of every posted
+   * line dated strictly BEFORE `startDate` — the part of earlier years' profit
+   * or loss that no closing sweep ever moved off the P&L accounts, and which
+   * the balance sheet must still carry as accumulated equity.
+   *
+   * The window is closed at the day before `startDate` rather than at the prior
+   * reporting period's end, so a voucher dated in a gap between periods — or
+   * before any period was ever created — is counted exactly once instead of
+   * vanishing.
+   */
+  private async cumulativeResultBefore(startDate: string): Promise<number> {
+    return this.ledgerBalance.getLedgerNetForPeriod(
+      { types: ['revenue', 'expense'] },
+      { endDate: addDays(startDate, -1) },
+      { creditPositive: true },
+    );
+  }
+
   private addToBalance(
     balances: AccountBalanceRow[],
     code: string,
@@ -651,10 +996,15 @@ export class AnnualAccountsService {
       input.balances.filter(pred).reduce((s, b) => s + b.current, 0);
     const assets = sum((b) => b.type === 'asset');
     const liabilities = sum((b) => b.type === 'liability');
-    // Equity live lines: EQUITY (capital) + RETAINED_EARNINGS brought forward
-    // + period net income. (RETAINED_EARNINGS current = brought forward in v1.)
+    // Equity live lines (ADR-0034 §3): contributed capital + COMPLETE
+    // brought-forward earnings + the period's own result. The brought-forward
+    // figure already carries every non-capital equity account and the unswept
+    // prior P&L, so capital here is only the contributed-capital accounts —
+    // counting any other equity account here too would count it twice.
     const capital = input.balances
-      .filter((b) => b.type === 'equity' && b.code !== 'RETAINED_EARNINGS')
+      .filter(
+        (b) => b.type === 'equity' && CAPITAL_ACCOUNT_CODES.includes(b.code),
+      )
       .reduce((s, b) => s + b.current, 0);
     const equity =
       capital + input.retainedEarningsBroughtForward + input.periodNetIncome;

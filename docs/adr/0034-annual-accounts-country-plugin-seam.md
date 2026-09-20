@@ -42,10 +42,33 @@ form are emitted in v1; optional breakdowns are deferred.
 
 **3. Equity has no year-end close sweep.** The balance-sheet equity section is
 three live lines: Osakapital (`EQUITY`/`SHARE_CAPITAL`), Eelmiste perioodide
-jaotamata kasum (`RETAINED_EARNINGS`), Aruandeaasta kasum (period revenue −
-expense via `LedgerBalanceService`). Because every voucher balances, the sheet
-balances **without** a sweep; sweeping into retained earnings is needed only to
-*open* the next year and is a separate concern.
+jaotamata kasum, Aruandeaasta kasum (period revenue − expense via
+`LedgerBalanceService`). Because every voucher balances, the sheet balances
+**without** a sweep; sweeping into retained earnings is needed only to *open*
+the next year and is a separate concern.
+
+Because there is no sweep, the brought-forward line is **not** the
+`RETAINED_EARNINGS` balance. It is that balance — together with every other
+non-capital equity account, e.g. `OWNERS_DRAWINGS` — **plus the cumulative
+result of all earlier periods, which is still sitting on the revenue/expense
+accounts**. Reading only the account was the bug in issue #206: a closed
+profitable year left no trace in the next year's equity, so the next year could
+not balance or be finalized. The two components never double-count, because a
+sweep that raises the account zeroes exactly the P&L it came from.
+
+An operator may nevertheless post a sweep by hand, dated either on the closed
+year's last day or on the new year's opening day. Its P&L leg is not trading of
+the period it falls in, so the report attributes it to the brought-forward line
+instead — but only on **explicit persisted intent**: a voucher `reason` starting
+`Closing transfer of retained earnings`, plus the structural requirement that
+the voucher touch nothing but P&L accounts and `RETAINED_EARNINGS`. Shape is not
+evidence of intent (`Dr OWNERS_DRAWINGS / Cr EXPENSE_RENT` reclassifying a
+personal purchase has the same shape and genuinely reduces the year's expense),
+and neither is a resulting zero P&L balance (a same-day sale, or a later
+reversal, changes it). Reversals of a recognised transfer are recognised with
+it. An unmarked sweep is read exactly as posted: equity still totals correctly
+and the sheet still balances, only the split between the two equity lines
+follows the posting.
 
 **4. The report is a pure projection of the posted ledger.** Period-end
 adjustments — depreciation (ADR-0035) being the only one in scope for the
