@@ -30,10 +30,14 @@ import { AnnualAccountsService } from './annual-accounts.service';
 describe('AnnualAccountsService.generate — draft (integration)', () => {
   let db: Kysely<Database>;
   let service: AnnualAccountsService;
+  let reportingPeriods: ReportingPeriodsService;
 
   async function postVoucher(
     taxPointDate: string,
     lines: Array<{ code: string; isDebit: boolean; base: number }>,
+    // A posted voucher is immutable (ADR-0019), so its reason / reversal link
+    // must be written at insert time, not patched afterwards.
+    opts?: { reason?: string; reversesId?: number },
   ): Promise<number> {
     const v = await db
       .insertInto('voucher')
@@ -42,6 +46,8 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
         tax_point_date: taxPointDate,
         posted_at: 1,
         previous_hash: null,
+        reason: opts?.reason ?? null,
+        reverses_id: opts?.reversesId ?? null,
       })
       .returning('id')
       .executeTakeFirstOrThrow();
@@ -151,6 +157,7 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       ],
     }).compile();
     service = module.get(AnnualAccountsService);
+    reportingPeriods = module.get(ReportingPeriodsService);
   });
 
   afterEach(async () => {
@@ -613,5 +620,344 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       .where('id', '=', id)
       .executeTakeFirstOrThrow();
     expect(period.status).toBe('open');
+  });
+
+  // ── Issue #205: regeneration must not re-virtualize a posted charge. ──
+  //
+  // The original reproduction: a FULL 12-month 2026 with one IT asset acquired
+  // 2026-01-01 for EUR 1,200 (120000 minor), 4-year life, zero residual ⇒ an
+  // annual charge of EUR 300 (30000 minor).
+  const IT_COST_MINOR = 120000;
+  const ANNUAL_CHARGE_MINOR = 30000;
+
+  async function seedFullYearItAsset(): Promise<void> {
+    // Capital, revenue and a cash expense, so the year is a lifelike book.
+    await postVoucher('2026-01-01', [
+      { code: 'BANK_EUR', isDebit: true, base: 500000 },
+      { code: 'EQUITY', isDebit: false, base: 500000 },
+    ]);
+    const acqId = await postVoucher('2026-01-01', [
+      { code: 'FIXED_ASSETS_IT', isDebit: true, base: IT_COST_MINOR },
+      { code: 'BANK_EUR', isDebit: false, base: IT_COST_MINOR },
+    ]);
+    await db
+      .insertInto('fixed_asset')
+      .values({
+        name: 'Laptop fleet',
+        asset_class: 'it_equipment',
+        acquisition_voucher_id: acqId,
+        acquisition_date: '2026-01-01',
+        cost_base_minor: IT_COST_MINOR,
+        useful_life_years: 4,
+        residual_value_minor: 0,
+        retired_at: null,
+      } as never)
+      .execute();
+    await postVoucher('2026-06-30', [
+      { code: 'BANK_EUR', isDebit: true, base: 900000 },
+      { code: 'REVENUE', isDebit: false, base: 900000 },
+    ]);
+    await postVoucher('2026-07-31', [
+      { code: 'EXPENSE_OTHER', isDebit: true, base: 120000 },
+      { code: 'BANK_EUR', isDebit: false, base: 120000 },
+    ]);
+  }
+
+  /** Read one XBRL fact (in EUR units, as issue #204 fixed) out of an instance. */
+  function xbrlFact(xbrl: string, concept: string, ctx: string): number {
+    const m = xbrl.match(
+      new RegExp(
+        `<${concept} contextRef="${ctx}"[^>]*>(-?[\\d.]+)</${concept}>`,
+      ),
+    );
+    if (!m) throw new Error(`fact ${concept}@${ctx} not found in XBRL`);
+    return Number(m[1]);
+  }
+
+  const DURATION_2026 = 'd-2026-01-01_2026-12-31';
+  const INSTANT_2026 = 'i-2026-12-31';
+
+  /**
+   * The three figures the issue names: annual depreciation, profit, net PPE.
+   * `depreciation` is the raw fact, which the taxonomy's calculation carries
+   * with the CREDIT sign — a EUR 300 charge reads as -300.
+   */
+  function reportedFigures(xbrl: string): {
+    depreciation: number;
+    profit: number;
+    ppe: number;
+  } {
+    return {
+      depreciation: xbrlFact(
+        xbrl,
+        'et-gaap:DepreciationAndImpairmentLossReversal',
+        DURATION_2026,
+      ),
+      profit: xbrlFact(xbrl, 'et-gaap:TotalProfitLoss', DURATION_2026),
+      ppe: xbrlFact(xbrl, 'et-gaap:PropertyPlantAndEquipment', INSTANT_2026),
+    };
+  }
+
+  async function voucherCount(): Promise<number> {
+    const r = await db
+      .selectFrom('voucher')
+      .select(db.fn.countAll<number>().as('n'))
+      .executeTakeFirstOrThrow();
+    return r.n;
+  }
+
+  async function postedDepreciationLines(): Promise<
+    Array<{ base_amount: number; is_debit: number }>
+  > {
+    return db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(['vl.base_amount', 'vl.is_debit'])
+      .where('a.code', '=', 'DEPRECIATION_EXPENSE')
+      .execute();
+  }
+
+  it('re-downloading a finalized year repeats the SAME depreciation, and writes nothing', async () => {
+    await seedFullYearItAsset();
+    const id = await periodId('2026');
+
+    const draft = await service.generate(id);
+    expect(reportedFigures(draft.artifacts[0].content).depreciation).toBe(
+      -ANNUAL_CHARGE_MINOR / 100,
+    );
+
+    const final = await service.finalize(id);
+    const finalFigures = reportedFigures(final.artifacts[0].content);
+    // EUR 300 of depreciation — in euros, against the 2026 taxonomy (#204).
+    expect(finalFigures.depreciation).toBe(-300);
+    // Net PPE = cost 1200 − accumulated 300.
+    expect(finalFigures.ppe).toBe(900);
+
+    const countAfterFinalize = await voucherCount();
+
+    // The bug: the second assembly added the full virtual charge on top of the
+    // one it had just posted, so the same finalized year reported EUR 600.
+    const again = await service.generate(id);
+    expect(reportedFigures(again.artifacts[0].content)).toEqual(finalFigures);
+    expect(again.artifacts[0].content).toBe(final.artifacts[0].content);
+    // A third download is just as stable.
+    const third = await service.generate(id);
+    expect(third.artifacts[0].content).toBe(final.artifacts[0].content);
+    // Downloads post nothing at all.
+    expect(await voucherCount()).toBe(countAfterFinalize);
+    expect(await postedDepreciationLines()).toHaveLength(1);
+    expect(validateEtGaapInstance(again.artifacts[0].content).errors).toEqual(
+      [],
+    );
+  });
+
+  it('says the charge is already posted instead of claiming it is still unposted', async () => {
+    await seedFullYearItAsset();
+    const id = await periodId('2026');
+
+    const before = await service.generate(id);
+    expect(before.warnings.map((w) => w.code)).toContain(
+      'depreciation_not_yet_posted',
+    );
+
+    await service.finalize(id);
+    const after = await service.generate(id);
+    expect(after.warnings.map((w) => w.code)).not.toContain(
+      'depreciation_not_yet_posted',
+    );
+    // Positive evidence of the prior posting, with the amount.
+    const posted = after.warnings.find(
+      (w) => w.code === 'depreciation_already_posted',
+    );
+    expect(posted?.message).toContain(String(ANNUAL_CHARGE_MINOR));
+  });
+
+  it('retries after depreciation posted but locking failed, without double-posting or re-virtualizing', async () => {
+    await seedFullYearItAsset();
+    const id = await periodId('2026');
+    const expected = reportedFigures(
+      (await service.generate(id)).artifacts[0].content,
+    );
+
+    // FAILURE INJECTION AT THE LOCK: the depreciation voucher commits, then
+    // locking blows up (a crash mid-lock, not the filing-order precondition the
+    // service checks up front). The year stays open WITH the charge posted.
+    const lockSpy = jest
+      .spyOn(reportingPeriods, 'lock')
+      .mockRejectedValueOnce(new Error('lock crashed mid-flight'));
+    await expect(service.finalize(id)).rejects.toThrow(/lock crashed/);
+    lockSpy.mockRestore();
+
+    expect(await postedDepreciationLines()).toEqual([
+      { base_amount: ANNUAL_CHARGE_MINOR, is_debit: 1 },
+    ]);
+    const stillOpen = await db
+      .selectFrom('reporting_period')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(stillOpen.status).toBe('open');
+
+    // A draft taken in that half-closed state reads the posted charge once —
+    // it does not add a second virtual copy on top.
+    const between = await service.generate(id);
+    expect(reportedFigures(between.artifacts[0].content)).toEqual(expected);
+
+    // And the retry posts no second charge, locks the year, reports the same.
+    const final = await service.finalize(id);
+    expect(reportedFigures(final.artifacts[0].content)).toEqual(expected);
+    expect(await postedDepreciationLines()).toEqual([
+      { base_amount: ANNUAL_CHARGE_MINOR, is_debit: 1 },
+    ]);
+    const locked = await db
+      .selectFrom('reporting_period')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(locked.status).toBe('locked');
+  });
+
+  it('still charges the year when the period is locked but no annual close was posted', async () => {
+    // A year can be locked by the ordinary period lock without any annual close
+    // (that is what `finalize` adds). Suppressing depreciation on "locked"
+    // alone would silently drop a real, unposted charge.
+    await seedFullYearItAsset();
+    const id = await periodId('2026');
+    await db
+      .updateTable('reporting_period')
+      .set({ status: 'locked', filed_at: 1 } as never)
+      .where('id', '=', id)
+      .execute();
+
+    const draft = await service.generate(id);
+    expect(reportedFigures(draft.artifacts[0].content).depreciation).toBe(-300);
+    expect(draft.warnings.map((w) => w.code)).toContain(
+      'depreciation_not_yet_posted',
+    );
+  });
+
+  it('still charges the year when some OTHER depreciation voucher exists (disposal catch-up)', async () => {
+    // Disposal catch-up depreciation (#208) debits the same DEPRECIATION_EXPENSE
+    // and credits the same ACCUM_DEPRECIATION_IT — but carries a different
+    // reason, so it is not this year's annual close and must not cancel it.
+    await seedFullYearItAsset();
+    const disposalAcqId = await postVoucher('2026-02-01', [
+      { code: 'FIXED_ASSETS_IT', isDebit: true, base: 40000 },
+      { code: 'BANK_EUR', isDebit: false, base: 40000 },
+    ]);
+    await db
+      .insertInto('fixed_asset')
+      .values({
+        name: 'Retired server',
+        asset_class: 'it_equipment',
+        acquisition_voucher_id: disposalAcqId,
+        acquisition_date: '2026-02-01',
+        cost_base_minor: 40000,
+        useful_life_years: 4,
+        residual_value_minor: 0,
+        retired_at: 1,
+      } as never)
+      .execute();
+    await postVoucher(
+      '2026-03-31',
+      [
+        { code: 'DEPRECIATION_EXPENSE', isDebit: true, base: 5000 },
+        { code: 'ACCUM_DEPRECIATION_IT', isDebit: false, base: 5000 },
+      ],
+      { reason: 'Disposal catch-up depreciation for asset 2' },
+    );
+
+    const id = await periodId('2026');
+    const draft = await service.generate(id);
+    // The posted disposal catch-up (50) PLUS the still-unposted annual charge
+    // (300) — the annual charge is not suppressed by the account activity.
+    expect(reportedFigures(draft.artifacts[0].content).depreciation).toBe(-350);
+  });
+
+  it('leaves a filed year alone when the close is reversed in a LATER period', async () => {
+    // A correction booked in the next year belongs to the next year. It is
+    // outside the reported year's ledger window, so the 2026 balances still
+    // carry the close — and the posted-evidence lookup must use the SAME window,
+    // or the reversal would net the charge away and 2026 would virtualize it a
+    // second time on re-download.
+    await seedFullYearItAsset();
+    const id = await periodId('2026');
+    const final = await service.finalize(id);
+    const expected = reportedFigures(final.artifacts[0].content);
+
+    const close = await db
+      .selectFrom('voucher')
+      .select('id')
+      .where('reason', '=', 'Annual depreciation charge for 2026')
+      .executeTakeFirstOrThrow();
+    await postVoucher(
+      '2027-01-05',
+      [
+        {
+          code: 'DEPRECIATION_EXPENSE',
+          isDebit: false,
+          base: ANNUAL_CHARGE_MINOR,
+        },
+        {
+          code: 'ACCUM_DEPRECIATION_IT',
+          isDebit: true,
+          base: ANNUAL_CHARGE_MINOR,
+        },
+      ],
+      {
+        reason: 'Reversal of annual depreciation charge for 2026',
+        reversesId: close.id,
+      },
+    );
+
+    const again = await service.generate(id);
+    expect(reportedFigures(again.artifacts[0].content)).toEqual(expected);
+    expect(again.artifacts[0].content).toBe(final.artifacts[0].content);
+    expect(again.warnings.map((w) => w.code)).not.toContain(
+      'depreciation_not_yet_posted',
+    );
+  });
+
+  it('re-virtualizes the annual charge once its posted close has been reversed', async () => {
+    await seedFullYearItAsset();
+    const id = await periodId('2026');
+    const expected = reportedFigures(
+      (await service.generate(id)).artifacts[0].content,
+    );
+    await service.finalize(id);
+
+    const close = await db
+      .selectFrom('voucher')
+      .select('id')
+      .where('reason', '=', 'Annual depreciation charge for 2026')
+      .executeTakeFirstOrThrow();
+    // Reverse it: the mirrored voucher points back with `reverses_id`, so the
+    // ledger no longer carries the charge — and the report must not pretend it
+    // does. Nothing about the original posted history is rewritten.
+    await postVoucher(
+      '2026-12-31',
+      [
+        {
+          code: 'DEPRECIATION_EXPENSE',
+          isDebit: false,
+          base: ANNUAL_CHARGE_MINOR,
+        },
+        {
+          code: 'ACCUM_DEPRECIATION_IT',
+          isDebit: true,
+          base: ANNUAL_CHARGE_MINOR,
+        },
+      ],
+      {
+        reason: 'Reversal of annual depreciation charge for 2026',
+        reversesId: close.id,
+      },
+    );
+
+    const after = await service.generate(id);
+    expect(reportedFigures(after.artifacts[0].content)).toEqual(expected);
+    expect(after.warnings.map((w) => w.code)).toContain(
+      'depreciation_not_yet_posted',
+    );
   });
 });
