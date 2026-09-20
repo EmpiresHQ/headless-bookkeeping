@@ -54,12 +54,33 @@ export interface EntityIdentifier {
  *  and directors are the ADR-0036 claimants (there is NO 'claimant' role). */
 export type EntityRole = 'supplier' | 'customer' | 'employee' | 'director';
 
+/** Whether a counterparty is a taxable person (business) acting as such.
+ *  'unknown' is a real answer, not a synonym for consumer. */
+export type TaxStatus = 'taxable_business' | 'non_taxable' | 'unknown';
+
+/** Place-of-supply rules a service invoice may declare (server
+ *  sales-invoices/types.ts SERVICE_PLACE_RULES). Only 'general' is
+ *  auto-classified; the rest are refused with an actionable message. */
+export type ServicePlaceRule =
+  | 'general'
+  | 'immovable_property'
+  | 'passenger_transport'
+  | 'cultural_artistic_sporting_admission'
+  | 'restaurant_catering'
+  | 'short_term_hire_of_means_of_transport'
+  | 'electronically_supplied_to_consumer'
+  | 'other_special';
+
 export interface Entity {
   id: number;
   role: EntityRole;
   country: string;
   name: string;
   goods_vs_services: string | null;
+  /** 'taxable_business' | 'non_taxable' | 'unknown'; null ⇒ never recorded.
+   *  Decides a cross-border service sale's VAT treatment (issue #209): while it
+   *  is unknown the server REFUSES to post such an invoice. */
+  tax_status: string | null;
   // Present on a single-entity fetch (getEntity); absent on the list.
   identifiers?: EntityIdentifier[];
 }
@@ -94,6 +115,10 @@ export interface SalesInvoice {
   document_id: number | null;
   status: string;
   sent_at: number | null;
+  /** What this invoice supplies; null ⇒ inherit the customer's nature. */
+  supply_type: 'goods' | 'services' | null;
+  /** Declared place-of-supply rule for a service supply; 'general' by default. */
+  service_place_rule: ServicePlaceRule;
   // True when the posted voucher is matched to a bank transaction.
   reconciled: boolean;
 }
@@ -496,6 +521,11 @@ export interface CreateInvoiceInput {
   customer_id?: number | null;
   due_date?: string | null;
   document_vat_marking?: string | null;
+  /** Omitted ⇒ the customer entity's goods/services nature decides. */
+  supply_type?: 'goods' | 'services' | null;
+  /** Omitted ⇒ 'general', the residual place-of-supply rule. A named
+   *  exception is refused at posting rather than auto-classified. */
+  service_place_rule?: ServicePlaceRule;
 }
 
 export const createInvoice = (input: CreateInvoiceInput) =>
@@ -599,6 +629,7 @@ export interface OnboardEntityInput {
   name: string;
   registrationKey?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  taxStatus?: TaxStatus;
   email?: string;
   tgUserId?: string;
 }
@@ -615,6 +646,7 @@ export interface UpdateEntityInput {
   name?: string;
   country?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  taxStatus?: TaxStatus;
 }
 
 export const updateEntity = (id: number, input: UpdateEntityInput) =>

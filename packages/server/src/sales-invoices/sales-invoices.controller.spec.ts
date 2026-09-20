@@ -23,6 +23,8 @@ describe('SalesInvoicesController', () => {
     voucher_id: null,
     document_vat_marking: null,
     document_id: null,
+    supply_type: null,
+    service_place_rule: 'general',
     created_at: 1740000000,
     updated_at: 1740000000,
   };
@@ -80,6 +82,10 @@ describe('SalesInvoicesController', () => {
     getInvoiceById: jest.fn(),
     generateDraftVoucher: jest.fn(),
     sendInvoice: jest.fn(),
+    updateDraft: jest.fn(),
+    // The staleness guard the post route hands to the pipeline (issue #209).
+    draftFactsFingerprint: jest.fn().mockResolvedValue('facts-v1'),
+    assertDraftFactsUnchangedTx: jest.fn(),
   };
 
   const mockPipeline = {
@@ -173,6 +179,9 @@ describe('SalesInvoicesController', () => {
         businessObjectId: 1,
         businessObjectType: 'sales_invoice',
         draftGenerator: expect.any(Function) as () => Promise<DraftVoucher>,
+        // The optimistic-concurrency guard the pipeline runs inside its own
+        // transaction (issue #209).
+        assertFactsUnchanged: expect.any(Function) as unknown,
         category: 'revenue',
         refetch: expect.any(Function) as () => Promise<unknown>,
         override: undefined,

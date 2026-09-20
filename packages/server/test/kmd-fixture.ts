@@ -10,6 +10,7 @@ export const emptyKmdDeclaration: KmdDeclaration = {
   row2_base_9: 0,
   row2_base_13: 0,
   row3_base_zero: 0,
+  row3_1_intra_eu_supply: 0,
   row4_output_vat: 0,
   row5_input_vat: 0,
   row6_intra_eu_acquisition: 0,

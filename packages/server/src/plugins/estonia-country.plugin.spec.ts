@@ -16,7 +16,9 @@ import {
   CategoryDef,
   OrgContext,
   SupplierFacts,
+  SupplyFacts,
 } from './country-plugin.interface';
+import { UnresolvedVatTreatmentError } from './vat-treatment.errors';
 import { renderAnnualAccountsXbrl } from './estonia-annual-accounts/xbrl';
 
 describe('EstoniaCountryPlugin — VAT core', () => {
@@ -76,25 +78,12 @@ describe('EstoniaCountryPlugin — VAT core', () => {
       country: 'DK',
       goodsVsServices: 'services',
       classificationMemory: [],
+      taxStatus: 'taxable_business',
     };
     expect(ee.resolveCategoryMapping('revenue', dkCustomer, org)).toEqual({
       accountCode: 'REVENUE',
       vatCode: 'EE_OUTPUT_0_EU',
     });
-  });
-
-  it('keeps standard 24% revenue for a non-EU (export) customer — outside the intra-EU rule', () => {
-    const usCustomer: SupplierFacts = {
-      country: 'US',
-      goodsVsServices: 'services',
-      classificationMemory: [],
-    };
-    // Non-EU export of services is 0% too, but it is NOT the intra-EU (VD 3S)
-    // case; we keep the standard code here so the report does not raise a VD
-    // entry for it. (Refining export 0% is tracked separately.)
-    expect(ee.resolveCategoryMapping('revenue', usCustomer, org).vatCode).toBe(
-      'EE_OUTPUT_24',
-    );
   });
 
   it('validateVATCode accepts the EE set + sentinel, rejects unknown', () => {
@@ -511,6 +500,7 @@ describe('EstoniaCountryPlugin — KMD row classification', () => {
   it('standard 24% output → row 1', () => {
     expect(ee.classifyKmd('EE_OUTPUT_24')).toEqual({
       outputBaseRow: 1,
+      outputSubRow: null,
       acquisitionRow: null,
       vdCode: null,
       review: null,
@@ -521,11 +511,24 @@ describe('EstoniaCountryPlugin — KMD row classification', () => {
     expect(ee.classifyKmd('EE_OUTPUT_9').outputBaseRow).toBe(2);
   });
 
-  it('0% intra-EU service → row 3 + VD tähis 3S', () => {
+  it('0% intra-EU service → rows 3 + 3.1 + VD tähis 3S', () => {
     expect(ee.classifyKmd('EE_OUTPUT_0_EU')).toEqual({
       outputBaseRow: 3,
+      outputSubRow: '3.1',
       acquisitionRow: null,
       vdCode: '3S',
+      review: null,
+    });
+  });
+
+  it('0% service to a third-country business → row 3 ONLY (no 3.1, no VD)', () => {
+    // Row 3.1 and the VD koondaruanne both report supplies to other MEMBER
+    // STATES. A third-country supply belongs to neither (issue #209).
+    expect(ee.classifyKmd('EE_OUTPUT_0_3RD_COUNTRY')).toEqual({
+      outputBaseRow: 3,
+      outputSubRow: null,
+      acquisitionRow: null,
+      vdCode: null,
       review: null,
     });
   });
@@ -533,6 +536,7 @@ describe('EstoniaCountryPlugin — KMD row classification', () => {
   it('plain 0% (export/other) → row 3, no VD', () => {
     expect(ee.classifyKmd('EE_ZERO')).toEqual({
       outputBaseRow: 3,
+      outputSubRow: null,
       acquisitionRow: null,
       vdCode: null,
       review: null,
@@ -549,6 +553,7 @@ describe('EstoniaCountryPlugin — KMD row classification', () => {
   it('domestic input 24% feeds only the input-VAT total (no base row)', () => {
     expect(ee.classifyKmd('EE_INPUT_24')).toEqual({
       outputBaseRow: null,
+      outputSubRow: null,
       acquisitionRow: null,
       vdCode: null,
       review: null,
@@ -716,5 +721,319 @@ describe('EstoniaCountryPlugin — annual accounts', () => {
     expect(result.warnings.map((w) => w.code)).toContain(
       'unmapped_nonzero_account',
     );
+  });
+});
+
+describe('EstoniaCountryPlugin — service place of supply (issue #209)', () => {
+  const ee = new EstoniaCountryPlugin(unusedFxRateService());
+  const org: OrgContext = {
+    country: 'EE',
+    vatRegistered: true,
+    baseCurrency: null,
+  };
+
+  const customer = (over: Partial<SupplierFacts> = {}): SupplierFacts => ({
+    country: 'EE',
+    goodsVsServices: 'services',
+    classificationMemory: [],
+    ...over,
+  });
+
+  const code = (
+    facts: Partial<SupplierFacts>,
+    supply: SupplyFacts = { supplyType: 'services' },
+  ) =>
+    ee.resolveCategoryMapping('revenue', customer(facts), org, supply).vatCode;
+
+  // ── The EMTA general-rule matrix, one case per row ──────────────────────
+  // https://www.emta.ee/en/business-client/taxes-and-payment/value-added-tax/
+  //   taxation-services/taxation-and-declaration-supply-services (2025-07-03)
+
+  it('EE domestic business → 24% (taxed in Estonia)', () => {
+    expect(code({ country: 'EE', taxStatus: 'taxable_business' })).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
+  it('EE domestic consumer → 24%', () => {
+    expect(code({ country: 'EE', taxStatus: 'non_taxable' })).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
+  it('EE domestic with tax status unknown → 24%, and does NOT refuse', () => {
+    // Inside Estonia the status cannot change the answer, so the missing fact
+    // is not worth refusing over.
+    expect(code({ country: 'EE' })).toBe('EE_OUTPUT_24');
+  });
+
+  it('other EU, taxable recipient → 0% intra-EU (rows 3 + 3.1, VD 3S)', () => {
+    expect(code({ country: 'FI', taxStatus: 'taxable_business' })).toBe(
+      'EE_OUTPUT_0_EU',
+    );
+  });
+
+  it('other EU, NON-taxable recipient → 24% — EU membership alone never zero-rates', () => {
+    // The reported misclassification in the other direction: a Finnish
+    // consumer is taxed where the supplier is (Estonia), not reverse-charged.
+    expect(code({ country: 'FI', taxStatus: 'non_taxable' })).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
+  it('third country, business → 0% with its OWN code (row 3, no VD)', () => {
+    // The issue's reproduction: a US business was charged Estonian 24%.
+    expect(code({ country: 'US', taxStatus: 'taxable_business' })).toBe(
+      'EE_OUTPUT_0_3RD_COUNTRY',
+    );
+  });
+
+  it('third country, consumer → 24% (general rule: taxed where the supplier is)', () => {
+    expect(code({ country: 'US', taxStatus: 'non_taxable' })).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
+  // ── Refusals: a fact that decides the answer is missing or contradictory ──
+
+  it('REFUSES an EU service when the customer tax status is unknown', () => {
+    expect(() => code({ country: 'FI' })).toThrow(UnresolvedVatTreatmentError);
+    try {
+      code({ country: 'FI' });
+    } catch (e) {
+      const err = e as UnresolvedVatTreatmentError;
+      expect(err.code).toBe('customer_tax_status_unknown');
+      // The refusal must be actionable, not just a complaint.
+      expect(err.howToResolve).toMatch(/PATCH \/api\/entities/);
+    }
+  });
+
+  it('REFUSES a third-country service when the customer tax status is unknown', () => {
+    expect(() => code({ country: 'US' })).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('an explicit `unknown` status refuses exactly like an absent one', () => {
+    expect(() => code({ country: 'FI', taxStatus: 'unknown' })).toThrow(
+      UnresolvedVatTreatmentError,
+    );
+  });
+
+  it('REFUSES a declared special place-of-supply rule instead of guessing', () => {
+    try {
+      code(
+        { country: 'FI', taxStatus: 'taxable_business' },
+        { supplyType: 'services', servicePlaceRule: 'immovable_property' },
+      );
+      throw new Error('expected a refusal');
+    } catch (e) {
+      const err = e as UnresolvedVatTreatmentError;
+      expect(err).toBeInstanceOf(UnresolvedVatTreatmentError);
+      expect(err.code).toBe('service_place_rule_unsupported');
+    }
+  });
+
+  it('REFUSES a declared service rule on a supply that is not a service', () => {
+    // Ignoring the caller's declaration would silently drop the one fact they
+    // stated; goods would otherwise fall through to the domestic mapping.
+    try {
+      code(
+        { country: 'FI', taxStatus: 'taxable_business' },
+        { supplyType: 'goods', servicePlaceRule: 'restaurant_catering' },
+      );
+      throw new Error('expected a refusal');
+    } catch (e) {
+      const err = e as UnresolvedVatTreatmentError;
+      expect(err.code).toBe('service_place_rule_without_service_supply');
+    }
+  });
+
+  it('REFUSES a cross-border sale whose supply type is unknown', () => {
+    try {
+      code({ country: 'FI', goodsVsServices: 'unknown' }, {});
+      throw new Error('expected a refusal');
+    } catch (e) {
+      const err = e as UnresolvedVatTreatmentError;
+      expect(err.code).toBe('supply_type_unknown');
+      expect(err.howToResolve).toMatch(/supply_type/);
+    }
+  });
+
+  it('allows an unknown supply type DOMESTICALLY — it cannot change the answer', () => {
+    expect(code({ country: 'EE', goodsVsServices: 'unknown' }, {})).toBe(
+      'EE_OUTPUT_24',
+    );
+  });
+
+  // ── Untouched neighbours ────────────────────────────────────────────────
+
+  it('leaves GOODS sales on the standard mapping, whoever the customer is', () => {
+    const goods: SupplyFacts = { supplyType: 'goods' };
+    expect(code({ country: 'US', taxStatus: 'taxable_business' }, goods)).toBe(
+      'EE_OUTPUT_24',
+    );
+    expect(code({ country: 'FI', taxStatus: 'taxable_business' }, goods)).toBe(
+      'EE_OUTPUT_24',
+    );
+    // …and a goods sale needs no tax status at all.
+    expect(code({ country: 'FI' }, goods)).toBe('EE_OUTPUT_24');
+  });
+
+  it("the invoice's supply type overrides the customer's general nature", () => {
+    // A customer we normally sell goods to, invoiced for a service.
+    expect(
+      code(
+        {
+          country: 'FI',
+          goodsVsServices: 'goods',
+          taxStatus: 'taxable_business',
+        },
+        { supplyType: 'services' },
+      ),
+    ).toBe('EE_OUTPUT_0_EU');
+  });
+
+  it('falls back to the customer nature when the invoice says nothing', () => {
+    expect(
+      code(
+        {
+          country: 'FI',
+          goodsVsServices: 'services',
+          taxStatus: 'taxable_business',
+        },
+        {},
+      ),
+    ).toBe('EE_OUTPUT_0_EU');
+  });
+});
+
+describe('EstoniaCountryPlugin — standard rate by date (issue #209)', () => {
+  const ee = new EstoniaCountryPlugin(unusedFxRateService());
+
+  it('answers with the rate in force at the given date, not the current one', () => {
+    expect(ee.getVatRate('EE_OUTPUT_24', '2025-07-01')).toBe(0.24);
+    expect(ee.getVatRate('EE_OUTPUT_24', '2025-06-30')).toBe(0.22);
+    expect(ee.getVatRate('EE_OUTPUT_24', '2023-12-31')).toBe(0.2);
+  });
+
+  it('keeps the current rate when no date is given (every existing caller)', () => {
+    expect(ee.getVatRate('EE_OUTPUT_24')).toBe(0.24);
+    expect(ee.getVatRate('EE_INPUT_24')).toBe(0.24);
+  });
+
+  it('leaves non-standard-rate codes alone whatever the date', () => {
+    expect(ee.getVatRate('EE_OUTPUT_9', '2023-01-01')).toBe(0.09);
+    expect(ee.getVatRate('EE_OUTPUT_0_EU', '2023-01-01')).toBe(0);
+    expect(ee.getVatRate('EE_OUTPUT_0_3RD_COUNTRY', '2026-01-01')).toBe(0);
+  });
+});
+
+describe("EstoniaCountryPlugin — a service sale's tax amount (issue #209)", () => {
+  const ee = new EstoniaCountryPlugin(unusedFxRateService());
+  const services: SupplierFacts = {
+    country: 'FI',
+    goodsVsServices: 'services',
+    classificationMemory: [],
+    taxStatus: 'taxable_business',
+  };
+
+  const check = (over: {
+    netMinorUnits: number;
+    vatMinorUnits: number;
+    vatCode: string;
+    taxPointDate?: string;
+    counterpartyFacts?: SupplierFacts;
+    supplyFacts?: SupplyFacts;
+  }) =>
+    ee.assertSaleTaxAmount({
+      taxPointDate: '2026-05-15',
+      counterpartyFacts: services,
+      supplyFacts: { supplyType: 'services' },
+      ...over,
+    });
+
+  it('accepts 24% stated on a 24% treatment', () => {
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 2400,
+        vatCode: 'EE_OUTPUT_24',
+      }),
+    ).not.toThrow();
+  });
+
+  it('REFUSES a 24% treatment invoiced with no tax — the reported bug', () => {
+    try {
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 0,
+        vatCode: 'EE_OUTPUT_24',
+      });
+      throw new Error('expected a refusal');
+    } catch (e) {
+      const err = e as UnresolvedVatTreatmentError;
+      expect(err).toBeInstanceOf(UnresolvedVatTreatmentError);
+      expect(err.code).toBe('vat_amount_conflicts_with_treatment');
+      expect(err.howToResolve).toMatch(/PATCH \/api\/sales-invoices/);
+    }
+  });
+
+  it('REFUSES a 0%-rated supply that carries tax', () => {
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 2400,
+        vatCode: 'EE_OUTPUT_0_EU',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 0,
+        vatCode: 'EE_OUTPUT_0_3RD_COUNTRY',
+      }),
+    ).not.toThrow();
+  });
+
+  it('measures against the rate in force at the tax point', () => {
+    // 2025-06 was the 22% era.
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 2200,
+        vatCode: 'EE_OUTPUT_24',
+        taxPointDate: '2025-06-15',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 2400,
+        vatCode: 'EE_OUTPUT_24',
+        taxPointDate: '2025-06-15',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('leaves GOODS sales alone — they state their own tax', () => {
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 1,
+        vatCode: 'EE_OUTPUT_24',
+        supplyFacts: { supplyType: 'goods' },
+      }),
+    ).not.toThrow();
+    // …and so is a supply whose type nobody recorded (a domestic sale reaches
+    // here with an unknown type; the classification, not the arithmetic, is
+    // where an unknown cross-border type is refused).
+    expect(() =>
+      check({
+        netMinorUnits: 10000,
+        vatMinorUnits: 1,
+        vatCode: 'EE_OUTPUT_24',
+        counterpartyFacts: { ...services, goodsVsServices: 'unknown' },
+        supplyFacts: {},
+      }),
+    ).not.toThrow();
   });
 });

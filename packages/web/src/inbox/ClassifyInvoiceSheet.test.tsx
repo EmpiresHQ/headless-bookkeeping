@@ -58,6 +58,7 @@ describe('ClassifyInvoiceSheet', () => {
         country: 'EE',
         name: 'Nordic Consulting OÜ',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.manualClassifyInvoice).mockResolvedValue({

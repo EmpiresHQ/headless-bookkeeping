@@ -7,7 +7,9 @@ import {
   CountryPlugin,
   CrossBorderResolution,
   OrgContext,
+  ServicePlaceRule,
   SupplierFacts,
+  SupplyFacts,
   VATCode,
 } from './country-plugin.interface';
 import {
@@ -22,6 +24,7 @@ import {
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
+import { UnresolvedVatTreatmentError } from './vat-treatment.errors';
 import {
   StatutoryFormat,
   StatutoryReportInput,
@@ -102,6 +105,14 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     // (KMS §10 / VAT Directive Art. 44 & 196). Reported as 0% käive (KMD row 3)
     // and on the VD koondaruanne with tähis 3S — the VD form is filed manually.
     EE_OUTPUT_0_EU: 0,
+    // 0% general-rule service supplied to a THIRD-COUNTRY business (issue #209).
+    // Place of supply is the customer's country (KMS §10 lg 1), so no Estonian
+    // VAT arises. It is declared in KMD row 3 like any 0% supply, but — unlike
+    // the intra-EU code above — it belongs to NEITHER row 3.1 NOR the VD
+    // koondaruanne: both are reports on supplies to other MEMBER STATES.
+    // A distinct code (rather than the generic EE_ZERO) keeps that difference
+    // visible in the ledger and in the per-code VAT summary.
+    EE_OUTPUT_0_3RD_COUNTRY: 0,
     [NULL_VAT_CODE]: 0,
   };
 
@@ -189,21 +200,16 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     category: string,
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
+    supplyFacts?: SupplyFacts,
   ): CategoryMappingResult {
     if (category === 'revenue') {
-      // A sale of services to a VAT-registered customer in ANOTHER EU member
-      // state is taxable where the customer is established (Art. 44): we charge
-      // 0% and the customer reverse-charges (Art. 196). It is declared as 0%
-      // käive (KMD row 3) and on the VD koondaruanne with tähis 3S. Domestic
-      // and non-EU (export) sales keep the standard 24% mapping here.
-      const customer = supplierFacts.country;
-      const isIntraEuB2bService =
-        customer !== orgContext.country &&
-        EstoniaCountryPlugin.EU.has(customer) &&
-        supplierFacts.goodsVsServices === 'services';
       return {
         accountCode: 'REVENUE',
-        vatCode: isIntraEuB2bService ? 'EE_OUTPUT_0_EU' : 'EE_OUTPUT_24',
+        vatCode: this.resolveRevenueVatCode(
+          supplierFacts,
+          orgContext,
+          supplyFacts,
+        ),
       };
     }
 
@@ -213,12 +219,228 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     return { accountCode, vatCode: 'EE_INPUT_24' };
   }
 
+  /**
+   * The output VAT code for a sale — the place-of-supply decision (issue #209).
+   *
+   * Before this, the decision read only "other EU + services", which charged
+   * Estonian 24% on a service sold to a US business and zero-rated a service
+   * sold to a Finnish CONSUMER purely because Finland is in the EU. Neither
+   * follows from the statute: under KMS §10 the place of a GENERAL-RULE service
+   * turns on whether the recipient is a taxable person acting as such, which is
+   * a recorded fact about the customer, not an inference from its country.
+   *
+   * General-rule services (KMS §10 lg 1 / lg 2 p 9; EMTA's place-of-supply
+   * table, https://www.emta.ee/en/business-client/taxes-and-payment/
+   * value-added-tax/taxation-services/taxation-and-declaration-supply-services,
+   * updated 2025-07-03):
+   *
+   *   recipient                                   rate   KMD             VD
+   *   ─────────────────────────────────────────── ────── ─────────────── ────
+   *   Estonia (business or consumer)               24%   rows 1 + 4       —
+   *   other member state, taxable person            0%   rows 3 + 3.1    3S
+   *   other member state, non-taxable person       24%   rows 1 + 4       —
+   *   third country, business                       0%   row 3            —
+   *   third country, consumer                      24%   rows 1 + 4       —
+   *
+   * The two 24% cross-border rows are the general rule doing its job: a B2C
+   * service is taxed where the SUPPLIER is established, which is Estonia. They
+   * are not a fallback — §10 lg 5 carves out specific services to third-country
+   * consumers, and those arrive here as a declared ServicePlaceRule exception,
+   * which this plugin refuses rather than silently taxes.
+   *
+   * GOODS are untouched: their place of supply follows movement, not this
+   * table, and this issue is scoped to services.
+   */
+  private resolveRevenueVatCode(
+    customerFacts: SupplierFacts,
+    orgContext: OrgContext,
+    supplyFacts?: SupplyFacts,
+  ): VATCode {
+    const customerCountry = customerFacts.country;
+    const isDomestic = customerCountry === orgContext.country;
+
+    // What this invoice supplies. The invoice's own supply type wins; absent
+    // it we fall back to what the counterparty deals in, which is how every
+    // pre-#209 invoice was classified.
+    const supplyType =
+      supplyFacts?.supplyType && supplyFacts.supplyType !== 'unknown'
+        ? supplyFacts.supplyType
+        : customerFacts.goodsVsServices;
+
+    const placeRule: ServicePlaceRule =
+      supplyFacts?.servicePlaceRule ?? 'general';
+
+    // A declared place-of-supply exception is a statement about a SERVICE. On a
+    // supply that is not known to be a service the declaration cannot be
+    // honoured — and quietly ignoring it would drop the one fact the caller
+    // took the trouble to state. Refuse the contradiction instead.
+    if (placeRule !== 'general' && supplyType !== 'services') {
+      throw new UnresolvedVatTreatmentError({
+        code: 'service_place_rule_without_service_supply',
+        message:
+          `The invoice declares the service place-of-supply rule '${placeRule}' ` +
+          `but its supply is '${supplyType}', so the rule cannot apply and must ` +
+          `not be ignored.`,
+        missingFacts: [
+          `service_place_rule=${placeRule} with supply_type=${supplyType}`,
+        ],
+        howToResolve:
+          'Set supply_type="services" on the invoice if it is a service supply, ' +
+          'or service_place_rule="general" if the declared exception does not apply.',
+      });
+    }
+
+    if (supplyType === 'goods') {
+      // Goods: place of supply follows the movement of the goods, not §10.
+      // Unchanged by this issue, which is scoped to services.
+      return 'EE_OUTPUT_24';
+    }
+
+    if (supplyType !== 'services') {
+      // Supply type unknown — neither the invoice nor the customer says.
+      //
+      // DOMESTIC: it does not matter. A supply inside Estonia is 24% whether it
+      // is goods or a service, so the unknown changes no figure and the
+      // long-standing domestic mapping stands. This is the ONLY place an
+      // unknown supply type is allowed through, and only because it cannot
+      // alter the answer. (It also covers an invoice with no customer at all,
+      // which the projection treats as domestic.)
+      if (isDomestic) return 'EE_OUTPUT_24';
+
+      // CROSS-BORDER: it decides everything — goods keep the domestic mapping
+      // here, while a service reopens the whole place-of-supply question. The
+      // old code answered "24%" for both by never asking. Refuse and ask.
+      throw new UnresolvedVatTreatmentError({
+        code: 'supply_type_unknown',
+        message:
+          `Cannot classify a sale to a customer in ${customerCountry}: whether ` +
+          `the invoice supplies goods or services is not recorded, and it ` +
+          `decides where the supply is taxed.`,
+        missingFacts: [
+          "sales_invoice.supply_type (or the customer entity's goods_vs_services)",
+        ],
+        howToResolve:
+          'Create the invoice with supply_type="services" (or "goods"), or ' +
+          'PATCH /api/entities/{customerId} with {"goodsVsServices":"services"} ' +
+          '(or "goods"), then post the invoice again.',
+      });
+    }
+
+    if (placeRule !== 'general') {
+      // A declared exception (immovable property, admission, catering, §10 lg 5
+      // electronic services to a consumer, …) has its own place of supply that
+      // this plugin does not implement. Inventing one — zero-rating it or
+      // taxing it here — would put an unsupported figure on a filed return, so
+      // it is refused with the rule named and the accountant pointed at it.
+      throw new UnresolvedVatTreatmentError({
+        code: 'service_place_rule_unsupported',
+        message:
+          `Service place-of-supply rule '${placeRule}' has its own place under ` +
+          `KMS §10 and is not auto-classified by the EE plugin.`,
+        missingFacts: [`service_place_rule=${placeRule}`],
+        howToResolve:
+          'Determine the treatment for this rule with your accountant and book ' +
+          'it explicitly, or set service_place_rule="general" on the invoice if ' +
+          'the general rule in fact applies.',
+      });
+    }
+
+    // Domestic: 24% whoever the recipient is — tax status changes nothing, so
+    // it is not required.
+    if (isDomestic) return 'EE_OUTPUT_24';
+
+    const taxStatus = customerFacts.taxStatus ?? 'unknown';
+    if (taxStatus === 'unknown') {
+      // The one fact that decides this supply is not recorded. Unknown is not
+      // a consumer: guessing either way would misstate a KMD row (and, for the
+      // EU case, the VD). Refuse, name the fact, and say how to supply it.
+      throw new UnresolvedVatTreatmentError({
+        code: 'customer_tax_status_unknown',
+        message:
+          `Cannot classify a general-rule service supplied to a customer in ` +
+          `${customerCountry}: the customer's tax status is not recorded, and it ` +
+          `decides whether the supply is 0% (taxed where the customer is) or 24% ` +
+          `(taxed in Estonia).`,
+        missingFacts: [
+          `entity.tax_status for the customer in ${customerCountry}`,
+        ],
+        howToResolve:
+          'PATCH /api/entities/{customerId} with ' +
+          '{"taxStatus":"taxable_business"} or {"taxStatus":"non_taxable"} ' +
+          '(a business acting as such vs a consumer), then post the invoice again.',
+      });
+    }
+
+    if (taxStatus === 'non_taxable') {
+      // B2C general-rule service: taxed where the supplier is established.
+      return 'EE_OUTPUT_24';
+    }
+
+    // Taxable business abroad — 0%, but the two zeros are different reports.
+    return EstoniaCountryPlugin.EU.has(customerCountry)
+      ? 'EE_OUTPUT_0_EU' // rows 3 + 3.1, VD tähis 3S (Art. 44/196)
+      : 'EE_OUTPUT_0_3RD_COUNTRY'; // row 3 only, no VD
+  }
+
   getCategories(): CategoryDef[] {
     return Object.entries(EE_CATEGORY_ACCOUNTS).map(([key, accountCode]) => ({
       key,
       label: labelFor(key),
       accountCode,
     }));
+  }
+
+  /**
+   * A SERVICE sale's tax amount must agree with the treatment its facts resolved
+   * to, and a disagreement is refused BEFORE anything is posted (issue #209).
+   *
+   * The reported bug was exactly this disagreement surviving into the books: a
+   * EUR 100 service invoice carrying vat_amount = 0 was booked against the
+   * domestic 24% code, so the KMD showed a 100.00 base in row 1 against 0.00 of
+   * output VAT and the XML exported `<transactions24>100.00</transactions24>` —
+   * arithmetic no return should carry. Once the code is DERIVED from facts the
+   * stated amount is checkable: a 0% supply cannot carry tax, and a 24% supply
+   * must carry 24% — of the rate in force at the invoice's own tax point, so a
+   * rate change never makes a correctly-taxed older invoice look wrong.
+   *
+   * Scope is the service sales this issue is about. A GOODS sale states its own
+   * tax (its place of supply follows the movement of the goods, which this
+   * plugin does not model), and reduced-rate/partially-exempt supplies have no
+   * derived code here — recomputing those would refuse legitimate documents.
+   */
+  assertSaleTaxAmount(input: {
+    netMinorUnits: number;
+    vatMinorUnits: number;
+    vatCode: VATCode;
+    taxPointDate: string;
+    counterpartyFacts: SupplierFacts;
+    supplyFacts?: SupplyFacts;
+  }): void {
+    const supplyType =
+      input.supplyFacts?.supplyType &&
+      input.supplyFacts.supplyType !== 'unknown'
+        ? input.supplyFacts.supplyType
+        : input.counterpartyFacts.goodsVsServices;
+    if (supplyType !== 'services') return;
+
+    const rate = this.getVatRate(input.vatCode, input.taxPointDate);
+    const expected = Math.round(input.netMinorUnits * rate);
+    if (input.vatMinorUnits === expected) return;
+
+    throw new UnresolvedVatTreatmentError({
+      code: 'vat_amount_conflicts_with_treatment',
+      message:
+        `The invoice's VAT amount (${input.vatMinorUnits}) contradicts the VAT ` +
+        `treatment its facts resolve to: ${input.vatCode} at ${rate * 100}% on a ` +
+        `net of ${input.netMinorUnits} is ${expected}. Nothing was posted.`,
+      missingFacts: [
+        `vat_amount=${input.vatMinorUnits} (expected ${expected} for ${input.vatCode} on ${input.taxPointDate})`,
+      ],
+      howToResolve:
+        'PATCH /api/sales-invoices/{id} with corrected gross_amount/vat_amount, ' +
+        'or correct the facts that decide the rate (the customer country / tax ' +
+        "status, or the invoice's supply_type and service_place_rule), then post again.",
+    });
   }
 
   // ── Document classification vocabulary (EE) ───────────────────────────────
@@ -399,7 +621,37 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   // ── CountryPluginRetrieval (compute-only, advisory agent surface) ──────────
 
-  getVatRate(vatCode: string): number {
+  /**
+   * Estonia's standard VAT rate by the date it was in force (KMS §15 lg 1, as
+   * amended). A rate change does not reach back: a supply's rate is the one in
+   * force at its tax point, so a back-dated invoice must be measured against
+   * the rate of ITS date, not of today.
+   *
+   * Newest first; the first entry whose `from` is on or before the date wins.
+   */
+  private static readonly STANDARD_RATE_HISTORY: ReadonlyArray<{
+    from: string;
+    rate: number;
+  }> = [
+    { from: '2025-07-01', rate: 0.24 },
+    { from: '2024-01-01', rate: 0.22 },
+    { from: '0000-01-01', rate: 0.2 },
+  ];
+
+  /** The codes whose rate IS the standard rate, and therefore moves with it. */
+  private static readonly STANDARD_RATE_CODES = new Set([
+    'EE_OUTPUT_24',
+    'EE_INPUT_24',
+    'EE_REVERSE_CHARGE',
+  ]);
+
+  getVatRate(vatCode: string, onDate?: string): number {
+    if (onDate && EstoniaCountryPlugin.STANDARD_RATE_CODES.has(vatCode)) {
+      const era = EstoniaCountryPlugin.STANDARD_RATE_HISTORY.find(
+        (e) => e.from <= onDate,
+      );
+      if (era) return era.rate;
+    }
     return EstoniaCountryPlugin.VAT_RATES[vatCode] ?? 0;
   }
 
@@ -595,6 +847,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   classifyKmd(vatCode: string): KmdBaseClassification {
     const none: KmdBaseClassification = {
       outputBaseRow: null,
+      outputSubRow: null,
       acquisitionRow: null,
       vdCode: null,
       review: null,
@@ -606,12 +859,19 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       case 'EE_OUTPUT_9':
         return { ...none, outputBaseRow: 2 };
       case 'EE_OUTPUT_0_EU':
-        return { ...none, outputBaseRow: 3, vdCode: '3S' };
+        // Row 3, and within it row 3.1 (supplies to a taxable person of another
+        // member state) — plus the VD koondaruanne under tähis 3S.
+        return { ...none, outputBaseRow: 3, outputSubRow: '3.1', vdCode: '3S' };
+      case 'EE_OUTPUT_0_3RD_COUNTRY':
+        // Row 3 only: a third-country supply is not intra-Community, so it
+        // never reaches row 3.1 or the VD.
+        return { ...none, outputBaseRow: 3 };
       case 'EE_ZERO':
         return { ...none, outputBaseRow: 3 };
       case 'EE_REVERSE_CHARGE':
         return {
           outputBaseRow: 1,
+          outputSubRow: null,
           acquisitionRow: 7,
           vdCode: null,
           review:

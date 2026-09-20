@@ -70,6 +70,7 @@ describe('ClassifyExpenseSheet', () => {
         country: 'EE',
         name: 'Circle K Eesti AS',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.getExpenses).mockResolvedValue([
@@ -227,6 +228,7 @@ describe('ClassifyExpenseSheet', () => {
       country: 'EE',
       name: 'Citybee Eesti OÜ',
       goods_vs_services: null,
+      tax_status: null,
     });
     renderSheet();
     await screen.findByDisplayValue('48.20');
@@ -311,6 +313,7 @@ describe('ClassifyExpenseSheet', () => {
       country: 'EE',
       name: 'Citybee Eesti OÜ',
       goods_vs_services: null,
+      tax_status: null,
     });
     renderSheet();
     await screen.findByDisplayValue('48.20');

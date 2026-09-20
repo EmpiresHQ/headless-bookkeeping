@@ -24,6 +24,7 @@ const ROWS: Entity[] = [
     country: 'FI',
     name: 'Acme Oy',
     goods_vs_services: null,
+    tax_status: null,
   },
   {
     id: 3,
@@ -31,6 +32,7 @@ const ROWS: Entity[] = [
     country: 'EE',
     name: 'Mari Maasikas',
     goods_vs_services: null,
+    tax_status: null,
   },
 ] as Entity[];
 

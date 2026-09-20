@@ -90,6 +90,8 @@ const INVOICES = [
     document_id: null,
     status: 'posted',
     sent_at: null,
+    supply_type: null,
+    service_place_rule: 'general' as const,
     reconciled: false,
   },
 ];
@@ -101,6 +103,7 @@ const ENTITIES = [
     country: 'EE',
     name: 'AS Merko Ehitus',
     goods_vs_services: null,
+    tax_status: null,
   },
   {
     id: 9,
@@ -108,6 +111,7 @@ const ENTITIES = [
     country: 'EE',
     name: 'OÜ Klient',
     goods_vs_services: null,
+    tax_status: null,
   },
 ];
 

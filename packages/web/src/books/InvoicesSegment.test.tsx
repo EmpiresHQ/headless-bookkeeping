@@ -38,6 +38,8 @@ const INVOICES = [
     document_id: 5,
     status: 'draft',
     sent_at: null,
+    supply_type: null,
+    service_place_rule: 'general' as const,
     reconciled: false,
   },
 ];
@@ -48,6 +50,7 @@ const ENTITIES = [
     country: 'EE',
     name: 'Nordic Consulting OÜ',
     goods_vs_services: null,
+    tax_status: null,
   },
 ];
 

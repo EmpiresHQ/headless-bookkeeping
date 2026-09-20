@@ -51,6 +51,8 @@ function seed() {
       document_id: null,
       status: 'posted',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     },
   ] as never);
@@ -62,6 +64,7 @@ function seed() {
       country: 'EE',
       name: 'Nordic Consulting OÜ',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
 }
@@ -103,6 +106,7 @@ function seedExpenseNote() {
       country: 'EE',
       name: 'AS Merko Ehitus',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
 }

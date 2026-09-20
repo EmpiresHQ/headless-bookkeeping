@@ -36,6 +36,14 @@ export interface KmdDeclaration {
   row2_base_13: number;
   /** Row 3 — 0% supply base (intra-EU services, exports). */
   row3_base_zero: number;
+  /**
+   * Row 3.1 — the part of row 3 that is an intra-Community supply to a TAXABLE
+   * person of another member state (KMD field 3.1,
+   * `euSupplyInclGoodsAndServicesZeroVat`). A third-country 0% supply belongs
+   * to row 3 and NOT here: 3.1 is a statement about supplies to other member
+   * states, and the two zeros are reported differently (issue #209).
+   */
+  row3_1_intra_eu_supply: number;
   /** Row 4 — total output VAT due (from VAT_PAYABLE control lines). */
   row4_output_vat: number;
   /** Row 5 — total deductible input VAT (from VAT_RECEIVABLE control lines). */

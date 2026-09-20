@@ -28,6 +28,14 @@ import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { validateAgainstKmdXsd } from '../plugins/estonia-kmd/xsd-validate';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+const xsd = readFileSync(
+  join(__dirname, '../../test/fixtures/vatdeclaration.xsd'),
+  'utf8',
+);
 
 /**
  * Issue #200 — the filing state a period is closed against must be complete,
@@ -599,6 +607,143 @@ describe('Filing-state consistency (issue #200)', () => {
   });
 
   // ── Immutability of the new table ────────────────────────────────────────
+
+  // ── Issue #209: a payload frozen BEFORE KMD field 3.1 had its own row ─────
+
+  /**
+   * Freeze a payload the way the pre-#209 code did: identical in every respect
+   * except that `declaration.row3_1_intra_eu_supply` does not exist, because
+   * the field did not exist. The stored row is APPENDED, never edited — the
+   * existing rows are immutable by trigger, and this test does not touch them.
+   */
+  async function freezeLegacyPayload(): Promise<{
+    legacyVersionId: number;
+    currentVersionId: number;
+  }> {
+    const current = await db
+      .selectFrom('statutory_filing_snapshot')
+      .selectAll()
+      .orderBy('id', 'desc')
+      .executeTakeFirstOrThrow();
+    const payload = JSON.parse(current.payload) as {
+      declaration: Record<string, unknown>;
+    };
+    delete payload.declaration.row3_1_intra_eu_supply;
+    const legacy = await db
+      .insertInto('statutory_filing_snapshot')
+      .values({
+        reporting_period_id: current.reporting_period_id,
+        vat_report_id: current.vat_report_id,
+        report_kind: current.report_kind,
+        country: current.country,
+        payload: JSON.stringify(payload),
+        reason: current.reason,
+        created_at: current.created_at,
+      } as never)
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    return { legacyVersionId: legacy.id, currentVersionId: current.id };
+  }
+
+  it('renders a pre-3.1 frozen payload byte-identically and XSD-valid — non-zero intra-EU', async () => {
+    // An intra-EU B2B service sale (0%, KMD rows 3 + 3.1, VD 3S) plus a
+    // domestic sale, so both the 3.1 box and the 24% box carry figures.
+    const fiCustomer = await db
+      .insertInto('entity')
+      .values({
+        role: 'customer',
+        country: 'FI',
+        name: 'Suomi Oy',
+        goods_vs_services: 'services',
+        tax_status: 'taxable_business',
+        created_at: 0,
+        updated_at: 0,
+      } as never)
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    const euInvoice = await salesInvoices.createInvoice({
+      customer_id: fiCustomer.id,
+      invoice_number: 'EU-SERVICE',
+      gross_amount: 10000,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2024-02-15',
+      supply_type: 'services',
+    });
+    const euDraft = await salesInvoices.generateDraftVoucher(euInvoice.id);
+    const euPosted = await posting.postVoucher(euDraft);
+    await salesInvoices.updateInvoiceStatus(
+      euInvoice.id,
+      'posted',
+      euPosted.id,
+    );
+    await postSale({ invoiceNumber: 'DOMESTIC', net: 20000 });
+
+    await periods.lock(PERIOD_ID);
+    const { legacyVersionId, currentVersionId } = await freezeLegacyPayload();
+
+    const renderOf = async (versionId: number) => {
+      const res = await statutory.generate(PERIOD_ID, {
+        formats: ['xml', 'csv'],
+        filingVersionId: versionId,
+      });
+      return {
+        xml: res.artifacts.find((a) => a.filename.endsWith('.xml'))!.content,
+        csv: res.artifacts.find((a) => a.filename.endsWith('.csv'))!.content,
+      };
+    };
+
+    const legacy = await renderOf(legacyVersionId);
+    const currentRender = await renderOf(currentVersionId);
+
+    // The figure the box was always rendered from is reproduced exactly…
+    expect(legacy.xml).toContain(
+      '<euSupplyInclGoodsAndServicesZeroVat>100.00</euSupplyInclGoodsAndServicesZeroVat>',
+    );
+    expect(legacy.xml).not.toContain('NaN');
+    expect(legacy.csv).not.toContain('NaN');
+    // …and the whole artifact is byte-identical to the current-format render.
+    expect(legacy.xml).toBe(currentRender.xml);
+    expect(legacy.csv).toBe(currentRender.csv);
+    expect(validateAgainstKmdXsd(legacy.xml, xsd)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('renders a pre-3.1 frozen payload byte-identically — zero intra-EU', async () => {
+    // Nothing intra-EU at all: the box must stay ABSENT, not become NaN.
+    await postSale({ invoiceNumber: 'DOMESTIC-ONLY', net: 20000 });
+    await periods.lock(PERIOD_ID);
+    const { legacyVersionId, currentVersionId } = await freezeLegacyPayload();
+
+    const render = async (versionId: number) =>
+      (
+        await statutory.generate(PERIOD_ID, {
+          formats: ['xml', 'csv'],
+          filingVersionId: versionId,
+        })
+      ).artifacts;
+
+    const legacy = await render(legacyVersionId);
+    const currentRender = await render(currentVersionId);
+    const xml = legacy.find((a) => a.filename.endsWith('.xml'))!.content;
+    const csv = legacy.find((a) => a.filename.endsWith('.csv'))!.content;
+
+    expect(xml).not.toContain('euSupplyInclGoodsAndServicesZeroVat');
+    expect(xml).not.toContain('NaN');
+    expect(csv).not.toContain('NaN');
+    expect(xml).toBe(
+      currentRender.find((a) => a.filename.endsWith('.xml'))!.content,
+    );
+    expect(csv).toBe(
+      currentRender.find((a) => a.filename.endsWith('.csv'))!.content,
+    );
+    expect(validateAgainstKmdXsd(xml, xsd)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
 
   it('statutory_filing_snapshot rows reject UPDATE and DELETE', async () => {
     await postSale({ invoiceNumber: 'A', net: 10000 });

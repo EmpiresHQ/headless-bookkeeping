@@ -48,6 +48,7 @@ function mockApiFetch() {
         role: 'employee',
         country: 'EE',
         goods_vs_services: null,
+        tax_status: null,
         identifiers: [],
       });
     if (url.includes('/api/entities')) return json({ entities: [] });

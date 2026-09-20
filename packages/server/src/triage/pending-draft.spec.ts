@@ -28,6 +28,7 @@ const supplier = (
   country: 'EE',
   name: 'Citybee Eesti OÜ',
   goods_vs_services: null,
+  tax_status: null,
   created_at: null,
   updated_at: null,
   identifiers: [],

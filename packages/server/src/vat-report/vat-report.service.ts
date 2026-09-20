@@ -532,6 +532,7 @@ export class VatReportService {
       row2_base_9: 0,
       row2_base_13: 0,
       row3_base_zero: 0,
+      row3_1_intra_eu_supply: 0,
       row4_output_vat: 0,
       row5_input_vat: 0,
       row6_intra_eu_acquisition: 0,
@@ -576,6 +577,9 @@ export class VatReportService {
           break;
         case 3:
           d.row3_base_zero += base;
+          // Within row 3, the plugin names the sub-row (EE: '3.1') when the
+          // supply is an intra-Community one. A third-country export names none.
+          if (k.outputSubRow === '3.1') d.row3_1_intra_eu_supply += base;
           break;
       }
       if (k.acquisitionRow === 6) d.row6_intra_eu_acquisition += base;

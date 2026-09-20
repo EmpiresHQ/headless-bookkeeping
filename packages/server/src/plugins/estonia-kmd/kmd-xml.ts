@@ -102,7 +102,10 @@ export function renderKmdXml(input: StatutoryReportInput): string {
     ['transactions9', d.row2_base_9],
     ['transactions13', d.row2_base_13],
     ['transactionsZeroVat', d.row3_base_zero],
-    ['euSupplyInclGoodsAndServicesZeroVat', d.vd_intra_eu_services],
+    // KMD field 3.1 — intra-Community supply to a taxable person of another
+    // member state. Fed by its own declaration row, NOT by the VD total: a
+    // third-country 0% service reaches row 3 and must not appear here.
+    ['euSupplyInclGoodsAndServicesZeroVat', d.row3_1_intra_eu_supply],
     ['inputVatTotal', d.row5_input_vat],
     ['euAcquisitionsGoodsAndServicesTotal', d.row6_intra_eu_acquisition],
     ['acquisitionOtherGoodsAndServicesTotal', d.row7_other_acquisition],

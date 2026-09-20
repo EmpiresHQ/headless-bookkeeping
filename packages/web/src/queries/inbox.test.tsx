@@ -137,6 +137,7 @@ describe('approvalDisplay', () => {
       country: 'EE',
       name: 'Telia Eesti AS',
       goods_vs_services: null,
+      tax_status: null,
     },
     {
       id: 4,
@@ -144,6 +145,7 @@ describe('approvalDisplay', () => {
       country: 'EE',
       name: 'Nordic Consulting',
       goods_vs_services: null,
+      tax_status: null,
     },
   ];
   const expenses: Expense[] = [
@@ -173,6 +175,8 @@ describe('approvalDisplay', () => {
       document_id: null,
       status: 'pending',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     },
   ];

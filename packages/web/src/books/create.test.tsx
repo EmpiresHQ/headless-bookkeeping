@@ -126,6 +126,7 @@ describe('create flows', () => {
         country: 'EE',
         name: 'Mari Maasikas',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(uploadDocument).mockResolvedValue({
@@ -161,6 +162,7 @@ describe('create flows', () => {
         country: 'EE',
         name: 'X',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     mount(<UploadSheet open onOpenChange={() => undefined} />);

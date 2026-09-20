@@ -72,6 +72,7 @@ import * as m072 from './072_create_fx_reference_rate';
 import * as m073 from './073_add_voucher_line_fx_provenance';
 import * as m074 from './074_add_reporting_period_kind';
 import * as m075 from './075_create_fixed_asset_depreciation';
+import * as m076 from './076_add_service_place_of_supply_facts';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -147,4 +148,5 @@ export const migrations: Record<string, Migration> = {
   '073_add_voucher_line_fx_provenance': m073,
   '074_add_reporting_period_kind': m074,
   '075_create_fixed_asset_depreciation': m075,
+  '076_add_service_place_of_supply_facts': m076,
 };

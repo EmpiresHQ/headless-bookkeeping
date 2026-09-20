@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Param,
   Body,
@@ -10,7 +11,11 @@ import {
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
-import { CreateSalesInvoiceDto, SalesInvoicePostOverrideDto } from './types';
+import {
+  CreateSalesInvoiceDto,
+  PatchSalesInvoiceDraftDto,
+  SalesInvoicePostOverrideDto,
+} from './types';
 import type { SalesInvoice } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { isInvoiceNumberConflict } from './sales-invoices.service';
@@ -64,6 +69,30 @@ export class SalesInvoicesController {
     }
   }
 
+  /**
+   * Correct a DRAFT invoice's amounts and supply facts, then post it again.
+   *
+   * The supported remedy for the 422 refusals a service sale can hit (issue
+   * #209) — a wrongly stated `supply_type` / `service_place_rule`, or a VAT
+   * amount that contradicts the resolved treatment. Draft/pending only; a
+   * posted invoice is 409 (its voucher is immutable — reverse it instead).
+   */
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Patch a draft sales invoice',
+    description:
+      'Correct a draft (or pending) invoice: gross_amount, vat_amount, ' +
+      'supply_type, service_place_rule. A pending invoice returns to draft and ' +
+      'its approval is superseded. Posted/reversed -> 409.',
+  })
+  @ApiParam({ name: 'id', description: 'Sales invoice id' })
+  async patchDraft(
+    @Param('id') id: string,
+    @Body() dto: PatchSalesInvoiceDraftDto,
+  ): Promise<SalesInvoice> {
+    return this.salesInvoicesService.updateDraft(Number(id), dto);
+  }
+
   @Post(':id/generate-draft')
   @ApiOperation({
     summary: 'Generate a draft voucher for a sales invoice',
@@ -107,11 +136,24 @@ export class SalesInvoicesController {
   ) {
     const invoiceId = Number(id);
 
+    // Taken BEFORE the draft is generated: whatever changes from here on — the
+    // invoice's amounts or supply facts, the customer's country or tax status —
+    // makes the prepared entry stale, and the pipeline refuses inside its own
+    // transaction rather than posting facts nobody holds any more (issue #209).
+    const factsAtDraftTime =
+      await this.salesInvoicesService.draftFactsFingerprint(invoiceId);
+
     const result = await this.pipeline.runPipeline({
       businessObjectId: invoiceId,
       businessObjectType: 'sales_invoice',
       draftGenerator: () =>
         this.salesInvoicesService.generateDraftVoucher(invoiceId),
+      assertFactsUnchanged: (trx) =>
+        this.salesInvoicesService.assertDraftFactsUnchangedTx(
+          trx,
+          invoiceId,
+          factsAtDraftTime,
+        ),
       category: 'revenue',
       refetch: () => this.salesInvoicesService.getInvoiceById(invoiceId),
       override:

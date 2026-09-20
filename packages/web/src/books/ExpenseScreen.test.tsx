@@ -80,6 +80,7 @@ function mountAt(
       country: 'EE',
       name: 'AS Merko Ehitus',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
   vi.mocked(getDocuments).mockResolvedValue([
@@ -286,6 +287,7 @@ describe('ExpenseScreen', () => {
         country: 'EE',
         name: 'AS Merko Ehitus',
         goods_vs_services: null,
+        tax_status: null,
       },
     ] as never);
     vi.mocked(getDocuments).mockResolvedValue([

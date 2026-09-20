@@ -34,6 +34,14 @@ export interface KmdBaseClassification {
   /** Output käive row the base feeds (EE: 1 = 24%, 2 = 9%, 3 = 0%). */
   outputBaseRow: number | null;
   /**
+   * Sub-row of {@link outputBaseRow} the base ALSO feeds, when the form breaks
+   * the row down further (EE: '3.1' — the part of the 0% käive that is an
+   * intra-Community supply to a taxable person of another member state). Null
+   * when the row has no applicable breakdown: a third-country 0% supply sits in
+   * row 3 and in no sub-row.
+   */
+  outputSubRow: string | null;
+  /**
    * Acquisition base row for a reverse-charge PURCHASE (EE: 6 = goods/services
    * from another member state, 7 = other acquisition taxed by reverse charge,
    * e.g. an imported non-EU service).
@@ -52,8 +60,16 @@ export interface KmdBaseClassification {
  * cannot reach the resolution/posting methods of the full CountryPlugin.
  */
 export interface CountryPluginRetrieval {
-  /** Numeric VAT rate (0.0–1.0) for a plugin VAT code. 0 for zero/exempt/sentinel. */
-  getVatRate(vatCode: VATCode): number;
+  /**
+   * Numeric VAT rate (0.0–1.0) for a plugin VAT code. 0 for zero/exempt/sentinel.
+   *
+   * `onDate` (YYYY-MM-DD, normally a tax-point date) asks for the rate that was
+   * IN FORCE on that day rather than today's. A jurisdiction whose standard
+   * rate has changed answers from its own effective-date history, so a
+   * back-dated document is checked against the rate that actually governed it.
+   * Omitting it keeps the current rate — every pre-existing caller is unchanged.
+   */
+  getVatRate(vatCode: VATCode, onDate?: string): number;
 
   /** Pure VAT arithmetic on a net amount (minor units) under a VAT code. */
   computeVat(netMinorUnits: number, vatCode: VATCode): VatComputation;

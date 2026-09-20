@@ -152,6 +152,9 @@ describe('ProposeDraftService (integration)', () => {
             generateDraftVoucher: jest.fn(),
             getInvoiceById: jest.fn(),
             findByDocumentId: jest.fn(),
+            // The staleness guard the pipeline is handed (issue #209).
+            draftFactsFingerprint: jest.fn().mockResolvedValue('facts-v1'),
+            assertDraftFactsUnchangedTx: jest.fn(),
           },
         },
         ProposeDraftService,

@@ -192,6 +192,7 @@ describe('EntityScreen (asset §8 card)', () => {
         name: 'Circle K AS',
         country: 'EE',
         goodsVsServices: 'goods',
+        taxStatus: 'unknown',
       }),
     );
   });
@@ -233,6 +234,7 @@ describe('EntityScreen (asset §8 card)', () => {
       country: 'EE',
       name: 'Mari Maasikas',
       goods_vs_services: null,
+      tax_status: null,
       identifiers: [
         {
           id: 5,

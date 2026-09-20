@@ -123,7 +123,11 @@ describe('settlement atomicity and legacy repair (#202)', () => {
       country: 'IE',
       name: `Cust ${counter}`,
       registrationKey: `IE${3000000 + counter}T`,
-      goodsVsServices: 'services',
+      // A goods customer: these suites are about settlement and FX, not about
+      // the place of supply of services (issue #209 — a SERVICE sale to a
+      // foreign customer needs a recorded tax status, and its stated tax must
+      // match the derived rate; both are exercised in their own suites).
+      goodsVsServices: 'goods',
     });
     return c.id;
   }
