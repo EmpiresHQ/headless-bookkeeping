@@ -1,3 +1,5 @@
+import { HttpException, HttpStatus } from '@nestjs/common';
+
 /**
  * The FX rate seam (issue #203).
  *
@@ -96,23 +98,90 @@ export const IDENTITY_RATE_SOURCE = 'identity';
 export const BANK_STATEMENT_RATE_SOURCE = 'bank_statement';
 
 /**
+ * Why no rate could be established. The distinction is actionable, not
+ * decorative: an operator retries an outage and does something else entirely
+ * about a currency the authority does not quote.
+ */
+export type FxRateUnavailableReason =
+  /** The authority does not quote this pair at all. Retrying will not help. */
+  | 'unsupported_pair'
+  /** The authority quotes the pair, but published nothing governing this date. */
+  | 'no_rate_for_date'
+  /** The authority could not be reached, or answered unusably. Retryable. */
+  | 'upstream_unavailable'
+  /** The wiring disagrees with the plugin's declared policy. An operator fix. */
+  | 'misconfigured';
+
+/** Stable machine-readable discriminator on the HTTP body. */
+export const FX_RATE_UNAVAILABLE_CODE = 'FX_RATE_UNAVAILABLE';
+
+const STATUS_BY_REASON: Record<FxRateUnavailableReason, HttpStatus> = {
+  // Well-formed request, but the conversion it asks for cannot be performed
+  // from any authoritative source. Not the caller's syntax, not our fault,
+  // not fixable by retrying — 422.
+  unsupported_pair: HttpStatus.UNPROCESSABLE_ENTITY,
+  no_rate_for_date: HttpStatus.UNPROCESSABLE_ENTITY,
+  // A dependency is down. Same request may well succeed later — 503.
+  upstream_unavailable: HttpStatus.SERVICE_UNAVAILABLE,
+  misconfigured: HttpStatus.INTERNAL_SERVER_ERROR,
+};
+
+const RETRYABLE_BY_REASON: Record<FxRateUnavailableReason, boolean> = {
+  unsupported_pair: false,
+  no_rate_for_date: false,
+  upstream_unavailable: true,
+  misconfigured: false,
+};
+
+/**
  * No authoritative rate could be established for the requested pair and date.
  *
  * This is deliberately a hard failure with no fallback value. Acceptance
  * criterion (#203): when no supported rate is available the conversion is held
  * or rejected — never silently completed with a latest/current/constant rate,
  * which would post an unsupported base amount into an immutable ledger.
+ *
+ * It is an `HttpException` because a missing rate is an EXPECTED domain
+ * outcome, not a crash. As a plain `Error` it fell through the catch-all
+ * filter as an opaque 500 ("Internal server error"), which tells an operator
+ * nothing about which pair, which date, or whether retrying would help — and
+ * made intake log it as an unforeseen fault. Services in this codebase already
+ * throw `BadRequestException` / `ConflictException` directly (PostingService,
+ * PrepaymentService), so carrying the HTTP semantics on the domain error is
+ * the established idiom here rather than a new coupling.
+ *
+ * The body is stable and machine-readable: `code`, `reason`, the pair, the
+ * date and `retryable`. Nothing about it invites a fallback; it says what
+ * could not be done and whether trying again is worthwhile.
  */
-export class FxRateUnavailableError extends Error {
+export class FxRateUnavailableError extends HttpException {
+  readonly code = FX_RATE_UNAVAILABLE_CODE;
+  readonly retryable: boolean;
+
   constructor(
     readonly fromCurrency: string,
     readonly toCurrency: string,
     readonly date: string,
     readonly detail: string,
+    readonly reason: FxRateUnavailableReason = 'no_rate_for_date',
   ) {
+    const message = `No authoritative FX rate for ${fromCurrency} → ${toCurrency} on ${date}: ${detail}`;
+    const status = STATUS_BY_REASON[reason];
     super(
-      `No authoritative FX rate for ${fromCurrency} → ${toCurrency} on ${date}: ${detail}`,
+      {
+        statusCode: status,
+        error: 'FX rate unavailable',
+        code: FX_RATE_UNAVAILABLE_CODE,
+        reason,
+        fromCurrency,
+        toCurrency,
+        date,
+        retryable: RETRYABLE_BY_REASON[reason],
+        message,
+      },
+      status,
     );
     this.name = 'FxRateUnavailableError';
+    this.retryable = RETRYABLE_BY_REASON[reason];
   }
 }

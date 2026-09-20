@@ -101,8 +101,18 @@ describe('EcbFxRateSource', () => {
     expect(obs).toMatchObject({ rateDate: '2026-09-01', rate: 1.1655 });
   });
 
-  it('an empty result set is "nothing published", not an error', async () => {
-    // A window that is entirely TARGET closing days answers with a header only.
+  it('an EMPTY BODY is the ECB\'s own "nothing published", and is honoured', async () => {
+    // Verified live 2026-09-20: a window that is entirely TARGET closing days
+    // (2020-01-01) answers HTTP 200 with a zero-byte body — not a header, not
+    // an error. That is the authority saying nothing happened.
+    respond('');
+
+    await expect(
+      source.fetchObservations('USD', '2020-01-01', '2020-01-01'),
+    ).resolves.toEqual([]);
+  });
+
+  it('a header-only CSV is also an empty result set', async () => {
     respond(HEADER);
 
     await expect(
@@ -110,7 +120,7 @@ describe('EcbFxRateSource', () => {
     ).resolves.toEqual([]);
   });
 
-  it('skips a row with no observed value rather than reading it as zero', async () => {
+  it('skips a published-but-blank observation — the one thing SDMX may omit', async () => {
     respond(
       [HEADER, row('2026-09-01', ''), row('2026-09-02', '1.1650')].join('\n'),
     );
@@ -125,37 +135,108 @@ describe('EcbFxRateSource', () => {
     ]);
   });
 
-  it('a currency the ECB does not quote (404) is an explicit unavailability', async () => {
-    respond('', 404);
+  describe('a 200 that is not a usable answer is REFUSED, never read as silence', () => {
+    // The distinction matters because the two are indistinguishable downstream:
+    // "nothing published" lets an older cached rate stand in and records the
+    // window as covered, so a junk response would pin a stale rate over a date
+    // that was never actually answered.
 
-    await expect(
-      source.fetchObservations('XYZ', '2026-09-01', '2026-09-01'),
-    ).rejects.toThrow(/does not quote XYZ/);
+    it('an HTML error page served with HTTP 200', async () => {
+      respond('<html><body>Service temporarily unavailable</body></html>');
+
+      const err = await source
+        .fetchObservations('USD', '2026-03-02', '2026-03-09')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(FxRateUnavailableError);
+      expect((err as FxRateUnavailableError).reason).toBe(
+        'upstream_unavailable',
+      );
+      expect((err as FxRateUnavailableError).retryable).toBe(true);
+    });
+
+    it('a body whose header names neither TIME_PERIOD nor OBS_VALUE', async () => {
+      respond(['SOMETHING,ELSE', 'a,b'].join('\n'));
+
+      await expect(
+        source.fetchObservations('USD', '2026-09-01', '2026-09-01'),
+      ).rejects.toThrow(/not the expected CSV/);
+    });
+
+    it('a row carrying an unreadable date', async () => {
+      respond([HEADER, row('not-a-date', '1.1655')].join('\n'));
+
+      await expect(
+        source.fetchObservations('USD', '2026-09-01', '2026-09-01'),
+      ).rejects.toThrow(/unreadable date/);
+    });
+
+    it('a row carrying a non-numeric value', async () => {
+      respond([HEADER, row('2026-09-01', 'n/a')].join('\n'));
+
+      await expect(
+        source.fetchObservations('USD', '2026-09-01', '2026-09-01'),
+      ).rejects.toThrow(/unusable value/);
+    });
+
+    it('a row for a currency we did not ask about', async () => {
+      respond([HEADER, row('2026-09-01', '0.8672', 'GBP')].join('\n'));
+
+      await expect(
+        source.fetchObservations('USD', '2026-09-01', '2026-09-01'),
+      ).rejects.toThrow(/returned currency "GBP"/);
+    });
+
+    it('condemns the WHOLE response, not just the bad row', async () => {
+      // A partial read is not a safer read: the row we dropped may be the very
+      // date the caller asked about, and the caller cannot tell.
+      respond(
+        [HEADER, row('2026-09-01', '1.1655'), row('2026-09-02', 'oops')].join(
+          '\n',
+        ),
+      );
+
+      await expect(
+        source.fetchObservations('USD', '2026-09-01', '2026-09-02'),
+      ).rejects.toThrow(FxRateUnavailableError);
+    });
   });
 
-  it('an upstream error status is reported, never softened into a rate', async () => {
-    respond('', 503);
+  describe('failure classification is actionable', () => {
+    it('a currency the ECB does not quote (404) is unsupported, not retryable', async () => {
+      // Verified live: D.XYZ.EUR.SP00.A answers 404 "No Series was returned".
+      respond('', 404);
 
-    const err = await source
-      .fetchObservations('USD', '2026-09-01', '2026-09-01')
-      .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(FxRateUnavailableError);
-    expect((err as Error).message).toMatch(/503/);
-  });
+      const err = await source
+        .fetchObservations('XYZ', '2026-09-01', '2026-09-01')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(FxRateUnavailableError);
+      expect((err as FxRateUnavailableError).reason).toBe('unsupported_pair');
+      expect((err as FxRateUnavailableError).retryable).toBe(false);
+      expect((err as FxRateUnavailableError).getStatus()).toBe(422);
+    });
 
-  it('an unreachable endpoint is reported, never softened into a rate', async () => {
-    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    it('an upstream error status is an outage — retryable, 503', async () => {
+      respond('', 503);
 
-    await expect(
-      source.fetchObservations('USD', '2026-09-01', '2026-09-01'),
-    ).rejects.toThrow(FxRateUnavailableError);
-  });
+      const err = await source
+        .fetchObservations('USD', '2026-09-01', '2026-09-01')
+        .catch((e: unknown) => e);
+      expect((err as FxRateUnavailableError).reason).toBe(
+        'upstream_unavailable',
+      );
+      expect((err as FxRateUnavailableError).retryable).toBe(true);
+      expect((err as FxRateUnavailableError).getStatus()).toBe(503);
+    });
 
-  it('an unusable response shape is refused rather than silently read as empty', async () => {
-    respond(['SOMETHING,ELSE', 'a,b'].join('\n'));
+    it('an unreachable endpoint is an outage too, never a substituted rate', async () => {
+      fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    await expect(
-      source.fetchObservations('USD', '2026-09-01', '2026-09-01'),
-    ).rejects.toThrow(/TIME_PERIOD/);
+      const err = await source
+        .fetchObservations('USD', '2026-09-01', '2026-09-01')
+        .catch((e: unknown) => e);
+      expect((err as FxRateUnavailableError).reason).toBe(
+        'upstream_unavailable',
+      );
+    });
   });
 });

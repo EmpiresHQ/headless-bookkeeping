@@ -1,7 +1,4 @@
-import {
-  BANK_STATEMENT_RATE_SOURCE,
-  IDENTITY_RATE_SOURCE,
-} from '../fx/fx-rate.types';
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
@@ -169,12 +166,16 @@ export class SettlementVoucherService {
       amount: bankAmount,
       currency: txn.account_currency ?? txn.currency,
       base_amount: cashBase,
-      // The cash leg's rate is the BANK's own, derived from what the statement
-      // line actually moved — not a reference rate (ADR-0004, Wave-5). Labelled
-      // as such so it is never mistaken for an ECB observation (issue #203).
+      // The cash leg's provenance is whatever actually valued it, carried
+      // through from the slice (issue #203): the bank's own conversion when
+      // the statement is kept in base currency, and the prescribed reference
+      // rate — with the publication date really in force, which on a weekend
+      // is the preceding Friday's — when it is kept in a foreign account.
+      // Claiming "bank rate, transaction date" for both was false in the
+      // second case and threw away the publication date.
       fx_rate: cashBase / bankAmount,
-      fx_rate_date: txn.transaction_date,
-      fx_rate_source: BANK_STATEMENT_RATE_SOURCE,
+      fx_rate_date: slice.valuation.date,
+      fx_rate_source: slice.valuation.source,
       is_debit: leg.openedAsDebit, // an AR receipt debits the bank
     };
 

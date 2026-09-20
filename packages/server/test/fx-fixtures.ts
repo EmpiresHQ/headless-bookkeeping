@@ -52,8 +52,21 @@ export class FixtureFxRateSource implements FxRateSource {
       ...new Set(rates.map((r) => r.quoteCurrency)),
     ],
     /** When set, every fetch fails with it — the "upstream is down" case. */
-    private readonly failWith?: string,
+    private failWith?: string,
   ) {}
+
+  /**
+   * Start (or stop) failing. Lets a test walk the sequence an operator really
+   * sees: a bad answer, a refusal, then a retry once upstream recovers.
+   */
+  setFailure(detail: string | null): void {
+    this.failWith = detail ?? undefined;
+  }
+
+  /** Add a publication that did not exist when the source was constructed. */
+  publish(rate: FixtureRate): void {
+    this.rates.push(rate);
+  }
 
   fetchObservations(
     quoteCurrency: string,
@@ -69,6 +82,7 @@ export class FixtureFxRateSource implements FxRateSource {
           this.baseCurrency,
           toDate,
           this.failWith,
+          'upstream_unavailable',
         ),
       );
     }
@@ -79,6 +93,7 @@ export class FixtureFxRateSource implements FxRateSource {
           this.baseCurrency,
           toDate,
           `fixture authority does not quote ${quoteCurrency}`,
+          'unsupported_pair',
         ),
       );
     }

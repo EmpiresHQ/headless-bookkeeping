@@ -191,6 +191,7 @@ export class NullCountryPlugin implements CountryPlugin {
         date,
         'the neutral country plugin declares no rate authority; register a ' +
           'country plugin for this deployment',
+        'unsupported_pair',
       ),
     );
   }

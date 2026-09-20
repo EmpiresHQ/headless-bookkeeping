@@ -1,3 +1,4 @@
+import { FxRateUnavailableError } from '../fx/fx-rate.types';
 import {
   Injectable,
   Logger,
@@ -584,6 +585,29 @@ export class IntakeWorkflowService {
           );
       }
     } catch (err) {
+      // A missing reference rate is an EXPECTED outcome, not a fault (issue
+      // #203): the document is in a currency we cannot authoritatively value
+      // on its own tax-point date. It is HELD — routed to needs_triage with a
+      // reason a human can act on — and no voucher is posted at any rate we
+      // made up. Reporting it as an unforeseen fault would bury the one piece
+      // of information that makes it fixable.
+      if (err instanceof FxRateUnavailableError) {
+        this.logger.warn(
+          `Document ${documentId} held: ${err.message} ` +
+            `(reason=${err.reason}, retryable=${String(err.retryable)})`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          err.retryable
+            ? `Currency conversion is on hold: the ${err.fromCurrency}→${err.toCurrency} ` +
+                `reference rate for ${err.date} could not be fetched right now ` +
+                `(${err.detail}). Retry once the rate source is reachable.`
+            : `Cannot value this document: no authoritative ${err.fromCurrency}→${err.toCurrency} ` +
+                `reference rate governs ${err.date} (${err.detail}). Confirm the ` +
+                `currency and tax-point date, or book it manually.`,
+        );
+      }
+
       // Safety net (ADR-0024): no fault may leave the document stranded in
       // `pending`. Any unforeseen throw during OCR / classification / routing
       // routes the document to needs_triage with the error surfaced, so a human

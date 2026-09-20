@@ -23,7 +23,25 @@ is warranted, is **appended** through the ordinary corrections flow.
 - Each posted line records **which publication was applied**: `fx_rate`,
   `fx_rate_date` and `fx_rate_source` on `voucher_line`.
 - When no supported rate governs, the conversion is **refused** — the posting
-  is held rather than completed at a substituted rate.
+  is held rather than completed at a substituted rate. The refusal is
+  structured, not an opaque 500:
+
+  ```json
+  {
+    "statusCode": 422,
+    "code": "FX_RATE_UNAVAILABLE",
+    "reason": "no_rate_for_date",
+    "fromCurrency": "USD", "toCurrency": "EUR", "date": "2026-03-02",
+    "retryable": false,
+    "message": "No authoritative FX rate for USD → EUR on 2026-03-02: …"
+  }
+  ```
+
+  `reason` is `unsupported_pair` or `no_rate_for_date` (**422**, retrying will
+  not help) or `upstream_unavailable` (**503**, retry once the source is
+  reachable). A document arriving through intake is **held** — routed to
+  `needs_triage` with the same reason in plain words — and no voucher is
+  posted.
 
 ### Non-publication days, explicitly
 
@@ -142,6 +160,19 @@ books. Never:
 If the period is locked, the correction follows the locked-period path
 (ADR-0009 / ADR-0015) like any other post-lock adjustment; a period is never
 unlocked.
+
+## Reading `fx_rate_source` on a line
+
+| Value | Meaning |
+| --- | --- |
+| `ECB` | the prescribed reference rate, from the publication named in `fx_rate_date` |
+| `bank_statement` | the bank's own conversion, read off the statement line (a base-currency settlement leg) |
+| `identity` | no conversion happened — the amount was already in base currency |
+| `NULL` | posted before provenance existed; **not traceable**, and not to be back-filled |
+
+A settlement's cash leg on a **foreign** bank account carries `ECB`, not
+`bank_statement`: such a statement has no base figure of its own, so the cash
+is valued at the reference rate in force (ADR-0004).
 
 ## 4. After correcting
 

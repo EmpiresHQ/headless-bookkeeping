@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   FxObservation,
   FxRateSource,
@@ -19,6 +19,9 @@ const ECB_API_BASE = 'https://data-api.ecb.europa.eu/service/data/EXR';
 
 /** Wall-clock budget for one upstream call. */
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/** The only date shape SDMX uses for a daily series. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * EcbFxRateSource — the euro foreign exchange reference rates published by the
@@ -68,8 +71,6 @@ export class EcbFxRateSource implements FxRateSource {
   readonly sourceId = 'ECB';
   readonly baseCurrency = 'EUR';
 
-  private readonly logger = new Logger(EcbFxRateSource.name);
-
   async fetchObservations(
     quoteCurrency: string,
     fromDate: string,
@@ -91,12 +92,17 @@ export class EcbFxRateSource implements FxRateSource {
         this.baseCurrency,
         toDate,
         `ECB request failed: ${err instanceof Error ? err.message : String(err)}`,
+        'upstream_unavailable',
       );
     }
 
     // 404 is the ECB's answer for a series key it does not publish — i.e. a
     // currency it does not quote. That is "unsupported pair", not an outage,
     // but either way it is an explicit unavailability, never a fallback.
+    // 404 is the ECB's answer for a series key it does not publish — verified
+    // live: `D.XYZ.EUR.SP00.A` returns 404 "No Series was returned for the
+    // query". That is an unsupported pair, which retrying will not fix. Any
+    // other non-2xx is an outage, which retrying might.
     if (!response.ok) {
       throw new FxRateUnavailableError(
         quoteCurrency,
@@ -105,6 +111,7 @@ export class EcbFxRateSource implements FxRateSource {
         response.status === 404
           ? `ECB does not quote ${quoteCurrency}`
           : `ECB responded ${response.status}`,
+        response.status === 404 ? 'unsupported_pair' : 'upstream_unavailable',
       );
     }
 
@@ -113,34 +120,60 @@ export class EcbFxRateSource implements FxRateSource {
   }
 
   /**
-   * Parse the SDMX `csvdata` response. Columns are addressed BY NAME from the
-   * header row (the dataflow carries ~30 attribute columns whose order is not
-   * contractual), so an upstream column reshuffle cannot silently shift which
-   * field we read as the rate.
+   * Parse the SDMX `csvdata` response — and REFUSE anything it cannot vouch
+   * for, rather than reading it as "nothing published".
+   *
+   * The two outcomes look identical from the outside and mean opposite things.
+   * A genuine non-publication window (verified live: the whole of
+   * 2020-01-01, a TARGET closing day) answers HTTP 200 with an **entirely
+   * empty body** — so emptiness is the authority's real "nothing here", and is
+   * honoured. But a 200 carrying an error page, a truncated body or a garbled
+   * row is not the authority saying nothing happened; it is us not knowing.
+   * Treating the second as the first would let an older cached rate stand in
+   * for a date that was never truly answered, and — because the probe window
+   * would be recorded as covered — keep standing in after the authority
+   * recovered. That is the date-blind behaviour this issue removes, arriving
+   * through the back door.
+   *
+   * So: an empty body is `[]`; a header-only CSV is `[]`; anything else must
+   * present a header naming TIME_PERIOD and OBS_VALUE, and every data row must
+   * be trustworthy. One untrustworthy row condemns the whole response — a
+   * partial read is not a safer read when the missing part may be the date we
+   * were asked about.
    */
   private parseCsv(
     body: string,
     quoteCurrency: string,
     requestedTo: string,
   ): FxObservation[] {
-    const rows = body.split('\n').filter((line) => line.trim() !== '');
-    // An empty result set (no publication in the window) is a legitimate
-    // answer: header only, or a body with no rows at all.
-    if (rows.length <= 1) {
+    const unusable = (detail: string) =>
+      new FxRateUnavailableError(
+        quoteCurrency,
+        this.baseCurrency,
+        requestedTo,
+        detail,
+        'upstream_unavailable',
+      );
+
+    // The authority's own "nothing published in this window".
+    if (body.trim() === '') {
       return [];
     }
 
+    const rows = body.split('\n').filter((line) => line.trim() !== '');
     const header = rows[0].split(',').map((h) => h.trim());
     const dateIdx = header.indexOf('TIME_PERIOD');
     const valueIdx = header.indexOf('OBS_VALUE');
     const currencyIdx = header.indexOf('CURRENCY');
     if (dateIdx === -1 || valueIdx === -1) {
-      throw new FxRateUnavailableError(
-        quoteCurrency,
-        this.baseCurrency,
-        requestedTo,
-        'ECB response is missing TIME_PERIOD/OBS_VALUE columns',
+      throw unusable(
+        'ECB response is not the expected CSV (no TIME_PERIOD/OBS_VALUE header)',
       );
+    }
+
+    // Header present but no data rows: a legitimate empty result set.
+    if (rows.length === 1) {
+      return [];
     }
 
     const observations: FxObservation[] = [];
@@ -148,21 +181,34 @@ export class EcbFxRateSource implements FxRateSource {
       const cells = this.splitCsvRow(row);
       const rateDate = cells[dateIdx]?.trim();
       const raw = cells[valueIdx]?.trim();
-      const rate = Number(raw);
 
-      // A published-but-empty observation happens in SDMX (OBS_STATUS flags a
-      // non-published day). Skip it rather than coercing '' to 0 — a zero rate
-      // would be an unsupported base amount, and CHECK(rate > 0) exists to
-      // make sure one never reaches the cache.
-      if (!rateDate || raw === '' || !Number.isFinite(rate) || rate <= 0) {
-        continue;
+      if (rateDate === undefined || raw === undefined) {
+        throw unusable(`ECB row is missing its date or value column: "${row}"`);
+      }
+      if (!ISO_DATE.test(rateDate)) {
+        throw unusable(`ECB row carries an unreadable date "${rateDate}"`);
       }
       if (currencyIdx !== -1 && cells[currencyIdx]?.trim() !== quoteCurrency) {
-        this.logger.warn(
-          `ECB returned currency ${cells[currencyIdx]} for a ${quoteCurrency} query; row ignored`,
+        throw unusable(
+          `ECB returned currency "${cells[currencyIdx]}" for a ${quoteCurrency} query`,
         );
+      }
+
+      // A published-but-empty observation is legitimate SDMX: OBS_STATUS flags
+      // a day with no figure. It contributes nothing and is skipped — this is
+      // the ONE thing that may be passed over, because the authority is
+      // explicitly saying there is no value for that date.
+      if (raw === '') {
         continue;
       }
+
+      const rate = Number(raw);
+      if (!Number.isFinite(rate) || rate <= 0) {
+        throw unusable(
+          `ECB row for ${rateDate} carries an unusable value "${raw}"`,
+        );
+      }
+
       observations.push({
         baseCurrency: this.baseCurrency,
         quoteCurrency,

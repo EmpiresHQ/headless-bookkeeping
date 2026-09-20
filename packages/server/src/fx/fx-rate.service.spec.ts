@@ -123,7 +123,7 @@ describe('FxRateService', () => {
     it('exact refuses a non-publication day outright', async () => {
       await expect(
         service.resolve('USD', 'EUR', '2026-03-08', EXACT),
-      ).rejects.toThrow(/published no rate on 2026-03-08/);
+      ).rejects.toThrow(/published no EUR\/USD rate on 2026-03-08/);
       await expect(
         service.resolve('USD', 'EUR', '2026-03-06', EXACT),
       ).resolves.toMatchObject({ rateDate: '2026-03-06' });
@@ -235,11 +235,104 @@ describe('FxRateService', () => {
     });
   });
 
+  describe('an unusable upstream answer does not poison the date', () => {
+    // The failure this guards is quiet and long-lived: if a malformed 200 were
+    // read as "nothing published", the probe window would be recorded as
+    // covered and the older cached Friday would answer every later Monday
+    // question — including after the authority recovered.
+
+    it('refuses the malformed day, keeps no coverage for it, and yields the real rate on retry', async () => {
+      // Friday is fetched and cached normally.
+      const friday = await service.resolve(
+        'USD',
+        'EUR',
+        '2026-03-06',
+        ON_OR_BEFORE,
+      );
+      expect(friday.rateDate).toBe('2026-03-06');
+
+      // Monday: upstream answers unusably.
+      source.setFailure('200 with an unparseable body');
+      await expect(
+        service.resolve('USD', 'EUR', '2026-03-09', ON_OR_BEFORE),
+      ).rejects.toThrow(FxRateUnavailableError);
+
+      // Crucially: Monday was NOT recorded as answered. Friday's row must not
+      // be allowed to stand in for it.
+      const probes = await db
+        .selectFrom('fx_rate_probe')
+        .select(['from_date', 'to_date'])
+        .execute();
+      expect(probes.some((p) => p.to_date >= '2026-03-09')).toBe(false);
+
+      // Upstream recovers; the retry gets Monday's own publication.
+      source.setFailure(null);
+      const monday = await service.resolve(
+        'USD',
+        'EUR',
+        '2026-03-09',
+        ON_OR_BEFORE,
+      );
+      expect(monday.rateDate).toBe('2026-03-09');
+      expect(monday.rate).toBeCloseTo(1 / 1.25, 12);
+    });
+
+    it('still honours a GENUINE non-publication: the weekend keeps falling back', async () => {
+      // The fix must not turn every empty window into a refusal. Saturday has
+      // no publication and legitimately resolves to Friday.
+      const saturday = await service.resolve(
+        'USD',
+        'EUR',
+        '2026-03-07',
+        ON_OR_BEFORE,
+      );
+      expect(saturday.rateDate).toBe('2026-03-06');
+    });
+
+    it('a rate published later is picked up once the day has been answered', async () => {
+      // 2026-03-10 has no publication in the fixture: Monday's stands in.
+      const before = await service.resolve(
+        'USD',
+        'EUR',
+        '2026-03-10',
+        ON_OR_BEFORE,
+      );
+      expect(before.rateDate).toBe('2026-03-09');
+
+      // A genuinely answered window stays answered — this is the cache doing
+      // its job, and is distinct from the malformed case above.
+      source.publish({
+        quoteCurrency: 'USD',
+        rateDate: '2026-03-10',
+        rate: 1.3,
+      });
+      const after = await service.resolve(
+        'USD',
+        'EUR',
+        '2026-03-10',
+        ON_OR_BEFORE,
+      );
+      expect(after.rateDate).toBe('2026-03-09');
+    });
+  });
+
   describe('refusal', () => {
     it('propagates an unsupported currency as unavailability', async () => {
-      await expect(
-        service.resolve('JPY', 'EUR', '2026-03-06', ON_OR_BEFORE),
-      ).rejects.toThrow(/does not quote JPY/);
+      const err = await service
+        .resolve('JPY', 'EUR', '2026-03-06', ON_OR_BEFORE)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(FxRateUnavailableError);
+      expect((err as FxRateUnavailableError).reason).toBe('unsupported_pair');
+      expect((err as FxRateUnavailableError).getStatus()).toBe(422);
+    });
+
+    it('classifies "published nothing for this date" as unprocessable, not an outage', async () => {
+      const err = await service
+        .resolve('USD', 'EUR', '2026-03-01', ON_OR_BEFORE)
+        .catch((e: unknown) => e);
+      expect((err as FxRateUnavailableError).reason).toBe('no_rate_for_date');
+      expect((err as FxRateUnavailableError).retryable).toBe(false);
+      expect((err as FxRateUnavailableError).getStatus()).toBe(422);
     });
 
     it('propagates an upstream failure rather than substituting a rate', async () => {
@@ -260,6 +353,18 @@ describe('FxRateService', () => {
           source: 'SOME_OTHER_CENTRAL_BANK',
         }),
       ).rejects.toThrow(/but "ECB" is wired/);
+    });
+
+    it('an upstream outage is reported as retryable, distinctly from an unsupported pair', async () => {
+      source.setFailure('connection reset');
+      const err = await service
+        .resolve('USD', 'EUR', '2026-03-06', ON_OR_BEFORE)
+        .catch((e: unknown) => e);
+      expect((err as FxRateUnavailableError).reason).toBe(
+        'upstream_unavailable',
+      );
+      expect((err as FxRateUnavailableError).retryable).toBe(true);
+      expect((err as FxRateUnavailableError).getStatus()).toBe(503);
     });
   });
 });

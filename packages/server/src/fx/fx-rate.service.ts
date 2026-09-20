@@ -94,6 +94,7 @@ export class FxRateService {
         toCurrency,
         date,
         `policy requires source "${policy.source}" but "${this.source.sourceId}" is wired`,
+        'misconfigured',
       );
     }
 
@@ -106,18 +107,20 @@ export class FxRateService {
     //   X → Y      : the cross, anchor cancelling   (1 USD = (1/1.09) × 0.86 GBP)
     // A cross uses ONE date for both legs — the same publication — so the two
     // quotations are consistent with each other and the anchor really cancels.
+    const pair = { from: fromCurrency, to: toCurrency };
+
     if (fromCurrency === anchor) {
-      const obs = await this.observation(toCurrency, date, policy);
+      const obs = await this.observation(toCurrency, date, policy, pair);
       return { rate: obs.rate, rateDate: obs.rateDate, source: obs.source };
     }
 
     if (toCurrency === anchor) {
-      const obs = await this.observation(fromCurrency, date, policy);
+      const obs = await this.observation(fromCurrency, date, policy, pair);
       return { rate: 1 / obs.rate, rateDate: obs.rateDate, source: obs.source };
     }
 
-    const from = await this.observation(fromCurrency, date, policy);
-    const to = await this.observation(toCurrency, date, policy);
+    const from = await this.observation(fromCurrency, date, policy, pair);
+    const to = await this.observation(toCurrency, date, policy, pair);
     if (from.rateDate !== to.rateDate) {
       // Both legs exist but on different publication days. Crossing them would
       // mix two days' markets into one rate that the authority never
@@ -127,6 +130,7 @@ export class FxRateService {
         toCurrency,
         date,
         `cross rate would mix publications of ${from.rateDate} and ${to.rateDate}`,
+        'no_rate_for_date',
       );
     }
     return {
@@ -153,6 +157,13 @@ export class FxRateService {
     quoteCurrency: string,
     date: string,
     policy: FxLookupPolicy,
+    /**
+     * The conversion the CALLER asked for. A leg is an implementation detail
+     * (a USD→EUR question is answered from the ECB's EUR→USD quotation), and
+     * an error that named the leg would tell an operator to look up a pair
+     * they never asked about.
+     */
+    pair: { from: string; to: string },
   ): Promise<{ rate: number; rateDate: string; source: string }> {
     const earliest =
       policy.fallback === 'exact'
@@ -171,14 +182,27 @@ export class FxRateService {
       }
       // Probed and genuinely empty: the authority published nothing in the
       // window. Refuse — do not widen the window looking for something older.
-      throw this.unavailable(quoteCurrency, date, policy);
+      throw this.unavailable(pair, quoteCurrency, date, policy);
     }
 
-    const fetched = await this.source.fetchObservations(
-      quoteCurrency,
-      earliest,
-      date,
-    );
+    // The source speaks in LEGS (it fetches an anchor→quote quotation), so its
+    // refusal is restated in the caller's own pair while keeping the reason
+    // and the upstream detail verbatim. An operator should read back the
+    // conversion they asked for, not the quotation we happened to need.
+    const fetched = await this.source
+      .fetchObservations(quoteCurrency, earliest, date)
+      .catch((err: unknown) => {
+        if (err instanceof FxRateUnavailableError) {
+          throw new FxRateUnavailableError(
+            pair.from,
+            pair.to,
+            date,
+            err.detail,
+            err.reason,
+          );
+        }
+        throw err;
+      });
     await this.persist(fetched);
     await this.recordProbe(quoteCurrency, earliest, date);
 
@@ -189,24 +213,26 @@ export class FxRateService {
       policy,
     );
     if (!resolved) {
-      throw this.unavailable(quoteCurrency, date, policy);
+      throw this.unavailable(pair, quoteCurrency, date, policy);
     }
     return resolved;
   }
 
   private unavailable(
+    pair: { from: string; to: string },
     quoteCurrency: string,
     date: string,
     policy: FxLookupPolicy,
   ): FxRateUnavailableError {
     return new FxRateUnavailableError(
-      this.source.baseCurrency,
-      quoteCurrency,
+      pair.from,
+      pair.to,
       date,
       policy.fallback === 'exact'
-        ? `${this.source.sourceId} published no rate on ${date}`
-        : `${this.source.sourceId} published no rate on ${date} nor in the ` +
-            `${policy.maxLookbackDays} day(s) before it`,
+        ? `${this.source.sourceId} published no ${this.source.baseCurrency}/${quoteCurrency} rate on ${date}`
+        : `${this.source.sourceId} published no ${this.source.baseCurrency}/${quoteCurrency} rate on ${date} ` +
+            `nor in the ${policy.maxLookbackDays} day(s) before it`,
+      'no_rate_for_date',
     );
   }
 
