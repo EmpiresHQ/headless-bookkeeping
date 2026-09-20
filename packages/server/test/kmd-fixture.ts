@@ -15,6 +15,8 @@ export const emptyKmdDeclaration: KmdDeclaration = {
   row5_input_vat: 0,
   row6_intra_eu_acquisition: 0,
   row7_other_acquisition: 0,
+  row6_7_unresolved_acquisition: 0,
+  unresolved_acquisition_vouchers: [],
   net_vat_due: 0,
   vd_intra_eu_services: 0,
   review_flags: [],

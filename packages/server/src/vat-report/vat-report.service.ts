@@ -31,6 +31,17 @@ export interface FreezeResult {
 }
 
 /**
+ * One voucher's contribution to the reverse-charge acquisition base whose
+ * ORIGIN row the ledger does not record (issue #210), with the links a
+ * resolution can travel: the voucher it reverses, if it is a reversal.
+ */
+interface AmbiguousVoucher {
+  voucherNumber: string;
+  reversesId: number | null;
+  base: number;
+}
+
+/**
  * A VAT declaration exists for the VAT calendar only (issue #207). A FINANCIAL
  * YEAR declares nothing of its own — its turnover was already declared by the
  * monthly returns inside it — so every VAT entry point refuses an annual id
@@ -515,6 +526,9 @@ export class VatReportService {
         'vl.base_amount',
         'vl.is_debit',
         'a.code as account_code',
+        'v.id as voucher_id',
+        'v.voucher_number',
+        'v.reverses_id',
       ])
       .where('v.tax_point_date', '>=', period.start_date)
       .where('v.tax_point_date', '<=', period.end_date)
@@ -537,11 +551,29 @@ export class VatReportService {
       row5_input_vat: 0,
       row6_intra_eu_acquisition: 0,
       row7_other_acquisition: 0,
+      row6_7_unresolved_acquisition: 0,
+      unresolved_acquisition_vouchers: [],
       net_vat_due: 0,
       vd_intra_eu_services: 0,
       review_flags: [],
     };
     const flags = new Set<string>();
+    // Per-VOUCHER bookkeeping for the acquisition-origin ambiguity (issue
+    // #210). A signed period total is not evidence about it: two unrelated
+    // legacy movements of +100 and −100 net to zero while the rows they belong
+    // to are still +100 and −100. So the ambiguity is resolved per voucher and
+    // per reversal chain, not by cancellation.
+    const legacyByVoucher = new Map<number, AmbiguousVoucher>();
+    // Originals (outside this period) that a line here reverses and that were
+    // already FILED under a payload frozen before the acquisition origin was
+    // recorded. Removing such an acquisition is not a new classification — it
+    // comes back out of the row that filing actually declared it in, which is
+    // recorded evidence rather than a guess. The plugin decides which row that
+    // is; the kernel only establishes the fact.
+    const filedWithoutOrigin = await this.originalsFiledWithoutOrigin(
+      lines,
+      executor,
+    );
 
     for (const line of lines) {
       // VAT-control lines feed the VAT-amount totals (rows 4 / 5), keyed on
@@ -558,12 +590,18 @@ export class VatReportService {
       }
 
       if (!line.vat_code) continue;
-      const k = plugin.classifyKmd(line.vat_code);
+      const k = plugin.classifyKmd(line.vat_code, {
+        reversesVoucherFiledWithoutAcquisitionOrigin:
+          line.reverses_id !== null && filedWithoutOrigin.has(line.reverses_id),
+      });
       // Fix the normal side by classification: acquisitions are debit-positive,
       // supplies credit-positive. Reversals must subtract from the same base.
       const base = this.ledgerBalance.signedBaseAmount(line, {
         creditPositive: k.acquisitionRow === null,
       });
+      // An acquisition whose ROW the plugin cannot decide is still an
+      // acquisition (hence debit-positive above): it lands in its own bucket
+      // rather than in whichever row happens to be the default (issue #210).
       if (k.review) flags.add(k.review);
 
       switch (k.outputBaseRow) {
@@ -584,10 +622,31 @@ export class VatReportService {
       }
       if (k.acquisitionRow === 6) d.row6_intra_eu_acquisition += base;
       if (k.acquisitionRow === 7) d.row7_other_acquisition += base;
+      if (k.acquisitionRow === 'unresolved') {
+        d.row6_7_unresolved_acquisition += base;
+        const seen = legacyByVoucher.get(line.voucher_id) ?? {
+          voucherNumber: line.voucher_number,
+          reversesId: line.reverses_id,
+          base: 0,
+        };
+        seen.base += base;
+        legacyByVoucher.set(line.voucher_id, seen);
+      }
       if (k.vdCode === '3S') d.vd_intra_eu_services += base;
     }
 
     d.net_vat_due = d.row4_output_vat - d.row5_input_vat;
+    d.unresolved_acquisition_vouchers =
+      this.unresolvedAcquisitionVouchers(legacyByVoucher);
+    if (d.unresolved_acquisition_vouchers.length > 0) {
+      flags.add(
+        `Voucher(s) ${d.unresolved_acquisition_vouchers.join(', ')} carry reverse-charge ` +
+          `acquisition base that belongs in KMD row 6 or row 7, and do not record which. ` +
+          `It is counted in NEITHER row. Record the supplier's facts and correct each ` +
+          `expense (POST /api/expenses/{id}/correct {"kind":"financial","reason":"..."}) ` +
+          `— locking the period and a final statutory export are refused until then.`,
+      );
+    }
     if (d.vd_intra_eu_services > 0) {
       flags.add(
         `File the VD koondaruanne manually (tähis 3S) for ${d.vd_intra_eu_services} ` +
@@ -596,6 +655,219 @@ export class VatReportService {
     }
     d.review_flags = [...flags];
     return d;
+  }
+
+  /**
+   * Which vouchers' reverse-charge acquisitions are still of UNKNOWN origin
+   * (issue #210) — the vouchers, not an amount. Cancellation is not resolution:
+   * a +100 legacy acquisition from one supplier and a −100 from an unrelated
+   * one net to zero while both rows they belong to are still wrong. Nor is an
+   * equal amount somewhere else in the period: only the chain a voucher is
+   * actually part of says anything about it.
+   *
+   * So the vouchers are grouped into CONNECTED COMPONENTS over their
+   * `reverses_id` links, and a component clears only when it is neutral as a
+   * whole — its legacy bases sum to zero. That is the one honest reading: a
+   * component that nets out declares nothing, so no row has to be chosen for
+   * it, and no replacement voucher is needed merely to cancel. Anything else
+   * leaves EVERY voucher in the component named.
+   *
+   * Per-pair matching would not do: nothing in the ledger makes `reverses_id`
+   * unique, so an original with two mirrored reversals — or a
+   * reversal-of-a-reversal — would find a partner for every node and clear a
+   * chain whose base is plainly nonzero. Component arithmetic also gives the
+   * invariant the filing gate depends on: a nonzero unresolved base always
+   * comes with at least one named voucher.
+   *
+   * A reversal whose original is NOT in this period is a component of its own.
+   * It is either assigned a row before it gets here — when the original was
+   * filed under a payload that recorded which row it used, so the removal comes
+   * out of that row (see {@link originalsFiledWithoutOrigin}) — or it stays
+   * unresolved. This is computed per period, so nothing posted later reaches
+   * back and re-judges a period that was already filed.
+   *
+   * Voucher numbers come back sorted, so the declaration — and the filing
+   * payload frozen from it — is byte-stable across recomputation.
+   */
+  private unresolvedAcquisitionVouchers(
+    legacyByVoucher: Map<number, AmbiguousVoucher>,
+  ): string[] {
+    const nodes = new Map(
+      [...legacyByVoucher.entries()].filter(([, v]) => v.base !== 0),
+    );
+
+    // Undirected adjacency over the reversal links that stay inside this set.
+    const neighbours = new Map<number, number[]>();
+    const link = (a: number, b: number) => {
+      neighbours.set(a, [...(neighbours.get(a) ?? []), b]);
+      neighbours.set(b, [...(neighbours.get(b) ?? []), a]);
+    };
+    for (const [id, v] of nodes) {
+      if (v.reversesId !== null && nodes.has(v.reversesId))
+        link(id, v.reversesId);
+    }
+
+    const ambiguous: string[] = [];
+    const visited = new Set<number>();
+    for (const start of nodes.keys()) {
+      if (visited.has(start)) continue;
+
+      const component: number[] = [];
+      const queue = [start];
+      visited.add(start);
+      while (queue.length > 0) {
+        const id = queue.shift() as number;
+        component.push(id);
+        for (const next of neighbours.get(id) ?? []) {
+          if (visited.has(next)) continue;
+          visited.add(next);
+          queue.push(next);
+        }
+      }
+
+      const net = component.reduce(
+        (sum, id) => sum + (nodes.get(id) as AmbiguousVoucher).base,
+        0,
+      );
+      if (net === 0) continue;
+      for (const id of component) {
+        ambiguous.push((nodes.get(id) as AmbiguousVoucher).voucherNumber);
+      }
+    }
+
+    return ambiguous.sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * The vouchers OUTSIDE this period that lines here reverse AND that a filed
+   * return provably declared under the old, origin-less classifier (issue
+   * #210).
+   *
+   * This is the one piece of real evidence about an origin-less acquisition, so
+   * the proof is held to the filing itself, not to dates:
+   *  1. the original's period is LOCKED and bound to a frozen VAT snapshot;
+   *  2. that snapshot's COVERED SET actually contains the original voucher —
+   *     a period's dates covering it proves nothing, because a snapshot frozen
+   *     early by a draft export could leave it out entirely (issue #200), and
+   *     an amount that was never filed cannot be taken back out of a filed row;
+   *  3. the filing payload the period's filing state PINS (not merely the
+   *     newest one) was frozen against that same snapshot; and
+   *  4. that payload has no `row6_7_unresolved_acquisition` field — the mark of
+   *     the classifier that put every reverse-charge acquisition in one row.
+   *
+   * Anything short of all four leaves the reversal unresolved. Which row the
+   * removal comes out of stays the jurisdiction's call: this only establishes
+   * the fact and hands it to `classifyKmd`. Frozen artifacts are read here,
+   * never rewritten.
+   */
+  private async originalsFiledWithoutOrigin(
+    lines: { voucher_id: number; reverses_id: number | null }[],
+    executor: Kysely<Database>,
+  ): Promise<Set<number>> {
+    const inPeriod = new Set(lines.map((l) => l.voucher_id));
+    const reversedElsewhere = [
+      ...new Set(
+        lines
+          .map((l) => l.reverses_id)
+          .filter((id): id is number => id !== null && !inPeriod.has(id)),
+      ),
+    ];
+    const filed = new Set<number>();
+
+    for (const originalId of reversedElsewhere) {
+      const original = await executor
+        .selectFrom('voucher')
+        .select(['id', 'tax_point_date'])
+        .where('id', '=', originalId)
+        .executeTakeFirst();
+      if (!original) continue;
+
+      const originalPeriod = await executor
+        .selectFrom('reporting_period')
+        .select(['id', 'status', 'vat_report_snapshot_id'])
+        .where('kind', '!=', 'annual')
+        .where('start_date', '<=', original.tax_point_date)
+        .where('end_date', '>=', original.tax_point_date)
+        .executeTakeFirst();
+      if (
+        !originalPeriod ||
+        originalPeriod.status !== 'locked' ||
+        originalPeriod.vat_report_snapshot_id === null
+      ) {
+        continue;
+      }
+
+      // The filed snapshot must actually COVER this voucher.
+      const snapshot = await executor
+        .selectFrom('vat_report')
+        .select(['id', 'voucher_ids'])
+        .where('id', '=', originalPeriod.vat_report_snapshot_id)
+        .executeTakeFirst();
+      if (!snapshot) continue;
+      const covered = JSON.parse(snapshot.voucher_ids) as number[];
+      if (!covered.includes(originalId)) continue;
+
+      const payload = await this.pinnedFilingPayload(
+        originalPeriod.id,
+        snapshot.id,
+        executor,
+      );
+      if (!payload) continue;
+
+      const declaration = (
+        JSON.parse(payload) as {
+          declaration?: { row6_7_unresolved_acquisition?: number };
+        }
+      ).declaration;
+      // A payload that already HAS the bucket was frozen under the rules that
+      // refuse to file an unresolved origin, so it proves nothing about one.
+      if (
+        declaration &&
+        declaration.row6_7_unresolved_acquisition === undefined
+      ) {
+        filed.add(originalId);
+      }
+    }
+
+    return filed;
+  }
+
+  /**
+   * The filing payload a locked period is FILED against: the version its last
+   * submission event pins, else — for events recorded before payload versions
+   * were pinned — the newest payload frozen against the bound snapshot. Either
+   * way it must belong to `snapshotId`, so a payload frozen against some other
+   * snapshot is never read as evidence about this one.
+   */
+  private async pinnedFilingPayload(
+    periodId: number,
+    snapshotId: number,
+    executor: Kysely<Database>,
+  ): Promise<string | null> {
+    const pinned = await executor
+      .selectFrom('statutory_submission_event')
+      .select(['source_payload_id'])
+      .where('reporting_period_id', '=', periodId)
+      .where('source_payload_id', 'is not', null)
+      .orderBy('occurred_at', 'desc')
+      .orderBy('id', 'desc')
+      .executeTakeFirst();
+
+    const row = pinned?.source_payload_id
+      ? await executor
+          .selectFrom('statutory_filing_snapshot')
+          .select(['payload', 'vat_report_id'])
+          .where('id', '=', pinned.source_payload_id)
+          .executeTakeFirst()
+      : await executor
+          .selectFrom('statutory_filing_snapshot')
+          .select(['payload', 'vat_report_id'])
+          .where('vat_report_id', '=', snapshotId)
+          .orderBy('id', 'desc')
+          .executeTakeFirst();
+
+    if (!row || row.vat_report_id !== snapshotId) return null;
+    return row.payload;
   }
 
   private mapRow(row: {

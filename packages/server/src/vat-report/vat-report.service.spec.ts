@@ -897,7 +897,7 @@ describe('VAT report snapshot generation (integration)', () => {
       await organizationService.updateOrganization({ country: 'EE' });
     });
 
-    it('maps reverse charge to rows 1/4/5/7 with a 6-vs-7 review flag', async () => {
+    it('maps an INTRA-EU acquisition to rows 1/4/5 + row 6 (issue #210)', async () => {
       // Imported service self-assessed at 24% of 1600 = 384, net cash zero.
       await seedPostedVoucher('2024-02-15', [
         {
@@ -906,7 +906,7 @@ describe('VAT report snapshot generation (integration)', () => {
           currency: 'EUR',
           base_amount: 1600,
           fx_rate: 1,
-          vat_code: 'EE_REVERSE_CHARGE',
+          vat_code: 'EE_REVERSE_CHARGE_EU',
           is_debit: true,
         },
         {
@@ -915,7 +915,7 @@ describe('VAT report snapshot generation (integration)', () => {
           currency: 'EUR',
           base_amount: 384,
           fx_rate: 1,
-          vat_code: 'EE_REVERSE_CHARGE',
+          vat_code: 'EE_REVERSE_CHARGE_EU',
           is_debit: true,
         },
         {
@@ -933,7 +933,7 @@ describe('VAT report snapshot generation (integration)', () => {
           currency: 'EUR',
           base_amount: 384,
           fx_rate: 1,
-          vat_code: 'EE_REVERSE_CHARGE',
+          vat_code: 'EE_REVERSE_CHARGE_EU',
           is_debit: false,
         },
       ]);
@@ -941,11 +941,14 @@ describe('VAT report snapshot generation (integration)', () => {
       const d = await vatReportService.buildDeclaration(1);
 
       expect(d.row1_base_24).toBe(1600); // self-assessed received supply
-      expect(d.row7_other_acquisition).toBe(1600); // default acquisition row
+      expect(d.row6_intra_eu_acquisition).toBe(1600); // the supplier's origin
+      expect(d.row7_other_acquisition).toBe(0);
+      expect(d.row6_7_unresolved_acquisition).toBe(0);
       expect(d.row4_output_vat).toBe(384);
       expect(d.row5_input_vat).toBe(384);
       expect(d.net_vat_due).toBe(0); // output == input, cash neutral
-      expect(d.review_flags.some((f) => /row 6.*7/i.test(f))).toBe(true);
+      // A decided origin is not something to review.
+      expect(d.review_flags).toEqual([]);
     });
 
     it('maps a 0% intra-EU service sale to row 3 + VD 3S reminder', async () => {
@@ -1054,7 +1057,13 @@ describe('VAT report snapshot generation (integration)', () => {
     });
 
     it.each([
-      ['EE_REVERSE_CHARGE', 'EXPENSE_SOFTWARE', true, 'row1_base_24'],
+      ['EE_REVERSE_CHARGE_EU', 'EXPENSE_SOFTWARE', true, 'row1_base_24'],
+      [
+        'EE_REVERSE_CHARGE_3RD_COUNTRY',
+        'EXPENSE_SOFTWARE',
+        true,
+        'row1_base_24',
+      ],
       ['EE_OUTPUT_24', 'REVENUE', false, 'row1_base_24'],
       ['EE_OUTPUT_9', 'REVENUE', false, 'row2_base_reduced'],
       ['EE_OUTPUT_13', 'REVENUE', false, 'row2_base_reduced'],
@@ -1093,6 +1102,7 @@ describe('VAT report snapshot generation (integration)', () => {
         expect(reversal).not.toBe(original);
         const d = await vatReportService.buildDeclaration(1);
         expect(d[row]).toBe(0);
+        expect(d.row6_intra_eu_acquisition).toBe(0);
         expect(d.row7_other_acquisition).toBe(0);
         expect(d.vd_intra_eu_services).toBe(0);
         expect(d.row2_base_9).toBe(0);

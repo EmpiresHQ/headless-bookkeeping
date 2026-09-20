@@ -21,6 +21,7 @@ export type {
   VatComputation,
   ExpenseTreatmentPreview,
   KmdBaseClassification,
+  KmdClassificationContext,
   CountryPluginRetrieval,
 } from './country-plugin-retrieval.interface';
 

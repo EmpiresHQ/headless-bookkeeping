@@ -21,6 +21,7 @@ import { AllowanceRates, AllowanceType } from './allowance-rates.types';
 import {
   ExpenseTreatmentPreview,
   KmdBaseClassification,
+  KmdClassificationContext,
   VatComputation,
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
@@ -100,7 +101,21 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     EE_OUTPUT_9: 0.09,
     EE_INPUT_9: 0.09,
     EE_ZERO: 0,
+    // LEGACY reverse-charge code (pre-#210). It collapsed an intra-EU
+    // acquisition and a third-country one into a single code, so a voucher
+    // carrying it does not say which KMD acquisition row (6 or 7) its base
+    // belongs to. Nothing produces it any more; it stays a VALID code because
+    // vouchers that carry it are posted, immutable and must keep rendering —
+    // and classifyKmd reports it as UNRESOLVED rather than guessing row 7.
     EE_REVERSE_CHARGE: 0.24,
+    // Reverse charge on an intra-Community acquisition — goods/services from a
+    // taxable person of another member state (KMS §3 lg 4, §4 lg 1 p 5).
+    // KMD row 6, inside the row-1 taxable base (issue #210).
+    EE_REVERSE_CHARGE_EU: 0.24,
+    // Reverse charge on an acquisition from OUTSIDE the Community — the
+    // general-rule service imported from a third-country business, self-
+    // assessed under KMS §10 lg 5. KMD row 7, inside the row-1 taxable base.
+    EE_REVERSE_CHARGE_3RD_COUNTRY: 0.24,
     // 0% intra-EU B2B supply of services taxable in the customer's member state
     // (KMS §10 / VAT Directive Art. 44 & 196). Reported as 0% käive (KMD row 3)
     // and on the VD koondaruanne with tähis 3S — the VD form is filed manually.
@@ -552,6 +567,29 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   // ── Cross-border treatment ────────────────────────────────────────────────
 
+  /**
+   * The VAT treatment of a PURCHASE, and — when it is self-assessed — a VAT
+   * code that records WHERE the acquisition came from (issue #210).
+   *
+   * Both an intra-Community acquisition and an imported third-country service
+   * are reverse-charged at the same 24%, so one code used to serve for both.
+   * But the KMD splits them: the taxable value goes to row 6 when the supply
+   * came from a taxable person of another MEMBER STATE, and to row 7 for other
+   * acquisitions subject to reverse charge (EMTA KMD instructions, rows 6 and
+   * 7). A single code cannot carry that difference, and the classifier was
+   * answering row 7 for every reverse charge — so every intra-EU acquisition
+   * was declared on the wrong row.
+   *
+   * The origin is therefore decided HERE, from the facts recorded about the
+   * supplier, and frozen into the VAT code the voucher is posted with. The
+   * declaration then reads the booked code: an entity edited later cannot
+   * retro-reclassify a return that was already filed, and the ledger says what
+   * it was posted on.
+   *
+   * @throws {UnresolvedVatTreatmentError} when a supplier in another member
+   *   state has no recorded tax status — the fact that decides whether the
+   *   acquisition is an intra-Community one at all.
+   */
   resolveCrossBorderTreatment(
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
@@ -564,25 +602,166 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     }
 
     if (EstoniaCountryPlugin.EU.has(supplier)) {
-      // Intra-Community acquisition — buyer self-accounts with OUR reverse-charge code.
-      return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' };
+      return this.resolveIntraCommunityAcquisition(supplierFacts);
     }
 
     // Non-EU goods are an import (customs VAT at the border via EE_INPUT_24).
+    // Untouched by this issue — the customs route is outside it.
     if (supplierFacts.goodsVsServices === 'goods') {
       return { treatment: 'import', vatCode: 'EE_INPUT_24' };
     }
 
-    // Non-EU services: under KMS §10 the place of supply of B2B general-rule
-    // services is where the BUYER is established (Estonia), so the Estonian
-    // company self-assesses (pöördmaksustamine) exactly as for an intra-EU
-    // acquisition — output 24% and an immediate input 24% deduction, net cash
-    // zero. This holds whether or not the foreign supplier put some tax on the
-    // invoice: that foreign tax is never reclaimable EE input VAT (it folds
-    // into the cost base), but it does not remove the reverse-charge duty.
-    // 'unknown' goods/services is treated as a service import — the
-    // conservative EE position for imported supplies that reach the buyer here.
-    return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' };
+    return this.resolveThirdCountryAcquisition(supplierFacts);
+  }
+
+  /**
+   * A purchase from a supplier OUTSIDE the Community. The supported case is the
+   * general-rule SERVICE bought from a foreign person engaged in business:
+   * under KMS §10 its place of supply is where the buyer is established
+   * (Estonia), so the Estonian company self-assesses (pöördmaksustamine) —
+   * output 24% and an immediate input 24% deduction, net cash zero — and the
+   * taxable value is declared in KMD row 7. Any tax the foreign supplier put on
+   * the invoice is never reclaimable EE input VAT (it folds into the cost
+   * base), but it does not remove the reverse-charge duty.
+   *
+   * The facts that make that case the case are REQUIRED, not assumed. Row 7 is
+   * the only acquisition row available here, but the prior question — whether a
+   * reverse charge is due at all — is not answered by the country: it turns on
+   * the supplier being in business and on the supply being a service. The old
+   * code answered both by default (unknown ⇒ service, status never consulted),
+   * which is how a figure nobody had evidence for reached a return.
+   */
+  private resolveThirdCountryAcquisition(
+    supplierFacts: SupplierFacts,
+  ): CrossBorderResolution {
+    const country = supplierFacts.country;
+
+    if (supplierFacts.goodsVsServices !== 'services') {
+      // Neither goods (handled above as an import) nor services: nothing says
+      // what was bought, and that decides between the customs route and the
+      // self-assessed one. Two different returns, so it is asked, not guessed.
+      throw new UnresolvedVatTreatmentError({
+        code: 'acquisition_supply_type_unknown',
+        message:
+          `Cannot classify a purchase from a supplier in ${country}: whether it ` +
+          `supplies goods or services is not recorded, and it decides between an ` +
+          `import (VAT at the border) and a self-assessed service acquisition ` +
+          `(KMD rows 1 + 7).`,
+        missingFacts: [
+          `entity.goods_vs_services for the supplier in ${country}`,
+        ],
+        howToResolve:
+          'PATCH /api/entities/{supplierId} with {"goodsVsServices":"services"} ' +
+          '(or "goods"), then post the expense again.',
+      });
+    }
+
+    const taxStatus = supplierFacts.taxStatus ?? 'unknown';
+
+    if (taxStatus === 'taxable_business') {
+      return {
+        treatment: 'reverse_charge',
+        vatCode: 'EE_REVERSE_CHARGE_3RD_COUNTRY',
+      };
+    }
+
+    if (taxStatus === 'non_taxable') {
+      // A service bought from a person NOT in business is not reverse-charged:
+      // there is no §3 lg 4 duty to self-assess, so stamping the row-7 code on
+      // it would invent both an output tax and an input deduction. Its own
+      // treatment (a plain foreign cost) is not auto-classified here.
+      throw new UnresolvedVatTreatmentError({
+        code: 'supplier_non_taxable_acquisition_unsupported',
+        message:
+          `The supplier in ${country} is recorded as a non-taxable person, so ` +
+          `this service purchase carries no reverse charge — a treatment the EE ` +
+          `plugin does not auto-classify. Nothing was posted.`,
+        missingFacts: [
+          `entity.tax_status=non_taxable for the supplier in ${country}`,
+        ],
+        howToResolve:
+          'If the supplier IS a person engaged in business, PATCH ' +
+          '/api/entities/{supplierId} with {"taxStatus":"taxable_business"} and ' +
+          'post again; otherwise book the cost explicitly with your accountant.',
+      });
+    }
+
+    throw new UnresolvedVatTreatmentError({
+      code: 'supplier_tax_status_unknown',
+      message:
+        `Cannot classify a service purchase from a supplier in ${country}: the ` +
+        `supplier's tax status is not recorded, and it decides whether an ` +
+        `Estonian reverse charge is due on it at all.`,
+      missingFacts: [`entity.tax_status for the supplier in ${country}`],
+      howToResolve:
+        'PATCH /api/entities/{supplierId} with {"taxStatus":"taxable_business"} ' +
+        'or {"taxStatus":"non_taxable"} (a person engaged in business vs a ' +
+        'private person), then post the expense again.',
+    });
+  }
+
+  /**
+   * A purchase from a supplier in another member state. KMD row 6 is defined by
+   * the supplier being a TAXABLE PERSON of that member state — a fact about the
+   * supplier, which its country cannot stand in for (the #209 lesson, applied
+   * to the purchase side).
+   *
+   * Goods vs services is NOT required here, unlike on the third-country branch:
+   * row 6 takes the intra-Community acquisition of goods AND the services
+   * received from a taxable person of another member state, so the answer does
+   * not move a figure.
+   */
+  private resolveIntraCommunityAcquisition(
+    supplierFacts: SupplierFacts,
+  ): CrossBorderResolution {
+    const taxStatus = supplierFacts.taxStatus ?? 'unknown';
+
+    if (taxStatus === 'taxable_business') {
+      // Intra-Community acquisition — self-accounted, declared in KMD row 6.
+      return { treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE_EU' };
+    }
+
+    if (taxStatus === 'non_taxable') {
+      // A supply from a non-taxable person of another member state carries no
+      // reverse-charge duty and is not an intra-Community acquisition, so it
+      // belongs to neither row 6 nor row 7. Booking it as one would put a
+      // taxable base on the return that the facts deny — and self-assessing
+      // 24% would invent both an output and an input deduction. Its correct
+      // treatment (a plain foreign cost, possibly with a special-scheme
+      // wrinkle) is not auto-classified here.
+      throw new UnresolvedVatTreatmentError({
+        code: 'supplier_non_taxable_acquisition_unsupported',
+        message:
+          `The supplier in ${supplierFacts.country} is recorded as a non-taxable ` +
+          `person, so this purchase is not an intra-Community acquisition and ` +
+          `carries no reverse charge — a treatment the EE plugin does not ` +
+          `auto-classify. Nothing was posted.`,
+        missingFacts: [
+          `entity.tax_status=non_taxable for the supplier in ${supplierFacts.country}`,
+        ],
+        howToResolve:
+          'If the supplier IS a taxable person acting as such, PATCH ' +
+          '/api/entities/{supplierId} with {"taxStatus":"taxable_business"} and ' +
+          'post again; otherwise book the cost explicitly with your accountant.',
+      });
+    }
+
+    // Unknown is not "taxable business" — guessing it would decide KMD row 6
+    // vs row 7 (and whether a reverse charge is due at all) on no evidence.
+    throw new UnresolvedVatTreatmentError({
+      code: 'supplier_tax_status_unknown',
+      message:
+        `Cannot classify a purchase from a supplier in ${supplierFacts.country}: ` +
+        `the supplier's tax status is not recorded, and it decides whether this ` +
+        `is an intra-Community acquisition (KMD row 6) or not.`,
+      missingFacts: [
+        `entity.tax_status for the supplier in ${supplierFacts.country}`,
+      ],
+      howToResolve:
+        'PATCH /api/entities/{supplierId} with {"taxStatus":"taxable_business"} ' +
+        'or {"taxStatus":"non_taxable"} (a business acting as such vs a ' +
+        'consumer), then post the expense again.',
+    });
   }
 
   // ── Dividends / withholding ───────────────────────────────────────────────
@@ -643,6 +822,8 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     'EE_OUTPUT_24',
     'EE_INPUT_24',
     'EE_REVERSE_CHARGE',
+    'EE_REVERSE_CHARGE_EU',
+    'EE_REVERSE_CHARGE_3RD_COUNTRY',
   ]);
 
   getVatRate(vatCode: string, onDate?: string): number {
@@ -705,13 +886,14 @@ export class EstoniaCountryPlugin implements CountryPlugin {
    *   2  — 9% taxable supply
    *   3  — 0% supply (intra-EU services, exports); intra-EU services also go on
    *        the VD koondaruanne with tähis 3S
-   *   6/7 — acquisition base for reverse charge (6 = from another member state,
-   *        7 = other, e.g. an imported non-EU service)
+   *   6/7 — acquisition base for reverse charge (6 = from a taxable person of
+   *        another member state, 7 = other, e.g. an imported non-EU service)
    *
-   * EE_REVERSE_CHARGE covers BOTH intra-EU and non-EU service imports (the
-   * resolver does not record which), so the acquisition lands in row 7 with a
-   * review note to move it to row 6 when the supplier is in another member
-   * state. KMD-INF row numbers should be confirmed by the accountant.
+   * The acquisition origin is carried by the VAT code the voucher was posted
+   * with — EE_REVERSE_CHARGE_EU (row 6) vs EE_REVERSE_CHARGE_3RD_COUNTRY
+   * (row 7), decided from the supplier's recorded facts by
+   * {@link resolveCrossBorderTreatment}. The legacy EE_REVERSE_CHARGE recorded
+   * neither, and is classified as UNRESOLVED rather than defaulted to row 7.
    */
   // ── Statutory reports (KMD XML + CSV) ────────────────────────────────────
 
@@ -736,6 +918,26 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     // INF warnings (missing invoice numbers on qualifying rows).
     warnings.push(...buildInfPart(input.salesLines).warnings);
     warnings.push(...buildInfPart(input.purchaseLines).warnings);
+
+    // A reverse-charge acquisition whose origin the ledger never recorded
+    // (issue #210) belongs to row 6 or row 7 and the vouchers do not say which.
+    // The KMD has no "either" box, so a rendered return would silently drop
+    // those cents from both rows — which is how the defect looked from the
+    // outside. A draft renders with this warning; a FINAL does not render.
+    const unresolved = input.declaration.unresolved_acquisition_vouchers ?? [];
+    if (unresolved.length > 0) {
+      warnings.push({
+        code: 'unresolved_acquisition_origin',
+        blocksFinal: true,
+        message:
+          `Voucher(s) ${unresolved.join(', ')} carry reverse-charge acquisition base ` +
+          `(${input.declaration.row6_7_unresolved_acquisition} cents in total) that ` +
+          `records no acquisition origin, so it belongs to KMD row 6 or row 7 and the ` +
+          `return cannot say which. Record the supplier's tax status (PATCH ` +
+          `/api/entities/{supplierId}) and correct each expense (POST ` +
+          `/api/expenses/{id}/correct {"kind":"financial","reason":"..."}), then export again.`,
+      });
+    }
 
     const base = input.period.name.replace(/[^\w-]/g, '_');
     const artifacts = [];
@@ -844,7 +1046,10 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   // ── KMD (käibedeklaratsioon) row classification ───────────────────────────
 
-  classifyKmd(vatCode: string): KmdBaseClassification {
+  classifyKmd(
+    vatCode: string,
+    context?: KmdClassificationContext,
+  ): KmdBaseClassification {
     const none: KmdBaseClassification = {
       outputBaseRow: null,
       outputSubRow: null,
@@ -868,15 +1073,70 @@ export class EstoniaCountryPlugin implements CountryPlugin {
         return { ...none, outputBaseRow: 3 };
       case 'EE_ZERO':
         return { ...none, outputBaseRow: 3 };
-      case 'EE_REVERSE_CHARGE':
+      case 'EE_REVERSE_CHARGE_EU':
+        // Intra-Community acquisition from a taxable person of another member
+        // state: the taxable value is declared in row 6, inside the row-1 base
+        // it is also part of. The origin was decided from recorded facts at
+        // posting time, so nothing here needs an accountant's review.
+        return {
+          outputBaseRow: 1,
+          outputSubRow: null,
+          acquisitionRow: 6,
+          vdCode: null,
+          review: null,
+        };
+      case 'EE_REVERSE_CHARGE_3RD_COUNTRY':
+        // Reverse-charged acquisition that is not intra-Community — row 7.
         return {
           outputBaseRow: 1,
           outputSubRow: null,
           acquisitionRow: 7,
           vdCode: null,
+          review: null,
+        };
+      case 'EE_REVERSE_CHARGE':
+        if (context?.reversesVoucherFiledWithoutAcquisitionOrigin) {
+          // A REMOVAL of an acquisition that a previous return already
+          // declared, back when every reverse-charge acquisition was declared
+          // in row 7. Nothing here is being classified afresh: the amount comes
+          // out of the row the filed document actually put it in, which is the
+          // only way the two periods reconcile. This is the leg a correction
+          // leaves behind when it is redirected out of a locked period
+          // (ADR-0009); its replacement carries the resolved origin into
+          // row 6 or 7 on its own.
+          return {
+            outputBaseRow: 1,
+            outputSubRow: null,
+            acquisitionRow: 7,
+            vdCode: null,
+            review:
+              'A reverse-charge acquisition filed before the origin was ' +
+              'recorded has been reversed: the base is taken back out of KMD ' +
+              'row 7, the row the earlier return declared it in, and its ' +
+              'corrected replacement declares the resolved origin. Check the ' +
+              'pair against that return before filing.',
+          };
+        }
+        // The legacy code (issue #210): a reverse-charge acquisition whose
+        // ORIGIN it never recorded. It is a real taxable base carrying real
+        // self-assessed VAT — so it stays in row 1 and is read debit-positive —
+        // but which acquisition row it belongs to is genuinely unknown, and
+        // answering "7" is what put every intra-EU acquisition on the wrong
+        // row. It is reported as unresolved: visible in the declaration, named
+        // in a review flag, and blocking a FINAL return until it is corrected.
+        return {
+          outputBaseRow: 1,
+          outputSubRow: null,
+          acquisitionRow: 'unresolved',
+          vdCode: null,
           review:
-            'Reverse charge: verify KMD acquisition row 6 (intra-EU) vs 7 ' +
-            '(non-EU import) by supplier country; confirm KMD-INF row numbers.',
+            'Reverse charge posted before the acquisition origin was recorded ' +
+            '(EE_REVERSE_CHARGE): its base belongs in KMD row 6 (from a taxable ' +
+            'person of another member state) or row 7 (other), and the voucher ' +
+            "does not say which. Record the supplier's facts — PATCH " +
+            '/api/entities/{supplierId} {"taxStatus":"taxable_business"} — then ' +
+            'POST /api/expenses/{id}/correct {"kind":"financial","reason":"..."} ' +
+            'to reverse and repost it on the resolved origin.',
         };
       default:
         // Domestic input codes and the NULL sentinel carry no base row — their

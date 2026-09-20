@@ -283,10 +283,10 @@ describe('StatutoryReportService.generate (integration)', () => {
     ] as const) {
       const vat = Math.round(base * 0.24);
       const lines = [
-        line('EXPENSE_SOFTWARE', base, true, 'EE_REVERSE_CHARGE'),
+        line('EXPENSE_SOFTWARE', base, true, 'EE_REVERSE_CHARGE_3RD_COUNTRY'),
         line('AP', base, false, null),
-        line('VAT_RECEIVABLE', vat, true, 'EE_REVERSE_CHARGE'),
-        line('VAT_PAYABLE', vat, false, 'EE_REVERSE_CHARGE'),
+        line('VAT_RECEIVABLE', vat, true, 'EE_REVERSE_CHARGE_3RD_COUNTRY'),
+        line('VAT_PAYABLE', vat, false, 'EE_REVERSE_CHARGE_3RD_COUNTRY'),
       ];
       const original = await posting.postVoucher({
         tax_point_date: '2026-07-10',

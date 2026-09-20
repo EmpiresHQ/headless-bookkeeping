@@ -373,6 +373,11 @@ export class ProposeDraftService {
       businessObjectType: 'expense',
       draftGenerator: () =>
         this.expensesService.generateDraftVoucher(expense.id),
+      // Same staleness guard as the HTTP post path: the supplier's country and
+      // tax status decide the VAT treatment and the KMD acquisition row, so a
+      // draft prepared against facts that have since moved must not post
+      // (issues #209, #210).
+      assertFactsUnchanged: await this.expenseFactsGuard(expense.id),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expense.id),
       confidence: triageResult.confidence,
@@ -634,6 +639,8 @@ export class ProposeDraftService {
       businessObjectType: 'expense',
       draftGenerator: () =>
         this.expensesService.generateDraftVoucher(expense.id),
+      // Same staleness guard as the HTTP post path (issues #209, #210).
+      assertFactsUnchanged: await this.expenseFactsGuard(expense.id),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expense.id),
       supplierKnown: true,
@@ -725,6 +732,25 @@ export class ProposeDraftService {
     });
 
     return { outcome: 'draft', invoiceId: invoice.id, pipelineResult };
+  }
+
+  /**
+   * The pipeline's optimistic-concurrency guard for an expense: capture the
+   * facts now — the expense's own amounts AND the supplier facts that decide
+   * its VAT treatment and acquisition row — and refuse inside the posting
+   * transaction if they moved (issues #209, #210).
+   */
+  private async expenseFactsGuard(
+    expenseId: number,
+  ): Promise<(trx: Kysely<Database>) => Promise<void>> {
+    const captured =
+      await this.expensesService.draftFactsFingerprint(expenseId);
+    return (trx) =>
+      this.expensesService.assertDraftFactsUnchangedTx(
+        trx,
+        expenseId,
+        captured,
+      );
   }
 
   /**

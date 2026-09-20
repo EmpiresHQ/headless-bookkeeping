@@ -244,8 +244,9 @@ export class ExpensesService {
    * balanced draft Voucher (Dr category / Dr VAT_RECEIVABLE / Cr AP).
    *
    * When the expense names a supplier we also hand the projection the supplier's
-   * country + goods/services nature so the plugin can resolve cross-border
-   * treatment (e.g. an imported service → reverse charge). Without a supplier the
+   * country, goods/services nature AND tax status so the plugin can resolve
+   * cross-border treatment — including WHERE a reverse-charged acquisition came
+   * from, which decides KMD row 6 vs row 7 (issue #210). Without a supplier the
    * facts are omitted and the projection assumes a domestic counterparty.
    */
   private async buildDraftVoucher(expense: Expense): Promise<DraftVoucher> {
@@ -253,7 +254,7 @@ export class ExpensesService {
       expense.supplier_id !== null
         ? await this.db
             .selectFrom('entity')
-            .select(['country', 'goods_vs_services'])
+            .select(['country', 'goods_vs_services', 'tax_status'])
             .where('id', '=', expense.supplier_id)
             .executeTakeFirst()
         : undefined;
@@ -270,6 +271,7 @@ export class ExpensesService {
           goodsVsServices: this.normalizeGoodsVsServices(
             supplier.goods_vs_services,
           ),
+          taxStatus: this.normalizeTaxStatus(supplier.tax_status),
         }),
         claimantId: expense.claimant_id ?? null,
         companyAddressedReceipt:
@@ -288,6 +290,87 @@ export class ExpensesService {
     value: string | null,
   ): 'goods' | 'services' | 'unknown' {
     return value === 'goods' || value === 'services' ? value : 'unknown';
+  }
+
+  /**
+   * Map the supplier's stored tax status onto the plugin enum. A NULL column
+   * (never recorded) and a literal 'unknown' mean the same thing, and neither
+   * is 'non_taxable': the plugin refuses on unknown rather than deciding the
+   * acquisition's origin — or whether a reverse charge is due at all — for us.
+   */
+  private normalizeTaxStatus(
+    value: string | null,
+  ): 'taxable_business' | 'non_taxable' | 'unknown' {
+    return value === 'taxable_business' || value === 'non_taxable'
+      ? value
+      : 'unknown';
+  }
+
+  /**
+   * A fingerprint of every fact the draft voucher for this expense is derived
+   * from — the expense's own amounts/currency/tax point/category AND the
+   * supplier facts that now decide its VAT treatment and its KMD acquisition
+   * row (issue #210).
+   *
+   * Taken before the draft is generated and re-checked inside the posting
+   * transaction, it closes the reverse-order race: generate a draft → edit the
+   * expense or the supplier → post. Mirrors the sales side (issue #209);
+   * `status` is deliberately NOT part of it, because the transition claims that
+   * separately.
+   */
+  async draftFactsFingerprint(
+    id: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<string> {
+    const expense = await executor
+      .selectFrom('expense')
+      .select([
+        'id',
+        'supplier_id',
+        'category',
+        'gross_amount',
+        'vat_amount',
+        'currency',
+        'tax_point_date',
+        'claimant_id',
+        'company_addressed_receipt',
+      ])
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!expense) {
+      throw new NotFoundException(`Expense ${id} not found`);
+    }
+    const supplier =
+      expense.supplier_id !== null
+        ? await executor
+            .selectFrom('entity')
+            .select(['id', 'country', 'goods_vs_services', 'tax_status'])
+            .where('id', '=', expense.supplier_id)
+            .executeTakeFirst()
+        : undefined;
+    return JSON.stringify([expense, supplier ?? null]);
+  }
+
+  /**
+   * Refuse the write when the facts moved under an already-generated draft.
+   * Runs on the posting transaction's executor, so the comparison and the write
+   * see one consistent state.
+   */
+  async assertDraftFactsUnchangedTx(
+    trx: Kysely<Database>,
+    id: number,
+    expected: string,
+  ): Promise<void> {
+    const actual = await this.draftFactsFingerprint(id, trx);
+    if (actual !== expected) {
+      throw new ConflictException(
+        `Expense ${id} was changed while it was being posted (its own amounts, ` +
+          `or the supplier facts that decide its VAT treatment and KMD ` +
+          `acquisition row), so the prepared entry no longer matches it. ` +
+          `Nothing was posted or held — post it again and the entry is ` +
+          `recomputed from the current facts.`,
+      );
+    }
   }
 
   /**

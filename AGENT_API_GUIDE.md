@@ -129,7 +129,10 @@ curl -H "$H" -H "$J" -X POST $B/api/entities -d '{
 (a consumer) | `unknown`. **Omitting it means unknown, not consumer.** It is the
 fact that decides where a cross-border service is taxed, so while it is unknown
 a cross-border service invoice to this customer is REFUSED rather than guessed
-(see below). It describes the COUNTERPARTY; our own VAT registration is
+(see below). On a SUPPLIER it decides the same question in the other direction —
+whether a purchase is a reverse-charged acquisition, and whether it is an
+intra-Community one — so a cross-border expense is refused while it is unknown
+too. It describes the COUNTERPARTY; our own VAT registration is
 `organization.vat_registered`.
 
 ### Enter an expense (purchase)
@@ -141,6 +144,54 @@ EXP=$(curl -s -H "$H" -H "$J" -X POST $B/api/expenses -d '{
 curl -H "$H" -H "$J" -X POST $B/api/expenses/<id>/post -d '{}'
 ```
 The response contains `policy.action`: **`auto-post`** (e.g. "within ceiling" → a voucher is created; double entry Dr EXPENSE_* + Dr VAT_RECEIVABLE = Cr AP, VAT code from the plugin e.g. `IE_INPUT_23`) or **`hold-for-approval`** ("exceeds ceiling …").
+
+### Cross-border purchases: where a reverse charge is declared (EE)
+
+A purchase from a foreign supplier is self-assessed (pöördmaksustamine) when the
+supplier is a person engaged in business: we owe the supplier only the net and
+book equal output + input VAT at the Estonian rate, net cash zero. WHERE it is
+declared depends on where it came from, and the KMD keeps the two apart:
+
+| supplier | treatment | KMD |
+|---|---|---|
+| Estonia | ordinary input VAT | row 5 |
+| other member state, taxable person | reverse charge | rows 1 + 4 + 5, **row 6** |
+| third country, business, services | reverse charge | rows 1 + 4 + 5, **row 7** |
+| third country, goods | import (VAT at the border) | unchanged |
+
+The origin is decided from the supplier's recorded facts at POSTING time and
+frozen into the voucher's VAT code (`EE_REVERSE_CHARGE_EU` /
+`EE_REVERSE_CHARGE_3RD_COUNTRY`), so editing the supplier later never
+reclassifies a return that was already filed.
+
+**Refusals (HTTP 422)** — nothing is posted; the body carries `code`,
+`missing_facts` and `how_to_resolve`:
+
+| `code` | what to do |
+|---|---|
+| `supplier_tax_status_unknown` | `PATCH /api/entities/:id {"taxStatus":"taxable_business"}`, then post again |
+| `supplier_non_taxable_acquisition_unsupported` | the supplier is recorded as a private person, so no reverse charge arises — correct the status, or book the cost with your accountant |
+| `acquisition_supply_type_unknown` | `PATCH /api/entities/:id {"goodsVsServices":"services"\|"goods"}` — it decides import vs self-assessed service |
+
+**Vouchers posted before the origin was recorded** carry the old
+`EE_REVERSE_CHARGE` code, which does not say where the acquisition came from.
+They are counted in NEITHER row 6 nor row 7 — they appear in
+`row6_7_unresolved_acquisition` and are named voucher by voucher in
+`unresolved_acquisition_vouchers` and `review_flags` on
+`GET /api/reporting-periods/:id/kmd`. While any remain, `POST
+/api/reporting-periods/:id/lock` and a final statutory export are refused (409):
+a guessed row is exactly the defect. Clear them with the recorded facts and the
+ordinary correction:
+```bash
+curl -H "$H" -H "$J" -X PATCH $B/api/entities/<supplierId> -d '{"taxStatus":"taxable_business"}'
+curl -H "$H" -H "$J" -X POST $B/api/expenses/<id>/correct \
+  -d '{"kind":"financial","reason":"record the acquisition origin"}'
+```
+which reverses the old voucher and reposts it on the resolved origin. A
+correction of an expense in an ALREADY FILED period is redirected into the open
+one (ADR-0009): there the removal comes back out of the row that filing
+declared it in, and the replacement declares the resolved origin. Filed
+snapshots are never rewritten.
 
 ### Enter an invoice (outbound sales invoice — one we issue)
 ```bash
@@ -293,7 +344,7 @@ curl -H "$H" "$B/admin/approvals" "$B/admin/findings/open" "$B/admin/periods"
 ```
 
 ### What is NOT there (honest): income tax and annual report
-- **Taxes:** only **VAT** is computed (via the plugin's VAT codes and the VAT report). No income/corporate tax. Cross-border / reverse-charge — the interface exists but is **not called** in v1 (reserved); foreign VAT is never silently reclaimed, disputed cases → hold.
+- **Taxes:** only **VAT** is computed (via the plugin's VAT codes and the VAT report). No income/corporate tax. Cross-border reverse charge IS resolved and declared (see "Cross-border purchases" above), but only for the general-rule cases named there: goods acquisitions beyond the intra-Community one, customs procedures and the special schemes are not auto-classified, and are refused rather than guessed. Foreign VAT is never silently reclaimed; disputed cases → hold.
 - **Annual report / financial statements (P&L, balance sheet, formatted trial balance):** **not implemented (V2).** Only raw balances (`/admin/accounts`) and a distributable-profit utility exist. Year-end close is deferred.
 
 ---

@@ -203,6 +203,20 @@ export class StatutoryReportService {
       );
       if (invalidIdentity)
         throw new BadRequestException(invalidIdentity.message);
+
+      // The jurisdiction can refuse to put figures on a FILED document that it
+      // would still show on a draft (issue #210). The kernel does not know what
+      // makes a return unfilable — it only honours the plugin's mark, and only
+      // for a final, so the draft stays available as the diagnostic.
+      const blocking = result.warnings.find((w) => w.blocksFinal);
+      if (blocking) {
+        await this.auditFindings.create({
+          finding_type: 'statutory_report_incomplete',
+          severity: 'high',
+          description: blocking.message,
+        });
+        throw new ConflictException(blocking.message);
+      }
     }
 
     for (const w of result.warnings) {
@@ -270,6 +284,31 @@ export class StatutoryReportService {
 
     if (latest && latest.payload === payload && latest.country === country) {
       return { payloadId: latest.id, appended: false };
+    }
+
+    // Nothing that records no acquisition origin (issue #210) is ever FROZEN
+    // as a filing state. The refusal sits here, on the creation of a NEW
+    // payload, so it covers every route into one — the period lock and the
+    // reconciliation repair alike — and it runs on the caller's transaction:
+    // the lock rolls back whole, leaving the period OPEN, unbound, with no
+    // submission event, which is the only state from which the documented
+    // correction can still land in this period. Freezing first and refusing at
+    // render time would do the opposite: lock the period, then redirect the
+    // correction into a LATER one (ADR-0009), stranding the frozen payload.
+    //
+    // Existing snapshots are untouched: an identical payload returned above is
+    // never re-frozen, and no already-filed payload is rewritten or re-judged.
+    const unresolved = input.declaration.unresolved_acquisition_vouchers;
+    if (unresolved.length > 0) {
+      throw new ConflictException(
+        `Reporting period "${period.name}" (#${period.id}) cannot be filed: voucher(s) ` +
+          `${unresolved.join(', ')} carry reverse-charge acquisition base that records no ` +
+          `acquisition origin, so it belongs to KMD row 6 or row 7 and the return cannot ` +
+          `say which. Record the supplier's tax status (PATCH /api/entities/{supplierId}) ` +
+          `and correct each expense (POST /api/expenses/{id}/correct ` +
+          `{"kind":"financial","reason":"..."}), then file the period again. ` +
+          `GET /api/reporting-periods/${period.id}/kmd lists them meanwhile.`,
+      );
     }
 
     const row = await executor

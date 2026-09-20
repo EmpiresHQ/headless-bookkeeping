@@ -40,6 +40,13 @@ export interface StatutoryWarning {
   code: string;
   message: string;
   counterparty?: string;
+  /**
+   * The jurisdiction says this warning makes a FINAL return unfilable — the
+   * figures it describes are not ones the plugin is willing to put on a filed
+   * document (issue #210). A DRAFT still renders, carrying the warning, so the
+   * operator can see exactly what has to be fixed.
+   */
+  blocksFinal?: boolean;
 }
 
 export interface StatutoryReportResult {
@@ -49,7 +56,7 @@ export interface StatutoryReportResult {
 
 /**
  * A frozen filing payload, as it was stored — possibly by an older version of
- * this code (issue #209).
+ * this code (issues #209, #210).
  *
  * `statutory_filing_snapshot.payload` is IMMUTABLE: it is the artifact a filing
  * was made from, and it is never rewritten, not even to add a field. So a
@@ -70,10 +77,29 @@ export function normalizeFrozenStatutoryInput(
 ): StatutoryReportInput {
   const d = parsed.declaration as KmdDeclaration & {
     row3_1_intra_eu_supply?: number;
+    row6_7_unresolved_acquisition?: number;
+    unresolved_acquisition_vouchers?: string[];
   };
-  if (d.row3_1_intra_eu_supply !== undefined) return parsed;
-  return {
-    ...parsed,
-    declaration: { ...d, row3_1_intra_eu_supply: d.vd_intra_eu_services ?? 0 },
-  };
+  const declaration: KmdDeclaration = { ...d } as KmdDeclaration;
+  let changed = false;
+
+  if (d.row3_1_intra_eu_supply === undefined) {
+    declaration.row3_1_intra_eu_supply = d.vd_intra_eu_services ?? 0;
+    changed = true;
+  }
+  // A payload frozen before #210 split the acquisition rows has no unresolved
+  // bucket, because the code that froze it put every reverse-charge
+  // acquisition in row 7. Reading it as zero reproduces that filing exactly —
+  // and leaves the filed artifact renderable, which a blocking warning
+  // computed from today's rules would not.
+  if (d.row6_7_unresolved_acquisition === undefined) {
+    declaration.row6_7_unresolved_acquisition = 0;
+    changed = true;
+  }
+  if (d.unresolved_acquisition_vouchers === undefined) {
+    declaration.unresolved_acquisition_vouchers = [];
+    changed = true;
+  }
+
+  return changed ? { ...parsed, declaration } : parsed;
 }
