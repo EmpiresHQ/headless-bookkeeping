@@ -73,11 +73,11 @@ describe('Reporting periods: VAT calendar and financial years (integration)', ()
     // Migration 011 seeds a stray 2024-Q1; the fixtures below are self-contained.
     await db.deleteFrom('reporting_period').execute();
 
-    const organizationService = new OrganizationService(db);
     const pluginLoader = new PluginLoader(
       new NullCountryPlugin(),
       new EstoniaCountryPlugin(unusedFxRateService()),
     );
+    const organizationService = new OrganizationService(db, pluginLoader);
     const vatReportService = new VatReportService(
       db,
       new LedgerBalanceService(db),

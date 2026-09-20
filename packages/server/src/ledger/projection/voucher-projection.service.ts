@@ -12,6 +12,7 @@ import type {
   CrossBorderTreatment,
   OrgContext,
 } from '../../plugins/country-plugin.interface';
+import type { OrganizationBasisRow } from '../../organization/ledger-basis';
 import type { InputVatEntitlement } from '../../plugins/input-vat-entitlement.types';
 import {
   NO_ENTITLEMENT,
@@ -62,6 +63,16 @@ export class VoucherProjectionService {
       plugin,
       orgContext,
     } = await this.orgContextResolver.resolve();
+
+    // Issue #215: the basis these amounts are about to be measured in, taken
+    // BEFORE the FX conversion below is awaited. The conversion may wait on a
+    // published rate over the network, and the organisation's base currency /
+    // jurisdiction can still legitimately be edited while the ledger is empty —
+    // so the window that matters starts here, not at prepare time.
+    const measured_basis: OrganizationBasisRow = {
+      country: org.country,
+      base_currency: org.base_currency,
+    };
 
     const supplierFacts: SupplierFacts = {
       // The counterparty's real country drives cross-border treatment; absent a
@@ -162,6 +173,7 @@ export class VoucherProjectionService {
         return {
           voucher_number: 'PENDING',
           tax_point_date: facts.taxPointDate,
+          measured_basis,
           input_vat_entitlement: entitlement,
           lines: this.reverseChargeLines(
             facts,
@@ -187,6 +199,7 @@ export class VoucherProjectionService {
       return {
         voucher_number: 'PENDING',
         tax_point_date: facts.taxPointDate,
+        measured_basis,
         input_vat_entitlement: entitlement,
         lines: this.purchaseLines(facts, mapping, entitlement, fx, baseAmount),
       };
@@ -195,6 +208,7 @@ export class VoucherProjectionService {
     return {
       voucher_number: 'PENDING',
       tax_point_date: facts.taxPointDate,
+      measured_basis,
       lines: this.saleLines(facts, netAmount, mapping, fx, baseAmount),
     };
   }

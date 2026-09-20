@@ -76,15 +76,16 @@ describe('admin CLI (yargs)', () => {
     const { error } = await migrator.migrateToLatest();
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
+    const cliPluginLoader = new PluginLoader(
+      new NullCountryPlugin(),
+      new EstoniaCountryPlugin(unusedFxRateService()),
+    );
     deps = {
       tokens: new ApiTokenService(db),
-      organization: new OrganizationService(db),
+      organization: new OrganizationService(db, cliPluginLoader),
       periods: (() => {
-        const pluginLoader = new PluginLoader(
-          new NullCountryPlugin(),
-          new EstoniaCountryPlugin(unusedFxRateService()),
-        );
-        const organizationService = new OrganizationService(db);
+        const pluginLoader = cliPluginLoader;
+        const organizationService = new OrganizationService(db, pluginLoader);
         const ledgerBalance = new LedgerBalanceService(db);
         const vatReportService = new VatReportService(
           db,

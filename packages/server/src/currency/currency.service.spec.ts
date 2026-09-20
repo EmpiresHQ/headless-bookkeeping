@@ -93,6 +93,9 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
       // a blank source is what a pre-#203 line looks like.
       rateDate: '2026-01-15',
       rateSource: 'identity',
+      // The measurement basis this conversion resolved against, carried out
+      // with the amount so the generator can stamp it on the draft (#215).
+      basis: { country: 'IE', base_currency: null },
     });
     // The plugin's reference-rate path must NOT be touched for same currency
     // (NullCountryPlugin throws on real cross-currency pairs).
@@ -115,6 +118,7 @@ describe('CurrencyService.toBase (the deep conversion module)', () => {
       // so the caller books the rate and its evidence together.
       rateDate: 'FIXTURE_DATE',
       rateSource: 'fixture',
+      basis: { country: 'IE', base_currency: null },
     });
   });
 

@@ -1,3 +1,5 @@
+import type { OrganizationBasisRow } from '../../organization/ledger-basis';
+
 export interface VoucherLine {
   id: number;
   voucher_id: number;
@@ -62,6 +64,22 @@ export interface DraftVoucherLine {
 export interface DraftVoucher {
   /** Optional — the posting service mints the gapless sequential number at post time. */
   voucher_number?: string;
+  /**
+   * The organisation's measurement basis AS AT the moment this draft's
+   * `base_amount`s were measured (issue #215) — stamped by the generator
+   * BEFORE it awaits the FX conversion, which may go to the network.
+   *
+   * It exists because `base_amount` is a bare integer: the currency it is
+   * denominated in, and the jurisdiction whose rate and rounding produced it,
+   * are the organisation's settings, not the line's. Those settings may still
+   * be edited while the ledger is empty, so a draft measured a moment before an
+   * edit must not post under the new basis. {@link PostingService} compares it
+   * inside the posting transaction and refuses the mismatch.
+   *
+   * Omitted by generators that do no conversion of their own; the posting
+   * service then snapshots the basis at prepare time instead.
+   */
+  measured_basis?: OrganizationBasisRow;
   tax_point_date: string;
   lines: DraftVoucherLine[];
   reverses_id?: number;

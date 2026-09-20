@@ -12,6 +12,7 @@ import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { PostingService } from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
+import type { OrganizationBasisRow } from '../organization/ledger-basis';
 import { EntitiesService } from '../entities/entities.service';
 import {
   DraftVoucher,
@@ -200,8 +201,21 @@ export class PrepaymentService {
     netBase: number;
     vatBase: number;
     vatRatePermille: number | null;
+    /** The measurement basis these amounts were converted under (issue #215). */
+    basis: OrganizationBasisRow;
   }> {
     const absAmount = Math.abs(txn.amount);
+
+    // Sampled FIRST, before any other read of the organisation (issue #215).
+    // An advance off a bank transaction can be the ledger's very first voucher,
+    // so the measurement window to guard starts here — and taking the earliest
+    // sample is what makes the guard sound: the plugin, the rate and the
+    // rounding are all resolved AFTER this point, so a settings edit that lands
+    // anywhere in between leaves the stamp disagreeing with the row the posting
+    // transaction reads, and the post is refused. Sampling it last would
+    // instead record the NEW basis against amounts measured by the OLD plugin,
+    // and the check would wave it through.
+    const { baseCurrency, basis } = await this.currencyService.getLedgerBasis();
 
     // Resolve the REAL bank account code for this transaction by joining
     // statement → account.
@@ -219,7 +233,6 @@ export class PrepaymentService {
     const resolvedBankCode = bankAccount.account_code;
 
     const { plugin } = await this.orgContextResolver.resolve();
-    const baseCurrency = await this.currencyService.getBaseCurrency();
     // Resolved BEFORE the settling transaction opens: since #203 this is an
     // authoritative lookup that may reach the network, and better-sqlite3's
     // single synchronous connection forbids that inside an open transaction.
@@ -296,6 +309,7 @@ export class PrepaymentService {
       netBase,
       vatBase,
       vatRatePermille: opts.vatCode ? Math.round(rate * 1000) : null,
+      basis,
     };
   }
 
@@ -429,6 +443,7 @@ export class PrepaymentService {
 
     const draft: DraftVoucher = {
       tax_point_date: txn.transaction_date,
+      measured_basis: built.basis,
       lines: built.lines,
     };
 

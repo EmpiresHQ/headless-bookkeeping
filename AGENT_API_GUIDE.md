@@ -82,6 +82,31 @@ curl -H "$H" -H "$J" -X PUT $B/api/organization \
 ```
 `org_type`: `company | sole_proprietor`. Seed: IE, base_currency=null (→ EUR from the plugin).
 
+**`country` and `base_currency` are settable only until the first voucher is
+posted.** They are the UNIT of every amount in the ledger: a VoucherLine stores
+`base_amount` as a bare integer, and which currency that integer is in — and
+whose rate and rounding produced it — lives only in these two fields. Once
+anything is posted, a PUT that would change the EFFECTIVE basis is refused with
+**409 Conflict** and nothing is written; the historical ledger is never
+re-converted, because no controlled basis transition is supported (posted
+vouchers are immutable and hash-chained). Set the jurisdiction and the base
+currency during onboarding; to keep books in another basis, start a separate
+ledger.
+
+One consequence worth knowing before you change the base currency on an empty
+ledger: an **allowance** records its own currency at creation (the claim
+workflow takes no currency field) and is booked at an identity rate, so a claim
+raised under the previous base currency is refused at approval with **409**,
+with its split rolled back and the claim left awaiting approval. There is no
+restatement path — set the base currency back while the ledger is still empty,
+or settle that claim outside the allowance workflow.
+
+Still allowed after posting: an edit with no effect on the effective basis
+(writing the plugin's own default into `base_currency`, or clearing it again),
+restating the same `country`, a PUT that names neither field, and every other
+setting — `name`, `iban`, `org_type`, the registry/VAT numbers and all the VAT
+facts.
+
 **Input-VAT deduction entitlement.** Being liable for VAT and being entitled to
 deduct it are different questions, so three further fields record the second one
 and the posting side reads them before any `VAT_RECEIVABLE` is created:

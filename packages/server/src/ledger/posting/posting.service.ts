@@ -1,4 +1,9 @@
-import { Injectable, Optional, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Optional,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../../database/types';
@@ -25,6 +30,10 @@ import {
   ANNUAL_CLOSE_ACCOUNT_CODES,
   ANNUAL_CLOSE_ALLOWED_VAT_CODES,
 } from '../../reporting-periods/annual-close';
+import {
+  OrganizationBasisRow,
+  sameBasisRow,
+} from '../../organization/ledger-basis';
 
 /**
  * The semantic-validation decision for a post, made EXPLICITLY by the caller
@@ -213,7 +222,48 @@ export class PostingService {
       await this.enforceSemantic(draft, resolved, accounts, semantics);
     }
 
-    return { draft, resolved, semantics };
+    return {
+      // The measurement basis travels ON the draft, so every post path carries
+      // it without a further parameter (issue #215). A generator's own stamp
+      // WINS: it is taken before the FX conversion is awaited, so it covers the
+      // whole window in which the amounts were measured.
+      //
+      // The fallback below stamps the basis as at prepare time. That is the
+      // full window ONLY for a draft that did no conversion of its own; for a
+      // generator that converts without stamping, the conversion happened
+      // before this sample and an edit that landed during it is NOT detected
+      // here. VoucherProjectionService (intake), PrepaymentService (a bank
+      // advance) and PersonalDispositionService therefore stamp explicitly.
+      //
+      // This check is about a basis that MOVED under an in-flight measurement.
+      // It is not the only way an amount can be measured in the wrong unit: a
+      // draft built from a PERSISTED denomination carries no conversion at all,
+      // and is guarded where that denomination lives — see
+      // ApprovalsService.assertAllowanceInBaseCurrency (issue #215), which
+      // refuses an allowance whose stored currency is not the books'.
+      draft: draft.measured_basis
+        ? draft
+        : {
+            ...draft,
+            measured_basis: await this.readBasis(executor ?? this.db),
+          },
+      resolved,
+      semantics,
+    };
+  }
+
+  /**
+   * Read the organisation's measurement basis (issue #215). Returns undefined
+   * when the singleton is absent — the low-level posting tests run without one,
+   * and an absent row is not a basis change.
+   */
+  private async readBasis(
+    executor: Kysely<Database>,
+  ): Promise<OrganizationBasisRow | undefined> {
+    return executor
+      .selectFrom('organization')
+      .select(['country', 'base_currency'])
+      .executeTakeFirst();
   }
 
   /**
@@ -350,6 +400,44 @@ export class PostingService {
   }
 
   /**
+   * Refuse a post whose amounts were measured under a basis the organisation
+   * has since left (issue #215).
+   *
+   * Compares the RAW row, not the effective basis: no plugin is available at
+   * this seam, and raw equality implies effective equality, so a real basis
+   * change never slips through. The converse does not hold — an effect-free
+   * edit (`'EUR'` → `null` under an EUR-default plugin) remains permitted at
+   * any time and reads here as a difference — so a post in flight across such
+   * an edit is rejected although its measurement was fine. Deliberate: nothing
+   * is written, the caller retries, and the alternative is resolving defaults
+   * at a seam that has no plugin.
+   *
+   * A draft carrying no stamp is not checked; see {@link prepare} for which
+   * drafts carry one and what the fallback does and does not cover.
+   */
+  private async assertBasisUnchanged(
+    trx: Kysely<Database>,
+    measuredBasis: OrganizationBasisRow | undefined,
+  ): Promise<void> {
+    if (!measuredBasis) {
+      return;
+    }
+    const currentBasis = await this.readBasis(trx);
+    if (!currentBasis || sameBasisRow(measuredBasis, currentBasis)) {
+      return;
+    }
+    throw new ConflictException(
+      `The organisation's ledger measurement basis changed while this voucher ` +
+        `was being measured: its amounts were measured as ` +
+        `base_currency=${measuredBasis.base_currency ?? 'default'} ` +
+        `country=${measuredBasis.country}, and the organisation now records ` +
+        `base_currency=${currentBasis.base_currency ?? 'default'} ` +
+        `country=${currentBasis.country}. Nothing was posted; retry the ` +
+        `operation so the amounts are measured under the current basis.`,
+    );
+  }
+
+  /**
    * Post a draft voucher inside an existing transaction (trx).
    *
    * Lines must already be resolved + structurally validated (via {@link prepare}).
@@ -362,6 +450,16 @@ export class PostingService {
     resolved: ValidatableLine[],
     semantics: PostingSemantics = SYSTEM_GENERATED,
   ): Promise<PostedVoucher> {
+    // Measurement basis (issue #215). The organisation's base currency and
+    // jurisdiction may be changed while the ledger is still EMPTY, and a draft
+    // prepared just before such a change already carries `base_amount`s
+    // measured the old way — its conversion may even have been awaiting an FX
+    // rate over the network while the settings moved. Posting it would make the
+    // very first voucher say a basis it was not measured in, and every later
+    // voucher would be summed against it. Compare inside the transaction, where
+    // the row cannot move again, and refuse rather than mislabel.
+    await this.assertBasisUnchanged(trx, draft.measured_basis);
+
     // Hard process rule (ADR-0009): cannot post into a locked reporting period.
     // ONE enforcement point, throw mode (BadRequestException) — see ADR-0019.
     //
