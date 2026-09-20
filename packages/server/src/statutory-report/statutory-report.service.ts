@@ -29,7 +29,23 @@ interface PeriodRow {
   start_date: string;
   end_date: string;
   status: string;
+  kind: string;
   vat_report_snapshot_id: number | null;
+}
+
+/**
+ * The statutory VAT filing belongs to the VAT calendar (issue #207). A FINANCIAL
+ * YEAR has no KMD, no filing payload and no submission lifecycle of its own —
+ * its statutory artifact is the annual report — so an annual id is refused here
+ * rather than rendering or freezing a second return for turnover the monthly
+ * periods already declared.
+ */
+function assertVatPeriod(period: { id: number; kind: string }): void {
+  if (period.kind === 'annual') {
+    throw new ConflictException(
+      `Reporting period ${period.id} is a financial year — it has no VAT filing.`,
+    );
+  }
 }
 
 /**
@@ -115,6 +131,7 @@ export class StatutoryReportService {
         'start_date',
         'end_date',
         'status',
+        'kind',
         'vat_report_snapshot_id',
       ])
       .where('id', '=', periodId)
@@ -122,6 +139,7 @@ export class StatutoryReportService {
     if (!period) {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
+    assertVatPeriod(period);
 
     const locked = period.status === 'locked';
 
@@ -227,6 +245,7 @@ export class StatutoryReportService {
         'start_date',
         'end_date',
         'status',
+        'kind',
         'vat_report_snapshot_id',
       ])
       .where('id', '=', periodId)
@@ -234,6 +253,7 @@ export class StatutoryReportService {
     if (!period) {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
+    assertVatPeriod(period);
 
     const { organization } = await this.orgResolver.resolve(executor);
     const country = organization.country;

@@ -21,6 +21,10 @@ import { DraftVoucher, PostedVoucher, VoucherLine } from '../voucher/types';
 import { ValidationError } from './types';
 import { GENESIS_HASH, computeVoucherHash } from './voucher-hash';
 import { NULL_VAT_CODE } from './vat-constants';
+import {
+  ANNUAL_CLOSE_ACCOUNT_CODES,
+  ANNUAL_CLOSE_ALLOWED_VAT_CODES,
+} from '../../reporting-periods/annual-close';
 
 /**
  * The semantic-validation decision for a post, made EXPLICITLY by the caller
@@ -42,7 +46,26 @@ export type PostingSemantics =
       context: SemanticValidationContext;
       override?: Override;
     }
-  | { kind: 'system-generated' };
+  | { kind: 'system-generated' }
+  | {
+      /**
+       * A YEAR-END ADJUSTMENT of a financial year (issue #207) — the annual
+       * depreciation charge the close of `financialYearId` posts on the year's
+       * last day. Like `system-generated` it declares no semantic context, and
+       * it additionally CLAIMS the narrowly validated route that may post into
+       * a VAT period already filed (see `reporting-periods/annual-close.ts`).
+       *
+       * The claim is not the authorization: {@link PostingService.postVoucherTx}
+       * validates the year, the date, the accounts and the VAT metadata, and
+       * {@link PeriodLockService.assertAnnualClosePostable} validates the lock
+       * state, before anything is written. It is constructed by
+       * `AnnualAccountsService.finalize` alone — no request payload can carry
+       * it, since {@link DraftVoucher} has no field for it and every HTTP
+       * write path posts `system-generated` or `intake-driven`.
+       */
+      kind: 'annual-close';
+      financialYearId: number;
+    };
 
 /**
  * The result of preparing a draft: resolved lines (account_code → account_id),
@@ -51,6 +74,12 @@ export type PostingSemantics =
 export interface PreparedVoucher {
   draft: DraftVoucher;
   resolved: ValidatableLine[];
+  /**
+   * The caller's declared semantics, carried into the transaction so the
+   * period-lock enforcement point sees the same declaration the preparation
+   * did (issue #207 — an annual-close claim must not be lost on the way in).
+   */
+  semantics: PostingSemantics;
 }
 
 const SYSTEM_GENERATED: PostingSemantics = { kind: 'system-generated' };
@@ -180,7 +209,7 @@ export class PostingService {
       await this.enforceSemantic(draft, resolved, accounts, semantics);
     }
 
-    return { draft, resolved };
+    return { draft, resolved, semantics };
   }
 
   /**
@@ -299,7 +328,12 @@ export class PostingService {
     trx: Kysely<Database>,
     prepared: PreparedVoucher,
   ): Promise<PostedVoucher> {
-    return this.postVoucherTx(trx, prepared.draft, prepared.resolved);
+    return this.postVoucherTx(
+      trx,
+      prepared.draft,
+      prepared.resolved,
+      prepared.semantics,
+    );
   }
 
   /**
@@ -313,10 +347,28 @@ export class PostingService {
     trx: Kysely<Database>,
     draft: DraftVoucher,
     resolved: ValidatableLine[],
+    semantics: PostingSemantics = SYSTEM_GENERATED,
   ): Promise<PostedVoucher> {
     // Hard process rule (ADR-0009): cannot post into a locked reporting period.
     // ONE enforcement point, throw mode (BadRequestException) — see ADR-0019.
-    await this.periodLock.assertPeriodOpen(draft.tax_point_date, trx);
+    //
+    // The single exception is the year-end adjustment route (issue #207), and
+    // it is validated here, at that same enforcement point, rather than trusted:
+    // the accounts and the VAT metadata are checked below and the lock state in
+    // `assertAnnualClosePostable`. A caller cannot skip the checks by calling
+    // this method directly — the claim IS the thing being validated.
+    const annualClose =
+      semantics.kind === 'annual-close' ? semantics.financialYearId : null;
+    if (annualClose !== null) {
+      this.assertAnnualCloseShape(draft);
+      await this.periodLock.assertAnnualClosePostable(
+        draft.tax_point_date,
+        annualClose,
+        trx,
+      );
+    } else {
+      await this.periodLock.assertPeriodOpen(draft.tax_point_date, trx);
+    }
 
     const postedAt = Math.floor(Date.now() / 1000);
 
@@ -353,6 +405,10 @@ export class PostingService {
         corrects_object_type: draft.corrects_object_type ?? null,
         corrects_object_id: draft.corrects_object_id ?? null,
         reason: draft.reason ?? null,
+        // The trusted mark of a year-end adjustment (issue #207): written only
+        // here, only after the checks above passed, and immutable afterwards
+        // (posted vouchers are immutable by trigger, ADR-0019).
+        annual_close_period_id: annualClose,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -394,6 +450,42 @@ export class PostingService {
     }));
 
     return { ...voucher, lines };
+  }
+
+  /**
+   * What a year-end adjustment is allowed to BE (issue #207), checked before the
+   * locked-period rule is relaxed for it:
+   *  - every line on an {@link ANNUAL_CLOSE_ACCOUNT_CODES} account — the
+   *    depreciation charge and its accumulated-depreciation contra accounts, a
+   *    list that contains no VAT-control account and no cash, receivable or
+   *    payable account, so the adjustment cannot move money or VAT;
+   *  - no line carrying real VAT metadata, so nothing that belongs on a
+   *    declaration can ride in on a whitelisted account.
+   *
+   * Both are structural facts about the voucher, not claims about it — which is
+   * the point: the caller's declaration decides which checks run, never whether
+   * they pass.
+   */
+  private assertAnnualCloseShape(draft: DraftVoucher): void {
+    const badAccounts = draft.lines
+      .map((l) => l.account_code)
+      .filter((code) => !ANNUAL_CLOSE_ACCOUNT_CODES.includes(code));
+    if (badAccounts.length > 0) {
+      throw new BadRequestException(
+        `A year-end adjustment may only touch ${ANNUAL_CLOSE_ACCOUNT_CODES.join(', ')} — ` +
+          `rejected line(s) on ${[...new Set(badAccounts)].join(', ')}`,
+      );
+    }
+
+    const vatCodes = draft.lines
+      .map((l) => l.vat_code ?? null)
+      .filter((code) => !ANNUAL_CLOSE_ALLOWED_VAT_CODES.includes(code));
+    if (vatCodes.length > 0) {
+      throw new BadRequestException(
+        `A year-end adjustment may not carry VAT metadata — rejected VAT code(s) ` +
+          `${[...new Set(vatCodes)].join(', ')}`,
+      );
+    }
   }
 
   /**

@@ -92,6 +92,15 @@ export interface VoucherTable {
   corrects_object_type: string | null;
   corrects_object_id: number | null;
   reason: string | null;
+  /**
+   * The financial year (a `reporting_period` row with `kind = 'annual'`) whose
+   * CLOSE posted this voucher — the trusted mark of a year-end adjustment
+   * (issue #207). Written only by the validated annual-close posting path, never
+   * from a request payload, and immutable once the voucher is posted (ADR-0019
+   * trigger). A VAT snapshot excludes the vouchers carrying it, so a year-end
+   * adjustment booked after the month was filed never drifts a frozen return.
+   */
+  annual_close_period_id: number | null;
 }
 
 export interface VoucherLineTable {
@@ -199,6 +208,13 @@ export interface ReportingPeriodTable {
   name: string;
   start_date: string;
   end_date: string;
+  /**
+   * Which timeline this period belongs to (issue #207): `vat` — the tax
+   * calendar a KMD is filed for — or `annual` — an independent financial year
+   * the annual accounts are produced and closed for. The two coexist over the
+   * same dates; the overlap guard applies WITHIN a timeline.
+   */
+  kind: Generated<string>;
   status: string;
   filed_at: number | null;
   vat_report_snapshot_id: number | null;

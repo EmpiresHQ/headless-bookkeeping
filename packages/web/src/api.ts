@@ -287,9 +287,15 @@ export const getDocumentReclassify = (id: number) =>
 
 export const deleteDocument = (id: number) =>
   apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });
+/**
+ * The VAT calendar — the periods this screen files and locks. The endpoint
+ * defaults to `kind=vat`, so the independent financial years the annual
+ * accounts are closed against (server-side `kind=annual`) never appear here and
+ * cannot be mistaken for a filable VAT period.
+ */
 export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
-    '/api/reporting-periods',
+    '/api/reporting-periods?kind=vat',
   ).then((r) => r.reportingPeriods);
 
 export interface CreateReportingPeriodInput {

@@ -207,6 +207,13 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
                   type: 'string',
                   demandOption: true,
                   describe: 'End date YYYY-MM-DD',
+                })
+                .option('kind', {
+                  type: 'string',
+                  choices: ['vat', 'annual'] as const,
+                  default: 'vat' as const,
+                  describe:
+                    'Timeline: vat (a VAT period) or annual (a financial year)',
                 }),
             async (argv) =>
               io.out(
@@ -215,6 +222,7 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
                     name: argv.name,
                     start_date: argv.start,
                     end_date: argv.end,
+                    kind: argv.kind,
                   }),
                 ),
               ),
@@ -222,8 +230,15 @@ export function buildCli(deps: CliDeps, io: CliIo): Argv {
           .command(
             'list',
             'List reporting periods',
-            (y) => y,
-            async () => io.out(json(await periods.list())),
+            (y) =>
+              y.option('kind', {
+                type: 'string',
+                choices: ['vat', 'annual', 'all'] as const,
+                default: 'all' as const,
+                describe:
+                  'Which timeline to list: vat, annual, or all (default)',
+              }),
+            async (argv) => io.out(json(await periods.list(argv.kind))),
           )
           .command(
             'delete <id>',
