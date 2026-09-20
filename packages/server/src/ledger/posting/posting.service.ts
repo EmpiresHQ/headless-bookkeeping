@@ -232,12 +232,15 @@ export class PostingService {
       // full window ONLY for a draft that did no conversion of its own; for a
       // generator that converts without stamping, the conversion happened
       // before this sample and an edit that landed during it is NOT detected
-      // here. The generators that can plausibly produce the ledger's FIRST
-      // voucher from a converted amount stamp explicitly
-      // (VoucherProjectionService for intake, PrepaymentService for a bank
-      // advance, PersonalDispositionService); the rest can only run once a
-      // voucher already exists, at which point OrganizationService refuses the
-      // basis change outright and there is no window left to lose.
+      // here. VoucherProjectionService (intake), PrepaymentService (a bank
+      // advance) and PersonalDispositionService therefore stamp explicitly.
+      //
+      // This check is about a basis that MOVED under an in-flight measurement.
+      // It is not the only way an amount can be measured in the wrong unit: a
+      // draft built from a PERSISTED denomination carries no conversion at all,
+      // and is guarded where that denomination lives — see
+      // ApprovalsService.assertAllowanceInBaseCurrency (issue #215), which
+      // refuses an allowance whose stored currency is not the books'.
       draft: draft.measured_basis
         ? draft
         : {

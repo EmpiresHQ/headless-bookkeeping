@@ -23,6 +23,7 @@ import {
 } from '../allowances/allowance-projection.service';
 import { healthFactsFromRow } from '../allowances/health-facts';
 import { OrgContextResolver } from '../organization/org-context.resolver';
+import { effectiveBaseCurrency } from '../organization/ledger-basis';
 import type { AllowanceType } from '../plugins/allowance-rates.types';
 import {
   Approval,
@@ -227,9 +228,13 @@ export class ApprovalsService {
         },
       );
 
+      // `prepared.draft`, not `draft`: prepare() stamps the measurement basis
+      // onto the draft it returns, and the posting transaction checks it
+      // (issue #215). Passing the unstamped original would silently opt this
+      // path out of that check.
       const voucher = await this.postingService.postVoucherTx(
         trx,
-        draft,
+        prepared.draft,
         prepared.resolved,
       );
 
@@ -492,6 +497,63 @@ export class ApprovalsService {
    * therefore sees the first's committed usage, and the row, the voucher and
    * the report are derived from one decision rather than three.
    */
+  /**
+   * An allowance may only post while it is denominated in the books' own base
+   * currency (issue #215).
+   *
+   * {@link AllowanceProjectionService} books every leg at `fx_rate = 1` with
+   * `base_amount = amount`, on the standing assumption that an allowance is
+   * already in base currency. Nothing enforced that: `allowance.currency` is a
+   * column default written at creation and never re-read against the
+   * organisation. An allowance raised while the books were kept in EUR can
+   * therefore survive a legitimate (ledger still empty) switch of the base
+   * currency and then be approved, putting EUR-measured cents into a USD-basis
+   * ledger at an identity rate — and, because an allowance can be the FIRST
+   * voucher, doing so with nothing else in the ledger to contradict it.
+   *
+   * Refused, not converted. The amounts come from statutory per-diem and
+   * kilometre rates denominated in the jurisdiction's own currency; restating
+   * them in another currency is not a conversion the kernel is entitled to
+   * invent — the same reason {@link AllowanceLimitService} refuses to measure
+   * the statutory health cap against books kept in another currency.
+   *
+   * The refusal says what can actually be done, which is deliberately little:
+   * the claim workflow accepts no currency (the column is a default), so
+   * "re-raise it in the other currency" is not on offer. While the ledger is
+   * empty the base currency can be set back; after that the claim belongs to an
+   * accountant outside this workflow. Nothing here ever restates posted books.
+   *
+   * Read through `trx`: this runs inside the approval transaction, where a
+   * root-`db` read would deadlock better-sqlite3's single connection — and
+   * where the basis cannot move again before the voucher is written.
+   */
+  private async assertAllowanceInBaseCurrency(
+    trx: Kysely<Database>,
+    allowance: { id: number; currency: string },
+  ): Promise<void> {
+    const { organization, plugin } = await this.orgContextResolver.resolve(trx);
+    const baseCurrency = effectiveBaseCurrency(organization, plugin);
+
+    if (allowance.currency === baseCurrency) {
+      return;
+    }
+
+    throw new ConflictException(
+      `Allowance ${allowance.id} is denominated in ${allowance.currency}, but ` +
+        `the books are kept in ${baseCurrency}. Its amounts are statutory ` +
+        `rates in ${allowance.currency} and are booked at an identity rate, so ` +
+        `posting it would record ${allowance.currency} amounts as ` +
+        `${baseCurrency} ones. Nothing was posted, and the claim stays awaiting ` +
+        `approval. There is no supported way to restate it: an allowance is ` +
+        `always raised in ${allowance.currency} — the claim workflow takes no ` +
+        `currency — and the kernel does not translate statutory rates. While ` +
+        `the ledger is still empty the base currency can be set back to ` +
+        `${allowance.currency}; once anything is posted it cannot, and this ` +
+        `claim has to be settled outside the allowance workflow by an ` +
+        `accountant. Posted books are never restated either way.`,
+    );
+  }
+
   private async approveAllowance(
     approval: Approval,
     id: number,
@@ -508,6 +570,10 @@ export class ApprovalsService {
         now,
         trx,
       );
+
+      // The allowance's own currency must BE the books' currency, because the
+      // projection books its amounts at an identity rate (issue #215).
+      await this.assertAllowanceInBaseCurrency(trx, updated);
 
       const fringe = split.health?.fringeTax
         ? {
@@ -550,9 +616,11 @@ export class ApprovalsService {
         },
       );
 
+      // `prepared.draft` carries the measurement-basis stamp (issue #215); see
+      // the note in approveExpenseOrInvoice above.
       const posted = await this.postingService.postVoucherTx(
         trx,
-        draft,
+        prepared.draft,
         prepared.resolved,
       );
 

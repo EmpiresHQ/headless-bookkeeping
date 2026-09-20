@@ -36,6 +36,23 @@ export interface LedgerBasis {
 }
 
 /**
+ * The effective base currency, given an ALREADY-RESOLVED country plugin — for
+ * a caller that holds the plugin (via `OrgContextResolver.resolve`) and must
+ * not resolve it a second time, or is inside a transaction where it cannot.
+ */
+export function effectiveBaseCurrency(
+  org: OrganizationBasisRow,
+  plugin: { getDefaultBaseCurrency(): string },
+): string {
+  // Falsy, not just null: an empty override has always fallen through to the
+  // plugin default here, and the guard must read the column the same way the
+  // posting side does.
+  return org.base_currency
+    ? org.base_currency
+    : plugin.getDefaultBaseCurrency();
+}
+
+/**
  * Resolve the effective basis of an organisation row — the SINGLE definition of
  * "which currency are the base amounts in" (ADR-0004 resolution order: the
  * explicit override, else the country plugin's default).
@@ -51,12 +68,7 @@ export function resolveLedgerBasis(
 ): LedgerBasis {
   return {
     country: org.country,
-    // Falsy, not just null: an empty override has always fallen through to the
-    // plugin default here, and the guard must read the column the same way the
-    // posting side does.
-    baseCurrency: org.base_currency
-      ? org.base_currency
-      : pluginLoader.resolve(org.country).getDefaultBaseCurrency(),
+    baseCurrency: effectiveBaseCurrency(org, pluginLoader.resolve(org.country)),
   };
 }
 

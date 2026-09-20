@@ -93,6 +93,14 @@ vouchers are immutable and hash-chained). Set the jurisdiction and the base
 currency during onboarding; to keep books in another basis, start a separate
 ledger.
 
+One consequence worth knowing before you change the base currency on an empty
+ledger: an **allowance** records its own currency at creation (the claim
+workflow takes no currency field) and is booked at an identity rate, so a claim
+raised under the previous base currency is refused at approval with **409**,
+with its split rolled back and the claim left awaiting approval. There is no
+restatement path — set the base currency back while the ledger is still empty,
+or settle that claim outside the allowance workflow.
+
 Still allowed after posting: an edit with no effect on the effective basis
 (writing the plugin's own default into `base_currency`, or clearing it again),
 restating the same `country`, a PUT that names neither field, and every other
