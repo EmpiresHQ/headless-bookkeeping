@@ -691,8 +691,10 @@ export class AnnualAccountsService {
       await this.attribution.unattributedDepreciation(period.end_date)
     ).filter((u) => u.taxPointDate >= period.start_date);
 
-    const attributedCloseByClass =
-      await this.attribution.attributedByClass(closeVoucherIds);
+    const attributedCloseByClass = await this.attribution.attributedByClass(
+      closeVoucherIds,
+      period.end_date,
+    );
     const unattributedCloseByClass = new Map<AssetClass, number>();
     for (const [cls, postedMinor] of postedByClass) {
       const gap = postedMinor - (attributedCloseByClass.get(cls) ?? 0);
@@ -947,7 +949,13 @@ export class AnnualAccountsService {
       const signed = line.is_debit ? -line.base_amount : line.base_amount;
       posted.set(cls, (posted.get(cls) ?? 0) + signed);
     }
-    return { byClass: posted, closeVoucherIds: closeIds };
+    // The reversal ids travel with the close ids: `posted` already nets a
+    // reversal booked inside the year, so the attribution netted against it
+    // has to cover the same vouchers or the two sides would not compare.
+    return {
+      byClass: posted,
+      closeVoucherIds: [...closeIds, ...reversals.map((r) => r.id)],
+    };
   }
 
   /**

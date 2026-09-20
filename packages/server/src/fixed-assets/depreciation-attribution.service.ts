@@ -10,6 +10,7 @@ import { CLASS_ACCOUNTS } from './fixed-asset-class-map';
 export type AttributionSource =
   | 'annual_close'
   | 'disposal_catch_up'
+  | 'disposal_clearing'
   | 'legacy_backfill'
   | 'operator_allocation';
 
@@ -127,24 +128,22 @@ export class DepreciationAttributionService {
   /**
    * Depreciation POSTED for these assets as of `asOf`, per asset id.
    *
-   * ── The as-of cutoff and reversals ──
+   * ── One signed model ──
+   *
+   * Every movement on an ACCUM_* account is attributed, with its own sign: a
+   * charge is positive, a reversal and a disposal's clearing leg are negative.
+   * Nothing is "skipped as reversed" — an earlier design did that AND counted
+   * an explicitly allocated reversal, which double-counted it straight into a
+   * negative accumulated depreciation. Summing signed rows cannot double-count
+   * whatever the correction history looks like.
+   *
+   * ── The as-of cutoff ──
    *
    * A row counts when the voucher carrying it is posted and dated on or before
-   * `asOf`. Its REVERSAL is a separate voucher with its own date, and it is
-   * subtracted only when it too is posted on or before `asOf`. A reversal
-   * booked in a LATER period therefore does not erase depreciation that really
-   * was posted as of the earlier date — the same cutoff the annual report
-   * applies to its own period window, so a disposal and the report of an
-   * already-filed year read the same history.
-   *
-   * ── Signed legs, not "any reversal exists" ──
-   *
-   * A reversal is credited back only for what it actually reverses: the
-   * reversing voucher's own signed ACCUM_* net for the class must equal the
-   * negative of the original's signed ACCUM_* net for that class. A voucher
-   * that only partly offsets the original nets nothing away on a proportional
-   * guess — it makes that class AMBIGUOUS, reported by
-   * {@link unattributedDepreciation} and refused by {@link assertAttributable}.
+   * `asOf`. A reversal is a separate voucher with its own date, so a reversal
+   * booked in a LATER period does not erase depreciation that really was
+   * posted as of the earlier date — the same cutoff the annual report applies
+   * to its own period window.
    */
   async postedByAsset(
     assetIds: number[],
@@ -152,32 +151,12 @@ export class DepreciationAttributionService {
   ): Promise<Map<number, number>> {
     const result = new Map<number, number>(assetIds.map((id) => [id, 0]));
     if (assetIds.length === 0) return result;
-
-    const rows = await this.db
-      .selectFrom('fixed_asset_depreciation as fad')
-      .innerJoin('voucher as v', 'v.id', 'fad.voucher_id')
-      .innerJoin('fixed_asset as fa', 'fa.id', 'fad.fixed_asset_id')
-      .select([
-        'fad.fixed_asset_id',
-        'fad.voucher_id',
-        'fad.amount_minor',
-        'fa.asset_class',
-      ])
-      .where('fad.fixed_asset_id', 'in', assetIds)
-      .where('v.posted_at', 'is not', null)
-      .where('v.tax_point_date', '<=', asOf)
-      .execute();
-    if (rows.length === 0) return result;
-
-    const voucherIds = [...new Set(rows.map((r) => r.voucher_id))];
-    const { fullyReversed } = await this.reversalState(voucherIds, asOf);
-
-    for (const r of rows) {
-      if (fullyReversed.get(r.voucher_id)?.has(r.asset_class as AssetClass))
-        continue;
+    const wanted = new Set(assetIds);
+    for (const r of await this.attributionAsOf(asOf)) {
+      if (!wanted.has(r.fixedAssetId)) continue;
       result.set(
-        r.fixed_asset_id,
-        (result.get(r.fixed_asset_id) ?? 0) + r.amount_minor,
+        r.fixedAssetId,
+        (result.get(r.fixedAssetId) ?? 0) + r.amountMinor,
       );
     }
     return result;
@@ -189,65 +168,150 @@ export class DepreciationAttributionService {
   }
 
   /**
-   * How `voucherIds` stand against their posted reversals as of `asOf`:
-   * classes cancelled EXACTLY (so the charge no longer stands), and classes
-   * offset only PARTLY (so what is still standing cannot be trusted to match
-   * the attribution written for it).
+   * Every attribution in force as of `asOf`: the persisted rows, plus the
+   * IMPLIED negations a clean reversal carries.
+   *
+   * A reversal of a fully attributed voucher that exactly cancels its class
+   * leg needs no operator: its split is not unknown, it is the negation of the
+   * split already recorded, arithmetically and without a choice to make. So it
+   * is derived rather than demanded — otherwise every ordinary correction
+   * would block a disposal until somebody re-typed figures the kernel already
+   * holds.
+   *
+   * A PARTIAL cancellation is a different thing entirely: which asset the part
+   * belongs to is a real question, so nothing is implied and the reversal shows
+   * up in {@link unattributedDepreciation} until it is allocated. Several
+   * partials that happen to add up to the whole charge are each judged on their
+   * own, so a pair is never silently read as one clean cancellation.
    */
-  private async reversalState(
-    voucherIds: number[],
+  private async attributionAsOf(
     asOf: string,
-  ): Promise<{
-    fullyReversed: Map<number, Set<AssetClass>>;
-    partiallyReversed: Map<number, Map<AssetClass, number>>;
-  }> {
-    const fullyReversed = new Map<number, Set<AssetClass>>();
-    const partiallyReversed = new Map<number, Map<AssetClass, number>>();
-    if (voucherIds.length === 0) return { fullyReversed, partiallyReversed };
+    executor: Kysely<Database> = this.db,
+  ): Promise<
+    Array<{
+      voucherId: number;
+      fixedAssetId: number;
+      assetClass: AssetClass;
+      amountMinor: number;
+    }>
+  > {
+    const explicit = (
+      await executor
+        .selectFrom('fixed_asset_depreciation as fad')
+        .innerJoin('voucher as v', 'v.id', 'fad.voucher_id')
+        .innerJoin('fixed_asset as fa', 'fa.id', 'fad.fixed_asset_id')
+        .select([
+          'fad.voucher_id',
+          'fad.fixed_asset_id',
+          'fad.amount_minor',
+          'fa.asset_class',
+        ])
+        .where('v.posted_at', 'is not', null)
+        .where('v.tax_point_date', '<=', asOf)
+        .execute()
+    ).map((r) => ({
+      voucherId: r.voucher_id,
+      fixedAssetId: r.fixed_asset_id,
+      assetClass: r.asset_class as AssetClass,
+      amountMinor: r.amount_minor,
+    }));
 
-    const originals = await this.accumNetByVoucher(voucherIds);
-    const reversals = await this.db
+    const implied = await this.impliedReversals(explicit, asOf, executor);
+    return [...explicit, ...implied];
+  }
+
+  /** @see {@link attributionAsOf} — the derived negations of clean reversals. */
+  private async impliedReversals(
+    explicit: Array<{
+      voucherId: number;
+      fixedAssetId: number;
+      assetClass: AssetClass;
+      amountMinor: number;
+    }>,
+    asOf: string,
+    executor: Kysely<Database>,
+  ): Promise<
+    Array<{
+      voucherId: number;
+      fixedAssetId: number;
+      assetClass: AssetClass;
+      amountMinor: number;
+    }>
+  > {
+    const posted = await executor
       .selectFrom('voucher')
       .select(['id', 'reverses_id'])
-      .where('reverses_id', 'in', voucherIds)
       .where('posted_at', 'is not', null)
       .where('tax_point_date', '<=', asOf)
+      .where('reverses_id', 'is not', null)
+      .orderBy('id', 'asc')
       .execute();
-    if (reversals.length === 0) return { fullyReversed, partiallyReversed };
+    if (posted.length === 0) return [];
 
-    const reversalNets = await this.accumNetByVoucher(
-      reversals.map((r) => r.id),
+    // The original must itself be posted and in the window: an implied
+    // negative without the positive it cancels would understate the asset.
+    const originalIds = [
+      ...new Set(posted.map((r) => r.reverses_id as number)),
+    ];
+    const visibleOriginals = new Set(
+      (
+        await executor
+          .selectFrom('voucher')
+          .select('id')
+          .where('id', 'in', originalIds)
+          .where('posted_at', 'is not', null)
+          .where('tax_point_date', '<=', asOf)
+          .execute()
+      ).map((r) => r.id),
     );
-    const byOriginal = new Map<number, Map<AssetClass, number>>();
-    for (const r of reversals) {
-      if (r.reverses_id === null) continue;
-      const net = reversalNets.get(r.id);
-      if (!net) continue;
-      const acc =
-        byOriginal.get(r.reverses_id) ?? new Map<AssetClass, number>();
-      for (const [cls, v] of net) acc.set(cls, (acc.get(cls) ?? 0) + v);
-      byOriginal.set(r.reverses_id, acc);
+
+    const nets = await this.accumNetByVoucher(
+      [...posted.map((r) => r.id), ...originalIds],
+      executor,
+    );
+    const explicitByVoucherClass = new Map<string, typeof explicit>();
+    for (const r of explicit) {
+      const key = `${r.voucherId}:${r.assetClass}`;
+      explicitByVoucherClass.set(key, [
+        ...(explicitByVoucherClass.get(key) ?? []),
+        r,
+      ]);
     }
 
-    for (const [voucherId, byClass] of originals) {
-      const rev = byOriginal.get(voucherId);
-      if (!rev) continue;
-      for (const [cls, net] of byClass) {
-        const r = rev.get(cls) ?? 0;
-        if (r === 0 || net === 0) continue;
-        if (r === -net) {
-          const set = fullyReversed.get(voucherId) ?? new Set<AssetClass>();
-          set.add(cls);
-          fullyReversed.set(voucherId, set);
-        } else {
-          const m =
-            partiallyReversed.get(voucherId) ?? new Map<AssetClass, number>();
-          m.set(cls, r);
-          partiallyReversed.set(voucherId, m);
+    const out: typeof explicit = [];
+    // One implication per (original, class): were two vouchers each to cancel
+    // the same leg in full, implying both would negate it twice.
+    const claimed = new Set<string>();
+    for (const reversal of posted) {
+      const originalId = reversal.reverses_id as number;
+      if (!visibleOriginals.has(originalId)) continue;
+      const own = nets.get(reversal.id);
+      const original = nets.get(originalId);
+      if (!own || !original) continue;
+      for (const [cls, net] of own) {
+        if (net === 0) continue;
+        // Only an EXACT cancellation of that class leg is derivable.
+        if ((original.get(cls) ?? 0) !== -net) continue;
+        // …and only when the original's own split is completely recorded.
+        const rows = explicitByVoucherClass.get(`${originalId}:${cls}`) ?? [];
+        const sum = rows.reduce((t, r) => t + r.amountMinor, 0);
+        if (rows.length === 0 || sum !== (original.get(cls) ?? 0)) continue;
+        // A reversal someone has already allocated by hand stands on its own.
+        if (explicitByVoucherClass.has(`${reversal.id}:${cls}`)) continue;
+        const key = `${originalId}:${cls}`;
+        if (claimed.has(key)) continue;
+        claimed.add(key);
+        for (const r of rows) {
+          out.push({
+            voucherId: reversal.id,
+            fixedAssetId: r.fixedAssetId,
+            assetClass: cls,
+            amountMinor: -r.amountMinor,
+          });
         }
       }
     }
-    return { fullyReversed, partiallyReversed };
+    return out;
   }
 
   /** Signed credit-positive ACCUM_* net per class, per voucher. */
@@ -279,27 +343,29 @@ export class DepreciationAttributionService {
    * EVERY posted movement on an ACCUM_DEPRECIATION_* account, dated on or
    * before `asOf`, that is not attributed to individual assets.
    *
+   * One rule, applied to every voucher alike: per class, what the voucher
+   * MOVED minus what is attributed to it — persisted rows plus the negations a
+   * clean reversal implies (see {@link attributionAsOf}). A non-zero remainder
+   * is unknown, and unknown is never read as zero.
+   *
    * Deliberately NOT restricted to recognised annual closes. A plain
    * hand-posted `Dr DEPRECIATION_EXPENSE / Cr ACCUM_DEPRECIATION_IT` is exactly
    * how issue #214's reproduction charges its two assets, and an unattributed
-   * movement is no less unknown for having no close marker on it: ignoring it
-   * would overstate both asset cards and let a disposal charge it a second
-   * time. A charge and a correction are the same problem here.
+   * movement is no less unknown for having no close marker on it.
    *
-   * What is NOT flagged, because it is already accounted for:
-   *  - a **disposal voucher's clearing leg** — a debit on the class that
-   *    retires exactly what the register says was accumulated for the asset
-   *    being retired (`fixed_asset.disposal_voucher_id` names that voucher).
-   *    It removes attributed depreciation; it is not a fresh charge;
-   *  - an **acquisition** — a capex voucher touches `FIXED_ASSETS_*`, never the
-   *    contra account, so it never appears here at all;
-   *  - a **clean full reversal** of an attributed voucher, whose signed class
-   *    leg exactly cancels the original. Both sides are then netted by
-   *    {@link postedByAsset} and nothing is left standing to attribute.
+   * What does NOT appear here needs no special case any more, because it is
+   * genuinely attributed rather than excluded by name:
+   *  - a **disposal voucher's clearing leg** carries its own negative row,
+   *    written when the asset was retired;
+   *  - a **clean full reversal** is implied from the original's split;
+   *  - an **acquisition** touches `FIXED_ASSETS_*`, never the contra account,
+   *    so it never had a movement here to begin with.
    *
-   * A PARTIAL reversal is flagged (`partial_reversal`): what remains standing
-   * on the class no longer matches the attribution written for it, and no rule
-   * here can say which asset the remainder belongs to.
+   * A PARTIAL reversal is reported (`cause: 'partial_reversal'`) against the
+   * REVERSING voucher — the voucher whose movement is actually unexplained —
+   * so allocating that voucher resolves it. Reporting it against the original
+   * instead left it unresolvable: every leg could be attributed and the
+   * original would still be flagged for ever.
    */
   async unattributedDepreciation(
     asOf: string,
@@ -316,72 +382,30 @@ export class DepreciationAttributionService {
       .execute();
     if (touching.length === 0) return [];
 
-    const ids = touching.map((v) => v.id);
-    const postedByVoucher = await this.accumNetByVoucher(ids);
-    const attributed = await this.attributedByVoucherClass(ids);
-    const { fullyReversed, partiallyReversed } = await this.reversalState(
-      ids,
-      asOf,
+    const postedByVoucher = await this.accumNetByVoucher(
+      touching.map((v) => v.id),
     );
-
-    // The vouchers that RETIRE an asset: their contra debit is the accounted-for
-    // removal of that asset's attributed depreciation, not a movement in search
-    // of an owner.
-    const disposalVoucherIds = new Set(
-      (
-        await this.db
-          .selectFrom('fixed_asset')
-          .select('disposal_voucher_id')
-          .where('disposal_voucher_id', 'is not', null)
-          .execute()
-      ).map((r) => r.disposal_voucher_id as number),
-    );
-    // A voucher that cleanly and fully reverses another is accounted for on the
-    // original's side; it must not be reported again as a movement of its own.
-    const cleanReversalIds = new Set<number>();
-    for (const v of touching) {
-      if (v.reverses_id === null) continue;
-      const originalNet = postedByVoucher.get(v.reverses_id);
-      const ownNet = postedByVoucher.get(v.id);
-      if (!originalNet || !ownNet) continue;
-      const cancelsEverything = [...ownNet.entries()].every(
-        ([cls, net]) => (originalNet.get(cls) ?? 0) === -net,
-      );
-      if (cancelsEverything) cleanReversalIds.add(v.id);
-    }
+    const attributed = await this.attributedByVoucherClass(asOf);
 
     const out: UnattributedDepreciation[] = [];
     for (const v of touching) {
-      if (disposalVoucherIds.has(v.id)) continue;
-      if (cleanReversalIds.has(v.id)) continue;
       const byClass = postedByVoucher.get(v.id);
       if (!byClass) continue;
       for (const [cls, postedMinor] of byClass) {
         if (postedMinor === 0) continue;
-        if (fullyReversed.get(v.id)?.has(cls)) continue;
-        const attributedMinor = attributed.get(v.id)?.get(cls) ?? 0;
-        const partial = partiallyReversed.get(v.id)?.get(cls);
-        if (partial !== undefined) {
-          out.push({
-            voucherId: v.id,
-            voucherReason: v.reason,
-            taxPointDate: v.tax_point_date,
-            assetClass: cls,
-            unattributedMinor: postedMinor + partial - attributedMinor,
-            cause: 'partial_reversal',
-          });
-          continue;
-        }
-        if (postedMinor !== attributedMinor) {
-          out.push({
-            voucherId: v.id,
-            voucherReason: v.reason,
-            taxPointDate: v.tax_point_date,
-            assetClass: cls,
-            unattributedMinor: postedMinor - attributedMinor,
-            cause: 'unattributed_posting',
-          });
-        }
+        const gap = postedMinor - (attributed.get(v.id)?.get(cls) ?? 0);
+        if (gap === 0) continue;
+        out.push({
+          voucherId: v.id,
+          voucherReason: v.reason,
+          taxPointDate: v.tax_point_date,
+          assetClass: cls,
+          unattributedMinor: gap,
+          cause:
+            v.reverses_id !== null
+              ? 'partial_reversal'
+              : 'unattributed_posting',
+        });
       }
     }
     return out;
@@ -395,33 +419,28 @@ export class DepreciationAttributionService {
    */
   async attributedByClass(
     voucherIds: number[],
+    asOf: string,
   ): Promise<Map<AssetClass, number>> {
-    const perVoucher = await this.attributedByVoucherClass(voucherIds);
+    const wanted = new Set(voucherIds);
     const out = new Map<AssetClass, number>();
-    for (const byClass of perVoucher.values()) {
-      for (const [cls, v] of byClass) out.set(cls, (out.get(cls) ?? 0) + v);
+    if (wanted.size === 0) return out;
+    for (const r of await this.attributionAsOf(asOf)) {
+      if (!wanted.has(r.voucherId)) continue;
+      out.set(r.assetClass, (out.get(r.assetClass) ?? 0) + r.amountMinor);
     }
     return out;
   }
 
-  /** Σ attributed per (voucher, class). */
+  /** Σ attributed (persisted + implied) per (voucher, class), as of `asOf`. */
   private async attributedByVoucherClass(
-    voucherIds: number[],
+    asOf: string,
     executor: Kysely<Database> = this.db,
   ): Promise<Map<number, Map<AssetClass, number>>> {
     const out = new Map<number, Map<AssetClass, number>>();
-    if (voucherIds.length === 0) return out;
-    const rows = await executor
-      .selectFrom('fixed_asset_depreciation as fad')
-      .innerJoin('fixed_asset as fa', 'fa.id', 'fad.fixed_asset_id')
-      .select(['fad.voucher_id', 'fad.amount_minor', 'fa.asset_class'])
-      .where('fad.voucher_id', 'in', voucherIds)
-      .execute();
-    for (const r of rows) {
-      const cls = r.asset_class as AssetClass;
-      const m = out.get(r.voucher_id) ?? new Map<AssetClass, number>();
-      m.set(cls, (m.get(cls) ?? 0) + r.amount_minor);
-      out.set(r.voucher_id, m);
+    for (const r of await this.attributionAsOf(asOf, executor)) {
+      const m = out.get(r.voucherId) ?? new Map<AssetClass, number>();
+      m.set(r.assetClass, (m.get(r.assetClass) ?? 0) + r.amountMinor);
+      out.set(r.voucherId, m);
     }
     return out;
   }
@@ -576,14 +595,18 @@ export class DepreciationAttributionService {
         );
       }
 
-      // What is STILL unattributed on each class, read inside the transaction.
+      // What is STILL unattributed on each class, read inside the transaction
+      // and counting the negations a clean reversal IMPLIES — so a correction
+      // whose split the kernel can already derive is refused here rather than
+      // being counted a second time on top of its own implication.
+      //
       // A multi-class voucher may be partly resolved already — the migration
       // back-fills only the classes that reconciled — and the class that is
       // still ambiguous has to remain resolvable on its own. So an allocation
       // addresses the classes named in its payload; the others are left
       // exactly as they are, rows and all.
       const attributed =
-        (await this.attributedByVoucherClass([voucher.id], trx)).get(
+        (await this.attributedByVoucherClass(voucher.tax_point_date, trx)).get(
           voucher.id,
         ) ?? new Map<AssetClass, number>();
       const remainingByClass = new Map<AssetClass, number>();

@@ -51,6 +51,16 @@ import { Database } from '../types';
 /** The documented reason prefix of an annual-close depreciation voucher. */
 const ANNUAL_DEPRECIATION_REASON_PREFIX = 'Annual depreciation charge for ';
 
+/**
+ * The documented reason a disposal's catch-up voucher carries, naming the very
+ * asset it was charged for (`FixedAssetsService.dispose`). Frozen here for the
+ * same reason the arithmetic below is: the migration must recognise the
+ * strings the ledger actually holds.
+ */
+function catchUpReasonFor(assetId: number): string {
+  return `Catch-up depreciation on disposal of fixed asset ${assetId}`;
+}
+
 /** The contra account of each asset class (ADR-0035). */
 const ACCUM_BY_CLASS: Record<string, string> = {
   vehicle: 'ACCUM_DEPRECIATION_VEHICLES',
@@ -101,7 +111,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
       col
         .notNull()
         .check(
-          sql`source IN ('annual_close','disposal_catch_up','legacy_backfill','operator_allocation')`,
+          sql`source IN ('annual_close','disposal_catch_up','disposal_clearing','legacy_backfill','operator_allocation')`,
         ),
     )
     .addColumn('created_at', 'integer', (col) => col.notNull())
@@ -140,6 +150,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
   `.execute(db);
 
   await backfillLegacyCloses(db);
+  await backfillLegacyDisposals(db);
 }
 
 /** @see the file header — evidence-based, exact-reconciliation-only back-fill. */
@@ -266,6 +277,142 @@ async function backfillLegacyCloses(db: Kysely<Database>): Promise<void> {
         .execute();
     }
   }
+}
+
+/**
+ * The two vouchers a disposal posted before this migration existed: the
+ * catch-up charge, and the clearing debit that took the asset's accumulated
+ * depreciation off the class.
+ *
+ * Both are movements on an `ACCUM_DEPRECIATION_*` account, so leaving them
+ * unattributed would report them as unexplained — and an unexplained movement
+ * blocks the year's close and the class's other disposals. Neither is actually
+ * unknown, and neither is derived from arithmetic here:
+ *
+ *  - the clearing leg's owner is PERSISTED: `fixed_asset.disposal_voucher_id`
+ *    names the voucher that retired exactly one asset. The attributed amount
+ *    is that voucher's own signed net on that asset's class — what the ledger
+ *    says, not what the engine would compute;
+ *  - the catch-up carries the documented reason that names the same asset id,
+ *    the same kind of evidence the annual close's reason prefix already is.
+ *
+ * Anything not so identified — a disposal voucher no register row points at,
+ * two rows pointing at one voucher, a class the asset does not belong to — is
+ * left unattributed, to be resolved through an operator allocation. No posted
+ * voucher is read for anything but its own lines, and none is altered.
+ */
+async function backfillLegacyDisposals(db: Kysely<Database>): Promise<void> {
+  const disposed = await db
+    .selectFrom('fixed_asset')
+    .select(['id', 'asset_class', 'disposal_voucher_id'])
+    .where((eb) =>
+      eb.or([
+        eb('disposal_voucher_id', 'is not', null),
+        eb('retired_at', 'is not', null),
+      ]),
+    )
+    .execute();
+  if (disposed.length === 0) return;
+
+  // A voucher that retires more than one register row does not identify whose
+  // depreciation it cleared.
+  const ownersPerVoucher = new Map<number, number>();
+  for (const a of disposed) {
+    if (a.disposal_voucher_id === null) continue;
+    ownersPerVoucher.set(
+      a.disposal_voucher_id,
+      (ownersPerVoucher.get(a.disposal_voucher_id) ?? 0) + 1,
+    );
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  for (const asset of disposed) {
+    const accumCode = ACCUM_BY_CLASS[asset.asset_class];
+    if (!accumCode) continue;
+
+    // The two legs are judged on their OWN evidence, independently: a
+    // register row that has lost its `disposal_voucher_id` still identifies
+    // its catch-up by reason, and each is attributed only if its own evidence
+    // names exactly one owner.
+
+    // (a) The clearing leg — owned by whichever register row names it.
+    const disposalVoucherId = asset.disposal_voucher_id;
+    if (
+      disposalVoucherId !== null &&
+      ownersPerVoucher.get(disposalVoucherId) === 1
+    ) {
+      await attributeVoucherClass(db, {
+        voucherId: disposalVoucherId,
+        assetId: asset.id,
+        accumCode,
+        now,
+      });
+    }
+
+    // (b) The catch-up charge, identified by the reason naming this asset.
+    const catchUps = await db
+      .selectFrom('voucher')
+      .select('id')
+      .where('posted_at', 'is not', null)
+      .where('reason', '=', catchUpReasonFor(asset.id))
+      .execute();
+    if (catchUps.length !== 1) continue;
+    await attributeVoucherClass(db, {
+      voucherId: catchUps[0].id,
+      assetId: asset.id,
+      accumCode,
+      now,
+    });
+  }
+}
+
+/**
+ * Attribute ONE voucher's whole signed movement on ONE contra account to ONE
+ * asset — used where the evidence names a single owner. A no-op when the
+ * voucher does not move that account, or already carries attribution.
+ */
+async function attributeVoucherClass(
+  db: Kysely<Database>,
+  opts: { voucherId: number; assetId: number; accumCode: string; now: number },
+): Promise<void> {
+  const existing = await db
+    .selectFrom('fixed_asset_depreciation')
+    .select('id')
+    .where('voucher_id', '=', opts.voucherId)
+    .executeTakeFirst();
+  if (existing) return;
+
+  const lines = await db
+    .selectFrom('voucher_line as vl')
+    .innerJoin('account as a', 'a.id', 'vl.account_id')
+    .select(['vl.base_amount', 'vl.is_debit'])
+    .where('vl.voucher_id', '=', opts.voucherId)
+    .where('a.code', '=', opts.accumCode)
+    .execute();
+  const net = lines.reduce(
+    (s, l) => s + (l.is_debit ? -l.base_amount : l.base_amount),
+    0,
+  );
+  if (net === 0) return;
+
+  const voucher = await db
+    .selectFrom('voucher')
+    .select('tax_point_date')
+    .where('id', '=', opts.voucherId)
+    .executeTakeFirstOrThrow();
+
+  await db
+    .insertInto('fixed_asset_depreciation')
+    .values({
+      fixed_asset_id: opts.assetId,
+      voucher_id: opts.voucherId,
+      amount_minor: net,
+      charge_through_date: voucher.tax_point_date,
+      source: 'legacy_backfill',
+      created_at: opts.now,
+    })
+    .execute();
 }
 
 export async function down(db: Kysely<Database>): Promise<void> {

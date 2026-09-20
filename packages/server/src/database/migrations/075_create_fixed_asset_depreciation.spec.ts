@@ -3,6 +3,7 @@ import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../types';
 import { migrations } from './index';
+import { expectDbRefusal } from '../../../test/expect-db-refusal';
 
 /**
  * Migration 075's LEGACY BACK-FILL (issue #208).
@@ -386,19 +387,39 @@ describe('Migration 075 — legacy annual-close back-fill', () => {
     );
     await migrateToLatest();
 
-    await expect(
-      db
-        .updateTable('fixed_asset_depreciation')
-        .set({ amount_minor: 1 })
-        .where('fixed_asset_id', '=', laptop)
-        .execute(),
-    ).rejects.toThrow(/append-only/);
-    await expect(
-      db
-        .deleteFrom('fixed_asset_depreciation')
-        .where('fixed_asset_id', '=', laptop)
-        .execute(),
-    ).rejects.toThrow(/append-only/);
+    const before = await db
+      .selectFrom('fixed_asset_depreciation')
+      .selectAll()
+      .execute();
+    expect(before).toHaveLength(1);
+
+    // `.rejects.toThrow()` cannot be used here: better-sqlite3 is a native
+    // addon shared process-wide across Jest test files, so a SqliteError
+    // raised in one file fails `instanceof Error` in another and the matcher
+    // reports "did not throw" for a statement the database really did abort.
+    // The refusal is asserted on its message instead — see the helper.
+    await expectDbRefusal(
+      () =>
+        db
+          .updateTable('fixed_asset_depreciation')
+          .set({ amount_minor: 1 })
+          .where('fixed_asset_id', '=', laptop)
+          .execute(),
+      /append-only/,
+    );
+    await expectDbRefusal(
+      () =>
+        db
+          .deleteFrom('fixed_asset_depreciation')
+          .where('fixed_asset_id', '=', laptop)
+          .execute(),
+      /append-only/,
+    );
+
+    // The trigger did not merely throw: the row is untouched by both.
+    expect(
+      await db.selectFrom('fixed_asset_depreciation').selectAll().execute(),
+    ).toEqual(before);
   });
 
   it('rewrites nothing in the ledger', async () => {

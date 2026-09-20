@@ -20,9 +20,18 @@ depend on knowing that:
 
 Since migration 075 the kernel records that split as it posts it
 (`fixed_asset_depreciation`, written inside the same transaction as the
-voucher). For charges posted earlier, the migration re-derives the split and
-writes it **only where it reconciles to the cent**; anything it cannot prove is
-left unattributed. A charge someone posts by hand is unattributed by nature.
+voucher). For movements posted earlier, the migration back-fills only what the
+evidence determines:
+
+- an **annual close** is re-derived with the same deterministic arithmetic that
+  produced it, and written only where it reconciles to the cent per class;
+- a **disposal** already names its owner — `fixed_asset.disposal_voucher_id`
+  points at the voucher that retired one specific asset, and the catch-up
+  carries the documented reason naming the same asset — so both its legs are
+  attributed from that, not from arithmetic.
+
+Anything it cannot prove is left unattributed. A charge someone posts by hand
+is unattributed by nature.
 
 **The kernel never guesses.** While an amount is unattributed:
 
@@ -62,9 +71,20 @@ GET /api/fixed-assets/unattributed-depreciation
 - **`unattributed_posting`** — the voucher moved the class contra and no asset
   owns that movement (a legacy close that would not re-derive, or a hand-posted
   charge);
-- **`partial_reversal`** — a reversal exists that does not exactly cancel the
-  original class leg, so what is still standing no longer matches the
-  attribution written for it.
+- **`partial_reversal`** — the voucher REVERSES another one but does not
+  exactly cancel its class leg, so which asset the part belongs to is a real
+  question. It is reported against the reversing voucher, which is the one to
+  allocate.
+
+A reversal that cancels a fully attributed voucher **in full** never appears
+here and must not be allocated: its split is the negation of the one already
+recorded, so the kernel derives it. The same goes for a disposal's clearing
+leg, which carries its own negative attribution written when the asset was
+retired. Attempting to allocate either is refused — allocating it on top of
+what is already accounted for would count the movement twice.
+
+Amounts are **signed**, credit-positive: a charge is positive and a reversal is
+negative. An allocation must carry the same sign as the movement it explains.
 
 `GET /api/fixed-assets` also reports the part that bears on each asset, as
 `unattributed_depreciation_minor` beside `book_value_minor`. While that number
@@ -103,13 +123,21 @@ The request is validated, not trusted. It is refused with `400` when:
 - an asset does not exist, or belongs to a class the voucher does not move;
 - an asset was **acquired after the voucher was posted** — that voucher cannot
   have charged it;
-- an amount is zero, fractional, or has the opposite sign to the class movement;
+- an amount is zero, fractional, or has the opposite sign to the class movement
+  (a reversal is allocated with NEGATIVE amounts);
 - the amounts for a class **do not reconcile exactly** to what is still
   unattributed on it. Both under- and over-allocation are refused, and the
   error states both figures;
-- that class already carries a complete attribution. Rows are append-only and
-  are never re-split here; a genuine correction belongs in the ledger, as a
-  reversal and a re-posting.
+- that class already carries a complete attribution — including one the kernel
+  DERIVED, as it does for a clean full reversal, and the negative leg a
+  disposal writes when it retires an asset. Rows are append-only and are never
+  re-split here; a genuine correction belongs in the ledger, as a reversal and
+  a re-posting.
+
+Several partial reversals of the same charge are each judged on their own, even
+when they add up to the whole of it: allocate each one. Their signed amounts
+then simply sum, and an as-of read on any date in between still reports what
+was standing on that date.
 
 A voucher that is only **partly** resolved — the migration back-fills per
 class, so a multi-class voucher can come out half done — stays resolvable for
@@ -126,10 +154,58 @@ GET /api/fixed-assets/unattributed-depreciation    # expect []
 GET /api/fixed-assets                              # unattributed_depreciation_minor: 0
 ```
 
-The register now reconciles to the class control balance: for each class,
+The register reconciles to the class control balance: for each class,
 Σ `book_value_minor` over its live assets equals the `FIXED_ASSETS_*` ledger
 balance minus the `ACCUM_DEPRECIATION_*` balance. Disposal and the annual close
 proceed normally from here.
+
+**Except where the old bug already damaged the ledger** — see below. That gap
+is not something an allocation can close.
+
+## Orphaned depreciation from a disposal made before this fix
+
+Until this fix, a disposal charged the FULL theoretical accumulation as
+catch-up even when the annual close had already posted part of it, and then
+cleared only the figure it had just computed. An asset disposed of after a
+year-end close therefore left the ledger with the closed year's depreciation
+still sitting on the class contra — an orphan credit for an asset that is no
+longer on the books.
+
+**The upgrade does not repair this, by design.** Posted vouchers are immutable
+(ADR-0009/ADR-0019), and minting a correcting entry inside a migration would be
+precisely the silent guessing everything else here refuses. What the upgrade
+does guarantee:
+
+- the ledger is left **exactly** as it was — no line is added, changed or
+  removed;
+- nothing is invented, so the orphan does **not** show up as an unexplained
+  movement demanding an allocation;
+- the orphan stays **traceable**: it is attributed to the retired asset that
+  produced it, so `postedForAsset` on that asset reports it rather than it
+  becoming an anonymous class balance, and it is never reassigned to a living
+  peer;
+- every live asset stays correct and usable — the next annual close charges
+  each peer its own year, and a peer's own disposal clears only its own cost
+  and contra.
+
+So for a class touched by such a disposal, **Σ live book value will exceed the
+class control balance by the orphan**, and will keep doing so until someone
+posts an accounting correction. That is a bookkeeping decision, not a data
+repair: the usual route is a voucher taking the orphaned credit off
+`ACCUM_DEPRECIATION_*` against the account the original gain/loss was booked
+to, dated in an open period, with a reason that says what it corrects. Do not
+expect the register to reconcile before that voucher exists.
+
+To find the affected classes, compare for each class:
+
+```
+Σ book_value_minor over live assets   (GET /api/fixed-assets)
+vs   FIXED_ASSETS_<class> − ACCUM_DEPRECIATION_<class>   (ledger)
+```
+
+A difference with an empty
+`GET /api/fixed-assets/unattributed-depreciation` queue is an orphan of this
+kind, not an attribution problem.
 
 ## If you cannot determine the split
 

@@ -397,8 +397,20 @@ describe('Disposal after an annual close (integration, issue #208)', () => {
     expect(Boolean(closeLines[0].is_debit)).toBe(false);
 
     expect(await attribution.postedForAsset(peer, '2027-12-31')).toBe(120000);
-    // The disposed asset gained nothing from the close.
-    expect(await attribution.postedForAsset(laptop, '2027-12-31')).toBe(40000);
+    // The disposed asset gained nothing from the close: no attribution row of
+    // its own on that voucher…
+    const laptopOnClose = await db
+      .selectFrom('fixed_asset_depreciation as fad')
+      .innerJoin('voucher as v', 'v.id', 'fad.voucher_id')
+      .select('fad.amount_minor')
+      .where('fad.fixed_asset_id', '=', laptop)
+      .where('v.reason', '=', 'Annual depreciation charge for FY2027')
+      .execute();
+    expect(laptopOnClose).toEqual([]);
+    // …and it still nets to nothing, its whole accumulated depreciation
+    // having left the books with it (30000 close + 10000 catch-up − 40000
+    // cleared on retirement).
+    expect(await attribution.postedForAsset(laptop, '2027-12-31')).toBe(0);
   });
 
   it('keeps depreciation posted as of an earlier date when a reversal lands in a later period', async () => {
@@ -1028,5 +1040,206 @@ describe('Disposal after an annual close (integration, issue #208)', () => {
       controlAfter,
     );
     expect(after.find((r) => r.id === b)!.book_value_minor).toBe(110000);
+  });
+  describe('reversals of an attributed charge', () => {
+    /** Register one asset, close FY2026, and hand back its close voucher id. */
+    async function assetWithClosedYear(): Promise<{
+      id: number;
+      closeId: number;
+    }> {
+      const id = await register({
+        name: 'Laptop',
+        assetClass: 'it_equipment',
+        date: '2026-01-01',
+        costMinor: 120000,
+        lifeYears: 4,
+        accountCode: 'FIXED_ASSETS_IT',
+      });
+      await annual.finalize(await periodId('FY2026'));
+      const close = await db
+        .selectFrom('voucher')
+        .select('id')
+        .where('reason', '=', 'Annual depreciation charge for FY2026')
+        .executeTakeFirstOrThrow();
+      expect(await attribution.postedForAsset(id, '2026-12-31')).toBe(30000);
+      return { id, closeId: close.id };
+    }
+
+    it('refuses to allocate a reversal whose split the original already implies', async () => {
+      const { id, closeId } = await assetWithClosedYear();
+      // A clean, full reversal: its split is not unknown — it is exactly the
+      // negation of the original's, which is already attributed.
+      const reversal = await posting.postVoucher(
+        draft(
+          '2027-07-31',
+          [
+            { code: 'ACCUM_DEPRECIATION_IT', isDebit: true, base: 30000 },
+            { code: 'DEPRECIATION_EXPENSE', isDebit: false, base: 30000 },
+          ],
+          'Reversal of the FY2026 annual depreciation charge',
+          closeId,
+        ),
+      );
+
+      // Nothing is unknown, so there is nothing to allocate…
+      expect(
+        await attribution.unattributedDepreciation('2027-12-31'),
+      ).toHaveLength(0);
+      // …and attempting it is refused rather than double-counted.
+      await expect(
+        attribution.allocate({
+          voucherId: reversal.id,
+          allocations: [{ fixedAssetId: id, amountMinor: -30000 }],
+        }),
+      ).rejects.toThrow(/already has a complete attribution/);
+
+      // The charge nets to zero — not to minus the reversal.
+      expect(await attribution.postedForAsset(id, '2027-12-31')).toBe(0);
+      // …while still standing as of a date before the reversal.
+      expect(await attribution.postedForAsset(id, '2027-04-30')).toBe(30000);
+      // No attribution row was written for the reversal, and the ledger and
+      // the register are exactly as the reversal left them.
+      expect(
+        await db
+          .selectFrom('fixed_asset_depreciation')
+          .select('id')
+          .where('voucher_id', '=', reversal.id)
+          .execute(),
+      ).toEqual([]);
+      expect(await creditNet('ACCUM_DEPRECIATION_IT')).toBe(0);
+      const rows = await assets.list();
+      expect(rows[0].book_value_minor).toBe(120000);
+      expect(rows[0].unattributed_depreciation_minor).toBe(0);
+    });
+
+    it('refuses to allocate a disposal voucher clearing leg', async () => {
+      const { id } = await assetWithClosedYear();
+      const result = await assets.dispose(id, {
+        disposal_date: '2027-04-30',
+      });
+      // The clearing leg removes what the register says was accumulated for
+      // the asset being retired; it is accounted for, not up for allocation.
+      expect(
+        await attribution.unattributedDepreciation('2027-12-31'),
+      ).toHaveLength(0);
+      await expect(
+        attribution.allocate({
+          voucherId: result.disposalVoucher.id,
+          allocations: [{ fixedAssetId: id, amountMinor: -40000 }],
+        }),
+      ).rejects.toThrow(/already has a complete attribution/);
+    });
+
+    it('resolves a PARTIAL reversal through the supported allocation path', async () => {
+      const { id, closeId } = await assetWithClosedYear();
+      // Only part of the close is taken back — which asset the remainder
+      // belongs to is not derivable, so it must be stated.
+      const partial = await posting.postVoucher(
+        draft(
+          '2027-03-31',
+          [
+            { code: 'ACCUM_DEPRECIATION_IT', isDebit: true, base: 12000 },
+            { code: 'DEPRECIATION_EXPENSE', isDebit: false, base: 12000 },
+          ],
+          'Partial correction of the FY2026 depreciation charge',
+          closeId,
+        ),
+      );
+
+      // BEFORE: it is reported as unknown, and it blocks.
+      const unknown = await attribution.unattributedDepreciation('2027-12-31');
+      expect(unknown).toHaveLength(1);
+      expect(unknown[0]).toMatchObject({
+        voucherId: partial.id,
+        assetClass: 'it_equipment',
+        unattributedMinor: -12000,
+        cause: 'partial_reversal',
+      });
+      await expect(
+        assets.dispose(id, { disposal_date: '2027-06-30' }),
+      ).rejects.toThrow(/not attributed to individual assets/);
+
+      // AFTER the signed allocation: nothing is unknown any more.
+      await attribution.allocate({
+        voucherId: partial.id,
+        allocations: [{ fixedAssetId: id, amountMinor: -12000 }],
+      });
+      expect(
+        await attribution.unattributedDepreciation('2027-12-31'),
+      ).toHaveLength(0);
+      expect(await attribution.postedForAsset(id, '2027-06-30')).toBe(18000);
+
+      // The register reconciles to the class control balance again.
+      const rows = await assets.list();
+      expect(rows[0].book_value_minor).toBe(120000 - 18000);
+      expect(rows[0].unattributed_depreciation_minor).toBe(0);
+      expect(
+        -(await creditNet('FIXED_ASSETS_IT')) -
+          (await creditNet('ACCUM_DEPRECIATION_IT')),
+      ).toBe(102000);
+
+      // …and the work that was blocked can proceed: accumulated to
+      // 2027-06-30 is 45000, of which 18000 now stands posted.
+      const result = await assets.dispose(id, {
+        disposal_date: '2027-06-30',
+      });
+      expect(
+        result.depreciationVoucher!.lines.find((l) => l.is_debit)!.base_amount,
+      ).toBe(27000);
+      expect(await creditNet('ACCUM_DEPRECIATION_IT')).toBe(0);
+      expect(await creditNet('FIXED_ASSETS_IT')).toBe(0);
+    });
+
+    it('treats several partial reversals that together cancel the charge the same way', async () => {
+      const { id, closeId } = await assetWithClosedYear();
+      const first = await posting.postVoucher(
+        draft(
+          '2027-03-31',
+          [
+            { code: 'ACCUM_DEPRECIATION_IT', isDebit: true, base: 18000 },
+            { code: 'DEPRECIATION_EXPENSE', isDebit: false, base: 18000 },
+          ],
+          'First partial correction',
+          closeId,
+        ),
+      );
+      const second = await posting.postVoucher(
+        draft(
+          '2027-04-30',
+          [
+            { code: 'ACCUM_DEPRECIATION_IT', isDebit: true, base: 12000 },
+            { code: 'DEPRECIATION_EXPENSE', isDebit: false, base: 12000 },
+          ],
+          'Second partial correction',
+          closeId,
+        ),
+      );
+
+      // Neither is derivable on its own, so BOTH are reported — the pair is
+      // not silently treated as one clean cancellation.
+      const unknown = await attribution.unattributedDepreciation('2027-12-31');
+      expect(unknown.map((u) => u.voucherId).sort()).toEqual(
+        [first.id, second.id].sort(),
+      );
+
+      await attribution.allocate({
+        voucherId: first.id,
+        allocations: [{ fixedAssetId: id, amountMinor: -18000 }],
+      });
+      await attribution.allocate({
+        voucherId: second.id,
+        allocations: [{ fixedAssetId: id, amountMinor: -12000 }],
+      });
+
+      expect(
+        await attribution.unattributedDepreciation('2027-12-31'),
+      ).toHaveLength(0);
+      // Together they take the whole charge back, and the as-of view of each
+      // step in between is still the truth of that date.
+      expect(await attribution.postedForAsset(id, '2026-12-31')).toBe(30000);
+      expect(await attribution.postedForAsset(id, '2027-03-31')).toBe(12000);
+      expect(await attribution.postedForAsset(id, '2027-12-31')).toBe(0);
+      expect((await assets.list())[0].book_value_minor).toBe(120000);
+    });
   });
 });

@@ -253,20 +253,40 @@ export class FixedAssetsService {
       afterPost: async (trx, vouchers) => {
         const disposalVoucher = vouchers[vouchers.length - 1];
 
-        // The catch-up's attribution is written in the SAME transaction as the
-        // voucher carrying it: a charge and the record of whose charge it is
-        // can never exist apart.
-        if (catchUp > 0) {
-          await this.attribution.attributeTx(trx, [
-            {
-              fixedAssetId: id,
-              voucherId: vouchers[0].id,
-              amountMinor: catchUp,
-              chargeThroughDate: dto.disposal_date,
-              source: 'disposal_catch_up',
-            },
-          ]);
-        }
+        // Attribution is written in the SAME transaction as the vouchers
+        // carrying it: a movement and the record of whose movement it is can
+        // never exist apart.
+        //
+        // BOTH legs are attributed, with their signs. The catch-up adds to
+        // this asset's accumulated depreciation; the disposal's clearing debit
+        // takes all of it away again. Recording only the first would leave the
+        // clearing leg looking like an unexplained movement on the class, and
+        // a signed model that skipped it would not net to zero for a retired
+        // asset.
+        await this.attribution.attributeTx(trx, [
+          ...(catchUp > 0
+            ? [
+                {
+                  fixedAssetId: id,
+                  voucherId: vouchers[0].id,
+                  amountMinor: catchUp,
+                  chargeThroughDate: dto.disposal_date,
+                  source: 'disposal_catch_up' as const,
+                },
+              ]
+            : []),
+          ...(accumulated > 0
+            ? [
+                {
+                  fixedAssetId: id,
+                  voucherId: disposalVoucher.id,
+                  amountMinor: -accumulated,
+                  chargeThroughDate: dto.disposal_date,
+                  source: 'disposal_clearing' as const,
+                },
+              ]
+            : []),
+        ]);
 
         // GUARDED retirement. The `retired_at IS NULL` predicate, evaluated
         // inside this transaction, is what makes a retried or concurrent
