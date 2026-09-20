@@ -34,6 +34,16 @@ const createAllowanceSchema = z.object({
   route_description: z.string().optional(),
   period_start: z.string().regex(DATE_REGEX).optional(),
   period_end: z.string().regex(DATE_REGEX).optional(),
+  // Health/sports eligibility facts (issue #212). Optional in the SCHEMA and
+  // required in the SERVICE for type='health': the service's refusal names each
+  // missing fact and how to supply it, which a bare Zod "required" cannot, and
+  // the other allowance types must not be forced to carry them.
+  health_category: z.string().min(1).optional(),
+  claimant_relation: z.enum(['employee', 'board_member', 'other']).optional(),
+  supporting_document_id: z.number().int().positive().optional(),
+  supporting_document_ref: z.string().min(1).optional(),
+  provider_registration: z.string().min(1).optional(),
+  offered_to_all_employees: z.boolean().optional(),
 });
 
 class CreateAllowanceDto extends createZodDto(createAllowanceSchema) {}
@@ -54,6 +64,21 @@ export class AllowanceController {
       routeDescription: dto.route_description,
       periodStart: dto.period_start,
       periodEnd: dto.period_end,
+      // Only a health claim carries eligibility facts. Handing every other
+      // type an object full of undefineds would put health's vocabulary into
+      // a mileage or phone request that has nothing to do with it.
+      ...(dto.type === 'health'
+        ? {
+            health: {
+              category: dto.health_category,
+              claimantRelation: dto.claimant_relation,
+              supportingDocumentId: dto.supporting_document_id,
+              supportingDocumentRef: dto.supporting_document_ref,
+              providerRegistration: dto.provider_registration,
+              offeredToAllEmployees: dto.offered_to_all_employees,
+            },
+          }
+        : {}),
     });
   }
 

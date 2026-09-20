@@ -10,6 +10,8 @@ import { AllowanceLimitService } from './allowance-limit.service';
 import { AllowanceService } from './allowance.service';
 import { AllowanceController } from './allowance.controller';
 import { AllowanceProjectionService } from './allowance-projection.service';
+import { HealthBenefitReportService } from './health-benefit-report.service';
+import { HealthBenefitReportController } from './health-benefit-report.controller';
 
 @Module({
   imports: [
@@ -19,18 +21,24 @@ import { AllowanceProjectionService } from './allowance-projection.service';
     AuditFindingsModule,
     StatusTransitionModule,
   ],
-  controllers: [BusinessTripController, AllowanceController],
+  controllers: [
+    BusinessTripController,
+    AllowanceController,
+    HealthBenefitReportController,
+  ],
   providers: [
     BusinessTripService,
     AllowanceLimitService,
     AllowanceService,
     AllowanceProjectionService,
+    HealthBenefitReportService,
   ],
   exports: [
     BusinessTripService,
     AllowanceLimitService,
     AllowanceService,
     AllowanceProjectionService,
+    HealthBenefitReportService,
   ],
 })
 export class AllowancesModule {}

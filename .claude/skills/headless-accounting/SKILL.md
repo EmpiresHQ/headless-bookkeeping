@@ -333,7 +333,7 @@ curl -H "$H" "$B/admin/approvals" "$B/admin/findings/open" "$B/admin/periods"
 ```
 
 ### What is NOT there (honest): income tax and annual report
-- **Taxes:** only **VAT** is computed (via the plugin's VAT codes and the VAT report). No income/corporate tax. Cross-border / reverse-charge — the interface exists but is **not called** in v1 (reserved); foreign VAT is never silently reclaimed, disputed cases → hold.
+- **Taxes:** **VAT** is computed (via the plugin's VAT codes and the VAT report), and the employer's **fringe-benefit tax** on the taxable part of a health/sports allowance is computed and posted, with its TSD annex 4 code 4120 / INF 14 part III figures at `GET /api/reports/fringe-benefits/health?year=` (figures only — nothing is filed). No payroll, no income tax on wages, no corporate income tax. Cross-border / reverse-charge — the interface exists but is **not called** in v1 (reserved); foreign VAT is never silently reclaimed, disputed cases → hold.
 - **Annual report / financial statements (P&L, balance sheet, formatted trial balance):** **not implemented (V2).** Only raw balances (`/admin/accounts`) and a distributable-profit utility exist. Year-end close is deferred.
 
 ---

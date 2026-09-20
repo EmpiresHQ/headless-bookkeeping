@@ -164,6 +164,14 @@ export const ACCOUNT_TO_LINE: Readonly<Record<string, string>> = {
   VAT_PAYABLE: 'payablesAndPrepayments',
   DIVIDEND_PAYABLE: 'payablesAndPrepayments',
   DIVIDEND_WITHHOLDING_TAX_PAYABLE: 'payablesAndPrepayments',
+  // What a claimant is owed for an allowance or an out-of-pocket expense, and
+  // the employer's own tax on a fringe benefit (issue #212). All three are
+  // ordinary short-term payables; leaving them unmapped dropped a posted
+  // liability out of the balance sheet entirely, because rollUpLines skips
+  // what it does not recognise.
+  CLAIMANT_PAYABLE: 'payablesAndPrepayments',
+  FRINGE_BENEFIT_INCOME_TAX_PAYABLE: 'payablesAndPrepayments',
+  SOCIAL_TAX_PAYABLE: 'payablesAndPrepayments',
   // Equity
   EQUITY: 'issuedCapital',
   OWNERS_DRAWINGS: 'retainedEarnings',
@@ -173,6 +181,11 @@ export const ACCOUNT_TO_LINE: Readonly<Record<string, string>> = {
   // Expenses — skeem 1 by nature
   EXPENSE_SALARY: 'labourExpense',
   EXPENSE_CONTRACTOR: 'labourExpense',
+  // A fringe benefit is remuneration in kind, and the income and social tax
+  // the employer bears on it are labour taxes — both belong to tööjõukulud
+  // alongside salary, not to other operating expenses (issue #212).
+  EXPENSE_FRINGE_BENEFIT: 'labourExpense',
+  EXPENSE_FRINGE_BENEFIT_TAX: 'labourExpense',
   DEPRECIATION_EXPENSE: 'depreciation',
   EXPENSE_SOFTWARE: 'otherOperatingExpenses',
   EXPENSE_TRANSPORT: 'otherOperatingExpenses',
