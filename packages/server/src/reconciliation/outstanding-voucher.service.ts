@@ -4,6 +4,7 @@ import { Kysely, Transaction } from 'kysely';
 import { Database } from '../database/types';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { CandidateVoucher } from './reconciliation.types';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
 
 /**
  * The minimal Kysely executor this service reads through — satisfied by both a
@@ -22,6 +23,13 @@ const AR_AP_CODES = ['AR', 'AP'];
 
 /** The prepayment account codes whose undrawn credit is an outstanding to settle. */
 const PREPAYMENT_CODES = ['CUSTOMER_PREPAYMENTS', 'SUPPLIER_PREPAYMENTS'];
+
+/**
+ * Which side of an outstanding a Voucher sits on. It picks BOTH the account
+ * codes to net over and how prepayment allocations consume it: an `arap`
+ * Voucher is the TARGET of allocations, a `prepayment` Voucher their SOURCE.
+ */
+type OutstandingSide = 'arap' | 'prepayment';
 
 /**
  * The base shape every candidate query selects before its remaining balance is
@@ -71,6 +79,7 @@ export class OutstandingVoucherService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly ledgerBalance: LedgerBalanceService,
+    private readonly allocations: PrepaymentAllocationRepository,
   ) {}
 
   /**
@@ -100,30 +109,39 @@ export class OutstandingVoucherService {
   }
 
   /**
-   * Undrawn **CUSTOMER_PREPAYMENTS** candidate Vouchers — on-account credit
-   * received before an invoice exists (ADR-0011). The prepayment line is a
-   * credit (a liability increase). The `entityId` is supplied by the caller
-   * because a prepayment voucher is not joined to a business object that names
-   * the counterparty here.
+   * Undrawn **CUSTOMER_PREPAYMENTS** candidate Vouchers for ONE **Customer** —
+   * on-account credit received before an invoice exists (ADR-0011).
+   *
+   * Ownership is read from the advance record written when the prepayment was
+   * created (issue #201), never stamped on from the caller: before that record
+   * existed this query returned EVERY prepayment voucher in the ledger with the
+   * requested customer's id injected into each row, so a bank line for customer
+   * X was offered another customer's advance. An advance whose owner or balance
+   * is unresolved, or whose own voucher has been reversed, is not a candidate.
    */
   async findCustomerPrepaymentCandidates(
     entityId: number,
   ): Promise<CandidateVoucher[]> {
     const found = await this.db
-      .selectFrom('voucher_line')
-      .innerJoin('account', 'account.id', 'voucher_line.account_id')
-      .innerJoin('voucher', 'voucher.id', 'voucher_line.voucher_id')
-      .select('voucher_line.voucher_id as voucher_id')
-      .select('account.code as account_code')
-      .select('voucher_line.base_amount')
-      .select('voucher.tax_point_date')
-      .where('account.code', '=', 'CUSTOMER_PREPAYMENTS')
-      .where('voucher_line.is_debit', '=', 0)
+      .selectFrom('prepayment_advance')
+      .innerJoin('voucher', 'voucher.id', 'prepayment_advance.voucher_id')
+      .select('prepayment_advance.voucher_id as voucher_id')
+      .select('prepayment_advance.account_code as account_code')
+      .select('prepayment_advance.original_base_amount as base_amount')
+      .select('prepayment_advance.entity_id as entity_id')
+      .select('voucher.tax_point_date as tax_point_date')
+      .where('prepayment_advance.kind', '=', 'customer')
+      .where('prepayment_advance.entity_id', '=', entityId)
+      .where('prepayment_advance.needs_review', '=', 0)
       .execute();
-    const rows: CandidateRow[] = found.map((r) => ({
-      ...r,
-      entity_id: entityId,
-    }));
+
+    const rows: CandidateRow[] = [];
+    for (const row of found) {
+      const cancelled = await this.allocations.isVoucherReversed(
+        row.voucher_id,
+      );
+      if (!cancelled) rows.push(row);
+    }
     return this.toCandidates(rows, { isPrepayment: true });
   }
 
@@ -186,7 +204,7 @@ export class OutstandingVoucherService {
     voucherId: number,
     executor: DbExecutor = this.db,
   ): Promise<number> {
-    return this.remainingOverCodes(voucherId, AR_AP_CODES, executor);
+    return this.remainingOverCodes(voucherId, 'arap', executor);
   }
 
   /**
@@ -199,7 +217,7 @@ export class OutstandingVoucherService {
     voucherId: number,
     executor: DbExecutor = this.db,
   ): Promise<number> {
-    return this.remainingOverCodes(voucherId, PREPAYMENT_CODES, executor);
+    return this.remainingOverCodes(voucherId, 'prepayment', executor);
   }
 
   /**
@@ -213,9 +231,10 @@ export class OutstandingVoucherService {
    */
   private async remainingOverCodes(
     voucherId: number,
-    accountCodes: string[],
+    side: OutstandingSide,
     executor: DbExecutor = this.db,
   ): Promise<number> {
+    const accountCodes = side === 'arap' ? AR_AP_CODES : PREPAYMENT_CODES;
     const totalBase = await this.ledgerBalance.getVoucherNetBase(
       voucherId,
       accountCodes,
@@ -224,7 +243,30 @@ export class OutstandingVoucherService {
     if (totalBase === 0) return 0;
 
     const alreadyMatched = await this.getAlreadyMatched(voucherId, executor);
-    return Math.max(0, totalBase - alreadyMatched);
+    const allocated = await this.getAlreadyAllocated(voucherId, side, executor);
+    return Math.max(0, totalBase - alreadyMatched - allocated);
+  }
+
+  /**
+   * Total still-active prepayment allocation against a Voucher — the OTHER way
+   * an outstanding is consumed (issue #201). Folded in HERE, in the canonical
+   * primitive, so a receivable a prepayment already relieved cannot also be
+   * cash-matched in full by {@link ReconciliationService} `activateMatch`, and
+   * an advance already drawn down cannot be re-offered as undrawn credit.
+   *
+   * Which side the Voucher is on decides how it is consumed: an AR/AP Voucher
+   * is the TARGET of allocations (`invoice_voucher_id`), a prepayment Voucher
+   * is their SOURCE (its advance record). Exactly one of the two applies, so
+   * nothing is subtracted twice.
+   */
+  private async getAlreadyAllocated(
+    voucherId: number,
+    side: OutstandingSide,
+    executor: DbExecutor,
+  ): Promise<number> {
+    return side === 'arap'
+      ? this.allocations.activeAllocatedForInvoice(voucherId, executor)
+      : this.allocations.activeAllocatedForAdvanceVoucher(voucherId, executor);
   }
 
   // ── Shared join chain ─────────────────────────────────────────────────
@@ -290,17 +332,14 @@ export class OutstandingVoucherService {
     rows: CandidateRow[],
     opts: { isPrepayment: boolean },
   ): Promise<CandidateVoucher[]> {
-    const netCodes = opts.isPrepayment ? PREPAYMENT_CODES : AR_AP_CODES;
+    const side: OutstandingSide = opts.isPrepayment ? 'prepayment' : 'arap';
     const candidates: CandidateVoucher[] = [];
     for (const row of rows) {
       const voucherId = row.voucher_id;
       if (voucherId === null) continue;
 
       const alreadyMatched = await this.getAlreadyMatched(voucherId);
-      const remainingBalance = await this.remainingOverCodes(
-        voucherId,
-        netCodes,
-      );
+      const remainingBalance = await this.remainingOverCodes(voucherId, side);
 
       candidates.push({
         voucherId,

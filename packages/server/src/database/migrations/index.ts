@@ -65,6 +65,7 @@ import * as m065 from './065_add_audit_finding_reason_type';
 import * as m066 from './066_add_organization_registry_code';
 import * as m067 from './067_create_statutory_filing_snapshot';
 import * as m068 from './068_add_submission_event_payload_id';
+import * as m069 from './069_create_prepayment_advance_allocation';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -133,4 +134,5 @@ export const migrations: Record<string, Migration> = {
   '066_add_organization_registry_code': m066,
   '067_create_statutory_filing_snapshot': m067,
   '068_add_submission_event_payload_id': m068,
+  '069_create_prepayment_advance_allocation': m069,
 };

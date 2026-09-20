@@ -12,6 +12,7 @@ import { EntitiesService } from '../entities/entities.service';
 import { CurrencyService } from '../currency/currency.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
+import { PrepaymentService } from './prepayment.service';
 import {
   MatchProposal,
   MatchProposalView,
@@ -60,6 +61,7 @@ export class ReconciliationService {
     private readonly currencyService: CurrencyService,
     private readonly outstandingVouchers: OutstandingVoucherService,
     private readonly fxRealizedService: FXRealizedService,
+    private readonly prepayments: PrepaymentService,
   ) {}
 
   /**
@@ -1003,7 +1005,33 @@ export class ReconciliationService {
       txn.transaction_date,
     );
 
+    // A prepayment settlement spends somebody's ADVANCE, so WHOSE bank line
+    // this is must be resolved before the settling transaction opens (issue
+    // #201 — entity resolution reads cannot run inside the better-sqlite3 sync
+    // transaction). An unknown or ambiguous owner resolves to null and is
+    // refused inside; hiding an unsafe advance from candidate discovery does
+    // not protect this path, which a stale draft or a direct call reaches
+    // without ever consulting the candidate list.
+    let bankLineEntityId: number | null = null;
+    if (match.match_type === 'prepayment') {
+      const kind = await this.prepayments.findAdvanceKind(match.voucher_id);
+      if (kind === null) {
+        throw new ConflictException(
+          `Voucher ${match.voucher_id} carries no prepayment advance record — it cannot be settled as a prepayment`,
+        );
+      }
+      bankLineEntityId = await this.prepayments.resolveBankLineOwner(kind, txn);
+    }
+
     await this.db.transaction().execute(async (trx) => {
+      if (match.match_type === 'prepayment') {
+        await this.prepayments.assertAdvanceSettleableBy(
+          match.voucher_id,
+          bankLineEntityId,
+          trx,
+        );
+      }
+
       const remaining =
         match.match_type === 'prepayment'
           ? await this.outstandingVouchers.getRemainingPrepaymentBalance(
