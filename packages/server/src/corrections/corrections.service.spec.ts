@@ -205,6 +205,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: null,
       });
 
@@ -263,6 +266,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: 10,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -276,6 +282,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: 'expense',
         corrects_object_id: 1,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -397,6 +406,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: null,
       });
       mockVoucherLineRepository.getLinesByVoucherId.mockResolvedValue([
@@ -448,6 +460,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: 10,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -460,6 +475,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: 'expense',
         corrects_object_id: 1,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -566,6 +584,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: 'expense',
         corrects_object_id: 1,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Earlier correction',
       });
 

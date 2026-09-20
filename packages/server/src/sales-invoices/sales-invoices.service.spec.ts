@@ -647,4 +647,42 @@ describe('SalesInvoicesService (integration)', () => {
       ).toBe('pending');
     });
   });
+  describe('the draft-facts guard sees OUR OWN registration (issue #211)', () => {
+    it('changes the fingerprint when the VAT registration kind changes', async () => {
+      await organizationService.updateOrganization({
+        country: 'EE',
+        vat_registered: true,
+      });
+      const customer = await entitiesService.onboard({
+        role: 'customer',
+        country: 'EE',
+        name: 'Domestic OÜ',
+        registrationKey: 'EE900000001',
+        goodsVsServices: 'services',
+        taxStatus: 'taxable_business',
+      });
+      const invoice = await service.createInvoice(
+        createDto({ customer_id: customer.id }),
+      );
+
+      // The fingerprint a caller takes before generating a draft.
+      const before = await service.draftFactsFingerprint(invoice.id);
+
+      // Neither the invoice nor the customer moves — only WE do. A limited
+      // registration charges no Estonian VAT on its own supplies, so the
+      // prepared entry no longer describes a sale this organisation can make.
+      await organizationService.updateOrganization({
+        vat_registration_kind: 'limited',
+        input_vat_entitlement: 'none',
+      });
+
+      const after = await service.draftFactsFingerprint(invoice.id);
+      expect(after).not.toBe(before);
+
+      // …and the guard refuses on it, rather than posting the stale draft.
+      await expect(
+        service.assertDraftFactsUnchangedTx(db, invoice.id, before),
+      ).rejects.toThrow(/organisation's VAT registration/);
+    });
+  });
 });

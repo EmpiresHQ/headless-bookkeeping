@@ -59,14 +59,14 @@ function renderPurchaseLine(row: InfRow): string {
   parts.push(
     `      <invoiceSumVat>${eur(row.netAmount + row.vatAmount)}</invoiceSumVat>`,
   );
-  parts.push(`      <vatInPeriod>${eur(row.vatAmount)}</vatInPeriod>`);
+  parts.push(`      <vatInPeriod>${eur(row.vatInPeriod)}</vatInPeriod>`);
   parts.push('    </purchaseLine>');
   return parts.join('\n');
 }
 
 export function renderKmdXml(input: StatutoryReportInput): string {
-  const salesRows = buildInfPart(input.salesLines).rows;
-  const purchaseRows = buildInfPart(input.purchaseLines).rows;
+  const salesRows = buildInfPart(input.salesLines, 'sales').rows;
+  const purchaseRows = buildInfPart(input.purchaseLines, 'purchase').rows;
 
   const year = input.period.startDate.slice(0, 4);
   const month = parseInt(input.period.startDate.slice(5, 7), 10);

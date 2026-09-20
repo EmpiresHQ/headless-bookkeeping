@@ -308,9 +308,10 @@ export class ExpensesService {
 
   /**
    * A fingerprint of every fact the draft voucher for this expense is derived
-   * from — the expense's own amounts/currency/tax point/category AND the
-   * supplier facts that now decide its VAT treatment and its KMD acquisition
-   * row (issue #210).
+   * from — the expense's own amounts/currency/tax point/category, the supplier
+   * facts that decide its VAT treatment and its KMD acquisition row (issue
+   * #210), and the organisation's VAT facts that decide how much of its input
+   * VAT is deductible (issue #211).
    *
    * Taken before the draft is generated and re-checked inside the posting
    * transaction, it closes the reverse-order race: generate a draft → edit the
@@ -348,7 +349,20 @@ export class ExpensesService {
             .where('id', '=', expense.supplier_id)
             .executeTakeFirst()
         : undefined;
-    return JSON.stringify([expense, supplier ?? null]);
+    // The organisation's OWN VAT facts now decide how much of the expense's
+    // input VAT is deductible, and therefore what the legs are (issue #211).
+    // A settings change between generating a draft and posting it moves the
+    // entry, so it belongs in the fingerprint alongside the supplier's facts.
+    const org = await executor
+      .selectFrom('organization')
+      .select([
+        'vat_registered',
+        'vat_registration_kind',
+        'input_vat_entitlement',
+        'input_vat_deduction_permille',
+      ])
+      .executeTakeFirst();
+    return JSON.stringify([expense, supplier ?? null, org ?? null]);
   }
 
   /**
@@ -365,8 +379,9 @@ export class ExpensesService {
     if (actual !== expected) {
       throw new ConflictException(
         `Expense ${id} was changed while it was being posted (its own amounts, ` +
-          `or the supplier facts that decide its VAT treatment and KMD ` +
-          `acquisition row), so the prepared entry no longer matches it. ` +
+          `the supplier facts that decide its VAT treatment and KMD ` +
+          `acquisition row, or the organisation's VAT facts that decide its ` +
+          `input-VAT deduction), so the prepared entry no longer matches it. ` +
           `Nothing was posted or held — post it again and the entry is ` +
           `recomputed from the current facts.`,
       );

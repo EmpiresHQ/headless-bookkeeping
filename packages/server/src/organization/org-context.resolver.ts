@@ -55,6 +55,14 @@ export class OrgContextResolver {
       country: organization.country,
       vatRegistered: !!organization.vat_registered,
       baseCurrency: organization.base_currency,
+      // The organisation's OWN VAT facts, which decide whether a purchase's
+      // input VAT is reclaimable at all (issue #211).
+      vatRegistrationKind:
+        organization.vat_registration_kind === 'limited'
+          ? 'limited'
+          : 'ordinary',
+      inputVatEntitlement: organization.input_vat_entitlement,
+      inputVatDeductionPermille: organization.input_vat_deduction_permille,
     };
 
     return { organization, plugin, orgContext };

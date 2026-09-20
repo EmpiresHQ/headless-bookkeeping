@@ -315,6 +315,9 @@ describe('DividendsService (integration)', () => {
 
     /** Mock plugin with 27% withholding tax (Danish-style). */
     class MockWithholdingPlugin implements CountryPlugin {
+      resolveInputVatEntitlement() {
+        return { numerator: 1, denominator: 1, basis: 'full' as const };
+      }
       getName(): string {
         return 'mock-withholding';
       }
@@ -571,6 +574,9 @@ describe('DividendsService (integration)', () => {
      *   - assertDistributable always true (cap enforced externally in real EE plugin)
      */
     class MockDistributionTaxPlugin implements CountryPlugin {
+      resolveInputVatEntitlement() {
+        return { numerator: 1, denominator: 1, basis: 'full' as const };
+      }
       getName(): string {
         return 'mock-dist-tax';
       }

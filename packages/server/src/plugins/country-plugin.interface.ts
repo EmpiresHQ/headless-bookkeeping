@@ -16,6 +16,10 @@ import type {
   AnnualAccountsOpts,
   AnnualAccountsResult,
 } from './annual-accounts.types';
+import type {
+  InputVatEntitlement,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
 
 export type {
   VatComputation,
@@ -42,6 +46,12 @@ export type {
   AnnualAccountsOpts,
   AnnualAccountsResult,
 } from './annual-accounts.types';
+
+export type {
+  InputVatEntitlement,
+  InputVatEntitlementBasis,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
 
 /**
  * VATCode - A country-specific classification of a line's VAT treatment.
@@ -113,6 +123,21 @@ export interface OrgContext {
   vatRegistered: boolean;
   /** Base currency override, or null to inherit from the country plugin. */
   baseCurrency: string | null;
+  /**
+   * WHICH kind of VAT registration (issue #211). 'ordinary' is the taxable
+   * person that deducts input VAT; 'limited' is one registered only because it
+   * receives specified acquisitions — it self-assesses the output tax and
+   * deducts nothing. Being liable for VAT and being entitled to deduct it are
+   * different questions, and `vatRegistered` alone answers only the first.
+   */
+  vatRegistrationKind?: 'ordinary' | 'limited';
+  /** The Organization's recorded right to deduct input VAT (issue #211). */
+  inputVatEntitlement?: 'full' | 'partial' | 'none';
+  /**
+   * The deductible proportion in PER MILLE (0…1000) when the entitlement is
+   * 'partial'; null otherwise. Per mille so the proportion is an exact integer.
+   */
+  inputVatDeductionPermille?: number | null;
 }
 
 /**
@@ -415,6 +440,31 @@ export interface CountryPlugin extends CountryPluginRetrieval {
     orgContext: OrgContext,
     context: { vatCharged: boolean },
   ): CrossBorderResolution;
+
+  /**
+   * Resolves HOW MUCH of a purchase's input VAT the Organization may deduct
+   * (issue #211) — as an exact integer fraction, before any VAT_RECEIVABLE leg
+   * is composed.
+   *
+   * Entitlement is a FISCAL question, so the plugin owns it (ADR-0002): whether
+   * a registration confers a deduction right, whether a partial proportion
+   * applies, and whether this particular treatment or VAT code is restricted.
+   * The kernel only composes the legs from the fraction it is handed — it adds
+   * no VAT arithmetic of its own, and it does not second-guess the answer
+   * beyond checking that the fraction is usable.
+   *
+   * Non-deductible VAT is NOT lost: the kernel books it into the expense or
+   * asset cost, where it belongs, and keeps it out of the deductible input-VAT
+   * total on the return.
+   *
+   * @throws UnresolvedVatTreatmentError when the organisation's recorded VAT
+   *   facts contradict each other or do not decide the proportion. Refusing is
+   *   the contract — a plugin must not deduct a figure nobody recorded.
+   */
+  resolveInputVatEntitlement(
+    orgContext: OrgContext,
+    context: InputVatEntitlementContext,
+  ): InputVatEntitlement;
 
   /**
    * Returns the dividend withholding tax rate for the Organization's country.

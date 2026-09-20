@@ -126,7 +126,7 @@ function renderBRow(row: InfRow): string {
     row.date ?? '',
     eur(row.netAmount + row.vatAmount),
     '', // vatSum — empty middle placeholder
-    eur(row.vatAmount),
+    eur(row.vatInPeriod),
     '', // comments — empty
   ];
   return buildRow(cols);
@@ -134,8 +134,8 @@ function renderBRow(row: InfRow): string {
 
 /** Render the official EMTA KMD CSV upload format. */
 export function renderKmdCsv(input: StatutoryReportInput): string {
-  const salesRows = buildInfPart(input.salesLines).rows;
-  const purchaseRows = buildInfPart(input.purchaseLines).rows;
+  const salesRows = buildInfPart(input.salesLines, 'sales').rows;
+  const purchaseRows = buildInfPart(input.purchaseLines, 'purchase').rows;
 
   const allRows: string[] = [];
 

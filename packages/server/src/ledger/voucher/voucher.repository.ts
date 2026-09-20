@@ -36,6 +36,9 @@ export class VoucherRepository {
     corrects_object_type,
     corrects_object_id,
     reason,
+    input_vat_entitlement_basis,
+    input_vat_deduction_numerator,
+    input_vat_deduction_denominator,
   }: {
     id: number;
     voucher_number: string;
@@ -46,6 +49,9 @@ export class VoucherRepository {
     corrects_object_type: string | null;
     corrects_object_id: number | null;
     reason: string | null;
+    input_vat_entitlement_basis: string | null;
+    input_vat_deduction_numerator: number | null;
+    input_vat_deduction_denominator: number | null;
   }): Voucher {
     return {
       id,
@@ -57,6 +63,9 @@ export class VoucherRepository {
       corrects_object_type,
       corrects_object_id,
       reason,
+      input_vat_entitlement_basis,
+      input_vat_deduction_numerator,
+      input_vat_deduction_denominator,
     };
   }
 }

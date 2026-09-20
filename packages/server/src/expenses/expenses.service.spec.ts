@@ -193,6 +193,10 @@ describe('ExpensesService (integration)', () => {
 
   describe('generateDraftVoucher', () => {
     it('returns a transient draft voucher with accrual lines', async () => {
+      // The VAT_RECEIVABLE leg below exists only because the organisation is a
+      // registered person with a full deduction right (issue #211); the seeded
+      // default is not registered, so the fixture says so explicitly.
+      await organizationService.updateOrganization({ vat_registered: true });
       const expense = await service.createExpense(sampleDto());
       const draft = await service.generateDraftVoucher(expense.id);
 
@@ -500,8 +504,15 @@ describe('ExpensesService (integration)', () => {
 
   describe('reverse charge on imported services (EE org)', () => {
     it('books self-assessed output + input VAT for a US service supplier', async () => {
-      // Switch the org to Estonia so the EstoniaCountryPlugin is active.
-      await organizationService.updateOrganization({ country: 'EE' });
+      // Switch the org to Estonia so the EstoniaCountryPlugin is active, and
+      // register it: a reverse charge is self-assessed by anyone who receives
+      // the supply, but it is only DEDUCTIBLE for a registered person with a
+      // deduction right (issue #211). This test is about the ordinary,
+      // fully-entitled case.
+      await organizationService.updateOrganization({
+        country: 'EE',
+        vat_registered: true,
+      });
 
       const supplier = await entitiesService.onboard({
         role: 'supplier',
@@ -550,6 +561,29 @@ describe('ExpensesService (integration)', () => {
         .filter((l) => !l.is_debit)
         .reduce((s, l) => s + l.base_amount, 0);
       expect(debit).toBe(credit);
+    });
+  });
+  describe('the draft-facts guard sees OUR OWN VAT facts (issue #211)', () => {
+    it('refuses a prepared draft after the entitlement changed underneath it', async () => {
+      await organizationService.updateOrganization({ vat_registered: true });
+      const expense = await service.createExpense(sampleDto());
+
+      // What a caller captures before generating the draft.
+      const before = await service.draftFactsFingerprint(expense.id);
+
+      // Neither the expense nor any supplier moves — only the proportion we may
+      // deduct, which decides what the legs ARE. Without this in the
+      // fingerprint the stale draft would post a deduction nobody is entitled
+      // to any more.
+      await organizationService.updateOrganization({
+        input_vat_entitlement: 'partial',
+        input_vat_deduction_permille: 500,
+      });
+
+      expect(await service.draftFactsFingerprint(expense.id)).not.toBe(before);
+      await expect(
+        service.assertDraftFactsUnchangedTx(db, expense.id, before),
+      ).rejects.toThrow(/input-VAT deduction/);
     });
   });
 });

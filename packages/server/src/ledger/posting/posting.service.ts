@@ -409,6 +409,15 @@ export class PostingService {
         // here, only after the checks above passed, and immutable afterwards
         // (posted vouchers are immutable by trigger, ADR-0019).
         annual_close_period_id: annualClose,
+        // The input-VAT deduction entitlement this purchase was booked at
+        // (issue #211). Written from the draft, never recomputed later: an
+        // organisation's settings change, and a posted voucher must keep saying
+        // what it was posted on.
+        input_vat_entitlement_basis: draft.input_vat_entitlement?.basis ?? null,
+        input_vat_deduction_numerator:
+          draft.input_vat_entitlement?.numerator ?? null,
+        input_vat_deduction_denominator:
+          draft.input_vat_entitlement?.denominator ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
