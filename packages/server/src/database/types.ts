@@ -52,6 +52,15 @@ export interface OrganizationTable {
   // plugin" (ADR-0004).
   base_currency: string | null;
   vat_registered: number;
+  // Which kind of VAT registration (issue #211): 'ordinary' (maksukohustuslane,
+  // deducts input VAT) | 'limited' (piiratud maksukohustuslane — self-assesses
+  // the output tax on specified acquisitions, deducts nothing).
+  vat_registration_kind: Generated<string>;
+  // Right to deduct input VAT: 'full' | 'partial' | 'none' (issue #211).
+  input_vat_entitlement: Generated<string>;
+  // The deductible proportion in PER MILLE (0…1000) when the entitlement is
+  // 'partial'; NULL otherwise, enforced by a CHECK.
+  input_vat_deduction_permille: number | null;
   // Legal form: 'company' | 'sole_proprietor' (ADR-0017/ADR-0023).
   // Generated because migration 017 adds DEFAULT 'company'.
   org_type: Generated<string>;
@@ -102,6 +111,17 @@ export interface VoucherTable {
    * adjustment booked after the month was filed never drifts a frozen return.
    */
   annual_close_period_id: number | null;
+  /**
+   * The input-VAT deduction entitlement this purchase was POSTED at (issue
+   * #211): why it applied (`input_vat_entitlement_basis`) and the exact integer
+   * fraction of the tax that was deducted. Frozen here because the
+   * organisation's settings move and a posted voucher must keep saying what it
+   * was booked on. NULL = no input-VAT decision was recorded on this voucher
+   * (a sale, a system entry, or anything posted before this column existed).
+   */
+  input_vat_entitlement_basis: string | null;
+  input_vat_deduction_numerator: number | null;
+  input_vat_deduction_denominator: number | null;
 }
 
 export interface VoucherLineTable {

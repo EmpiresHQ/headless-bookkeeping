@@ -82,6 +82,40 @@ curl -H "$H" -H "$J" -X PUT $B/api/organization \
 ```
 `org_type`: `company | sole_proprietor`. Seed: IE, base_currency=null (→ EUR from the plugin).
 
+**Input-VAT deduction entitlement.** Being liable for VAT and being entitled to
+deduct it are different questions, so three further fields record the second one
+and the posting side reads them before any `VAT_RECEIVABLE` is created:
+
+```bash
+curl -H "$H" -H "$J" -X PUT $B/api/organization \
+  -d '{"vat_registered":true,"vat_registration_kind":"ordinary",
+       "input_vat_entitlement":"partial","input_vat_deduction_permille":500}'
+```
+* `vat_registration_kind`: `ordinary | limited`. A **limited** taxable person
+  (EE *piiratud maksukohustuslane*) self-assesses VAT on specified acquisitions
+  and deducts **nothing**; the EE plugin also refuses to auto-classify a SALE
+  under it.
+* `input_vat_entitlement`: `full | partial | none`.
+* `input_vat_deduction_permille`: required exactly when the entitlement is
+  `partial`, a whole number of per mille 0–1000 (`500` = 50%). Forbidden
+  otherwise, and cleared automatically when the entitlement leaves `partial`.
+
+The combinations are validated as one merged state: an entitlement other than
+`none` on a non-registered organization is rejected — a percentage cannot buy
+back a deduction the registration does not confer. A caller that sends only
+`vat_registered` keeps working: deregistering carries the entitlement to `none`,
+registering sets the ordinary default of `full`.
+
+Whatever is **not** deductible is not lost — it increases the expense or the
+capitalised asset cost, and it stays out of KMD row 5. On a reverse charge the
+output VAT is still declared and paid in full; only the input side is reduced,
+and the acquisition base declared in KMD rows 1/6/7 stays the value the supplier
+invoiced. The entitlement a purchase was posted at is frozen on the voucher
+(`input_vat_entitlement_basis`, `input_vat_deduction_numerator`/`_denominator`),
+so later settings changes never restate an already-posted entry or a filed
+return. This records the proportion in force at posting; it is not an annual
+pro-rata recalculation engine.
+
 For Estonian KMD exports, also set `registry_code` to the company's 8-digit
 commercial registry code via `PUT /api/organization` (or Settings → Organization).
 Keep `vat_registration_number` as the separate `EE…` VAT number. Existing
@@ -133,7 +167,8 @@ a cross-border service invoice to this customer is REFUSED rather than guessed
 whether a purchase is a reverse-charged acquisition, and whether it is an
 intra-Community one — so a cross-border expense is refused while it is unknown
 too. It describes the COUNTERPARTY; our own VAT registration is
-`organization.vat_registered`.
+`organization.vat_registered` (and `vat_registration_kind` /
+`input_vat_entitlement`, above).
 
 ### Enter an expense (purchase)
 ```bash

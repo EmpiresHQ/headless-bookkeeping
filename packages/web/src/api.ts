@@ -20,6 +20,11 @@ export interface Organization {
   country: string;
   base_currency: string | null;
   vat_registered: boolean;
+  // Issue #211: being liable for VAT and being entitled to deduct it are
+  // different questions, so the organisation records both.
+  vat_registration_kind: 'ordinary' | 'limited';
+  input_vat_entitlement: 'full' | 'partial' | 'none';
+  input_vat_deduction_permille: number | null;
   org_type: string;
   created_at: number;
   name: string | null;
@@ -185,6 +190,10 @@ export interface UpdateOrganizationDto {
   // null clears the override → inherit the country plugin's base currency.
   base_currency?: string | null;
   vat_registered?: boolean;
+  vat_registration_kind?: 'ordinary' | 'limited';
+  input_vat_entitlement?: 'full' | 'partial' | 'none';
+  // null clears the proportion (required when leaving 'partial').
+  input_vat_deduction_permille?: number | null;
   org_type?: 'company' | 'sole_proprietor';
   name?: string | null;
   vat_registration_number?: string | null;

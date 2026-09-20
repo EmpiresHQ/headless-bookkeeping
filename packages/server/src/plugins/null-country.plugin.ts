@@ -13,6 +13,11 @@ import {
   SupplierFacts,
   VATCode,
 } from './country-plugin.interface';
+import type {
+  InputVatEntitlement,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
+import { entitlementFromOrgContext } from './input-vat-entitlement';
 import {
   AssetClass,
   DepreciationMethod,
@@ -208,6 +213,18 @@ export class NullCountryPlugin implements CountryPlugin {
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
     return [NULL_VAT_CODE, 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+  }
+
+  /**
+   * The neutral jurisdiction's entitlement rule (issue #211): exactly the
+   * organisation's own recorded VAT facts, with nothing added. There is no
+   * "limited registration" concept here, so registration kind does not enter.
+   */
+  resolveInputVatEntitlement(
+    orgContext: OrgContext,
+    _context: InputVatEntitlementContext,
+  ): InputVatEntitlement {
+    return entitlementFromOrgContext(orgContext);
   }
 
   resolvePersonalDispositionAccount(orgType: string): string {

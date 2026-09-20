@@ -26,6 +26,12 @@ import {
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 import { UnresolvedVatTreatmentError } from './vat-treatment.errors';
+import type {
+  InputVatEntitlement,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
+import { NO_ENTITLEMENT } from './input-vat-entitlement.types';
+import { entitlementFromOrgContext } from './input-vat-entitlement';
 import {
   StatutoryFormat,
   StatutoryReportInput,
@@ -271,6 +277,30 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     orgContext: OrgContext,
     supplyFacts?: SupplyFacts,
   ): VATCode {
+    // A LIMITED registration is not an ordinary one (issue #211). A piiratud
+    // maksukohustuslane is registered only to self-assess VAT on specified
+    // acquisitions: it adds no Estonian VAT to its own supplies and declares no
+    // taxable turnover, so none of the output codes below describes its sale.
+    // Picking one anyway would put a taxable supply — and an output tax — on a
+    // return that has no business carrying either. The treatment of its sales
+    // is not auto-classified here.
+    if (orgContext.vatRegistrationKind === 'limited') {
+      throw new UnresolvedVatTreatmentError({
+        code: 'limited_registration_sale_unsupported',
+        message:
+          `The organisation is registered as a limited taxable person ` +
+          `(piiratud maksukohustuslane), which self-assesses VAT on specified ` +
+          `acquisitions but charges no Estonian VAT on its own supplies. The EE ` +
+          `plugin does not auto-classify a sale under that registration, so ` +
+          `nothing was posted.`,
+        missingFacts: ['organization.vat_registration_kind=limited on a sale'],
+        howToResolve:
+          'If the organisation holds an ORDINARY VAT registration, PUT ' +
+          '/api/organization with {"vat_registration_kind":"ordinary"} and post ' +
+          'again; otherwise book the sale explicitly with your accountant.',
+      });
+    }
+
     const customerCountry = customerFacts.country;
     const isDomestic = customerCountry === orgContext.country;
 
@@ -555,6 +585,50 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
     return vatCode in EstoniaCountryPlugin.VAT_RATES;
+  }
+
+  // ── Input-VAT deduction entitlement ───────────────────────────────────────
+
+  /**
+   * How much of a purchase's input VAT an Estonian organisation may deduct
+   * (issue #211), decided BEFORE any VAT_RECEIVABLE leg exists.
+   *
+   * KMD row 5 takes only tax that is deductible under KMS §§29–31 (EMTA's KMD
+   * instructions, row 5). Three of the facts that govern it were not being read
+   * at all:
+   *
+   *  - NOT REGISTERED — a person who is not a taxable person has no deduction
+   *    right. The 24% on a domestic purchase is simply part of what the thing
+   *    cost, and there is no return to put it on.
+   *
+   *  - LIMITED REGISTRATION (piiratud maksukohustuslane, KMS §21) — registered
+   *    because it receives specified acquisitions, it self-assesses and PAYS
+   *    the output VAT on them and deducts nothing (EMTA handbook, limited
+   *    liability VAT payer). This is the case that proves liability and
+   *    entitlement are separate questions: the reverse charge still produces a
+   *    real output tax, and the input side of it is zero.
+   *
+   *  - PARTIAL USE — inputs used both for business and non-business, or for
+   *    both taxable and exempt supply, are deductible only in proportion
+   *    (KMS §29 lg 1, §32). The proportion is recorded, never inferred.
+   *
+   * What this deliberately does NOT do is the year-end recalculation of the
+   * proportion (KMS §32 lg 4). This resolves the proportion a posting is made
+   * at; an annual adjustment is a separate entry against it.
+   */
+  resolveInputVatEntitlement(
+    orgContext: OrgContext,
+    _context: InputVatEntitlementContext,
+  ): InputVatEntitlement {
+    if (
+      orgContext.vatRegistered &&
+      orgContext.vatRegistrationKind === 'limited'
+    ) {
+      // The output side of a reverse charge is unaffected — it is exactly what
+      // a limited registration exists to collect. Only the deduction is nil.
+      return NO_ENTITLEMENT('limited_registration');
+    }
+    return entitlementFromOrgContext(orgContext);
   }
 
   // ── Personal disposition ──────────────────────────────────────────────────
@@ -916,8 +990,8 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     }
 
     // INF warnings (missing invoice numbers on qualifying rows).
-    warnings.push(...buildInfPart(input.salesLines).warnings);
-    warnings.push(...buildInfPart(input.purchaseLines).warnings);
+    warnings.push(...buildInfPart(input.salesLines, 'sales').warnings);
+    warnings.push(...buildInfPart(input.purchaseLines, 'purchase').warnings);
 
     // A reverse-charge acquisition whose origin the ledger never recorded
     // (issue #210) belongs to row 6 or row 7 and the vouchers do not say which.

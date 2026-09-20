@@ -449,10 +449,12 @@ describe('Migration 075 — legacy annual-close back-fill', () => {
 
     await migrateToLatest();
 
-    expect(await db.selectFrom('voucher').selectAll().execute()).toEqual(
+    expectRowsUnchanged(
+      await db.selectFrom('voucher').selectAll().execute(),
       before.vouchers,
     );
-    expect(await db.selectFrom('voucher_line').selectAll().execute()).toEqual(
+    expectRowsUnchanged(
+      await db.selectFrom('voucher_line').selectAll().execute(),
       before.lines,
     );
     expect(await db.selectFrom('fixed_asset').selectAll().execute()).toEqual(
@@ -471,3 +473,28 @@ describe('Migration 075 — legacy annual-close back-fill', () => {
     expect(await attribution()).toEqual([]);
   });
 });
+
+/**
+ * Compare rows across a migration that ADDS columns. A later migration may add
+ * a column to `voucher` (issue #211 adds the input-VAT entitlement provenance);
+ * that changes the row SHAPE without rewriting any datum, which is exactly what
+ * this test is about. So the comparison is made on the fields that existed when
+ * the snapshot was taken, and every newly added field is asserted to be NULL —
+ * which is the stronger statement: nothing was back-filled either.
+ */
+function expectRowsUnchanged(
+  after: Record<string, unknown>[],
+  before: Record<string, unknown>[],
+): void {
+  expect(after).toHaveLength(before.length);
+  after.forEach((row, i) => {
+    const original = before[i];
+    const known = Object.fromEntries(
+      Object.keys(original).map((k) => [k, row[k]]),
+    );
+    expect(known).toEqual(original);
+    for (const [k, v] of Object.entries(row)) {
+      if (!(k in original)) expect(v).toBeNull();
+    }
+  });
+}

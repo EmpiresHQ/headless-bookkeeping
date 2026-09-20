@@ -197,8 +197,11 @@ describe('Pipeline (e2e)', () => {
   });
 
   describe('Expense pipeline: rule rejection (structural failure → 400)', () => {
-    it('rejects an expense that produces a negative net amount', async () => {
-      // gross < vat → net negative → structural validation fails (amount > 0)
+    it('rejects an expense whose stated VAT exceeds its gross', async () => {
+      // gross < vat is an impossible document. It is refused on the source
+      // amounts themselves (issue #211) rather than via the negative net it
+      // used to produce: once a non-deductible purchase books its tax into the
+      // cost, the contradiction would otherwise cancel out and post silently.
       const expense = await createExpense({
         gross_amount: 100,
         vat_amount: 200,
@@ -209,7 +212,9 @@ describe('Pipeline (e2e)', () => {
         .post(`/api/expenses/${Reflect.get(expense, 'id') as number}/post`)
         .expect(400);
 
-      expect(Reflect.get(res.body, 'message')).toContain('Structural');
+      expect(Reflect.get(res.body, 'message')).toContain(
+        'cannot exceed its gross amount',
+      );
 
       // Expense stays draft, no voucher minted
       const updated = await db

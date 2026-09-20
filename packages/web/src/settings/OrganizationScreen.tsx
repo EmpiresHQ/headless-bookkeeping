@@ -60,6 +60,13 @@ function OrgForm({ data }: { data: Organization }) {
     data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
   );
   const [vatRegistered, setVatRegistered] = useState(data.vat_registered);
+  const [vatKind, setVatKind] = useState(data.vat_registration_kind);
+  const [entitlement, setEntitlement] = useState(data.input_vat_entitlement);
+  const [permille, setPermille] = useState(
+    data.input_vat_deduction_permille === null
+      ? ''
+      : String(data.input_vat_deduction_permille),
+  );
   const [name, setName] = useState(data.name ?? '');
   const [vatNumber, setVatNumber] = useState(
     data.vat_registration_number ?? '',
@@ -83,6 +90,13 @@ function OrgForm({ data }: { data: Organization }) {
         data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
       );
       setVatRegistered(data.vat_registered);
+      setVatKind(data.vat_registration_kind);
+      setEntitlement(data.input_vat_entitlement);
+      setPermille(
+        data.input_vat_deduction_permille === null
+          ? ''
+          : String(data.input_vat_deduction_permille),
+      );
       setName(data.name ?? '');
       setVatNumber(data.vat_registration_number ?? '');
       setRegistryCode(data.registry_code ?? '');
@@ -99,7 +113,23 @@ function OrgForm({ data }: { data: Organization }) {
     currency.trim() === '' || CURRENCY_RE.test(currency.trim().toUpperCase())
       ? null
       : 'Three-letter ISO code, e.g. EUR — or blank to inherit';
-  const valid = countryErr === null && currencyErr === null;
+  // Deduction entitlement only exists for a registered person, and the
+  // proportion only exists while the entitlement is partial. Checked here so
+  // the form cannot send a combination the API will reject (issue #211).
+  // A limited registration deducts nothing, so the entitlement is not a choice
+  // there — the control is disabled and reads 'none' rather than offering a
+  // Full/Partial the plugin would always answer zero to.
+  const effectiveEntitlement =
+    !vatRegistered || vatKind === 'limited' ? 'none' : entitlement;
+  const permilleNum = Number(permille);
+  const permilleErr =
+    effectiveEntitlement !== 'partial'
+      ? null
+      : /^\d+$/.test(permille.trim()) && permilleNum >= 0 && permilleNum <= 1000
+        ? null
+        : 'A whole number of per mille, 0–1000 (500 = 50%)';
+  const valid =
+    countryErr === null && currencyErr === null && permilleErr === null;
 
   const save = async () => {
     setBusy(true);
@@ -108,6 +138,12 @@ function OrgForm({ data }: { data: Organization }) {
         country: country.trim().toUpperCase(),
         org_type: orgType === 'sole_proprietor' ? 'sole_proprietor' : 'company',
         vat_registered: vatRegistered,
+        vat_registration_kind: vatKind,
+        // Deregistering carries the entitlement to 'none' with it — the API
+        // refuses any other combination, and so does the form.
+        input_vat_entitlement: effectiveEntitlement,
+        input_vat_deduction_permille:
+          effectiveEntitlement === 'partial' ? permilleNum : null,
         // Empty string → null: inherit the country plugin's base currency
         // (ADR-0004; legacy organization-tab semantics preserved).
         base_currency: currency.trim() ? currency.trim().toUpperCase() : null,
@@ -184,6 +220,69 @@ function OrgForm({ data }: { data: Organization }) {
         />
         <span>VAT registered</span>
       </label>
+      {vatRegistered && (
+        <>
+          <Field
+            label="Registration kind"
+            hint="A limited taxable person (piiratud maksukohustuslane) self-assesses VAT on specified acquisitions and deducts no input VAT"
+          >
+            <SelectInput
+              aria-label="Registration kind"
+              value={vatKind}
+              onChange={(e) => {
+                dirty.current = true;
+                setVatKind(
+                  e.target.value === 'limited' ? 'limited' : 'ordinary',
+                );
+              }}
+            >
+              <option value="ordinary">Ordinary</option>
+              <option value="limited">Limited</option>
+            </SelectInput>
+          </Field>
+          <Field
+            label="Input VAT deduction"
+            hint={
+              vatKind === 'limited'
+                ? 'A limited taxable person deducts no input VAT: the tax it self-assesses is payable in full and increases the expense or asset cost'
+                : 'Inputs used partly for non-business or exempt supply are deductible only in proportion (KMD row 5)'
+            }
+          >
+            <SelectInput
+              aria-label="Input VAT deduction"
+              disabled={vatKind === 'limited'}
+              value={effectiveEntitlement}
+              onChange={(e) => {
+                dirty.current = true;
+                const v = e.target.value;
+                setEntitlement(v === 'partial' || v === 'none' ? v : 'full');
+              }}
+            >
+              <option value="full">Full</option>
+              <option value="partial">Partial</option>
+              <option value="none">None</option>
+            </SelectInput>
+          </Field>
+          {effectiveEntitlement === 'partial' && (
+            <Field
+              label="Deductible proportion (per mille)"
+              error={permilleErr}
+              hint="500 = 50%"
+            >
+              <TextInput
+                aria-label="Deductible proportion (per mille)"
+                value={permille}
+                onChange={(e) => {
+                  dirty.current = true;
+                  setPermille(e.target.value);
+                }}
+                placeholder="e.g. 500"
+                inputMode="numeric"
+              />
+            </Field>
+          )}
+        </>
+      )}
       <Field
         label="VAT registration number"
         hint="VAT registration number (KMKR)"

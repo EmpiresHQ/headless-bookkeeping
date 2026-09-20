@@ -287,7 +287,17 @@ export class SalesInvoicesService {
             .where('id', '=', invoice.customer_id)
             .executeTakeFirst()
         : undefined;
-    return JSON.stringify([invoice, customer ?? null]);
+    // The organisation's OWN registration is a fact the sale's classifier reads
+    // (issue #211): the EE plugin refuses to auto-classify a sale made under a
+    // LIMITED registration, which charges no Estonian VAT on its own supplies.
+    // Without this, a draft prepared under an ordinary registration would still
+    // post after the registration was switched — the invoice and the customer
+    // both unchanged, so the guard would see nothing move.
+    const org = await executor
+      .selectFrom('organization')
+      .select(['country', 'vat_registered', 'vat_registration_kind'])
+      .executeTakeFirst();
+    return JSON.stringify([invoice, customer ?? null, org ?? null]);
   }
 
   /**
@@ -303,8 +313,9 @@ export class SalesInvoicesService {
     const actual = await this.draftFactsFingerprint(id, trx);
     if (actual !== expected) {
       throw new ConflictException(
-        `Sales invoice ${id} was changed while it was being posted, so the ` +
-          `prepared entry no longer matches it. Nothing was posted or held — ` +
+        `Sales invoice ${id} was changed while it was being posted (its own ` +
+          `facts, the customer's, or the organisation's VAT registration), so ` +
+          `the prepared entry no longer matches it. Nothing was posted or held — ` +
           `post it again and the entry is recomputed from the current facts.`,
       );
     }

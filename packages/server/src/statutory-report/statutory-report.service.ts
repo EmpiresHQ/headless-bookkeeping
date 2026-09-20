@@ -692,6 +692,11 @@ export class StatutoryReportService {
       .select([
         'e.supplier_invoice_number',
         'e.supplier_id',
+        // The DOCUMENT's own amounts (issue #211). They are what KMD INF part B
+        // reports and thresholds on, and once irrecoverable VAT is booked into
+        // the cost the ledger legs no longer state them.
+        'e.gross_amount',
+        'e.vat_amount',
         'v.id as voucher_id',
         'v.tax_point_date',
       ])
@@ -722,6 +727,13 @@ export class StatutoryReportService {
         creditsInvoiceNumber: null,
         date: exp.tax_point_date,
         ...amounts,
+        ...(await this.documentAmounts(
+          exp.voucher_id,
+          exp.gross_amount,
+          exp.vat_amount,
+          amounts,
+          executor,
+        )),
       });
     }
 
@@ -731,6 +743,11 @@ export class StatutoryReportService {
       .innerJoin('expense as e', 'e.id', 'cn.credits_object_id')
       .select([
         'cn.credit_note_number',
+        // The credit note's OWN amounts (issue #211) — a refund mirrors the
+        // invoice it credits, so its document figures must come from it rather
+        // than falling back to a cost that no longer states them.
+        'cn.gross_amount',
+        'cn.vat_amount',
         'e.supplier_invoice_number as credits_invoice_number',
         'e.supplier_id',
         'v.id as voucher_id',
@@ -765,6 +782,14 @@ export class StatutoryReportService {
         creditsInvoiceNumber: cn.credits_invoice_number,
         date: cn.tax_point_date,
         ...amounts,
+        ...(await this.documentAmounts(
+          cn.voucher_id,
+          cn.gross_amount,
+          cn.vat_amount,
+          amounts,
+          executor,
+          -1,
+        )),
       });
     }
 
@@ -783,6 +808,58 @@ export class StatutoryReportService {
    * (AR/AP) — i.e. the taxable base. A zero-rated voucher carries no VAT-control
    * line, so vatAmount = 0 and vatCode falls back to a base line's code.
    */
+  /**
+   * The DOCUMENT's own net and VAT in base currency (issue #211).
+   *
+   * The ledger legs stopped stating them the moment irrecoverable input VAT
+   * started being booked into the cost: the base legs then carry
+   * `net + irrecoverable VAT` while the VAT-control leg carries only what was
+   * reclaimed. KMD INF part B reports the INVOICE — its €1000 threshold is the
+   * invoice value WITHOUT VAT, and `invoiceSumVat` is the invoice's own total —
+   * so it has to read the document, not our cost.
+   *
+   * The figures come from the immutable business object (its own gross and VAT,
+   * in its own currency) converted at the rate the VOUCHER was posted at, and
+   * the VAT is then taken as the REMAINDER of the base-currency gross. So the
+   * two always sum back to the gross the voucher actually carries, whatever the
+   * rate or rounding — no second rounding rule to drift against the first.
+   *
+   * It is computed for EVERY new purchase line, including fully deductible
+   * ones, so that the presence of these fields is itself the marker that a line
+   * was assembled by this code. A payload frozen earlier has neither field and
+   * is rendered exactly as it was filed.
+   *
+   * `sign` is -1 for a credit note, whose ledger figures are already negative:
+   * its document figures must be negative too, or a refund would raise the
+   * partner's threshold instead of lowering it.
+   */
+  private async documentAmounts(
+    voucherId: number,
+    grossAmount: number,
+    vatAmount: number,
+    ledger: { netAmount: number; vatAmount: number },
+    executor: Kysely<Database>,
+    sign: 1 | -1 = 1,
+  ): Promise<{ documentNetAmount: number; documentVatAmount: number }> {
+    const grossBase = ledger.netAmount + ledger.vatAmount;
+    const rateRow = await executor
+      .selectFrom('voucher_line')
+      .select(['fx_rate'])
+      .where('voucher_id', '=', voucherId)
+      .executeTakeFirst();
+    const rate = rateRow?.fx_rate ?? 1;
+
+    const { organization } = await this.orgResolver.resolve(executor);
+    const plugin = this.pluginLoader.resolve(organization.country);
+    const documentNetAmount =
+      sign *
+      plugin.roundToBaseMinorUnits(Math.abs(grossAmount - vatAmount) * rate);
+    return {
+      documentNetAmount,
+      documentVatAmount: grossBase - documentNetAmount,
+    };
+  }
+
   private async voucherAmounts(
     voucherId: number,
     opts: {

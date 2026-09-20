@@ -204,10 +204,9 @@ export class CorrectionsService {
     const target = await this.resolveCorrectionTarget(originalVoucher);
 
     const reversalDraft = await this.buildReversalDraft(
-      originalVoucher.voucher_number,
+      originalVoucher,
       target.taxPointDate,
       originalLines,
-      voucherId,
       params.request.reason,
     );
 
@@ -269,10 +268,9 @@ export class CorrectionsService {
     // pair, both dated into the effective (possibly redirected) period and
     // carrying the reverses / corrects_object references back to the original.
     const reversalDraft = await this.buildReversalDraft(
-      originalVoucher.voucher_number,
+      originalVoucher,
       target.taxPointDate,
       originalLines,
-      voucherId,
       request.reason,
     );
 
@@ -478,12 +476,12 @@ export class CorrectionsService {
   }
 
   private async buildReversalDraft(
-    originalVoucherNumber: string,
+    original: Voucher,
     taxPointDate: string,
     originalLines: VoucherLine[],
-    originalVoucherId: number,
     reason: string,
   ): Promise<DraftVoucher> {
+    const originalVoucherNumber = original.voucher_number;
     const accountIds = [...new Set(originalLines.map((l) => l.account_id))];
     const accounts = await this.accountService.getAccountsByIds(accountIds);
     const byId = new Map(accounts.map((a) => [a.id, a]));
@@ -513,8 +511,22 @@ export class CorrectionsService {
       voucher_number: `${originalVoucherNumber}-REV`,
       tax_point_date: taxPointDate,
       lines,
-      reverses_id: originalVoucherId,
+      reverses_id: original.id,
       reason,
+      // COPIED from the original, never re-resolved (issue #211). A reversal
+      // takes back exactly what was posted; if the organisation's entitlement
+      // has changed since, that change belongs to the replacement entry, not to
+      // the undoing of the old one.
+      input_vat_entitlement:
+        original.input_vat_deduction_numerator !== null &&
+        original.input_vat_deduction_denominator !== null &&
+        original.input_vat_entitlement_basis !== null
+          ? {
+              numerator: original.input_vat_deduction_numerator,
+              denominator: original.input_vat_deduction_denominator,
+              basis: original.input_vat_entitlement_basis,
+            }
+          : null,
     };
   }
 }

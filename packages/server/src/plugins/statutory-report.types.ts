@@ -10,8 +10,25 @@ export interface StatutoryDocLine {
   creditsInvoiceNumber: string | null; // set for credit notes
   date: string; // tax-point YYYY-MM-DD
   vatCode: string; // booked code, authoritative
-  netAmount: number; // EUR minor units, signed
-  vatAmount: number; // EUR minor units, signed
+  netAmount: number; // EUR minor units, signed — the LEDGER's taxable-base legs
+  vatAmount: number; // EUR minor units, signed — the VAT actually DEDUCTED
+  /**
+   * The DOCUMENT's own taxable value and VAT, when they differ from what the
+   * ledger legs say (issue #211).
+   *
+   * They diverge on a purchase whose input VAT is not wholly deductible: the
+   * non-deductible part is booked into the cost, so the ledger's base legs
+   * carry `net + irrecoverable VAT` while `vatAmount` carries only what was
+   * reclaimed. KMD INF part B is a report about the INVOICE, not about our cost
+   * — its €1000 threshold is the invoice value WITHOUT VAT, and `invoiceSumVat`
+   * is the invoice's own total — so it must read these rather than the cost.
+   *
+   * Absent ⇒ the ledger figures are the document's (every sales line, every
+   * fully deductible purchase, and every payload frozen before #211, which
+   * therefore keeps rendering exactly as it was filed).
+   */
+  documentNetAmount?: number;
+  documentVatAmount?: number;
 }
 
 export interface StatutoryReportInput {

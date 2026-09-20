@@ -39,9 +39,19 @@ describe('VoucherProjectionService', () => {
     vatCode === 'EE_REVERSE_CHARGE' ? 0.24 : 0,
   );
 
+  // The deduction entitlement is a plugin answer (issue #211). The default stub
+  // grants it in full, so the tests below describe the ordinary registered case
+  // they always described; the #211 tests override it.
+  const resolveInputVatEntitlement = jest.fn(() => ({
+    numerator: 1,
+    denominator: 1,
+    basis: 'full',
+  }));
+
   const mockPlugin = {
     resolveCategoryMapping,
     resolveCrossBorderTreatment,
+    resolveInputVatEntitlement,
     getVatRate,
     // Rounding to base-currency minor units is a plugin rule (ADR-0002); the
     // projection rounds each leg through it. Neutral Math.round matches the
@@ -95,6 +105,12 @@ describe('VoucherProjectionService', () => {
     resolveCrossBorderTreatment.mockReturnValue({
       treatment: 'domestic',
       vatCode: 'IE_INPUT_23',
+    });
+    resolveInputVatEntitlement.mockReset();
+    resolveInputVatEntitlement.mockReturnValue({
+      numerator: 1,
+      denominator: 1,
+      basis: 'full',
     });
 
     const module: TestingModule = await Test.createTestingModule({

@@ -73,6 +73,9 @@ describe('SalesInvoicesController', () => {
     corrects_object_type: null,
     corrects_object_id: null,
     reason: null,
+    input_vat_entitlement_basis: null,
+    input_vat_deduction_numerator: null,
+    input_vat_deduction_denominator: null,
     lines: [],
   };
 

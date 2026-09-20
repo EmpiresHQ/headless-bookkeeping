@@ -39,16 +39,22 @@ export class FixedAssetRegistrarService {
       .execute();
     const codeById = new Map(accounts.map((a) => [a.id, a.code]));
 
+    // SUM every capex debit, do not take the first (issue #211). An asset
+    // bought with irrecoverable VAT is debited in two legs — the acquisition
+    // value under its VAT code, and the non-deductible tax with none, so the
+    // tax does not inflate the declared taxable base — and the asset's cost is
+    // both of them. Stopping at the first leg would register the asset below
+    // what it cost and under-depreciate it for its whole life.
     let assetClass: AssetClass | undefined;
     let costBaseMinor = 0;
     for (const line of voucher.lines) {
       const code = codeById.get(line.account_id);
       const cls = code ? assetClassForAccount(code) : undefined;
-      if (cls && line.is_debit) {
-        assetClass = cls;
-        costBaseMinor = line.base_amount;
-        break;
-      }
+      if (!cls || !line.is_debit) continue;
+      // A voucher touching two asset classes is not something this seam
+      // supports; the first class seen owns the registration, as before.
+      if (assetClass === undefined) assetClass = cls;
+      if (cls === assetClass) costBaseMinor += line.base_amount;
     }
     if (!assetClass) return; // not a capex voucher
 

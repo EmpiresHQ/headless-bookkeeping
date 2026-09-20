@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { OrgContextResolver } from '../../organization/org-context.resolver';
 import { CurrencyService } from '../../currency/currency.service';
 import {
@@ -7,6 +7,17 @@ import {
 } from '../../plugins/country-plugin.interface';
 import { DraftVoucher, DraftVoucherLine } from '../voucher/types';
 import { EconomicFacts, Direction } from './types';
+import type {
+  CountryPlugin,
+  CrossBorderTreatment,
+  OrgContext,
+} from '../../plugins/country-plugin.interface';
+import type { InputVatEntitlement } from '../../plugins/input-vat-entitlement.types';
+import {
+  NO_ENTITLEMENT,
+  assertValidEntitlement,
+  splitInputVat,
+} from '../../plugins/input-vat-entitlement.types';
 import { ResolvedFxRate } from '../../fx/fx-rate.types';
 
 /**
@@ -75,6 +86,22 @@ export class VoucherProjectionService {
 
     const netAmount = facts.grossAmount - facts.vatAmount;
 
+    // A purchase whose stated tax exceeds its gross is not a document any
+    // treatment can rescue, so it is refused HERE — before entitlement, before
+    // the cross-border branch, and independently of both (issue #211).
+    //
+    // It used to be caught downstream, by the negative net producing a negative
+    // line that structural validation rejected. That only worked because the
+    // net was always gross − vat. Once a non-deductible purchase books its tax
+    // into the cost, the contradiction cancels itself out — a gross of 100 with
+    // a stated VAT of 200 becomes a tidy cost of 100 — and an impossible
+    // document would post without anyone seeing it. The check therefore has to
+    // be its own statement about the source amounts, not a side effect of the
+    // arithmetic.
+    if (direction === 'purchase') {
+      this.assertCoherentPurchaseAmounts(facts);
+    }
+
     // A sale's stated tax must agree with the treatment the plugin resolved —
     // where the PLUGIN says that is checkable (issue #209). The kernel owns no
     // VAT arithmetic of its own (ADR-0002), so it only asks.
@@ -114,7 +141,9 @@ export class VoucherProjectionService {
     // Cross-border treatment is a purchase-side concern (the supplier's VAT
     // territory). A reverse-charge acquisition (intra-EU service, or an imported
     // non-EU service under KMS §10) is self-assessed: we owe the supplier only
-    // the net, and book equal-and-opposite output/input VAT legs at OUR rate.
+    // the net, and book the output VAT we owe on it — plus whatever part of
+    // that tax we are ENTITLED to deduct (issue #211), which is not always all
+    // of it and is not always any of it.
     if (direction === 'purchase') {
       const cross = plugin.resolveCrossBorderTreatment(
         supplierFacts,
@@ -122,103 +151,230 @@ export class VoucherProjectionService {
         { vatCharged: facts.vatAmount > 0 },
       );
       if (cross.treatment === 'reverse_charge') {
+        const rcCode = cross.vatCode ?? mapping.vatCode;
+        const entitlement = this.resolveEntitlement(
+          plugin,
+          orgContext,
+          facts,
+          cross.treatment,
+          rcCode,
+        );
         return {
           voucher_number: 'PENDING',
           tax_point_date: facts.taxPointDate,
+          input_vat_entitlement: entitlement,
           lines: this.reverseChargeLines(
             facts,
             mapping,
-            cross.vatCode ?? mapping.vatCode,
-            plugin.getVatRate(cross.vatCode ?? mapping.vatCode),
+            rcCode,
+            // The rate AS AT the tax point, not today's: a reverse charge is
+            // self-assessed at the rate in force when the acquisition occurred,
+            // and this call was dropping the date.
+            plugin.getVatRate(rcCode, facts.taxPointDate),
+            entitlement,
             fx,
             baseAmount,
           ),
         };
       }
+      const entitlement = this.resolveEntitlement(
+        plugin,
+        orgContext,
+        facts,
+        cross.treatment,
+        mapping.vatCode,
+      );
+      return {
+        voucher_number: 'PENDING',
+        tax_point_date: facts.taxPointDate,
+        input_vat_entitlement: entitlement,
+        lines: this.purchaseLines(facts, mapping, entitlement, fx, baseAmount),
+      };
     }
-
-    const lines: DraftVoucherLine[] =
-      direction === 'purchase'
-        ? this.purchaseLines(facts, mapping, fx, baseAmount)
-        : this.saleLines(facts, netAmount, mapping, fx, baseAmount);
 
     return {
       voucher_number: 'PENDING',
       tax_point_date: facts.taxPointDate,
-      lines,
+      lines: this.saleLines(facts, netAmount, mapping, fx, baseAmount),
     };
+  }
+
+  /**
+   * The source amounts a purchase must satisfy before any treatment is chosen:
+   * a positive gross, a non-negative tax, and a tax that does not exceed the
+   * gross it is part of. These are facts about the DOCUMENT, so no entitlement,
+   * receipt status or cross-border treatment can make a failing one postable.
+   */
+  private assertCoherentPurchaseAmounts(facts: EconomicFacts): void {
+    const { grossAmount, vatAmount } = facts;
+    if (!Number.isSafeInteger(grossAmount) || grossAmount <= 0) {
+      throw new BadRequestException(
+        `A purchase must have a positive gross amount; received ${grossAmount}. ` +
+          `Nothing was posted.`,
+      );
+    }
+    if (!Number.isSafeInteger(vatAmount) || vatAmount < 0) {
+      throw new BadRequestException(
+        `A purchase's VAT amount cannot be negative; received ${vatAmount}. ` +
+          `Nothing was posted.`,
+      );
+    }
+    if (vatAmount > grossAmount) {
+      throw new BadRequestException(
+        `A purchase's VAT amount (${vatAmount}) cannot exceed its gross amount ` +
+          `(${grossAmount}) — the tax is part of the gross, not additional to ` +
+          `it. Correct the document's amounts; nothing was posted.`,
+      );
+    }
+  }
+
+  /**
+   * How much of this purchase's input VAT may be deducted (issue #211), settled
+   * BEFORE any VAT_RECEIVABLE leg is composed.
+   *
+   * Two independent restrictions, in order:
+   *
+   *  1. the FISCAL entitlement, which the country plugin owns (ADR-0002): the
+   *     organisation's registration and its recorded right to deduct. The
+   *     kernel does not interpret those facts, it only checks that the fraction
+   *     it gets back is a usable one, because that fraction multiplies money.
+   *
+   *  2. the DOCUMENTARY restriction the kernel already applied: a receipt that
+   *     is not addressed to the organisation supports no deduction whatever the
+   *     entitlement is. It overrides downwards and never upwards — it cannot
+   *     grant a deduction the jurisdiction withheld.
+   *
+   * The result — the EFFECTIVE fraction, after both — is what gets recorded on
+   * the voucher, so the provenance says what was actually deducted rather than
+   * what the settings alone would have allowed.
+   */
+  private resolveEntitlement(
+    plugin: CountryPlugin,
+    orgContext: OrgContext,
+    facts: EconomicFacts,
+    treatment: CrossBorderTreatment,
+    vatCode: string,
+  ): InputVatEntitlement {
+    const entitlement = plugin.resolveInputVatEntitlement(orgContext, {
+      treatment,
+      vatCode,
+    });
+    assertValidEntitlement(entitlement);
+
+    // undefined (a non-claimant expense) means the question was never raised;
+    // false and null both mean "not established", and neither supports a claim.
+    const receiptSupportsReclaim =
+      facts.companyAddressedReceipt === undefined
+        ? true
+        : facts.companyAddressedReceipt === true;
+
+    if (!receiptSupportsReclaim) {
+      return NO_ENTITLEMENT('receipt_not_company_addressed');
+    }
+    return entitlement;
   }
 
   /**
    * Reverse-charge purchase legs (pöördmaksustamine). The foreign document
    * carries no reclaimable domestic VAT, so the whole gross is the taxable base
    * and the amount owed to the supplier. We self-assess VAT at OUR rate on that
-   * base, booking it on BOTH sides — Cr VAT_PAYABLE (output, declared) and
-   * Dr VAT_RECEIVABLE (input, deducted) — so the net cash effect is zero while
-   * the supply still reaches the VAT return. The base + VAT legs all carry the
-   * reverse-charge code so the VAT report can bucket the acquisition correctly.
+   * base and book it as output tax — always in full, because the duty to
+   * declare it does not depend on any deduction right. What the entitlement
+   * decides is only the INPUT side (issue #211):
    *
-   *   Dr category(gross)        EE_REVERSE_CHARGE
-   *   Dr VAT_RECEIVABLE(rcVat)  EE_REVERSE_CHARGE   (input — deducted)
-   *   Cr AP(gross)              —
-   *   Cr VAT_PAYABLE(rcVat)     EE_REVERSE_CHARGE   (output — self-assessed)
+   *   Dr category(base)          rcCode              ← the acquisition's base
+   *   Dr category(nonDeductible) null                ← irrecoverable VAT, cost
+   *   Dr VAT_RECEIVABLE(deduct)  rcCode              ← input, deducted
+   *   Cr AP(base)                —
+   *   Cr VAT_PAYABLE(rcVat)      rcCode              ← output, self-assessed
+   *
+   * The irrecoverable part is a SEPARATE leg carrying NO VAT code, and that is
+   * the whole point of splitting it. The KMD reads the taxable base off the
+   * lines that carry the reverse-charge code, so folding the extra cost into
+   * the coded leg would declare an acquisition of 124 where the supplier
+   * invoiced 100 — inflating rows 1 and 6/7 by the tax itself. The cost still
+   * reaches the expense or asset account; it just does not pretend to be part
+   * of what was acquired.
+   *
+   * With full entitlement the middle leg is absent and the legs are exactly the
+   * ones this method produced before.
    */
   private reverseChargeLines(
     facts: EconomicFacts,
     mapping: { accountCode: string; vatCode: string },
     reverseChargeCode: string,
     rate: number,
+    entitlement: InputVatEntitlement,
     fx: ResolvedFxRate,
     baseAmount: (amount: number) => number,
   ): DraftVoucherLine[] {
     const base = facts.grossAmount;
     const rcVat = Math.round(base * rate);
+    const { deductible, nonDeductible } = splitInputVat(rcVat, entitlement);
+    // The base-currency split is derived the same way — one converted total,
+    // partitioned — so the two legs sum to the converted tax exactly. Two
+    // independently rounded conversions could differ from it by a cent and
+    // leave the voucher unbalanced in base currency.
+    const baseRcVat = baseAmount(rcVat);
+    const baseDeductible = baseAmount(deductible);
+    const baseNonDeductible = baseRcVat - baseDeductible;
+
     // When the reverse-charge purchase was paid by a Claimant out of pocket,
     // the credit leg is CLAIMANT_PAYABLE (not AP) — same rule as purchaseLines().
     const creditAccountCode =
       facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
+    const common = {
+      currency: facts.currency,
+      fx_rate: fx.rate,
+      fx_rate_date: fx.rateDate,
+      fx_rate_source: fx.source,
+    };
     return [
       {
+        ...common,
         account_code: mapping.accountCode,
         amount: base,
-        currency: facts.currency,
         base_amount: baseAmount(base),
-        fx_rate: fx.rate,
-        fx_rate_date: fx.rateDate,
-        fx_rate_source: fx.source,
         vat_code: reverseChargeCode,
         is_debit: true,
       },
+      ...(nonDeductible > 0
+        ? [
+            {
+              ...common,
+              account_code: mapping.accountCode,
+              amount: nonDeductible,
+              base_amount: baseNonDeductible,
+              vat_code: null,
+              is_debit: true,
+            },
+          ]
+        : []),
+      ...(deductible > 0
+        ? [
+            {
+              ...common,
+              account_code: 'VAT_RECEIVABLE',
+              amount: deductible,
+              base_amount: baseDeductible,
+              vat_code: reverseChargeCode,
+              is_debit: true,
+            },
+          ]
+        : []),
       {
-        account_code: 'VAT_RECEIVABLE',
-        amount: rcVat,
-        currency: facts.currency,
-        base_amount: baseAmount(rcVat),
-        fx_rate: fx.rate,
-        fx_rate_date: fx.rateDate,
-        fx_rate_source: fx.source,
-        vat_code: reverseChargeCode,
-        is_debit: true,
-      },
-      {
+        ...common,
         account_code: creditAccountCode,
         amount: base,
-        currency: facts.currency,
         base_amount: baseAmount(base),
-        fx_rate: fx.rate,
-        fx_rate_date: fx.rateDate,
-        fx_rate_source: fx.source,
         vat_code: null,
         is_debit: false,
       },
       {
+        ...common,
         account_code: 'VAT_PAYABLE',
         amount: rcVat,
-        currency: facts.currency,
-        base_amount: baseAmount(rcVat),
-        fx_rate: fx.rate,
-        fx_rate_date: fx.rateDate,
-        fx_rate_source: fx.source,
+        base_amount: baseRcVat,
         vat_code: reverseChargeCode,
         is_debit: false,
       },
@@ -226,74 +382,86 @@ export class VoucherProjectionService {
   }
 
   /**
-   * Purchase legs (Expense): Dr category(net) [, Dr VAT_RECEIVABLE(vat)], Cr AP|CLAIMANT_PAYABLE(gross).
+   * Purchase legs (Expense): Dr category(net + irrecoverable VAT)
+   * [, Dr VAT_RECEIVABLE(deductible)], Cr AP|CLAIMANT_PAYABLE(gross).
    *
    * Credit account: CLAIMANT_PAYABLE when facts.claimantId is set (the expense
    * was paid by a claimant, not a supplier); AP otherwise.
    *
-   * VAT reclaim: suppressed (no VAT_RECEIVABLE line, full gross expensed) when
-   * companyAddressedReceipt is false or null — the receipt is not addressed to
-   * the Organisation, so no VAT can be reclaimed (conservative). Absent
-   * companyAddressedReceipt (undefined) defaults to reclaimable.
+   * VAT reclaim is whatever {@link resolveEntitlement} settled — the
+   * jurisdiction's deduction right, already narrowed by the company-addressed
+   * receipt rule. Any part of the tax that is not deductible is NOT dropped: it
+   * stays in the debit to the category account, because irrecoverable VAT is
+   * part of what the thing cost. The gross owed to the counterparty never moves.
+   *
+   * The category leg keeps the resolved VAT code unless the RECEIPT restriction
+   * applied (see below). A domestic input code places no taxable base on the
+   * KMD, so a partly deducted or wholly non-deducted leg keeps its code without
+   * distorting any row — while row 5 is fed by the VAT_RECEIVABLE account, and
+   * therefore only by what was actually deducted.
    */
   private purchaseLines(
     facts: EconomicFacts,
     mapping: { accountCode: string; vatCode: string },
+    entitlement: InputVatEntitlement,
     fx: ResolvedFxRate,
     baseAmount: (amount: number) => number,
   ): DraftVoucherLine[] {
-    // When the receipt is not company-addressed (or unknown), no VAT reclaim.
-    // undefined (non-claimant expense) → reclaimable by default.
-    const effectiveCanReclaim =
-      facts.companyAddressedReceipt === undefined
-        ? true
-        : facts.companyAddressedReceipt !== false &&
-          facts.companyAddressedReceipt !== null;
+    const { deductible } = splitInputVat(facts.vatAmount, entitlement);
+    // Cost = everything owed that we cannot reclaim. Derived by subtraction
+    // from the gross rather than added up from parts, so the debits equal the
+    // credit exactly — in the document currency and, below, in base currency.
+    const costAmount = facts.grossAmount - deductible;
+    const baseGross = baseAmount(facts.grossAmount);
+    const baseDeductible = baseAmount(deductible);
+    const baseCost = baseGross - baseDeductible;
 
-    const effectiveVatAmount = effectiveCanReclaim ? facts.vatAmount : 0;
-    const effectiveNetAmount = facts.grossAmount - effectiveVatAmount;
-    // A non-nil VAT code on a zero-VAT line is semantically misleading in the
-    // VAT return. When reclaim is suppressed, clear the code on the expense leg.
-    const effectiveVatCode = effectiveCanReclaim ? mapping.vatCode : null;
+    // The code describes the supply's VAT TREATMENT, not our deduction. A
+    // purchase we may not reclaim still bore the tax it bore, so the code
+    // stays — which also keeps it subject to the plugin's own VAT-code
+    // validation instead of quietly exempting every non-deductible line from
+    // it. The one case that does clear it is the DOCUMENTARY restriction: a
+    // receipt not addressed to us evidences no VAT treatment of ours at all.
+    const effectiveVatCode =
+      entitlement.basis === 'receipt_not_company_addressed'
+        ? null
+        : mapping.vatCode;
 
     const creditAccountCode =
       facts.claimantId != null ? 'CLAIMANT_PAYABLE' : 'AP';
+    const common = {
+      currency: facts.currency,
+      fx_rate: fx.rate,
+      fx_rate_date: fx.rateDate,
+      fx_rate_source: fx.source,
+    };
 
     return [
       {
+        ...common,
         account_code: mapping.accountCode,
-        amount: effectiveNetAmount,
-        currency: facts.currency,
-        base_amount: baseAmount(effectiveNetAmount),
-        fx_rate: fx.rate,
-        fx_rate_date: fx.rateDate,
-        fx_rate_source: fx.source,
+        amount: costAmount,
+        base_amount: baseCost,
         vat_code: effectiveVatCode,
         is_debit: true,
       },
-      ...(effectiveVatAmount > 0
+      ...(deductible > 0
         ? [
             {
+              ...common,
               account_code: 'VAT_RECEIVABLE',
-              amount: effectiveVatAmount,
-              currency: facts.currency,
-              base_amount: baseAmount(effectiveVatAmount),
-              fx_rate: fx.rate,
-              fx_rate_date: fx.rateDate,
-              fx_rate_source: fx.source,
+              amount: deductible,
+              base_amount: baseDeductible,
               vat_code: mapping.vatCode,
               is_debit: true,
             },
           ]
         : []),
       {
+        ...common,
         account_code: creditAccountCode,
         amount: facts.grossAmount,
-        currency: facts.currency,
-        base_amount: baseAmount(facts.grossAmount),
-        fx_rate: fx.rate,
-        fx_rate_date: fx.rateDate,
-        fx_rate_source: fx.source,
+        base_amount: baseGross,
         vat_code: null,
         is_debit: false,
       },
