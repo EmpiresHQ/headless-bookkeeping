@@ -31,6 +31,15 @@ import { SettlementVoucherService } from './settlement-voucher.service';
 import { MatchProposal } from './reconciliation.types';
 
 /**
+ * Issue #213: these cases are about balances, ownership and settlement, not
+ * about tax. The receipts are therefore classified explicitly as non-taxable
+ * deposits — a gross liability that declares nothing, which is exactly the
+ * posting these expectations were written against. A receipt left
+ * unclassified is HELD by design and cannot be drawn down.
+ */
+const DEPOSIT_RECEIPT = { treatment: 'non_taxable_deposit' as const };
+
+/**
  * Integration test for the reconciliation matching engine.
  */
 describe('ReconciliationService (integration)', () => {
@@ -2122,6 +2131,7 @@ describe('ReconciliationService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         stmt.transactions[0].id,
         customer.id,
+        DEPOSIT_RECEIPT,
       );
       return { customer, advance, settlingLine: stmt.transactions[1] };
     }
@@ -2179,6 +2189,8 @@ describe('ReconciliationService (integration)', () => {
       // No counterparty on the originating line → an UNRESOLVED advance.
       const advance = await prepaymentService.createCustomerPrepayment(
         stmt.transactions[0].id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const staged = await reconciliationService.executeMatch([

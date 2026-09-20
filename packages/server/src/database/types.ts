@@ -43,6 +43,7 @@ export interface Database {
   allowance: AllowanceTable;
   prepayment_advance: PrepaymentAdvanceTable;
   prepayment_allocation: PrepaymentAllocationTable;
+  prepayment_refund: PrepaymentRefundTable;
 }
 
 export interface OrganizationTable {
@@ -810,6 +811,30 @@ export interface PrepaymentAdvanceTable {
   // 'service' | 'backfill' | 'operator'
   origin: string;
   created_at: number;
+  // What the money IS (issue #213): 'taxable_supply' (an advance on an
+  // identified supply — the receipt is its tax point) | 'non_taxable_deposit'
+  // (a gross liability, no turnover) | 'unresolved' (unclassified and HELD:
+  // recorded, but neither allocatable nor settleable).
+  tax_treatment: Generated<string>;
+  // Jurisdiction VAT code the advance was declared under; NULL unless taxable.
+  vat_code: string | null;
+  // The rate IN FORCE on the receipt date, in per mille (240 = 24%). Frozen —
+  // a later invoice never reprices an earlier advance.
+  vat_rate_permille: number | null;
+  // Gross base-currency minor units received. `original_base_amount` stays the
+  // prepayment LEG (net when taxable), which is what the ledger carries.
+  gross_base_amount: number | null;
+  // Output VAT declared at the receipt; 0 for a deposit or unresolved receipt.
+  vat_base_amount: Generated<number>;
+  // WHICH supply this is an advance on — required for a taxable advance.
+  supply_description: string | null;
+  // The advance/pro-forma document number issued for this payment, if any.
+  advance_document_number: string | null;
+  // The advance tax point: the day the payment was received.
+  advance_tax_point_date: string | null;
+  // Set when this advance was reclassified: its voucher was reversed and this
+  // names the VAT-bearing advance posted in its place.
+  superseded_by_advance_id: number | null;
 }
 
 // Prepayment allocation: ONE draw-down — source advance → target invoice, for
@@ -825,8 +850,32 @@ export interface PrepaymentAllocationTable {
   base_amount: number;
   currency: string;
   allocation_voucher_id: number;
+  // The advance VAT this draw-down releases (issue #213): the share of the
+  // output VAT declared at the receipt that the final invoice now declares
+  // itself. 0 for a deposit, an unresolved receipt, or a pre-#213 allocation.
+  vat_base_amount: Generated<number>;
   // 'service' | 'backfill' | 'operator'
   origin: string;
+  created_at: number;
+}
+
+/**
+ * One refund of a customer advance (issue #213): the posted refund voucher, the
+ * bank line that paid it, and the split it took back. `bank_transaction_id` is
+ * UNIQUE, so a retried call cannot refund the same money twice.
+ */
+export interface PrepaymentRefundTable {
+  id: Generated<number>;
+  advance_id: number;
+  voucher_id: number;
+  bank_transaction_id: number;
+  net_base_amount: number;
+  vat_base_amount: number;
+  currency: string;
+  // The cancellation/credit document this relief is taken under, and why.
+  credit_reference: string;
+  reason: string;
+  refund_date: string;
   created_at: number;
 }
 

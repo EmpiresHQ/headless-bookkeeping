@@ -1,3 +1,7 @@
+import type {
+  AdvanceTaxPointContext,
+  AdvanceTaxPointDecision,
+} from './advance-tax-point.types';
 import { ResolvedFxRate } from '../fx/fx-rate.types';
 import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
 import type { AllowanceType, AllowanceRates } from './allowance-rates.types';
@@ -603,6 +607,29 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * @param date - the benefit's authoritative date, 'YYYY-MM-DD'
    */
   getHealthAllowanceRules(date: string): HealthAllowanceRules | null;
+
+  /**
+   * Does a payment received in ADVANCE of a supply create a tax point of its
+   * own, and at what rate (issue #213)?
+   *
+   * The kernel must not answer this by looking at a VAT code alone. Two facts
+   * it cannot read off the code decide it:
+   *
+   *  - the organisation's own registration. A LIMITED taxable person is
+   *    registered for acquisitions and makes no taxable supplies of its own
+   *    (issue #211), so nothing it receives in advance declares output VAT.
+   *  - the supply's own timing rule. A jurisdiction may tax a supply and still
+   *    say that a payment for it does NOT advance the tax point — Estonia's
+   *    general rule (KMS §11 lg 1) expressly excludes intra-Community supply,
+   *    which has its own §11 lg 2 timing.
+   *
+   * An unsupported combination comes back as a HOLD with the reason and the
+   * route to resolve it; the caller posts nothing. This never returns a
+   * "closest" treatment.
+   */
+  resolveAdvanceTaxPoint(
+    context: AdvanceTaxPointContext,
+  ): AdvanceTaxPointDecision;
 
   /**
    * The employer's own tax on a taxable fringe benefit of `benefitValue`

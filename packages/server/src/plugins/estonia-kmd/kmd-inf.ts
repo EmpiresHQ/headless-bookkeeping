@@ -56,8 +56,34 @@ export function buildInfPart(
   // presence of `documentNetAmount` marks. A payload frozen before #211 carries
   // neither document field, and is rendered exactly as it was filed — a filed
   // return is evidence, not something to re-judge by today's rules.
+  // An advance RELIEF that reached this point could not be netted into its
+  // final invoice's row (issue #213). EMTA's part A instructions are explicit
+  // that the final invoice is reported LESS the advance already invoiced — a
+  // 5000 transaction against a 2000 advance is one row of 3000, not 5000 plus
+  // a 2000 credit — so filing this as a document of its own would put a
+  // credit invoice on the return that was never issued. It is never rendered
+  // as an INF row, and it BLOCKS a final return instead of being dropped
+  // silently: the two documents have to be reconciled by a person.
+  for (const l of lines.filter((x) => x.documentKind === 'advance_relief')) {
+    warnings.push({
+      code: 'advance_relief_unmatched_invoice',
+      blocksFinal: true,
+      message:
+        `An advance of ${Math.abs(docNetOf(l))} cents net for ${l.counterpartyName} was applied ` +
+        `on ${l.date} to a document that is not a sales invoice of this period` +
+        (l.creditsInvoiceNumber
+          ? ` (advance document ${l.creditsInvoiceNumber})`
+          : '') +
+        `, so the final invoice's reported amount cannot be reduced by it. The return is not ` +
+        `filed with a credit invoice that was never issued: reconcile the draw-down with the ` +
+        `invoice that reports this supply first.`,
+      counterparty: l.counterpartyName,
+    });
+  }
+
   const reportable = lines.filter(
     (l) =>
+      l.documentKind !== 'advance_relief' &&
       EE_RATE_BY_CODE[l.vatCode] !== undefined &&
       l.counterpartyRegNumber &&
       (side === 'sales' ||
@@ -79,11 +105,30 @@ export function buildInfPart(
     const key = l.counterpartyRegNumber as string;
     if ((netByPartner.get(key) ?? 0) < THRESHOLD_NET) continue;
     if (!l.invoiceNumber) {
-      warnings.push({
-        code: 'inf_missing_invoice_number',
-        message: `INF row for ${l.counterpartyName} has no invoice number`,
-        counterparty: l.counterpartyName,
-      });
+      // An ADVANCE that qualifies for INF and carries no document number is a
+      // missing required fact, not a cosmetic gap (issue #213): EMTA requires
+      // an advance invoice within 7 calendar days of the receipt, and the row
+      // cannot be filed without its number. It is named and BLOCKS a final
+      // return rather than being filed blank or quietly left out.
+      if (l.documentKind === 'advance_receipt') {
+        warnings.push({
+          code: 'advance_missing_document_number',
+          blocksFinal: true,
+          message:
+            `The advance received from ${l.counterpartyName} on ${l.date} ` +
+            `(${Math.abs(docNetOf(l))} cents net) is INF-reportable and records no advance ` +
+            `invoice number. Estonia requires the advance invoice within 7 calendar days of ` +
+            `the payment. Record its number (POST ` +
+            `/api/prepayments/{voucherId}/advance-document) and export again.`,
+          counterparty: l.counterpartyName,
+        });
+      } else {
+        warnings.push({
+          code: 'inf_missing_invoice_number',
+          message: `INF row for ${l.counterpartyName} has no invoice number`,
+          counterparty: l.counterpartyName,
+        });
+      }
     }
     rows.push({
       counterpartyRegNumber: key,

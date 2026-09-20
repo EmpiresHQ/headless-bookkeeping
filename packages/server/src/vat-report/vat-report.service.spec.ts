@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -60,6 +61,7 @@ describe('VAT report snapshot generation (integration)', () => {
         PluginLoader,
         OrganizationService,
         VatReportService,
+        PrepaymentAllocationRepository,
         VatReportController,
       ],
       controllers: [VatReportController],

@@ -3,7 +3,21 @@ import type { KmdDeclaration, VatSummaryLine } from '../vat-report/types';
 export type StatutoryFormat = 'xml' | 'csv';
 
 export interface StatutoryDocLine {
-  documentKind: 'invoice' | 'credit_note';
+  /**
+   * What kind of document this line reports. Beside invoices and credit notes
+   * (issue #213): `advance_receipt` is a payment that declared turnover before
+   * any invoice existed, `advance_relief` takes that declaration back when the
+   * final invoice declares the supply itself, and `advance_refund` takes it
+   * back when the money is returned. All three are real documents with real
+   * figures — they are assembled from the recorded advance rows, never derived
+   * from a guess, and none of them invents a document number.
+   */
+  documentKind:
+    | 'invoice'
+    | 'credit_note'
+    | 'advance_receipt'
+    | 'advance_relief'
+    | 'advance_refund';
   counterpartyName: string;
   counterpartyRegNumber: string | null; // null ⇒ non-taxable (B2C)
   invoiceNumber: string | null; // null ⇒ flagged by the plugin
@@ -96,6 +110,9 @@ export function normalizeFrozenStatutoryInput(
     row3_1_intra_eu_supply?: number;
     row6_7_unresolved_acquisition?: number;
     unresolved_acquisition_vouchers?: string[];
+    unresolved_advance_receipts?: string[];
+    unresolved_advance_base?: number;
+    unsupported_advance_reversals?: string[];
   };
   const declaration: KmdDeclaration = { ...d } as KmdDeclaration;
   let changed = false;
@@ -117,6 +134,23 @@ export function normalizeFrozenStatutoryInput(
     declaration.unresolved_acquisition_vouchers = [];
     changed = true;
   }
-
+  // A payload frozen before #213 recorded no advance classification at all, so
+  // it held nothing back: read as empty, and it renders exactly as it was
+  // filed rather than being re-judged by a gate that did not exist then.
+  if (d.unresolved_advance_receipts === undefined) {
+    declaration.unresolved_advance_receipts = [];
+    changed = true;
+  }
+  if (d.unresolved_advance_base === undefined) {
+    declaration.unresolved_advance_base = 0;
+    changed = true;
+  }
+  if (d.unsupported_advance_reversals === undefined) {
+    declaration.unsupported_advance_reversals = [];
+    changed = true;
+  }
+  // The advance DOCUMENTS themselves need no normalization: they are ordinary
+  // sales lines, and a payload frozen before #213 simply has none — it renders
+  // exactly the lines it was filed with.
   return changed ? { ...parsed, declaration } : parsed;
 }

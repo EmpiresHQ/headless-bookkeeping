@@ -205,7 +205,7 @@ describe('Prepayment HTTP contract E2E (#201)', () => {
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
       .set('Authorization', `Bearer ${apiToken}`)
-      .send({ entity_id: customerId })
+      .send({ entity_id: customerId, tax_treatment: 'non_taxable_deposit' })
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 
@@ -238,7 +238,7 @@ describe('Prepayment HTTP contract E2E (#201)', () => {
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
       .set('Authorization', `Bearer ${apiToken}`)
-      .send({ entity_id: customerId })
+      .send({ entity_id: customerId, tax_treatment: 'non_taxable_deposit' })
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 
@@ -270,7 +270,10 @@ describe('Prepayment HTTP contract E2E (#201)', () => {
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
       .set('Authorization', `Bearer ${apiToken}`)
-      .send({ entity_id: otherCustomerId })
+      .send({
+        entity_id: otherCustomerId,
+        tax_treatment: 'non_taxable_deposit',
+      })
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 

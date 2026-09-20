@@ -7,11 +7,13 @@ import {
 } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPrepayment, fmtCents, markPersonal } from '../api';
+import type { AdvanceTaxInput } from '../api';
 import type { BankTransaction } from '../api';
 import {
   createExpenseFromLine,
   invalidateStatement,
   undoMatches,
+  useAdvanceVatTreatments,
   useBankTransactions,
   useCategories,
   useMatchCandidates,
@@ -75,6 +77,11 @@ export function TxScreen() {
   const categoriesQ = useCategories();
 
   const tx = txQ.data?.find((t) => t.id === txId);
+  // The treatments this jurisdiction allows for a receipt on THIS date — the
+  // rate in force is part of the answer, so the date matters (issue #213).
+  const vatTreatmentsQ = useAdvanceVatTreatments(
+    tx && tx.amount > 0 ? tx.transaction_date : undefined,
+  );
   const candQ = useMatchCandidates(
     statementId,
     txId,
@@ -169,11 +176,23 @@ export function TxScreen() {
     }
   };
 
-  const onPrepayment = async () => {
+  const onPrepayment = async (tax?: AdvanceTaxInput) => {
     setBusy(true);
     try {
-      await createPrepayment(txId);
-      toastOk('Recorded as prepayment');
+      await createPrepayment(txId, tax);
+      // Say what actually happened. Only money RECEIVED can be held: a
+      // supplier advance declares no output VAT, so it is usable as it always
+      // was (issue #213).
+      const incoming = (tx?.amount ?? 0) > 0;
+      toastOk(
+        !incoming
+          ? 'Recorded as prepayment'
+          : tax === undefined || tax.tax_treatment === 'unresolved'
+            ? 'Recorded — held until its tax treatment is set'
+            : tax.tax_treatment === 'taxable_supply'
+              ? 'Recorded as a taxable advance — VAT declared on the payment date'
+              : 'Recorded as a deposit',
+      );
       await backToStatement();
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -373,7 +392,8 @@ export function TxScreen() {
             onOpenChange={setPrepayOpen}
             tx={tx}
             busy={busy}
-            onConfirm={() => void onPrepayment()}
+            vatTreatments={vatTreatmentsQ.data ?? []}
+            onConfirm={(tax) => void onPrepayment(tax)}
           />
         </>
       )}

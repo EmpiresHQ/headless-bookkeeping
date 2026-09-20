@@ -43,6 +43,15 @@ import { FXRealizedService } from './fx-realized.service';
 import { SettlementVoucherService } from './settlement-voucher.service';
 
 /**
+ * Issue #213: these cases are about balances, ownership and settlement, not
+ * about tax. The receipts are therefore classified explicitly as non-taxable
+ * deposits — a gross liability that declares nothing, which is exactly the
+ * posting these expectations were written against. A receipt left
+ * unclassified is HELD by design and cannot be drawn down.
+ */
+const DEPOSIT_RECEIPT = { treatment: 'non_taxable_deposit' as const };
+
+/**
  * Issue #202 — an outstanding **Receivable** / **Payable** is consumed by THREE
  * linked settlement types, not one: cash (`reconciliation_match`), an advance
  * (`prepayment_allocation`, issue #201) and a **Credit note** (its own posted
@@ -405,8 +414,16 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     );
     const advance =
       kind === 'customer'
-        ? await prepayments.createCustomerPrepayment(transactionId, entityId)
-        : await prepayments.createSupplierPrepayment(transactionId, entityId);
+        ? await prepayments.createCustomerPrepayment(
+            transactionId,
+            entityId,
+            DEPOSIT_RECEIPT,
+          )
+        : await prepayments.createSupplierPrepayment(
+            transactionId,
+            entityId,
+            DEPOSIT_RECEIPT,
+          );
     const allocation = await prepayments.drawDownPrepayment(
       advance.id,
       invoiceVoucherId,
@@ -974,6 +991,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     const advance = await prepayments.createCustomerPrepayment(
       transactionId,
       customerId,
+      DEPOSIT_RECEIPT,
     );
 
     // The same bank line is then linked to its advance voucher as a match.

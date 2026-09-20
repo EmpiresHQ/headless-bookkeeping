@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -90,6 +91,7 @@ describe('admin CLI (yargs)', () => {
           ledgerBalance,
           pluginLoader,
           organizationService,
+          new PrepaymentAllocationRepository(db),
         );
         const submissions = new StatutorySubmissionService(
           db,
@@ -110,6 +112,7 @@ describe('admin CLI (yargs)', () => {
             auditFindings,
             submissions,
             pluginLoader,
+            new PrepaymentAllocationRepository(db),
           ),
           auditFindings,
         );

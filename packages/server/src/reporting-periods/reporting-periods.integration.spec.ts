@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -68,6 +69,7 @@ describe('ReportingPeriodsService (integration)', () => {
       new LedgerBalanceService(db),
       pluginLoader,
       organizationService,
+      new PrepaymentAllocationRepository(db),
     );
     const submissions = new StatutorySubmissionService(
       db,
@@ -88,6 +90,7 @@ describe('ReportingPeriodsService (integration)', () => {
         auditFindings,
         submissions,
         pluginLoader,
+        new PrepaymentAllocationRepository(db),
       ),
       auditFindings,
     );

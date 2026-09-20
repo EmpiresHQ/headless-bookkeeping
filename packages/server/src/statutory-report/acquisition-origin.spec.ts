@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -103,6 +104,7 @@ describe('Reverse-charge acquisition origin (issue #210)', () => {
         AuditFindingsService,
         AuditLogService,
         VatReportService,
+        PrepaymentAllocationRepository,
         StatutorySubmissionService,
         StatutoryReportService,
         ReportingPeriodsService,

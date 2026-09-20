@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { FxLookupPolicy, FxRateService } from '../fx/fx-rate.service';
+import type {
+  AdvanceTaxPointContext,
+  AdvanceTaxPointDecision,
+} from './advance-tax-point.types';
 import { ResolvedFxRate } from '../fx/fx-rate.types';
 import {
   CategoryDef,
@@ -1018,6 +1022,42 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       });
     }
 
+    // A customer receipt in the period that nobody has classified (issue
+    // #213) either declared VAT it should not have, or omitted VAT it owed.
+    // The return cannot say which, so a draft renders with this warning and a
+    // FINAL does not render at all — the same treatment an acquisition of
+    // unknown origin gets above.
+    const heldAdvances = input.declaration.unresolved_advance_receipts ?? [];
+    if (heldAdvances.length > 0) {
+      warnings.push({
+        code: 'unclassified_advance_receipt',
+        blocksFinal: true,
+        message:
+          `Customer advance(s) ${heldAdvances.join(', ')} ` +
+          `(${input.declaration.unresolved_advance_base ?? 0} cents) were received in this ` +
+          `period and carry no tax treatment. A payment for an identified taxable supply is ` +
+          `a tax point in itself (KMS §11 lg 1), so this return cannot state whether their ` +
+          `VAT belongs in it. Classify each receipt (POST ` +
+          `/api/prepayments/{voucherId}/tax-treatment), then export again.`,
+      });
+    }
+
+    const unsupportedReversals =
+      input.declaration.unsupported_advance_reversals ?? [];
+    if (unsupportedReversals.length > 0) {
+      warnings.push({
+        code: 'unsupported_advance_reversal',
+        blocksFinal: true,
+        message:
+          `Advance voucher(s) ${unsupportedReversals.join(', ')} are reversed in a way this ` +
+          `return cannot show as documents: a counter-voucher that does not mirror them ` +
+          `completely or was itself reversed, or the reversal of an advance draw-down or ` +
+          `refund whose own document belongs to an earlier period. The documents would not ` +
+          `reconcile with the boxes, so no final return is rendered. Resolve those vouchers ` +
+          `and export again.`,
+      });
+    }
+
     const base = input.period.name.replace(/[^\w-]/g, '_');
     const artifacts = [];
     for (const fmt of opts.formats) {
@@ -1199,6 +1239,115 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     const { from: _from, ...rules } = rule;
     void _from;
     return rules;
+  }
+
+  /**
+   * The domestic supplies whose tax point a payment CAN advance (issue #213).
+   *
+   * KMS §11 lg 1: the supply is created on whichever comes first — the
+   * dispatch/making available of the goods, the provision of the service, or
+   * the receipt of full or partial payment — EXCEPT for intra-Community
+   * supply, which has its own timing (§11 lg 2) and is therefore not advanced
+   * by a payment at all. EMTA states the same rule in its general
+   * time-of-supply guidance.
+   *
+   * Only the rated domestic output codes are listed. A 0% code is deliberately
+   * absent: an export or intra-Community supply carries conditions (proof of
+   * despatch, the customer's VAT number) that a payment alone does not
+   * satisfy, so this plugin holds those instead of declaring a 0% advance
+   * turnover it cannot evidence.
+   */
+  private static readonly ADVANCE_TAX_POINT_CODES = new Set([
+    'EE_OUTPUT_24',
+    'EE_OUTPUT_13',
+    'EE_OUTPUT_9',
+  ]);
+
+  resolveAdvanceTaxPoint(
+    context: AdvanceTaxPointContext,
+  ): AdvanceTaxPointDecision {
+    const { vatCode, receiptDate, orgContext } = context;
+
+    if (!orgContext.vatRegistered) {
+      return {
+        supported: false,
+        code: 'not_registered',
+        message:
+          'The organisation is not a registered taxable person, so it declares no ' +
+          'output VAT and a payment received in advance creates no tax point.',
+        howToResolve:
+          'Leave the receipt unclassified for accounting review: whether the organisation ' +
+          'should be registered (and from which date) decides what this money is, and that ' +
+          'is not a bookkeeping default. Classify it as a non-taxable deposit ONLY if the ' +
+          'facts really are a deposit rather than payment for a supply.',
+      };
+    }
+
+    // A limited taxable person (piiratud maksukohustuslane, KMS §21) is
+    // registered because of what it ACQUIRES. It makes no taxable supplies of
+    // its own, so nothing it receives in advance is advance turnover — the
+    // same distinction issue #211 drew on the purchase side.
+    if (orgContext.vatRegistrationKind === 'limited') {
+      return {
+        supported: false,
+        code: 'limited_registration',
+        message:
+          'A limited taxable person (piiratud maksukohustuslane, KMS §21) self-assesses ' +
+          'VAT on specified acquisitions and makes no taxable supplies of its own, so a ' +
+          'payment received in advance declares no output VAT.',
+        howToResolve:
+          'Leave the receipt unclassified for accounting review. If the organisation is in ' +
+          'fact an ORDINARY taxable person, that is a registration fact to establish and ' +
+          'record (PUT /api/organization) on its own evidence — not a setting to change in ' +
+          'order to post this advance.',
+      };
+    }
+
+    if (!EstoniaCountryPlugin.ADVANCE_TAX_POINT_CODES.has(vatCode)) {
+      const classification = this.classifyKmd(vatCode);
+      const isIntraCommunity = vatCode === 'EE_OUTPUT_0_EU';
+      return {
+        supported: false,
+        code: isIntraCommunity
+          ? 'intra_community_supply_not_advanced'
+          : 'advance_tax_point_unsupported_code',
+        message: isIntraCommunity
+          ? 'An intra-Community supply is excluded from the general time-of-supply rule ' +
+            '(KMS §11 lg 1 names every case EXCEPT intra-Community supply; §11 lg 2 gives ' +
+            'it its own timing), so a payment received for one does not create a tax ' +
+            'point and declares nothing now.'
+          : `VAT code '${vatCode}' is not a domestic rated supply whose tax point a payment ` +
+            `advances` +
+            (classification.outputBaseRow === null
+              ? ' — it does not describe an output supply at all.'
+              : '. A 0%, exempt or specially-timed supply carries conditions a payment ' +
+                'alone does not satisfy, so this is held rather than declared.'),
+        howToResolve: isIntraCommunity
+          ? 'Leave the receipt unclassified for accounting review: it is payment for a ' +
+            'supply, so it is not a deposit, and it declares nothing until the supply is ' +
+            'made / invoiced under KMS §11 lg 2. Classify it under the domestic rated code ' +
+            'only if the supply is in fact domestic.'
+          : 'Use the domestic rated output code the supply is actually taxable under. If the ' +
+            'treatment is a 0%, exempt or specially-timed one, leave the receipt ' +
+            'unclassified for accounting review — payment for a supply is not a deposit, and ' +
+            'relabelling it as one would hide it from the filing checks.',
+      };
+    }
+
+    const rate = this.getVatRate(vatCode, receiptDate);
+    if (rate <= 0) {
+      return {
+        supported: false,
+        code: 'no_rate_in_force',
+        message:
+          `No rate is in force for '${vatCode}' on ${receiptDate}, so the VAT inside the ` +
+          'payment cannot be stated.',
+        howToResolve:
+          'Check the receipt date, or use the code that governed the supply on that day.',
+      };
+    }
+
+    return { supported: true, vatCode, ratePermille: Math.round(rate * 1000) };
   }
 
   /**

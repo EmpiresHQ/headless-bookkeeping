@@ -370,6 +370,79 @@ curl -H "$H" -H "$J" -X POST $B/api/dividends -d '{"gross_amount":100000,"tax_po
 curl -H "$H" -H "$J" -X POST $B/api/bank-transactions/<id>/dividend -d '{...}'   # settle via reconciliation
 ```
 
+### Customer prepayments: what the money IS (issue #213)
+
+A payment received in advance is taxed on the day it arrives when it pays for
+an identified taxable supply — Estonia taxes the EARLIER of the supply and the
+payment for it (KMS §11 lg 1). So the prepayment endpoint asks what the money
+is, and never guesses:
+
+```bash
+# An advance on an identified taxable supply: 124.00 received, 24.00 of VAT
+# declared on the RECEIPT date, 100.00 owed to the customer until the invoice.
+# `vat_code` comes from the treatments endpoint below; `advance_document_number`
+# is the advance invoice's number, when one was issued.
+curl -H "$H" -H "$J" -X POST $B/api/bank-transactions/<txnId>/prepayment -d '{
+  "entity_id": 7,
+  "tax_treatment": "taxable_supply",
+  "vat_code": "EE_OUTPUT_24",
+  "supply_description": "Website build, delivery in March",
+  "advance_document_number": "ETTEMAKS-12"
+}'
+
+# A security deposit: a gross liability that declares nothing.
+curl -H "$H" -H "$J" -X POST $B/api/bank-transactions/<txnId>/prepayment \
+  -d '{"entity_id":7,"tax_treatment":"non_taxable_deposit"}'
+
+# Nothing stated → the money is still recorded, and the advance is HELD.
+curl -H "$H" -X POST $B/api/bank-transactions/<txnId>/prepayment
+
+# Which treatments a receipt on a given date may declare (the country plugin
+# answers; the rate in force is part of the answer).
+curl -H "$H" "$B/api/prepayments/advance-vat-treatments?receipt_date=2026-02-10"
+```
+
+- **Held** means held: an unclassified customer receipt cannot be drawn down,
+  cannot settle a bank line, and its period's VAT return cannot be FILED —
+  the declaration names it (`unresolved_advance_receipts`). Classify it with
+  `POST /api/prepayments/<voucherId>/tax-treatment`; classifying a held
+  receipt as taxable reverses the gross advance and reposts it split, at the
+  same receipt tax point (no posted voucher is ever edited).
+- Every prepayment posted before this existed is `unresolved` for the same
+  reason: a gross posting is not evidence that its supply was non-taxable.
+- **Supplier** advances are unaffected — they declare no output VAT, and their
+  input VAT follows the supplier's invoice and issue #211's entitlement rules.
+- The final invoice **releases** the advance VAT exactly once, and the release
+  is dated at the INVOICE's own tax point, so the supply and its relief always
+  fall in the same period. Drawing down against an invoice in a filed period is
+  refused, as is pairing an advance taxed at 22% with an invoice at 24% (the
+  advance keeps its own rate — EMTA's rate-change rule — and this kernel does
+  not apportion an invoice across it).
+- **Refunds** take the VAT back with the money, and need the document the
+  relief is taken under:
+
+```bash
+curl -H "$H" -H "$J" -X POST $B/api/prepayments/<voucherId>/refund -d '{
+  "bank_transaction_id": 42, "credit_reference": "KREEDIT-7",
+  "reason": "Order cancelled by the customer"
+}'
+```
+
+  The outgoing line must identify the advance's own customer, it is idempotent
+  per bank transaction, and a foreign-currency refund is refused rather than
+  letting an exchange difference move declared VAT.
+- A counter-voucher posted against an advance, its draw-down or its refund in a
+  LATER period puts that amount back into the later period's boxes with no
+  document behind it. That period is **held** (`unsupported_advance_reversals`)
+  rather than filed with an invented credit note, and the original period's own
+  filing is left exactly as it was. The same hold covers a counter-voucher that
+  mirrors only part of a document, or one that was itself reversed.
+- In KMD INF the final invoice is reported LESS the advance already invoiced
+  (EMTA's part-A example: a 2000 advance and a 5000 transaction is one row of
+  3000, not 5000 plus a credit nobody issued). An INF-reportable advance with
+  no document number blocks a FINAL export — record it with
+  `POST /api/prepayments/<voucherId>/advance-document`.
+
 ### Allowances, and the health/sports exemption (issue #212)
 ```bash
 # Trip-based and per-input allowances. A claim is created as a draft, submitted,

@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -94,6 +95,7 @@ describe('Filing-state consistency (issue #200)', () => {
         AuditFindingsService,
         AuditLogService,
         VatReportService,
+        PrepaymentAllocationRepository,
         StatutorySubmissionService,
         StatutoryReportService,
         ReportingPeriodsService,

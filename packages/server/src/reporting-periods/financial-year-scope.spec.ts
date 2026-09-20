@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -82,6 +83,7 @@ describe('Reporting periods: VAT calendar and financial years (integration)', ()
       new LedgerBalanceService(db),
       pluginLoader,
       organizationService,
+      new PrepaymentAllocationRepository(db),
     );
     const submissions = new StatutorySubmissionService(
       db,
@@ -102,6 +104,7 @@ describe('Reporting periods: VAT calendar and financial years (integration)', ()
         auditFindings,
         submissions,
         pluginLoader,
+        new PrepaymentAllocationRepository(db),
       ),
       auditFindings,
     );

@@ -1223,10 +1223,45 @@ export const manualMatch = (
 
 // Prepayment / Personal post ledger vouchers; the UI ignores the returned
 // voucher (ADR-0030) and only needs success/failure.
-export const createPrepayment = (bankTransactionId: number) =>
+/**
+ * What a customer receipt IS, for tax (issue #213). Nothing is inferred from
+ * the bank narrative: an advance on an identified taxable supply declares VAT
+ * on the day the money arrives, a deposit declares nothing, and an
+ * unclassified receipt is recorded but HELD until somebody says which.
+ */
+export type AdvanceTaxTreatment =
+  | 'taxable_supply'
+  | 'non_taxable_deposit'
+  | 'unresolved';
+
+export interface AdvanceTaxInput {
+  tax_treatment: AdvanceTaxTreatment;
+  /** Required for 'taxable_supply'. */
+  vat_code?: string;
+  supply_description?: string;
+  advance_document_number?: string;
+}
+
+export const createPrepayment = (
+  bankTransactionId: number,
+  tax?: AdvanceTaxInput,
+) =>
   apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/prepayment`, {
     method: 'POST',
+    ...(tax
+      ? {
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(tax),
+        }
+      : {}),
   });
+
+/** The VAT treatments an advance received on this date may declare (the
+ *  country plugin's answer — the UI never hard-codes a jurisdiction's codes). */
+export const getAdvanceVatTreatments = (receiptDate: string) =>
+  apiFetch<{ treatments: { vat_code: string; rate_permille: number }[] }>(
+    `/api/prepayments/advance-vat-treatments?receipt_date=${receiptDate}`,
+  ).then((r) => r.treatments);
 
 export const markPersonal = (bankTransactionId: number) =>
   apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/personal`, {
