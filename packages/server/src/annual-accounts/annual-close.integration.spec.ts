@@ -23,6 +23,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
 import { StatutoryReportService } from '../statutory-report/statutory-report.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { DepreciationAttributionService } from '../fixed-assets/depreciation-attribution.service';
 import { AnnualAccountsService } from './annual-accounts.service';
 import type { DraftVoucher } from '../ledger/voucher/types';
 
@@ -157,6 +158,7 @@ describe('Annual close over a filed monthly VAT calendar (integration)', () => {
         StatutoryReportService,
         AuditFindingsService,
         ReportingPeriodsService,
+        DepreciationAttributionService,
         AnnualAccountsService,
       ],
     }).compile();

@@ -25,6 +25,7 @@ import { StatutoryReportService } from '../statutory-report/statutory-report.ser
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import type { AnnualAccountsInput } from '../plugins/annual-accounts.types';
 import { validateEtGaapInstance } from '../../test/xbrl/validate-xbrl-instance';
+import { DepreciationAttributionService } from '../fixed-assets/depreciation-attribution.service';
 import {
   AnnualAccountsService,
   CLOSING_TRANSFER_REASON_PREFIX,
@@ -156,6 +157,7 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
         StatutoryReportService,
         AuditFindingsService,
         ReportingPeriodsService,
+        DepreciationAttributionService,
         AnnualAccountsService,
       ],
     }).compile();
