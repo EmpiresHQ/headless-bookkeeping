@@ -122,3 +122,24 @@ open period (no break-glass, ADR-0012), never by editing the locked year.
   online-shop module.
 - v1 covers the balance sheet + income statement. Notes/disclosures beyond the
   mandatory väike lines, consolidation, and X-tee/API submission are deferred.
+
+## Amendment (issue #207, 2026-09-20): the year the accounts are produced for
+
+The annual accounts are produced for a **financial year** — a reporting period
+with `kind = 'annual'` (ADR-0009 amendment) — which coexists with the twelve
+monthly VAT periods it spans instead of competing with them.
+
+- §1's neutral input keeps its shape; what changes is *which* period supplies the
+  comparative column: the previous period **on the same timeline**. For FY2026
+  that is FY2025, never December 2026 or the nearest earlier month. (A draft over
+  a VAT period keeps comparing against the previous VAT period, unchanged.)
+- §5's **final** still "locks the year via the existing period-lock", but through
+  `closeFinancialYear`: the status flip and nothing else. Filing a KMD for a
+  financial year is refused — its turnover was declared by the monthly returns,
+  and a second overlapping return would be a false filing, not a stricter one.
+- §4's "adjustments are real vouchers posted before the report reads them" now
+  has a defined route when the date they belong on is inside an already filed
+  VAT period: the narrowly validated `annual-close` posting capability described
+  in the ADR-0009 amendment. It never reopens or rewrites a filed return, and it
+  refuses a financial year that is already closed — so §8 (post-final corrections
+  go through the next open period) holds for the annual timeline too.

@@ -4,6 +4,7 @@ import { AccountModule } from '../ledger/account/account.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { PostingModule } from '../ledger/posting/posting.module';
 import { ReportingPeriodsModule } from '../reporting-periods/reporting-periods.module';
+import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
 import { AnnualAccountsController } from './annual-accounts.controller';
 import { AnnualAccountsService } from './annual-accounts.service';
 
@@ -13,7 +14,8 @@ import { AnnualAccountsService } from './annual-accounts.service';
  *  - AccountModule          → LedgerBalanceService (period balances)
  *  - OrganizationModule     → OrgContextResolver (active plugin + declarant)
  *  - PostingModule          → PostingService (final depreciation voucher)
- *  - ReportingPeriodsModule → ReportingPeriodsService (lock the year)
+ *  - ReportingPeriodsModule → ReportingPeriodsService (close/lock the year)
+ *  - AuditFindingsModule    → AuditFindingsService (year-end-adjustment notice)
  *
  * The controller is added in Task 9.
  */
@@ -24,6 +26,7 @@ import { AnnualAccountsService } from './annual-accounts.service';
     OrganizationModule,
     PostingModule,
     ReportingPeriodsModule,
+    AuditFindingsModule,
   ],
   controllers: [AnnualAccountsController],
   providers: [AnnualAccountsService],

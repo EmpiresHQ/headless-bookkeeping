@@ -91,9 +91,28 @@ a valid registry code and never infers it from the VAT number.
 ### Open a reporting period (without it, posting hits the period-lock)
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/reporting-periods \
-  -d '{"name":"FY2026","start_date":"2026-01-01","end_date":"2026-12-31"}'   # status: open
+  -d '{"name":"2026-01","start_date":"2026-01-01","end_date":"2026-01-31"}'   # status: open
 curl -H "$H" $B/api/reporting-periods/current
 ```
+A reporting period is a **VAT period** — the scope a KMD is filed for. Two of
+them may not overlap.
+
+### Open a financial year (the scope the annual accounts are closed for)
+```bash
+curl -H "$H" -H "$J" -X POST $B/api/reporting-periods \
+  -d '{"name":"FY2026","start_date":"2026-01-01","end_date":"2026-12-31","kind":"annual"}'
+curl -H "$H" "$B/api/reporting-periods?kind=annual"     # the annual timeline
+curl -H "$H" "$B/api/reporting-periods?kind=all"        # both, by start date
+```
+A financial year is an independent timeline: it deliberately spans the VAT
+periods inside it, and it need not be a calendar year. It carries no VAT
+declaration of its own — `POST /api/reporting-periods/<id>/lock`, the KMD and
+the statutory export all refuse an annual id. Close it with
+`POST /api/reporting-periods/<id>/annual-accounts/finalize`, which posts the
+year-end depreciation charge (even if December's VAT period is already filed —
+the filed return is left exactly as frozen) and locks the whole year: after
+that, nothing posts anywhere inside it, including months still open for VAT.
+Listing without `?kind=` returns the VAT calendar, as it always did.
 
 ### Add a supplier / customer
 ```bash

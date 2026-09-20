@@ -13,6 +13,7 @@ import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PostingService } from '../ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { depreciationCharge } from '../fixed-assets/depreciation-engine';
 import { addDays } from '../reporting-periods/period-dates';
 import type {
@@ -170,6 +171,9 @@ export class AnnualAccountsService {
     // (and its self-contained spec) construct without wiring these.
     @Optional() private readonly postingService?: PostingService,
     @Optional() private readonly reportingPeriods?: ReportingPeriodsService,
+    // Only the finalize path records the year-end-adjustment notice (issue
+    // #207); optional for the same reason as the two above.
+    @Optional() private readonly auditFindings?: AuditFindingsService,
   ) {}
 
   async generate(periodId: number): Promise<AnnualAccountsResult> {
@@ -228,7 +232,7 @@ export class AnnualAccountsService {
 
     const period = await this.db
       .selectFrom('reporting_period')
-      .select(['id', 'status', 'name', 'start_date', 'end_date'])
+      .select(['id', 'status', 'name', 'start_date', 'end_date', 'kind'])
       .where('id', '=', periodId)
       .executeTakeFirst();
     if (!period) {
@@ -241,18 +245,24 @@ export class AnnualAccountsService {
       );
     }
 
-    // DEFENSE 1: check the filing-order precondition BEFORE posting anything.
-    // `ReportingPeriodsService.lock` (which we cannot wrap in our transaction,
-    // because it opens its own better-sqlite3 transaction) throws a
-    // ConflictException when an EARLIER period is still `open`. If we posted the
-    // depreciation voucher first and then `lock` threw, the period would stay
+    // DEFENSE 1: check the close precondition BEFORE posting anything.
+    // The close call (which we cannot wrap in our transaction, because it opens
+    // its own better-sqlite3 transaction) throws a ConflictException when an
+    // EARLIER period on the same timeline is still `open`. If we posted the
+    // depreciation voucher first and then the close threw, the period would stay
     // `open` WITH the voucher already committed — and a retry would re-post it
     // (double-charged depreciation). Replicate the precondition here so the most
-    // realistic lock-failure leaves zero partial state.
+    // realistic close failure leaves zero partial state.
+    //
+    // Scoped by timeline (issue #207): closing FY2026 is blocked by an open
+    // FY2025, not by an open November — the monthly VAT calendar files on its
+    // own schedule and a financial year is normally closed long after, and
+    // sometimes before, the months inside it are all filed.
     const earlierOpen = await this.db
       .selectFrom('reporting_period')
       .select(['id', 'name'])
       .where('status', '=', 'open')
+      .where('kind', '=', period.kind)
       .where('start_date', '<', period.start_date)
       .orderBy('start_date', 'asc')
       .executeTakeFirst();
@@ -329,19 +339,97 @@ export class AnnualAccountsService {
           })),
         ],
       };
-      await this.postingService.postVoucher(draft, {
-        kind: 'system-generated',
-      });
+      // HOW a year-end adjustment reaches the ledger (issue #207).
+      //
+      // The charge is dated on the year's last day, and by the time a year is
+      // closed that day usually sits inside an ALREADY FILED VAT period (the
+      // December KMD is due on 20 January; the annual report up to six months
+      // later). Posting it as ordinary system-generated activity would be
+      // rejected by the locked-period rule, and no correct answer lies in
+      // reopening the month or in moving the charge out of the year it belongs
+      // to. So a financial-year close declares the `annual-close` capability
+      // for the year it is closing. That declaration does not grant anything by
+      // itself: PostingService validates the accounts and the VAT metadata and
+      // PeriodLockService validates the year and the lock state, and only a
+      // locked VAT period is ever relaxed — a CLOSED financial year is not.
+      // The resulting voucher is stamped server-side, and VAT snapshots exclude
+      // the stamped vouchers, so the filed December return keeps matching the
+      // ledger exactly as frozen.
+      //
+      // A VAT-period finalize (the pre-#207 legacy path, still supported) keeps
+      // posting as ordinary system-generated activity: it has no financial year
+      // to claim, and it never needed the exception.
+      await this.postingService.postVoucher(
+        draft,
+        period.kind === 'annual'
+          ? { kind: 'annual-close', financialYearId: period.id }
+          : { kind: 'system-generated' },
+      );
+
+      if (period.kind === 'annual') {
+        const filedMonths = await this.filedVatPeriodsCovering(
+          period.start_date,
+          period.end_date,
+        );
+        if (filedMonths.length > 0 && this.auditFindings) {
+          // Never silent: the one route that posts into a filed VAT period says
+          // so, naming the months and the amount, so the exception is visible
+          // in the same queue an operator already reviews.
+          await this.auditFindings.create({
+            finding_type: 'statutory_report_incomplete',
+            // `low`: this is a NOTICE that the narrow year-end route was used,
+            // not a defect. Nothing is due and nothing is wrong — but the one
+            // posting that lands behind a filed return must be visible where an
+            // operator already looks.
+            severity: 'low',
+            description:
+              `Year-end adjustment of ${totalCharge} for financial year "${period.name}" was posted on ` +
+              `${period.end_date}, inside already filed VAT period(s) ${filedMonths.join(', ')}. ` +
+              `It touches only depreciation accounts and carries no VAT, so those returns' frozen ` +
+              `snapshots are unchanged and no correction declaration is due.`,
+          });
+        }
+      }
     }
 
-    // Lock the year (idempotent; generates the VAT snapshot + flips status).
-    await this.reportingPeriods.lock(periodId);
+    // Close the year. A FINANCIAL YEAR is closed through `closeFinancialYear`,
+    // which only flips the status — it must not mint a KMD snapshot or a filing
+    // payload for a year whose turnover the monthly returns already declared
+    // (issue #207). A VAT period keeps being FILED through `lock`, snapshot and
+    // all, so the legacy annual-accounts-over-a-VAT-period path is unchanged.
+    if (period.kind === 'annual') {
+      await this.reportingPeriods.closeFinancialYear(periodId);
+    } else {
+      await this.reportingPeriods.lock(periodId);
+    }
 
     // Re-render with the SAME assembled input → identical numbers as the draft.
     return {
       artifacts: rendered.artifacts,
       warnings: [...diagnostics, ...rendered.warnings],
     };
+  }
+
+  /**
+   * The names of the FILED VAT periods that overlap a financial year — the
+   * months whose returns a year-end adjustment is posted "behind" (issue #207).
+   * Used only to describe the audit finding; nothing about those returns is
+   * read for figures, recomputed, re-frozen or rewritten.
+   */
+  private async filedVatPeriodsCovering(
+    startDate: string,
+    endDate: string,
+  ): Promise<string[]> {
+    const rows = await this.db
+      .selectFrom('reporting_period')
+      .select('name')
+      .where('kind', '=', 'vat')
+      .where('status', '=', 'locked')
+      .where('start_date', '<=', endDate)
+      .where('end_date', '>=', startDate)
+      .orderBy('start_date', 'asc')
+      .execute();
+    return rows.map((r) => r.name);
   }
 
   /**
@@ -381,16 +469,23 @@ export class AnnualAccountsService {
   }> {
     const period = await this.db
       .selectFrom('reporting_period')
-      .select(['id', 'name', 'start_date', 'end_date', 'status'])
+      .select(['id', 'name', 'start_date', 'end_date', 'status', 'kind'])
       .where('id', '=', periodId)
       .executeTakeFirst();
     if (!period) {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
 
+    // The comparative column is the previous period ON THE SAME TIMELINE
+    // (issue #207). For a financial year that is the previous FINANCIAL YEAR —
+    // never the nearest month, which is what picking the latest earlier period
+    // of any kind returned once a monthly VAT calendar existed alongside the
+    // year: RIK would have received "2026 vs December 2025". For a VAT period
+    // it stays the previous VAT period, exactly as before.
     const prior = await this.db
       .selectFrom('reporting_period')
       .select(['id', 'name', 'start_date', 'end_date'])
+      .where('kind', '=', period.kind)
       .where('end_date', '<', period.start_date)
       .orderBy('end_date', 'desc')
       .executeTakeFirst();

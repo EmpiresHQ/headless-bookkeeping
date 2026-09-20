@@ -198,6 +198,7 @@ export const reportingPeriodResponseSchema = {
     'name',
     'start_date',
     'end_date',
+    'kind',
     'status',
     'filed_at',
     'vat_report_snapshot_id',
@@ -208,6 +209,10 @@ export const reportingPeriodResponseSchema = {
     name: stringSchema,
     start_date: stringSchema,
     end_date: stringSchema,
+    kind: {
+      type: 'string',
+      enum: ['vat', 'annual'],
+    },
     status: {
       type: 'string',
       enum: ['open', 'locked'],

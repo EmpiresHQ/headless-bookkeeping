@@ -19,6 +19,7 @@ import {
 } from './period-dates';
 import {
   ReportingPeriod,
+  PeriodKind,
   CreateReportingPeriodDto,
   CreateNextPeriodDto,
   PeriodWarning,
@@ -37,12 +38,23 @@ export class ReportingPeriodsService {
     private readonly auditFindings: AuditFindingsService,
   ) {}
 
-  async list(): Promise<ReportingPeriod[]> {
-    const rows = await this.db
+  /**
+   * The periods of ONE timeline, oldest first (issue #207).
+   *
+   * Defaults to the VAT calendar, because that is what a "reporting period" has
+   * always meant here and what every existing caller — the operator SPA's period
+   * screen, `createNext`, the VAT flows — asks for. `'all'` returns both
+   * timelines interleaved by start date, for an operator-facing overview.
+   */
+  async list(kind: PeriodKind | 'all' = 'vat'): Promise<ReportingPeriod[]> {
+    let query = this.db
       .selectFrom('reporting_period')
       .selectAll()
-      .orderBy('start_date', 'asc')
-      .execute();
+      .orderBy('start_date', 'asc');
+    if (kind !== 'all') {
+      query = query.where('kind', '=', kind);
+    }
+    const rows = await query.execute();
 
     return rows.map((r) => this.mapRow(r));
   }
@@ -77,16 +89,30 @@ export class ReportingPeriodsService {
       );
     }
 
-    const voucher = await this.db
-      .selectFrom('voucher')
-      .select('id')
-      .where('tax_point_date', '>=', period.start_date)
-      .where('tax_point_date', '<=', period.end_date)
-      .limit(1)
-      .executeTakeFirst();
+    // What counts as "has vouchers" depends on the timeline (issue #207). A VAT
+    // period owns every voucher tax-point-dated inside it. A FINANCIAL YEAR does
+    // not: ordinary trading belongs to the monthly VAT periods it spans, and a
+    // year that merely contains a year of ordinary activity would otherwise be
+    // undeletable forever — so a mistakenly created financial year could never
+    // be undone. What a financial year owns is the year-end adjustments ITS
+    // close posted, marked server-side with `annual_close_period_id`.
+    const voucherQuery =
+      period.kind === 'annual'
+        ? this.db
+            .selectFrom('voucher')
+            .select('id')
+            .where('annual_close_period_id', '=', id)
+        : this.db
+            .selectFrom('voucher')
+            .select('id')
+            .where('tax_point_date', '>=', period.start_date)
+            .where('tax_point_date', '<=', period.end_date);
+    const voucher = await voucherQuery.limit(1).executeTakeFirst();
     if (voucher) {
       throw new ConflictException(
-        `Reporting period ${id} (${period.name}) has vouchers — only an empty period can be deleted.`,
+        period.kind === 'annual'
+          ? `Financial year ${id} (${period.name}) already has year-end adjustments posted — only an empty financial year can be deleted.`
+          : `Reporting period ${id} (${period.name}) has vouchers — only an empty period can be deleted.`,
       );
     }
 
@@ -95,11 +121,17 @@ export class ReportingPeriodsService {
     return period;
   }
 
+  /**
+   * The current open VAT period. Financial years are a separate timeline and
+   * are never "the current reporting period" — the VAT calendar is what posting,
+   * filing and the operator's period screen advance through.
+   */
   async getCurrent(): Promise<ReportingPeriod> {
     const row = await this.db
       .selectFrom('reporting_period')
       .selectAll()
       .where('status', '=', 'open')
+      .where('kind', '=', 'vat')
       .orderBy('start_date', 'desc')
       .executeTakeFirst();
 
@@ -113,20 +145,34 @@ export class ReportingPeriodsService {
   async create(dto: CreateReportingPeriodDto): Promise<ReportingPeriod> {
     const now = Math.floor(Date.now() / 1000);
 
-    // Reject a period that overlaps any existing one (D3). Two periods overlap
-    // when each starts on or before the other ends; ISO date strings compare
-    // lexicographically. Overlapping periods make `getCurrent` ambiguous and
-    // let a single tax_point_date fall into two periods (double-counted in VAT
-    // reports), so a date must belong to at most one reporting period.
+    const kind: PeriodKind = dto.kind ?? 'vat';
+
+    if (dto.end_date < dto.start_date) {
+      throw new ConflictException(
+        `Reporting period ${dto.start_date}..${dto.end_date} ends before it starts`,
+      );
+    }
+
+    // Reject a period that overlaps an existing one ON THE SAME TIMELINE (D3,
+    // issue #207). Two periods overlap when each starts on or before the other
+    // ends; ISO date strings compare lexicographically. Overlap within the VAT
+    // calendar makes `getCurrent` ambiguous and lets one tax_point_date fall
+    // into two VAT periods (double-counted in a return); overlap within the
+    // annual calendar would make "which financial year is this" ambiguous and
+    // the year-on-year comparative undefined. A financial year deliberately
+    // spans the VAT periods inside it — that is the whole point — so the guard
+    // is scoped by `kind` rather than dropped.
     const overlap = await this.db
       .selectFrom('reporting_period')
       .select(['id', 'name'])
+      .where('kind', '=', kind)
       .where('start_date', '<=', dto.end_date)
       .where('end_date', '>=', dto.start_date)
       .executeTakeFirst();
     if (overlap) {
       throw new ConflictException(
-        `Reporting period ${dto.start_date}..${dto.end_date} overlaps existing period "${overlap.name}" (${overlap.id})`,
+        `Reporting period ${dto.start_date}..${dto.end_date} overlaps existing ` +
+          `${kind === 'annual' ? 'financial year' : 'period'} "${overlap.name}" (${overlap.id})`,
       );
     }
 
@@ -136,6 +182,7 @@ export class ReportingPeriodsService {
         name: dto.name,
         start_date: dto.start_date,
         end_date: dto.end_date,
+        kind,
         status: 'open',
         created_at: now,
       })
@@ -197,16 +244,33 @@ export class ReportingPeriodsService {
   async lock(id: number): Promise<ReportingPeriod> {
     const existing = await this.getById(id);
 
+    // A FINANCIAL YEAR has no VAT declaration of its own (issue #207). Filing
+    // one here would manufacture a KMD — a second, overlapping return covering
+    // the same turnover as the twelve monthly ones already filed. A financial
+    // year is closed through AnnualAccountsService.finalize, which posts the
+    // year-end adjustments and calls `closeFinancialYear`.
+    if (existing.kind === 'annual') {
+      throw new ConflictException(
+        `Reporting period ${id} (${existing.name}) is a financial year, not a VAT period — ` +
+          `it carries no VAT declaration. Close it with ` +
+          `POST /api/reporting-periods/${id}/annual-accounts/finalize.`,
+      );
+    }
+
     // Idempotent: already locked → return as-is (no regeneration).
     if (existing.status === 'locked') {
       return existing;
     }
 
-    // Filing order: no filing a later period while an earlier one is still open.
+    // Filing order: no filing a later VAT period while an earlier one is still
+    // open. Scoped to the VAT calendar — an open financial year spanning this
+    // period is the normal state of affairs (the year is closed months after
+    // its last month is filed) and must not block a monthly filing.
     const earlierOpen = await this.db
       .selectFrom('reporting_period')
       .select(['id', 'name'])
       .where('status', '=', 'open')
+      .where('kind', '=', 'vat')
       .where('start_date', '<', existing.start_date)
       .orderBy('start_date', 'asc')
       .executeTakeFirst();
@@ -288,6 +352,69 @@ export class ReportingPeriodsService {
   }
 
   /**
+   * Close a FINANCIAL YEAR (issue #207) — the annual counterpart of {@link lock},
+   * and deliberately NOT the same act.
+   *
+   * Filing a VAT period freezes a KMD snapshot, freezes the filing payload and
+   * opens the statutory-submission lifecycle. A financial year has none of
+   * those: its turnover was already declared by the twelve monthly returns
+   * inside it, and its own statutory artifact is the annual report, which
+   * `AnnualAccountsService.finalize` renders. So this method does exactly one
+   * thing — flip the year to `locked` and stamp `filed_at` — and writes nothing
+   * to `vat_report`, `statutory_filing_snapshot` or the submission event log.
+   * The monthly snapshots inside the year are never re-read, re-frozen or
+   * superseded by it.
+   *
+   * What the flip buys is WHOLE-YEAR immutability: `PeriodLockService` answers
+   * "is this date in a locked period?" across both timelines, so once the year
+   * is closed no ordinary posting lands anywhere inside it, not even in a month
+   * whose VAT period is still open — and not even through the year-end
+   * adjustment route, which requires an OPEN financial year.
+   *
+   * Idempotent: closing an already-closed year returns it unchanged. Order is
+   * enforced across the annual timeline only: an earlier still-open financial
+   * year blocks closing a later one, so the comparative column of the later
+   * year can never be a year that is still moving.
+   */
+  async closeFinancialYear(id: number): Promise<ReportingPeriod> {
+    const existing = await this.getById(id);
+
+    if (existing.kind !== 'annual') {
+      throw new ConflictException(
+        `Reporting period ${id} (${existing.name}) is a VAT period, not a financial year — ` +
+          `file it with POST /api/reporting-periods/${id}/lock.`,
+      );
+    }
+
+    if (existing.status === 'locked') {
+      return existing;
+    }
+
+    const earlierOpen = await this.db
+      .selectFrom('reporting_period')
+      .select(['id', 'name'])
+      .where('status', '=', 'open')
+      .where('kind', '=', 'annual')
+      .where('start_date', '<', existing.start_date)
+      .orderBy('start_date', 'asc')
+      .executeTakeFirst();
+    if (earlierOpen) {
+      throw new ConflictException(
+        `Cannot close financial year ${existing.name}: earlier financial year ${earlierOpen.name} is still open — close it first`,
+      );
+    }
+
+    const row = await this.db
+      .updateTable('reporting_period')
+      .set({ status: 'locked', filed_at: Math.floor(Date.now() / 1000) })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.mapRow(row);
+  }
+
+  /**
    * Repair a LOCKED period whose bound filing state is stale or incomplete —
    * the supported correction path for periods filed before issue #200 was
    * fixed (a draft export froze a partial snapshot, which the lock then bound).
@@ -316,6 +443,15 @@ export class ReportingPeriodsService {
    */
   async reconcileFilingSnapshot(id: number): Promise<FilingReconciliation> {
     const period = await this.getById(id);
+
+    // A financial year was never filed as a VAT return, so there is no filing
+    // state to repair — and freezing one here would mint the annual KMD that
+    // `lock` refuses to mint (issue #207).
+    if (period.kind === 'annual') {
+      throw new ConflictException(
+        `Reporting period ${id} (${period.name}) is a financial year — it has no VAT filing state to reconcile.`,
+      );
+    }
 
     if (period.status !== 'locked') {
       throw new ConflictException(
@@ -588,6 +724,7 @@ export class ReportingPeriodsService {
     name: string;
     start_date: string;
     end_date: string;
+    kind: string;
     status: string;
     filed_at: number | null;
     vat_report_snapshot_id: number | null;
@@ -598,6 +735,7 @@ export class ReportingPeriodsService {
       name: row.name,
       start_date: row.start_date,
       end_date: row.end_date,
+      kind: row.kind as PeriodKind,
       status: row.status as ReportingPeriod['status'],
       filed_at: row.filed_at,
       vat_report_snapshot_id: row.vat_report_snapshot_id,

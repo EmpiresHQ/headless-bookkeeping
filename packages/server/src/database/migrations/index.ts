@@ -70,6 +70,7 @@ import * as m070 from './070_add_match_settlement_voucher';
 import * as m071 from './071_add_match_cash_base_amount';
 import * as m072 from './072_create_fx_reference_rate';
 import * as m073 from './073_add_voucher_line_fx_provenance';
+import * as m074 from './074_add_reporting_period_kind';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -143,4 +144,5 @@ export const migrations: Record<string, Migration> = {
   '071_add_match_cash_base_amount': m071,
   '072_create_fx_reference_rate': m072,
   '073_add_voucher_line_fx_provenance': m073,
+  '074_add_reporting_period_kind': m074,
 };

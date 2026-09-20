@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
@@ -26,6 +30,22 @@ export interface FreezeResult {
   superseded: VatReport | null;
 }
 
+/**
+ * A VAT declaration exists for the VAT calendar only (issue #207). A FINANCIAL
+ * YEAR declares nothing of its own — its turnover was already declared by the
+ * monthly returns inside it — so every VAT entry point refuses an annual id
+ * rather than manufacturing a second, overlapping return for the same turnover.
+ * This is the same refusal `ReportingPeriodsService.lock` makes, placed on the
+ * paths that reach a snapshot or a declaration without going through it.
+ */
+function assertVatPeriod(period: { id: number; kind: string }): void {
+  if (period.kind === 'annual') {
+    throw new ConflictException(
+      `Reporting period ${period.id} is a financial year — it carries no VAT declaration.`,
+    );
+  }
+}
+
 @Injectable()
 export class VatReportService {
   constructor(
@@ -42,6 +62,10 @@ export class VatReportService {
    * range, joins voucher_line, groups by vat_code summing base_amount into
    * input (debit) vs output (credit), computes total_payable/total_receivable,
    * and stores the snapshot with a Merkle root over the covered Vouchers.
+   *
+   * Year-end adjustments posted by a financial-year close
+   * (`voucher.annual_close_period_id`, issue #207) belong to neither set: they
+   * carry no VAT and are excluded from both the boxes and the covered set.
    *
    * Two distinct Voucher sets are involved (ADR-0009 / ADR-0013):
    *  - the COVERED set = every Voucher whose tax-point date falls in the
@@ -129,13 +153,14 @@ export class VatReportService {
   ): Promise<VatReport> {
     const period = await executor
       .selectFrom('reporting_period')
-      .select(['id', 'status', 'vat_report_snapshot_id'])
+      .select(['id', 'name', 'status', 'kind', 'vat_report_snapshot_id'])
       .where('id', '=', periodId)
       .executeTakeFirst();
 
     if (!period) {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
+    assertVatPeriod(period);
 
     if (period.status === 'locked' && period.vat_report_snapshot_id !== null) {
       const bound = await executor
@@ -247,13 +272,14 @@ export class VatReportService {
     // Fetch the period to get its date range
     const period = await executor
       .selectFrom('reporting_period')
-      .select(['id', 'name', 'start_date', 'end_date'])
+      .select(['id', 'name', 'start_date', 'end_date', 'kind'])
       .where('id', '=', periodId)
       .executeTakeFirst();
 
     if (!period) {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
+    assertVatPeriod(period);
 
     // Query all voucher lines from posted vouchers within the period range,
     // joined to the account so we can isolate the VAT-control lines.
@@ -270,6 +296,7 @@ export class VatReportService {
       .where('v.tax_point_date', '>=', period.start_date)
       .where('v.tax_point_date', '<=', period.end_date)
       .where('v.posted_at', 'is not', null)
+      .where('v.annual_close_period_id', 'is', null)
       .execute();
 
     // Group by vat_code. The VAT *amount* per code is the balance of the
@@ -340,6 +367,18 @@ export class VatReportService {
       .where('tax_point_date', '>=', period.start_date)
       .where('tax_point_date', '<=', period.end_date)
       .where('posted_at', 'is not', null)
+      // YEAR-END ADJUSTMENTS ARE NOT VAT ACTIVITY (issue #207). A voucher
+      // carrying `annual_close_period_id` was posted by the close of a
+      // financial year through the narrowly validated route that cannot touch a
+      // VAT-control account or carry VAT metadata — so it moves no declaration
+      // box, by construction. It is excluded here, uniformly, on every read of
+      // every period: which is what lets the annual close post the December
+      // depreciation charge months after the December KMD was filed WITHOUT the
+      // filed snapshot drifting away from the ledger. Nothing about the frozen
+      // return is touched, recomputed or superseded — it simply keeps matching.
+      // The adjustment's own integrity is carried by the voucher hash chain
+      // (ADR-0013) and by the annual accounts it was posted for.
+      .where('annual_close_period_id', 'is', null)
       .orderBy('id', 'asc')
       .execute();
 
@@ -456,12 +495,13 @@ export class VatReportService {
   ): Promise<KmdDeclaration> {
     const period = await executor
       .selectFrom('reporting_period')
-      .select(['id', 'name', 'start_date', 'end_date'])
+      .select(['id', 'name', 'start_date', 'end_date', 'kind'])
       .where('id', '=', periodId)
       .executeTakeFirst();
     if (!period) {
       throw new NotFoundException(`Reporting period ${periodId} not found`);
     }
+    assertVatPeriod(period);
 
     const org = await this.organization.getOrganization(executor);
     const plugin = this.pluginLoader.resolve(org.country);
@@ -479,6 +519,7 @@ export class VatReportService {
       .where('v.tax_point_date', '>=', period.start_date)
       .where('v.tax_point_date', '<=', period.end_date)
       .where('v.posted_at', 'is not', null)
+      .where('v.annual_close_period_id', 'is', null)
       .execute();
 
     const d: KmdDeclaration = {

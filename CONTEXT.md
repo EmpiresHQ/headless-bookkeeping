@@ -150,6 +150,14 @@ _Avoid_: Booking date, posting date
 A VAT period whose boundaries and frequency are set by the country plugin + Organization config (frequency can depend on turnover — e.g. DK monthly/quarterly/half-yearly). States: `open → locked`. A **Voucher** belongs to the period whose range contains its **tax-point date**. Membership is *derived* while open. Lock is triggered by filing, never by the calendar; multiple periods may be open at once; filing must proceed in order.
 _Avoid_: Quarter, fiscal period (when ambiguous)
 
+**Financial year**:
+The independent annual scope the **Annual accounts** are produced and closed against — a `reporting_period` row with `kind = 'annual'`, alongside the VAT calendar's `kind = 'vat'` rows. It deliberately spans the VAT periods inside it (the non-overlap rule applies *within* a timeline, not across them), it carries no VAT declaration of its own, and it need not follow the calendar year. Closing it locks the whole year — no ordinary posting lands anywhere inside it afterwards, not even where a monthly period is still open. Its comparative column is the *previous financial year*, never the nearest month.
+_Avoid_: Annual period, year-end period (when ambiguous)
+
+**Year-end adjustment**:
+A close-posted adjustment of a **Financial year** — the annual depreciation charge — dated on the year's last day, which by then normally sits inside an already filed VAT period. It reaches the ledger through one narrow, validated route (declared by the close, restricted to the depreciation accounts, refused any VAT metadata, refused a closed year) and is marked server-side on the **Voucher**. A **VAT report** excludes the marked vouchers, so a filed return never drifts from the ledger and is never reopened or rewritten.
+_Avoid_: Adjusting entry (when ambiguous), break-glass posting
+
 **VAT report**:
 The frozen snapshot produced when a **Reporting period** is filed: the exact set of included **Vouchers** plus computed declaration boxes, plus a **Merkle root** over those vouchers (cryptographic proof of exactly what was filed). Immutable (reproducibility of what was filed); filing locks the period. A late-discovered error in a locked period is never edited there — a reversal + corrected Voucher are posted in the current open period, dated to it, carrying `reverses` / `corrects_object` references back to the original. An **amended return** is never a mutation: it is a *new* immutable snapshot (e.g. Q1 v2) that supersedes the prior filing for submission and references it; the original snapshot and its Merkle root are preserved.
 _Avoid_: Return, declaration (when ambiguous)
