@@ -8,11 +8,15 @@ import {
 } from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
+import { FXRealizedService } from './fx-realized.service';
 import {
   DraftVoucher,
   DraftVoucherLine,
   PostedVoucher,
 } from '../ledger/voucher/types';
+
+/** The single net account realized FX is booked to (migration 002). */
+const FX_GAIN_LOSS = 'FX_GAIN_LOSS';
 
 /** The AR/AP leg a settlement clears, read off the settled Voucher itself. */
 interface SettledLeg {
@@ -42,17 +46,16 @@ interface SettledLeg {
  *     the bank line's sign: an AR voucher opened the item as a debit, so the
  *     settlement credits it. A voucher carrying no AR/AP leg has nothing to
  *     clear and yields no settlement at all.
- *  2. The BASE / FX SPLIT. The settlement books exactly `amountMatched` — the
- *     BOOKED base of the settled slice. The realized-FX voucher
- *     ({@link FXRealizedService}) separately books the difference between
- *     booked and actual cash against the base bank account. Booking actual
- *     cash here as well would double-count that difference; together the two
- *     vouchers move the bank by the cash that really arrived.
- *     The bank leg carries the statement account's OWN currency (so a
- *     `BANK_USD` statement moves USD), sliced from the bank line in proportion
- *     to the matched base, with `fx_rate` set from that pair — the AR/AP leg
- *     stays in base currency, and both legs' `base_amount` are equal, so the
- *     voucher balances (balance is a base-amount rule, ADR-0004).
+ *  2. The BASE / CASH SPLIT. The AR/AP leg clears the BOOKED base — the
+ *     obligation as the ledger recorded it — while the bank leg carries the
+ *     cash the line ACTUALLY delivered for this slice, on the statement's OWN
+ *     account (a `BANK_USD` statement moves USD). When a foreign settlement
+ *     makes those differ, the residual IS the realized FX and rides on the
+ *     SAME voucher, against `FX_GAIN_LOSS` — so the cash never lands on a bank
+ *     account the money never touched, and a settlement can never be posted
+ *     without the FX that belongs to it. The slice arithmetic itself is
+ *     {@link FXRealizedService.computeSettlementSlice}, shared with the
+ *     standalone FX path so the two cannot divide a bank line differently.
  *  3. Locked periods (ADR-0009): a settlement dated into a locked period is
  *     re-dated into the current open period, exactly as a credit note or an FX
  *     reversal is; if none is open, it refuses rather than breaking the lock.
@@ -69,6 +72,7 @@ export class SettlementVoucherService {
     private readonly postingService: PostingService,
     private readonly currencyService: CurrencyService,
     private readonly periodLock: PeriodLockService,
+    private readonly fx: FXRealizedService,
   ) {}
 
   /**
@@ -108,30 +112,29 @@ export class SettlementVoucherService {
       .where('bank_transaction.id', '=', bankTransactionId)
       .executeTakeFirstOrThrow();
 
-    const { baseAmount: lineBase, baseCurrency } =
-      await this.currencyService.toBase(
-        Math.abs(txn.amount),
-        txn.currency,
-        txn.transaction_date,
-      );
+    // How much cash this slice really delivered, from the ONE shared slice
+    // arithmetic — so the settlement and its FX leg cannot disagree about how
+    // the bank line was divided.
+    const slice = await this.fx.computeSettlementSlice(
+      voucherId,
+      bankTransactionId,
+      amountMatched,
+    );
 
-    // The bank leg in the bank ACCOUNT's own currency: the matched slice of
-    // this line. A base-denominated account makes this the identity.
-    const bankAmount =
-      lineBase > 0
-        ? Math.max(
-            1,
-            Math.round((Math.abs(txn.amount) * amountMatched) / lineBase),
-          )
-        : amountMatched;
+    const { baseCurrency } = await this.currencyService.toBase(
+      0,
+      txn.currency,
+      txn.transaction_date,
+    );
 
+    const bankAmount = Math.max(1, slice.actualInTxnCurrency);
     const bankLine: DraftVoucherLine = {
       account_code: txn.account_code,
       amount: bankAmount,
       currency: txn.account_currency ?? txn.currency,
-      base_amount: amountMatched,
-      fx_rate: amountMatched / bankAmount,
-      is_debit: leg.openedAsDebit, // AR receipt debits the bank
+      base_amount: slice.actualBase,
+      fx_rate: slice.actualBase / bankAmount,
+      is_debit: leg.openedAsDebit, // an AR receipt debits the bank
     };
 
     const arApLine: DraftVoucherLine = {
@@ -143,9 +146,29 @@ export class SettlementVoucherService {
       is_debit: !leg.openedAsDebit, // clears the side the item was opened on
     };
 
+    const lines: DraftVoucherLine[] = [bankLine, arApLine];
+
+    // The cash and the booked obligation differ by exactly the realized FX, so
+    // the residual IS the FX leg — derived from the two legs rather than from a
+    // second sign rule, which makes it right in all four quadrants
+    // (incoming/outgoing × gain/loss) by construction.
+    const residual =
+      (bankLine.is_debit ? bankLine.base_amount : -bankLine.base_amount) +
+      (arApLine.is_debit ? arApLine.base_amount : -arApLine.base_amount);
+    if (residual !== 0) {
+      lines.push({
+        account_code: FX_GAIN_LOSS,
+        amount: Math.abs(residual),
+        currency: baseCurrency,
+        base_amount: Math.abs(residual),
+        fx_rate: 1,
+        is_debit: residual < 0,
+      });
+    }
+
     const draft: DraftVoucher = {
       tax_point_date: await this.resolveTaxPointDate(txn.transaction_date),
-      lines: [bankLine, arApLine],
+      lines,
       reason:
         `Settlement of voucher ${voucherId} by bank transaction ` +
         `${bankTransactionId}`,
@@ -173,6 +196,19 @@ export class SettlementVoucherService {
    * the same shape as {@link FXRealizedService.reverseFxVoucher}.
    */
   async reverseSettlement(settlementVoucherId: number): Promise<PostedVoucher> {
+    return this.postingService.postVoucher(
+      await this.prepareSettlementReversal(settlementVoucherId),
+    );
+  }
+
+  /**
+   * The reversal DRAFT for a settlement voucher, without posting it — so the
+   * caller can post it, any FX reversal it owes, and the link deletion in ONE
+   * transaction (issue #202).
+   */
+  async prepareSettlementReversal(
+    settlementVoucherId: number,
+  ): Promise<DraftVoucher> {
     const voucher = await this.db
       .selectFrom('voucher')
       .select(['id', 'voucher_number', 'tax_point_date'])
@@ -194,7 +230,7 @@ export class SettlementVoucherService {
       .where('voucher_line.voucher_id', '=', settlementVoucherId)
       .execute();
 
-    const draft: DraftVoucher = {
+    return {
       voucher_number: `${voucher.voucher_number}-REV`,
       tax_point_date: await this.resolveTaxPointDate(voucher.tax_point_date),
       lines: lines.map((l) => ({
@@ -209,8 +245,6 @@ export class SettlementVoucherService {
       reverses_id: settlementVoucherId,
       reason: `Reversal of settlement voucher ${settlementVoucherId} on unmatch`,
     };
-
-    return this.postingService.postVoucher(draft);
   }
 
   /**

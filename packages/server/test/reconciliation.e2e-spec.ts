@@ -924,31 +924,40 @@ describe('Reconciliation E2E (full flow)', () => {
       .send({ approved_by: 'e2e' })
       .expect(201);
 
-    // The realized-FX voucher id is recorded on the match.
+    // The settlement voucher is recorded on the match, and it carries the
+    // realized FX on the SAME voucher (issue #202): the receivable is cleared
+    // at the booked 90 000, the bank takes the 92 000 that actually arrived,
+    // and the 2 000 difference is the gain. One voucher, posted atomically
+    // with the activation — no second, standalone FX posting on a bank
+    // account the money never touched.
     const activated = await db
       .selectFrom('reconciliation_match')
-      .select('fx_voucher_id')
+      .select(['fx_voucher_id', 'settlement_voucher_id'])
       .where('id', '=', matchResult.records[0].id)
       .executeTakeFirstOrThrow();
-    expect(activated.fx_voucher_id).not.toBeNull();
-    const fxVoucherId = activated.fx_voucher_id!;
-    const fxLines = await db
+    expect(activated.settlement_voucher_id).not.toBeNull();
+    expect(activated.fx_voucher_id).toBeNull();
+
+    const settlementLines = await db
       .selectFrom('voucher_line')
       .innerJoin('account', 'account.id', 'voucher_line.account_id')
       .select('account.code as account_code')
       .select('voucher_line.base_amount')
       .select('voucher_line.is_debit')
-      .where('voucher_line.voucher_id', '=', fxVoucherId)
+      .where('voucher_line.voucher_id', '=', activated.settlement_voucher_id!)
       .execute();
 
-    expect(fxLines).toHaveLength(2);
-    const bankLine = fxLines.find((l) => l.account_code === 'BANK_EUR');
-    const fxLine = fxLines.find((l) => l.account_code === 'FX_GAIN_LOSS');
-    expect(bankLine).toBeDefined();
-    expect(bankLine!.is_debit).toBe(1); // Dr BANK_EUR (gain)
-    expect(bankLine!.base_amount).toBe(2000); // |90000 - 92000| = 2000
-    expect(fxLine).toBeDefined();
-    expect(fxLine!.is_debit).toBe(0); // Cr FX_GAIN_LOSS
+    expect(settlementLines).toHaveLength(3);
+    const bankLine = settlementLines.find((l) => l.account_code === 'BANK_EUR');
+    const arLine = settlementLines.find((l) => l.account_code === 'AR');
+    const fxLine = settlementLines.find(
+      (l) => l.account_code === 'FX_GAIN_LOSS',
+    );
+    expect(bankLine!.is_debit).toBe(1); // Dr BANK_EUR — the cash that arrived
+    expect(bankLine!.base_amount).toBe(92000);
+    expect(arLine!.is_debit).toBe(0); // Cr AR — the booked receivable
+    expect(arLine!.base_amount).toBe(90000);
+    expect(fxLine!.is_debit).toBe(0); // Cr FX_GAIN_LOSS (gain)
     expect(fxLine!.base_amount).toBe(2000);
   });
 });

@@ -60,6 +60,24 @@ interface CandidateRow {
 }
 
 /**
+ * One business object's subledger position: what is still collectible/payable
+ * on it, and what has been settled BEYOND it (a refund owed back).
+ */
+export interface OpenItemBalance {
+  voucherId: number;
+  objectType: 'sales_invoice' | 'expense';
+  objectId: number;
+  objectLabel: string;
+  entityId: number | null;
+  /** Still collectible (AR) / payable (AP). Never negative. */
+  remaining: number;
+  /** Settled beyond the obligation — owed back. Never negative. */
+  surplus: number;
+  /** True when the object's Voucher has been reversed (cancelled). */
+  cancelled: boolean;
+}
+
+/**
  * OutstandingVoucherService — the single source of "outstanding AR/AP candidate
  * Vouchers for reconciliation" plus their remaining balance.
  *
@@ -299,14 +317,22 @@ export class OutstandingVoucherService {
     );
     if (totalBase === 0) return 0;
 
-    if (await this.allocations.isVoucherReversed(voucherId, executor)) {
-      return 0;
-    }
+    // A Voucher a posted counter-voucher REVERSES no longer carries an
+    // obligation — but the settlements taken against it DO NOT vanish with it.
+    // Cancelling a paid invoice leaves the cash (and any credit or advance)
+    // exactly where it was: nothing is collectible, and what was taken is now
+    // owed BACK. Zeroing only the obligation keeps that residual visible as a
+    // surplus instead of erasing money the counterparty is due.
+    const reversed = await this.allocations.isVoucherReversed(
+      voucherId,
+      executor,
+    );
+    const obligation = reversed ? 0 : totalBase;
 
     const alreadyMatched = await this.getAlreadyMatched(voucherId, executor);
     const allocated = await this.getAlreadyAllocated(voucherId, side, executor);
     const credited = await this.getAlreadyCredited(voucherId, side, executor);
-    return totalBase - alreadyMatched - allocated - credited;
+    return obligation - alreadyMatched - allocated - credited;
   }
 
   /**
@@ -466,6 +492,62 @@ export class OutstandingVoucherService {
       .where('expense.voucher_id', 'not in', this.reversedVoucherIds())
       .where('account.code', '=', 'AP')
       .where('voucher_line.is_debit', '=', 0);
+  }
+
+  /**
+   * Every AR/AP business object's Voucher with what is still OPEN on it and
+   * what has been over-settled on it — including the objects the candidate
+   * reads deliberately hide (a cancelled invoice is never collectible again,
+   * but the payment taken against it is still owed back).
+   *
+   * This is the subledger side of the control-account reconciliation: the AR
+   * control balance equals `Σ remaining − Σ surplus` over these rows, plus any
+   * cash whose settlement voucher was never posted
+   * ({@link ReconciliationService.listUnpostedSettlements}). Rows where both
+   * numbers are zero are omitted — a fully settled invoice is not an open item.
+   */
+  async listOpenItemBalances(): Promise<OpenItemBalance[]> {
+    const invoices = await this.db
+      .selectFrom('sales_invoice')
+      .select('id as object_id')
+      .select('voucher_id')
+      .select('customer_id as entity_id')
+      .select('invoice_number as label')
+      .where('voucher_id', 'is not', null)
+      .where('status', 'in', LIVE_OBJECT_STATUSES)
+      .execute();
+    const expenses = await this.db
+      .selectFrom('expense')
+      .select('id as object_id')
+      .select('voucher_id')
+      .select('supplier_id as entity_id')
+      .select('tax_point_date as label')
+      .where('voucher_id', 'is not', null)
+      .where('status', 'in', LIVE_OBJECT_STATUSES)
+      .execute();
+
+    const rows: OpenItemBalance[] = [];
+    for (const row of [
+      ...invoices.map((r) => ({ ...r, objectType: 'sales_invoice' as const })),
+      ...expenses.map((r) => ({ ...r, objectType: 'expense' as const })),
+    ]) {
+      const voucherId = row.voucher_id;
+      if (voucherId === null) continue;
+      const remaining = await this.remainingOverCodes(voucherId, 'arap');
+      const surplus = await this.getSettlementSurplus(voucherId);
+      if (remaining === 0 && surplus === 0) continue;
+      rows.push({
+        voucherId,
+        objectType: row.objectType,
+        objectId: row.object_id,
+        objectLabel: row.label,
+        entityId: row.entity_id,
+        remaining,
+        surplus,
+        cancelled: await this.allocations.isVoucherReversed(voucherId),
+      });
+    }
+    return rows;
   }
 
   /**

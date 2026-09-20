@@ -300,6 +300,58 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     };
   }
 
+  /** A bank line carrying a foreign leg (source currency + rate). */
+  async function foreignBankLine(args: {
+    amount: number;
+    sourceCurrency: string;
+    sourceAmount: number;
+    fxRate: number;
+    accountCode?: string;
+    currency?: string;
+  }): Promise<{ statementId: number; transactionId: number }> {
+    const stmt = await banks.createStatement({
+      account_code: args.accountCode ?? 'BANK_EUR',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      transactions: [
+        {
+          transaction_date: '2026-05-18',
+          description: 'foreign settlement',
+          amount: args.amount,
+          currency: args.currency ?? 'EUR',
+          source_currency: args.sourceCurrency,
+          source_amount: args.sourceAmount,
+          fx_rate: args.fxRate,
+          status: 'open',
+        },
+      ],
+    });
+    return {
+      statementId: stmt.statement.id,
+      transactionId: stmt.transactions[0].id,
+    };
+  }
+
+  /** Stage + approve a match against an existing bank line. */
+  async function settleLine(
+    transactionId: number,
+    voucherId: number,
+    amount: number,
+  ): Promise<number> {
+    const { records } = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId,
+        matchType: 'partial',
+        amountMatched: amount,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+    await reconciliation.activateMatch(records[0].id);
+    return records[0].id;
+  }
+
   /** Stage a cash match and approve it — the real draft → active settlement. */
   async function settleWithCash(
     voucherId: number,
@@ -434,6 +486,28 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       .set({ country: 'EE' })
       .where('id', '=', 1)
       .execute();
+  }
+
+  /** A posted Expense denominated in a non-base currency. */
+  async function postExpenseInCurrency(
+    supplierId: number,
+    gross: number,
+    currency: string,
+  ): Promise<{ expenseId: number; voucherId: number }> {
+    invoiceCounter++;
+    const expense = await expenses.createExpense({
+      supplier_id: supplierId,
+      category: 'software',
+      gross_amount: gross,
+      vat_amount: 0,
+      currency,
+      tax_point_date: '2026-05-15',
+      supplier_invoice_number: `SUP-FX-${invoiceCounter}`,
+    });
+    const draft = await expenses.generateDraftVoucher(expense.id);
+    const posted = await posting.postVoucher(draft);
+    await expenses.updateExpenseStatus(expense.id, 'posted', posted.id);
+    return { expenseId: expense.id, voucherId: posted.id };
   }
 
   /** A posted SalesInvoice denominated in a non-base currency. */
@@ -1137,5 +1211,234 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     const [candidate] =
       await outstanding.findArCandidatesByCounterparty(customerId);
     expect(candidate.remainingBalance).toBe(0);
+  });
+
+  // ── Settlement slice arithmetic against real banking values ───────────
+
+  it('a partial receipt at an unchanged rate books the whole cash, with no FX', async () => {
+    const customerId = await seedCustomer();
+    // Invoice booked base 10 000. The customer pays 4 000 of it; the line
+    // carries a foreign leg whose rate moves nothing (4 000 @ 1.0).
+    const { voucherId } = await postInvoice(customerId, 10000);
+    const { transactionId } = await foreignBankLine({
+      amount: 4000,
+      sourceCurrency: 'USD',
+      sourceAmount: 4000,
+      fxRate: 1,
+    });
+
+    const matchId = await settleLine(transactionId, voucherId, 4000);
+
+    // Scaling the cash by the match's share of the INVOICE (4 000/10 000)
+    // valued this receipt at 1 600 and invented a 2 400 loss. The slice is a
+    // share of the LINE, so the bank gets all 4 000 and there is no FX leg.
+    expect(await voucherLegs((await settlementVoucherOf(matchId))!)).toEqual([
+      { code: 'AR', isDebit: 0, base: 4000 },
+      { code: 'BANK_EUR', isDebit: 1, base: 4000 },
+    ]);
+    expect(await bankBalance('BANK_EUR')).toBe(4000);
+    expect(await bankBalance('FX_GAIN_LOSS')).toBe(0);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(6000);
+    expect(await controlBalance('AR')).toBe(6000);
+  });
+
+  it('one foreign line split across two invoices splits its gain in proportion', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    // Two USD invoices booked at 0.92: 6 000 USD → 5 520 and 4 000 USD → 3 680.
+    const big = await postInvoiceInCurrency(customerId, 6000, 'USD');
+    const small = await postInvoiceInCurrency(customerId, 4000, 'USD');
+    expect(await outstanding.getRemainingVoucherBalance(big.voucherId)).toBe(
+      5520,
+    );
+
+    // The bank converts the whole 10 000 USD at 0.95 → 9 500 EUR of cash.
+    const { transactionId } = await foreignBankLine({
+      amount: 9500,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.95,
+    });
+
+    const bigMatch = await settleLine(transactionId, big.voucherId, 5520);
+    const smallMatch = await settleLine(transactionId, small.voucherId, 3680);
+
+    // Each slice is valued in USD at the rate the cash really arrived at:
+    // 6 000 USD × 0.95 = 5 700 and 4 000 USD × 0.95 = 3 800.
+    expect(await voucherLegs((await settlementVoucherOf(bigMatch))!)).toEqual([
+      { code: 'AR', isDebit: 0, base: 5520 },
+      { code: 'BANK_EUR', isDebit: 1, base: 5700 },
+      { code: 'FX_GAIN_LOSS', isDebit: 0, base: 180 },
+    ]);
+    expect(await voucherLegs((await settlementVoucherOf(smallMatch))!)).toEqual(
+      [
+        { code: 'AR', isDebit: 0, base: 3680 },
+        { code: 'BANK_EUR', isDebit: 1, base: 3800 },
+        { code: 'FX_GAIN_LOSS', isDebit: 0, base: 120 },
+      ],
+    );
+
+    // The two slices together are exactly the line's cash and its gain.
+    expect(await bankBalance('BANK_EUR')).toBe(9500);
+    expect(await bankBalance('FX_GAIN_LOSS')).toBe(-300);
+    expect(await controlBalance('AR')).toBe(0);
+  });
+
+  it('paying a foreign payable at a worse rate books a loss, not a gain', async () => {
+    await useEstoniaPlugin();
+    const supplierId = await seedSupplier();
+    // 1 000 USD payable booked at 0.92 → 920 base.
+    const { voucherId } = await postExpenseInCurrency(supplierId, 1000, 'USD');
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(920);
+
+    // We pay 1 000 USD but the bank charges 0.95 → 950 EUR leaves the account.
+    const { transactionId } = await foreignBankLine({
+      amount: -950,
+      sourceCurrency: 'USD',
+      sourceAmount: -1000,
+      fxRate: 0.95,
+    });
+    const matchId = await settleLine(transactionId, voucherId, 920);
+
+    expect(await voucherLegs((await settlementVoucherOf(matchId))!)).toEqual([
+      { code: 'AP', isDebit: 1, base: 920 },
+      { code: 'BANK_EUR', isDebit: 0, base: 950 },
+      { code: 'FX_GAIN_LOSS', isDebit: 1, base: 30 },
+    ]);
+    // Paying MORE base than booked is a loss (a debit to FX_GAIN_LOSS).
+    expect(await bankBalance('FX_GAIN_LOSS')).toBe(30);
+    expect(await bankBalance('BANK_EUR')).toBe(-950);
+    expect(await controlBalance('AP')).toBe(0);
+  });
+
+  it('a non-base statement account keeps the cash on its own bank', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoiceInCurrency(customerId, 10000, 'USD');
+
+    // A USD statement: the money arrives in the USD account, in USD.
+    const stmt = await banks.createStatement({
+      account_code: 'BANK_USD',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      transactions: [
+        {
+          transaction_date: '2026-05-18',
+          description: 'USD receipt',
+          amount: 10000,
+          currency: 'USD',
+          status: 'open',
+        },
+      ],
+    });
+    const matchId = await settleLine(stmt.transactions[0].id, voucherId, 9200);
+
+    const legs = await db
+      .selectFrom('voucher_line')
+      .innerJoin('account', 'account.id', 'voucher_line.account_id')
+      .select([
+        'account.code as code',
+        'voucher_line.amount as amount',
+        'voucher_line.currency as currency',
+        'voucher_line.base_amount as base_amount',
+      ])
+      .where(
+        'voucher_line.voucher_id',
+        '=',
+        (await settlementVoucherOf(matchId))!,
+      )
+      .orderBy('account.code')
+      .execute();
+    expect(legs).toEqual([
+      { code: 'AR', amount: 9200, currency: 'EUR', base_amount: 9200 },
+      { code: 'BANK_USD', amount: 10000, currency: 'USD', base_amount: 9200 },
+    ]);
+    // Nothing is fabricated on the base bank account.
+    expect(await bankBalance('BANK_EUR')).toBe(0);
+    expect(await controlBalance('AR')).toBe(0);
+  });
+
+  // ── Cancelled documents: nothing collectible, money still owed back ───
+
+  it('cancelling a paid invoice leaves the payment visible as owed back', async () => {
+    const customerId = await seedCustomer();
+    const { invoiceId, voucherId } = await postInvoice(customerId, 10000);
+    await settleWithCash(voucherId, 6000, true);
+    await creditNote('sales_invoice', invoiceId, 1000);
+    await allocateAdvance(customerId, 'customer', 1000, voucherId);
+
+    await corrections.correctSalesInvoice(invoiceId, {
+      kind: 'reversal',
+      reason: 'issued in error',
+    });
+
+    // Nothing is collectible on a cancelled invoice …
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(
+      await outstanding.findArCandidatesByCounterparty(customerId),
+    ).toEqual([]);
+    // … but the 6 000 paid, the 1 000 credited and the 1 000 drawn from the
+    // advance did not disappear with it: they are owed back, and the AR
+    // control balance says so.
+    expect(await outstanding.getSettlementSurplus(voucherId)).toBe(8000);
+    expect(await controlBalance('AR')).toBe(-8000);
+
+    const reconciliationView = await reconciliation.getOpenItemReconciliation();
+    const item = reconciliationView.items.find(
+      (i) => i.voucherId === voucherId,
+    );
+    expect(item).toMatchObject({
+      objectType: 'sales_invoice',
+      remaining: 0,
+      surplus: 8000,
+      cancelled: true,
+    });
+    expect(reconciliationView.totals.unexplained).toBe(0);
+  });
+
+  it('cancelling a part-paid expense reports the supplier refund the same way', async () => {
+    const supplierId = await seedSupplier();
+    const { expenseId, voucherId } = await postExpense(supplierId, 10000);
+    await settleWithCash(voucherId, 2500, false);
+
+    await corrections.correctExpense(expenseId, {
+      kind: 'reversal',
+      reason: 'never received the goods',
+    });
+
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(await outstanding.getSettlementSurplus(voucherId)).toBe(2500);
+    expect(await controlBalance('AP')).toBe(-2500);
+
+    const view = await reconciliation.getOpenItemReconciliation();
+    expect(view.items.find((i) => i.voucherId === voucherId)).toMatchObject({
+      objectType: 'expense',
+      surplus: 2500,
+      cancelled: true,
+    });
+    expect(view.totals.unexplained).toBe(0);
+  });
+
+  it('the open-item read ties the whole subledger to both control accounts', async () => {
+    const customerId = await seedCustomer();
+    const supplierId = await seedSupplier();
+
+    const open = await postInvoice(customerId, 10000);
+    await settleWithCash(open.voucherId, 4000, true);
+
+    const overCredited = await postInvoice(customerId, 5000);
+    await settleWithCash(overCredited.voucherId, 5000, true);
+    await creditNote('sales_invoice', overCredited.invoiceId, 2000);
+
+    const payable = await postExpense(supplierId, 7000);
+    await settleWithCash(payable.voucherId, 1000, false);
+
+    const view = await reconciliation.getOpenItemReconciliation();
+    expect(view.totals.openItems).toBe(6000 + 0 + 6000);
+    expect(view.totals.surplus).toBe(2000);
+    expect(view.totals.unpostedSettlements).toBe(0);
+    expect(view.totals.controlAr).toBe(6000 - 2000);
+    expect(view.totals.controlAp).toBe(6000);
+    expect(view.totals.unexplained).toBe(0);
   });
 });

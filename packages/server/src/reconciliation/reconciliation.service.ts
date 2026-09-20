@@ -13,7 +13,11 @@ import { CurrencyService } from '../currency/currency.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
 import { PrepaymentService } from './prepayment.service';
+import { DraftVoucher } from '../ledger/voucher/types';
 import { SettlementVoucherService } from './settlement-voucher.service';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
+import { PostingService } from '../ledger/posting/posting.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import {
   MatchProposal,
   MatchProposalView,
@@ -28,6 +32,8 @@ import {
   MatchCandidateView,
   MatchCandidatesResult,
   MatchRowView,
+  OpenItemView,
+  OpenItemReconciliation,
 } from './reconciliation.types';
 
 /** Regex patterns for deterministic token extraction. */
@@ -64,6 +70,9 @@ export class ReconciliationService {
     private readonly fxRealizedService: FXRealizedService,
     private readonly prepayments: PrepaymentService,
     private readonly settlements: SettlementVoucherService,
+    private readonly allocations: PrepaymentAllocationRepository,
+    private readonly postingService: PostingService,
+    private readonly ledgerBalance: LedgerBalanceService,
   ) {}
 
   /**
@@ -969,9 +978,11 @@ export class ReconciliationService {
    * for a multi-currency settlement and records its id on the match. Idempotent:
    * an already-active match is a no-op.
    */
-  async activateMatch(
-    matchId: number,
-  ): Promise<{ matchId: number; fxVoucherId: number | null }> {
+  async activateMatch(matchId: number): Promise<{
+    matchId: number;
+    fxVoucherId: number | null;
+    settlementVoucherId: number | null;
+  }> {
     const match = await this.db
       .selectFrom('reconciliation_match')
       .select([
@@ -990,7 +1001,11 @@ export class ReconciliationService {
       throw new NotFoundException(`Reconciliation match ${matchId} not found`);
     }
     if (match.status === 'active') {
-      return { matchId, fxVoucherId: match.fx_voucher_id };
+      return {
+        matchId,
+        fxVoucherId: match.fx_voucher_id,
+        settlementVoucherId: match.settlement_voucher_id,
+      };
     }
 
     const txn = await this.transactionRepo.findById(match.bank_transaction_id);
@@ -1038,6 +1053,28 @@ export class ReconciliationService {
       matchType: match.match_type,
     });
 
+    // A settlement carries its own realized FX (the cash and the booked
+    // obligation are two legs of ONE voucher). Only a match that posts no
+    // settlement — a prepayment, whose advance voucher already booked the cash
+    // — still needs the standalone FX voucher, and it too is resolved here so
+    // it can be posted inside the same transaction. Nothing about this
+    // activation is left to a second, uncovered commit.
+    const preparedFx =
+      preparedSettlement === null &&
+      txn.source_currency !== null &&
+      txn.source_currency !== txn.currency
+        ? await this.fxRealizedService.prepareRealizedFx(
+            match.voucher_id,
+            match.bank_transaction_id,
+            match.amount_matched,
+          )
+        : null;
+
+    let posted: {
+      settlementVoucherId: number | null;
+      fxVoucherId: number | null;
+    } = { settlementVoucherId: null, fxVoucherId: null };
+
     await this.db.transaction().execute(async (trx) => {
       if (match.match_type === 'prepayment') {
         await this.prepayments.assertAdvanceSettleableBy(
@@ -1082,12 +1119,16 @@ export class ReconciliationService {
       const settlementVoucher = preparedSettlement
         ? await this.settlements.postSettlementTx(trx, preparedSettlement)
         : null;
+      const fxVoucher = preparedFx
+        ? await this.settlements.postSettlementTx(trx, preparedFx)
+        : null;
 
       const flipped = await trx
         .updateTable('reconciliation_match')
         .set({
           status: 'active',
           settlement_voucher_id: settlementVoucher?.id ?? null,
+          fx_voucher_id: fxVoucher?.id ?? null,
         })
         .where('id', '=', matchId)
         .where('status', '=', 'draft')
@@ -1097,27 +1138,17 @@ export class ReconciliationService {
           `Reconciliation match ${matchId} is no longer draft`,
         );
       }
+      posted = {
+        settlementVoucherId: settlementVoucher?.id ?? null,
+        fxVoucherId: fxVoucher?.id ?? null,
+      };
     });
 
-    // ── Realized FX (post-commit; posts its own voucher) ──────────────────
-    let fxVoucherId: number | null = null;
-    if (txn.source_currency !== null && txn.source_currency !== txn.currency) {
-      const fxResult = await this.fxRealizedService.computeAndPost(
-        match.voucher_id,
-        match.bank_transaction_id,
-        match.amount_matched,
-      );
-      if (fxResult.status === 'posted' && fxResult.voucher) {
-        fxVoucherId = fxResult.voucher.id;
-        await this.db
-          .updateTable('reconciliation_match')
-          .set({ fx_voucher_id: fxVoucherId })
-          .where('id', '=', matchId)
-          .execute();
-      }
-    }
-
-    return { matchId, fxVoucherId };
+    return {
+      matchId,
+      fxVoucherId: posted.fxVoucherId,
+      settlementVoucherId: posted.settlementVoucherId,
+    };
   }
 
   /**
@@ -1157,8 +1188,11 @@ export class ReconciliationService {
    * voucher the activation posted (issue #202 — cash that cleared AR/AP must
    * be put back when the settlement is undone, or the control account keeps a
    * payment that no longer exists). Each reversal is redirected out of a locked
-   * period (ADR-0009); if one throws, the link is left intact. A `draft` match
-   * never reached the ledger, so undoing it is a plain delete.
+   * period (ADR-0009). Reversals and deletion are ONE transaction through the
+   * shared posting seam (`postVouchersAtomic`): a failure anywhere rolls the
+   * whole thing back, so the ledger can never end up changed with the match
+   * still active, and a retry posts exactly one reversal of each. A `draft`
+   * match never reached the ledger, so undoing it is a plain delete.
    */
   async unmatch(matchId: number): Promise<{
     matchId: number;
@@ -1182,35 +1216,121 @@ export class ReconciliationService {
       throw new NotFoundException(`Reconciliation match ${matchId} not found`);
     }
 
-    // Reverse the realized-FX voucher first (if any). If this throws (e.g. no
-    // open period to receive a locked-period redirect) the link is left intact.
-    let fxReversalVoucherId: number | null = null;
-    if (match.fx_voucher_id !== null) {
-      const reversal = await this.fxRealizedService.reverseFxVoucher(
-        match.fx_voucher_id,
+    // Build every reversal this link owes BEFORE anything is written (all the
+    // reads happen here, as the single better-sqlite3 connection requires),
+    // then post them and delete the link as ONE unit. Each is skipped if a
+    // posted counter-voucher already reverses it, so a retry after a failed
+    // attempt cannot double-reverse.
+    const drafts: DraftVoucher[] = [];
+    const roles: ('fx' | 'settlement')[] = [];
+
+    if (
+      match.fx_voucher_id !== null &&
+      !(await this.allocations.isVoucherReversed(match.fx_voucher_id))
+    ) {
+      drafts.push(
+        await this.fxRealizedService.prepareFxReversal(match.fx_voucher_id),
       );
-      fxReversalVoucherId = reversal.id;
+      roles.push('fx');
+    }
+    if (
+      match.settlement_voucher_id !== null &&
+      !(await this.allocations.isVoucherReversed(match.settlement_voucher_id))
+    ) {
+      drafts.push(
+        await this.settlements.prepareSettlementReversal(
+          match.settlement_voucher_id,
+        ),
+      );
+      roles.push('settlement');
     }
 
-    let settlementReversalVoucherId: number | null = null;
-    if (match.settlement_voucher_id !== null) {
-      const reversal = await this.settlements.reverseSettlement(
-        match.settlement_voucher_id,
-      );
-      settlementReversalVoucherId = reversal.id;
-    }
+    // postVouchersAtomic resolves + validates every draft up front and posts
+    // them in ONE transaction; the deletion rides in its afterPost hook, so
+    // either the ledger reversals AND the link removal happen, or neither
+    // does. The deletion is keyed to the row we read, and a zero-row delete
+    // throws — so two concurrent unmatches cannot both reverse: the loser
+    // rolls its reversals back.
+    const posted = await this.postingService.postVouchersAtomic(drafts, {
+      afterPost: async (trx: Kysely<Database>) => {
+        const deleted = await trx
+          .deleteFrom('reconciliation_match')
+          .where('id', '=', matchId)
+          .executeTakeFirst();
+        if (Number(deleted.numDeletedRows) === 0) {
+          throw new ConflictException(
+            `Reconciliation match ${matchId} was already removed`,
+          );
+        }
+      },
+    });
 
-    await this.db
-      .deleteFrom('reconciliation_match')
-      .where('id', '=', matchId)
-      .execute();
-
+    const byRole = new Map(roles.map((role, i) => [role, posted[i].id]));
     return {
       matchId,
       bankTransactionId: match.bank_transaction_id,
       voucherId: match.voucher_id,
-      fxReversalVoucherId,
-      settlementReversalVoucherId,
+      fxReversalVoucherId: byRole.get('fx') ?? null,
+      settlementReversalVoucherId: byRole.get('settlement') ?? null,
+    };
+  }
+
+  /**
+   * The open-item reconciliation an operator actually works from: every
+   * subledger position that is still open OR over-settled, with the AR/AP
+   * control balances it must tie to and the difference explained.
+   *
+   * Three numbers make the identity complete, and all three are reported
+   * rather than assumed:
+   *  - `openItems` — still collectible/payable.
+   *  - `surplus` — settled BEYOND the obligation: a credit note issued after
+   *    payment, or a CANCELLED document whose payment was never refunded.
+   *    Those rows are invisible to every candidate read (correctly — the money
+   *    is not collectible), so this is the only place the refund owed back
+   *    surfaces at all.
+   *  - `unpostedSettlements` — cash matched before the settlement voucher
+   *    existed (migration 070), which the control account still carries.
+   *
+   *    control(AR) + control(AP) = openItems − surplus + unpostedSettlements
+   */
+  async getOpenItemReconciliation(): Promise<OpenItemReconciliation> {
+    const balances = await this.outstandingVouchers.listOpenItemBalances();
+
+    const items: OpenItemView[] = [];
+    for (const row of balances) {
+      items.push({
+        ...row,
+        counterpartyName: await this.safeEntityName(row.entityId),
+      });
+    }
+
+    const unposted = await this.listUnpostedSettlements();
+    const totals = {
+      openItems: items.reduce((sum, i) => sum + i.remaining, 0),
+      surplus: items.reduce((sum, i) => sum + i.surplus, 0),
+      unpostedSettlements: unposted.reduce(
+        (sum, m) => sum + m.amountMatched,
+        0,
+      ),
+      controlAr: await this.ledgerBalance.getLedgerNet({ codes: ['AR'] }),
+      controlAp: await this.ledgerBalance.getLedgerNet(
+        { codes: ['AP'] },
+        { creditPositive: true },
+      ),
+    };
+
+    return {
+      items,
+      unpostedSettlements: unposted,
+      totals: {
+        ...totals,
+        // What the control accounts carry beyond the reconciled subledger.
+        // Zero once every legacy match has been re-booked.
+        unexplained:
+          totals.controlAr +
+          totals.controlAp -
+          (totals.openItems - totals.surplus + totals.unpostedSettlements),
+      },
     };
   }
 

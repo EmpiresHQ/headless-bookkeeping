@@ -6,12 +6,38 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
-import { PostingService } from '../ledger/posting/posting.service';
+import {
+  PostingService,
+  PreparedVoucher,
+} from '../ledger/posting/posting.service';
 import { CurrencyService } from '../currency/currency.service';
-import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { DraftVoucher, PostedVoucher } from '../ledger/voucher/types';
 import { determineFXDirection } from './fx-direction';
+
+/**
+ * How much cash one settlement slice REALLY delivered, beside what the ledger
+ * booked for it — the shared arithmetic behind both the standalone realized-FX
+ * voucher and the settlement voucher's own FX leg (issue #202).
+ */
+export interface SettlementSlice {
+  /** The base the settlement clears on AR/AP: the BOOKED figure (matchedAmount). */
+  bookedBase: number;
+  /** The base the cash actually delivered for exactly this slice. */
+  actualBase: number;
+  /** The cash for this slice in the bank line's own currency. */
+  actualInTxnCurrency: number;
+  /** `bookedBase − actualBase` (ADR-0004). Zero when there is no difference. */
+  realized: number;
+  /** Direction of a non-zero `realized`, per the ADR-0004 invariant. */
+  direction: 'gain' | 'loss' | null;
+  /**
+   * False when the line declares a foreign leg but carries neither
+   * `source_amount` nor `fx_rate`: the actual cash cannot be valued, so
+   * `actualBase` falls back to the booked figure and NO difference is invented.
+   */
+  computable: boolean;
+}
 
 /**
  * Result of a realized-FX computation attempt.
@@ -31,7 +57,6 @@ export class FXRealizedService {
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly postingService: PostingService,
     private readonly currencyService: CurrencyService,
-    private readonly ledgerBalance: LedgerBalanceService,
     private readonly periodLock: PeriodLockService,
   ) {}
 
@@ -67,7 +92,269 @@ export class FXRealizedService {
     bankTransactionId: number,
     matchedAmount: number,
   ): Promise<FXRealizedResult> {
-    // ── Fetch bank transaction with statement + account info ──────────
+    const slice = await this.computeSettlementSlice(
+      voucherId,
+      bankTransactionId,
+      matchedAmount,
+    );
+    if (!slice.computable) {
+      return {
+        status: 'missing_data',
+        message:
+          `Bank transaction ${bankTransactionId} lacks both source_amount ` +
+          `and fx_rate — cannot compute realized FX; flag for user feedback`,
+      };
+    }
+
+    const draft = await this.buildRealizedFxDraft(
+      voucherId,
+      bankTransactionId,
+      matchedAmount,
+    );
+    if (!draft) {
+      const txn = await this.loadBankLine(bankTransactionId);
+      return {
+        status: 'no_fx',
+        message:
+          txn.source_currency === null || txn.source_currency === txn.currency
+            ? 'Same currency — no realized FX'
+            : 'Booked base equals actual base — no FX difference',
+      };
+    }
+
+    const posted = await this.postingService.postVoucher(draft);
+    return { status: 'posted', voucher: posted };
+  }
+
+  /**
+   * The standalone realized-FX draft, or null when there is nothing to book.
+   *
+   * Realized FX is booked entirely in BASE currency (D3): FX_GAIN_LOSS vs the
+   * BASE bank account (seed convention 'BANK_' + baseCurrency). This is the
+   * STANDALONE path, used where no settlement voucher is posted (a prepayment
+   * match, whose advance voucher already booked the cash, and the manual FX
+   * endpoint). A settlement posted through {@link SettlementVoucherService}
+   * carries its FX leg on its OWN voucher, against the statement's own bank
+   * account, so the cash never lands on a bank the money never touched.
+   */
+  private async buildRealizedFxDraft(
+    voucherId: number,
+    bankTransactionId: number,
+    matchedAmount: number,
+  ): Promise<DraftVoucher | null> {
+    const txn = await this.loadBankLine(bankTransactionId);
+    const slice = await this.computeSettlementSlice(
+      voucherId,
+      bankTransactionId,
+      matchedAmount,
+    );
+    if (!slice.computable || slice.realized === 0) return null;
+
+    const { baseCurrency } = await this.currencyService.toBase(
+      0,
+      txn.currency,
+      txn.transaction_date,
+    );
+    const absRealized = Math.abs(slice.realized);
+    const isGain = slice.direction === 'gain';
+
+    const bankLine = {
+      account_code: 'BANK_' + baseCurrency,
+      amount: absRealized,
+      currency: baseCurrency,
+      base_amount: absRealized,
+      fx_rate: 1.0,
+      is_debit: isGain,
+    };
+    const fxLine = {
+      account_code: 'FX_GAIN_LOSS',
+      amount: absRealized,
+      currency: baseCurrency,
+      base_amount: absRealized,
+      fx_rate: 1.0,
+      is_debit: !isGain,
+    };
+
+    return {
+      tax_point_date: txn.transaction_date,
+      // Gain: Dr BANK / Cr FX_GAIN_LOSS. Loss: Dr FX_GAIN_LOSS / Cr BANK.
+      lines: isGain ? [bankLine, fxLine] : [fxLine, bankLine],
+      reason: `Realized FX on settlement of voucher ${voucherId}`,
+    };
+  }
+
+  /**
+   * The standalone realized-FX voucher as a PREPARED voucher rather than a
+   * posted one — so an activation can post it inside its own transaction
+   * instead of in a second, uncovered commit (issue #202). Null when there is
+   * no FX to book (same currency, no difference, or unvaluable cash).
+   */
+  async prepareRealizedFx(
+    voucherId: number,
+    bankTransactionId: number,
+    matchedAmount: number,
+  ): Promise<PreparedVoucher | null> {
+    const draft = await this.buildRealizedFxDraft(
+      voucherId,
+      bankTransactionId,
+      matchedAmount,
+    );
+    return draft ? this.postingService.prepare(draft) : null;
+  }
+
+  /**
+   * THE slice arithmetic: what one match of `matchedAmount` (booked base)
+   * actually cost or delivered in cash, and the realized difference between
+   * the two. Shared by the standalone FX voucher above and by the settlement
+   * voucher's FX leg, so a settlement and its FX can never disagree about how
+   * a bank line was divided.
+   *
+   * ── How a slice is valued ───────────────────────────────────────────────
+   * A match consumes part of an invoice AND part of a bank line, and the two
+   * are measured on DIFFERENT rates — that is the whole point of realized FX.
+   * Dividing one by the other (the previous `matched / voucherBookedBase`
+   * scaling) silently mixes the two bases: it is right only when the line
+   * happens to deliver the invoice's ENTIRE foreign amount, and fabricates a
+   * difference whenever it does not. A partial receipt of 4 000 against a
+   * 10 000 invoice at an unchanged rate was read as 40% of the cash — a
+   * 2 400 "loss" out of thin air.
+   *
+   * So the slice is valued in the FOREIGN currency the cash was actually
+   * denominated in, whenever the two sides agree on it:
+   *
+   *   foreignSettled = matchedAmount / bookedRate   (capped at the line's own)
+   *   actualBase     = foreignSettled × actualRate
+   *
+   * where `bookedRate` is the fx_rate stored on the settled Voucher's own
+   * AR/AP line and `actualRate` is the cash the line delivered per foreign
+   * unit. Both rates are per ONE unit of the same currency, so the quotient is
+   * the genuine rate movement and nothing else.
+   *
+   * When the settled item is not denominated in the line's source currency
+   * (a base-currency invoice paid out of a foreign-currency line, say), there
+   * is no common unit to divide by, and the slice falls back to the share of
+   * the LINE the match consumes — which for a wholly-consumed line is the
+   * whole of its cash, and never invents a rate movement where the amounts
+   * agree.
+   */
+  async computeSettlementSlice(
+    voucherId: number,
+    bankTransactionId: number,
+    matchedAmount: number,
+  ): Promise<SettlementSlice> {
+    const txn = await this.loadBankLine(bankTransactionId);
+    const isForeignLeg =
+      txn.source_currency !== null && txn.source_currency !== txn.currency;
+    const hasValuation = txn.source_amount !== null || txn.fx_rate !== null;
+
+    // The cash this line delivered, in its own currency and in base.
+    const actualInTxnCcyFull =
+      txn.source_amount !== null && txn.fx_rate !== null
+        ? Math.round(Math.abs(txn.source_amount * txn.fx_rate))
+        : Math.abs(txn.amount);
+    const { baseAmount: actualBaseFull } = await this.currencyService.toBase(
+      actualInTxnCcyFull,
+      txn.currency,
+      txn.transaction_date,
+    );
+    const { baseAmount: lineBookedBase } = await this.currencyService.toBase(
+      Math.abs(txn.amount),
+      txn.currency,
+      txn.transaction_date,
+    );
+
+    if (isForeignLeg && !hasValuation) {
+      // Cannot value the cash — book the settlement at its booked figure and
+      // invent no difference. The caller reports this rather than guessing.
+      return {
+        bookedBase: matchedAmount,
+        actualBase: matchedAmount,
+        actualInTxnCurrency: this.sliceOfLine(
+          Math.abs(txn.amount),
+          matchedAmount,
+          lineBookedBase,
+        ),
+        realized: 0,
+        direction: null,
+        computable: false,
+      };
+    }
+
+    const bookedRate = await this.settledLineRate(
+      voucherId,
+      txn.source_currency,
+    );
+
+    let actualBase: number;
+    if (
+      isForeignLeg &&
+      bookedRate !== null &&
+      bookedRate > 0 &&
+      txn.source_amount !== null
+    ) {
+      const foreignSettled = Math.min(
+        Math.abs(txn.source_amount),
+        matchedAmount / bookedRate,
+      );
+      const actualRate = actualBaseFull / Math.abs(txn.source_amount);
+      actualBase = Math.round(foreignSettled * actualRate);
+    } else {
+      actualBase = this.sliceOfLine(
+        actualBaseFull,
+        matchedAmount,
+        lineBookedBase,
+      );
+    }
+
+    const realized = matchedAmount - actualBase;
+    const isIncoming = txn.amount >= 0;
+
+    return {
+      bookedBase: matchedAmount,
+      actualBase,
+      actualInTxnCurrency: this.sliceOfLine(
+        actualInTxnCcyFull,
+        actualBase,
+        actualBaseFull,
+      ),
+      realized,
+      direction:
+        realized === 0 ? null : determineFXDirection(realized, isIncoming),
+      computable: true,
+    };
+  }
+
+  /** `whole × (part / total)`, guarded for a zero/absent total. */
+  private sliceOfLine(whole: number, part: number, total: number): number {
+    if (total <= 0) return whole;
+    return Math.round(whole * Math.min(1, part / total));
+  }
+
+  /**
+   * The booked FX rate of the settled Voucher's own AR/AP line, when that line
+   * is denominated in the bank line's source currency — the denominator that
+   * turns a booked base amount back into foreign units. Null when the two are
+   * not comparable (or the Voucher carries no AR/AP line at all, e.g. a
+   * prepayment advance), which sends the caller to the line-share fallback.
+   */
+  private async settledLineRate(
+    voucherId: number,
+    sourceCurrency: string | null,
+  ): Promise<number | null> {
+    if (sourceCurrency === null) return null;
+    const line = await this.db
+      .selectFrom('voucher_line')
+      .innerJoin('account', 'account.id', 'voucher_line.account_id')
+      .select(['voucher_line.fx_rate as fx_rate'])
+      .where('voucher_line.voucher_id', '=', voucherId)
+      .where('account.code', 'in', ['AR', 'AP'])
+      .where('voucher_line.currency', '=', sourceCurrency)
+      .executeTakeFirst();
+    return line?.fx_rate ?? null;
+  }
+
+  /** The bank line plus its statement's account, as every FX read needs it. */
+  private async loadBankLine(bankTransactionId: number) {
     const txn = await this.db
       .selectFrom('bank_transaction')
       .innerJoin(
@@ -85,6 +372,7 @@ export class FXRealizedService {
         'bank_transaction.fx_rate',
         'bank_transaction.transaction_date',
         'account.code as account_code',
+        'account.currency as account_currency',
       ])
       .where('bank_transaction.id', '=', bankTransactionId)
       .executeTakeFirst();
@@ -94,138 +382,7 @@ export class FXRealizedService {
         `Bank transaction ${bankTransactionId} not found`,
       );
     }
-
-    // ── Is this a foreign-currency settlement? ────────────────────────
-    const isForeignLeg =
-      txn.source_currency !== null && txn.source_currency !== txn.currency;
-
-    if (!isForeignLeg) {
-      return { status: 'no_fx', message: 'Same currency — no realized FX' };
-    }
-
-    // ── Missing-data gate (ADR-0004) ─────────────────────────────────
-    if (txn.source_amount === null && txn.fx_rate === null) {
-      return {
-        status: 'missing_data',
-        message:
-          `Bank transaction ${bankTransactionId} lacks both source_amount ` +
-          `and fx_rate — cannot compute realized FX; flag for user feedback`,
-      };
-    }
-
-    // ── Compute actual settled cash in the TXN currency ──────────────
-    let actualInTxnCcy: number;
-    if (txn.source_amount !== null && txn.fx_rate !== null) {
-      actualInTxnCcy = Math.round(Math.abs(txn.source_amount * txn.fx_rate));
-    } else {
-      // One leg missing — fall back to the bank-line amount (already in
-      // the account / txn currency).
-      actualInTxnCcy = Math.abs(txn.amount);
-    }
-
-    // ── Convert the full-line actual cash to BASE currency (Bug B) ────
-    // CurrencyService owns base-currency resolution, the same-currency
-    // short-circuit (when the bank account is base-denominated the cash IS the
-    // base amount and the plugin is never touched), the plugin reference-rate
-    // fetch, and the cents rounding (ADR-0004).
-    const { baseCurrency, baseAmount: actualBaseFull } =
-      await this.currencyService.toBase(
-        actualInTxnCcy,
-        txn.currency,
-        txn.transaction_date,
-      );
-
-    // ── Scale to the matched proportion of the voucher (Bug A) ───────
-    // matchedAmount is only PART of the voucher's full booked AR/AP base on a
-    // partial match. Scale the full-line actual base by that proportion so the
-    // realized FX reflects only the settled slice (not the entire bank line).
-    const fullBookedBase = await this.getVoucherBookedBase(voucherId);
-    const proportion =
-      fullBookedBase > 0 ? Math.min(1, matchedAmount / fullBookedBase) : 1;
-    const actualBaseForMatch = Math.round(actualBaseFull * proportion);
-
-    // ── Realized FX ──────────────────────────────────────────────────
-    const bookedBase = matchedAmount;
-    const realized = bookedBase - actualBaseForMatch;
-
-    if (realized === 0) {
-      return {
-        status: 'no_fx',
-        message: 'Booked base equals actual base — no FX difference',
-      };
-    }
-
-    // ── Build & post system-generated FX voucher ─────────────────────
-    const absRealized = Math.abs(realized);
-    // Direction (D1): incoming (AR) settlements have a non-negative bank
-    // amount; outgoing (AP) settlements are negative. The gain-vs-loss meaning
-    // of `realized`'s sign is direction-dependent and owned by the extracted,
-    // unit-tested invariant determineFXDirection (ADR-0004).
-    const isIncoming = txn.amount >= 0;
-    const isGain = determineFXDirection(realized, isIncoming) === 'gain';
-
-    // Realized FX is booked entirely in BASE currency (D3): FX_GAIN_LOSS vs the
-    // BASE bank account (seed convention 'BANK_' + baseCurrency). When the txn
-    // is already in base currency this equals txn.account_code anyway.
-    const baseBankCode = 'BANK_' + baseCurrency;
-
-    const lines: DraftVoucher['lines'] = [];
-
-    if (isGain) {
-      // Gain: Dr BANK / Cr FX_GAIN_LOSS
-      lines.push({
-        account_code: baseBankCode,
-        amount: absRealized,
-        currency: baseCurrency,
-        base_amount: absRealized,
-        fx_rate: 1.0,
-        is_debit: true,
-      });
-      lines.push({
-        account_code: 'FX_GAIN_LOSS',
-        amount: absRealized,
-        currency: baseCurrency,
-        base_amount: absRealized,
-        fx_rate: 1.0,
-        is_debit: false,
-      });
-    } else {
-      // Loss: Dr FX_GAIN_LOSS / Cr BANK
-      lines.push({
-        account_code: 'FX_GAIN_LOSS',
-        amount: absRealized,
-        currency: baseCurrency,
-        base_amount: absRealized,
-        fx_rate: 1.0,
-        is_debit: true,
-      });
-      lines.push({
-        account_code: baseBankCode,
-        amount: absRealized,
-        currency: baseCurrency,
-        base_amount: absRealized,
-        fx_rate: 1.0,
-        is_debit: false,
-      });
-    }
-
-    const draft: DraftVoucher = {
-      tax_point_date: txn.transaction_date,
-      lines,
-      reason: `Realized FX on settlement of voucher ${voucherId}`,
-    };
-
-    const posted = await this.postingService.postVoucher(draft);
-    return { status: 'posted', voucher: posted };
-  }
-
-  /**
-   * The voucher's total booked AR/AP base amount, netted by sign and abs'd —
-   * the denominator for scaling a partial match to its proportion of the
-   * voucher. Delegates to the canonical LedgerBalanceService.
-   */
-  private getVoucherBookedBase(voucherId: number): Promise<number> {
-    return this.ledgerBalance.getVoucherNetBase(voucherId, ['AR', 'AP']);
+    return txn;
   }
 
   /**
@@ -239,6 +396,18 @@ export class FXRealizedService {
    * exists to receive a redirected reversal.
    */
   async reverseFxVoucher(fxVoucherId: number): Promise<PostedVoucher> {
+    return this.postingService.postVoucher(
+      await this.prepareFxReversal(fxVoucherId),
+    );
+  }
+
+  /**
+   * The reversal DRAFT for an FX voucher, without posting it — so a caller
+   * undoing a settlement can post every reversal it owes, and delete the link,
+   * in ONE transaction (issue #202: three separate commits could leave the
+   * ledger changed with the match still active).
+   */
+  async prepareFxReversal(fxVoucherId: number): Promise<DraftVoucher> {
     const voucher = await this.db
       .selectFrom('voucher')
       .select(['id', 'voucher_number', 'tax_point_date'])
@@ -279,7 +448,7 @@ export class FXRealizedService {
       taxPointDate = open.start_date;
     }
 
-    const draft: DraftVoucher = {
+    return {
       voucher_number: `${voucher.voucher_number}-REV`,
       tax_point_date: taxPointDate,
       lines: lines.map((l) => ({
@@ -294,7 +463,5 @@ export class FXRealizedService {
       reverses_id: fxVoucherId,
       reason: `Reversal of realized-FX voucher ${fxVoucherId} on unmatch`,
     };
-
-    return this.postingService.postVoucher(draft);
   }
 }

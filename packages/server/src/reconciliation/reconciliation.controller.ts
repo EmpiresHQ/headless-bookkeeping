@@ -17,6 +17,7 @@ import type {
   ReconciliationStatusRow,
   MatchCandidatesResult,
   MatchRowView,
+  OpenItemReconciliation,
 } from './reconciliation.types';
 
 @ApiTags('reconciliation')
@@ -103,6 +104,21 @@ export class ReconciliationController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ReconciliationStatusRow[]> {
     return this.service.getStatementReconciliation(id);
+  }
+
+  /**
+   * The subledger vs AR/AP control reconciliation: every open or over-settled
+   * position (including cancelled documents whose payment is owed back), the
+   * cash whose settlement was never booked, and the totals that must tie.
+   */
+  @ApiOperation({
+    summary: 'Open-item reconciliation',
+    description:
+      'Open and over-settled subledger positions against the AR/AP control accounts.',
+  })
+  @Get('open-items')
+  async getOpenItems(): Promise<OpenItemReconciliation> {
+    return this.service.getOpenItemReconciliation();
   }
 
   /**
