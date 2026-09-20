@@ -616,13 +616,21 @@ describe('Reconciliation E2E (full flow)', () => {
     // Expected BANK_EUR balance from all posted vouchers:
     // - AR voucher: no BANK_EUR lines
     // - AP voucher: no BANK_EUR lines
-    // - Match execution: no settlement voucher posted (only reconciliation_match)
+    // - Match approval: Dr BANK_EUR 12500 / Cr AR 12500 — the settlement
+    //   voucher the activation posts (issue #202, ADR-0008: payment is a
+    //   separate Voucher that clears AR/AP). Before it, an approved receipt
+    //   moved no money in the ledger at all.
     // - Prepayment: Dr BANK_EUR 5000
     // - Personal: Cr BANK_EUR 3000
-    // Net: +5000 - 3000 = +2000
+    // Net: +12500 + 5000 - 3000 = +14500
 
     const bankBalance = await getAccountBalance('BANK_EUR');
-    expect(bankBalance).toBe(2000);
+    expect(bankBalance).toBe(14500);
+
+    // The receipt landed in the bank because AR was cleared by the same
+    // voucher — the subledger open item and the AR control move together.
+    const arBalance = await getAccountBalance('AR');
+    expect(arBalance).toBe(0);
 
     // ── Step 11: Verify no unmatched transactions left ────────────────
     // Transaction A: matched (status should still be 'open' since match

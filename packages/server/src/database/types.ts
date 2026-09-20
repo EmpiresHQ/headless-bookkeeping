@@ -338,6 +338,12 @@ export interface ReconciliationMatchTable {
   // The realized-FX voucher this match posted (multi-currency only), so an
   // unmatch can reverse it. Null for same-currency matches.
   fx_voucher_id: Generated<number | null>;
+  // The settlement voucher this match posted at activation (Dr bank / Cr AR,
+  // or Dr AP / Cr bank), so an unmatch reverses exactly that voucher
+  // (migration 070, ADR-0008). Null for a prepayment match (its cash is
+  // already booked by the advance voucher) and for matches activated before
+  // migration 070 — those are reported as unposted settlements, never guessed.
+  settlement_voucher_id: Generated<number | null>;
   created_at: number;
 }
 

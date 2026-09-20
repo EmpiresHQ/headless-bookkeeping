@@ -409,12 +409,12 @@ export class CorrectionsService {
    * through the StatusTransitionService seam (ADR-0006). The seam co-writes
    * voucher_id with the status flip and rejects an illegal transition.
    */
-  private markReversed(
+  private async markReversed(
     trx: Kysely<Database>,
     params: CorrectionParams,
     roles: ReversalAndCorrection,
   ): Promise<void> {
-    return this.statusTransition.transition(
+    await this.statusTransition.transition(
       trx,
       params.objectType,
       params.objectId,
@@ -422,6 +422,59 @@ export class CorrectionsService {
       'reversed',
       { extras: { voucher_id: roles.corrected.id } },
     );
+    await this.carryOverSettlements(
+      trx,
+      roles.reversal.reverses_id,
+      roles.corrected.id,
+    );
+  }
+
+  /**
+   * Move the object's recorded SETTLEMENTS from the superseded Voucher onto its
+   * corrected replacement, inside the correction's own transaction (issue #202).
+   *
+   * A correction restates an obligation; it does not un-receive the money
+   * already taken against it. The cash matched, and the advance allocated, to
+   * the original Voucher still settle the SAME object — whose open item now
+   * lives on the corrected Voucher. Leaving them behind would re-open the
+   * restated invoice at its full new amount (the payment would have to be
+   * collected twice) and would strand the records on a Voucher no business
+   * object points at any more, where even the counterparty behind them can no
+   * longer be resolved.
+   *
+   * Only SETTLED money moves: `active` matches and prepayment allocations. A
+   * still-`draft` match is deliberately LEFT on the superseded Voucher — it is
+   * an unapproved proposal computed against the pre-correction amount, and the
+   * restatement is exactly the moment a human should re-decide it. Left there
+   * it can never be activated (that Voucher's outstanding is zero once it is
+   * reversed), so the approver gets an explicit refusal instead of a silently
+   * re-aimed settlement.
+   *
+   * Only the OPERATIONAL sub-ledger records move: `reconciliation_match` and
+   * `prepayment_allocation`. No posted Voucher is touched — the original, its
+   * reversal and the correction all stand exactly as posted (ADR-0006 /
+   * ADR-0013). **Credit note**s need no move at all: they name the business
+   * object, so they follow it to the corrected Voucher on their own.
+   */
+  private async carryOverSettlements(
+    trx: Kysely<Database>,
+    originalVoucherId: number | null,
+    correctedVoucherId: number,
+  ): Promise<void> {
+    if (originalVoucherId === null) return;
+
+    await trx
+      .updateTable('reconciliation_match')
+      .set({ voucher_id: correctedVoucherId })
+      .where('voucher_id', '=', originalVoucherId)
+      .where('status', '=', 'active')
+      .execute();
+
+    await trx
+      .updateTable('prepayment_allocation')
+      .set({ invoice_voucher_id: correctedVoucherId })
+      .where('invoice_voucher_id', '=', originalVoucherId)
+      .execute();
   }
 
   private async buildReversalDraft(

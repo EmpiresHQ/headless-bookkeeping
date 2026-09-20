@@ -25,6 +25,21 @@ const AR_AP_CODES = ['AR', 'AP'];
 const PREPAYMENT_CODES = ['CUSTOMER_PREPAYMENTS', 'SUPPLIER_PREPAYMENTS'];
 
 /**
+ * The business-object statuses whose Voucher can still carry an outstanding.
+ *
+ * `posted` is the ordinary case. `reversed` is here because a FINANCIAL
+ * correction (ADR-0009) leaves the object terminal-`reversed` and RE-POINTED
+ * at its corrected Voucher: the obligation did not disappear, it was restated,
+ * and the replacement is what the counterparty owes. Including the status
+ * alone would also re-offer CANCELLED objects, so it never stands alone — it
+ * is always paired with {@link voucherNotReversed}, which is the actual
+ * policy: offer the object's voucher only while that voucher still stands. A
+ * cancelled object points at a voucher a counter-voucher reversed, so it stays
+ * out; a corrected one points at the live replacement, so it comes back in.
+ */
+const LIVE_OBJECT_STATUSES = ['posted', 'reversed'];
+
+/**
  * Which side of an outstanding a Voucher sits on. It picks BOTH the account
  * codes to net over and how prepayment allocations consume it: an `arap`
  * Voucher is the TARGET of allocations, a `prepayment` Voucher their SOURCE.
@@ -235,6 +250,47 @@ export class OutstandingVoucherService {
     side: OutstandingSide,
     executor: DbExecutor = this.db,
   ): Promise<number> {
+    return Math.max(0, await this.netOverCodes(voucherId, side, executor));
+  }
+
+  /**
+   * What settlement has taken BEYOND the outstanding — the part
+   * {@link remainingOverCodes} clips to zero, surfaced rather than swallowed.
+   *
+   * It is not noise: a **Credit note** issued AFTER the invoice was paid leaves
+   * the counterparty over-settled (the AR control goes negative — money owed
+   * BACK, a refund), and an operator repair can over-match. Nothing is left to
+   * collect, so the outstanding is correctly zero and the invoice is not
+   * offered; but "zero outstanding" and "settled exactly" are different facts,
+   * and only this one makes an AR/AP control account reconcile: the control
+   * balance equals Σ open items − Σ surplus (plus any cash whose settlement
+   * voucher was never posted — see ReconciliationService listUnpostedSettlements).
+   */
+  async getSettlementSurplus(
+    voucherId: number,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    return Math.max(0, -(await this.netOverCodes(voucherId, 'arap', executor)));
+  }
+
+  /**
+   * The SIGNED outstanding: netted AR/AP (or prepayment) base minus every
+   * linked settlement. Negative means over-settled. The one place the terms
+   * are assembled; the public reads clip it in their own direction.
+   *
+   * A Voucher that a posted counter-voucher REVERSES has no outstanding at
+   * all — the ledger fact that its economic event was undone. That covers both
+   * a cancelled object (reversal-only correction) and the superseded original
+   * of a corrected one (ADR-0009), and it is what stops a stale draft or a
+   * direct call from settling a voucher that no longer stands. It is the same
+   * `reverses_id` rule that releases an allocation and a credit note, applied
+   * to the settled item itself.
+   */
+  private async netOverCodes(
+    voucherId: number,
+    side: OutstandingSide,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
     const accountCodes = side === 'arap' ? AR_AP_CODES : PREPAYMENT_CODES;
     const totalBase = await this.ledgerBalance.getVoucherNetBase(
       voucherId,
@@ -243,10 +299,14 @@ export class OutstandingVoucherService {
     );
     if (totalBase === 0) return 0;
 
+    if (await this.allocations.isVoucherReversed(voucherId, executor)) {
+      return 0;
+    }
+
     const alreadyMatched = await this.getAlreadyMatched(voucherId, executor);
     const allocated = await this.getAlreadyAllocated(voucherId, side, executor);
     const credited = await this.getAlreadyCredited(voucherId, side, executor);
-    return Math.max(0, totalBase - alreadyMatched - allocated - credited);
+    return totalBase - alreadyMatched - allocated - credited;
   }
 
   /**
@@ -375,8 +435,9 @@ export class OutstandingVoucherService {
       .select('voucher_line.base_amount')
       .select('sales_invoice.customer_id as entity_id')
       .select('voucher.tax_point_date')
-      .where('sales_invoice.status', '=', 'posted')
+      .where('sales_invoice.status', 'in', LIVE_OBJECT_STATUSES)
       .where('sales_invoice.voucher_id', 'is not', null)
+      .where('sales_invoice.voucher_id', 'not in', this.reversedVoucherIds())
       .where('account.code', '=', 'AR')
       .where('voucher_line.is_debit', '=', 1);
   }
@@ -400,10 +461,29 @@ export class OutstandingVoucherService {
       .select('voucher_line.base_amount')
       .select('expense.supplier_id as entity_id')
       .select('voucher.tax_point_date')
-      .where('expense.status', '=', 'posted')
+      .where('expense.status', 'in', LIVE_OBJECT_STATUSES)
       .where('expense.voucher_id', 'is not', null)
+      .where('expense.voucher_id', 'not in', this.reversedVoucherIds())
       .where('account.code', '=', 'AP')
       .where('voucher_line.is_debit', '=', 0);
+  }
+
+  /**
+   * The ids of every Voucher a POSTED counter-voucher reverses — the
+   * live-voucher predicate both candidate chains filter on. The same
+   * `reverses_id` rule the allocation and credit-note releases read, so one
+   * ledger fact decides everywhere whether a posting still stands.
+   *
+   * The `reverses_id is not null` filter is required, not cosmetic: a NULL
+   * inside a `NOT IN` set makes the whole predicate unknown and would drop
+   * every candidate row.
+   */
+  private reversedVoucherIds() {
+    return this.db
+      .selectFrom('voucher as rev')
+      .select('rev.reverses_id')
+      .where('rev.posted_at', 'is not', null)
+      .where('rev.reverses_id', 'is not', null);
   }
 
   /**

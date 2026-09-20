@@ -27,12 +27,15 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { CategoryService } from '../categories/category.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreditNotesService } from '../credit-notes/credit-notes.service';
+import { CorrectionsService } from '../corrections/corrections.service';
+import { StatusTransitionService } from '../ledger/status/status-transition.service';
 import { DraftVoucherLine } from '../ledger/voucher/types';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
 import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 
 /**
  * Issue #202 — an outstanding **Receivable** / **Payable** is consumed by THREE
@@ -65,6 +68,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
   let banks: BankStatementService;
   let prepayments: PrepaymentService;
   let ledgerBalance: LedgerBalanceService;
+  let corrections: CorrectionsService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -96,6 +100,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,
@@ -110,6 +115,8 @@ describe('outstanding balance across every linked settlement (#202)', () => {
         AuditLogService,
         ExpensesService,
         CreditNotesService,
+        StatusTransitionService,
+        CorrectionsService,
       ],
     }).compile();
 
@@ -125,6 +132,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     banks = module.get(BankStatementService);
     prepayments = module.get(PrepaymentService);
     ledgerBalance = module.get(LedgerBalanceService);
+    corrections = module.get(CorrectionsService);
   });
 
   afterEach(async () => {
@@ -269,6 +277,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
   async function bankLine(
     amount: number,
     description = 'payment',
+    counterpartyIban?: string,
   ): Promise<{ statementId: number; transactionId: number }> {
     const stmt = await banks.createStatement({
       account_code: 'BANK_EUR',
@@ -280,6 +289,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
           description,
           amount,
           currency: 'EUR',
+          counterparty_iban: counterpartyIban ?? null,
           status: 'open',
         },
       ],
@@ -357,6 +367,95 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       .where('status', '=', 'active')
       .executeTakeFirst();
     return Number(row?.total ?? 0);
+  }
+
+  /** Σ of the remaining outstanding over a set of vouchers. */
+  async function sumRemaining(voucherIds: number[]): Promise<number> {
+    let total = 0;
+    for (const id of voucherIds) {
+      total += await outstanding.getRemainingVoucherBalance(id);
+    }
+    return total;
+  }
+
+  /** The settlement voucher a match posted, if any. */
+  async function settlementVoucherOf(matchId: number): Promise<number | null> {
+    const row = await db
+      .selectFrom('reconciliation_match')
+      .select('settlement_voucher_id')
+      .where('id', '=', matchId)
+      .executeTakeFirstOrThrow();
+    return row.settlement_voucher_id;
+  }
+
+  /** A voucher's legs as {code, isDebit, base}, ordered by account code. */
+  async function voucherLegs(
+    voucherId: number,
+  ): Promise<{ code: string; isDebit: number; base: number }[]> {
+    const rows = await db
+      .selectFrom('voucher_line')
+      .innerJoin('account', 'account.id', 'voucher_line.account_id')
+      .select([
+        'account.code as code',
+        'voucher_line.is_debit as is_debit',
+        'voucher_line.base_amount as base_amount',
+      ])
+      .where('voucher_line.voucher_id', '=', voucherId)
+      .orderBy('account.code')
+      .execute();
+    return rows.map((r) => ({
+      code: r.code,
+      isDebit: r.is_debit,
+      base: r.base_amount,
+    }));
+  }
+
+  /** A bank account's debit-positive base balance. */
+  async function bankBalance(code: string): Promise<number> {
+    return (await ledgerBalance.getLedgerNet({ codes: [code] })) + 0;
+  }
+
+  async function voucherCount(): Promise<number> {
+    const row = await db
+      .selectFrom('voucher')
+      .select((eb) => eb.fn.countAll<number>().as('n'))
+      .executeTakeFirstOrThrow();
+    return Number(row.n);
+  }
+
+  /**
+   * Switch the Organization to the EE plugin, whose reference rates are real
+   * (USD→EUR 0.92) — the IE default resolves to the null plugin, which refuses
+   * cross-currency conversion outright.
+   */
+  async function useEstoniaPlugin(): Promise<void> {
+    await db
+      .updateTable('organization')
+      .set({ country: 'EE' })
+      .where('id', '=', 1)
+      .execute();
+  }
+
+  /** A posted SalesInvoice denominated in a non-base currency. */
+  async function postInvoiceInCurrency(
+    customerId: number,
+    gross: number,
+    currency: string,
+  ): Promise<{ invoiceId: number; voucherId: number }> {
+    invoiceCounter++;
+    const invoice = await salesInvoices.createInvoice({
+      customer_id: customerId,
+      invoice_number: `INV-FX-${invoiceCounter}`,
+      gross_amount: gross,
+      vat_amount: 0,
+      currency,
+      tax_point_date: '2026-05-15',
+      due_date: null,
+    });
+    const draft = await salesInvoices.generateDraftVoucher(invoice.id);
+    const posted = await posting.postVoucher(draft);
+    await salesInvoices.updateInvoiceStatus(invoice.id, 'posted', posted.id);
+    return { invoiceId: invoice.id, voucherId: posted.id };
   }
 
   // ── AR: credit notes ──────────────────────────────────────────────────
@@ -609,7 +708,7 @@ describe('outstanding balance across every linked settlement (#202)', () => {
 
   // ── Open items vs the control account ─────────────────────────────────
 
-  it('open items reconcile to the AR/AP control accounts, net of the cash-settlement gap', async () => {
+  it('open items reconcile exactly to the AR and AP control accounts', async () => {
     const customerId = await seedCustomer();
     const supplierId = await seedSupplier();
 
@@ -625,27 +724,26 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     const withCash = await postInvoice(customerId, 5000);
     await settleWithCash(withCash.voucherId, 2000, true);
 
+    const unmatched = await postInvoice(customerId, 4000);
+    const undoneMatch = await settleWithCash(unmatched.voucherId, 4000, true);
+    await reconciliation.unmatch(undoneMatch);
+
     const arVouchers = [
       fullyCredited.voucherId,
       partlyCredited.voucherId,
       withAdvance.voucherId,
       withCash.voucherId,
+      unmatched.voucherId,
     ];
-    let arOpen = 0;
-    let arCash = 0;
-    for (const v of arVouchers) {
-      arOpen += await outstanding.getRemainingVoucherBalance(v);
-      arCash += await activeCash(v);
-    }
-    expect(arOpen).toBe(0 + 7500 + 5000 + 3000);
+    const arOpen = await sumRemaining(arVouchers);
+    expect(arOpen).toBe(0 + 7500 + 5000 + 3000 + 4000);
 
-    // The credit note and the draw-down BOTH post their own vouchers, so they
-    // relieve the control account as well as the open item. A cash match does
-    // not post a settlement voucher at all (ADR-0008 foresees one; the current
-    // engine only records the link), so the control account still carries what
-    // cash has settled. That residual — and nothing else — is the difference.
-    expect(await controlBalance('AR')).toBe(arOpen + arCash);
-    expect((await controlBalance('AR')) - arOpen).toBe(arCash);
+    // Every settlement type now posts its own voucher — credit note, advance
+    // draw-down AND cash — so the control account and the open items are the
+    // same number, with no residual to explain away. The unmatched line's
+    // settlement was reversed, so it is back in both.
+    expect(await controlBalance('AR')).toBe(arOpen);
+    expect(await reconciliation.listUnpostedSettlements()).toEqual([]);
 
     const apCredited = await postExpense(supplierId, 10000);
     await creditNote('expense', apCredited.expenseId, 4000);
@@ -656,12 +754,388 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       2000,
       apWithAdvance.voucherId,
     );
+    const apWithCash = await postExpense(supplierId, 7000);
+    await settleWithCash(apWithCash.voucherId, 3000, false);
 
-    let apOpen = 0;
-    for (const v of [apCredited.voucherId, apWithAdvance.voucherId]) {
-      apOpen += await outstanding.getRemainingVoucherBalance(v);
-    }
-    expect(apOpen).toBe(6000 + 7000);
+    const apOpen = await sumRemaining([
+      apCredited.voucherId,
+      apWithAdvance.voucherId,
+      apWithCash.voucherId,
+    ]);
+    expect(apOpen).toBe(6000 + 7000 + 4000);
     expect(await controlBalance('AP')).toBe(apOpen);
+  });
+
+  // ── The settlement voucher itself ─────────────────────────────────────
+
+  it('activating a cash match posts the settlement voucher that clears AR', async () => {
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoice(customerId, 10000);
+
+    const matchId = await settleWithCash(voucherId, 4000, true);
+
+    const settlementVoucherId = await settlementVoucherOf(matchId);
+    expect(settlementVoucherId).not.toBeNull();
+    expect(await voucherLegs(settlementVoucherId!)).toEqual([
+      { code: 'AR', isDebit: 0, base: 4000 },
+      { code: 'BANK_EUR', isDebit: 1, base: 4000 },
+    ]);
+    expect(await controlBalance('AR')).toBe(6000);
+    expect(await bankBalance('BANK_EUR')).toBe(4000);
+  });
+
+  it('activating an AP cash match posts the mirrored settlement', async () => {
+    const supplierId = await seedSupplier();
+    const { voucherId } = await postExpense(supplierId, 10000);
+
+    const matchId = await settleWithCash(voucherId, 10000, false);
+
+    const settlementVoucherId = await settlementVoucherOf(matchId);
+    expect(await voucherLegs(settlementVoucherId!)).toEqual([
+      { code: 'AP', isDebit: 1, base: 10000 },
+      { code: 'BANK_EUR', isDebit: 0, base: 10000 },
+    ]);
+    expect(await controlBalance('AP')).toBe(0);
+    expect(await bankBalance('BANK_EUR')).toBe(-10000);
+  });
+
+  it('unmatching reverses the settlement voucher instead of editing it', async () => {
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoice(customerId, 10000);
+    const matchId = await settleWithCash(voucherId, 10000, true);
+    const settlementVoucherId = await settlementVoucherOf(matchId);
+
+    const result = await reconciliation.unmatch(matchId);
+
+    expect(result.settlementReversalVoucherId).not.toBeNull();
+    const reversal = await db
+      .selectFrom('voucher')
+      .select(['reverses_id', 'posted_at'])
+      .where('id', '=', result.settlementReversalVoucherId!)
+      .executeTakeFirstOrThrow();
+    expect(reversal.reverses_id).toBe(settlementVoucherId);
+    // The original settlement voucher is untouched — it still stands, reversed.
+    expect(await voucherLegs(settlementVoucherId!)).toHaveLength(2);
+    expect(await controlBalance('AR')).toBe(10000);
+    expect(await bankBalance('BANK_EUR')).toBe(0);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(10000);
+  });
+
+  it('activation is atomic: a refused over-match posts no settlement', async () => {
+    const customerId = await seedCustomer();
+    const { invoiceId, voucherId } = await postInvoice(customerId, 10000);
+
+    const { transactionId } = await bankLine(10000, 'stale');
+    const { records } = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId,
+        matchType: 'exact',
+        amountMatched: 10000,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+    await creditNote('sales_invoice', invoiceId, 10000);
+
+    await expect(reconciliation.activateMatch(records[0].id)).rejects.toThrow(
+      /outstanding remains/,
+    );
+
+    expect(await settlementVoucherOf(records[0].id)).toBeNull();
+    expect(await bankBalance('BANK_EUR')).toBe(0);
+    expect(await controlBalance('AR')).toBe(0);
+  });
+
+  it('re-activating an already active match posts nothing further', async () => {
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoice(customerId, 10000);
+    const matchId = await settleWithCash(voucherId, 10000, true);
+
+    const before = await voucherCount();
+    await reconciliation.activateMatch(matchId);
+
+    expect(await voucherCount()).toBe(before);
+    expect(await controlBalance('AR')).toBe(0);
+    expect(await bankBalance('BANK_EUR')).toBe(10000);
+  });
+
+  it('a prepayment match books no second settlement: the advance already holds the cash', async () => {
+    const customerId = await seedCustomer();
+    await entities.addAlias(customerId, {
+      kind: 'iban',
+      value: 'IE29AIBK93115212345678',
+      confirmed: true,
+    });
+    const { transactionId } = await bankLine(
+      5000,
+      'advance',
+      'IE29AIBK93115212345678',
+    );
+    const advance = await prepayments.createCustomerPrepayment(
+      transactionId,
+      customerId,
+    );
+
+    // The same bank line is then linked to its advance voucher as a match.
+    const { records } = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId: advance.id,
+        matchType: 'prepayment',
+        amountMatched: 5000,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+    await reconciliation.activateMatch(records[0].id);
+
+    expect(await settlementVoucherOf(records[0].id)).toBeNull();
+    // Only the advance voucher's own Dr BANK — not doubled.
+    expect(await bankBalance('BANK_EUR')).toBe(5000);
+    expect(await reconciliation.listUnpostedSettlements()).toEqual([]);
+  });
+
+  it('a settlement dated into a locked period is redirected into the open one', async () => {
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoice(customerId, 10000);
+
+    await db
+      .insertInto('reporting_period')
+      .values({
+        name: '2026-05',
+        start_date: '2026-05-01',
+        end_date: '2026-05-31',
+        status: 'locked',
+        filed_at: 0,
+        created_at: 0,
+      })
+      .execute();
+    await db
+      .insertInto('reporting_period')
+      .values({
+        name: '2026-06',
+        start_date: '2026-06-01',
+        end_date: '2026-06-30',
+        status: 'open',
+        filed_at: null,
+        created_at: 0,
+      })
+      .execute();
+
+    // The bank line sits inside the locked period (2026-05-18).
+    const matchId = await settleWithCash(voucherId, 10000, true);
+
+    const settlementVoucherId = await settlementVoucherOf(matchId);
+    const settlement = await db
+      .selectFrom('voucher')
+      .select('tax_point_date')
+      .where('id', '=', settlementVoucherId!)
+      .executeTakeFirstOrThrow();
+    expect(settlement.tax_point_date).toBe('2026-06-01');
+  });
+
+  it('a match activated before the settlement voucher existed is reported, not guessed', async () => {
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoice(customerId, 10000);
+    const { transactionId } = await bankLine(10000, 'historical');
+
+    // A pre-migration-070 row: active, settling the invoice, no ledger entry.
+    const now = Math.floor(Date.now() / 1000);
+    const legacy = await db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: transactionId,
+        voucher_id: voucherId,
+        match_type: 'exact',
+        amount_matched: 10000,
+        status: 'active',
+        created_at: now,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    // The open item is settled, the control account is not — and the
+    // difference is attributable to exactly this link, with nothing invented.
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(await controlBalance('AR')).toBe(10000);
+    expect(await reconciliation.listUnpostedSettlements()).toEqual([
+      {
+        matchId: legacy.id,
+        bankTransactionId: transactionId,
+        voucherId,
+        amountMatched: 10000,
+      },
+    ]);
+
+    // Re-booking it is the documented repair: unmatch, then match again.
+    await reconciliation.unmatch(legacy.id);
+    await settleWithCash(voucherId, 10000, true);
+    expect(await controlBalance('AR')).toBe(0);
+    expect(await reconciliation.listUnpostedSettlements()).toEqual([]);
+  });
+
+  // ── Corrections (ADR-0009) ────────────────────────────────────────────
+
+  it('a corrected invoice carries its settlements onto the replacement', async () => {
+    const customerId = await seedCustomer();
+    const { invoiceId, voucherId } = await postInvoice(customerId, 10000);
+
+    await creditNote('sales_invoice', invoiceId, 1000);
+    await allocateAdvance(customerId, 'customer', 2000, voucherId);
+    await settleWithCash(voucherId, 3000, true);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(4000);
+
+    const correction = await corrections.correctSalesInvoice(invoiceId, {
+      kind: 'financial',
+      reason: 'agreed price increase',
+      patch: { gross_amount: 15000 },
+    });
+    expect(correction.outcome).toBe('posted_reversal_and_correction');
+    const correctedVoucherId = correction.correctedVoucherId!;
+
+    // The superseded voucher no longer stands: nothing is collectible on it.
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    // The replacement carries the restated gross minus every settlement that
+    // was already taken against the object: 15000 − 1000 − 2000 − 3000.
+    expect(
+      await outstanding.getRemainingVoucherBalance(correctedVoucherId),
+    ).toBe(9000);
+
+    const [candidate] =
+      await outstanding.findArCandidatesByCounterparty(customerId);
+    expect(candidate.voucherId).toBe(correctedVoucherId);
+    expect(candidate.remainingBalance).toBe(9000);
+
+    expect(await controlBalance('AR')).toBe(9000);
+  });
+
+  it('a stale draft against the superseded voucher can no longer be activated', async () => {
+    const customerId = await seedCustomer();
+    const { invoiceId, voucherId } = await postInvoice(customerId, 10000);
+
+    const { transactionId } = await bankLine(10000, 'stale');
+    const { records } = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId,
+        matchType: 'exact',
+        amountMatched: 10000,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+
+    await corrections.correctSalesInvoice(invoiceId, {
+      kind: 'financial',
+      reason: 'wrong amount',
+      patch: { gross_amount: 12000 },
+    });
+
+    await expect(reconciliation.activateMatch(records[0].id)).rejects.toThrow(
+      /only 0 outstanding remains/,
+    );
+    expect(await bankBalance('BANK_EUR')).toBe(0);
+  });
+
+  it('a cancelled invoice has no outstanding and is never offered again', async () => {
+    const customerId = await seedCustomer();
+    const { invoiceId, voucherId } = await postInvoice(customerId, 10000);
+
+    const result = await corrections.correctSalesInvoice(invoiceId, {
+      kind: 'reversal',
+      reason: 'issued in error',
+    });
+    expect(result.outcome).toBe('posted_reversal');
+
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(
+      await outstanding.findArCandidatesByCounterparty(customerId),
+    ).toEqual([]);
+    expect(await controlBalance('AR')).toBe(0);
+
+    const { statementId, transactionId } = await bankLine(
+      10000,
+      'late payment',
+    );
+    const offered = await reconciliation.getMatchCandidates(
+      statementId,
+      transactionId,
+    );
+    expect(offered.candidates.map((c) => c.voucherId)).not.toContain(voucherId);
+  });
+
+  it('a corrected expense stays payable to its supplier at the restated amount', async () => {
+    const supplierId = await seedSupplier();
+    const { expenseId, voucherId } = await postExpense(supplierId, 10000);
+    await settleWithCash(voucherId, 2500, false);
+
+    const correction = await corrections.correctExpense(expenseId, {
+      kind: 'financial',
+      reason: 'supplier re-issued the bill',
+      patch: { gross_amount: 8000 },
+    });
+    const correctedVoucherId = correction.correctedVoucherId!;
+
+    expect(
+      await outstanding.getRemainingVoucherBalance(correctedVoucherId),
+    ).toBe(5500);
+    const [candidate] =
+      await outstanding.findApCandidatesByCounterparty(supplierId);
+    expect(candidate.voucherId).toBe(correctedVoucherId);
+    expect(await controlBalance('AP')).toBe(5500);
+  });
+
+  // ── Foreign currency + over-settlement ────────────────────────────────
+
+  it('a credit note reduces by its POSTED base amount, not by its document gross', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+
+    // USD 1000.00 invoiced; booked at the EE plugin's USD→EUR 0.92 ⇒ EUR 920.00.
+    const { invoiceId, voucherId } = await postInvoiceInCurrency(
+      customerId,
+      100000,
+      'USD',
+    );
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(92000);
+
+    // A USD 250.00 credit note: 25000 in document currency, 23000 in base.
+    const creditVoucherId = await creditNote('sales_invoice', invoiceId, 25000);
+    const creditBase = await ledgerBalance.getVoucherNetBase(creditVoucherId, [
+      'AR',
+    ]);
+    expect(creditBase).toBe(23000);
+
+    // The outstanding drops by the BASE effect (23000), not by the gross
+    // (25000) — the document-currency number would understate the receivable.
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(69000);
+    expect(await controlBalance('AR')).toBe(69000);
+  });
+
+  it('a credit note issued after payment reports a surplus instead of a silent tie', async () => {
+    const customerId = await seedCustomer();
+    const { invoiceId, voucherId } = await postInvoice(customerId, 10000);
+
+    await settleWithCash(voucherId, 10000, true);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+
+    // The customer is credited AFTER paying in full: nothing is left to
+    // collect, but 4000 is now owed BACK to them. The outstanding clips to
+    // zero; the surplus is where that 4000 is stated.
+    await creditNote('sales_invoice', invoiceId, 4000);
+
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(await outstanding.getSettlementSurplus(voucherId)).toBe(4000);
+    expect(await controlBalance('AR')).toBe(-4000);
+    // control = Σ open items − Σ surplus, exactly.
+    expect(await controlBalance('AR')).toBe(
+      (await outstanding.getRemainingVoucherBalance(voucherId)) -
+        (await outstanding.getSettlementSurplus(voucherId)),
+    );
+    // And it is still not offered for collection.
+    const [candidate] =
+      await outstanding.findArCandidatesByCounterparty(customerId);
+    expect(candidate.remainingBalance).toBe(0);
   });
 });

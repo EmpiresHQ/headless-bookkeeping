@@ -17,6 +17,7 @@ import { PrepaymentController } from './prepayment.controller';
 import { PersonalDispositionService } from './personal-disposition.service';
 import { PersonalDispositionController } from './personal-disposition.controller';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 import { FXRealizedController } from './fx-realized.controller';
 
 @Module({
@@ -38,6 +39,7 @@ import { FXRealizedController } from './fx-realized.controller';
     PrepaymentService,
     PersonalDispositionService,
     FXRealizedService,
+    SettlementVoucherService,
   ],
   controllers: [
     ReconciliationController,

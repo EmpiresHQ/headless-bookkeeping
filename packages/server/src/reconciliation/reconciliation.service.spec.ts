@@ -25,6 +25,7 @@ import { PrepaymentAllocationRepository } from './prepayment-allocation.reposito
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 import { MatchProposal } from './reconciliation.types';
 
 /**
@@ -68,6 +69,7 @@ describe('ReconciliationService (integration)', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,
@@ -2336,6 +2338,7 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,

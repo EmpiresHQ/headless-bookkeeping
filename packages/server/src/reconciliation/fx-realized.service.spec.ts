@@ -25,6 +25,7 @@ import { PrepaymentAllocationRepository } from './prepayment-allocation.reposito
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 
 /**
  * Integration test for FX realized auto-posting (Task 25 / ADR-0004).
@@ -76,6 +77,7 @@ describe('FXRealizedService (integration)', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,
@@ -905,6 +907,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
         PrepaymentAllocationRepository,

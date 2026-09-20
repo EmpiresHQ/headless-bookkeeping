@@ -13,6 +13,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { FXRealizedService } from './fx-realized.service';
 import { PrepaymentService } from './prepayment.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 import {
   MatchProposal,
   MatchProposalView,
@@ -62,6 +63,7 @@ export class ReconciliationService {
     private readonly outstandingVouchers: OutstandingVoucherService,
     private readonly fxRealizedService: FXRealizedService,
     private readonly prepayments: PrepaymentService,
+    private readonly settlements: SettlementVoucherService,
   ) {}
 
   /**
@@ -980,6 +982,7 @@ export class ReconciliationService {
         'amount_matched',
         'status',
         'fx_voucher_id',
+        'settlement_voucher_id',
       ])
       .where('id', '=', matchId)
       .executeTakeFirst();
@@ -1023,6 +1026,18 @@ export class ReconciliationService {
       bankLineEntityId = await this.prepayments.resolveBankLineOwner(kind, txn);
     }
 
+    // The settlement Voucher this activation will post (ADR-0008). Resolved +
+    // validated HERE, outside the transaction, for the same better-sqlite3
+    // reason: it is POSTED inside, after the over-match guards, so the link and
+    // its ledger effect are one atomic unit. Null when there is nothing to book
+    // — a prepayment match, whose cash the advance voucher already carries.
+    const preparedSettlement = await this.settlements.prepareSettlement({
+      voucherId: match.voucher_id,
+      bankTransactionId: match.bank_transaction_id,
+      amountMatched: match.amount_matched,
+      matchType: match.match_type,
+    });
+
     await this.db.transaction().execute(async (trx) => {
       if (match.match_type === 'prepayment') {
         await this.prepayments.assertAdvanceSettleableBy(
@@ -1064,9 +1079,16 @@ export class ReconciliationService {
         );
       }
 
+      const settlementVoucher = preparedSettlement
+        ? await this.settlements.postSettlementTx(trx, preparedSettlement)
+        : null;
+
       const flipped = await trx
         .updateTable('reconciliation_match')
-        .set({ status: 'active' })
+        .set({
+          status: 'active',
+          settlement_voucher_id: settlementVoucher?.id ?? null,
+        })
         .where('id', '=', matchId)
         .where('status', '=', 'draft')
         .executeTakeFirst();
@@ -1128,24 +1150,32 @@ export class ReconciliationService {
   /**
    * Undo a reconciliation match.
    *
-   * The match link lives in a sub-ledger, NOT the general ledger, so removing it
-   * is ledger-neutral: the voucher's outstanding AR/AP recomputes from the
-   * remaining `active` matches. The one GL artifact a match can leave behind is a
-   * realized-FX voucher (multi-currency settlement); that IS immutable, so it is
-   * reversed via {@link FXRealizedService} (mirror voucher + `reverses_id`,
-   * redirected out of a locked period) BEFORE the link is deleted. A `draft`
-   * match never reached the ledger nor posted FX, so undoing it is a plain
-   * delete.
+   * The match LINK lives in a sub-ledger, but an ACTIVE match now also carries
+   * ledger artifacts, and both are immutable (ADR-0006), so undoing the link
+   * means reversing them by mirrored counter-vouchers BEFORE it is deleted:
+   * the realized-FX voucher of a multi-currency settlement, and the settlement
+   * voucher the activation posted (issue #202 — cash that cleared AR/AP must
+   * be put back when the settlement is undone, or the control account keeps a
+   * payment that no longer exists). Each reversal is redirected out of a locked
+   * period (ADR-0009); if one throws, the link is left intact. A `draft` match
+   * never reached the ledger, so undoing it is a plain delete.
    */
   async unmatch(matchId: number): Promise<{
     matchId: number;
     bankTransactionId: number;
     voucherId: number;
     fxReversalVoucherId: number | null;
+    settlementReversalVoucherId: number | null;
   }> {
     const match = await this.db
       .selectFrom('reconciliation_match')
-      .select(['id', 'bank_transaction_id', 'voucher_id', 'fx_voucher_id'])
+      .select([
+        'id',
+        'bank_transaction_id',
+        'voucher_id',
+        'fx_voucher_id',
+        'settlement_voucher_id',
+      ])
       .where('id', '=', matchId)
       .executeTakeFirst();
     if (!match) {
@@ -1162,6 +1192,14 @@ export class ReconciliationService {
       fxReversalVoucherId = reversal.id;
     }
 
+    let settlementReversalVoucherId: number | null = null;
+    if (match.settlement_voucher_id !== null) {
+      const reversal = await this.settlements.reverseSettlement(
+        match.settlement_voucher_id,
+      );
+      settlementReversalVoucherId = reversal.id;
+    }
+
     await this.db
       .deleteFrom('reconciliation_match')
       .where('id', '=', matchId)
@@ -1172,7 +1210,54 @@ export class ReconciliationService {
       bankTransactionId: match.bank_transaction_id,
       voucherId: match.voucher_id,
       fxReversalVoucherId,
+      settlementReversalVoucherId,
     };
+  }
+
+  /**
+   * ACTIVE cash matches that carry NO settlement voucher — the settlements that
+   * are recorded in the sub-ledger but were never booked to the ledger, so the
+   * AR/AP control account still carries what they settled.
+   *
+   * Every match activated from issue #202 onward posts its settlement voucher
+   * (migration 070). Matches activated BEFORE it cannot have one invented for
+   * them: their bank account, date and FX treatment would all be guesses, and a
+   * guessed posting into a possibly-locked period is worse than a known gap. So
+   * they are REPORTED here instead — this is the exact, finite list of links an
+   * operator must re-book (unmatch and re-approve) for the subledger and the
+   * control account to tie, and the reason a reconciliation difference is
+   * attributable rather than mysterious. Prepayment matches never appear: their
+   * cash is booked by the advance voucher itself.
+   */
+  async listUnpostedSettlements(): Promise<
+    {
+      matchId: number;
+      bankTransactionId: number;
+      voucherId: number;
+      amountMatched: number;
+    }[]
+  > {
+    const rows = await this.db
+      .selectFrom('reconciliation_match')
+      .select([
+        'id',
+        'bank_transaction_id',
+        'voucher_id',
+        'amount_matched',
+        'match_type',
+      ])
+      .where('status', '=', 'active')
+      .where('settlement_voucher_id', 'is', null)
+      .where('match_type', '!=', 'prepayment')
+      .orderBy('id')
+      .execute();
+
+    return rows.map((r) => ({
+      matchId: r.id,
+      bankTransactionId: r.bank_transaction_id,
+      voucherId: r.voucher_id,
+      amountMatched: r.amount_matched,
+    }));
   }
 
   /**
