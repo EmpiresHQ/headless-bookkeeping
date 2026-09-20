@@ -18,6 +18,19 @@ import {
 /** The single net account realized FX is booked to (migration 002). */
 const FX_GAIN_LOSS = 'FX_GAIN_LOSS';
 
+/** A settlement resolved and validated, with the cash it will consume. */
+export interface PreparedSettlement {
+  prepared: PreparedVoucher;
+  /** Base cash this settlement actually posts against its bank line. */
+  cashBase: number;
+  /**
+   * Base cash the booked amount DEMANDS, before any clip to what the line
+   * carries — the figure the caller's guard must measure, so an oversized
+   * match cannot be silently clipped into a settlement the payer never made.
+   */
+  cashDemanded: number;
+}
+
 /** The AR/AP leg a settlement clears, read off the settled Voucher itself. */
 interface SettledLeg {
   code: 'AR' | 'AP';
@@ -86,7 +99,11 @@ export class SettlementVoucherService {
     bankTransactionId: number;
     amountMatched: number;
     matchType: string;
-  }): Promise<PreparedVoucher | null> {
+    /** Base cash still free on the line; the slice may be rounded down into it. */
+    cashAvailable: number;
+    /** Cents of rounding drift the last slice of a split may absorb. */
+    cashRoundingTolerance: number;
+  }): Promise<PreparedSettlement | null> {
     const { voucherId, bankTransactionId, amountMatched, matchType } = args;
     if (matchType === 'prepayment') return null;
     if (amountMatched <= 0) return null;
@@ -127,13 +144,28 @@ export class SettlementVoucherService {
       txn.transaction_date,
     );
 
+    // Splitting one line across several settlements rounds each slice, so the
+    // last one can land a cent or two over what the line has left. That drift
+    // is absorbed here — the bank moves exactly the cash the line carried, and
+    // the cent lands in the FX residual — while a real overdraw stays over the
+    // line's capacity and is refused by the caller's aggregate guard. The
+    // tolerance never applies to a line with NO cash left: absorbing a slice
+    // into zero would post an empty settlement and let one more match through.
+    const overshoot = slice.actualBase - args.cashAvailable;
+    const cashBase =
+      args.cashAvailable > 0 &&
+      overshoot > 0 &&
+      overshoot <= args.cashRoundingTolerance
+        ? args.cashAvailable
+        : slice.actualBase;
+
     const bankAmount = Math.max(1, slice.actualInTxnCurrency);
     const bankLine: DraftVoucherLine = {
       account_code: txn.account_code,
       amount: bankAmount,
       currency: txn.account_currency ?? txn.currency,
-      base_amount: slice.actualBase,
-      fx_rate: slice.actualBase / bankAmount,
+      base_amount: cashBase,
+      fx_rate: cashBase / bankAmount,
       is_debit: leg.openedAsDebit, // an AR receipt debits the bank
     };
 
@@ -174,7 +206,11 @@ export class SettlementVoucherService {
         `${bankTransactionId}`,
     };
 
-    return this.postingService.prepare(draft);
+    return {
+      prepared: await this.postingService.prepare(draft),
+      cashBase,
+      cashDemanded: slice.cashDemanded,
+    };
   }
 
   /** Post a prepared settlement on the caller's OWN transaction. */

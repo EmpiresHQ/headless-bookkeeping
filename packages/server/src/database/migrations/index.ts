@@ -67,6 +67,7 @@ import * as m067 from './067_create_statutory_filing_snapshot';
 import * as m068 from './068_add_submission_event_payload_id';
 import * as m069 from './069_create_prepayment_advance_allocation';
 import * as m070 from './070_add_match_settlement_voucher';
+import * as m071 from './071_add_match_cash_base_amount';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -137,4 +138,5 @@ export const migrations: Record<string, Migration> = {
   '068_add_submission_event_payload_id': m068,
   '069_create_prepayment_advance_allocation': m069,
   '070_add_match_settlement_voucher': m070,
+  '071_add_match_cash_base_amount': m071,
 };

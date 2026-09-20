@@ -296,8 +296,14 @@ export class ReconciliationService {
     const views: MatchCandidateView[] = [];
     for (const c of candidates) {
       if (alreadyOnThisLine.has(c.voucherId)) continue;
-      const available =
-        c.remainingBalance - (draftReservedByVoucher.get(c.voucherId) ?? 0);
+      // Offer no more than the line's remaining CASH can settle of this
+      // voucher (issue #202): once the cash is spent, further vouchers are
+      // not candidates however much booked headroom they still have.
+      const cap = await this.bookedCapForLine(c.voucherId, bankTransactionId);
+      const available = Math.min(
+        cap,
+        c.remainingBalance - (draftReservedByVoucher.get(c.voucherId) ?? 0),
+      );
       if (available <= 0) continue;
       const info = await this.resolveVoucherDisplay(c.voucherId, 'exact');
       views.push({
@@ -310,19 +316,10 @@ export class ReconciliationService {
       });
     }
 
-    // How much of the line is still unallocated (active matches only), BASE cents.
-    const { baseAmount } = await this.currencyService.toBase(
-      Math.abs(txn.amount),
-      txn.currency,
-      txn.transaction_date,
-    );
-    const matched = await this.db
-      .selectFrom('reconciliation_match')
-      .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
-      .where('bank_transaction_id', '=', bankTransactionId)
-      .where('status', '=', 'active')
-      .executeTakeFirst();
-    const lineRemaining = Math.max(0, baseAmount - Number(matched?.sum ?? 0));
+    // How much CASH of the line is still unallocated (active matches only),
+    // BASE cents — the line's real cash minus what its settlements took, both
+    // in the same unit.
+    const lineRemaining = await this.lineCashRemaining(bankTransactionId);
 
     // Rank by fit so the operator/agent sees the likeliest match first instead
     // of repository (voucher-id) order. Amount proximity to the line's remaining
@@ -668,10 +665,17 @@ export class ReconciliationService {
             await this.outstandingVouchers.getRemainingVoucherBalance(
               salesInvoice.voucher_id,
             );
-          if (remaining > 0) {
-            const amountMatched = Math.min(absBaseAmount, remaining);
+          // What this line's remaining CASH can settle of THIS invoice, in the
+          // invoice's own booked units (issue #202) — not the line's face
+          // value, which is a different unit whenever the rates differ.
+          const cap = await this.bookedCapForLine(
+            salesInvoice.voucher_id,
+            bankTransactionId,
+          );
+          if (remaining > 0 && cap > 0) {
+            const amountMatched = Math.min(cap, remaining);
             const matchType: MatchType =
-              amountMatched === remaining && amountMatched === absBaseAmount
+              amountMatched === remaining && amountMatched === cap
                 ? 'exact'
                 : 'partial';
             proposals.push({
@@ -704,10 +708,14 @@ export class ReconciliationService {
             await this.outstandingVouchers.getRemainingVoucherBalance(
               expense.voucher_id,
             );
-          if (remaining > 0) {
-            const amountMatched = Math.min(absBaseAmount, remaining);
+          const cap = await this.bookedCapForLine(
+            expense.voucher_id,
+            bankTransactionId,
+          );
+          if (remaining > 0 && cap > 0) {
+            const amountMatched = Math.min(cap, remaining);
             const matchType: MatchType =
-              amountMatched === remaining && amountMatched === absBaseAmount
+              amountMatched === remaining && amountMatched === cap
                 ? 'exact'
                 : 'partial';
             proposals.push({
@@ -744,21 +752,23 @@ export class ReconciliationService {
     for (const candidate of candidates) {
       if (candidate.remainingBalance <= 0) continue;
 
-      const amountMatched = Math.min(absBaseAmount, candidate.remainingBalance);
+      // The line's free cash, expressed in this candidate's booked units.
+      const cap = candidate.isPrepayment
+        ? absBaseAmount
+        : await this.bookedCapForLine(candidate.voucherId, bankTransactionId);
+      const amountMatched = Math.min(cap, candidate.remainingBalance);
       if (amountMatched <= 0) continue;
 
       // Determine match type.
       const matchType: MatchType = candidate.isPrepayment
         ? 'prepayment'
-        : amountMatched === candidate.remainingBalance &&
-            amountMatched === absBaseAmount
+        : amountMatched === candidate.remainingBalance && amountMatched === cap
           ? 'exact'
           : 'partial';
 
       // Confidence: high if amount matches exactly, medium if partial.
       const confidence: MatchConfidence =
-        amountMatched === absBaseAmount &&
-        amountMatched === candidate.remainingBalance
+        amountMatched === cap && amountMatched === candidate.remainingBalance
           ? 'high'
           : 'medium';
 
@@ -803,13 +813,15 @@ export class ReconciliationService {
     for (const candidate of candidates) {
       if (candidate.remainingBalance <= 0) continue;
 
-      const amountMatched = Math.min(absBaseAmount, candidate.remainingBalance);
+      const cap = candidate.isPrepayment
+        ? absBaseAmount
+        : await this.bookedCapForLine(candidate.voucherId, bankTransactionId);
+      const amountMatched = Math.min(cap, candidate.remainingBalance);
       if (amountMatched <= 0) continue;
 
       const matchType: MatchType = candidate.isPrepayment
         ? 'prepayment'
-        : amountMatched === candidate.remainingBalance &&
-            amountMatched === absBaseAmount
+        : amountMatched === candidate.remainingBalance && amountMatched === cap
           ? 'exact'
           : 'partial';
 
@@ -900,7 +912,11 @@ export class ReconciliationService {
    * any realized-FX voucher — happens only when a human approves (see
    * {@link activateMatch}). The UNIQUE(bank_transaction_id, voucher_id) index
    * still rejects a duplicate pair; the over-match and bank-line over-allocation
-   * invariants are enforced at ACTIVATION, against the `active` set.
+   * invariants are enforced at ACTIVATION, against the `active` set — a draft
+   * reserves neither outstanding nor cash, so a proposal that the line can no
+   * longer pay for stages and is refused when someone tries to approve it
+   * (issue #202), rather than being rejected here against a set that may look
+   * different by then.
    */
   async executeMatch(
     proposals: MatchProposal[],
@@ -1015,14 +1031,6 @@ export class ReconciliationService {
       );
     }
 
-    // Bank-line cap in BASE cents — currency conversion cannot run inside the
-    // better-sqlite3 sync transaction, so resolve it up front.
-    const { baseAmount: lineCap } = await this.currencyService.toBase(
-      Math.abs(txn.amount),
-      txn.currency,
-      txn.transaction_date,
-    );
-
     // A prepayment settlement spends somebody's ADVANCE, so WHOSE bank line
     // this is must be resolved before the settling transaction opens (issue
     // #201 — entity resolution reads cannot run inside the better-sqlite3 sync
@@ -1046,12 +1054,38 @@ export class ReconciliationService {
     // reason: it is POSTED inside, after the over-match guards, so the link and
     // its ledger effect are one atomic unit. Null when there is nothing to book
     // — a prepayment match, whose cash the advance voucher already carries.
+    // The line's CASH capacity and what its active matches have already taken
+    // from it — the aggregate this settlement must fit inside. Both figures
+    // are cash in base currency, so the guard compares like with like; the
+    // booked over-match guard below keeps its own, separate unit.
+    const lineCashTotal = await this.fxRealizedService.lineCashBase(
+      match.bank_transaction_id,
+    );
+    const cashUsed = await this.activeCashOnLine(match.bank_transaction_id);
+    const cashAvailable = Math.max(0, lineCashTotal - cashUsed.total);
+
     const preparedSettlement = await this.settlements.prepareSettlement({
       voucherId: match.voucher_id,
       bankTransactionId: match.bank_transaction_id,
       amountMatched: match.amount_matched,
       matchType: match.match_type,
+      cashAvailable,
+      // Each earlier slice of this line could have rounded up by under a cent.
+      cashRoundingTolerance: cashUsed.count + 1,
     });
+
+    // A prepayment match posts no settlement, but its bank line is still spent
+    // on the advance, so it consumes the line at its booked figure.
+    const cashRequired =
+      preparedSettlement?.cashBase ??
+      (match.match_type === 'prepayment' ? match.amount_matched : 0);
+
+    // What the match DEMANDS, before the slice is clipped to the cash the
+    // line actually carries. The guard measures this, not the clipped figure:
+    // a booked amount larger than the line can pay for would otherwise be
+    // clipped to the available cash and clear a receivable nobody paid, with
+    // the shortfall written off as realized FX.
+    const cashDemanded = preparedSettlement?.cashDemanded ?? cashRequired;
 
     // A settlement carries its own realized FX (the cash and the booked
     // obligation are two legs of ONE voucher). Only a match that posts no
@@ -1101,23 +1135,26 @@ export class ReconciliationService {
         );
       }
 
-      const txnActive = await trx
-        .selectFrom('reconciliation_match')
-        .select((eb) => eb.fn.sum<number>('amount_matched').as('sum'))
-        .where('bank_transaction_id', '=', match.bank_transaction_id)
-        .where('status', '=', 'active')
-        .executeTakeFirst();
-      const activeSoFar = Number(txnActive?.sum ?? 0);
-      if (activeSoFar + match.amount_matched > lineCap) {
+      // Re-read the line's spent cash on THIS connection: the authoritative
+      // aggregate, so a concurrent activation cannot slip a second settlement
+      // past the same free cash. Cash against cash — the old guard summed
+      // BOOKED match amounts against the line's face value, which refused a
+      // full settlement whose cash was cheaper than its booked amount and
+      // admitted extra matches once the cash was already spent.
+      const spent = await this.activeCashOnLine(match.bank_transaction_id, trx);
+      if (spent.total + cashDemanded > lineCashTotal) {
         throw new ConflictException(
           `Match of ${match.amount_matched} would over-allocate bank line ` +
-            `${match.bank_transaction_id}: only ${lineCap - activeSoFar} of ` +
-            `the line remains`,
+            `${match.bank_transaction_id}: it needs ${cashDemanded} of cash ` +
+            `but only ${lineCashTotal - spent.total} of the line remains`,
         );
       }
 
       const settlementVoucher = preparedSettlement
-        ? await this.settlements.postSettlementTx(trx, preparedSettlement)
+        ? await this.settlements.postSettlementTx(
+            trx,
+            preparedSettlement.prepared,
+          )
         : null;
       const fxVoucher = preparedFx
         ? await this.settlements.postSettlementTx(trx, preparedFx)
@@ -1129,6 +1166,7 @@ export class ReconciliationService {
           status: 'active',
           settlement_voucher_id: settlementVoucher?.id ?? null,
           fx_voucher_id: fxVoucher?.id ?? null,
+          cash_base_amount: cashRequired,
         })
         .where('id', '=', matchId)
         .where('status', '=', 'draft')
@@ -1273,6 +1311,60 @@ export class ReconciliationService {
       fxReversalVoucherId: byRole.get('fx') ?? null,
       settlementReversalVoucherId: byRole.get('settlement') ?? null,
     };
+  }
+
+  /**
+   * The cash a bank line's ACTIVE matches have already taken, and how many
+   * took it — the aggregate both the candidate reads and the activation guard
+   * measure free cash against.
+   *
+   * A match activated before migration 071 carries no cash figure; it is read
+   * as having consumed its booked amount, which is exactly what the previous
+   * guard assumed. Nothing is invented for it, and re-booking it through the
+   * documented unmatch + re-approve repair records the real figure.
+   */
+  private async activeCashOnLine(
+    bankTransactionId: number,
+    executor: Kysely<Database> | Transaction<Database> = this.db,
+  ): Promise<{ total: number; count: number }> {
+    const rows = await executor
+      .selectFrom('reconciliation_match')
+      .select(['amount_matched', 'cash_base_amount'])
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', '=', 'active')
+      .execute();
+    return {
+      total: rows.reduce(
+        (sum, r) => sum + (r.cash_base_amount ?? r.amount_matched),
+        0,
+      ),
+      count: rows.length,
+    };
+  }
+
+  /** Base cash still unspent on a bank line. */
+  private async lineCashRemaining(bankTransactionId: number): Promise<number> {
+    const total = await this.fxRealizedService.lineCashBase(bankTransactionId);
+    const used = await this.activeCashOnLine(bankTransactionId);
+    return Math.max(0, total - used.total);
+  }
+
+  /**
+   * The most of THIS voucher a bank line could still settle, in the voucher's
+   * own booked units — the line's free cash translated through the pair of
+   * rates. Every read that offers or sizes a match goes through it, so a
+   * proposal can neither understate a settlement whose cash is cheaper than
+   * its booked amount nor offer one for cash the line no longer has.
+   */
+  private async bookedCapForLine(
+    voucherId: number,
+    bankTransactionId: number,
+  ): Promise<number> {
+    return this.fxRealizedService.bookedCapacityForCash(
+      voucherId,
+      bankTransactionId,
+      await this.lineCashRemaining(bankTransactionId),
+    );
   }
 
   /**

@@ -25,6 +25,15 @@ export interface SettlementSlice {
   bookedBase: number;
   /** The base the cash actually delivered for exactly this slice. */
   actualBase: number;
+  /**
+   * The cash this booked amount WOULD need if the line had it — the same
+   * figure as {@link actualBase} but WITHOUT the clip to what the line
+   * carries. The clip exists so a settlement can never post more cash than
+   * arrived; this is what a guard must measure, because a booked amount
+   * larger than the line can pay for is silently clipped otherwise, clearing
+   * a receivable nobody paid and writing the rest off as fictional FX.
+   */
+  cashDemanded: number;
   /** The cash for this slice in the bank line's own currency. */
   actualInTxnCurrency: number;
   /** `bookedBase − actualBase` (ADR-0004). Zero when there is no difference. */
@@ -203,6 +212,72 @@ export class FXRealizedService {
   }
 
   /**
+   * The CASH a bank line really carries, in base currency — the capacity every
+   * settlement on that line draws from (issue #202).
+   *
+   * This is deliberately NOT `toBase(|txn.amount|)`, the figure the
+   * over-allocation guard used to cap booked match amounts with. For a line
+   * with a foreign leg the two differ, and they are not even in the same unit:
+   * a match amount is BOOKED base (the invoice's rate) while the line carries
+   * CASH (the bank's rate). Comparing them let a full settlement be refused
+   * for want of cash it did not need, and let extra matches through after the
+   * cash was already spent. Cash is compared with cash here; the booked side
+   * keeps its own guard against the voucher's outstanding.
+   */
+  async lineCashBase(bankTransactionId: number): Promise<number> {
+    const txn = await this.loadBankLine(bankTransactionId);
+    const actualInTxnCcy =
+      txn.source_amount !== null && txn.fx_rate !== null
+        ? Math.round(Math.abs(txn.source_amount * txn.fx_rate))
+        : Math.abs(txn.amount);
+    const { baseAmount } = await this.currencyService.toBase(
+      actualInTxnCcy,
+      txn.currency,
+      txn.transaction_date,
+    );
+    return baseAmount;
+  }
+
+  /**
+   * The largest BOOKED amount of `voucherId` that `cashBase` of this line can
+   * settle — the same rate quotient as {@link computeSettlementSlice}, read
+   * the other way round.
+   *
+   * It is what turns "how much cash is left on this line" into "how much of
+   * THIS invoice may still be matched against it", so a proposal, a candidate
+   * offer and the activation guard all speak the invoice's own units. A USD
+   * invoice booked at 0.92 and settled by cash that arrived at 0.90 needs
+   * 9 000 of cash to clear 9 200 of receivable; capping the match at the cash
+   * figure would leave 200 of the invoice permanently unsettleable.
+   */
+  async bookedCapacityForCash(
+    voucherId: number,
+    bankTransactionId: number,
+    cashBase: number,
+  ): Promise<number> {
+    if (cashBase <= 0) return 0;
+    const txn = await this.loadBankLine(bankTransactionId);
+    const isForeignLeg =
+      txn.source_currency !== null && txn.source_currency !== txn.currency;
+    if (!isForeignLeg || txn.source_amount === null) return cashBase;
+
+    const bookedRate = await this.settledLineRate(
+      voucherId,
+      txn.source_currency,
+    );
+    if (bookedRate === null || bookedRate <= 0) return cashBase;
+
+    const cashTotal = await this.lineCashBase(bankTransactionId);
+    if (cashTotal <= 0) return cashBase;
+    const actualRate = cashTotal / Math.abs(txn.source_amount);
+    if (actualRate <= 0) return cashBase;
+
+    // cash → foreign units → this invoice's booked amount. Floored, so the
+    // booked capacity can never claim more cash than the line has.
+    return Math.floor((cashBase / actualRate) * bookedRate);
+  }
+
+  /**
    * THE slice arithmetic: what one match of `matchedAmount` (booked base)
    * actually cost or delivered in cash, and the realized difference between
    * the two. Shared by the standalone FX voucher above and by the settlement
@@ -269,6 +344,7 @@ export class FXRealizedService {
       return {
         bookedBase: matchedAmount,
         actualBase: matchedAmount,
+        cashDemanded: matchedAmount,
         actualInTxnCurrency: this.sliceOfLine(
           Math.abs(txn.amount),
           matchedAmount,
@@ -286,24 +362,35 @@ export class FXRealizedService {
     );
 
     let actualBase: number;
+    let cashDemanded: number;
     if (
       isForeignLeg &&
       bookedRate !== null &&
       bookedRate > 0 &&
       txn.source_amount !== null
     ) {
+      const foreignDemanded = matchedAmount / bookedRate;
       const foreignSettled = Math.min(
         Math.abs(txn.source_amount),
-        matchedAmount / bookedRate,
+        foreignDemanded,
       );
       const actualRate = actualBaseFull / Math.abs(txn.source_amount);
       actualBase = Math.round(foreignSettled * actualRate);
+      // What the match ASKED for, before the clip to the line's own foreign
+      // amount: matching 20 000 USD of invoice against a 10 000 USD receipt
+      // demands twice the cash the line has, and must be refused rather than
+      // quietly settled for half.
+      cashDemanded = Math.round(foreignDemanded * actualRate);
     } else {
       actualBase = this.sliceOfLine(
         actualBaseFull,
         matchedAmount,
         lineBookedBase,
       );
+      cashDemanded =
+        lineBookedBase > 0
+          ? Math.round((actualBaseFull * matchedAmount) / lineBookedBase)
+          : actualBaseFull;
     }
 
     const realized = matchedAmount - actualBase;
@@ -312,6 +399,7 @@ export class FXRealizedService {
     return {
       bookedBase: matchedAmount,
       actualBase,
+      cashDemanded,
       actualInTxnCurrency: this.sliceOfLine(
         actualInTxnCcyFull,
         actualBase,

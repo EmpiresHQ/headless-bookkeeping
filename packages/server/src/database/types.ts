@@ -344,6 +344,12 @@ export interface ReconciliationMatchTable {
   // already booked by the advance voucher) and for matches activated before
   // migration 070 — those are reported as unposted settlements, never guessed.
   settlement_voucher_id: Generated<number | null>;
+  // The CASH this match consumed from its bank line, in base cents
+  // (migration 071). Differs from `amount_matched` — booked base at the
+  // invoice's rate — whenever a foreign settlement moved the rate. Null for a
+  // match activated before migration 071, which is read as having consumed
+  // its booked amount.
+  cash_base_amount: Generated<number | null>;
   created_at: number;
 }
 

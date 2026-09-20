@@ -488,6 +488,16 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       .execute();
   }
 
+  /** The invoice number a sales-invoice voucher belongs to. */
+  async function invoiceNumberOf(voucherId: number): Promise<string> {
+    const row = await db
+      .selectFrom('sales_invoice')
+      .select('invoice_number')
+      .where('voucher_id', '=', voucherId)
+      .executeTakeFirstOrThrow();
+    return row.invoice_number;
+  }
+
   /** A posted Expense denominated in a non-base currency. */
   async function postExpenseInCurrency(
     supplierId: number,
@@ -1440,5 +1450,352 @@ describe('outstanding balance across every linked settlement (#202)', () => {
     expect(view.totals.controlAr).toBe(6000 - 2000);
     expect(view.totals.controlAp).toBe(6000);
     expect(view.totals.unexplained).toBe(0);
+  });
+
+  // ── Bank-line capacity is CASH, not booked base ───────────────────────
+
+  it('a full settlement whose cash is cheaper than its booked amount is allowed', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    // 10 000 USD invoiced, booked at 0.92 → 9 200 receivable.
+    const { voucherId } = await postInvoiceInCurrency(customerId, 10000, 'USD');
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(9200);
+
+    // The customer pays the whole 10 000 USD, but the bank converts at 0.90,
+    // so only 9 000 of cash arrives. Clearing the 9 200 receivable costs
+    // 9 000 of cash plus a 200 FX loss — the old guard compared the 9 200
+    // BOOKED match against the 9 000 line and refused a full settlement.
+    const { transactionId } = await foreignBankLine({
+      amount: 9000,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.9,
+    });
+
+    const matchId = await settleLine(transactionId, voucherId, 9200);
+
+    expect(await voucherLegs((await settlementVoucherOf(matchId))!)).toEqual([
+      { code: 'AR', isDebit: 0, base: 9200 },
+      { code: 'BANK_EUR', isDebit: 1, base: 9000 },
+      { code: 'FX_GAIN_LOSS', isDebit: 1, base: 200 },
+    ]);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(await controlBalance('AR')).toBe(0);
+    expect(await bankBalance('BANK_EUR')).toBe(9000);
+    expect(await bankBalance('FX_GAIN_LOSS')).toBe(200);
+  });
+
+  it('the proposal itself is sized in the invoice currency, not the line cash', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    const { voucherId } = await postInvoiceInCurrency(customerId, 10000, 'USD');
+    const invoiceNumber = await invoiceNumberOf(voucherId);
+
+    const stmt = await banks.createStatement({
+      account_code: 'BANK_EUR',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      transactions: [
+        {
+          transaction_date: '2026-05-18',
+          description: `payment ${invoiceNumber}`,
+          reference: invoiceNumber,
+          amount: 9000,
+          currency: 'EUR',
+          source_currency: 'USD',
+          source_amount: 10000,
+          fx_rate: 0.9,
+          status: 'open',
+        },
+      ],
+    });
+
+    const [proposal] = await reconciliation.proposeMatches(stmt.statement.id);
+
+    // 9 200 — the whole receivable — not the 9 000 of cash that settles it.
+    expect(proposal.voucherId).toBe(voucherId);
+    expect(proposal.amountMatched).toBe(9200);
+    expect(proposal.matchType).toBe('exact');
+  });
+
+  it('paying a foreign payable with cheaper cash clears it and books the gain', async () => {
+    await useEstoniaPlugin();
+    const supplierId = await seedSupplier();
+    // 10 000 USD payable booked at 0.92 → 9 200.
+    const { voucherId } = await postExpenseInCurrency(supplierId, 10000, 'USD');
+
+    // We pay the 10 000 USD but it only costs 9 000 EUR.
+    const { transactionId } = await foreignBankLine({
+      amount: -9000,
+      sourceCurrency: 'USD',
+      sourceAmount: -10000,
+      fxRate: 0.9,
+    });
+
+    const matchId = await settleLine(transactionId, voucherId, 9200);
+
+    expect(await voucherLegs((await settlementVoucherOf(matchId))!)).toEqual([
+      { code: 'AP', isDebit: 1, base: 9200 },
+      { code: 'BANK_EUR', isDebit: 0, base: 9000 },
+      { code: 'FX_GAIN_LOSS', isDebit: 0, base: 200 },
+    ]);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(await controlBalance('AP')).toBe(0);
+    expect(await bankBalance('BANK_EUR')).toBe(-9000);
+    expect(await bankBalance('FX_GAIN_LOSS')).toBe(-200);
+  });
+
+  it('a line whose cash is spent settles nothing further, however much booked headroom is left', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    const big = await postInvoiceInCurrency(customerId, 6000, 'USD'); // 5 520
+    const small = await postInvoiceInCurrency(customerId, 4000, 'USD'); // 3 680
+    const third = await postInvoiceInCurrency(customerId, 400, 'USD'); // 368
+
+    // One line of 10 000 USD converted at 0.95 → 9 500 of cash.
+    const { statementId, transactionId } = await foreignBankLine({
+      amount: 9500,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.95,
+    });
+
+    // A draft staged against the third invoice BEFORE the cash is spent —
+    // the stale-draft path, which never re-consults the candidate list.
+    const { records } = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId: third.voucherId,
+        matchType: 'partial',
+        amountMatched: 300,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+
+    // The two real settlements consume 5 700 + 3 800 = the line's whole 9 500.
+    await settleLine(transactionId, big.voucherId, 5520);
+    await settleLine(transactionId, small.voucherId, 3680);
+    expect(await bankBalance('BANK_EUR')).toBe(9500);
+
+    // The booked sum so far is only 9 200, so the old booked-vs-cash cap saw
+    // 300 of headroom and would have posted cash the line never carried.
+    await expect(reconciliation.activateMatch(records[0].id)).rejects.toThrow(
+      /over-allocate bank line/,
+    );
+    // A fresh direct match against another open invoice is refused on the
+    // same ground — the guard is at the write boundary, not in discovery.
+    const fourth = await postInvoiceInCurrency(customerId, 400, 'USD');
+    const direct = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId: fourth.voucherId,
+        matchType: 'partial',
+        amountMatched: 300,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+    await expect(
+      reconciliation.activateMatch(direct.records[0].id),
+    ).rejects.toThrow(/over-allocate bank line/);
+    // … and the candidate read stops offering the line at all.
+    const offered = await reconciliation.getMatchCandidates(
+      statementId,
+      transactionId,
+    );
+    expect(offered.lineRemaining).toBe(0);
+    expect(offered.candidates).toEqual([]);
+
+    // The bank holds exactly the cash that arrived — no duplication.
+    expect(await bankBalance('BANK_EUR')).toBe(9500);
+    expect(await outstanding.getRemainingVoucherBalance(third.voucherId)).toBe(
+      368,
+    );
+  });
+
+  it('unmatching gives the line its cash back, and only that much', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    const big = await postInvoiceInCurrency(customerId, 6000, 'USD'); // 5 520
+    const small = await postInvoiceInCurrency(customerId, 4000, 'USD'); // 3 680
+    const other = await postInvoiceInCurrency(customerId, 4000, 'USD'); // 3 680
+
+    const { transactionId } = await foreignBankLine({
+      amount: 9500,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.95,
+    });
+    await settleLine(transactionId, big.voucherId, 5520);
+    const smallMatch = await settleLine(transactionId, small.voucherId, 3680);
+    expect(await bankBalance('BANK_EUR')).toBe(9500);
+
+    await reconciliation.unmatch(smallMatch);
+    expect(await bankBalance('BANK_EUR')).toBe(5700);
+
+    // Exactly the released 3 800 of cash is available again — enough for one
+    // more 3 680 invoice, and nothing beyond it.
+    await settleLine(transactionId, other.voucherId, 3680);
+    expect(await bankBalance('BANK_EUR')).toBe(9500);
+    expect(await outstanding.getRemainingVoucherBalance(small.voucherId)).toBe(
+      3680,
+    );
+
+    const leftover = await postInvoiceInCurrency(customerId, 100, 'USD');
+    const staged = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId: leftover.voucherId,
+        matchType: 'partial',
+        amountMatched: 92,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+    await expect(
+      reconciliation.activateMatch(staged.records[0].id),
+    ).rejects.toThrow(/over-allocate bank line/);
+    expect(await bankBalance('BANK_EUR')).toBe(9500);
+  });
+
+  it('splitting a line three ways never banks more cash than it carried', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    // Three USD invoices whose slices do not divide the line's cash evenly.
+    const a = await postInvoiceInCurrency(customerId, 3333, 'USD');
+    const b = await postInvoiceInCurrency(customerId, 3333, 'USD');
+    const c = await postInvoiceInCurrency(customerId, 3334, 'USD');
+
+    const { statementId, transactionId } = await foreignBankLine({
+      amount: 9333,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.9333,
+    });
+    const lineCash = 9333;
+
+    for (const invoice of [a, b, c]) {
+      const remaining = await outstanding.getRemainingVoucherBalance(
+        invoice.voucherId,
+      );
+      await settleLine(transactionId, invoice.voucherId, remaining);
+      expect(
+        await outstanding.getRemainingVoucherBalance(invoice.voucherId),
+      ).toBe(0);
+    }
+
+    // Every invoice is settled, and the bank holds 9 331 of the 9 333 that
+    // arrived: the three rounded slices leave 2 cents of the line unclaimed.
+    // Those cents stay ON the line as unallocated cash — the split never
+    // banks more than the line carried, and the shortfall is not invented
+    // away either.
+    const banked = await bankBalance('BANK_EUR');
+    expect(banked).toBe(9331);
+    expect(banked).toBeLessThanOrEqual(lineCash);
+    expect(await controlBalance('AR')).toBe(0);
+
+    const { lineRemaining } = await reconciliation.getMatchCandidates(
+      statementId,
+      transactionId,
+    );
+    expect(lineRemaining).toBe(lineCash - banked);
+  });
+
+  it('an oversized match is refused, not clipped to the cash the line has', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    // 20 000 USD invoiced, booked at 0.92 → 18 400 receivable.
+    const { voucherId } = await postInvoiceInCurrency(customerId, 20000, 'USD');
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(18400);
+
+    // The customer pays HALF: 10 000 USD, converted at 0.95 → 9 500 of cash.
+    const { statementId, transactionId } = await foreignBankLine({
+      amount: 9500,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.95,
+    });
+
+    // A direct write (no candidate list consulted) asks to settle the WHOLE
+    // 18 400 from this half payment. The slice would clip itself to the
+    // 9 500 the line carries, so a guard reading the clipped figure sees
+    // nothing wrong — and the invoice would clear with 8 900 written off as
+    // realized FX that never happened. The guard reads the UNCLIPPED demand
+    // (20 000 USD × 0.95 = 19 000) and refuses.
+    const staged = await reconciliation.executeMatch([
+      {
+        bankTransactionId: transactionId,
+        voucherId,
+        matchType: 'exact',
+        amountMatched: 18400,
+        confidence: 'high',
+        signal: 'manual',
+      },
+    ]);
+    await expect(
+      reconciliation.activateMatch(staged.records[0].id),
+    ).rejects.toThrow(/needs 19000 of cash but only 9500/);
+
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(18400);
+    expect(await bankBalance('BANK_EUR')).toBe(0);
+    expect(await bankBalance('FX_GAIN_LOSS')).toBe(0);
+    expect(await controlBalance('AR')).toBe(18400);
+
+    // What the line CAN settle still goes through, once the refused draft is
+    // discarded: 10 000 USD of the invoice is 9 200 of booked receivable,
+    // paid with 9 500 of cash — a 300 gain.
+    await reconciliation.discardDraftMatch(staged.records[0].id);
+    const matchId = await settleLine(transactionId, voucherId, 9200);
+    expect(await voucherLegs((await settlementVoucherOf(matchId))!)).toEqual([
+      { code: 'AR', isDebit: 0, base: 9200 },
+      { code: 'BANK_EUR', isDebit: 1, base: 9500 },
+      { code: 'FX_GAIN_LOSS', isDebit: 0, base: 300 },
+    ]);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(9200);
+    const { lineRemaining } = await reconciliation.getMatchCandidates(
+      statementId,
+      transactionId,
+    );
+    expect(lineRemaining).toBe(0);
+  });
+
+  it('the rounding tolerance never squeezes an extra match onto a spent line', async () => {
+    await useEstoniaPlugin();
+    const customerId = await seedCustomer();
+    const paid = await postInvoiceInCurrency(customerId, 10000, 'USD'); // 9 200
+    const leftover = await postInvoiceInCurrency(customerId, 100, 'USD'); // 92
+
+    const { transactionId } = await foreignBankLine({
+      amount: 9200,
+      sourceCurrency: 'USD',
+      sourceAmount: 10000,
+      fxRate: 0.92,
+    });
+    await settleLine(transactionId, paid.voucherId, 9200);
+    expect(await bankBalance('BANK_EUR')).toBe(9200);
+
+    // Nothing is left on the line, so even a one-cent match is refused —
+    // the tolerance that absorbs a split's rounding must not become headroom.
+    for (const amount of [1, 92]) {
+      const staged = await reconciliation.executeMatch([
+        {
+          bankTransactionId: transactionId,
+          voucherId: leftover.voucherId,
+          matchType: 'partial',
+          amountMatched: amount,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+      await expect(
+        reconciliation.activateMatch(staged.records[0].id),
+      ).rejects.toThrow(/over-allocate bank line/);
+      await reconciliation.discardDraftMatch(staged.records[0].id);
+    }
+    expect(await bankBalance('BANK_EUR')).toBe(9200);
+    expect(
+      await outstanding.getRemainingVoucherBalance(leftover.voucherId),
+    ).toBe(92);
   });
 });
