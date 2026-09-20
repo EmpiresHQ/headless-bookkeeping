@@ -5,6 +5,7 @@ import { OrganizationModule } from '../organization/organization.module';
 import { VatReportModule } from '../vat-report/vat-report.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { AuditFindingsModule } from '../audit-findings/audit-findings.module';
+import { PrepaymentFactsModule } from '../reconciliation/prepayment-facts.module';
 import { StatutorySubmissionModule } from '../statutory-submission/statutory-submission.module';
 import { StatutoryReportService } from './statutory-report.service';
 import { StatutoryReportController } from './statutory-report.controller';
@@ -31,6 +32,7 @@ import { StatutoryReportController } from './statutory-report.controller';
     OrganizationModule,
     AuditFindingsModule,
     StatutorySubmissionModule,
+    PrepaymentFactsModule,
   ],
   controllers: [StatutoryReportController],
   providers: [StatutoryReportService],

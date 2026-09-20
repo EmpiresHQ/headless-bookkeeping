@@ -72,6 +72,30 @@ export interface KmdDeclaration {
    * rendered. Empty on declarations frozen before #210.
    */
   unresolved_acquisition_vouchers: string[];
+  /**
+   * Customer advances RECEIVED in this period that nobody has classified
+   * (issue #213). A payment for an identified taxable supply declares VAT on
+   * the day it arrives (KMS §11 lg 1), so a receipt whose treatment is unknown
+   * is a return that cannot honestly claim either to have declared that VAT or
+   * to have correctly left it out. Nonempty ⇒ `review_flags` names the
+   * classification route, no FINAL artifact renders, and freezing a new filing
+   * payload is refused — exactly the #210 gate, for the other unknown.
+   *
+   * Absent from declarations frozen before #213: read as [] / 0 there, which
+   * is what those filings assumed.
+   */
+  unresolved_advance_receipts: string[];
+  /** Gross of those held receipts — reported, but in no row. */
+  unresolved_advance_base: number;
+  /**
+   * Advance documents in this period whose REVERSAL shape cannot be turned
+   * into documents that reconcile with these boxes (issue #213): a partial
+   * counter-voucher, a reversal of a reversal, or a mirror split across two
+   * periods. Nonempty ⇒ named in `review_flags`, no FINAL artifact renders,
+   * and freezing a new filing payload is refused. Empty on declarations
+   * frozen before #213.
+   */
+  unsupported_advance_reversals: string[];
   /** Net VAT due (row 4 − row 5); negative means reclaimable. */
   net_vat_due: number;
   /** Total 0% intra-EU service supplies to declare on the VD koondaruanne (tähis 3S). */

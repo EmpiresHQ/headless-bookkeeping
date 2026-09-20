@@ -707,10 +707,13 @@ describe('Reconciliation E2E (full flow)', () => {
     // Create prepayment, naming the counterparty it belongs to. An advance
     // owns its counterparty from creation (issue #201); an unowned one is
     // reported and refused rather than drawn down against anybody's invoice.
+    // It also says WHAT the money is (issue #213): this case is about the
+    // draw-down mechanics, so it is a deposit — a receipt with no treatment
+    // is held and cannot be drawn down at all.
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
       .set('Authorization', `Bearer ${apiToken}`)
-      .send({ entity_id: customerId })
+      .send({ entity_id: customerId, tax_treatment: 'non_taxable_deposit' })
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 

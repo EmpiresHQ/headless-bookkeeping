@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { DraftVoucherLine } from '../ledger/voucher/types';
 import { validateAgainstKmdXsd } from '../plugins/estonia-kmd/xsd-validate';
@@ -91,6 +92,7 @@ describe('StatutoryReportService.generate (integration)', () => {
         CreditNotesService,
         AuditFindingsService,
         VatReportService,
+        PrepaymentAllocationRepository,
         StatutoryReportService,
         StatutorySubmissionService,
         AuditLogService,

@@ -26,6 +26,7 @@ vi.mock('../api', async (importOriginal) => ({
   addEntityAlias: vi.fn(),
   markPersonal: vi.fn(),
   createPrepayment: vi.fn(),
+  getAdvanceVatTreatments: vi.fn(),
 }));
 
 import * as api from '../api';
@@ -79,6 +80,9 @@ function mockLine(
     { key: 'bank fee', label: 'Bank Fee', accountCode: 'EXPENSE_BANK_FEE' },
   ]);
   vi.mocked(api.getEntities).mockResolvedValue([]);
+  vi.mocked(api.getAdvanceVatTreatments).mockResolvedValue([
+    { vat_code: 'EE_OUTPUT_24', rate_permille: 240 },
+  ]);
   vi.mocked(api.getOrganization).mockResolvedValue({
     id: 1,
     country: 'EE',
@@ -368,7 +372,7 @@ describe('TxScreen state composition', () => {
     expect(api.createExpense).toHaveBeenCalledTimes(1);
   });
 
-  it('prepayment confirms through the explanation sheet and calls createPrepayment', async () => {
+  it('holds an incoming prepayment nobody classified, and says so (#213)', async () => {
     mockLine({ amount: 50000, description: 'ETTEMAKS Baltic Trade' });
     vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
     const router = renderTx();
@@ -377,18 +381,86 @@ describe('TxScreen state composition', () => {
         name: 'Record prepayment · +500.00 €',
       }),
     );
-    // The explanation sheet is the explicit confirm step.
-    expect(
-      await screen.findByText(/money received on account/),
-    ).toBeInTheDocument();
+    // The sheet asks what the money is, and defaults to no claim at all.
+    expect(await screen.findByText('What is this money?')).toBeInTheDocument();
+    expect(screen.getByText(/cannot settle an invoice/)).toBeInTheDocument();
+
     const confirms = screen.getAllByRole('button', {
       name: 'Record prepayment · +500.00 €',
     });
     fireEvent.click(confirms[confirms.length - 1]);
-    await waitFor(() => expect(api.createPrepayment).toHaveBeenCalledWith(9));
+    // No treatment is sent: the receipt is recorded and HELD server-side.
+    await waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9, undefined),
+    );
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/bank/statements/3'),
     );
+  });
+
+  it('sends the taxable advance facts when the receipt pays for a supply (#213)', async () => {
+    mockLine({ amount: 12400, description: 'ETTEMAKS Baltic Trade' });
+    vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
+    vi.mocked(api.getAdvanceVatTreatments).mockResolvedValue([
+      { vat_code: 'EE_OUTPUT_24', rate_permille: 240 },
+      { vat_code: 'EE_OUTPUT_9', rate_permille: 90 },
+    ]);
+    renderTx();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Record prepayment · +124.00 €',
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole('tab', { name: 'Advance for a supply' }),
+    );
+
+    // Until the supply is named, the confirm is not available: what the
+    // payment is FOR is the fact that makes it taxable.
+    const confirmName = 'Record prepayment · +124.00 €';
+    const disabled = screen.getAllByRole('button', { name: confirmName });
+    expect(disabled[disabled.length - 1]).toBeDisabled();
+
+    fireEvent.change(await screen.findByPlaceholderText(/Website build/), {
+      target: { value: 'Website build, delivery March' },
+    });
+    // The 24 EUR inside the 124 is shown before anything is posted.
+    expect(await screen.findByText(/24\.00 € of VAT/)).toBeInTheDocument();
+
+    const confirms = screen.getAllByRole('button', { name: confirmName });
+    fireEvent.click(confirms[confirms.length - 1]);
+    await waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9, {
+        tax_treatment: 'taxable_supply',
+        vat_code: 'EE_OUTPUT_24',
+        supply_description: 'Website build, delivery March',
+      }),
+    );
+  });
+
+  it('leaves an outgoing supplier prepayment a one-tap confirm (#213)', async () => {
+    mockLine({ amount: -50000, description: 'Ettemaks tarnijale' });
+    vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
+    renderTx();
+    fireEvent.click(
+      await screen.findByText('Personal · Bank fee · Prepayment'),
+    );
+    fireEvent.click(await screen.findByText('Prepayment'));
+
+    // No tax question at all: a supplier advance declares no output VAT.
+    expect(screen.queryByText('What is this money?')).toBeNull();
+    const confirms = screen.getAllByRole('button', {
+      name: 'Record prepayment · −500.00 €',
+    });
+    fireEvent.click(confirms[confirms.length - 1]);
+    await waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9, undefined),
+    );
+    // And it is NOT reported as held: nothing about it is pending.
+    expect(
+      await screen.findByText('Recorded as prepayment'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/held until its tax treatment/)).toBeNull();
   });
 
   it('renders the disposed state read-only', async () => {

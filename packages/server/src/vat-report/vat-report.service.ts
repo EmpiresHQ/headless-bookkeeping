@@ -18,6 +18,7 @@ import {
 } from './types';
 import { computeVoucherHash } from '../ledger/posting/voucher-hash';
 import { computeMerkleRoot } from './merkle';
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 
 /**
  * What one {@link VatReportService.freeze} did: the snapshot the period should
@@ -64,6 +65,7 @@ export class VatReportService {
     private readonly ledgerBalance: LedgerBalanceService,
     private readonly pluginLoader: PluginLoader,
     private readonly organization: OrganizationService,
+    private readonly prepaymentAdvances: PrepaymentAllocationRepository,
   ) {}
 
   /**
@@ -553,6 +555,9 @@ export class VatReportService {
       row7_other_acquisition: 0,
       row6_7_unresolved_acquisition: 0,
       unresolved_acquisition_vouchers: [],
+      unresolved_advance_receipts: [],
+      unresolved_advance_base: 0,
+      unsupported_advance_reversals: [],
       net_vat_due: 0,
       vd_intra_eu_services: 0,
       review_flags: [],
@@ -633,6 +638,53 @@ export class VatReportService {
         legacyByVoucher.set(line.voucher_id, seen);
       }
       if (k.vdCode === '3S') d.vd_intra_eu_services += base;
+    }
+
+    // Customer advances RECEIVED in this period that nobody has classified
+    // (issue #213). A payment for an identified taxable supply is a tax point
+    // in ITSELF, so an unclassified receipt is an open question about THIS
+    // return: it either declared VAT it should have, or left out VAT it owed,
+    // and the books do not say which. It is reported and named, never quietly
+    // assumed non-taxable — the same treatment #210 gives an acquisition whose
+    // row is unknown.
+    const heldAdvances = await this.prepaymentAdvances.listHeldCustomerAdvances(
+      period.start_date,
+      period.end_date,
+      executor,
+    );
+    d.unresolved_advance_receipts = heldAdvances.map((a) => a.voucherNumber);
+    d.unresolved_advance_base = heldAdvances.reduce(
+      (sum, a) => sum + a.grossBaseAmount,
+      0,
+    );
+    if (heldAdvances.length > 0) {
+      flags.add(
+        `Customer advance(s) ${d.unresolved_advance_receipts.join(', ')} ` +
+          `(${d.unresolved_advance_base} cents received in this period) carry no tax ` +
+          `treatment. A payment for an identified taxable supply declares VAT on the day it ` +
+          `arrives (KMS §11 lg 1), so this return cannot be filed until each receipt says ` +
+          `whether it is a taxable advance or a non-taxable deposit: POST ` +
+          `/api/prepayments/{voucherId}/tax-treatment.`,
+      );
+    }
+
+    // Advance documents whose counter-voucher shape cannot be reported
+    // coherently against these boxes (issue #213). Held, not guessed.
+    d.unsupported_advance_reversals =
+      await this.prepaymentAdvances.listUnsupportedAdvanceReversals(
+        period.start_date,
+        period.end_date,
+        executor,
+      );
+    if (d.unsupported_advance_reversals.length > 0) {
+      flags.add(
+        `Advance voucher(s) ${d.unsupported_advance_reversals.join(', ')} are reversed in a way ` +
+          `this return cannot show as documents: a counter-voucher that does not mirror them ` +
+          `completely or was itself reversed, or the reversal of an advance draw-down or refund ` +
+          `whose own document belongs to an earlier period. Their VAT is in these boxes with no ` +
+          `document behind it, so the return is held rather than filed with a paper nobody ` +
+          `issued. Resolve those vouchers before filing.`,
+      );
     }
 
     d.net_vat_due = d.row4_output_vat - d.row5_input_vat;

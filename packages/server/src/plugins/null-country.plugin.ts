@@ -1,3 +1,7 @@
+import type {
+  AdvanceTaxPointContext,
+  AdvanceTaxPointDecision,
+} from './advance-tax-point.types';
 import {
   FxRateUnavailableError,
   IDENTITY_RATE_SOURCE,
@@ -401,6 +405,29 @@ export class NullCountryPlugin implements CountryPlugin {
   getHealthAllowanceRules(_date: string): HealthAllowanceRules | null {
     void _date;
     return null;
+  }
+
+  /**
+   * The neutral plugin knows no time-of-supply rule, so it cannot say that a
+   * payment received in advance creates a tax point. It HOLDS every case
+   * rather than declaring turnover on a rule it does not have (issue #213).
+   */
+  resolveAdvanceTaxPoint(
+    context: AdvanceTaxPointContext,
+  ): AdvanceTaxPointDecision {
+    return {
+      supported: false,
+      code: 'no_jurisdiction_rule',
+      message:
+        `This deployment has no country plugin that defines when a payment received in ` +
+        `advance creates a tax point, so '${context.vatCode}' cannot be declared at the ` +
+        `receipt.`,
+      howToResolve:
+        'Leave the receipt unclassified for accounting review — payment for a supply is not ' +
+        'a security deposit, and labelling it as one would hide it from the filing checks. ' +
+        'Configure the organisation with a country whose plugin implements advance taxation ' +
+        'to declare it.',
+    };
   }
 
   /**

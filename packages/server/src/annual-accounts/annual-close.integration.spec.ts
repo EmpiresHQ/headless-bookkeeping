@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -153,6 +154,7 @@ describe('Annual close over a filed monthly VAT calendar (integration)', () => {
         PeriodLockService,
         PostingService,
         VatReportService,
+        PrepaymentAllocationRepository,
         AuditLogService,
         StatutorySubmissionService,
         StatutoryReportService,

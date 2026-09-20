@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -110,6 +111,7 @@ describe('Input-VAT deduction entitlement (issue #211)', () => {
         AuditFindingsService,
         AuditLogService,
         VatReportService,
+        PrepaymentAllocationRepository,
         StatutorySubmissionService,
         StatutoryReportService,
         ReportingPeriodsService,

@@ -1,3 +1,4 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -68,6 +69,7 @@ describe('ReportingPeriod lock → prepared event (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         ReportingPeriodsService,
         VatReportService,
+        PrepaymentAllocationRepository,
         LedgerBalanceService,
         OrganizationService,
         PluginLoader,

@@ -27,6 +27,15 @@ import { PrepaymentAllocationRepository } from './prepayment-allocation.reposito
 import { PrepaymentService } from './prepayment.service';
 
 /**
+ * Issue #213: these cases are about balances, ownership and settlement, not
+ * about tax. The receipts are therefore classified explicitly as non-taxable
+ * deposits — a gross liability that declares nothing, which is exactly the
+ * posting these expectations were written against. A receipt left
+ * unclassified is HELD by design and cannot be drawn down.
+ */
+const DEPOSIT_RECEIPT = { treatment: 'non_taxable_deposit' as const };
+
+/**
  * Integration test for prepayment creation and draw-down.
  * Uses real SQLite in-memory with full migrations (real-DI test, G2 gate).
  */
@@ -530,7 +539,11 @@ describe('PrepaymentService (integration)', () => {
     it('posts Dr BANK_EUR / Cr CUSTOMER_PREPAYMENTS for an incoming payment', async () => {
       const txn = await seedBankTransaction(50000);
 
-      const voucher = await prepaymentService.createCustomerPrepayment(txn.id);
+      const voucher = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
+      );
 
       expect(voucher.id).toBeGreaterThan(0);
       expect(voucher.lines).toHaveLength(2);
@@ -564,7 +577,11 @@ describe('PrepaymentService (integration)', () => {
     it('updates the bank transaction status to prepayment', async () => {
       const txn = await seedBankTransaction(30000);
 
-      await prepaymentService.createCustomerPrepayment(txn.id);
+      await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
+      );
 
       const updated = await db
         .selectFrom('bank_transaction')
@@ -574,7 +591,11 @@ describe('PrepaymentService (integration)', () => {
       expect(updated.status).toBe('prepayment');
     });
 
-    it('rolls back the voucher if the bank transaction status update fails', async () => {
+    it('rolls back the voucher when the bank line is consumed while it is being prepared', async () => {
+      // Issue #213: the bank line is CLAIMED conditionally on still being
+      // open, inside the posting transaction. The FX and plugin lookups run
+      // before that transaction, so an ordinary reconciliation can take the
+      // same line meanwhile — which must refuse, not book the money twice.
       const txn = await seedBankTransaction(30000);
       const before = await db
         .selectFrom('voucher')
@@ -582,12 +603,25 @@ describe('PrepaymentService (integration)', () => {
         .executeTakeFirstOrThrow();
 
       jest
-        .spyOn(transactionRepo, 'updateStatus')
-        .mockRejectedValueOnce(new Error('forced status failure'));
+        .spyOn(transactionRepo, 'findById')
+        .mockImplementationOnce(async (id: number) => {
+          const found = await new BankTransactionRepository(db).findById(id);
+          // Another path consumes the line after it was read as open.
+          await db
+            .updateTable('bank_transaction')
+            .set({ status: 'personal' })
+            .where('id', '=', id)
+            .execute();
+          return found;
+        });
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id),
-      ).rejects.toThrow('forced status failure');
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
+      ).rejects.toThrow('no longer open');
 
       const after = await db
         .selectFrom('voucher')
@@ -600,14 +634,18 @@ describe('PrepaymentService (integration)', () => {
         .executeTakeFirstOrThrow();
 
       expect(after.count).toBe(before.count);
-      expect(updated.status).toBe('open');
+      expect(updated.status).toBe('personal');
     });
 
     it('rejects a non-open transaction', async () => {
       const txn = await seedBankTransaction(20000, 'prepayment');
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id),
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('not open');
     });
 
@@ -615,13 +653,21 @@ describe('PrepaymentService (integration)', () => {
       const txn = await seedBankTransaction(-10000);
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id),
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('positive');
     });
 
     it('rejects a non-existent transaction', async () => {
       await expect(
-        prepaymentService.createCustomerPrepayment(99999),
+        prepaymentService.createCustomerPrepayment(
+          99999,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('not found');
     });
   });
@@ -665,7 +711,11 @@ describe('PrepaymentService (integration)', () => {
       const txn = await seedBankTransaction(15000);
 
       await expect(
-        prepaymentService.createSupplierPrepayment(txn.id),
+        prepaymentService.createSupplierPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('negative');
     });
   });
@@ -678,6 +728,8 @@ describe('PrepaymentService (integration)', () => {
 
       const voucher = await prepaymentService.createPrepaymentFromTransaction(
         txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const creditAccount = await db
@@ -695,6 +747,8 @@ describe('PrepaymentService (integration)', () => {
 
       const voucher = await prepaymentService.createPrepaymentFromTransaction(
         txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const debitAccount = await db
@@ -718,6 +772,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       // Create an AR invoice of 80000.
@@ -797,6 +852,9 @@ describe('PrepaymentService (integration)', () => {
       await prepaymentService.resolveAdvanceOwnership(prepayVoucherId, {
         entityId: customerId,
       });
+      // A registered customer receipt is held until it says what it is
+      // (issue #213); this case is about FX, so it is a deposit.
+      await prepaymentService.classifyAdvance(prepayVoucherId, DEPOSIT_RECEIPT);
 
       // Draw down the full prepayment (9000 base). drawAmount = min(req, 9000, 17000) = 9000.
       const drawDown = await prepaymentService.drawDownPrepayment(
@@ -852,6 +910,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -876,6 +935,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -915,6 +975,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         50000,
@@ -944,6 +1005,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const apVoucherId = await seedExpenseVoucher(30000, '2025-01-20');
@@ -963,6 +1025,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -994,6 +1057,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -1098,11 +1162,13 @@ describe('PrepaymentService (integration)', () => {
       const advanceA = await prepaymentService.createCustomerPrepayment(
         txnA.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
       const txnB = await seedBankTransaction(10000);
       const advanceB = await prepaymentService.createCustomerPrepayment(
         txnB.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -1173,6 +1239,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         owner,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -1196,6 +1263,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         owner,
+        DEPOSIT_RECEIPT,
       );
 
       // A raw AR voucher with no SalesInvoice behind it names nobody.
@@ -1218,7 +1286,11 @@ describe('PrepaymentService (integration)', () => {
       const txn = await seedBankTransaction(10000);
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id, supplierId),
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          supplierId,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow("role 'supplier'");
     });
 
@@ -1241,11 +1313,15 @@ describe('PrepaymentService (integration)', () => {
       );
       const resolved = await prepaymentService.createCustomerPrepayment(
         known.id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const unknown = await seedBankTransaction(10000);
       const unresolved = await prepaymentService.createCustomerPrepayment(
         unknown.id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const outstanding = await prepaymentService.listOutstandingPrepayments();
@@ -1278,6 +1354,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceA = await seedSalesInvoiceVoucher(10000, '2025-01-20');
@@ -1315,6 +1392,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -1369,6 +1447,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         10000,
@@ -1398,6 +1477,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -1441,6 +1521,7 @@ describe('PrepaymentService (integration)', () => {
       const advance2 = await prepaymentService.createCustomerPrepayment(
         second.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
       await expect(
         prepaymentService.drawDownPrepayment(
@@ -1475,7 +1556,18 @@ describe('PrepaymentService (integration)', () => {
       );
       expect(resolved.entityId).toBe(customerId);
       expect(resolved.remaining).toBe(10000);
-      expect(resolved.allocatable).toBe(true);
+      // Owned, but still HELD (issue #213): a customer receipt registered from
+      // the ledger says nothing about what it was for, and an unclassified
+      // receipt is never spent as if it had been a non-taxable deposit.
+      expect(resolved.allocatable).toBe(false);
+      expect(resolved.unresolvedReason).toBe('unclassified_tax_treatment');
+
+      const classified = await prepaymentService.classifyAdvance(
+        prepayVoucherId,
+        DEPOSIT_RECEIPT,
+      );
+      expect(classified.allocatable).toBe(true);
+      expect(classified.remaining).toBe(10000);
     });
 
     it('treats a multi-leg advance voucher as ONE advance for its full amount', async () => {
@@ -1532,6 +1624,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         owner,
+        DEPOSIT_RECEIPT,
       );
 
       await expect(
@@ -1582,9 +1675,16 @@ describe('PrepaymentService (integration)', () => {
         },
       );
       expect(finished.entityId).toBe(customerId);
-      expect(finished.unresolvedReason).toBeNull();
+      // The balance is verified again; what is still missing is the tax
+      // treatment of the receipt itself (issue #213).
+      expect(finished.unresolvedReason).toBe('unclassified_tax_treatment');
       expect(finished.drawnDown).toBe(4000);
       expect(finished.remaining).toBe(6000);
+      const classifiedRepair = await prepaymentService.classifyAdvance(
+        prepayVoucherId,
+        DEPOSIT_RECEIPT,
+      );
+      expect(classifiedRepair.unresolvedReason).toBeNull();
       await expect(
         outstandingVoucherService.getRemainingVoucherBalance(invoiceVoucherId),
       ).resolves.toBe(6000);
@@ -1596,6 +1696,7 @@ describe('PrepaymentService (integration)', () => {
       const advance = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
       const invoiceA = await seedSalesInvoiceVoucher(10000, '2025-01-20');
       await bindSalesInvoice(invoiceA, customerId, 10000);
@@ -1845,7 +1946,11 @@ describe('PrepaymentService (integration)', () => {
     it('returns outstanding customer prepayments', async () => {
       const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(50000);
-      await prepaymentService.createCustomerPrepayment(txn.id, customerId);
+      await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
 
       const outstanding = await prepaymentService.listOutstandingPrepayments();
 
@@ -1881,6 +1986,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -1908,6 +2014,7 @@ describe('PrepaymentService (integration)', () => {
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
         customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
@@ -2050,7 +2157,11 @@ describe('PrepaymentService — cross-currency bank account', () => {
     });
     const txn = stmt.transactions[0];
 
-    const voucher = await prepaymentService.createCustomerPrepayment(txn.id);
+    const voucher = await prepaymentService.createCustomerPrepayment(
+      txn.id,
+      undefined,
+      DEPOSIT_RECEIPT,
+    );
 
     const debitLine = voucher.lines.find((l) => l.is_debit)!;
     const creditLine = voucher.lines.find((l) => !l.is_debit)!;
@@ -2099,7 +2210,11 @@ describe('PrepaymentService — cross-currency bank account', () => {
     });
     const txn = stmt.transactions[0];
 
-    const voucher = await prepaymentService.createSupplierPrepayment(txn.id);
+    const voucher = await prepaymentService.createSupplierPrepayment(
+      txn.id,
+      undefined,
+      DEPOSIT_RECEIPT,
+    );
 
     const debitLine = voucher.lines.find((l) => l.is_debit)!;
     const creditLine = voucher.lines.find((l) => !l.is_debit)!;

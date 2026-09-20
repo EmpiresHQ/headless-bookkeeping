@@ -10,7 +10,7 @@ import { CurrencyModule } from '../currency/currency.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
-import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
+import { PrepaymentFactsModule } from './prepayment-facts.module';
 import { ReconciliationController } from './reconciliation.controller';
 import { PrepaymentService } from './prepayment.service';
 import { PrepaymentController } from './prepayment.controller';
@@ -31,11 +31,11 @@ import { FXRealizedController } from './fx-realized.controller';
     PluginsModule,
     CurrencyModule,
     OrganizationModule,
+    PrepaymentFactsModule,
   ],
   providers: [
     ReconciliationService,
     OutstandingVoucherService,
-    PrepaymentAllocationRepository,
     PrepaymentService,
     PersonalDispositionService,
     FXRealizedService,

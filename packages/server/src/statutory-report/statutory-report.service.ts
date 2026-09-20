@@ -11,6 +11,8 @@ import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { VatReportService } from '../vat-report/vat-report.service';
 import type { VatSummaryLine } from '../vat-report/types';
 import { OrgContextResolver } from '../organization/org-context.resolver';
+import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
@@ -96,6 +98,8 @@ export class StatutoryReportService {
     private readonly auditFindings: AuditFindingsService,
     private readonly submissions: StatutorySubmissionService,
     private readonly pluginLoader: PluginLoader,
+    // The advance documents a filing must be able to name (issue #213).
+    private readonly advances: PrepaymentAllocationRepository,
   ) {}
 
   /**
@@ -307,6 +311,40 @@ export class StatutoryReportService {
           `say which. Record the supplier's tax status (PATCH /api/entities/{supplierId}) ` +
           `and correct each expense (POST /api/expenses/{id}/correct ` +
           `{"kind":"financial","reason":"..."}), then file the period again. ` +
+          `GET /api/reporting-periods/${period.id}/kmd lists them meanwhile.`,
+      );
+    }
+
+    // The same refusal, for the other unknown (issue #213): a customer receipt
+    // in this period that nobody has classified either declared VAT it should
+    // not have or omitted VAT it owed, and the books do not say which. It is
+    // not frozen into a filing state on either reading. Like the gate above,
+    // this runs on the caller's transaction, so a period lock rolls back whole
+    // and the classification can still land in the period it belongs to.
+    const heldAdvances = input.declaration.unresolved_advance_receipts;
+    if (heldAdvances.length > 0) {
+      throw new ConflictException(
+        `Reporting period "${period.name}" (#${period.id}) cannot be filed: customer ` +
+          `advance(s) ${heldAdvances.join(', ')} ` +
+          `(${input.declaration.unresolved_advance_base} cents) were received in it and carry ` +
+          `no tax treatment. A payment for an identified taxable supply declares VAT on the ` +
+          `day it arrives (KMS §11 lg 1), so the return cannot say whether that VAT belongs ` +
+          `in it. Classify each receipt (POST /api/prepayments/{voucherId}/tax-treatment) and ` +
+          `file the period again. GET /api/reporting-periods/${period.id}/kmd lists them ` +
+          `meanwhile.`,
+      );
+    }
+
+    const unsupportedReversals =
+      input.declaration.unsupported_advance_reversals;
+    if (unsupportedReversals.length > 0) {
+      throw new ConflictException(
+        `Reporting period "${period.name}" (#${period.id}) cannot be filed: advance ` +
+          `voucher(s) ${unsupportedReversals.join(', ')} are reversed in a way this return ` +
+          `cannot show as documents — a counter-voucher that does not mirror them completely ` +
+          `or was itself reversed, or the reversal of an advance draw-down or refund whose ` +
+          `own document belongs to an earlier period. Their VAT is in this period's boxes ` +
+          `with no document behind it. Resolve those vouchers, then file the period again. ` +
           `GET /api/reporting-periods/${period.id}/kmd lists them meanwhile.`,
       );
     }
@@ -579,12 +617,19 @@ export class StatutoryReportService {
    * read credit-positive; the VAT-control role is `VAT_PAYABLE` and the
    * counterparty receivable role is `AR` (excluded from the taxable base).
    */
-  private async assembleSalesLines(
+  /**
+   * PUBLIC so the sales documents a filing would report can be read without
+   * rendering (and asserted directly): the advance netting in here is a
+   * statutory representation rule, not a rendering detail.
+   */
+  async assembleSalesLines(
     start: string,
     end: string,
     executor: Kysely<Database> = this.db,
   ): Promise<StatutoryDocLine[]> {
     const lines: StatutoryDocLine[] = [];
+    /** Invoice rows by voucher, so an advance can be netted INTO its own. */
+    const invoiceLineByVoucher = new Map<number, StatutoryDocLine>();
 
     const invoices = await executor
       .selectFrom('sales_invoice as si')
@@ -623,6 +668,7 @@ export class StatutoryReportService {
         date: inv.tax_point_date,
         ...amounts,
       });
+      invoiceLineByVoucher.set(inv.voucher_id, lines[lines.length - 1]);
     }
 
     const creditNotes = await executor
@@ -665,6 +711,134 @@ export class StatutoryReportService {
         creditsInvoiceNumber: cn.credits_invoice_number,
         date: cn.tax_point_date,
         ...amounts,
+      });
+    }
+
+    lines.push(
+      ...(await this.assembleAdvanceLines(
+        start,
+        end,
+        invoiceLineByVoucher,
+        executor,
+      )),
+    );
+
+    return lines;
+  }
+
+  /**
+   * The ADVANCE documents of a period (issue #213), for the sales assembly.
+   *
+   * A payment received for an identified taxable supply is turnover on the day
+   * it arrives, under an advance invoice (ettemaksuarve) of its own — EMTA
+   * requires that document within 7 calendar days of the receipt — so the
+   * advance is an INF sales document in the period it was received, with its
+   * own number, customer and amounts.
+   *
+   * What the final invoice then reports is where this gets specific. EMTA's
+   * KMD INF part A instructions work it through: an advance invoice of 2000
+   * (net) declared last month, a transaction of 5000 with the 2000 advance
+   * deducted, is reported as an invoice of 3000 — NOT 5000 alongside a
+   * fictitious 2000 credit. So a draw-down does not become a document here: it
+   * is netted INTO the final invoice's own row, before the €1000 per-partner
+   * threshold is measured, which is exactly what makes a 1500 invoice against
+   * a 600 advance fall BELOW the threshold as a 900 row. The invoice's own
+   * business record and its ledger legs are untouched; only the statutory
+   * representation is the lawful one.
+   *
+   * A genuine REFUND is different: money went back under a cancellation or
+   * credit document, and it stays its own credit line.
+   *
+   * Every figure is the one that was posted, read from the advance /
+   * allocation / refund record written with the voucher. No document number is
+   * invented: an advance with none carries `invoiceNumber: null`, which the
+   * plugin turns into a blocking warning when the row would otherwise qualify
+   * for INF, rather than a made-up reference on a filed return.
+   */
+  private async assembleAdvanceLines(
+    start: string,
+    end: string,
+    invoiceLineByVoucher: Map<number, StatutoryDocLine>,
+    executor: Kysely<Database> = this.db,
+  ): Promise<StatutoryDocLine[]> {
+    const lines: StatutoryDocLine[] = [];
+
+    for (const advance of await this.advances.listTaxableCustomerAdvances(
+      start,
+      end,
+      executor,
+    )) {
+      const counterparty = await this.loadCounterparty(
+        advance.entityId,
+        executor,
+      );
+      lines.push({
+        documentKind: 'advance_receipt',
+        counterpartyName: counterparty.name,
+        counterpartyRegNumber: counterparty.regNumber,
+        invoiceNumber: advance.documentNumber,
+        creditsInvoiceNumber: null,
+        date: advance.receiptDate,
+        vatCode: advance.vatCode ?? NULL_VAT_CODE,
+        netAmount: advance.netBaseAmount,
+        vatAmount: advance.vatBaseAmount,
+      });
+    }
+
+    for (const relief of await this.advances.listAdvanceReliefs(
+      start,
+      end,
+      executor,
+    )) {
+      const invoiceLine = invoiceLineByVoucher.get(relief.invoiceVoucherId);
+      if (invoiceLine) {
+        // The lawful representation: the final invoice reports the
+        // transaction LESS the advance already invoiced.
+        invoiceLine.netAmount -= relief.netBaseAmount;
+        invoiceLine.vatAmount -= relief.vatBaseAmount;
+        continue;
+      }
+
+      // No invoice row to net into — the relief is dated at the invoice's own
+      // tax point, so this means the target is not a sales invoice of this
+      // period (a repaired historical link, say). The declaration is still
+      // taken back somewhere visible rather than dropped.
+      const counterparty = await this.loadCounterparty(
+        relief.entityId,
+        executor,
+      );
+      lines.push({
+        documentKind: 'advance_relief',
+        counterpartyName: counterparty.name,
+        counterpartyRegNumber: counterparty.regNumber,
+        invoiceNumber: relief.invoiceNumber,
+        creditsInvoiceNumber: relief.advanceDocumentNumber,
+        date: relief.date,
+        vatCode: relief.vatCode ?? NULL_VAT_CODE,
+        netAmount: -relief.netBaseAmount,
+        vatAmount: -relief.vatBaseAmount,
+      });
+    }
+
+    for (const refund of await this.advances.listAdvanceRefunds(
+      start,
+      end,
+      executor,
+    )) {
+      const counterparty = await this.loadCounterparty(
+        refund.entityId,
+        executor,
+      );
+      lines.push({
+        documentKind: 'advance_refund',
+        counterpartyName: counterparty.name,
+        counterpartyRegNumber: counterparty.regNumber,
+        invoiceNumber: refund.creditReference,
+        creditsInvoiceNumber: refund.advanceDocumentNumber,
+        date: refund.date,
+        vatCode: refund.vatCode ?? NULL_VAT_CODE,
+        netAmount: -refund.netBaseAmount,
+        vatAmount: -refund.vatBaseAmount,
       });
     }
 

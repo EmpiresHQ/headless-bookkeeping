@@ -1,3 +1,4 @@
+import type { AdvanceTaxPointDecision } from '../plugins/advance-tax-point.types';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { FxRateUnavailableError, ResolvedFxRate } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -468,6 +469,14 @@ describe('DividendsService (integration)', () => {
       getHealthAllowanceRules(_date: string): null {
         return null;
       }
+      resolveAdvanceTaxPoint(): AdvanceTaxPointDecision {
+        return {
+          supported: false,
+          code: 'no_jurisdiction_rule',
+          message: 'This test plugin defines no advance taxation.',
+          howToResolve: 'Leave the receipt unclassified for review.',
+        };
+      }
       resolveFringeBenefitTax(
         _benefitValue: number,
         _date: string,
@@ -739,6 +748,14 @@ describe('DividendsService (integration)', () => {
       }
       getHealthAllowanceRules(_date: string): null {
         return null;
+      }
+      resolveAdvanceTaxPoint(): AdvanceTaxPointDecision {
+        return {
+          supported: false,
+          code: 'no_jurisdiction_rule',
+          message: 'This test plugin defines no advance taxation.',
+          howToResolve: 'Leave the receipt unclassified for review.',
+        };
       }
       resolveFringeBenefitTax(
         _benefitValue: number,

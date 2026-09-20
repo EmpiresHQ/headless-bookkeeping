@@ -1,5 +1,6 @@
 import { useQueries, useQuery, type QueryClient } from '@tanstack/react-query';
 import {
+  getAdvanceVatTreatments,
   approveApproval,
   createExpense,
   executeMatches,
@@ -40,7 +41,17 @@ export const bankKeys = {
   unmatchedCount: (id: number) =>
     ['bank', 'statements', id, 'unmatched-count'] as const,
   importJob: (jobId: number) => ['bank', 'import', jobId] as const,
+  advanceVatTreatments: (receiptDate: string) =>
+    ['bank', 'advance-vat-treatments', receiptDate] as const,
 };
+
+/** The VAT treatments a taxable advance received on this date can declare. */
+export const useAdvanceVatTreatments = (receiptDate: string | undefined) =>
+  useQuery({
+    queryKey: bankKeys.advanceVatTreatments(receiptDate ?? ''),
+    queryFn: () => getAdvanceVatTreatments(receiptDate as string),
+    enabled: Boolean(receiptDate),
+  });
 
 export const useBankStatements = () =>
   useQuery({ queryKey: bankKeys.statements, queryFn: listBankStatements });
