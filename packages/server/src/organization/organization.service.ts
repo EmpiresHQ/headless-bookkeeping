@@ -8,6 +8,12 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { toBool } from '../database/helpers';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import {
+  describeLedgerBasis,
+  resolveLedgerBasis,
+  sameLedgerBasis,
+} from './ledger-basis';
 import { Organization, UpdateOrganizationDto } from './types';
 
 const SINGLETON_ID = 1;
@@ -32,7 +38,10 @@ function assertOneOf<T extends string>(
 
 @Injectable()
 export class OrganizationService {
-  constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
+  constructor(
+    @InjectKysely() private readonly db: Kysely<Database>,
+    private readonly pluginLoader: PluginLoader,
+  ) {}
 
   /**
    * `executor` lets a caller read the singleton inside its own transaction.
@@ -54,58 +63,150 @@ export class OrganizationService {
     return this.mapRow(row);
   }
 
+  /**
+   * Apply a settings patch to the singleton organisation.
+   *
+   * Runs as ONE transaction because two of the fields are not profile data but
+   * the unit of the ledger: the measurement-basis guard reads the posted
+   * vouchers and the row it is about to write in the same atomic view, so a
+   * voucher cannot land between "the ledger is empty" and the write that
+   * relies on it (issue #215; see {@link assertBasisChangeAllowed}).
+   */
   async updateOrganization(dto: UpdateOrganizationDto): Promise<Organization> {
-    // Defense-in-depth: the DB enforces the singleton (id = 1 CHECK), but we
-    // also reject here if the invariant is somehow violated.
-    const count = await this.db
-      .selectFrom('organization')
-      .select((eb) => eb.fn.countAll().as('count'))
+    return this.db.transaction().execute(async (trx) => {
+      // Defense-in-depth: the DB enforces the singleton (id = 1 CHECK), but we
+      // also reject here if the invariant is somehow violated.
+      const count = await trx
+        .selectFrom('organization')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .executeTakeFirst();
+
+      if (!count || Number(count.count) !== 1) {
+        throw new ConflictException(
+          `Expected exactly 1 organization record, found ${count ? Number(count.count) : 0}`,
+        );
+      }
+
+      const current = await this.getOrganization(trx);
+
+      const updates: Record<string, string | number | null> = {};
+      if (dto.country !== undefined) updates.country = dto.country;
+      if (dto.base_currency !== undefined)
+        updates.base_currency = dto.base_currency;
+      if (dto.vat_registered !== undefined)
+        updates.vat_registered = dto.vat_registered ? 1 : 0;
+      if (dto.org_type !== undefined) updates.org_type = dto.org_type;
+      // The VAT facts are resolved together, and only when the caller touched one
+      // of them — a PUT that names none must stay the no-op it always was.
+      if (
+        dto.vat_registered !== undefined ||
+        dto.vat_registration_kind !== undefined ||
+        dto.input_vat_entitlement !== undefined ||
+        dto.input_vat_deduction_permille !== undefined
+      ) {
+        Object.assign(updates, this.resolveVatFactUpdates(dto, current));
+      }
+      if (dto.vat_registration_number !== undefined)
+        updates.vat_registration_number = dto.vat_registration_number;
+      if (dto.registry_code !== undefined)
+        updates.registry_code = dto.registry_code;
+      if (dto.name !== undefined) updates.name = dto.name;
+      if (dto.iban !== undefined) updates.iban = dto.iban;
+
+      if (Object.keys(updates).length === 0) {
+        return current;
+      }
+
+      await this.assertBasisChangeAllowed(trx, current, dto);
+
+      await trx
+        .updateTable('organization')
+        .set(updates)
+        .where('id', '=', SINGLETON_ID)
+        .execute();
+
+      return this.getOrganization(trx);
+    });
+  }
+
+  /**
+   * Refuse a change to the ledger's MEASUREMENT BASIS once anything has been
+   * posted (issue #215).
+   *
+   * A VoucherLine records `base_amount` as a bare integer; which currency that
+   * integer is denominated in, and which jurisdiction's rate and rounding
+   * produced it, live only in these organisation settings. Change them after a
+   * Voucher exists and every historical amount is silently re-labelled: a
+   * `Σ base_amount` (LedgerBalanceService, every report built on it) then adds
+   * EUR-measured cents to USD-measured cents and returns a number that is in no
+   * currency at all.
+   *
+   * Three deliberate choices:
+   *
+   *  - the historical ledger is NEVER auto-converted. Re-measuring a posted
+   *    book would rewrite immutable, hash-chained vouchers (ADR-0013/0021) at
+   *    rates nobody filed a return at. There is no supported transition yet, so
+   *    the honest answer is refusal, not a silent conversion;
+   *  - the comparison is between EFFECTIVE bases (override ?? plugin default),
+   *    so clearing an override that merely restated the plugin's own default is
+   *    the no-op it looks like, and is allowed;
+   *  - the trigger is the EXISTENCE of a voucher, not a non-zero balance. A
+   *    book whose every entry has been reversed still nets to zero, and its
+   *    posted history is still measured in the old basis.
+   *
+   * `country` is guarded on the same terms: it selects the plugin that supplied
+   * the reference rate, the minor-unit rounding and the VAT treatment each
+   * posted line was booked under, so moving jurisdiction mid-ledger makes the
+   * history unreadable in exactly the same way — even when the currency happens
+   * not to move with it.
+   */
+  private async assertBasisChangeAllowed(
+    trx: Kysely<Database>,
+    current: Organization,
+    dto: UpdateOrganizationDto,
+  ): Promise<void> {
+    if (dto.country === undefined && dto.base_currency === undefined) {
+      return;
+    }
+
+    const currentBasis = resolveLedgerBasis(current, this.pluginLoader);
+    const proposedBasis = resolveLedgerBasis(
+      {
+        country: dto.country ?? current.country,
+        base_currency:
+          dto.base_currency !== undefined
+            ? dto.base_currency
+            : current.base_currency,
+      },
+      this.pluginLoader,
+    );
+
+    if (sameLedgerBasis(currentBasis, proposedBasis)) {
+      return;
+    }
+
+    // Any voucher at all — including one already reversed — means amounts were
+    // measured under the current basis and are still being summed.
+    const posted = await trx
+      .selectFrom('voucher')
+      .select('id')
+      .limit(1)
       .executeTakeFirst();
 
-    if (!count || Number(count.count) !== 1) {
-      throw new ConflictException(
-        `Expected exactly 1 organization record, found ${count ? Number(count.count) : 0}`,
-      );
+    if (!posted) {
+      return;
     }
 
-    const updates: Record<string, string | number | null> = {};
-    if (dto.country !== undefined) updates.country = dto.country;
-    if (dto.base_currency !== undefined)
-      updates.base_currency = dto.base_currency;
-    if (dto.vat_registered !== undefined)
-      updates.vat_registered = dto.vat_registered ? 1 : 0;
-    if (dto.org_type !== undefined) updates.org_type = dto.org_type;
-    // The VAT facts are resolved together, and only when the caller touched one
-    // of them — a PUT that names none must stay the no-op it always was.
-    if (
-      dto.vat_registered !== undefined ||
-      dto.vat_registration_kind !== undefined ||
-      dto.input_vat_entitlement !== undefined ||
-      dto.input_vat_deduction_permille !== undefined
-    ) {
-      Object.assign(
-        updates,
-        this.resolveVatFactUpdates(dto, await this.getOrganization()),
-      );
-    }
-    if (dto.vat_registration_number !== undefined)
-      updates.vat_registration_number = dto.vat_registration_number;
-    if (dto.registry_code !== undefined)
-      updates.registry_code = dto.registry_code;
-    if (dto.name !== undefined) updates.name = dto.name;
-    if (dto.iban !== undefined) updates.iban = dto.iban;
-
-    if (Object.keys(updates).length === 0) {
-      return this.getOrganization();
-    }
-
-    await this.db
-      .updateTable('organization')
-      .set(updates)
-      .where('id', '=', SINGLETON_ID)
-      .execute();
-
-    return this.getOrganization();
+    throw new ConflictException(
+      `The ledger measurement basis cannot be changed once vouchers have been ` +
+        `posted: the books are measured in ${describeLedgerBasis(currentBasis)} ` +
+        `and this change would re-label every posted base_amount as ` +
+        `${describeLedgerBasis(proposedBasis)}, making aggregates add ` +
+        `incompatible amounts. Posted vouchers are immutable and are never ` +
+        `re-converted. Set 'country' and 'base_currency' before the first ` +
+        `voucher is posted; to keep books in another basis, start a separate ` +
+        `ledger. Every other organisation setting remains editable.`,
+    );
   }
 
   /**

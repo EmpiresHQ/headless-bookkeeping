@@ -181,7 +181,7 @@ function OrgForm({ data }: { data: Organization }) {
       <Field
         label="Country"
         error={countryErr}
-        hint="Determines the accounting plugin, VAT rates and period frequency"
+        hint="Determines the accounting plugin, VAT rates and period frequency. Locked once the first voucher is posted — it is the jurisdiction the posted amounts were measured under"
       >
         <TextInput
           aria-label="Country"
@@ -325,7 +325,7 @@ function OrgForm({ data }: { data: Organization }) {
       <Field
         label="Base currency"
         error={currencyErr}
-        hint="Blank = inherit the country plugin default"
+        hint="Blank = inherit the country plugin default. Locked once the first voucher is posted — it is the currency every posted amount is measured in"
       >
         <TextInput
           aria-label="Base currency"

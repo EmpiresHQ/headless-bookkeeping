@@ -19,7 +19,7 @@ A chart-of-accounts node that **VoucherLines** debit or credit. Internal/technic
 _Avoid_: Ledger, GL code (in user-facing text)
 
 **Base currency**:
-The single reporting currency in which all balances, P&L, and VAT are expressed. Its value is **sourced from the country plugin** (`getDefaultBaseCurrency()`) with an optional **Organization-level override** (`organization.base_currency`, nullable; `NULL` = inherit from the plugin). Resolution: `org.base_currency ?? plugin(org.country).getDefaultBaseCurrency()`. The default deployment is Ireland → `EUR`. See ADR-0004.
+The single reporting currency in which all balances, P&L, and VAT are expressed. Its value is **sourced from the country plugin** (`getDefaultBaseCurrency()`) with an optional **Organization-level override** (`organization.base_currency`, nullable; `NULL` = inherit from the plugin). Resolution: `org.base_currency ?? plugin(org.country).getDefaultBaseCurrency()`. The default deployment is Ireland → `EUR`. See ADR-0004. **Frozen by the first posting** (issue #215): because a VoucherLine records `base_amount` without naming its currency, the basis — and the `country` that supplies the plugin's rate, rounding and VAT treatment — is the unit of everything already posted. Both are freely settable while the ledger is empty; once a Voucher exists a change of the EFFECTIVE basis is refused (409) and the history is never re-converted. An edit that leaves the effective basis where it was is still allowed.
 _Avoid_: Home currency, functional currency (when ambiguous)
 
 **Realized FX gain/loss**:

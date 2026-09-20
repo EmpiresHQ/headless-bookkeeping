@@ -6,6 +6,10 @@ import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { OrganizationService } from './organization.service';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { fxTestProviders } from '../../test/fx-fixtures';
 
 describe('OrganizationService (integration)', () => {
   let db: Kysely<Database>;
@@ -29,6 +33,10 @@ describe('OrganizationService (integration)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
+        ...fxTestProviders(),
+        PluginLoader,
         OrganizationService,
       ],
     }).compile();

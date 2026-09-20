@@ -317,7 +317,19 @@ describe('Filing-state consistency (issue #200)', () => {
 
     // Moving the organization to a country with no dedicated plugin would fall
     // back to NullCountryPlugin, which produces NO artifacts at all.
-    await organization.updateOrganization({ country: 'DK' });
+    //
+    // Written straight to the row on purpose. Since #215 the settings endpoint
+    // REFUSES a jurisdiction change once a voucher exists, so this drift can no
+    // longer be produced through OrganizationService — but a book that drifted
+    // before that guard existed (or through any write outside the service)
+    // still has to re-render its filed period from the frozen payload, which is
+    // what #200 is about. The fixture therefore reproduces the drifted STATE
+    // rather than the (now-blocked) route to it.
+    await db
+      .updateTable('organization')
+      .set({ country: 'DK' })
+      .where('id', '=', 1)
+      .execute();
 
     const again = await statutory.generate(PERIOD_ID, { formats: ['xml'] });
     expect(again.artifacts).toHaveLength(1);
