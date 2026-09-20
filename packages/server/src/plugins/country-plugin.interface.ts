@@ -50,16 +50,56 @@ export type {
 export type VATCode = string;
 
 /**
- * SupplierFacts - Intrinsic, context-free facts about a Supplier.
+ * CounterpartyTaxStatus - Whether the counterparty is a taxable person acting
+ * as such (issue #209).
+ *
+ * The fact that decides a cross-border service's place of supply, and which a
+ * country code cannot stand in for. `unknown` is a real, distinct answer — it
+ * is NOT a consumer, and a plugin must refuse rather than pick a side.
+ */
+export type CounterpartyTaxStatus =
+  | 'taxable_business'
+  | 'non_taxable'
+  | 'unknown';
+
+/**
+ * ServicePlaceRule - Which place-of-supply rule governs a service supply.
+ *
+ * `general` is the residual rule (EE: KMS §10 lg 1 / lg 2 — B2B where the
+ * customer is established, B2C where the supplier is) and therefore the
+ * default: an exception exists only when the caller declares one. Every other
+ * member names a rule with its own place, and a plugin that does not implement
+ * it must REFUSE it with an actionable message — never fold it into the
+ * general rule, and never blanket-zero it.
+ */
+export type ServicePlaceRule =
+  | 'general'
+  | 'immovable_property'
+  | 'passenger_transport'
+  | 'cultural_artistic_sporting_admission'
+  | 'restaurant_catering'
+  | 'short_term_hire_of_means_of_transport'
+  | 'electronically_supplied_to_consumer'
+  | 'other_special';
+
+/**
+ * SupplierFacts - Intrinsic, context-free facts about the COUNTERPARTY of a
+ * transaction — the supplier on a purchase, the customer on a sale. (The name
+ * predates the sales side; the shape is the counterparty's, not the seller's.)
  * Used by the country plugin to resolve VAT treatment and account mapping.
  */
 export interface SupplierFacts {
-  /** ISO country code of the supplier (e.g. "IE", "DK", "GB"). */
+  /** ISO country code of the counterparty (e.g. "IE", "DK", "GB"). */
   country: string;
-  /** Whether the supplier provides goods or services. */
+  /** Whether the counterparty deals in goods or services. */
   goodsVsServices: 'goods' | 'services' | 'unknown';
   /** Historical categories this supplier's purchases have been mapped to. */
   classificationMemory: string[];
+  /**
+   * Whether the counterparty is a taxable person acting as such. Absent ⇒
+   * 'unknown' — the plugin must treat that as unresolved, not as a consumer.
+   */
+  taxStatus?: CounterpartyTaxStatus;
 }
 
 /**
@@ -72,6 +112,21 @@ export interface OrgContext {
   vatRegistered: boolean;
   /** Base currency override, or null to inherit from the country plugin. */
   baseCurrency: string | null;
+}
+
+/**
+ * SupplyFacts - Facts about THIS transaction rather than about the
+ * counterparty (issue #209). A customer's `goodsVsServices` describes what it
+ * normally deals in; `supplyType` describes what this particular invoice
+ * supplies, and `servicePlaceRule` under which rule that service is taxed.
+ *
+ * Both are optional: absent `supplyType` falls back to the counterparty's
+ * nature (pre-#209 behavior), absent `servicePlaceRule` means the residual
+ * general rule.
+ */
+export interface SupplyFacts {
+  supplyType?: 'goods' | 'services' | 'unknown';
+  servicePlaceRule?: ServicePlaceRule;
 }
 
 /**
@@ -179,15 +234,49 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * - Organization context (registration status, base currency)
    *
    * @param category - User-facing category label
-   * @param supplierFacts - Supplier intrinsic facts + classification memory
+   * @param supplierFacts - Counterparty intrinsic facts + classification memory
    * @param orgContext - Organization context (country, VAT registration, base currency)
+   * @param supplyFacts - Facts about THIS supply (what it supplies, under which
+   *   place-of-supply rule). Omitted ⇒ the counterparty's nature and the
+   *   residual general rule.
    * @returns Resolved account code + VAT code
+   * @throws UnresolvedVatTreatmentError when the recorded facts cannot decide
+   *   the treatment (e.g. a cross-border service to a customer of unknown tax
+   *   status). Refusing is the contract — a plugin must not guess.
    */
   resolveCategoryMapping(
     category: string,
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
+    supplyFacts?: SupplyFacts,
   ): CategoryMappingResult;
+
+  /**
+   * OPTIONAL: assert that a SALE's tax amount agrees with the treatment this
+   * plugin just resolved for it, throwing `UnresolvedVatTreatmentError` when it
+   * does not (issue #209).
+   *
+   * Whether an invoice's tax amount is CHECKABLE is a jurisdiction question, not
+   * a kernel one: it is checkable exactly where the plugin derived the rate from
+   * recorded facts (EE: a general-rule service — the treatment came from the
+   * customer's tax status and the place-of-supply rule, so the amount follows
+   * arithmetically). A plugin that maps revenue to one flat code regardless of
+   * facts has derived nothing and must not pretend to check anything — it simply
+   * does not implement this, and the kernel then books the tax the document
+   * states, exactly as before.
+   */
+  assertSaleTaxAmount?(input: {
+    /** Net amount in document-currency minor units (gross − tax). */
+    netMinorUnits: number;
+    /** Tax amount the caller stated, in document-currency minor units. */
+    vatMinorUnits: number;
+    /** The VAT code this plugin resolved for the sale. */
+    vatCode: VATCode;
+    /** Tax point (YYYY-MM-DD) — the rate in force is read as of this date. */
+    taxPointDate: string;
+    counterpartyFacts: SupplierFacts;
+    supplyFacts?: SupplyFacts;
+  }): void;
 
   /**
    * Returns the available reporting period frequency options for this country.

@@ -20,6 +20,7 @@ import {
   StatutoryReportInput,
   StatutoryReportResult,
   StatutoryWarning,
+  normalizeFrozenStatutoryInput,
 } from '../plugins/statutory-report.types';
 
 /** The reporting-period fields every assembly path needs. */
@@ -382,8 +383,14 @@ export class StatutoryReportService {
     await this.warnOnDrift(period, bound, warnings);
 
     return {
+      // A payload frozen by an older version of this code may predate a
+      // declaration field the renderers now read (issue #209). It is immutable,
+      // so it is normalized on READ — never rewritten — and still renders the
+      // exact figures it was filed with.
       input: {
-        ...(JSON.parse(version.payload) as StatutoryReportInput),
+        ...normalizeFrozenStatutoryInput(
+          JSON.parse(version.payload) as StatutoryReportInput,
+        ),
         mode: 'final',
       },
       country: version.country,

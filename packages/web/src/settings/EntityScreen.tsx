@@ -27,6 +27,14 @@ import { AddAliasSheet } from './AddAliasSheet';
 import { EditEntitySheet } from './EditEntitySheet';
 
 /** /settings/entities/:id — asset §8: identity + links + memory in one card. */
+/** Labels for entity.tax_status — 'unknown' (and a never-recorded NULL) reads
+ *  as "Not recorded", never as "Consumer". */
+const TAX_STATUS_LABEL: Record<string, string> = {
+  taxable_business: 'Business (taxable person)',
+  non_taxable: 'Consumer (non-taxable)',
+  unknown: 'Not recorded',
+};
+
 export function EntityScreen() {
   const { id: idParam } = useParams();
   const valid = idParam !== undefined && /^\d+$/.test(idParam);
@@ -142,6 +150,12 @@ function EntityCard({ entity }: { entity: Entity }) {
 
       <ListGroup>
         {regKey !== null && <KeyValue k="Registration key" v={regKey} />}
+        {(entity.role === 'customer' || entity.role === 'supplier') && (
+          <KeyValue
+            k="Tax status"
+            v={TAX_STATUS_LABEL[entity.tax_status ?? 'unknown'] ?? 'Unknown'}
+          />
+        )}
         {email !== null && <KeyValue k="Email" v={email} />}
         {tg !== null && <KeyValue k="Telegram id" v={tg} />}
         {stats !== null && (

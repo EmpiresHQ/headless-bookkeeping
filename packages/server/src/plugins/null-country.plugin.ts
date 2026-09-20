@@ -305,6 +305,7 @@ export class NullCountryPlugin implements CountryPlugin {
   classifyKmd(_vatCode: VATCode): KmdBaseClassification {
     return {
       outputBaseRow: null,
+      outputSubRow: null,
       acquisitionRow: null,
       vdCode: null,
       review: null,

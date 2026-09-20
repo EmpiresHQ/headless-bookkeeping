@@ -54,6 +54,7 @@ function mountSheet(warnings: unknown[] = []) {
       country: 'EE',
       name: 'AS Merko Ehitus',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -38,6 +38,8 @@ import {
 // `sent_at: null` in the draft test type-check against the real
 // nullable fields instead of the narrower literal type TS would infer.
 const INVOICE: SalesInvoice = {
+  supply_type: null,
+  service_place_rule: 'general',
   id: 3,
   customer_id: 7,
   invoice_number: '2026-018',
@@ -65,6 +67,7 @@ function mountAt(
       country: 'EE',
       name: 'Nordic Consulting OÜ',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
   // MUST be mocked BEFORE render — the rejection query fires on mount.

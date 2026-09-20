@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { OrgContextResolver } from '../../organization/org-context.resolver';
 import { CurrencyService } from '../../currency/currency.service';
-import { SupplierFacts } from '../../plugins/country-plugin.interface';
+import {
+  SupplierFacts,
+  SupplyFacts,
+} from '../../plugins/country-plugin.interface';
 import { DraftVoucher, DraftVoucherLine } from '../voucher/types';
 import { EconomicFacts, Direction } from './types';
 import { ResolvedFxRate } from '../../fx/fx-rate.types';
@@ -55,15 +58,36 @@ export class VoucherProjectionService {
       country: facts.supplierCountry ?? org.country,
       goodsVsServices: facts.goodsVsServices ?? 'unknown',
       classificationMemory: [],
+      taxStatus: facts.taxStatus ?? 'unknown',
+    };
+
+    const supplyFacts: SupplyFacts = {
+      supplyType: facts.supplyType,
+      servicePlaceRule: facts.servicePlaceRule,
     };
 
     const mapping = plugin.resolveCategoryMapping(
       facts.category,
       supplierFacts,
       orgContext,
+      supplyFacts,
     );
 
     const netAmount = facts.grossAmount - facts.vatAmount;
+
+    // A sale's stated tax must agree with the treatment the plugin resolved —
+    // where the PLUGIN says that is checkable (issue #209). The kernel owns no
+    // VAT arithmetic of its own (ADR-0002), so it only asks.
+    if (direction === 'sale') {
+      plugin.assertSaleTaxAmount?.({
+        netMinorUnits: netAmount,
+        vatMinorUnits: facts.vatAmount,
+        vatCode: mapping.vatCode,
+        taxPointDate: facts.taxPointDate,
+        counterpartyFacts: supplierFacts,
+        supplyFacts,
+      });
+    }
     // Single owner of currency→base conversion (ADR-0004): one uniform rate per
     // draft, sourced from the country plugin, rounded by the currency module.
     // We take the rate from the same place we book it.

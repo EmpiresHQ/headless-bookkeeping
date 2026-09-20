@@ -14,6 +14,7 @@ import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { VoucherProjectionService } from '../ledger/projection/voucher-projection.service';
 import { EntitiesService } from '../entities/entities.service';
+import { UnresolvedVatTreatmentError } from '../plugins/vat-treatment.errors';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { CreateSalesInvoiceDto } from './types';
 
@@ -22,9 +23,13 @@ describe('SalesInvoicesService (integration)', () => {
   let service: SalesInvoicesService;
   let entitiesService: EntitiesService;
   let organizationService: OrganizationService;
+  // The underlying connection, so a test can write from OUTSIDE Kysely — the
+  // only way to interleave a state change into an open transaction on a
+  // single-connection SQLite (used by the stale-interleaving test below).
+  let rawDb: SqliteDb.Database;
 
   beforeEach(async () => {
-    const rawDb = new SqliteDb(':memory:');
+    rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: rawDb }),
@@ -342,6 +347,9 @@ describe('SalesInvoicesService (integration)', () => {
         name: 'ACME',
         registrationKey: 'DK99999999',
         goodsVsServices: 'services',
+        // The fact that makes this the Art. 44/196 case rather than a supply
+        // to a Danish consumer (issue #209).
+        taxStatus: 'taxable_business',
       });
 
       const invoice = await service.createInvoice({
@@ -362,6 +370,281 @@ describe('SalesInvoicesService (integration)', () => {
       // cannot post).
       const vatLine = draft.lines.find((l) => l.account_code === 'VAT_PAYABLE');
       expect(vatLine).toBeUndefined();
+    });
+
+    it('REFUSES to draft the same invoice while the tax status is unknown', async () => {
+      await organizationService.updateOrganization({ country: 'EE' });
+
+      const customer = await entitiesService.onboard({
+        role: 'customer',
+        country: 'DK',
+        name: 'Unknown Status OY',
+        registrationKey: 'DK11111111',
+        goodsVsServices: 'services',
+      });
+
+      const invoice = await service.createInvoice({
+        invoice_number: 'INV-EU-UNKNOWN',
+        gross_amount: 615700,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-05-31',
+        customer_id: customer.id,
+      });
+
+      await expect(
+        service.generateDraftVoucher(invoice.id),
+      ).rejects.toBeInstanceOf(UnresolvedVatTreatmentError);
+
+      // Recording the fact is all it takes — no other change to the invoice.
+      await entitiesService.update(customer.id, {
+        taxStatus: 'taxable_business',
+      });
+      const draft = await service.generateDraftVoucher(invoice.id);
+      expect(
+        draft.lines.find((l) => l.account_code === 'REVENUE')?.vat_code,
+      ).toBe('EE_OUTPUT_0_EU');
+    });
+
+    it('persists supply_type and service_place_rule as given', async () => {
+      const invoice = await service.createInvoice({
+        invoice_number: 'INV-FACTS',
+        gross_amount: 10000,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-05-31',
+        supply_type: 'services',
+        service_place_rule: 'immovable_property',
+      });
+      expect(invoice.supply_type).toBe('services');
+      expect(invoice.service_place_rule).toBe('immovable_property');
+
+      const reread = await service.getInvoiceById(invoice.id);
+      expect(reread.service_place_rule).toBe('immovable_property');
+    });
+
+    it('defaults service_place_rule to the residual general rule', async () => {
+      const invoice = await service.createInvoice({
+        invoice_number: 'INV-DEFAULT-RULE',
+        gross_amount: 10000,
+        vat_amount: 2400,
+        currency: 'EUR',
+        tax_point_date: '2026-05-31',
+      });
+      expect(invoice.service_place_rule).toBe('general');
+      expect(invoice.supply_type).toBeNull();
+    });
+  });
+
+  describe('patching a draft (issue #209 remedy)', () => {
+    async function draftInvoice(
+      over: Partial<CreateSalesInvoiceDto> = {},
+    ): Promise<number> {
+      const inv = await service.createInvoice({
+        invoice_number: `INV-PATCH-${Math.random().toString(36).slice(2, 8)}`,
+        gross_amount: 12400,
+        vat_amount: 2400,
+        currency: 'EUR',
+        tax_point_date: '2026-05-15',
+        ...over,
+      } as CreateSalesInvoiceDto);
+      return inv.id;
+    }
+
+    /** A real voucher row, so `sales_invoice.voucher_id`'s FK is satisfied. */
+    async function makeVoucher(number: string): Promise<number> {
+      const v = await db
+        .insertInto('voucher')
+        .values({
+          voucher_number: number,
+          tax_point_date: '2026-05-15',
+          posted_at: 1,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      return v.id;
+    }
+
+    it('patches the supply facts and amounts of a draft', async () => {
+      const id = await draftInvoice();
+      const patched = await service.updateDraft(id, {
+        gross_amount: 10000,
+        vat_amount: 0,
+        supply_type: 'services',
+        service_place_rule: 'general',
+      });
+      expect(patched).toMatchObject({
+        gross_amount: 10000,
+        vat_amount: 0,
+        supply_type: 'services',
+        service_place_rule: 'general',
+        status: 'draft',
+      });
+    });
+
+    it('validates the amounts the invoice would HAVE, not just the fields sent', async () => {
+      const id = await draftInvoice({ gross_amount: 10000, vat_amount: 2400 });
+      // vat_amount alone is a perfectly valid non-negative number; merged with
+      // the existing gross it is a VAT charge larger than the invoice.
+      await expect(
+        service.updateDraft(id, { vat_amount: 50000 }),
+      ).rejects.toThrow(/would exceed gross_amount/);
+      // …and the same holds the other way round: shrinking the gross under an
+      // existing VAT amount.
+      await expect(
+        service.updateDraft(id, { gross_amount: 1000 }),
+      ).rejects.toThrow(/would exceed gross_amount/);
+
+      const untouched = await service.getInvoiceById(id);
+      expect(untouched).toMatchObject({
+        gross_amount: 10000,
+        vat_amount: 2400,
+      });
+    });
+
+    it('refuses a posted invoice and leaves it byte-for-byte alone', async () => {
+      const id = await draftInvoice();
+      await service.updateInvoiceStatus(id, 'posted', await makeVoucher('V-1'));
+      const before = await db
+        .selectFrom('sales_invoice')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+
+      await expect(
+        service.updateDraft(id, { supply_type: 'goods', vat_amount: 0 }),
+      ).rejects.toThrow(/is posted/);
+      expect(
+        await db
+          .selectFrom('sales_invoice')
+          .selectAll()
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow(),
+      ).toEqual(before);
+    });
+
+    it('does NOT overwrite an invoice that gets posted mid-edit (conditional claim)', async () => {
+      const id = await draftInvoice({ gross_amount: 12400, vat_amount: 2400 });
+      const voucherId = await makeVoucher('V-MID-EDIT');
+
+      // Interleave a post between the in-transaction read and the update: the
+      // raw connection is the same one the transaction holds, so this write
+      // lands where a real concurrent poster's would.
+      const flip = jest
+        .spyOn(
+          service as unknown as { assertPatchedAmounts: () => void },
+          'assertPatchedAmounts',
+        )
+        .mockImplementation(() => {
+          rawDb
+            .prepare(
+              "UPDATE sales_invoice SET status = 'posted', voucher_id = ? WHERE id = ?",
+            )
+            .run(voucherId, id);
+        });
+
+      await expect(
+        service.updateDraft(id, {
+          gross_amount: 99900,
+          vat_amount: 0,
+          supply_type: 'goods',
+        }),
+      ).rejects.toThrow(/changed while this edit was being applied/);
+      flip.mockRestore();
+
+      // NOTHING from the patch was written: the amounts and supply facts are
+      // the ones the invoice had. (The simulated post shares this single
+      // connection, so it rolls back with the refused transaction and the row
+      // reads as the original draft again — the point of the assertion is that
+      // 99900 / goods never reached the row that the poster had claimed.)
+      const after = await db
+        .selectFrom('sales_invoice')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      expect(after).toMatchObject({
+        gross_amount: 12400,
+        vat_amount: 2400,
+        supply_type: null,
+      });
+      expect(after.gross_amount).not.toBe(99900);
+      expect(voucherId).toBeGreaterThan(0);
+    });
+
+    it('supersedes a pending approval only when the edit actually wins the row', async () => {
+      const id = await draftInvoice();
+      // A real pending approval, exactly as the policy hold creates it.
+      await db
+        .updateTable('sales_invoice')
+        .set({ status: 'pending' })
+        .where('id', '=', id)
+        .execute();
+      const approval = await db
+        .insertInto('approval')
+        .values({
+          object_type: 'sales_invoice',
+          object_id: id,
+          status: 'pending',
+          requested_by: 'system',
+          approved_by: null,
+          rejected_reason: null,
+          policy_reason: 'exceeds ceiling',
+          superseded_by: null,
+          created_at: 1,
+          resolved_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      const patched = await service.updateDraft(id, {
+        supply_type: 'services',
+      });
+      expect(patched.status).toBe('draft');
+      expect(
+        (
+          await db
+            .selectFrom('approval')
+            .selectAll()
+            .where('id', '=', approval.id)
+            .executeTakeFirstOrThrow()
+        ).status,
+      ).toBe('superseded');
+
+      // A second pending approval on a POSTED invoice is left alone: the edit
+      // must not resolve an approval for a row it did not win.
+      await service.updateInvoiceStatus(
+        id,
+        'posted',
+        await makeVoucher('V-SECOND'),
+      );
+      const stillPending = await db
+        .insertInto('approval')
+        .values({
+          object_type: 'sales_invoice',
+          object_id: id,
+          status: 'pending',
+          requested_by: 'system',
+          approved_by: null,
+          rejected_reason: null,
+          policy_reason: 'second',
+          superseded_by: null,
+          created_at: 2,
+          resolved_at: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await expect(
+        service.updateDraft(id, { supply_type: 'goods' }),
+      ).rejects.toThrow(/is posted/);
+      expect(
+        (
+          await db
+            .selectFrom('approval')
+            .selectAll()
+            .where('id', '=', stillPending.id)
+            .executeTakeFirstOrThrow()
+        ).status,
+      ).toBe('pending');
     });
   });
 });

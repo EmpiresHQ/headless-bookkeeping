@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { updateEntity, type Entity } from '../api';
+import { updateEntity, type Entity, type TaxStatus } from '../api';
 import { invalidateEntities } from '../queries/settings';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
@@ -8,7 +8,7 @@ import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
 
 /** Edit sheet — EXACTLY the server's PATCH surface: name, country,
- *  goods/services (Reality #5; identity fields are immutable). */
+ *  goods/services, tax status (identity fields are immutable). */
 export function EditEntitySheet({
   entity,
   open,
@@ -28,6 +28,12 @@ export function EditEntitySheet({
       ? entity.goods_vs_services
       : 'unknown',
   );
+  const [taxStatus, setTaxStatus] = useState<TaxStatus>(
+    entity.tax_status === 'taxable_business' ||
+      entity.tax_status === 'non_taxable'
+      ? entity.tax_status
+      : 'unknown',
+  );
 
   const valid = name.trim() !== '' && country.trim() !== '';
 
@@ -38,6 +44,7 @@ export function EditEntitySheet({
         name: name.trim(),
         country: country.trim().toUpperCase(),
         goodsVsServices: goods,
+        taxStatus,
       });
       toastOk('Entity updated');
       onClose();
@@ -81,6 +88,20 @@ export function EditEntitySheet({
             <option value="unknown">Unknown</option>
             <option value="goods">Goods</option>
             <option value="services">Services</option>
+          </SelectInput>
+        </Field>
+        <Field
+          label="Tax status"
+          hint="Whether this counterparty is a business acting as such. Needed before a cross-border service invoice can be posted — while it is unknown the server refuses rather than guessing."
+        >
+          <SelectInput
+            aria-label="Tax status"
+            value={taxStatus}
+            onChange={(e) => setTaxStatus(e.target.value as TaxStatus)}
+          >
+            <option value="unknown">Unknown</option>
+            <option value="taxable_business">Business (taxable person)</option>
+            <option value="non_taxable">Consumer (non-taxable)</option>
           </SelectInput>
         </Field>
         <Button

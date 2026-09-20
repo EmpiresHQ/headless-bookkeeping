@@ -5,6 +5,7 @@ import {
   onboardEntity,
   type EntityRole,
   type OnboardEntityInput,
+  type TaxStatus,
 } from '../api';
 import { invalidateEntities, ROLE_LABEL } from '../queries/settings';
 import { Button } from '../ui/Button';
@@ -48,6 +49,7 @@ export function CreateEntitySheet({
   const [goods, setGoods] = useState<'goods' | 'services' | 'unknown'>(
     'unknown',
   );
+  const [taxStatus, setTaxStatus] = useState<TaxStatus>('unknown');
   const [email, setEmail] = useState('');
   const [tgUserId, setTgUserId] = useState('');
 
@@ -67,6 +69,7 @@ export function CreateEntitySheet({
             country: country.trim().toUpperCase(),
             registrationKey: regKey.trim(),
             goodsVsServices: goods,
+            taxStatus,
           }
         : {
             role,
@@ -160,6 +163,22 @@ export function CreateEntitySheet({
                 <option value="unknown">Unknown</option>
                 <option value="goods">Goods</option>
                 <option value="services">Services</option>
+              </SelectInput>
+            </Field>
+            <Field
+              label="Tax status"
+              hint="Whether this counterparty is a business acting as such. Needed before a cross-border service invoice can be posted — while it is unknown the server refuses rather than guessing."
+            >
+              <SelectInput
+                aria-label="Tax status"
+                value={taxStatus}
+                onChange={(e) => setTaxStatus(e.target.value as TaxStatus)}
+              >
+                <option value="unknown">Unknown</option>
+                <option value="taxable_business">
+                  Business (taxable person)
+                </option>
+                <option value="non_taxable">Consumer (non-taxable)</option>
               </SelectInput>
             </Field>
           </>

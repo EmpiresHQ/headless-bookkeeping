@@ -118,10 +118,19 @@ Listing without `?kind=` returns the VAT calendar, as it always did.
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/entities -d '{
   "role":"supplier", "country":"IE", "name":"Acme Software Ltd",
-  "registrationKey":"IE1234567T", "goodsVsServices":"services"}'
+  "registrationKey":"IE1234567T", "goodsVsServices":"services",
+  "taxStatus":"taxable_business"}'
 # role: supplier|customer; identity is by registrationKey (VAT/CVR), never by name.
-# GET /api/entities, GET /api/entities/:id. No update/alias over API.
+# GET /api/entities, GET /api/entities/:id.
+# PATCH /api/entities/:id updates the mutable facts: name, country,
+# goodsVsServices, taxStatus. Identity (role, registration key) is immutable.
 ```
+`taxStatus` — `taxable_business` (a business acting as such) | `non_taxable`
+(a consumer) | `unknown`. **Omitting it means unknown, not consumer.** It is the
+fact that decides where a cross-border service is taxed, so while it is unknown
+a cross-border service invoice to this customer is REFUSED rather than guessed
+(see below). It describes the COUNTERPARTY; our own VAT registration is
+`organization.vat_registered`.
 
 ### Enter an expense (purchase)
 ```bash
@@ -137,11 +146,73 @@ The response contains `policy.action`: **`auto-post`** (e.g. "within ceiling" �
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/sales-invoices -d '{
   "invoice_number":"INV-001","customer_id":null,"gross_amount":24600,
-  "vat_amount":4600,"currency":"EUR","tax_point_date":"2026-06-09"}'   # status: draft
+  "vat_amount":4600,"currency":"EUR","tax_point_date":"2026-06-09",
+  "supply_type":"services","service_place_rule":"general"}'            # status: draft
 curl -H "$H" -H "$J" -X POST $B/api/sales-invoices/<id>/post -d '{}'    # → voucher (Dr AR = Cr REVENUE + Cr VAT_PAYABLE)
 # optional: POST .../generate-draft (preview entry), POST .../send (mark as sent)
 ```
 > An inbound supplier invoice is an **expense** (intake is purchase-side only), not a sales invoice.
+
+`supply_type` — `goods` | `services`, what THIS invoice supplies. Omitted ⇒ the
+customer entity's `goodsVsServices` decides (so existing callers are unchanged);
+if neither says, a CROSS-BORDER sale is refused, because the answer depends on it.
+
+`service_place_rule` — which place-of-supply rule the caller declares for a
+service. Omitted ⇒ `general`, and that default is a **caller-declared scope**:
+saying nothing asserts that the residual general rule (EE: KMS §10 lg 1 / lg 2)
+applies, not that the rule is unknown. The named exceptions —
+`immovable_property`, `passenger_transport`,
+`cultural_artistic_sporting_admission`, `restaurant_catering`,
+`short_term_hire_of_means_of_transport`, `electronically_supplied_to_consumer`,
+`other_special` — each have their own place of supply and are **not**
+auto-classified: declaring one gets an actionable refusal, never a blanket 0%
+or a blanket domestic rate. Declaring one on a non-service supply is refused too,
+rather than silently ignored.
+
+### Service sales: how the place of supply is decided (EE)
+
+For a **general-rule** service, the Estonia plugin maps the recorded facts onto
+[EMTA's place-of-supply table](https://www.emta.ee/en/business-client/taxes-and-payment/value-added-tax/taxation-services/taxation-and-declaration-supply-services):
+
+| customer | rate | KMD | VD |
+|---|---|---|---|
+| Estonia (business or consumer) | 24% | rows 1 + 4 | — |
+| other member state, taxable person | 0% | rows 3 **and 3.1** | 3S |
+| other member state, non-taxable person | 24% | rows 1 + 4 | — |
+| third country, business | 0% | row 3 only | — |
+| third country, consumer | 24% | rows 1 + 4 | — |
+
+Country alone never decides it, and the rate used is the one in force at the
+invoice's **tax-point date** (EE: 20% → 22% → 24%), so a back-dated invoice is
+measured against its own era. GOODS sales are unaffected by this table.
+
+**Refusals (HTTP 422).** When the recorded facts cannot decide the treatment,
+nothing is posted — no voucher, no partial write, no logged override that could
+bless a guess. The body carries `code`, `missing_facts` and `how_to_resolve`:
+
+| `code` | what to do |
+|---|---|
+| `customer_tax_status_unknown` | `PATCH /api/entities/:id {"taxStatus":"taxable_business"\|"non_taxable"}`, then post again |
+| `supply_type_unknown` | create the invoice with `supply_type`, or set the customer's `goodsVsServices` |
+| `service_place_rule_unsupported` | book the declared exception explicitly with your accountant, or set `service_place_rule:"general"` if it does apply |
+| `service_place_rule_without_service_supply` | set `supply_type:"services"`, or drop the declared exception |
+| `vat_amount_conflicts_with_treatment` | correct the invoice's `vat_amount`, or the facts that decide the rate |
+
+A document arriving through intake hits the same wall, and is **held**
+(`needs_triage`) with the same actionable reason rather than posted on a guess.
+
+Fix the invoice-side facts on the SAME draft (the invoice number is unique, so
+re-creating it returns 409) and post again:
+```bash
+curl -H "$H" -H "$J" -X PATCH $B/api/sales-invoices/<id> -d '{
+  "supply_type":"services","service_place_rule":"general",
+  "gross_amount":10000,"vat_amount":0}'
+# draft (or pending — its approval is superseded) only; posted -> 409:
+# a posted voucher is immutable, correct it via POST .../correct (reversal).
+# Amounts are validated AFTER the merge: sending vat_amount alone still has to
+# fit the invoice's existing gross_amount (400 otherwise).
+# Customer-side facts go to PATCH /api/entities/:id instead.
+```
 
 ### Hold → approval (HITL) — the correct path
 > ⚠️ If you expect a hold, **do not call `/post`**: it moves the object to `pending` **without** creating an approval, and the object gets stuck (verified). Do this instead:

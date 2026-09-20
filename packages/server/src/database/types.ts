@@ -144,6 +144,14 @@ export interface SalesInvoiceTable {
   document_vat_marking: string | null;
   // FK to the intake document that originated this invoice — null for manually created invoices.
   document_id: number | null;
+  // What THIS invoice supplies: 'goods' | 'services'. Null ⇒ fall back to the
+  // customer entity's goods_vs_services (pre-#209 behavior, preserved).
+  supply_type: string | null;
+  // Place-of-supply rule for a service supply (KMS §10). 'general' is the
+  // residual rule and the default; any other value names a declared exception
+  // the plugin refuses to auto-classify. Generated: migration 076 gives the
+  // column DEFAULT 'general', so an insert may omit it.
+  service_place_rule: Generated<string>;
   created_at: number;
   updated_at: number;
 }
@@ -283,6 +291,10 @@ export interface EntityTable {
   name: string;
   // 'goods' | 'services' | 'unknown'
   goods_vs_services: string | null;
+  // Whether this counterparty is a taxable person acting as such:
+  // 'taxable_business' | 'non_taxable' | 'unknown'. NULL ⇒ never recorded,
+  // read as unknown — never as a consumer (issue #209).
+  tax_status: string | null;
   created_at: number | null;
   updated_at: number | null;
 }

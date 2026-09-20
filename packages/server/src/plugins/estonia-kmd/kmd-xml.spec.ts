@@ -103,6 +103,9 @@ it('exports all supported non-zero declaration fields in schema order without de
       row2_base_9: 10001,
       row2_base_13: 20002,
       row3_base_zero: 810000,
+      // KMD field 3.1 is rendered from its own declaration row (issue #209);
+      // the VD total is a different report and no longer feeds the XML box.
+      row3_1_intra_eu_supply: 800000,
       vd_intra_eu_services: 800000,
       row4_output_vat: 8447,
       row5_input_vat: 4947,

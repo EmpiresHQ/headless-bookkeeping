@@ -78,6 +78,8 @@ describe('books pure model', () => {
       document_id: null,
       status: 'posted',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     };
     // Number arm:

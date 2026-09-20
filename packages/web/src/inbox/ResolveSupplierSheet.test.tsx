@@ -63,6 +63,7 @@ describe('ResolveSupplierSheet', () => {
         country: 'EE',
         name: 'Wolt Eesti OÜ',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.resolveSupplier).mockResolvedValue(OUTCOME);
@@ -87,6 +88,7 @@ describe('ResolveSupplierSheet', () => {
       country: 'EE',
       name: 'Circle K Eesti AS',
       goods_vs_services: null,
+      tax_status: null,
     });
     const onDone = renderSheet();
     fireEvent.click(

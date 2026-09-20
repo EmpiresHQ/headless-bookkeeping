@@ -424,6 +424,7 @@ describe('DividendsService (integration)', () => {
       classifyKmd(_vatCode: string): KmdBaseClassification {
         return {
           outputBaseRow: null,
+          outputSubRow: null,
           acquisitionRow: null,
           vdCode: null,
           review: null,
@@ -679,6 +680,7 @@ describe('DividendsService (integration)', () => {
       classifyKmd(_vatCode: string): KmdBaseClassification {
         return {
           outputBaseRow: null,
+          outputSubRow: null,
           acquisitionRow: null,
           vdCode: null,
           review: null,

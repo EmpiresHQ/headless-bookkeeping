@@ -47,6 +47,7 @@ const SUPPLIER: Entity = {
   country: 'EE',
   name: 'Circle K Eesti AS',
   goods_vs_services: null,
+  tax_status: null,
 };
 
 /** Persisted-details payload keyed by document id — lets one

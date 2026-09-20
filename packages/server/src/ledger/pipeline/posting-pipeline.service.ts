@@ -42,6 +42,25 @@ export interface PostingPipelineParams {
   /** Who/what requested the post; recorded on the Approval if Policy holds. */
   requestedBy?: string;
   /**
+   * Optional optimistic-concurrency guard, run INSIDE the same transaction that
+   * posts (or that claims the object for approval), BEFORE either is done.
+   *
+   * The draft voucher is built at the top of the pipeline, outside any
+   * transaction; the object's facts can change between then and the write. The
+   * status claim alone does not catch it — an edit that leaves the object in
+   * `draft` (which is exactly what correcting a draft does) would let the
+   * pipeline post the voucher it derived from the OLD facts and attach it to an
+   * object that now says something else. The caller supplies a guard that
+   * re-reads the facts its draft was derived from and throws on any difference,
+   * so the post is refused and recomputed from scratch on the next attempt —
+   * back through the plugin, Rules and Policy, never selectively.
+   *
+   * Absent ⇒ no such check (Expense and every other caller keep their exact
+   * behavior).
+   */
+  assertFactsUnchanged?: (trx: Kysely<Database>) => Promise<void>;
+
+  /**
    * Optional hook folded into the SAME atomic transaction as the post,
    * AFTER the voucher is inserted and the business object's status/voucher_id
    * are updated. Receives the open `trx` and the posted voucher. Used by the
@@ -173,6 +192,7 @@ export class PostingPipelineService {
       params.businessObjectId,
       params.requestedBy ?? 'system',
       policyDecision.reason,
+      params.assertFactsUnchanged,
     );
     const businessObject = await params.refetch();
     return { businessObject, voucher: null, policy: policyDecision };
@@ -198,6 +218,13 @@ export class PostingPipelineService {
         // THE single seam: rejects an illegal transition, then claims the
         // object only from `draft`. Zero rows → already claimed/posted →
         // Conflict.
+        // The facts this draft was derived from must still be the object's
+        // facts. Checked before the claim, so a stale draft never reaches the
+        // ledger (issue #209).
+        if (params.assertFactsUnchanged) {
+          await params.assertFactsUnchanged(trx);
+        }
+
         await this.statusTransition.transition(
           trx,
           params.businessObjectType,
@@ -273,9 +300,16 @@ export class PostingPipelineService {
     id: number,
     requestedBy: string,
     policyReason: string,
+    assertFactsUnchanged?: (trx: Kysely<Database>) => Promise<void>,
   ): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
       const now = Math.floor(Date.now() / 1000);
+
+      // Same guard as the posting path: an approval must describe the figures a
+      // human will actually be approving, not ones already edited away.
+      if (assertFactsUnchanged) {
+        await assertFactsUnchanged(trx);
+      }
 
       await this.statusTransition.transition(trx, type, id, 'draft', 'pending');
 

@@ -1,3 +1,8 @@
+import type {
+  CounterpartyTaxStatus,
+  ServicePlaceRule,
+} from '../../plugins/country-plugin.interface';
+
 /**
  * The economic facts of a business object, expressed in the language a Voucher
  * projection needs — independent of whether the object is an Expense or a
@@ -31,6 +36,23 @@ export interface EconomicFacts {
    * plugin needs to resolve cross-border treatment. Absent ⇒ 'unknown'.
    */
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  /**
+   * Whether the counterparty is a taxable person acting as such (issue #209).
+   * Decides the place of supply of a cross-border general-rule service, which
+   * its country cannot. Absent ⇒ 'unknown', which the plugin REFUSES to guess
+   * at rather than defaulting to consumer.
+   */
+  taxStatus?: CounterpartyTaxStatus;
+  /**
+   * What THIS object supplies, when recorded on the object itself. Absent ⇒
+   * the plugin falls back to the counterparty's `goodsVsServices`.
+   */
+  supplyType?: 'goods' | 'services';
+  /**
+   * The place-of-supply rule declared for a service supply. Absent ⇒ the
+   * residual general rule.
+   */
+  servicePlaceRule?: ServicePlaceRule;
   /**
    * When set, the credit leg posts to CLAIMANT_PAYABLE instead of AP.
    * Null (or absent) → AP (normal supplier expense).

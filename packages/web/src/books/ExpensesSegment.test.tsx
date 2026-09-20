@@ -59,6 +59,7 @@ const ENTITIES = [
     country: 'EE',
     name: 'Telia Eesti AS',
     goods_vs_services: null,
+    tax_status: null,
   },
   {
     id: 4,
@@ -66,6 +67,7 @@ const ENTITIES = [
     country: 'EE',
     name: 'Bolt Operations OÜ',
     goods_vs_services: null,
+    tax_status: null,
   },
 ];
 const DOCS = [{ id: 9, expense_id: 1 }];

@@ -67,12 +67,56 @@ describe('CreateEntitySheet', () => {
         name: 'Circle K Eesti AS',
         country: 'EE',
         registrationKey: 'EE100511246',
+        // Not supplied by the operator ⇒ 'unknown' travels explicitly, so the
+        // server records an unrecorded status rather than inferring one (#209).
+        taxStatus: 'unknown',
         goodsVsServices: 'goods',
       }),
     );
     // Navigates straight to the new entity's card.
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/settings/entities/31'),
+    );
+  });
+
+  it('customer: carries the chosen tax status — the fact a service sale needs (#209)', async () => {
+    vi.mocked(onboardEntity).mockResolvedValue({
+      id: 32,
+      role: 'customer',
+      country: 'FI',
+      name: 'Suomi Oy',
+      goods_vs_services: 'services',
+      tax_status: 'taxable_business',
+    } as Entity);
+    mount();
+    fireEvent.change(screen.getByLabelText('Role'), {
+      target: { value: 'customer' },
+    });
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Suomi Oy' },
+    });
+    fireEvent.change(screen.getByLabelText('Country'), {
+      target: { value: 'FI' },
+    });
+    fireEvent.change(screen.getByLabelText('Registration key'), {
+      target: { value: 'FI12345678' },
+    });
+    fireEvent.change(screen.getByLabelText('Goods or services'), {
+      target: { value: 'services' },
+    });
+    fireEvent.change(screen.getByLabelText('Tax status'), {
+      target: { value: 'taxable_business' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add customer' }));
+    await waitFor(() =>
+      expect(onboardEntity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: 'customer',
+          country: 'FI',
+          taxStatus: 'taxable_business',
+          goodsVsServices: 'services',
+        }),
+      ),
     );
   });
 
@@ -83,6 +127,7 @@ describe('CreateEntitySheet', () => {
       country: 'EE',
       name: 'Mari Maasikas',
       goods_vs_services: null,
+      tax_status: null,
     } as Entity);
     mount();
     fireEvent.change(screen.getByLabelText('Role'), {
@@ -148,6 +193,7 @@ describe('CreateEntitySheet', () => {
       country: 'EE',
       name: 'Mari Maasikas',
       goods_vs_services: null,
+      tax_status: null,
     } as Entity);
     mount();
     // Supplier form first: type a registration key…

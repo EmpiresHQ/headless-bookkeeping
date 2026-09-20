@@ -717,12 +717,31 @@ export class ProposeDraftService {
       businessObjectType: 'sales_invoice',
       draftGenerator: () =>
         this.salesInvoicesService.generateDraftVoucher(invoice.id),
+      // Same staleness guard as the HTTP post path (issue #209).
+      assertFactsUnchanged: await this.salesInvoiceFactsGuard(invoice.id),
       category: 'revenue',
       refetch: () => this.salesInvoicesService.getInvoiceById(invoice.id),
       requestedBy: 'operator',
     });
 
     return { outcome: 'draft', invoiceId: invoice.id, pipelineResult };
+  }
+
+  /**
+   * The pipeline's optimistic-concurrency guard for a sales invoice: capture the
+   * facts now, refuse inside the posting transaction if they moved (issue #209).
+   */
+  private async salesInvoiceFactsGuard(
+    invoiceId: number,
+  ): Promise<(trx: Kysely<Database>) => Promise<void>> {
+    const captured =
+      await this.salesInvoicesService.draftFactsFingerprint(invoiceId);
+    return (trx) =>
+      this.salesInvoicesService.assertDraftFactsUnchangedTx(
+        trx,
+        invoiceId,
+        captured,
+      );
   }
 
   /**
@@ -823,6 +842,8 @@ export class ProposeDraftService {
       businessObjectType: 'sales_invoice',
       draftGenerator: () =>
         this.salesInvoicesService.generateDraftVoucher(invoice.id),
+      // Same staleness guard as the HTTP post path (issue #209).
+      assertFactsUnchanged: await this.salesInvoiceFactsGuard(invoice.id),
       category: 'revenue',
       refetch: () => this.salesInvoicesService.getInvoiceById(invoice.id),
     });

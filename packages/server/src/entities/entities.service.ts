@@ -33,6 +33,10 @@ export class EntitiesService {
           name: dto.name,
           goods_vs_services:
             'goodsVsServices' in dto ? (dto.goodsVsServices ?? null) : null,
+          // Not supplied ⇒ NULL, which reads as unknown. Never defaulted to
+          // 'non_taxable': an unrecorded status must stay visibly unrecorded
+          // (issue #209).
+          tax_status: dto.taxStatus ?? null,
           created_at: now,
           updated_at: now,
         })
@@ -261,12 +265,16 @@ export class EntitiesService {
       name?: string;
       country?: string;
       goods_vs_services?: string;
+      tax_status?: string;
       updated_at: number;
     } = { updated_at: Math.floor(Date.now() / 1000) };
     if (dto.name !== undefined) set.name = dto.name;
     if (dto.country !== undefined) set.country = dto.country;
     if (dto.goodsVsServices !== undefined)
       set.goods_vs_services = dto.goodsVsServices;
+    // The supported way to resolve an unknown customer tax status before a
+    // cross-border service sale can be posted (issue #209).
+    if (dto.taxStatus !== undefined) set.tax_status = dto.taxStatus;
 
     await this.db.updateTable('entity').set(set).where('id', '=', id).execute();
 
@@ -491,6 +499,7 @@ export class EntitiesService {
     country: string;
     name: string;
     goods_vs_services: string | null;
+    tax_status: string | null;
     created_at: number | null;
     updated_at: number | null;
   }): Entity {
@@ -500,6 +509,7 @@ export class EntitiesService {
       country: row.country,
       name: row.name,
       goods_vs_services: row.goods_vs_services as Entity['goods_vs_services'],
+      tax_status: row.tax_status as Entity['tax_status'],
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

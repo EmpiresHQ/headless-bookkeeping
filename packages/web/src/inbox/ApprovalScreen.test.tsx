@@ -95,6 +95,7 @@ describe('ApprovalScreen', () => {
         country: 'EE',
         name: 'Telia Eesti AS',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.fetchDocumentPreviewObjectUrl).mockRejectedValue(

@@ -67,7 +67,7 @@ function renderKmd6Row(
     '', // transactions5
     t13 !== 0 ? eur(t13) : '', // transactions13
     amount(d.row3_base_zero), // transactionsZeroVat
-    amount(d.vd_intra_eu_services), // euSupplyInclGoodsAndServicesZeroVat
+    amount(d.row3_1_intra_eu_supply), // euSupplyInclGoodsAndServicesZeroVat (row 3.1)
     '', // euSupplyGoodsZeroVat
     '', // exportZeroVat
     '', // salePassengersWithReturnVat

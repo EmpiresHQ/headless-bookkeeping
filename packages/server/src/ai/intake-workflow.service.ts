@@ -1,4 +1,5 @@
 import { FxRateUnavailableError } from '../fx/fx-rate.types';
+import { UnresolvedVatTreatmentError } from '../plugins/vat-treatment.errors';
 import {
   Injectable,
   Logger,
@@ -606,6 +607,17 @@ export class IntakeWorkflowService {
                 `reference rate governs ${err.date} (${err.detail}). Confirm the ` +
                 `currency and tax-point date, or book it manually.`,
         );
+      }
+
+      // A supply whose VAT treatment the recorded facts cannot decide (issue
+      // #209) is an EXPECTED outcome too, not a fault: the document is HELD
+      // with the missing fact named, and no voucher is posted on a guessed
+      // place of supply. Same shape as the missing-rate hold above.
+      if (err instanceof UnresolvedVatTreatmentError) {
+        this.logger.warn(
+          `Document ${documentId} held: ${err.message} (code=${err.code})`,
+        );
+        return this.routeNeedsTriage(documentId, err.actionableReason);
       }
 
       // Safety net (ADR-0024): no fault may leave the document stranded in

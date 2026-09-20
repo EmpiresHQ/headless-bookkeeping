@@ -7,6 +7,7 @@ import {
 } from '../../plugins/country-plugin.interface';
 import { VoucherProjectionService } from './voucher-projection.service';
 import { EconomicFacts } from './types';
+import { UnresolvedVatTreatmentError } from '../../plugins/vat-treatment.errors';
 
 /**
  * Unit tests for the deep projection module (ADR-0006). OrganizationService,
@@ -32,7 +33,9 @@ describe('VoucherProjectionService', () => {
   // tests keep the standard legs; individual tests override it for reverse
   // charge. getVatRate returns the EE standard 24% for the reverse-charge code.
   const resolveCrossBorderTreatment = jest.fn();
-  const getVatRate = jest.fn((vatCode: string) =>
+  // Signature mirrors the plugin's: the optional `onDate` asks for the rate in
+  // force at a tax point (issue #209); the default stub ignores it.
+  const getVatRate = jest.fn((vatCode: string, _onDate?: string): number =>
     vatCode === 'EE_REVERSE_CHARGE' ? 0.24 : 0,
   );
 
@@ -179,6 +182,9 @@ describe('VoucherProjectionService', () => {
         'software',
         expect.objectContaining({ country: 'IE' }),
         expect.objectContaining({ vatRegistered: true }),
+        // Supply facts travel as a fourth argument (issue #209); a purchase
+        // declares none.
+        expect.anything(),
       );
     });
 
@@ -413,6 +419,113 @@ describe('VoucherProjectionService', () => {
         10000, // net amount
         'USD',
         '2026-03-15',
+      );
+    });
+  });
+
+  describe('service sale — the plugin owns the tax-amount check (#209)', () => {
+    it("propagates the plugin's refusal and posts nothing", async () => {
+      const assertSaleTaxAmount = jest.fn(() => {
+        throw new UnresolvedVatTreatmentError({
+          code: 'vat_amount_conflicts_with_treatment',
+          message: 'nope',
+          missingFacts: [],
+          howToResolve: 'fix it',
+        });
+      });
+      (mockPlugin as unknown as Record<string, unknown>).assertSaleTaxAmount =
+        assertSaleTaxAmount;
+      try {
+        await expect(
+          service.project(saleFacts({ goodsVsServices: 'services' }), 'sale'),
+        ).rejects.toBeInstanceOf(UnresolvedVatTreatmentError);
+      } finally {
+        delete (mockPlugin as unknown as Record<string, unknown>)
+          .assertSaleTaxAmount;
+      }
+    });
+
+    it('asks the plugin with the resolved code, the net and the TAX POINT', async () => {
+      const assertSaleTaxAmount = jest.fn();
+      (mockPlugin as unknown as Record<string, unknown>).assertSaleTaxAmount =
+        assertSaleTaxAmount;
+      try {
+        await service.project(
+          saleFacts({
+            grossAmount: 12300,
+            vatAmount: 2300,
+            taxPointDate: '2025-06-15',
+            supplierCountry: 'FI',
+            goodsVsServices: 'services',
+            taxStatus: 'taxable_business',
+            supplyType: 'services',
+          }),
+          'sale',
+        );
+        expect(assertSaleTaxAmount).toHaveBeenCalledWith({
+          netMinorUnits: 10000,
+          vatMinorUnits: 2300,
+          vatCode: 'IE_OUTPUT_23',
+          taxPointDate: '2025-06-15',
+          counterpartyFacts: expect.objectContaining({
+            country: 'FI',
+            taxStatus: 'taxable_business',
+          }),
+          supplyFacts: { supplyType: 'services', servicePlaceRule: undefined },
+        });
+      } finally {
+        delete (mockPlugin as unknown as Record<string, unknown>)
+          .assertSaleTaxAmount;
+      }
+    });
+
+    it('books the stated tax when the plugin implements no such check', async () => {
+      // A jurisdiction that derives nothing cannot check anything — the kernel
+      // has no VAT arithmetic of its own (ADR-0002), so the document stands.
+      const draft = await service.project(
+        saleFacts({ goodsVsServices: 'services' }),
+        'sale',
+      );
+      expect(
+        draft.lines.find((l) => l.account_code === 'VAT_PAYABLE')?.amount,
+      ).toBe(2300);
+    });
+
+    it('never asks on a purchase — a supplier document states its own tax', async () => {
+      const assertSaleTaxAmount = jest.fn();
+      (mockPlugin as unknown as Record<string, unknown>).assertSaleTaxAmount =
+        assertSaleTaxAmount;
+      try {
+        await service.project(purchaseFacts(), 'purchase');
+        expect(assertSaleTaxAmount).not.toHaveBeenCalled();
+      } finally {
+        delete (mockPlugin as unknown as Record<string, unknown>)
+          .assertSaleTaxAmount;
+      }
+    });
+
+    it('hands the plugin the tax status and supply facts it needs', async () => {
+      resolveCategoryMapping.mockReturnValue(revenueMapping);
+      await service.project(
+        saleFacts({
+          grossAmount: 10000,
+          vatAmount: 0,
+          supplierCountry: 'FI',
+          goodsVsServices: 'services',
+          taxStatus: 'taxable_business',
+          supplyType: 'services',
+          servicePlaceRule: 'general',
+        }),
+        'sale',
+      );
+      expect(resolveCategoryMapping).toHaveBeenCalledWith(
+        'revenue',
+        expect.objectContaining({
+          country: 'FI',
+          taxStatus: 'taxable_business',
+        }),
+        expect.anything(),
+        { supplyType: 'services', servicePlaceRule: 'general' },
       );
     });
   });
