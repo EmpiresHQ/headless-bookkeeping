@@ -58,15 +58,27 @@ interface AssetAnnualCharge {
 }
 
 /**
+ * A charge aggregated per asset class — the granularity both the virtual fold
+ * and the posted annual-close voucher work at (one ACCUM line per class).
+ */
+interface ClassAnnualCharge {
+  assetClass: AssetClass;
+  chargeMinor: number;
+}
+
+/**
  * AnnualAccountsService — assembles a NEUTRAL {@link AnnualAccountsInput} from the
  * posted ledger + the fixed-asset register and delegates ALL jurisdiction
  * rendering to the active country plugin (ADR-0034), mirroring
  * StatutoryReportService.
  *
  * draft (generate): computes the annual depreciation charge VIRTUALLY (engine
- * only), folds it into the balances, renders, posts nothing.
- * final (finalize): posts the depreciation charge as a system-generated
- * voucher, locks the year, then renders the identical numbers.
+ * only), folds in whatever part of it the ledger does not already carry,
+ * renders, posts nothing.
+ * final (finalize): posts that still-unposted charge as a system-generated
+ * voucher, locks the year, then renders the identical numbers. A repeat draft
+ * of a finalized year therefore reads the same figures: the charge is then
+ * posted, so nothing more is virtualized (issue #205).
  */
 @Injectable()
 export class AnnualAccountsService {
@@ -170,7 +182,7 @@ export class AnnualAccountsService {
       );
     }
 
-    const { input, plugin, diagnostics, charges } = await this.assemble(
+    const { input, plugin, diagnostics, unpostedByClass } = await this.assemble(
       periodId,
       'final',
     );
@@ -203,31 +215,16 @@ export class AnnualAccountsService {
     // DEFENSE 2: idempotent depreciation guard. The annual-close voucher carries
     // a stable, period-scoped `reason` (see `annualDepreciationReason`). If a
     // prior finalize already posted it (e.g. it posted, then `lock` threw and the
-    // period stayed open), do NOT re-post — re-posting would double-charge
-    // depreciation, and the virtual fold in `assemble` does not net out the
-    // already-posted voucher. Disposal catch-up depreciation also debits
-    // DEPRECIATION_EXPENSE, so we match on the distinctive `reason` (not the
-    // account) to identify ONLY the annual-close voucher for this period.
-    const alreadyPosted = await this.db
-      .selectFrom('voucher')
-      .select('id')
-      .where('reason', '=', this.annualDepreciationReason(period.name))
-      .limit(1)
-      .executeTakeFirst();
-
-    // Post the annual depreciation charge as ONE system-generated voucher.
-    const totalCharge = charges.reduce((s, c) => s + c.chargeMinor, 0);
-    if (totalCharge !== 0 && !alreadyPosted) {
-      // Aggregate per-class so each ACCUM line is one credit; one debit to
-      // DEPRECIATION_EXPENSE for the total.
-      const byClass = new Map<string, number>();
-      for (const c of charges) {
-        if (c.chargeMinor === 0) continue;
-        byClass.set(
-          ACCUM_BY_CLASS[c.assetClass],
-          (byClass.get(ACCUM_BY_CLASS[c.assetClass]) ?? 0) + c.chargeMinor,
-        );
-      }
+    // period stayed open), `assemble` has already netted that posted charge out
+    // of what remains to book — so `unpostedByClass` is empty and nothing is
+    // re-posted here. Re-posting would double-charge depreciation. Disposal
+    // catch-up depreciation also debits DEPRECIATION_EXPENSE, so the posted
+    // charge is identified by that distinctive `reason` (not by the account),
+    // which keeps the annual close and a disposal catch-up apart.
+    const totalCharge = unpostedByClass.reduce((s, c) => s + c.chargeMinor, 0);
+    if (totalCharge !== 0) {
+      // One credit per class (ACCUM_*), one debit to DEPRECIATION_EXPENSE for
+      // the total — covering only what the ledger does not already carry.
       const draft: DraftVoucher = {
         tax_point_date: period.end_date,
         reason: this.annualDepreciationReason(period.name),
@@ -241,12 +238,12 @@ export class AnnualAccountsService {
             fx_rate: 1,
             fx_rate_source: IDENTITY_RATE_SOURCE,
           },
-          ...[...byClass.entries()].map(([code, amount]) => ({
-            account_code: code,
+          ...unpostedByClass.map((c) => ({
+            account_code: ACCUM_BY_CLASS[c.assetClass],
             is_debit: false,
-            amount,
+            amount: c.chargeMinor,
             currency: 'EUR',
-            base_amount: amount,
+            base_amount: c.chargeMinor,
             fx_rate: 1,
             fx_rate_source: IDENTITY_RATE_SOURCE,
           })),
@@ -295,7 +292,11 @@ export class AnnualAccountsService {
     input: AnnualAccountsInput;
     plugin: CountryPlugin;
     diagnostics: DiagnosticWarning[];
-    charges: AssetAnnualCharge[];
+    /**
+     * The part of the year's engine charge the posted ledger does NOT yet carry,
+     * per class — what `finalize` posts and what the draft folds in virtually.
+     */
+    unpostedByClass: ClassAnnualCharge[];
     period: { id: number; name: string; start_date: string; end_date: string };
   }> {
     const period = await this.db
@@ -375,17 +376,34 @@ export class AnnualAccountsService {
       period.end_date,
     );
 
-    // Fold the virtual charge into the balances so draft == final numbers:
+    // How much of this year's charge the POSTED ledger already carries, per
+    // class — the annual-close voucher for this period, netted for its
+    // reversals (issue #205). The balances above are read from that same
+    // ledger, so only what is still UNPOSTED may be virtualized: folding the
+    // full charge on top of an already-posted close double-counted it, and a
+    // second download of a finalized year showed twice the depreciation.
+    const postedByClass = await this.postedAnnualDepreciation(period);
+    const postedDepreciationMinor = [...postedByClass.values()].reduce(
+      (s, v) => s + v,
+      0,
+    );
+    const unpostedByClass = this.unpostedCharges(charges, postedByClass);
+
+    // Fold the still-unposted charge into the balances so draft == final
+    // numbers, and so a repeat download after finalization adds nothing:
     //   Dr DEPRECIATION_EXPENSE (debit-normal +), Cr ACCUM_DEPRECIATION_* (asset, −).
-    const totalCharge = charges.reduce((s, c) => s + c.chargeMinor, 0);
-    if (totalCharge !== 0) {
+    const virtualCharge = unpostedByClass.reduce(
+      (s, c) => s + c.chargeMinor,
+      0,
+    );
+    if (virtualCharge !== 0) {
       this.addToBalance(
         balances,
         'DEPRECIATION_EXPENSE',
         'expense',
-        totalCharge,
+        virtualCharge,
       );
-      for (const c of charges) {
+      for (const c of unpostedByClass) {
         // Contra-asset: a credit reduces the normal-side-positive asset balance.
         this.addToBalance(
           balances,
@@ -440,9 +458,12 @@ export class AnnualAccountsService {
       },
     };
 
-    const diagnostics = this.diagnose(input);
+    const diagnostics = this.diagnose(input, {
+      virtualChargeMinor: virtualCharge,
+      postedChargeMinor: postedDepreciationMinor,
+    });
 
-    return { input, plugin, diagnostics, charges, period };
+    return { input, plugin, diagnostics, unpostedByClass, period };
   }
 
   /**
@@ -482,6 +503,102 @@ export class AnnualAccountsService {
     return charges;
   }
 
+  /**
+   * What the POSTED ledger already charges as this period's annual-close
+   * depreciation, per asset class, in normal (credit) direction.
+   *
+   * Identity is the voucher `reason` — {@link annualDepreciationReason} — not the
+   * account: disposal catch-up depreciation (#208) debits the very same
+   * DEPRECIATION_EXPENSE and credits the same ACCUM_* accounts, and must NOT be
+   * mistaken for the annual close. A reversal of the annual-close voucher is
+   * included with its own sign (`voucher.reverses_id` points back at the
+   * original), so a reversal booked INSIDE the year nets the close back to zero
+   * and its charge becomes virtual again rather than silently disappearing from
+   * the report.
+   *
+   * Both sides are read through the SAME `tax_point_date` window the balances
+   * this nets against are read through (cumulative up to the period end). A
+   * reversal booked in a LATER year is outside that window, so it is excluded
+   * here exactly as it is excluded from the period's ledger balances — a later
+   * correction does not retroactively rewrite an already-filed year's report.
+   *
+   * Unposted (`posted_at IS NULL`) vouchers carry no balance, so they are
+   * excluded — the ledger balances this nets against only count posted lines.
+   */
+  private async postedAnnualDepreciation(period: {
+    name: string;
+    end_date: string;
+  }): Promise<Map<AssetClass, number>> {
+    const closeVouchers = await this.db
+      .selectFrom('voucher')
+      .select('id')
+      .where('reason', '=', this.annualDepreciationReason(period.name))
+      .where('posted_at', 'is not', null)
+      .where('tax_point_date', '<=', period.end_date)
+      .execute();
+    const posted = new Map<AssetClass, number>();
+    if (closeVouchers.length === 0) return posted;
+
+    const closeIds = closeVouchers.map((v) => v.id);
+    const reversals = await this.db
+      .selectFrom('voucher')
+      .select('id')
+      .where('reverses_id', 'in', closeIds)
+      .where('posted_at', 'is not', null)
+      .where('tax_point_date', '<=', period.end_date)
+      .execute();
+
+    const accumCodes = Object.values(ACCUM_BY_CLASS);
+    const lines = await this.db
+      .selectFrom('voucher_line as vl')
+      .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .select(['a.code', 'vl.base_amount', 'vl.is_debit'])
+      .where('vl.voucher_id', 'in', [
+        ...closeIds,
+        ...reversals.map((r) => r.id),
+      ])
+      .where('a.code', 'in', accumCodes)
+      .execute();
+
+    for (const line of lines) {
+      const cls = (Object.keys(ACCUM_BY_CLASS) as AssetClass[]).find(
+        (c) => ACCUM_BY_CLASS[c] === line.code,
+      );
+      if (!cls) continue;
+      // Credit accumulates the contra-asset; a debit (the reversal) undoes it.
+      const signed = line.is_debit ? -line.base_amount : line.base_amount;
+      posted.set(cls, (posted.get(cls) ?? 0) + signed);
+    }
+    return posted;
+  }
+
+  /**
+   * The part of the year's charge that is NOT yet in the ledger, per asset
+   * class: the engine's charge for the class minus what the annual-close
+   * voucher already posted for it, floored at zero. Flooring matters because an
+   * already-posted close is IMMUTABLE history: if it charged more than the
+   * engine now computes, the report shows the posted figure rather than
+   * virtually un-posting real ledger lines.
+   */
+  private unpostedCharges(
+    charges: AssetAnnualCharge[],
+    postedByClass: Map<AssetClass, number>,
+  ): ClassAnnualCharge[] {
+    const chargeByClass = new Map<AssetClass, number>();
+    for (const c of charges) {
+      chargeByClass.set(
+        c.assetClass,
+        (chargeByClass.get(c.assetClass) ?? 0) + c.chargeMinor,
+      );
+    }
+    const unposted: ClassAnnualCharge[] = [];
+    for (const [assetClass, chargeMinor] of chargeByClass) {
+      const remaining = chargeMinor - (postedByClass.get(assetClass) ?? 0);
+      if (remaining > 0) unposted.push({ assetClass, chargeMinor: remaining });
+    }
+    return unposted;
+  }
+
   private addToBalance(
     balances: AccountBalanceRow[],
     code: string,
@@ -517,10 +634,14 @@ export class AnnualAccountsService {
    * kernel checks only arithmetic invariants + soft signals:
    *  - balance-sheet balance (Aktiva == Kohustused + Omakapital) — BLOCK,
    *  - EXPENSE_OTHER concentration — soft,
-   *  - depreciation not yet posted (register has assets, no ACCUM voucher) — soft,
+   *  - depreciation still unposted (register has assets, charge virtualized) — soft,
+   *  - depreciation already posted by a prior close — soft (positive evidence),
    *  - register-vs-ledger cost mismatch — soft.
    */
-  protected diagnose(input: AnnualAccountsInput): DiagnosticWarning[] {
+  protected diagnose(
+    input: AnnualAccountsInput,
+    depreciation?: { virtualChargeMinor: number; postedChargeMinor: number },
+  ): DiagnosticWarning[] {
     const warnings: DiagnosticWarning[] = [];
 
     // 1. Balance-sheet balance. Assets (debit-normal +) must equal
@@ -559,15 +680,28 @@ export class AnnualAccountsService {
       });
     }
 
-    // 3. Depreciation not yet posted (soft): register has live assets but the
-    //    ledger ACCUM_DEPRECIATION_* lines for the period are absent. In draft
-    //    the charge is virtual, so this signal fires whenever no real ACCUM
-    //    voucher has been posted for the period's depreciation.
+    // 3. Depreciation posting status (soft). In draft the still-unposted part of
+    //    the year's charge is folded in virtually, so say so — but ONLY while
+    //    something really is unposted. After a successful close the charge is in
+    //    the ledger and nothing is virtualized, and the report says that instead
+    //    of claiming an unposted charge that does not exist (issue #205).
     const liveAssets = input.fixedAssets.filter((a) => !a.retired).length;
-    if (liveAssets > 0 && input.mode === 'draft') {
+    // With no assembly context (the `diagnoseInput` seam) fall back to the
+    // register-only signal.
+    const hasUnpostedCharge = depreciation
+      ? depreciation.virtualChargeMinor !== 0
+      : true;
+    if (liveAssets > 0 && input.mode === 'draft' && hasUnpostedCharge) {
       warnings.push({
         code: 'depreciation_not_yet_posted',
         message: `${liveAssets} asset(s) in the register; annual depreciation is computed virtually and not yet posted`,
+        severity: 'soft',
+      });
+    }
+    if (depreciation && depreciation.postedChargeMinor !== 0) {
+      warnings.push({
+        code: 'depreciation_already_posted',
+        message: `Annual depreciation of ${depreciation.postedChargeMinor} for ${input.period.name} is already posted to the ledger; only ${depreciation.virtualChargeMinor} is added virtually`,
         severity: 'soft',
       });
     }
