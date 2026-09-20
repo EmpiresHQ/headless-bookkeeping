@@ -26,9 +26,10 @@ describe('Estonia RTJ mapping', () => {
 
   it('every RTJ_LINES key is a known concept with a statement + sign', () => {
     for (const [id, def] of Object.entries(RTJ_LINES)) {
-      expect(def.concept).toMatch(/^ee-rtj:/);
+      expect(def.concept).toMatch(/^et-gaap:/);
       expect(['balanceSheet', 'incomeStatement']).toContain(def.statement);
       expect(['debit', 'credit']).toContain(def.normalSide);
+      expect([1, -1]).toContain(def.reportedSign);
       expect(id).toBe(def.id);
     }
   });

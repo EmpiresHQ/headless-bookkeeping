@@ -24,6 +24,7 @@ import { StatutorySubmissionService } from '../statutory-submission/statutory-su
 import { StatutoryReportService } from '../statutory-report/statutory-report.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import type { AnnualAccountsInput } from '../plugins/annual-accounts.types';
+import { validateEtGaapInstance } from '../../test/xbrl/validate-xbrl-instance';
 import { AnnualAccountsService } from './annual-accounts.service';
 
 describe('AnnualAccountsService.generate — draft (integration)', () => {
@@ -90,7 +91,11 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
         country: 'EE',
         base_currency: 'EUR',
         vat_registered: 1,
+        // Deliberately DISTINCT from registry_code: the annual declarant must
+        // be the commercial registry code, and a test where the two coincide
+        // could not tell the two apart (issue #204).
         vat_registration_number: 'EE123456789',
+        registry_code: '17499653',
       } as never)
       .execute();
 
@@ -208,8 +213,10 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
     expect(result.artifacts[0].filename).toBe('annual-accounts-2026.xbrl');
     // The depreciation expense line is present (computed virtually): vehicle
     // 20000 / 5y = 4000 annual charge (full year).
+    // The depreciation charge is reported on the DURATION context, with the
+    // credit-balance sign the taxonomy's calculation expects.
     expect(result.artifacts[0].content).toContain(
-      '<ee-rtj:DepreciationAndImpairmentLoss contextRef="C-2026"',
+      '<et-gaap:DepreciationAndImpairmentLossReversal contextRef="d-2026-01-01_2026-12-31"',
     );
 
     // CARRIED CONCERN: the assembled draft must balance (Aktiva = Kohustused +
@@ -222,20 +229,22 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
     const fact = (concept: string, ctx: string): number => {
       const m = xbrl.match(
         new RegExp(
-          `<${concept} contextRef="${ctx}"[^>]*>(-?\\d+)</${concept}>`,
+          `<${concept} contextRef="${ctx}"[^>]*>(-?[\\d.]+)</${concept}>`,
         ),
       );
       if (!m) throw new Error(`fact ${concept}@${ctx} not found in XBRL`);
       return Number(m[1]);
     };
-    // Current column (C-2026): with the virtual depreciation folded in.
-    expect(fact('ee-rtj:TotalAssets', 'C-2026')).toBe(
-      fact('ee-rtj:TotalEquityAndLiabilities', 'C-2026'),
+    // Current column: with the virtual depreciation folded in.
+    expect(fact('et-gaap:Assets', 'i-2026-12-31')).toBe(
+      fact('et-gaap:LiabilitiesAndEquity', 'i-2026-12-31'),
     );
-    // Prior column (C-2025): empty prior year ⇒ both sides 0, still balanced.
-    expect(fact('ee-rtj:TotalAssets', 'C-2025')).toBe(
-      fact('ee-rtj:TotalEquityAndLiabilities', 'C-2025'),
+    // Prior column: empty prior year ⇒ both sides 0, still balanced.
+    expect(fact('et-gaap:Assets', 'i-2025-12-31')).toBe(
+      fact('et-gaap:LiabilitiesAndEquity', 'i-2025-12-31'),
     );
+    // And the whole instance validates against the official taxonomy.
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
 
     // Draft posts NOTHING: voucher count unchanged.
     const after = await db
@@ -243,6 +252,99 @@ describe('AnnualAccountsService.generate — draft (integration)', () => {
       .select(db.fn.countAll<number>().as('n'))
       .executeTakeFirstOrThrow();
     expect(after.n).toBe(before.n);
+  });
+
+  it('identifies the declarant by registry code, never by VAT number', async () => {
+    // The fixture org carries BOTH, and they differ: registry_code 17499653,
+    // vat_registration_number EE123456789. Issue #204 shipped the VAT number.
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const result = await service.generate(await periodId('2026'));
+    const xbrl = result.artifacts[0].content;
+
+    expect(xbrl).toContain('>17499653</xbrli:identifier>');
+    expect(xbrl).toContain(
+      '<et-gaap:RegistryCode contextRef="i-2026-12-31">17499653</et-gaap:RegistryCode>',
+    );
+    expect(xbrl).not.toContain('EE123456789');
+    expect(validateEtGaapInstance(xbrl).errors).toEqual([]);
+  });
+
+  it('hands out no artifact — and refuses to finalize — when the registry code is missing', async () => {
+    await db
+      .updateTable('organization')
+      .set({ registry_code: null } as never)
+      .execute();
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const id = await periodId('2026');
+
+    // The gap is named, and no document that could be filed is produced. It is
+    // NOT patched over with the VAT number the organization does still have.
+    const draft = await service.generate(id);
+    expect(draft.artifacts).toEqual([]);
+    expect(draft.warnings.map((w) => w.code)).toContain(
+      'missing_declarant_reg_number',
+    );
+
+    await expect(service.finalize(id)).rejects.toThrow(
+      /no commercial registry code/i,
+    );
+    // And the refusal left the year open — nothing was locked against nothing.
+    const after = await db
+      .selectFrom('reporting_period')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(after.status).toBe('open');
+  });
+
+  it('cannot finalize a period stored with an impossible date — nothing is posted or locked', async () => {
+    // `reporting_period.end_date` is a plain text column and the create DTO
+    // does not calendar-check it, so an impossible day really can reach here.
+    // (Tightening period creation itself is #207, not this change.)
+    await db
+      .updateTable('reporting_period')
+      .set({ end_date: '2026-02-30' } as never)
+      .where('name', '=', '2026')
+      .execute();
+    await postVoucher('2026-01-02', [
+      { code: 'BANK_EUR', isDebit: true, base: 2500 },
+      { code: 'EQUITY', isDebit: false, base: 2500 },
+    ]);
+    const id = await periodId('2026');
+    const before = await db
+      .selectFrom('voucher')
+      .select(db.fn.countAll<number>().as('n'))
+      .executeTakeFirstOrThrow();
+
+    // A caller-fixable data defect, so a 400 that NAMES the bad date — not an
+    // opaque 500 from the global filter.
+    await expect(service.generate(id)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/2026-02-30.*not a real calendar date/),
+    });
+    await expect(service.finalize(id)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/2026-02-30.*not a real calendar date/),
+    });
+
+    // The refusal came before anything was written: no voucher, still open.
+    const after = await db
+      .selectFrom('voucher')
+      .select(db.fn.countAll<number>().as('n'))
+      .executeTakeFirstOrThrow();
+    expect(after.n).toBe(before.n);
+    const period = await db
+      .selectFrom('reporting_period')
+      .select('status')
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow();
+    expect(period.status).toBe('open');
   });
 
   it('warns (soft) when EXPENSE_OTHER dominates total expenses', async () => {

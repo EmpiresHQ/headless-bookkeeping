@@ -3,108 +3,136 @@ import type { AccountBalanceRow } from '../annual-accounts.types';
 /** Which statement a line belongs to, and its normal accumulation side. */
 export interface RtjLineDef {
   id: string;
-  /** Estonian RTJ taxonomy concept (2026), prefixed `ee-rtj:`. */
+  /**
+   * The concept as declared by the official `et-gaap_2026-01-01` taxonomy,
+   * prefixed `et-gaap:`. Every name here exists in RIK's
+   * `et-gaap-cor_2026-01-01.xsd`; the test suite validates rendered instances
+   * against that schema, so a name invented here fails the build.
+   */
   concept: string;
   /** Human label (Estonian). */
   label: string;
   statement: 'balanceSheet' | 'incomeStatement';
-  /** Which signed direction is the line's normal positive. */
+  /** Which signed direction is the LEDGER line's normal positive. */
   normalSide: 'debit' | 'credit';
+  /**
+   * Multiplier taking the ledger's normal-side-positive balance to the sign the
+   * taxonomy expects. The et-gaap income-statement expense concepts are
+   * declared `xbrli:balance="credit"` and enter `TotalProfitLoss` with
+   * calculation weight +1, so an expense is REPORTED NEGATIVE; the ledger
+   * carries it debit-positive. (Verified with Arelle against the official
+   * `cal_IncomeStatementScheme1_role-301011` linkbase: positive expenses raise
+   * `xbrl.5.2.5.2:calcInconsistency`, negative expenses validate clean.)
+   */
+  reportedSign: 1 | -1;
 }
 
 /**
- * The väike-form line set rendered in v1. IDs are stable internal keys; the
- * `concept` is the pinned 2026 RIK taxonomy element. Totals/subtotals are
- * computed in the renderer from the calculation linkbase, not stored here.
+ * The väikeettevõtja line set rendered in v1, mapped onto the balance-sheet
+ * form [201012] and income-statement scheme 1 [301011] of the official
+ * taxonomy. IDs are stable internal keys. Totals/subtotals follow the
+ * taxonomy's calculation linkbase and are computed in the renderer.
  */
 export const RTJ_LINES: Record<string, RtjLineDef> = {
   // ── Balance sheet — Aktiva (assets, debit-normal) ──
   cashAndBankAccounts: {
     id: 'cashAndBankAccounts',
-    concept: 'ee-rtj:CashAndCashEquivalents',
+    concept: 'et-gaap:CashAndCashEquivalents',
     label: 'Raha',
     statement: 'balanceSheet',
     normalSide: 'debit',
+    reportedSign: 1,
   },
   receivablesAndPrepayments: {
     id: 'receivablesAndPrepayments',
-    concept: 'ee-rtj:ReceivablesAndPrepayments',
+    concept: 'et-gaap:ShortTermReceivablesAndPrepayments',
     label: 'Nõuded ja ettemaksed',
     statement: 'balanceSheet',
     normalSide: 'debit',
+    reportedSign: 1,
   },
   inventories: {
     id: 'inventories',
-    concept: 'ee-rtj:Inventories',
+    concept: 'et-gaap:Inventories',
     label: 'Varud',
     statement: 'balanceSheet',
     normalSide: 'debit',
+    reportedSign: 1,
   },
   tangibleFixedAssets: {
     id: 'tangibleFixedAssets',
-    concept: 'ee-rtj:TangibleFixedAssets',
+    concept: 'et-gaap:PropertyPlantAndEquipment',
     label: 'Materiaalne põhivara',
     statement: 'balanceSheet',
     normalSide: 'debit',
+    reportedSign: 1,
   },
   // ── Balance sheet — Kohustused (liabilities, credit-normal) ──
   payablesAndPrepayments: {
     id: 'payablesAndPrepayments',
-    concept: 'ee-rtj:PayablesAndPrepayments',
+    concept: 'et-gaap:ShortTermPayablesAndPrepayments',
     label: 'Võlad ja ettemaksed',
     statement: 'balanceSheet',
     normalSide: 'credit',
+    reportedSign: 1,
   },
   // ── Balance sheet — Omakapital (equity, credit-normal) ──
   issuedCapital: {
     id: 'issuedCapital',
-    concept: 'ee-rtj:IssuedCapital',
+    concept: 'et-gaap:IssuedCapital',
     label: 'Osakapital',
     statement: 'balanceSheet',
     normalSide: 'credit',
+    reportedSign: 1,
   },
   retainedEarnings: {
     id: 'retainedEarnings',
-    concept: 'ee-rtj:RetainedEarningsDeficit',
+    concept: 'et-gaap:RetainedEarningsLoss',
     label: 'Eelmiste perioodide jaotamata kasum (kahjum)',
     statement: 'balanceSheet',
     normalSide: 'credit',
+    reportedSign: 1,
   },
   profitForPeriod: {
     id: 'profitForPeriod',
-    concept: 'ee-rtj:ProfitLossForPeriod',
+    concept: 'et-gaap:AnnualPeriodProfitLoss',
     label: 'Aruandeaasta kasum (kahjum)',
     statement: 'balanceSheet',
     normalSide: 'credit',
+    reportedSign: 1,
   },
   // ── Income statement — skeem 1 (by nature) ──
   revenue: {
     id: 'revenue',
-    concept: 'ee-rtj:Revenue',
+    concept: 'et-gaap:Revenue',
     label: 'Müügitulu',
     statement: 'incomeStatement',
     normalSide: 'credit',
+    reportedSign: 1,
   },
   otherOperatingExpenses: {
     id: 'otherOperatingExpenses',
-    concept: 'ee-rtj:OtherOperatingExpenses',
+    concept: 'et-gaap:OtherOperatingExpense',
     label: 'Mitmesugused tegevuskulud',
     statement: 'incomeStatement',
     normalSide: 'debit',
+    reportedSign: -1,
   },
   labourExpense: {
     id: 'labourExpense',
-    concept: 'ee-rtj:LabourExpense',
+    concept: 'et-gaap:EmployeeExpense',
     label: 'Tööjõukulud',
     statement: 'incomeStatement',
     normalSide: 'debit',
+    reportedSign: -1,
   },
   depreciation: {
     id: 'depreciation',
-    concept: 'ee-rtj:DepreciationAndImpairmentLoss',
+    concept: 'et-gaap:DepreciationAndImpairmentLossReversal',
     label: 'Põhivara kulum',
     statement: 'incomeStatement',
     normalSide: 'debit',
+    reportedSign: -1,
   },
 };
 

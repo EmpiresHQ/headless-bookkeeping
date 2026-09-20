@@ -63,3 +63,13 @@ export interface AnnualAccountsResult {
   artifacts: AnnualAccountsArtifact[];
   warnings: AnnualAccountsWarning[];
 }
+
+/**
+ * A country plugin refusing to render: the assembled input cannot produce a
+ * filable document at all (an impossible period date, a comparative period
+ * that overlaps the reported year, a declarant identity that is not a valid
+ * registry code). It lives in the NEUTRAL contract rather than in a plugin so
+ * the kernel can recognise a caller-fixable refusal without importing any
+ * jurisdiction's module, and answer 400 instead of 500.
+ */
+export class AnnualAccountsRenderError extends Error {}
