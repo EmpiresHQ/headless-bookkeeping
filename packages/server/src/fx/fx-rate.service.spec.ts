@@ -2,6 +2,7 @@ import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { FxLookupPolicy, FxRateService } from './fx-rate.service';
 import { FxRateUnavailableError } from './fx-rate.types';
+import { expectDbRefusal } from '../../test/expect-db-refusal';
 import {
   FixtureFxRateSource,
   FixtureRate,
@@ -225,13 +226,26 @@ describe('FxRateService', () => {
 
     it('a cached observation cannot be edited, even directly', async () => {
       await service.resolve('USD', 'EUR', '2026-03-06', ON_OR_BEFORE);
-      await expect(
-        db
-          .updateTable('fx_reference_rate')
-          .set({ rate: 42 })
-          .where('quote_currency', '=', 'USD')
-          .execute(),
-      ).rejects.toThrow(/immutable/);
+      const before = await db
+        .selectFrom('fx_reference_rate')
+        .selectAll()
+        .execute();
+
+      await expectDbRefusal(
+        () =>
+          db
+            .updateTable('fx_reference_rate')
+            .set({ rate: 42 })
+            .where('quote_currency', '=', 'USD')
+            .execute(),
+        /immutable/,
+      );
+
+      // Refused AND unchanged: the trigger aborts the statement rather than
+      // merely complaining after the fact.
+      expect(
+        await db.selectFrom('fx_reference_rate').selectAll().execute(),
+      ).toEqual(before);
     });
   });
 

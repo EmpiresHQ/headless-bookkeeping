@@ -1,3 +1,4 @@
+import { expectDbRefusal } from '../../test/expect-db-refusal';
 import {
   fxTestProviders,
   SETTLEMENT_SCENARIO_RATES,
@@ -1901,13 +1902,22 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       // against. The cache is append-only and the posted line is immutable, so
       // history stays reproducible — the settlement still explains itself by
       // the 2026-05-15 observation it actually used.
-      await expect(
-        db
-          .updateTable('fx_reference_rate')
-          .set({ rate: 9.9 })
-          .where('rate_date', '=', '2026-05-15')
-          .execute(),
-      ).rejects.toThrow(/immutable/);
+      const cached = await db
+        .selectFrom('fx_reference_rate')
+        .selectAll()
+        .execute();
+      await expectDbRefusal(
+        () =>
+          db
+            .updateTable('fx_reference_rate')
+            .set({ rate: 9.9 })
+            .where('rate_date', '=', '2026-05-15')
+            .execute(),
+        /immutable/,
+      );
+      expect(
+        await db.selectFrom('fx_reference_rate').selectAll().execute(),
+      ).toEqual(cached);
 
       expect(await legsOf(matchId)).toEqual(before);
     });

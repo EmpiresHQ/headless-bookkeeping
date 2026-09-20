@@ -1,3 +1,4 @@
+import { expectDbRefusal } from '../../../test/expect-db-refusal';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
@@ -89,13 +90,15 @@ describe('Migrations 072/073: FX rate cache + voucher-line provenance', () => {
     const voucherId = await seedLegacyLine(0.92);
     await migrateUp();
 
-    await expect(
-      db
-        .updateTable('voucher_line')
-        .set({ fx_rate_source: 'ECB' })
-        .where('voucher_id', '=', voucherId)
-        .execute(),
-    ).rejects.toThrow(/immutable/);
+    await expectDbRefusal(
+      () =>
+        db
+          .updateTable('voucher_line')
+          .set({ fx_rate_source: 'ECB' })
+          .where('voucher_id', '=', voucherId)
+          .execute(),
+      /immutable/,
+    );
   });
 
   it('accepts an observation and refuses a non-positive rate', async () => {
@@ -112,19 +115,21 @@ describe('Migrations 072/073: FX rate cache + voucher-line provenance', () => {
       })
       .execute();
 
-    await expect(
-      db
-        .insertInto('fx_reference_rate')
-        .values({
-          source: 'ECB',
-          base_currency: 'EUR',
-          quote_currency: 'USD',
-          rate_date: '2026-03-07',
-          rate: 0,
-          fetched_at: 1,
-        })
-        .execute(),
-    ).rejects.toThrow();
+    await expectDbRefusal(
+      () =>
+        db
+          .insertInto('fx_reference_rate')
+          .values({
+            source: 'ECB',
+            base_currency: 'EUR',
+            quote_currency: 'USD',
+            rate_date: '2026-03-07',
+            rate: 0,
+            fetched_at: 1,
+          })
+          .execute(),
+      /CHECK constraint failed/,
+    );
   });
 
   it('holds one observation per (source, pair, date)', async () => {
@@ -138,12 +143,14 @@ describe('Migrations 072/073: FX rate cache + voucher-line provenance', () => {
       fetched_at: 1,
     };
     await db.insertInto('fx_reference_rate').values(row).execute();
-    await expect(
-      db
-        .insertInto('fx_reference_rate')
-        .values({ ...row, rate: 9.9 })
-        .execute(),
-    ).rejects.toThrow();
+    await expectDbRefusal(
+      () =>
+        db
+          .insertInto('fx_reference_rate')
+          .values({ ...row, rate: 9.9 })
+          .execute(),
+      /UNIQUE constraint failed/,
+    );
   });
 
   it('records probe windows separately from observations', async () => {
