@@ -370,6 +370,67 @@ curl -H "$H" -H "$J" -X POST $B/api/dividends -d '{"gross_amount":100000,"tax_po
 curl -H "$H" -H "$J" -X POST $B/api/bank-transactions/<id>/dividend -d '{...}'   # settle via reconciliation
 ```
 
+### Allowances, and the health/sports exemption (issue #212)
+```bash
+# Trip-based and per-input allowances. A claim is created as a draft, submitted,
+# and posted only when an approver confirms it.
+curl -H "$H" -H "$J" -X POST $B/api/allowances -d '{"type":"mileage","claimant_id":4,"km":120,"period_start":"2026-09-01"}'
+curl -H "$H" -X POST $B/api/allowances/<id>/submit          # → 204, creates the pending approval
+curl -H "$H" -H "$J" -X POST $B/api/approvals/<id>/approve -d '{"approved_by":"owner"}'
+```
+
+A **health** claim is different from phone/internet: it is tax-exempt only up to
+a statutory cap **per claimant per window** (EE: EUR 400 per calendar year from
+2025-01-01; EUR 100 per calendar QUARTER before that) and only when the
+exemption's conditions are met. So it must carry the facts those conditions turn
+on, or it is refused (422) with each missing fact named:
+
+```bash
+curl -H "$H" -H "$J" -X POST $B/api/allowances -d '{
+  "type":"health","claimant_id":4,"input_amount":100000,"period_start":"2026-09-01",
+  "health_category":"sports_facility_fee",        # the qualifying list is date-specific
+  "claimant_relation":"employee",                 # employee | board_member | other
+  "supporting_document_ref":"INV-2026-0042",      # or "supporting_document_id": <document id>
+  "offered_to_all_employees":true,
+  "provider_registration":"L04321"                # required for provider-conditional services
+}'
+```
+
+- The amount over the remaining cap is a **taxable fringe benefit**, not salary.
+  The employer owes income tax (EE from 2025: 22/78 of the benefit) and social
+  tax (33% of benefit + income tax) **on top of** what the claimant is paid: a
+  EUR 1000 claim with the full cap available posts 400 exempt, 600 as a fringe
+  benefit, 423.08 of employer tax, 1000 payable to the claimant.
+- Facts that do not qualify → the whole claim is taxable, with the reason
+  recorded on the row (`exemption_basis`). A claim recording NO facts (entered
+  before this existed) is booked as fully taxable, never as exempt.
+- Only claims whose money is in the books consume the cap. A draft reserves
+  nothing; the authoritative allocation happens inside the transaction that
+  posts the voucher, so two approvals cannot both take the same remaining cap.
+- No input VAT is deducted on a health benefit.
+
+### Health benefit declaration figures
+```bash
+curl -H "$H" "$B/api/reports/fringe-benefits/health?year=2026"
+```
+Returns the monthly **TSD annex 4, benefit code 4120** lines (taxable benefit,
+income tax, social tax, due on the 10th of the following month) and the annual
+**INF 14 part III** exempt total with the number of employees, each with the
+allowance and voucher ids behind it. It **submits nothing** and produces no EMTA
+upload file — these are the figures to file.
+
+Read `readyToFile` before trusting a total:
+- `unresolvedHistoricalClaims` lists claims posted before this accounting
+  existed (no `exemption_basis`), claims whose voucher has been reversed, and
+  taxable benefits carrying no recorded tax. Their amounts stay in the totals —
+  the books are the record — but they need a human first. **v1 has no
+  correction path for a posted allowance** (unlike an expense or a sales
+  invoice), so resolving one needs an accountant-entered adjusting voucher.
+- `roundingAdjustment` per month is the difference between the tax posted per
+  claim and the tax the declaration computes on the month's total. Rounding once
+  is not rounding twice, so the two can land a cent apart; both figures are
+  given rather than one being quietly preferred.
+
 ### Read the books
 ```bash
 curl -H "$H" $B/api/accounts            ;  curl -H "$H" $B/api/accounts/<code>
@@ -379,7 +440,7 @@ curl -H "$H" "$B/admin/approvals" "$B/admin/findings/open" "$B/admin/periods"
 ```
 
 ### What is NOT there (honest): income tax and annual report
-- **Taxes:** only **VAT** is computed (via the plugin's VAT codes and the VAT report). No income/corporate tax. Cross-border reverse charge IS resolved and declared (see "Cross-border purchases" above), but only for the general-rule cases named there: goods acquisitions beyond the intra-Community one, customs procedures and the special schemes are not auto-classified, and are refused rather than guessed. Foreign VAT is never silently reclaimed; disputed cases → hold.
+- **Taxes:** **VAT** is computed (via the plugin's VAT codes and the VAT report), and the employer's **fringe-benefit tax** on a taxable health/sports benefit is computed and posted, with its TSD annex 4 / INF 14 figures exposed (see "Allowances" above). There is still no payroll, no income tax on wages and no corporate income tax. Cross-border reverse charge IS resolved and declared (see "Cross-border purchases" above), but only for the general-rule cases named there: goods acquisitions beyond the intra-Community one, customs procedures and the special schemes are not auto-classified, and are refused rather than guessed. Foreign VAT is never silently reclaimed; disputed cases → hold.
 - **Annual report / financial statements (P&L, balance sheet, formatted trial balance):** **not implemented (V2).** Only raw balances (`/admin/accounts`) and a distributable-profit utility exist. Year-end close is deferred.
 
 ---

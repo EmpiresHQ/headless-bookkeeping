@@ -763,6 +763,27 @@ export interface AllowanceTable {
   voucher_id: number | null;
   created_at: number;
   updated_at: number;
+  // Health/sports eligibility facts (issue #212). All nullable: a pre-existing
+  // row never recorded them, and NULL reads as NOT eligible — never as eligible.
+  health_category: string | null;
+  // 'employee' | 'board_member' | 'other'
+  claimant_relation: string | null;
+  // WHICH document evidences the expense — an intake Document, or an external
+  // reference when the paper lives elsewhere.
+  supporting_document_id: number | null;
+  supporting_document_ref: string | null;
+  // The provider's licence/registration, for the categories that qualify only
+  // because a registered provider supplied the service.
+  provider_registration: string | null;
+  // SQLite boolean (0/1): the benefit is available to every eligible employee.
+  offered_to_all_employees: number | null;
+  // What was DECIDED at posting time, so a posted claim stays explicable.
+  exemption_basis: string | null;
+  // The accumulation window the allocation was made against ('2026', '2024-Q3').
+  limit_window: string | null;
+  // The employer's own tax on the taxable excess, owed ON TOP of the payout.
+  fringe_income_tax_amount: Generated<number>;
+  fringe_social_tax_amount: Generated<number>;
 }
 
 // Prepayment advance: the reconciliation record of ONE posted advance voucher —

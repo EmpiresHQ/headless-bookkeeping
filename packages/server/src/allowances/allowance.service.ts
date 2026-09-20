@@ -8,6 +8,8 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
 import { AllowanceLimitService } from './allowance-limit.service';
+import { HealthFactsInput, requireHealthFacts } from './health-facts';
+import type { HealthEligibilityFacts } from '../plugins/health-allowance.types';
 import { BusinessTripService } from './business-trip.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { StatusTransitionService } from '../ledger/status/status-transition.service';
@@ -29,6 +31,12 @@ export interface CreateAllowanceDto {
   /** Required for non-trip allowances (mileage, phone, internet, health) */
   periodStart?: string;
   periodEnd?: string;
+  /**
+   * health only: the eligibility facts the statutory exemption depends on
+   * (issue #212). Required — a health claim that records none of them cannot be
+   * classified, and is refused rather than guessed at.
+   */
+  health?: HealthFactsInput;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +115,16 @@ export class AllowanceService {
 
     const year = new Date(periodStart).getUTCFullYear();
 
+    // A health claim must arrive with the facts the exemption depends on. The
+    // refusal happens BEFORE anything is written, so a claim that cannot be
+    // classified leaves no half-made row behind (issue #212).
+    const healthFacts: HealthEligibilityFacts | null =
+      dto.type === 'health' ? requireHealthFacts(dto.health) : null;
+
+    // The split stored now is a PREVIEW. The authoritative allocation against
+    // the statutory limit is made inside the transaction that posts the
+    // voucher, so a draft reserves nothing and cannot overspend a cap by
+    // sitting unapproved.
     const split = await this.limitService.computeSplit({
       claimantId: dto.claimantId,
       type: dto.type,
@@ -117,6 +135,7 @@ export class AllowanceService {
       periodEnd,
       domestic,
       year,
+      healthFacts,
     });
 
     const now = Math.floor(Date.now() / 1000);
@@ -136,6 +155,20 @@ export class AllowanceService {
         taxable_amount: split.taxableAmount,
         breakdown:
           split.breakdown.length > 0 ? JSON.stringify(split.breakdown) : null,
+        health_category: healthFacts?.category ?? null,
+        claimant_relation: healthFacts?.claimantRelation ?? null,
+        supporting_document_id: healthFacts?.supportingDocumentId ?? null,
+        supporting_document_ref: healthFacts?.supportingDocumentRef ?? null,
+        provider_registration: healthFacts?.providerRegistration ?? null,
+        offered_to_all_employees: healthFacts
+          ? healthFacts.offeredToAllEmployees
+            ? 1
+            : 0
+          : null,
+        exemption_basis: split.health?.exemptionBasis ?? null,
+        limit_window: split.health?.limitWindow ?? null,
+        fringe_income_tax_amount: split.health?.fringeTax?.incomeTax ?? 0,
+        fringe_social_tax_amount: split.health?.fringeTax?.socialTax ?? 0,
         period_start: periodStart,
         period_end: periodEnd ?? null,
         voucher_id: null,

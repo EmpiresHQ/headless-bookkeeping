@@ -7,6 +7,63 @@ import {
 import type { AccountBalanceRow } from '../annual-accounts.types';
 
 describe('Estonia RTJ mapping', () => {
+  it('maps every leg a health fringe benefit posts, so none is dropped', () => {
+    // rollUpLines silently skips an account it does not recognise, so an
+    // unmapped code does not raise an error — it quietly removes a posted
+    // amount from the annual accounts. A EUR 1000 health claim posts five
+    // legs, three of them through accounts this issue added (#212).
+    const balances: AccountBalanceRow[] = [
+      { code: 'EXPENSE_OTHER', current: 40000, prior: 0, type: 'expense' },
+      {
+        code: 'EXPENSE_FRINGE_BENEFIT',
+        current: 60000,
+        prior: 0,
+        type: 'expense',
+      },
+      {
+        code: 'EXPENSE_FRINGE_BENEFIT_TAX',
+        current: 42308,
+        prior: 0,
+        type: 'expense',
+      },
+      {
+        code: 'CLAIMANT_PAYABLE',
+        current: 100000,
+        prior: 0,
+        type: 'liability',
+      },
+      {
+        code: 'FRINGE_BENEFIT_INCOME_TAX_PAYABLE',
+        current: 16923,
+        prior: 0,
+        type: 'liability',
+      },
+      {
+        code: 'SOCIAL_TAX_PAYABLE',
+        current: 25385,
+        prior: 0,
+        type: 'liability',
+      },
+    ];
+
+    expect(unmappedNonzeroCodes(balances)).toEqual([]);
+
+    const lines = rollUpLines(balances);
+    const total = (id: string) => lines.find((l) => l.id === id)?.current ?? 0;
+
+    // The benefit and the employer's tax on it are labour costs; the exempt
+    // part is an ordinary operating expense.
+    expect(total('labourExpense')).toBe(102308);
+    expect(total('otherOperatingExpenses')).toBe(40000);
+    // Every expense leg is present: 400.00 + 600.00 + 423.08.
+    expect(total('labourExpense') + total('otherOperatingExpenses')).toBe(
+      142308,
+    );
+    // And so is every liability leg: 1000.00 owed to the claimant plus 423.08
+    // of tax — the same 1423.08 the debits come to.
+    expect(total('payablesAndPrepayments')).toBe(142308);
+  });
+
   it('maps the core neutral accounts to RTJ lines', () => {
     expect(ACCOUNT_TO_LINE['BANK_EUR']).toBe('cashAndBankAccounts');
     expect(ACCOUNT_TO_LINE['AR']).toBe('receivablesAndPrepayments');

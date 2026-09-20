@@ -202,8 +202,12 @@ export class PostingService {
   async prepare(
     draft: DraftVoucher,
     semantics: PostingSemantics = SYSTEM_GENERATED,
+    executor?: Kysely<Database>,
   ): Promise<PreparedVoucher> {
-    const { resolved, accounts } = await this.resolveAndValidate(draft);
+    const { resolved, accounts } = await this.resolveAndValidate(
+      draft,
+      executor,
+    );
 
     if (semantics.kind === 'intake-driven') {
       await this.enforceSemantic(draft, resolved, accounts, semantics);
@@ -219,12 +223,18 @@ export class PostingService {
    * re-implementing the code→id lookup. An unknown code resolves to id -1,
    * which fails the structural existence check.
    */
-  async resolveLines(draft: DraftVoucher): Promise<{
+  async resolveLines(
+    draft: DraftVoucher,
+    executor?: Kysely<Database>,
+  ): Promise<{
     resolved: ValidatableLine[];
     accounts: { id: number; code: string; currency: string | null }[];
   }> {
     const codes = [...new Set(draft.lines.map((l) => l.account_code))];
-    const accounts = await this.accountService.getAccountsByCodes(codes);
+    const accounts = await this.accountService.getAccountsByCodes(
+      codes,
+      executor,
+    );
     const byCode = new Map(accounts.map((a) => [a.code, a]));
 
     const resolved: ValidatableLine[] = draft.lines.map((l) => {
@@ -247,11 +257,14 @@ export class PostingService {
    * Resolve + run the structural tier. Throws ValidationError on a structural
    * failure. Shared by the single- and multi-voucher posting paths.
    */
-  private async resolveAndValidate(draft: DraftVoucher): Promise<{
+  private async resolveAndValidate(
+    draft: DraftVoucher,
+    executor?: Kysely<Database>,
+  ): Promise<{
     resolved: ValidatableLine[];
     accounts: { id: number; code: string; currency: string | null }[];
   }> {
-    const { resolved, accounts } = await this.resolveLines(draft);
+    const { resolved, accounts } = await this.resolveLines(draft, executor);
     const validIds = new Set(accounts.map((a) => a.id));
 
     const result = this.validation.validateVoucherLines(resolved, validIds);

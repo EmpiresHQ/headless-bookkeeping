@@ -7,6 +7,10 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AllowanceLimitService } from './allowance-limit.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
+import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
+import { PluginLoader } from '../plugins/plugin-loader.service';
+import { OrganizationService } from '../organization/organization.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { splitByMonth } from './date-utils';
 import { seedEntity } from '../../test/helpers/seed-entity';
 import { seedAllowance } from '../../test/helpers/seed-allowance';
@@ -61,6 +65,19 @@ describe('AllowanceLimitService', () => {
       providers: [
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         NullCountryPlugin,
+        // The EE plugin only needs FX rates for VAT/FX work the allowance path
+        // never touches, so it is constructed with a stub rather than dragging
+        // the FX module into a limit-arithmetic spec.
+        {
+          provide: EstoniaCountryPlugin,
+          useFactory: () =>
+            new EstoniaCountryPlugin(
+              {} as ConstructorParameters<typeof EstoniaCountryPlugin>[0],
+            ),
+        },
+        PluginLoader,
+        OrganizationService,
+        OrgContextResolver,
         AllowanceLimitService,
       ],
     }).compile();

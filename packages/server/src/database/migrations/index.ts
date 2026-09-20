@@ -73,6 +73,7 @@ import * as m073 from './073_add_voucher_line_fx_provenance';
 import * as m074 from './074_add_reporting_period_kind';
 import * as m075 from './075_create_fixed_asset_depreciation';
 import * as m077 from './077_add_input_vat_entitlement';
+import * as m078 from './078_add_health_allowance_facts';
 import * as m076 from './076_add_service_place_of_supply_facts';
 
 export const migrations: Record<string, Migration> = {
@@ -151,4 +152,5 @@ export const migrations: Record<string, Migration> = {
   '075_create_fixed_asset_depreciation': m075,
   '076_add_service_place_of_supply_facts': m076,
   '077_add_input_vat_entitlement': m077,
+  '078_add_health_allowance_facts': m078,
 };

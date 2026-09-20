@@ -18,6 +18,11 @@ import {
   FixedAssetDefaults,
 } from './fixed-asset.types';
 import { AllowanceRates, AllowanceType } from './allowance-rates.types';
+import type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+} from './health-allowance.types';
+import { UnresolvedHealthAllowanceError } from './health-allowance.errors';
 import {
   ExpenseTreatmentPreview,
   KmdBaseClassification,
@@ -1116,6 +1121,178 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       return 'EXPENSE_TRAVEL';
     }
     return 'EXPENSE_OTHER';
+  }
+
+  // ── Health / sports exemption and fringe-benefit tax (issue #212) ─────────
+
+  /**
+   * TuMS § 48 lg 5^5, by the date the benefit was given.
+   *
+   * From 2025-01-01 the exemption is EUR 400 per employee per CALENDAR YEAR
+   * (VAT included) and the qualifying list was widened — massage and a broader
+   * set of services from registered health-care providers joined it. Before
+   * that, from the provision's entry into force on 2018-01-01, it was EUR 100
+   * per employee per CALENDAR QUARTER over a narrower list that did not include
+   * them. Neither the cap nor the list reaches backwards: a 2024 massage was a
+   * taxable fringe benefit in full, and exempting it today because the 2025
+   * list allows it would understate the tax that was due then.
+   *
+   * Before 2018-01-01 there is no entry — no exemption is asserted for a date
+   * whose rules this plugin has not verified.
+   *
+   * The health-service categories carry a provider condition: they qualify
+   * because a provider on the statutory register supplied them, not because the
+   * expense is health-related. A general check-up or an arbitrary medical
+   * invoice is not blanket-eligible, so those categories demand the provider's
+   * registration on the claim and are not exempt without it.
+   *
+   * Newest first; the first entry whose `from` is on or before the date wins.
+   */
+  private static readonly HEALTH_RULE_HISTORY: ReadonlyArray<
+    { from: string } & HealthAllowanceRules
+  > = [
+    {
+      from: '2025-01-01',
+      windowKind: 'year',
+      capPerClaimant: 40000,
+      eligibleCategories: [
+        'sports_facility_fee',
+        'sports_event_participation',
+        'employer_sports_facility_upkeep',
+        'rehabilitation_or_physiotherapy',
+        'massage',
+        'registered_healthcare_service',
+        'health_insurance_premium',
+      ],
+      categoriesRequiringProviderRegistration: [
+        'rehabilitation_or_physiotherapy',
+        'massage',
+        'registered_healthcare_service',
+      ],
+      legalBasis:
+        'TuMS §48 lg 5^5 (from 2025-01-01): EUR 400 per employee per calendar year, VAT included',
+    },
+    {
+      from: '2018-01-01',
+      windowKind: 'quarter',
+      capPerClaimant: 10000,
+      eligibleCategories: [
+        'sports_facility_fee',
+        'sports_event_participation',
+        'employer_sports_facility_upkeep',
+        'rehabilitation_or_physiotherapy',
+        'health_insurance_premium',
+      ],
+      categoriesRequiringProviderRegistration: [
+        'rehabilitation_or_physiotherapy',
+      ],
+      legalBasis:
+        'TuMS §48 lg 5^5 (2018-01-01 to 2024-12-31): EUR 100 per employee per calendar quarter',
+    },
+  ];
+
+  getHealthAllowanceRules(date: string): HealthAllowanceRules | null {
+    const rule = EstoniaCountryPlugin.HEALTH_RULE_HISTORY.find(
+      (r) => r.from <= date,
+    );
+    if (!rule) return null;
+    const { from: _from, ...rules } = rule;
+    void _from;
+    return rules;
+  }
+
+  /**
+   * Fringe-benefit tax at the employer's expense (TuMS §48, SMS §2 lg 1 p 7).
+   *
+   * Income tax is the gross-up form of the income-tax rate — 22/78 from
+   * 2025-01-01, 20/80 over 2015-01-01…2024-12-31 — because the benefit is a net
+   * amount the employer bears the tax on. Social tax is 33% of the benefit PLUS
+   * that income tax, so the two are computed in order and never independently.
+   * A 600.00 benefit in 2026 is therefore 169.23 income tax and 253.85 social
+   * tax: 423.08 of employer tax on top of the 600.00 paid out, not 22% and 33%
+   * of 600 in parallel.
+   *
+   * There is NO catch-all oldest entry. The rate before 2015-01-01 was not
+   * verified against a primary source for this issue, and a benefit dated then
+   * is refused rather than taxed at a rate this table invented. A made-up
+   * historical rate produces a number that looks filed-ready and is wrong.
+   *
+   * Newest first; the first entry whose `from` is on or before the date wins.
+   */
+  private static readonly FRINGE_TAX_HISTORY: ReadonlyArray<{
+    from: string;
+    /** Income tax as the exact fraction numerator/denominator of the benefit. */
+    incomeTaxNumerator: number;
+    incomeTaxDenominator: number;
+    /** Social tax as a percentage of benefit + income tax. */
+    socialTaxPercent: number;
+  }> = [
+    {
+      from: '2025-01-01',
+      incomeTaxNumerator: 22,
+      incomeTaxDenominator: 78,
+      socialTaxPercent: 33,
+    },
+    {
+      from: '2015-01-01',
+      incomeTaxNumerator: 20,
+      incomeTaxDenominator: 80,
+      socialTaxPercent: 33,
+    },
+  ];
+
+  /** The earliest date {@link FRINGE_TAX_HISTORY} was verified for. */
+  private static readonly FRINGE_TAX_VERIFIED_FROM = '2015-01-01';
+
+  resolveFringeBenefitTax(
+    benefitValue: number,
+    date: string,
+    _orgContext: OrgContext,
+  ): FringeBenefitTax | null {
+    void _orgContext;
+    if (benefitValue <= 0) return null;
+
+    const rates = EstoniaCountryPlugin.FRINGE_TAX_HISTORY.find(
+      (r) => r.from <= date,
+    );
+    if (!rates) {
+      throw new UnresolvedHealthAllowanceError({
+        code: 'fringe_benefit_tax_rate_unverified',
+        message:
+          `A taxable fringe benefit dated ${date} is before ` +
+          `${EstoniaCountryPlugin.FRINGE_TAX_VERIFIED_FROM}, the earliest date ` +
+          `this plugin holds verified Estonian fringe-benefit tax rates for. ` +
+          `Applying a later rate to it would state a tax that was never due, so ` +
+          `nothing was posted.`,
+        missingFacts: [
+          `verified fringe-benefit tax rates for ${date} (plugin holds them from ` +
+            `${EstoniaCountryPlugin.FRINGE_TAX_VERIFIED_FROM})`,
+        ],
+        howToResolve:
+          'Post the benefit under its correct (later) date, or extend the ' +
+          "plugin's fringe-benefit rate history from a primary source before " +
+          'booking benefits of this vintage.',
+      });
+    }
+
+    const incomeTax = Math.round(
+      (benefitValue * rates.incomeTaxNumerator) / rates.incomeTaxDenominator,
+    );
+    const socialTax = Math.round(
+      ((benefitValue + incomeTax) * rates.socialTaxPercent) / 100,
+    );
+
+    return {
+      incomeTax,
+      socialTax,
+      benefitExpenseAccount: 'EXPENSE_FRINGE_BENEFIT',
+      taxExpenseAccount: 'EXPENSE_FRINGE_BENEFIT_TAX',
+      incomeTaxAccount: 'FRINGE_BENEFIT_INCOME_TAX_PAYABLE',
+      socialTaxAccount: 'SOCIAL_TAX_PAYABLE',
+      basis:
+        `TuMS §48 income tax ${rates.incomeTaxNumerator}/${rates.incomeTaxDenominator} of the benefit; ` +
+        `SMS social tax ${rates.socialTaxPercent}% of benefit + income tax`,
+    };
   }
 
   // ── KMD (käibedeklaratsioon) row classification ───────────────────────────

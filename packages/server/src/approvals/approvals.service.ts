@@ -13,8 +13,15 @@ import { ValidationError } from '../ledger/posting/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
-import { AllowanceLimitService } from '../allowances/allowance-limit.service';
-import { AllowanceProjectionService } from '../allowances/allowance-projection.service';
+import {
+  AllowanceLimitService,
+  AllowanceSplit,
+} from '../allowances/allowance-limit.service';
+import {
+  AllowanceProjectionService,
+  AllowanceRow,
+} from '../allowances/allowance-projection.service';
+import { healthFactsFromRow } from '../allowances/health-facts';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import type { AllowanceType } from '../plugins/allowance-rates.types';
 import {
@@ -167,13 +174,12 @@ export class ApprovalsService {
       return this.approveReconciliationMatch(approval, approvedBy);
     }
 
-    // For allowances: compute the fresh split BEFORE the transaction (reads only —
-    // avoids deadlock with SQLite's single-writer model, same reason generateDraftVoucher
-    // is also pre-transaction). The write is applied inside the transaction below.
-    const freshAllowanceSplit =
-      approval.object_type === 'allowance'
-        ? await this.computeAllowanceSplit(approval.object_id)
-        : null;
+    // An allowance decides its split and its voucher INSIDE the posting
+    // transaction (issue #212) — see approveAllowance. Everything else keeps
+    // the pre-transaction derivation.
+    if (approval.object_type === 'allowance') {
+      return this.approveAllowance(approval, id, approvedBy);
+    }
 
     // Generate the draft voucher BEFORE the transaction to avoid deadlock
     // (generateDraftVoucher uses this.db, not the transaction handle).
@@ -202,27 +208,13 @@ export class ApprovalsService {
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Allowances use needs_triage as their pre-approval status; all other types use pending.
-    const fromStatus =
-      approval.object_type === 'allowance' ? 'needs_triage' : 'pending';
+    const fromStatus = 'pending';
 
     // Post the voucher and update everything atomically. The idempotency claim
     // is THE single status-transition seam, with the correct prior status for
     // the object type (ADR-0006 / ADR-0021). The transition co-writes
     // voucher_id once the voucher exists.
     const voucher = await this.db.transaction().execute(async (trx) => {
-      // For allowances: persist the recalculated split inside the posting
-      // transaction so the allowance row and posted voucher are always consistent.
-      // The split was computed above (pre-transaction) to avoid SQLite deadlock.
-      if (freshAllowanceSplit) {
-        await this.applyAllowanceSplit(
-          approval.object_id,
-          freshAllowanceSplit,
-          now,
-          trx,
-        );
-      }
-
       await this.statusTransition.transition(
         trx,
         approval.object_type as 'expense' | 'sales_invoice' | 'allowance',
@@ -479,33 +471,140 @@ export class ApprovalsService {
   }
 
   /**
-   * Compute (but do NOT write) the refreshed tax-free/taxable split for an
-   * allowance at approval time. Read-only — safe to call before a transaction.
+   * Approve an allowance: decide its split, persist it, project its voucher and
+   * post it — all inside ONE transaction (issue #212).
    *
-   * At submit time the split was preliminary (based on the cumulative picture
-   * at that moment). By the time a human approves, other allowances may have
-   * been approved in the same month, shifting how much of the annual limit
-   * has been consumed. Re-runs computeSplit with excludeAllowanceId so the
-   * allowance sees the correct remaining limit.
+   * The previous shape computed the split before the transaction, generated the
+   * draft voucher from the row as it stood BEFORE that split was applied, then
+   * wrote the split inside the transaction and posted the stale draft. Two
+   * things went wrong with it:
    *
-   * Call {@link applyAllowanceSplit} inside the posting transaction to persist.
+   *  - the persisted split and the posted voucher could describe different
+   *    amounts, because the voucher was built from the pre-update row;
+   *  - two approvals racing for the same remaining exemption both read the cap
+   *    as unconsumed outside any transaction and both took it, overspending a
+   *    statutory limit that is the entire point of the accounting.
+   *
+   * Here the allocation is read, decided, written, projected and posted under
+   * one transaction handle. Every read inside it goes through `trx`: the SQLite
+   * dialect holds a single connection, so a read off the root `db` while the
+   * transaction is open deadlocks. The second of two concurrent approvals
+   * therefore sees the first's committed usage, and the row, the voucher and
+   * the report are derived from one decision rather than three.
    */
-  private async computeAllowanceSplit(allowanceId: number): Promise<{
-    grossAmount: number;
-    taxFreeAmount: number;
-    taxableAmount: number;
-    breakdown: unknown[];
-  }> {
-    const allowance = await this.db
+  private async approveAllowance(
+    approval: Approval,
+    id: number,
+    approvedBy: string,
+  ): Promise<{ approval: Approval; voucher: PostedVoucher | null }> {
+    const now = Math.floor(Date.now() / 1000);
+
+    const voucher = await this.db.transaction().execute(async (trx) => {
+      const split = await this.computeAllowanceSplit(approval.object_id, trx);
+
+      const updated = await this.applyAllowanceSplit(
+        approval.object_id,
+        split,
+        now,
+        trx,
+      );
+
+      const fringe = split.health?.fringeTax
+        ? {
+            tax: split.health.fringeTax,
+            incomeTax: split.health.fringeTax.incomeTax,
+            socialTax: split.health.fringeTax.socialTax,
+          }
+        : null;
+
+      const draft = await this.allowanceProjectionService.project(
+        updated,
+        fringe,
+      );
+
+      // Resolve + structurally validate through the single write path
+      // (ADR-0019), reading accounts through `trx`.
+      let prepared;
+      try {
+        prepared = await this.postingService.prepare(
+          draft,
+          { kind: 'system-generated' },
+          trx,
+        );
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          throw new BadRequestException(err.errors.join('; '));
+        }
+        throw err;
+      }
+
+      await this.statusTransition.transition(
+        trx,
+        'allowance',
+        approval.object_id,
+        'needs_triage',
+        'posted',
+        {
+          conflictMessage: (actual) =>
+            `Allowance ${approval.object_id} is ${actual}, expected needs_triage`,
+        },
+      );
+
+      const posted = await this.postingService.postVoucherTx(
+        trx,
+        draft,
+        prepared.resolved,
+      );
+
+      await trx
+        .updateTable('allowance')
+        .set({ voucher_id: posted.id, updated_at: now })
+        .where('id', '=', approval.object_id)
+        .execute();
+
+      await trx
+        .updateTable('approval')
+        .set({ status: 'approved', approved_by: approvedBy, resolved_at: now })
+        .where('id', '=', id)
+        .execute();
+
+      await this.resolvePendingApprovalFindingTx(
+        trx,
+        id,
+        now,
+        approvedBy,
+        'Approval approved',
+      );
+
+      return posted;
+    });
+
+    return { approval: await this.getApprovalById(id), voucher };
+  }
+
+  /**
+   * Compute (but do NOT write) the tax-free/taxable split for an allowance at
+   * approval time, reading everything through the supplied handle.
+   *
+   * At submit time the split was preliminary — a PREVIEW of what the claim
+   * would get if it posted right then. By the time a human approves, other
+   * claims may have posted and consumed the limit, so the authoritative
+   * allocation is made here, against committed state.
+   */
+  private async computeAllowanceSplit(
+    allowanceId: number,
+    executor: Transaction<Database>,
+  ): Promise<AllowanceSplit> {
+    const allowance = await executor
       .selectFrom('allowance')
       .selectAll()
       .where('id', '=', allowanceId)
       .executeTakeFirstOrThrow();
 
-    const { organization } = await this.orgContextResolver.resolve();
+    const { organization } = await this.orgContextResolver.resolve(executor);
 
     const trip = allowance.trip_id
-      ? await this.db
+      ? await executor
           .selectFrom('business_trip')
           .selectAll()
           .where('id', '=', allowance.trip_id)
@@ -516,39 +615,36 @@ export class ApprovalsService {
       ? trip.destination_country === organization.country
       : false;
 
-    // computeSplit reads accumulated days from OTHER allowances (this.db) — not
-    // the one being updated — so it correctly sees committed state.
-    return this.allowanceLimitService.computeSplit({
-      claimantId: allowance.claimant_id,
-      type: allowance.type as AllowanceType,
-      days: allowance.days ?? undefined,
-      km: allowance.km ?? undefined,
-      inputAmount: allowance.input_amount ?? undefined,
-      periodStart: allowance.period_start,
-      periodEnd: allowance.period_end ?? undefined,
-      domestic,
-      year: new Date(allowance.period_start).getUTCFullYear(),
-      excludeAllowanceId: allowance.id,
-    });
+    return this.allowanceLimitService.computeSplit(
+      {
+        claimantId: allowance.claimant_id,
+        type: allowance.type as AllowanceType,
+        days: allowance.days ?? undefined,
+        km: allowance.km ?? undefined,
+        inputAmount: allowance.input_amount ?? undefined,
+        periodStart: allowance.period_start,
+        periodEnd: allowance.period_end ?? undefined,
+        domestic,
+        year: new Date(allowance.period_start).getUTCFullYear(),
+        excludeAllowanceId: allowance.id,
+        healthFacts: healthFactsFromRow(allowance),
+      },
+      executor,
+    );
   }
 
   /**
-   * Write the pre-computed split to the allowance row using the supplied
-   * transaction handle. Must be called inside the posting transaction so the
-   * split update is atomic with the status transition and voucher post.
+   * Write the decided split to the allowance row and return the row AS WRITTEN,
+   * so the voucher is projected from the same values the books now hold rather
+   * than from the version that was read before the decision.
    */
   private async applyAllowanceSplit(
     allowanceId: number,
-    split: {
-      grossAmount: number;
-      taxFreeAmount: number;
-      taxableAmount: number;
-      breakdown: unknown[];
-    },
+    split: AllowanceSplit,
     now: number,
     trx: Transaction<Database>,
-  ): Promise<void> {
-    await trx
+  ): Promise<AllowanceRow> {
+    return trx
       .updateTable('allowance')
       .set({
         gross_amount: split.grossAmount,
@@ -556,10 +652,15 @@ export class ApprovalsService {
         taxable_amount: split.taxableAmount,
         breakdown:
           split.breakdown.length > 0 ? JSON.stringify(split.breakdown) : null,
+        exemption_basis: split.health?.exemptionBasis ?? null,
+        limit_window: split.health?.limitWindow ?? null,
+        fringe_income_tax_amount: split.health?.fringeTax?.incomeTax ?? 0,
+        fringe_social_tax_amount: split.health?.fringeTax?.socialTax ?? 0,
         updated_at: now,
       })
       .where('id', '=', allowanceId)
-      .execute();
+      .returningAll()
+      .executeTakeFirstOrThrow();
   }
 
   private async getApprovalById(id: number): Promise<Approval> {
@@ -607,14 +708,17 @@ export class ApprovalsService {
         return this.expensesService.generateDraftVoucher(objectId);
       case 'sales_invoice':
         return this.salesInvoicesService.generateDraftVoucher(objectId);
-      case 'allowance': {
-        const allowance = await this.db
-          .selectFrom('allowance')
-          .selectAll()
-          .where('id', '=', objectId)
-          .executeTakeFirstOrThrow();
-        return this.allowanceProjectionService.project(allowance);
-      }
+      case 'allowance':
+        // An allowance's voucher is projected from the allocation decided
+        // inside the posting transaction (see approveAllowance), never from the
+        // row as it stood before. Deriving one here would rebuild it from stale
+        // amounts and, for a health claim, omit the fringe-benefit tax lines
+        // entirely — so this path refuses rather than producing a plausible
+        // wrong voucher.
+        throw new BadRequestException(
+          'An allowance voucher is derived inside its posting transaction; ' +
+            'approve the allowance through ApprovalsService.approveApproval.',
+        );
       default:
         throw new BadRequestException(
           `Unknown object type: ${String(objectType)}`,

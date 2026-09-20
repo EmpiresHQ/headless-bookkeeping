@@ -20,6 +20,10 @@ import type {
   InputVatEntitlement,
   InputVatEntitlementContext,
 } from './input-vat-entitlement.types';
+import type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+} from './health-allowance.types';
 
 export type {
   VatComputation,
@@ -34,6 +38,14 @@ export type {
   StatutoryReportResult,
   StatutoryFormat,
 } from './statutory-report.types';
+
+export type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+  HealthEligibilityFacts,
+  HealthExemptionBasis,
+  ClaimantRelation,
+} from './health-allowance.types';
 
 export type {
   AssetClass,
@@ -574,4 +586,34 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * Per ADR-0002.
    */
   getAllowanceAccount(type: AllowanceType): string;
+
+  /**
+   * The health/sports exemption in force ON THE GIVEN DATE — its cap, the
+   * calendar window the cap accumulates over, and the expenditure that
+   * qualifies (issue #212). `null` means this jurisdiction grants NO health
+   * exemption on that date; it never means "no limit".
+   *
+   * Asked per DATE, not per year, because all three parts move: Estonia ran a
+   * EUR 100 per QUARTER exemption over a narrow medical list until 2024-12-31
+   * and a EUR 400 per YEAR exemption over an expanded list from 2025-01-01, so
+   * a 2024 claim must be measured against the 2024 rules and a 2026 claim
+   * against today's. Applying today's cap or today's category list backwards
+   * would exempt expenditure that was taxable when it was incurred.
+   *
+   * @param date - the benefit's authoritative date, 'YYYY-MM-DD'
+   */
+  getHealthAllowanceRules(date: string): HealthAllowanceRules | null;
+
+  /**
+   * The employer's own tax on a taxable fringe benefit of `benefitValue`
+   * (base-currency minor units) on the given date, plus the accounts it books
+   * to. Owed IN ADDITION to what the claimant is paid — never withheld from it.
+   * `null` when the jurisdiction taxes fringe benefits through payroll instead,
+   * in which case the taxable part is simply an employment-cost expense.
+   */
+  resolveFringeBenefitTax(
+    benefitValue: number,
+    date: string,
+    orgContext: OrgContext,
+  ): FringeBenefitTax | null;
 }

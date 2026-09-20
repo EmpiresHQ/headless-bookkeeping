@@ -27,6 +27,16 @@ function stubAllowance(overrides: Partial<AllowanceRow>): AllowanceRow {
     voucher_id: null,
     created_at: 0,
     updated_at: 0,
+    health_category: null,
+    claimant_relation: null,
+    supporting_document_id: null,
+    supporting_document_ref: null,
+    provider_registration: null,
+    offered_to_all_employees: null,
+    exemption_basis: null,
+    limit_window: null,
+    fringe_income_tax_amount: 0,
+    fringe_social_tax_amount: 0,
     ...overrides,
   };
 }

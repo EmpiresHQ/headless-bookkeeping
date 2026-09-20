@@ -40,6 +40,10 @@ import {
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 import { AllowanceRates, AllowanceType } from './allowance-rates.types';
+import type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+} from './health-allowance.types';
 
 /**
  * Re-exported for backward compatibility with existing importers. The SOURCE
@@ -385,5 +389,34 @@ export class NullCountryPlugin implements CountryPlugin {
       return 'EXPENSE_TRAVEL';
     }
     return 'EXPENSE_OTHER';
+  }
+
+  /**
+   * The neutral plugin grants NO health/sports exemption (issue #212). It is a
+   * stand-in for "we do not know this jurisdiction's rules", and the honest
+   * consequence of not knowing them is that nothing can be declared exempt —
+   * not that everything can. A deployment whose country DOES grant one gets it
+   * from that country's plugin.
+   */
+  getHealthAllowanceRules(_date: string): HealthAllowanceRules | null {
+    void _date;
+    return null;
+  }
+
+  /**
+   * The neutral plugin knows no employer-level fringe-benefit tax, so a taxable
+   * benefit is an ordinary employment cost here and carries no tax lines of its
+   * own. Returning zero-rate taxes instead would assert a rate this plugin has
+   * no basis for.
+   */
+  resolveFringeBenefitTax(
+    _benefitValue: number,
+    _date: string,
+    _orgContext: OrgContext,
+  ): FringeBenefitTax | null {
+    void _benefitValue;
+    void _date;
+    void _orgContext;
+    return null;
   }
 }

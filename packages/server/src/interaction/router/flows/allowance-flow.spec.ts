@@ -63,6 +63,109 @@ describe('AllowanceFlow', () => {
     await db.destroy();
   });
 
+  describe('health — the exemption facts (issue #212)', () => {
+    const ctxFor = (claimantId: number): DispatchContext => ({
+      conversation_id: 1,
+      principal: {
+        role: 'known_counterparty',
+        authVerified: false,
+        senderId: `entity:${claimantId}`,
+      },
+    });
+
+    beforeEach(async () => {
+      await db
+        .updateTable('organization')
+        .set({ country: 'EE', vat_registered: 1 })
+        .where('id', '=', 1)
+        .execute();
+    });
+
+    it('asks for the eligibility facts by name instead of creating a claim it cannot classify', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const intent: RoutedIntent = {
+        kind: 'action',
+        actionIntent: 'create_allowance',
+        fields: { type: 'health', input_amount: '100000' },
+      };
+
+      const result = await flow.dispatch(intent, ctxFor(claimant.id));
+
+      expect(result.handled).toBe(true);
+      expect(result.reply).toContain('health_category');
+      expect(result.reply).toContain('claimant_relation');
+      expect(result.reply).toContain('supporting_document_ref');
+      expect(result.reply).toContain('offered_to_all_employees');
+      // Nothing half-made was left behind for someone to approve later.
+      expect(await db.selectFrom('allowance').selectAll().execute()).toEqual(
+        [],
+      );
+    });
+
+    it('creates the claim once the facts arrive, and says what was decided', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const intent: RoutedIntent = {
+        kind: 'action',
+        actionIntent: 'create_allowance',
+        fields: {
+          type: 'health',
+          input_amount: '100000',
+          period_start: '2026-09-01',
+          health_category: 'sports_facility_fee',
+          claimant_relation: 'employee',
+          supporting_document_ref: 'INV-2026-0042',
+          offered_to_all_employees: 'yes',
+        },
+      };
+
+      const result = await flow.dispatch(intent, ctxFor(claimant.id));
+
+      expect(result.handled).toBe(true);
+      expect(result.reply).toContain('400.00 is tax-exempt');
+      expect(result.reply).toContain('600.00 is a taxable fringe benefit');
+
+      const rows = await db.selectFrom('allowance').selectAll().execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        status: 'needs_triage',
+        tax_free_amount: 40000,
+        taxable_amount: 60000,
+        health_category: 'sports_facility_fee',
+        claimant_relation: 'employee',
+        supporting_document_ref: 'INV-2026-0042',
+        offered_to_all_employees: 1,
+      });
+    });
+
+    it('reads anything but an explicit yes as not offered to all employees', async () => {
+      const claimant = await seedEntity(db, { role: 'employee' });
+      const intent: RoutedIntent = {
+        kind: 'action',
+        actionIntent: 'create_allowance',
+        fields: {
+          type: 'health',
+          input_amount: '10000',
+          period_start: '2026-09-01',
+          health_category: 'sports_facility_fee',
+          claimant_relation: 'employee',
+          supporting_document_ref: 'INV-9',
+          offered_to_all_employees: 'only me',
+        },
+      };
+
+      await flow.dispatch(intent, ctxFor(claimant.id));
+
+      const row = await db
+        .selectFrom('allowance')
+        .selectAll()
+        .executeTakeFirstOrThrow();
+      expect(row.offered_to_all_employees).toBe(0);
+      expect(row.tax_free_amount).toBe(0);
+      expect(row.taxable_amount).toBe(10000);
+      expect(row.exemption_basis).toBe('ineligible');
+    });
+  });
+
   describe('daily_allowance — complete fields', () => {
     it('creates allowance, submits to needs_triage, and returns confirmation', async () => {
       const claimant = await seedEntity(db, { role: 'employee' });

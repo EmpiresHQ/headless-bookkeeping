@@ -465,6 +465,16 @@ describe('DividendsService (integration)', () => {
       getAllowanceAccount(_type: AllowanceType): string {
         return 'EXPENSE_OTHER';
       }
+      getHealthAllowanceRules(_date: string): null {
+        return null;
+      }
+      resolveFringeBenefitTax(
+        _benefitValue: number,
+        _date: string,
+        _orgContext: OrgContext,
+      ): null {
+        return null;
+      }
     }
 
     beforeEach(async () => {
@@ -726,6 +736,16 @@ describe('DividendsService (integration)', () => {
       }
       getAllowanceAccount(_type: AllowanceType): string {
         return 'EXPENSE_OTHER';
+      }
+      getHealthAllowanceRules(_date: string): null {
+        return null;
+      }
+      resolveFringeBenefitTax(
+        _benefitValue: number,
+        _date: string,
+        _orgContext: OrgContext,
+      ): null {
+        return null;
       }
     }
 
