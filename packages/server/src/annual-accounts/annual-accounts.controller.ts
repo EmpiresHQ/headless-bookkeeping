@@ -28,9 +28,17 @@ export class AnnualAccountsController {
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ): Promise<void> {
-    const { artifacts } = await this.service.generate(id);
+    const { artifacts, warnings } = await this.service.generate(id);
     if (artifacts.length === 0) {
-      throw new BadRequestException('No annual-accounts artifacts produced');
+      // The plugin withholds the artifact when the filing would be unusable —
+      // a missing or malformed declarant registry code. Hand back the reason,
+      // not just the absence.
+      const why = warnings.map((w) => w.message).join('; ');
+      throw new BadRequestException(
+        why
+          ? `No annual-accounts artifacts produced: ${why}`
+          : 'No annual-accounts artifacts produced',
+      );
     }
     const a = artifacts[0];
     res.setHeader('Content-Type', a.mimeType);

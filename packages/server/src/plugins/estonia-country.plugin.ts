@@ -140,7 +140,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     'SE',
   ]);
 
-  /** Commercial registry code identifying the KMD declarant. */
+  /** Commercial registry code identifying the KMD / annual-accounts declarant. */
   private static readonly REG_RE = /^\d{8}$/;
 
   /**
@@ -522,6 +522,26 @@ export class EstoniaCountryPlugin implements CountryPlugin {
         code: 'unmapped_nonzero_account',
         message: `Account ${code} has a nonzero balance but maps to no RTJ line`,
       });
+    }
+
+    // Declarant identity: the COMMERCIAL REGISTRY code, never the VAT number.
+    // Without it there is no filable instance at all — XBRL 2.1 requires an
+    // entity identifier in every context — so we surface the gap and hand back
+    // no artifact rather than emitting a document that names the wrong key.
+    const reg = input.declarant.regNumber?.trim() ?? '';
+    if (reg === '') {
+      warnings.push({
+        code: 'missing_declarant_reg_number',
+        message: 'Annual accounts declarant has no commercial registry code',
+      });
+      return { artifacts: [], warnings };
+    }
+    if (!EstoniaCountryPlugin.REG_RE.test(reg)) {
+      warnings.push({
+        code: 'invalid_declarant_reg_number',
+        message: `Declarant reg number ${reg} must be an 8-digit commercial registry code`,
+      });
+      return { artifacts: [], warnings };
     }
 
     const base = input.period.name.replace(/[^\w-]/g, '_');

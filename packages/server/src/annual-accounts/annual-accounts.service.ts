@@ -21,6 +21,7 @@ import type {
   FixedAssetSnapshotRow,
   AnnualAccountsWarning,
 } from '../plugins/annual-accounts.types';
+import { AnnualAccountsRenderError } from '../plugins/annual-accounts.types';
 import type { CountryPlugin } from '../plugins/country-plugin.interface';
 import type { DraftVoucher } from '../ledger/voucher/types';
 
@@ -84,13 +85,38 @@ export class AnnualAccountsService {
       periodId,
       'draft',
     );
-    const result = plugin.generateAnnualAccounts(input, {
-      taxonomyVersion: 2026,
-    });
+    const result = this.render(plugin, input);
     return {
       artifacts: result.artifacts,
       warnings: [...diagnostics, ...result.warnings],
     };
+  }
+
+  /**
+   * Render through the country plugin, translating the plugin's refusal to
+   * render into a 400 that carries WHY.
+   *
+   * `AnnualAccountsRenderError` means the assembled input cannot produce a
+   * filable instance at all — an impossible period date, a comparative that
+   * overlaps the reported year, a declarant identity that is not a registry
+   * code. Those are caller-fixable data problems with an actionable message,
+   * so they must not reach the global filter as an opaque 500. Anything else
+   * really is unexpected and keeps propagating.
+   */
+  private render(
+    plugin: CountryPlugin,
+    input: AnnualAccountsInput,
+  ): AnnualAccountsResult {
+    try {
+      return plugin.generateAnnualAccounts(input, { taxonomyVersion: 2026 });
+    } catch (e) {
+      if (e instanceof AnnualAccountsRenderError) {
+        throw new BadRequestException(
+          `Cannot render annual accounts: ${e.message}`,
+        );
+      }
+      throw e;
+    }
   }
 
   /**
@@ -149,18 +175,24 @@ export class AnnualAccountsService {
       'final',
     );
 
-    // Render now so we can hard-block on plugin warnings too (unmapped nonzero).
-    const rendered = plugin.generateAnnualAccounts(input, {
-      taxonomyVersion: 2026,
-    });
+    // Render now so we can hard-block on plugin warnings too (unmapped
+    // nonzero) — and so a renderer refusal lands BEFORE anything is posted or
+    // locked, as a 400 naming the defect.
+    const rendered = this.render(plugin, input);
 
     // HARD BLOCK: any kernel blocking diagnostic OR any plugin unmapped-nonzero.
     const blocking = diagnostics.filter((w) => w.severity === 'block');
-    const unmapped = rendered.warnings.filter(
-      (w) => w.code === 'unmapped_nonzero_account',
+    // A missing/invalid declarant registry code blocks too: the plugin hands
+    // back no artifact at all in that case, so finalizing would lock the year
+    // against nothing filable.
+    const rejected = rendered.warnings.filter(
+      (w) =>
+        w.code === 'unmapped_nonzero_account' ||
+        w.code === 'missing_declarant_reg_number' ||
+        w.code === 'invalid_declarant_reg_number',
     );
-    if (blocking.length > 0 || unmapped.length > 0) {
-      const reasons = [...blocking, ...unmapped]
+    if (blocking.length > 0 || rejected.length > 0) {
+      const reasons = [...blocking, ...rejected]
         .map((w) => w.message)
         .join('; ');
       throw new BadRequestException(
@@ -399,7 +431,11 @@ export class AnnualAccountsService {
       priorNetIncome,
       retainedEarningsBroughtForward,
       declarant: {
-        regNumber: organization.vat_registration_number,
+        // The COMMERCIAL REGISTRY code identifies the declarant in the business
+        // register the annual report is filed with. The VAT number belongs to a
+        // different register and is not a substitute (issue #204); the same
+        // column already backs the KMD declarant identity.
+        regNumber: organization.registry_code,
         name: organization.name,
       },
     };
