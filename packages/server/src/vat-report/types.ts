@@ -52,6 +52,26 @@ export interface KmdDeclaration {
   row6_intra_eu_acquisition: number;
   /** Row 7 — other reverse-charged acquisition base (e.g. imported non-EU service). */
   row7_other_acquisition: number;
+  /**
+   * Reverse-charged acquisition base that belongs to row 6 OR row 7, on
+   * vouchers posted before the origin was recorded (issue #210). It is
+   * deliberately in NEITHER row: the old classifier's silent "row 7" is the
+   * defect this field exists to stop. Nonzero ⇒ `review_flags` names the
+   * correction, and the statutory export refuses to render a FINAL return.
+   *
+   * Absent from declarations frozen before #210 — read it as 0 there
+   * (`normalizeFrozenStatutoryInput`), which is what those filings assumed.
+   */
+  row6_7_unresolved_acquisition: number;
+  /**
+   * The vouchers whose acquisition origin is still unknown — the GATE, and the
+   * reason it is a list of vouchers rather than the amount above. A signed
+   * total can net to zero across two unrelated legacy movements while both
+   * rows they belong to are still wrong, so cancellation is not resolution.
+   * Nonempty ⇒ the period cannot be locked and no FINAL statutory artifact is
+   * rendered. Empty on declarations frozen before #210.
+   */
+  unresolved_acquisition_vouchers: string[];
   /** Net VAT due (row 4 − row 5); negative means reclaimable. */
   net_vat_due: number;
   /** Total 0% intra-EU service supplies to declare on the VD koondaruanne (tähis 3S). */

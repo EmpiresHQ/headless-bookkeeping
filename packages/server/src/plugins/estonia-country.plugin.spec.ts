@@ -14,6 +14,7 @@ import { emptyKmdDeclaration } from '../../test/kmd-fixture';
 import { EstoniaCountryPlugin } from './estonia-country.plugin';
 import {
   CategoryDef,
+  CounterpartyTaxStatus,
   OrgContext,
   SupplierFacts,
   SupplyFacts,
@@ -122,10 +123,12 @@ describe('EstoniaCountryPlugin — cross-border', () => {
   const mk = (
     country: string,
     gvs: 'goods' | 'services' | 'unknown',
+    taxStatus: CounterpartyTaxStatus = 'taxable_business',
   ): SupplierFacts => ({
     country,
     goodsVsServices: gvs,
     classificationMemory: [],
+    taxStatus,
   });
 
   it('EE supplier → domestic, EE_INPUT_24', () => {
@@ -135,12 +138,50 @@ describe('EstoniaCountryPlugin — cross-border', () => {
       }),
     ).toEqual({ treatment: 'domestic', vatCode: 'EE_INPUT_24' });
   });
-  it('EU supplier (DE) → reverse_charge, EE_REVERSE_CHARGE (our code)', () => {
+  // Issue #210: the acquisition's ORIGIN is decided here and frozen into the
+  // VAT code, because it is what decides KMD row 6 vs row 7.
+  it('EU supplier (DE), taxable person → reverse_charge with the INTRA-EU code', () => {
     expect(
       ee.resolveCrossBorderTreatment(mk('DE', 'services'), org, {
         vatCharged: false,
       }),
-    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE_EU' });
+  });
+  it('EU supplier of GOODS, taxable person → the same intra-EU code (row 6 takes both)', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('FI', 'goods'), org, {
+        vatCharged: false,
+      }),
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE_EU' });
+  });
+  it('EU supplier whose tax status is unknown → REFUSED, not guessed into a row', () => {
+    expect(() =>
+      ee.resolveCrossBorderTreatment(mk('DE', 'services', 'unknown'), org, {
+        vatCharged: false,
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+    try {
+      ee.resolveCrossBorderTreatment(mk('DE', 'services', 'unknown'), org, {
+        vatCharged: false,
+      });
+      throw new Error('expected a refusal');
+    } catch (err) {
+      const e = err as UnresolvedVatTreatmentError;
+      expect(e.code).toBe('supplier_tax_status_unknown');
+      expect(e.howToResolve).toContain('PATCH /api/entities');
+    }
+  });
+  it('EU supplier recorded as non-taxable → explicitly unsupported, never row 6', () => {
+    try {
+      ee.resolveCrossBorderTreatment(mk('DE', 'services', 'non_taxable'), org, {
+        vatCharged: false,
+      });
+      throw new Error('expected a refusal');
+    } catch (err) {
+      expect((err as UnresolvedVatTreatmentError).code).toBe(
+        'supplier_non_taxable_acquisition_unsupported',
+      );
+    }
   });
   it('non-EU goods (US) → import', () => {
     expect(
@@ -151,20 +192,63 @@ describe('EstoniaCountryPlugin — cross-border', () => {
   });
   // Imported B2B services: place of supply is Estonia (KMS §10), so the buyer
   // self-assesses regardless of whether the supplier sits inside or outside the
-  // EU. Non-EU service imports are reverse_charge just like intra-EU ones.
-  it('non-EU services (US, no VAT) → reverse_charge, EE_REVERSE_CHARGE', () => {
+  // EU. Non-EU service imports are reverse_charge just like intra-EU ones —
+  // under their own code, because they are declared in row 7 (issue #210).
+  it('non-EU services (US business, no VAT) → reverse_charge, THIRD-COUNTRY code', () => {
     expect(
       ee.resolveCrossBorderTreatment(mk('US', 'services'), org, {
         vatCharged: false,
       }),
-    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
+    ).toEqual({
+      treatment: 'reverse_charge',
+      vatCode: 'EE_REVERSE_CHARGE_3RD_COUNTRY',
+    });
   });
   it('non-EU services (US) with foreign tax charged → still reverse_charge (foreign tax is not reclaimable EE VAT)', () => {
     expect(
       ee.resolveCrossBorderTreatment(mk('US', 'services'), org, {
         vatCharged: true,
       }),
-    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE' });
+    ).toEqual({
+      treatment: 'reverse_charge',
+      vatCode: 'EE_REVERSE_CHARGE_3RD_COUNTRY',
+    });
+  });
+  it('non-EU supplier whose tax status is unknown → REFUSED (is a reverse charge due at all?)', () => {
+    try {
+      ee.resolveCrossBorderTreatment(mk('US', 'services', 'unknown'), org, {
+        vatCharged: false,
+      });
+      throw new Error('expected a refusal');
+    } catch (err) {
+      expect((err as UnresolvedVatTreatmentError).code).toBe(
+        'supplier_tax_status_unknown',
+      );
+    }
+  });
+  it('non-EU supplier recorded as non-taxable → explicitly unsupported, never row 7', () => {
+    try {
+      ee.resolveCrossBorderTreatment(mk('US', 'services', 'non_taxable'), org, {
+        vatCharged: false,
+      });
+      throw new Error('expected a refusal');
+    } catch (err) {
+      expect((err as UnresolvedVatTreatmentError).code).toBe(
+        'supplier_non_taxable_acquisition_unsupported',
+      );
+    }
+  });
+  it('non-EU supply of unrecorded kind → REFUSED (import vs self-assessed service)', () => {
+    try {
+      ee.resolveCrossBorderTreatment(mk('US', 'unknown'), org, {
+        vatCharged: false,
+      });
+      throw new Error('expected a refusal');
+    } catch (err) {
+      expect((err as UnresolvedVatTreatmentError).code).toBe(
+        'acquisition_supply_type_unknown',
+      );
+    }
   });
 });
 
@@ -543,11 +627,40 @@ describe('EstoniaCountryPlugin — KMD row classification', () => {
     });
   });
 
-  it('reverse charge → self-assessed supply (row 1) + acquisition (row 7), flagged for 6-vs-7 review', () => {
+  it('intra-EU acquisition → self-assessed supply (row 1) + row 6, no review needed', () => {
+    expect(ee.classifyKmd('EE_REVERSE_CHARGE_EU')).toEqual({
+      outputBaseRow: 1,
+      outputSubRow: null,
+      acquisitionRow: 6,
+      vdCode: null,
+      review: null,
+    });
+  });
+
+  it('third-country acquisition → self-assessed supply (row 1) + row 7, no review needed', () => {
+    expect(ee.classifyKmd('EE_REVERSE_CHARGE_3RD_COUNTRY')).toEqual({
+      outputBaseRow: 1,
+      outputSubRow: null,
+      acquisitionRow: 7,
+      vdCode: null,
+      review: null,
+    });
+  });
+
+  it('the LEGACY reverse-charge code is UNRESOLVED — never a silent row 7', () => {
     const c = ee.classifyKmd('EE_REVERSE_CHARGE');
     expect(c.outputBaseRow).toBe(1);
+    expect(c.acquisitionRow).toBe('unresolved');
+    expect(c.review).toMatch(/row 6.*row 7/i);
+    expect(c.review).toMatch(/correct/i);
+  });
+
+  it('reversing a legacy acquisition ALREADY FILED takes it back out of the row that filing used', () => {
+    const c = ee.classifyKmd('EE_REVERSE_CHARGE', {
+      reversesVoucherFiledWithoutAcquisitionOrigin: true,
+    });
     expect(c.acquisitionRow).toBe(7);
-    expect(c.review).toMatch(/row 6.*7|intra-EU/i);
+    expect(c.review).toMatch(/row 7/);
   });
 
   it('domestic input 24% feeds only the input-VAT total (no base row)', () => {

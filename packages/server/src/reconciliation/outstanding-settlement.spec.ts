@@ -173,6 +173,11 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       name,
       registrationKey: `IE${2000000 + entityCounter}X`,
       goodsVsServices: 'goods',
+      // A taxable business in another member state — the fact that makes a
+      // purchase from it an intra-Community acquisition (issue #210). These
+      // suites are about settlement and FX; without the fact the EE plugin
+      // rightly refuses to classify the purchase at all.
+      taxStatus: 'taxable_business',
     });
     return s.id;
   }

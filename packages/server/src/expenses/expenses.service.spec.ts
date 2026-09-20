@@ -509,6 +509,9 @@ describe('ExpensesService (integration)', () => {
         name: 'OpenRouter',
         registrationKey: 'US-OR-1',
         goodsVsServices: 'services',
+        // The supplier is a person engaged in business — the fact that makes
+        // this a self-assessed acquisition at all (issue #210).
+        taxStatus: 'taxable_business',
       });
 
       // $16 imported service, no VAT on the document.
@@ -536,8 +539,8 @@ describe('ExpensesService (integration)', () => {
       expect(input).toBeDefined();
       expect(output!.amount).toBe(384); // 24% of 1600
       expect(input!.amount).toBe(384);
-      expect(output!.vat_code).toBe('EE_REVERSE_CHARGE');
-      expect(input!.vat_code).toBe('EE_REVERSE_CHARGE');
+      expect(output!.vat_code).toBe('EE_REVERSE_CHARGE_3RD_COUNTRY');
+      expect(input!.vat_code).toBe('EE_REVERSE_CHARGE_3RD_COUNTRY');
 
       // Balanced; the VAT legs cancel so only the gross is owed.
       const debit = draft.lines

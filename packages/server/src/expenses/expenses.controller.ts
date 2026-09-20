@@ -124,11 +124,26 @@ export class ExpensesController {
     const expenseId = Number(id);
     const expense = await this.expensesService.getExpenseById(expenseId);
 
+    // Taken BEFORE the draft is generated: whatever changes from here on — the
+    // expense's amounts or category, the supplier's country or tax status —
+    // makes the prepared entry stale, and the pipeline refuses inside its own
+    // transaction rather than posting facts nobody holds any more. The supplier
+    // facts decide the acquisition's KMD row (issue #210), so the same
+    // protection the sales side got in #209 belongs here.
+    const factsAtDraftTime =
+      await this.expensesService.draftFactsFingerprint(expenseId);
+
     const result = await this.pipeline.runPipeline({
       businessObjectId: expenseId,
       businessObjectType: 'expense',
       draftGenerator: () =>
         this.expensesService.generateDraftVoucher(expenseId),
+      assertFactsUnchanged: (trx) =>
+        this.expensesService.assertDraftFactsUnchangedTx(
+          trx,
+          expenseId,
+          factsAtDraftTime,
+        ),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expenseId),
       override:
