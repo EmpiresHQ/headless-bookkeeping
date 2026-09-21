@@ -326,6 +326,36 @@ describe('Pass2 application-owned context', () => {
     });
   });
 
+  it('removes actionable accounting proposals from irrelevant files', async () => {
+    extract.mockResolvedValue({
+      object: { ...evidence, kind: 'not_a_document', category: null },
+    });
+    lookup.mockResolvedValue({
+      supplier: { resolution: 'unmatched' },
+      classificationMemory: [],
+    });
+    classify.mockResolvedValue({
+      object: {
+        ...classification,
+        kind: 'not_a_document',
+        customer_proposal: { mode: 'match', match_entity_id: 999 },
+      },
+    });
+    const outcome = await service.classify('newsletter');
+    expect(outcome).toMatchObject({
+      ok: true,
+      result: {
+        kind: 'not_a_document',
+        gross_amount: 0,
+        vat_amount: 0,
+        category: '',
+      },
+    });
+    if (!outcome.ok) throw new Error('expected classification');
+    expect(outcome.result.supplier_proposal).toBeUndefined();
+    expect(outcome.result.customer_proposal).toBeUndefined();
+  });
+
   it('forwards organization/direction context to both model phases', async () => {
     const ctx = {
       orgContext: {

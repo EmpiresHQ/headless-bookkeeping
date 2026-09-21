@@ -328,7 +328,7 @@ export const CLASSIFICATION_CONTEXT_CONTRACT =
   'Use the total after discounts, not the pre-discount subtotal. Preserve document VAT markings; do not infer VAT from category history. ' +
   'If the supplier country is unknown, omit supplier_proposal; never guess it to satisfy create_country. ' +
   'For unmatched suppliers, create_registration_key and create_country must agree with extractedEvidence.evidence. ' +
-  'For not_a_document use category="". Never treat an order confirmation as a paid receipt or invoice merely because it shows a total.';
+  'For not_a_document use category="", zero amounts, and omit both supplier_proposal and customer_proposal. Never treat an order confirmation as a paid receipt or invoice merely because it shows a total.';
 
 export function classificationPrompt(
   markdown: string,

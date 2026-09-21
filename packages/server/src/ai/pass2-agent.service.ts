@@ -188,6 +188,16 @@ export class Pass2AgentService {
           continue;
         }
         const result = parsed.data;
+        if (result.kind === 'not_a_document') {
+          // Non-accounting files carry no actionable accounting proposals,
+          // even when the model fills optional fields from document text.
+          result.gross_amount = 0;
+          result.vat_amount = 0;
+          result.category = '';
+          delete result.supplier_proposal;
+          delete result.customer_proposal;
+        }
+
         if (result.kind === 'new_expense') {
           if (evidence.kind !== 'new_expense') {
             failure = {
