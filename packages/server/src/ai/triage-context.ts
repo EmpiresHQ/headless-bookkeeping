@@ -314,7 +314,7 @@ export type TriageContext = z.infer<typeof triageContextSchema>;
 export const EVIDENCE_CONTRACT =
   'Extract only kind, candidate category, and supplier evidence using the supplied schema. ' +
   'No tools are available or needed. Categories are already supplied. ' +
-  'For outgoing invoices, irrelevant files, duplicates or corrections use category=null and null supplier evidence. ' +
+  'For outgoing invoices, irrelevant files, duplicates or corrections use category=null; keep the evidence object with registrationKey=null, name=null, country=null, goodsVsServices=unknown. ' +
   'For a purchase identify the SELLER, never our organization or the buyer. ' +
   'Copy identifiers from the document; use null for missing values, never infer a country from our organization. ' +
   'registrationKey means VAT/tax registration or company registry number; it NEVER means an invoice, order or receipt number. ' +

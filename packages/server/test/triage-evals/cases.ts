@@ -8,6 +8,7 @@ export interface TriageEvalCase {
   markdown: string;
   expected: {
     kind: string;
+    failure?: { category: string; detail: string };
     amount?: number;
     category?: string;
     registrationKey?: string | null;
@@ -75,6 +76,10 @@ export const triageEvalCases: TriageEvalCase[] = [
       'Seller: Mystery Software. Invoice R-5, 2026-09-10. Software credits EUR 16.00. No tax. Buyer Sample Buyer OÜ, Estonia, EE100000002.',
     expected: {
       kind: 'new_expense',
+      failure: {
+        category: 'context-failed',
+        detail: 'Supplier country missing; manual triage required',
+      },
       amount: 1600,
       registrationKey: null,
       country: null,
@@ -150,6 +155,21 @@ export function evaluateTriageCase(
   outcome: Pass2Outcome,
   evidence?: TriageEvidence,
 ): string[] {
+  if (test.expected.failure) {
+    const failure = test.expected.failure;
+    if (
+      outcome.ok ||
+      outcome.category !== failure.category ||
+      outcome.detail !== failure.detail
+    )
+      return ['expected explicit manual-triage hold'];
+    if (
+      evidence?.evidence.country !== test.expected.country ||
+      evidence?.evidence.registrationKey !== test.expected.registrationKey
+    )
+      return ['hold used incorrect supplier evidence'];
+    return [];
+  }
   if (!outcome.ok) return [`pipeline failed: ${outcome.category}`];
   const errors: string[] = [];
   const { expected } = test;

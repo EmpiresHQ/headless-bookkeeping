@@ -22,8 +22,11 @@ Cases and exact assertions live in `packages/server/test/triage-evals/cases.ts`:
 - Positive: existing supplier, new supplier, European number formatting,
   discount/reverse-charge invoice, outgoing customer.
 - Negative: forged database ID/prompt injection, missing supplier identifiers,
-  missing country, buyer mistaken for seller, historical category contradicted
+  missing country (must explicitly hold for manual triage), buyer mistaken for seller, historical category contradicted
   by the actual purchase, order confirmation mistaken for invoice, newsletter.
+
+A negative case with missing supplier country must return the specific manual-triage
+hold; a timeout or unrelated pipeline failure does not count as a pass.
 
 The runner exits nonzero on any failed assertion, pipeline failure or empty case
 selection. Reports contain only synthetic documents/results and timings, never

@@ -79,6 +79,37 @@ describe('prompt eval assertions (negative controls)', () => {
     );
   });
 
+  it('requires the specific missing-country hold, never counting timeouts as a negative-eval pass', () => {
+    const missing = triageEvalCases.find(
+      (test) => test.id === 'missing-country',
+    )!;
+    const unknown = {
+      ...evidence,
+      evidence: { ...evidence.evidence, country: null, registrationKey: null },
+    };
+    expect(
+      evaluateTriageCase(
+        missing,
+        {
+          ok: false,
+          category: 'context-failed',
+          detail: 'Supplier country missing; manual triage required',
+        },
+        unknown,
+      ),
+    ).toEqual([]);
+    expect(
+      evaluateTriageCase(
+        missing,
+        { ok: false, category: 'transient', detail: 'timeout' },
+        unknown,
+      ),
+    ).toEqual(['expected explicit manual-triage hold']);
+    expect(evaluateTriageCase(missing, good(), unknown)).toEqual([
+      'expected explicit manual-triage hold',
+    ]);
+  });
+
   it('includes explicit negative scenarios in the live corpus', () => {
     expect(
       triageEvalCases.filter((test) => test.negative).length,

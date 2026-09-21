@@ -135,6 +135,17 @@ export class Pass2AgentService {
         detail: `Context retrieval failed: ${String(error)}`,
       };
     }
+    if (
+      evidence.kind === 'new_expense' &&
+      context.supplier.resolution === 'unmatched' &&
+      !evidence.evidence.country
+    ) {
+      return {
+        ok: false,
+        category: 'context-failed',
+        detail: 'Supplier country missing; manual triage required',
+      };
+    }
     const enrichment = enrichmentFromContext(evidence, context);
     let agent: Awaited<
       ReturnType<MastraService['buildTriageClassificationAgent']>

@@ -125,6 +125,29 @@ describe('Pass2 application-owned context', () => {
     expect(classify).not.toHaveBeenCalled();
   });
 
+  it('holds an unidentified supplier with no country before asking the model to invent one', async () => {
+    extract.mockResolvedValue({
+      object: {
+        ...evidence,
+        evidence: {
+          ...evidence.evidence,
+          country: null,
+          registrationKey: null,
+        },
+      },
+    });
+    lookup.mockResolvedValue({
+      supplier: { resolution: 'unmatched' },
+      classificationMemory: [],
+    });
+    expect(await service.classify('receipt')).toEqual({
+      ok: false,
+      category: 'context-failed',
+      detail: 'Supplier country missing; manual triage required',
+    });
+    expect(classify).not.toHaveBeenCalled();
+  });
+
   it('rejects a fabricated existing supplier when lookup found no match', async () => {
     lookup.mockResolvedValue({
       supplier: { resolution: 'unmatched' },
