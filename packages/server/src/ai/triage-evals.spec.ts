@@ -65,6 +65,20 @@ describe('prompt eval assertions (negative controls)', () => {
       }),
     ).toEqual(['pipeline failed: context-failed']);
   });
+  it('rejects invented accounting facts even when the irrelevant kind is correct', () => {
+    const newsletter = triageEvalCases.find(
+      (test) => test.id === 'newsletter',
+    )!;
+    const outcome = good();
+    if (!outcome.ok) throw new Error('fixture');
+    outcome.result.kind = 'not_a_document';
+    outcome.enrichment = { summary: '' };
+    outcome.result.supplier_proposal = undefined;
+    expect(evaluateTriageCase(newsletter, outcome)).toContain(
+      'irrelevant document contains fabricated accounting facts',
+    );
+  });
+
   it('includes explicit negative scenarios in the live corpus', () => {
     expect(
       triageEvalCases.filter((test) => test.negative).length,

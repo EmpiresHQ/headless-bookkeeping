@@ -89,6 +89,7 @@ describe('Pass2 application-owned context', () => {
     {},
     { ...evidence, matchEntityId: 705731 },
     { ...evidence, evidence: { ...evidence.evidence, country: 'Estonia' } },
+    { ...evidence, evidence: { ...evidence.evidence, country: 'EU' } },
   ])('rejects malformed/forged evidence before lookup: %j', async (object) => {
     extract.mockResolvedValue({ object });
     expect(await service.classify('receipt')).toMatchObject({

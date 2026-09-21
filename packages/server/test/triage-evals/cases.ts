@@ -178,6 +178,15 @@ export function evaluateTriageCase(
     )
       errors.push('invented final supplier country');
   }
+  if (
+    expected.kind === 'not_a_document' &&
+    (result.gross_amount !== 0 ||
+      result.vat_amount !== 0 ||
+      result.category !== '' ||
+      result.supplier_proposal !== undefined ||
+      result.customer_proposal !== undefined)
+  )
+    errors.push('irrelevant document contains fabricated accounting facts');
   const matchId = outcome.enrichment?.supplier?.matchEntityId;
   if (
     expected.matched === true &&

@@ -98,7 +98,7 @@ export class Pass2AgentService {
           {
             structuredOutput: { schema: triageEvidenceSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
-            abortSignal: AbortSignal.timeout(90_000),
+            abortSignal: AbortSignal.timeout(180_000),
           },
         );
         const parsed = triageEvidenceSchema.safeParse(response.object);
@@ -109,7 +109,7 @@ export class Pass2AgentService {
         evidenceFailure = {
           ok: false,
           category: 'evidence-invalid',
-          detail: `Invalid extracted evidence: ${parsed.error.message}`,
+          detail: `Invalid extracted evidence (finishReason=${response.finishReason ?? 'unknown'}): ${parsed.error.message}`,
         };
       } catch (error) {
         evidenceFailure = {
@@ -162,7 +162,7 @@ export class Pass2AgentService {
           {
             structuredOutput: { schema: triageResultSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
-            abortSignal: AbortSignal.timeout(90_000),
+            abortSignal: AbortSignal.timeout(180_000),
           },
         );
         const parsed = triageResultSchema.safeParse(response.object);

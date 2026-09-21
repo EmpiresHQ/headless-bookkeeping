@@ -1,3 +1,4 @@
+import { TriageEvidence } from './triage-context';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -86,7 +87,7 @@ describe('MastraService', () => {
   });
 
   describe('application context lookup', () => {
-    const input = () => ({
+    const input = (): TriageEvidence => ({
       kind: 'new_expense' as const,
       category: 'software',
       evidence: {
