@@ -138,6 +138,25 @@ describe('Pass2 application-owned context', () => {
     expect(lookup).toHaveBeenCalledTimes(1);
   });
 
+  it('does not overwrite contradictory final supplier evidence with an earlier match', async () => {
+    classify.mockResolvedValue({
+      object: {
+        ...classification,
+        supplier_proposal: {
+          mode: 'match',
+          match_entity_id: 37,
+          observed_registration_key: 'EE999999999',
+          observed_country: 'EE',
+        },
+      },
+    });
+    expect(await service.classify('receipt')).toMatchObject({
+      ok: false,
+      category: 'invalid-output',
+      detail: 'Final supplier evidence contradicts deterministic lookup',
+    });
+  });
+
   it('allows a new supplier proposal without promoting a model ID', async () => {
     lookup.mockResolvedValue({
       supplier: { resolution: 'unmatched' },
@@ -179,6 +198,27 @@ describe('Pass2 application-owned context', () => {
     expect(await service.classify('receipt')).toMatchObject({
       ok: false,
       category: 'invalid-output',
+    });
+  });
+
+  it('handles Mastra embedded errors as failures, not missing structured output', async () => {
+    extract.mockResolvedValue({
+      object: undefined,
+      error: new Error('provider timeout'),
+    });
+    expect(await service.classify('receipt')).toMatchObject({
+      ok: false,
+      category: 'enrichment-failed',
+      detail: expect.stringContaining('provider timeout'),
+    });
+    extract.mockResolvedValue({ object: evidence });
+    classify.mockResolvedValue({
+      object: undefined,
+      error: new Error('provider timeout'),
+    });
+    expect(await service.classify('receipt')).toMatchObject({
+      ok: false,
+      category: 'transient',
     });
   });
 

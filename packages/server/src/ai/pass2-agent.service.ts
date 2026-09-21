@@ -101,6 +101,7 @@ export class Pass2AgentService {
             abortSignal: AbortSignal.timeout(180_000),
           },
         );
+        if (response.error) throw response.error;
         const parsed = triageEvidenceSchema.safeParse(response.object);
         if (parsed.success) {
           evidence = parsed.data;
@@ -165,6 +166,7 @@ export class Pass2AgentService {
             abortSignal: AbortSignal.timeout(180_000),
           },
         );
+        if (response.error) throw response.error;
         const parsed = triageResultSchema.safeParse(response.object);
         if (!parsed.success) {
           failure = {
@@ -187,6 +189,32 @@ export class Pass2AgentService {
           // Database IDs never originate from the final model response. Keep
           // observed identity from extraction for downstream contradiction checks.
           if (context.supplier.resolution === 'matched') {
+            const proposal = result.supplier_proposal;
+            const finalKey =
+              proposal?.mode === 'match'
+                ? proposal.observed_registration_key
+                : proposal?.create_registration_key;
+            const finalCountry =
+              proposal?.mode === 'match'
+                ? proposal.observed_country
+                : proposal?.create_country;
+            if (
+              (finalKey &&
+                normalizeIdentifier('registration_key', finalKey) !==
+                  normalizeIdentifier(
+                    'registration_key',
+                    evidence.evidence.registrationKey ?? '',
+                  )) ||
+              (finalCountry && finalCountry !== context.supplier.country)
+            ) {
+              failure = {
+                ok: false,
+                category: 'invalid-output',
+                detail:
+                  'Final supplier evidence contradicts deterministic lookup',
+              };
+              continue;
+            }
             result.supplier_proposal = {
               mode: 'match',
               match_entity_id: context.supplier.matchEntityId,
