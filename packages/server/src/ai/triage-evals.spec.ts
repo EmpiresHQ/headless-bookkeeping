@@ -1,0 +1,73 @@
+import {
+  evaluateTriageCase,
+  triageEvalCases,
+} from '../../test/triage-evals/cases';
+import { triageResultSchema } from '../triage/types';
+import { TriageEvidence } from './triage-context';
+import { Pass2Outcome } from './pass2-agent.service';
+
+describe('prompt eval assertions (negative controls)', () => {
+  const known = triageEvalCases[0];
+  const evidence: TriageEvidence = {
+    kind: 'new_expense',
+    category: 'software',
+    evidence: {
+      registrationKey: 'EE100000001',
+      country: 'EE',
+      name: 'Example Cloud',
+      goodsVsServices: 'services',
+    },
+  };
+  const good = (): Pass2Outcome => ({
+    ok: true,
+    result: triageResultSchema.parse({
+      kind: 'new_expense',
+      category: 'software',
+      gross_amount: 2480,
+      vat_amount: 480,
+      tax_point_date: '2026-09-10',
+      supplier_proposal: { mode: 'match', match_entity_id: 37 },
+    }),
+    enrichment: { summary: '', supplier: { matchEntityId: 37 } },
+  });
+  it('accepts the expected classification and rejects a schema-valid fabricated ID', () => {
+    const outcome = good();
+    expect(evaluateTriageCase(known, outcome, evidence)).toEqual([]);
+    if (!outcome.ok) throw new Error('fixture');
+    outcome.result.supplier_proposal = {
+      mode: 'match',
+      match_entity_id: 705731,
+    };
+    expect(evaluateTriageCase(known, outcome, evidence)).toContain(
+      'lost deterministic supplier identity',
+    );
+  });
+  it('fails on a plausible but wrong amount/category/kind', () => {
+    const outcome = good();
+    if (!outcome.ok) throw new Error('fixture');
+    outcome.result.gross_amount = 24;
+    outcome.result.category = 'meals';
+    outcome.result.kind = 'correction';
+    expect(evaluateTriageCase(known, outcome, evidence)).toHaveLength(3);
+  });
+  it('rejects fabricated evidence and pipeline failures', () => {
+    const missing = triageEvalCases.find(
+      (test) => test.id === 'missing-registration',
+    )!;
+    expect(evaluateTriageCase(missing, good(), evidence)).toContain(
+      'wrong or invented supplier registration key',
+    );
+    expect(
+      evaluateTriageCase(known, {
+        ok: false,
+        category: 'context-failed',
+        detail: 'offline',
+      }),
+    ).toEqual(['pipeline failed: context-failed']);
+  });
+  it('includes explicit negative scenarios in the live corpus', () => {
+    expect(
+      triageEvalCases.filter((test) => test.negative).length,
+    ).toBeGreaterThanOrEqual(7);
+  });
+});

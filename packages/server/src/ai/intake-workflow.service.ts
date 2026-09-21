@@ -109,6 +109,8 @@ export function pass2FailureReason(
   detail: string,
 ): string {
   switch (category) {
+    case 'evidence-invalid':
+    case 'context-failed':
     case 'enrichment-failed':
     case 'enrichment-incomplete':
     case 'enrichment-tool-not-called':

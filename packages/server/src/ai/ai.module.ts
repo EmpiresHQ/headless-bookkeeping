@@ -25,9 +25,8 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
  * service, the deterministic propose-draft service, and the intake workflow
  * orchestrator.
  *
- * MastraService loads @mastra/core via dynamic import() and creates an agent
- * with read-only tools (searchSuppliers, listCategories, getClassificationMemory,
- * previewCategoryMapping). No write tools are exposed.
+ * MastraService creates tool-free evidence/classification agents and performs
+ * the read-only supplier context lookup directly between the model calls.
  *
  * Pass2AgentService runs the Mastra agent over Pass-1 markdown and emits a
  * Zod-validated TriageResult with bounded retry.

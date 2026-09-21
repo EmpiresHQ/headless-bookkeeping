@@ -1,161 +1,31 @@
+import { normalizeIdentifier } from '../entities/identifier-normalization';
+import {
+  classificationPrompt,
+  enrichmentFromContext,
+  triageEvidenceSchema,
+  triageContextSchema,
+  TriageEvidence,
+  TriageContext,
+} from './triage-context';
 import { Injectable, Logger } from '@nestjs/common';
 import { MastraService } from './mastra.service';
 import {
   triageResultSchema,
   TriageResult,
-  pass2EnrichmentSchema,
   Pass2Enrichment,
 } from '../triage/types';
 import { OrgIdentityContext } from './triage-instructions';
-import { getClassificationContextOutputSchema } from './tools/tool-schemas';
-
 const MAX_RETRIES = 3;
-const ENRICHMENT_SECTION_HEADING = 'Deterministic enrichment summary';
-
-/** Enrichment attempts are FULL agentic runs (up to ENRICHMENT_MAX_STEPS LLM
- * calls each), so the retry budget is tighter than the strict-classification
- * MAX_RETRIES: one retry catches transient throws; systemic faults (runtime
- * ignoring the forced toolChoice) won't be fixed by hammering. */
 const ENRICHMENT_MAX_ATTEMPTS = 2;
-/** Explicit cap on the enrichment agentic loop (Mastra's default is 5). One
- * forced tool step + room for a few auto tool calls + the final text turn. */
-const ENRICHMENT_MAX_STEPS = 8;
 
-/** The one tool the enrichment phase MUST call — the deterministic supplier
- * lookup whose result is the ONLY trusted source of `matchEntityId` (issue
- * #179's trust boundary). Forced via `toolChoice` when the runtime supports
- * it; the missing-tool-call diagnostic below is the belt-and-braces check for
- * when it does not run anyway. */
-export const GET_CLASSIFICATION_CONTEXT_TOOL = 'getClassificationContext';
-
-// The minimal shape of a Mastra `ToolResultChunk` we read. Kept local (rather
-// than importing @mastra/core's ToolResultChunk) so this module stays
-// decoupled from the exact runtime type and easy to construct in tests.
-export interface EnrichmentToolResultChunk {
-  payload: {
-    toolName: string;
-    result: unknown;
-    isError?: boolean;
-  };
-}
-
-/** The subset of `agent.generate()`'s FullOutput the enrichment phase reads:
- * the free-text summary plus whichever tools it actually called. */
-export interface EnrichmentGenerateResult {
-  object: unknown;
-  text: string;
-  toolResults?: EnrichmentToolResultChunk[];
-}
-
-/** Pure-function result of reading `getClassificationContext` out of an
- * enrichment turn's `toolResults` — see {@link extractPass2EnrichmentSupplier}. */
-export interface Pass2SupplierExtraction {
-  supplier: Pass2Enrichment['supplier'];
-  toolCalled: boolean;
-  calledMultipleTimes: boolean;
-  invalidToolResult: boolean;
-}
-
-/**
- * Extract the trusted supplier match (if any) from an enrichment turn's
- * `toolResults` — the deterministic half of issue #179's trust boundary. A
- * PURE function (no logging, no class state) so:
- *  - `Pass2AgentService` can wrap it with logging/category decisions, and
- *  - tests elsewhere (e.g. `propose-draft.service.spec.ts`'s guard tests) can
- *    exercise the SAME production extraction code against a synthetic
- *    `toolResults` array — instead of hand-constructing the resulting
- *    `Pass2Enrichment` shape and risking it drifting from what this module
- *    actually produces.
- *
- * "Exactly once" (acceptance criterion 2): when the tool was called more than
- * once in a single turn, the FIRST result wins (`calledMultipleTimes` tells
- * the caller to log a warning — this is never a failure by itself).
- */
-export function extractPass2EnrichmentSupplier(
-  toolResults: EnrichmentToolResultChunk[] | undefined,
-): Pass2SupplierExtraction {
-  const calls = (toolResults ?? []).filter(
-    (tr) =>
-      tr?.payload?.toolName === GET_CLASSIFICATION_CONTEXT_TOOL &&
-      !tr.payload.isError,
-  );
-  if (calls.length === 0) {
-    return {
-      supplier: undefined,
-      toolCalled: false,
-      calledMultipleTimes: false,
-      invalidToolResult: false,
-    };
-  }
-
-  const calledMultipleTimes = calls.length > 1;
-  const parsed = getClassificationContextOutputSchema.safeParse(
-    calls[0].payload.result,
-  );
-  if (!parsed.success) {
-    return {
-      supplier: undefined,
-      toolCalled: true,
-      calledMultipleTimes,
-      invalidToolResult: true,
-    };
-  }
-
-  const { supplier: toolSupplier } = parsed.data;
-  const supplier: Pass2Enrichment['supplier'] =
-    toolSupplier.resolution === 'matched' &&
-    toolSupplier.matchEntityId !== undefined
-      ? { matchEntityId: toolSupplier.matchEntityId }
-      : undefined;
-  return {
-    supplier,
-    toolCalled: true,
-    calledMultipleTimes,
-    invalidToolResult: false,
-  };
-}
-
-/**
- * Why Pass 2 failed to produce a validated TriageResult. Surfaced to the
- * workflow (ADR-0024) so it can route/observe appropriately instead of
- * receiving a bare `null` that erases the distinction between an unconfigured
- * runtime, a model that never emitted valid structure, and a transient blip.
- *
- *  - 'agent-unavailable':  the Mastra agent was not initialized (config/runtime
- *                          fault) — no attempt was even made.
- *  - 'enrichment-failed':  every bounded enrichment attempt (ENRICHMENT_MAX_ATTEMPTS)
- *                          threw before strict classification could start.
- *  - 'enrichment-incomplete': DEFENSIVE / effectively unreachable — an empty
- *                          summary with no tool call now degrades to
- *                          'enrichment-tool-not-called' (never null), and an
- *                          empty summary WITH a tool call degrades to an
- *                          advisory stub summary instead of failing (see
- *                          {@link buildEnrichmentStubSummary}). Kept in the
- *                          union as a belt-and-braces category should
- *                          parseEnrichment ever return a null enrichment.
- *  - 'enrichment-tool-not-called': every bounded enrichment attempt completed
- *                          with a reusable summary but NEVER invoked
- *                          getClassificationContext — the deterministic
- *                          supplier lookup the trust boundary depends on did
- *                          not run. This is the exact production failure mode
- *                          from issue #179 (the model emitting a final answer
- *                          without the tool call); distinct from a thrown
- *                          error or an empty summary so it stays observable
- *                          instead of silently letting the strict phase run
- *                          with no deterministic anchor.
- *  - 'invalid-output':     the agent ran but never produced schema-valid output
- *                          within the bounded strict-classification retry (the
- *                          ADR-0024 "invalid output → bounded retry →
- *                          needs_triage" case).
- *  - 'transient':         every attempt threw (timeouts/rate-limits) and never
- *                          returned parseable output during strict
- *                          classification — likely retryable later.
- */
+/** Legacy enrichment categories remain readable for persisted intake findings. */
 export type Pass2FailureCategory =
   | 'agent-unavailable'
   | 'enrichment-failed'
   | 'enrichment-incomplete'
   | 'enrichment-tool-not-called'
+  | 'evidence-invalid'
+  | 'context-failed'
   | 'invalid-output'
   | 'transient';
 
@@ -192,336 +62,181 @@ export interface Pass2Context {
   directionHint: 'incoming' | 'outgoing';
 }
 
-/** Advisory stub used when enrichment completed its deterministic tool work
- * but emitted no prose. Carries the ONLY fact the strict (tool-less) phase
- * cannot recover from the raw markdown: the deterministic supplier match. */
-export function buildEnrichmentStubSummary(
-  supplier: Pass2Enrichment['supplier'],
-): string {
-  const supplierLine =
-    supplier?.matchEntityId !== undefined
-      ? `The deterministic supplier lookup matched existing supplier entity id ${supplier.matchEntityId} — propose { mode: 'match', match_entity_id: ${supplier.matchEntityId} }.`
-      : 'The deterministic supplier lookup found no existing supplier match.';
-  return `(No enrichment summary was produced.) ${supplierLine} Classify from the document text above.`;
-}
-
-/**
- * Pass2AgentService — runs the Pass 2 Mastra agent over Pass-1 markdown
- * and emits a Zod-validated TriageResult.
- *
- * Flow — a SPLIT, enrichment-first trust boundary (issue #179 / ADR-0024):
- * 1. Enrichment call: builds the tool-enabled `triage_enrichment` agent and
- *    calls `agent.generate(markdown, { toolChoice: { type: 'tool', toolName:
- *    'getClassificationContext' }, maxSteps: ENRICHMENT_MAX_STEPS })` — NO
- *    `structuredOutput`, so `result.object` is always undefined and is never
- *    read. The deterministic `getClassificationContext` tool result is read
- *    from `result.toolResults` instead; a matched supplier's entity id from
- *    THAT tool result is the ONLY trusted source of
- *    `enrichment.supplier.matchEntityId`. Bounded retry: up to
- *    ENRICHMENT_MAX_ATTEMPTS attempts; a completed turn with the tool called
- *    but no summary text degrades to an advisory stub (see
- *    {@link buildEnrichmentStubSummary}) rather than failing the run.
- * 2. Strict classification call: builds the tool-less `triage_classification`
- *    agent, injects the enrichment summary as context, and calls
- *    `agent.generate(prompt, { structuredOutput: { schema } })`, reading the
- *    parsed structured object from `result.object`. A model-emitted
- *    `match_entity_id` here is advisory only — `propose-draft.service.ts`'s
- *    guard rejects it if it disagrees with the deterministic
- *    `enrichment.supplier.matchEntityId` from step 1.
- * 3. Validates the strict output against the TriageResult Zod schema.
- * 4. Bounded retry: if validation fails, retry up to MAX_RETRIES times.
- * 5. After MAX_RETRIES failures, returns an explicit {@link Pass2Failure}.
- *
- * The classification agent has NO tools at all; the enrichment agent has
- * read-only tools only (listCategories, getClassificationMemory,
- * previewCategoryMapping, getClassificationContext). Neither ever outputs an
- * account or VAT code — the country plugin is the sole resolver (ADR-0002).
- */
+/** Extract evidence → application lookup → tool-free classification. */
 @Injectable()
 export class Pass2AgentService {
   private readonly logger = new Logger(Pass2AgentService.name);
-
   constructor(private readonly mastraService: MastraService) {}
 
-  private toOrgIdentityContext(
-    ctx?: Pass2Context,
-  ): OrgIdentityContext | undefined {
-    return ctx
+  async classify(markdown: string, ctx?: Pass2Context): Promise<Pass2Outcome> {
+    const orgIdentityContext: OrgIdentityContext | undefined = ctx
       ? { ...ctx.orgContext, directionHint: ctx.directionHint }
       : undefined;
-  }
-
-  private buildClassificationPrompt(
-    markdown: string,
-    enrichment: Pass2Enrichment,
-  ): string {
-    return `${markdown}\n\n## ${ENRICHMENT_SECTION_HEADING}\n${enrichment.summary}`;
-  }
-
-  /**
-   * Read the deterministic `getClassificationContext` tool result out of the
-   * enrichment call's `toolResults` — the ONLY trusted source of
-   * `matchEntityId` (issue #179). `result.object` is NEVER read here: the
-   * enrichment agent is built without `structuredOutput`, so per @mastra/core's
-   * `generate()` overloads `result.object` is always `undefined` for this
-   * call — reading it would silently accept a model-invented value.
-   *
-   * "Exactly once" (acceptance criterion 2): if the tool was somehow invoked
-   * more than once in a single enrichment turn, the FIRST result wins and a
-   * warning is logged — this does not fail the run.
-   */
-  private extractSupplierFromToolResults(
-    toolResults: EnrichmentToolResultChunk[] | undefined,
-  ): { supplier: Pass2Enrichment['supplier']; toolCalled: boolean } {
-    const extraction = extractPass2EnrichmentSupplier(toolResults);
-    if (extraction.calledMultipleTimes) {
-      this.logger.warn(
-        `Pass 2 enrichment called ${GET_CLASSIFICATION_CONTEXT_TOOL} multiple times in one turn — using the first result`,
-      );
-    }
-    if (extraction.invalidToolResult) {
-      this.logger.warn(
-        `Pass 2 enrichment's ${GET_CLASSIFICATION_CONTEXT_TOOL} result failed schema validation`,
-      );
-    }
-    return { supplier: extraction.supplier, toolCalled: extraction.toolCalled };
-  }
-
-  private parseEnrichment(result: EnrichmentGenerateResult): {
-    enrichment: Pass2Enrichment | null;
-    toolCalled: boolean;
-    degraded: boolean;
-  } {
-    const { supplier, toolCalled } = this.extractSupplierFromToolResults(
-      result.toolResults,
-    );
-    const summary = result.text.trim();
-    if (summary.length === 0) {
-      if (!toolCalled) {
-        return { enrichment: null, toolCalled, degraded: false };
-      }
-      // The tool ran but the model emitted no prose — degrade to an advisory
-      // stub carrying the deterministic supplier match instead of discarding
-      // a completed enrichment turn as a hard failure.
-      return {
-        enrichment: pass2EnrichmentSchema.parse({
-          summary: buildEnrichmentStubSummary(supplier),
-          supplier,
-        }),
-        toolCalled,
-        degraded: true,
-      };
-    }
-    return {
-      enrichment: pass2EnrichmentSchema.parse({ summary, supplier }),
-      toolCalled,
-      degraded: false,
-    };
-  }
-
-  /**
-   * Classify markdown content into a validated TriageResult.
-   *
-   * Returns a discriminated {@link Pass2Outcome} so the caller can tell an
-   * unconfigured runtime (`agent-unavailable`) from a model that never emitted
-   * schema-valid output (`invalid-output`) from a string of throws
-   * (`transient`) — instead of a bare `null` that loses the category
-   * (ADR-0024). The bounded-retry -> needs_triage behavior is preserved; only
-   * the reason is now explicit.
-   *
-   * @param markdown - The Pass-1 markdown text (receipt/invoice content).
-   * @param ctx - Optional org identity + direction hint. When provided the
-   *   agent instructions are augmented so the LLM accurately classifies
-   *   outgoing invoices. When absent, behavior is identical to before this parameter was added.
-   * @returns A {@link Pass2Outcome} — success with a validated TriageResult,
-   *          or failure with an explicit category.
-   */
-  async classify(markdown: string, ctx?: Pass2Context): Promise<Pass2Outcome> {
-    const orgIdentityContext = this.toOrgIdentityContext(ctx);
-
-    let enrichmentAgent: Awaited<
+    let extractionAgent: Awaited<
       ReturnType<MastraService['buildTriageEnrichmentAgent']>
     >;
     try {
-      enrichmentAgent =
+      extractionAgent =
         await this.mastraService.buildTriageEnrichmentAgent(orgIdentityContext);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Mastra triage enrichment agent unavailable: ${detail}`,
-      );
       return {
         ok: false,
         category: 'agent-unavailable',
-        detail: `enrichment agent unavailable: ${detail}`,
+        detail: `evidence agent unavailable: ${String(error)}`,
       };
     }
-
-    // Force the deterministic supplier lookup rather than leaving it to
-    // `tool_choice=auto` (the issue #179 production failure: a model can
-    // emit a final answer without ever calling the tool). The force is
-    // scoped to the FIRST loop step only: a static `toolChoice` applies to
-    // EVERY step of Mastra's agentic loop, which would compel the model to
-    // re-call the tool on each iteration (up to the step cap) and finish
-    // with no reusable text. Step 0 forces the lookup; later steps return
-    // to `auto` so the model can write the enrichment summary. The
-    // missing-tool check below is the belt-and-braces diagnostic for when
-    // forcing isn't honored by the runtime. `maxSteps` bounds the agentic
-    // loop explicitly (Mastra's default is 5) so a runtime that never
-    // settles cannot run away.
-    let enrichment: Pass2Enrichment | undefined;
-    let lastFailure: Pass2Failure = {
+    let evidence: TriageEvidence | undefined;
+    let evidenceFailure: Pass2Failure = {
       ok: false,
-      category: 'enrichment-failed',
-      detail: 'enrichment phase never ran',
+      category: 'evidence-invalid',
+      detail: 'No evidence',
     };
-    for (let attempt = 1; attempt <= ENRICHMENT_MAX_ATTEMPTS; attempt++) {
-      let enrichmentResult: EnrichmentGenerateResult;
+    for (let attempt = 0; attempt < ENRICHMENT_MAX_ATTEMPTS; attempt++) {
       try {
-        enrichmentResult = (await enrichmentAgent.generate(markdown, {
-          maxSteps: ENRICHMENT_MAX_STEPS,
-          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-            stepNumber === 0
-              ? {
-                  toolChoice: {
-                    type: 'tool' as const,
-                    toolName: GET_CLASSIFICATION_CONTEXT_TOOL,
-                  },
-                }
-              : { toolChoice: 'auto' as const },
-        })) as unknown as EnrichmentGenerateResult;
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        this.logger.warn(
-          `Pass 2 enrichment attempt ${attempt}/${ENRICHMENT_MAX_ATTEMPTS} threw: ${detail}`,
+        const response = await extractionAgent.generate(
+          JSON.stringify({ document: markdown }),
+          {
+            structuredOutput: { schema: triageEvidenceSchema },
+            modelSettings: { temperature: 0, maxOutputTokens: 4096 },
+            abortSignal: AbortSignal.timeout(90_000),
+          },
         );
-        lastFailure = {
+        const parsed = triageEvidenceSchema.safeParse(response.object);
+        if (parsed.success) {
+          evidence = parsed.data;
+          break;
+        }
+        evidenceFailure = {
+          ok: false,
+          category: 'evidence-invalid',
+          detail: `Invalid extracted evidence: ${parsed.error.message}`,
+        };
+      } catch (error) {
+        evidenceFailure = {
           ok: false,
           category: 'enrichment-failed',
-          detail: `enrichment phase failed: ${detail}`,
+          detail: `Evidence extraction failed: ${String(error)}`,
         };
-        continue;
       }
-
-      const parsed = this.parseEnrichment(enrichmentResult);
-      if (!parsed.toolCalled) {
-        this.logger.warn(
-          `Pass 2 enrichment attempt ${attempt}/${ENRICHMENT_MAX_ATTEMPTS} completed without calling ${GET_CLASSIFICATION_CONTEXT_TOOL}`,
-        );
-        lastFailure = {
-          ok: false,
-          category: 'enrichment-tool-not-called',
-          detail: `enrichment phase completed without invoking ${GET_CLASSIFICATION_CONTEXT_TOOL}`,
-        };
-        continue;
-      }
-      if (parsed.enrichment === null) {
-        // Defensive: unreachable with degrade-to-stub (null implies !toolCalled).
-        lastFailure = {
-          ok: false,
-          category: 'enrichment-incomplete',
-          detail: 'enrichment phase returned no reusable summary',
-        };
-        continue;
-      }
-      if (parsed.degraded) {
-        this.logger.warn(
-          `Pass 2 enrichment produced no summary text (toolResults=${enrichmentResult.toolResults?.length ?? 0}, supplierMatched=${parsed.enrichment.supplier?.matchEntityId !== undefined}) — degrading to stub summary`,
-        );
-      }
-      enrichment = parsed.enrichment;
-      break;
     }
-    if (enrichment === undefined) {
-      this.logger.error(
-        `Pass 2 enrichment failed after ${ENRICHMENT_MAX_ATTEMPTS} attempts (category=${lastFailure.category})`,
+    if (!evidence) return evidenceFailure;
+
+    let context: TriageContext;
+    try {
+      context = triageContextSchema.parse(
+        await this.mastraService.resolveTriageContext(evidence),
       );
-      return lastFailure;
+    } catch (error) {
+      // Never interpret a failed lookup/invalid response as "no supplier found".
+      return {
+        ok: false,
+        category: 'context-failed',
+        detail: `Context retrieval failed: ${String(error)}`,
+      };
     }
-
-    let classificationAgent: Awaited<
+    const enrichment = enrichmentFromContext(evidence, context);
+    let agent: Awaited<
       ReturnType<MastraService['buildTriageClassificationAgent']>
     >;
     try {
-      classificationAgent =
+      agent =
         await this.mastraService.buildTriageClassificationAgent(
           orgIdentityContext,
         );
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Mastra triage classification agent unavailable: ${detail}`,
-      );
       return {
         ok: false,
         category: 'agent-unavailable',
-        detail: `strict classification agent unavailable: ${detail}`,
+        detail: `Classification agent unavailable: ${String(error)}`,
       };
     }
-
-    const classificationPrompt = this.buildClassificationPrompt(
-      markdown,
-      enrichment,
-    );
-
-    // Track whether any attempt produced parseable-but-invalid output (vs.
-    // every attempt throwing). The former is an `invalid-output` (the model
-    // ran but never satisfied the schema); the latter is `transient`.
-    let sawThrow = false;
-    let sawInvalidOutput = false;
-    let lastDetail = 'classification failed';
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      let rawOutput: unknown;
+    let failure: Pass2Failure = {
+      ok: false,
+      category: 'invalid-output',
+      detail: 'No classification',
+    };
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        // Real Mastra API: generate() with a `structuredOutput.schema` returns
-        // a FullOutput whose parsed structured object is on `.object`.
-        const result = await classificationAgent.generate(
-          classificationPrompt,
+        const response = await agent.generate(
+          classificationPrompt(markdown, evidence, context),
           {
             structuredOutput: { schema: triageResultSchema },
+            modelSettings: { temperature: 0, maxOutputTokens: 4096 },
+            abortSignal: AbortSignal.timeout(90_000),
           },
         );
-        rawOutput = result.object;
+        const parsed = triageResultSchema.safeParse(response.object);
+        if (!parsed.success) {
+          failure = {
+            ok: false,
+            category: 'invalid-output',
+            detail: parsed.error.message,
+          };
+          continue;
+        }
+        const result = parsed.data;
+        if (result.kind === 'new_expense') {
+          if (evidence.kind !== 'new_expense') {
+            failure = {
+              ok: false,
+              category: 'invalid-output',
+              detail: 'Expense classification has no purchase evidence context',
+            };
+            continue;
+          }
+          // Database IDs never originate from the final model response. Keep
+          // observed identity from extraction for downstream contradiction checks.
+          if (context.supplier.resolution === 'matched') {
+            result.supplier_proposal = {
+              mode: 'match',
+              match_entity_id: context.supplier.matchEntityId,
+              observed_country: evidence.evidence.country,
+              observed_registration_key: evidence.evidence.registrationKey,
+            };
+          } else if (result.supplier_proposal?.mode === 'match') {
+            failure = {
+              ok: false,
+              category: 'invalid-output',
+              detail:
+                'Model proposed an existing supplier without a deterministic match',
+            };
+            continue;
+          } else if (result.supplier_proposal?.mode === 'create') {
+            const proposal = result.supplier_proposal;
+            const observed = evidence.evidence;
+            const proposedKey = normalizeIdentifier(
+              'registration_key',
+              proposal.create_registration_key ?? '',
+            );
+            const observedKey = normalizeIdentifier(
+              'registration_key',
+              observed.registrationKey ?? '',
+            );
+            if (
+              proposedKey !== observedKey ||
+              !observed.country ||
+              proposal.create_country !== observed.country
+            ) {
+              failure = {
+                ok: false,
+                category: 'invalid-output',
+                detail:
+                  'New supplier identifiers contradict extracted evidence',
+              };
+              continue;
+            }
+          }
+        }
+        return { ok: true, result, enrichment };
       } catch (error) {
-        sawThrow = true;
-        const err = error instanceof Error ? error : new Error(String(error));
-        lastDetail = err.message;
-        this.logger.warn(
-          `Pass 2 classification attempt ${attempt}/${MAX_RETRIES} threw: ${err.message}`,
-        );
-        continue;
+        failure = {
+          ok: false,
+          category: 'transient',
+          detail: `Classification failed: ${String(error)}`,
+        };
       }
-
-      // The call returned — explicit Zod parse in case generate()'s structured
-      // output returns unvalidated data (model-dependent behavior).
-      const parsed = triageResultSchema.safeParse(rawOutput);
-      if (parsed.success) {
-        return { ok: true, result: parsed.data, enrichment };
-      }
-
-      sawInvalidOutput = true;
-      lastDetail = parsed.error.message;
-      this.logger.warn(
-        `Pass 2 classification attempt ${attempt}/${MAX_RETRIES} produced invalid output: ${parsed.error.message}`,
-      );
     }
-
-    // Categorize: a run that ever returned (even invalid) output is an
-    // invalid-output failure; a run where every attempt threw is transient.
-    const category: Pass2FailureCategory = sawInvalidOutput
-      ? 'invalid-output'
-      : sawThrow
-        ? 'transient'
-        : 'invalid-output';
-
-    this.logger.error(
-      `Pass 2 classification failed after ${MAX_RETRIES} attempts (category=${category})`,
-    );
-    return {
-      ok: false,
-      category,
-      detail: `strict classification failed after ${MAX_RETRIES} attempts: ${lastDetail}`,
-    };
+    this.logger.warn(failure.detail);
+    return failure;
   }
 }

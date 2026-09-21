@@ -2,7 +2,9 @@
   "name": "bookkeeping",
   "version": "0.0.1",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "format": "prettier --write \"packages/*/src/**/*.ts\" \"packages/*/test/**/*.ts\"",
     "openapi:emit": "npm run openapi:emit -w @headless-bookkeeping/server",
@@ -10,7 +12,8 @@
     "eval:triage:tools": "npx -y promptfoo@latest eval -c evals/triage/toolcall.yaml",
     "eval:triage:classify": "npx -y promptfoo@latest eval -c evals/triage/classify.yaml",
     "eval:triage:classify-outgoing": "npx -y promptfoo@latest eval -c evals/triage/classify-outgoing.yaml",
-    "eval:view": "npx -y promptfoo@latest view"
+    "eval:view": "npx -y promptfoo@latest view",
+    "eval:triage:pipeline": "ts-node --transpile-only --project packages/server/tsconfig.json evals/triage/pipeline.ts"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
