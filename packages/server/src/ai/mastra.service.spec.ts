@@ -1,3 +1,4 @@
+import { TriageEvidence } from './triage-context';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -21,16 +22,11 @@ import { MastraService } from './mastra.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 
-const EXPECTED_ENRICHMENT_TOOL_NAMES = [
-  'listCategories',
-  'getClassificationMemory',
-  'previewCategoryMapping',
-  'getClassificationContext',
-] as const;
-
 describe('MastraService', () => {
   let db: Kysely<Database>;
   let service: MastraService;
+  let entities: EntitiesService;
+  let expenses: ExpensesService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -76,6 +72,8 @@ describe('MastraService', () => {
     }).compile();
 
     service = module.get(MastraService);
+    entities = module.get(EntitiesService);
+    expenses = module.get(ExpensesService);
 
     // Agents are built on demand via buildTriageEnrichmentAgent() /
     // buildTriageClassificationAgent() / buildBankMappingAgent(). Those
@@ -88,6 +86,116 @@ describe('MastraService', () => {
     await db.destroy();
   });
 
+  describe('application context lookup', () => {
+    const input = (): TriageEvidence => ({
+      kind: 'new_expense' as const,
+      category: 'software',
+      evidence: {
+        registrationKey: 'IE5550000',
+        name: 'OCR seller',
+        country: 'IE',
+        goodsVsServices: 'services' as const,
+      },
+    });
+    it('normalizes the key and returns only posted category history, not draft/pending/reversed guesses', async () => {
+      const supplier = await entities.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'Seller',
+        registrationKey: 'IE5550000',
+        goodsVsServices: 'services',
+      });
+      for (const [i, status] of [
+        'posted',
+        'posted',
+        'draft',
+        'pending',
+        'reversed',
+      ].entries()) {
+        const expense = await expenses.createExpense({
+          supplier_id: supplier.id,
+          category: i < 2 ? 'software' : 'meals',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-01-01',
+          supplier_invoice_number: `TEST-${i}`,
+        });
+        await db
+          .updateTable('expense')
+          .set({
+            status: status as 'posted' | 'draft' | 'pending' | 'reversed',
+          })
+          .where('id', '=', expense.id)
+          .execute();
+      }
+      const data = input();
+      data.evidence.registrationKey = 'ie 5550000';
+      const result = await service.resolveTriageContext(data);
+      expect(result).toEqual({
+        supplier: {
+          resolution: 'matched',
+          matchEntityId: supplier.id,
+          name: 'Seller',
+          country: 'IE',
+        },
+        classificationMemory: [{ category: 'software', count: 2 }],
+      });
+      expect(result).not.toHaveProperty('mapping');
+    });
+    it('does not match by name or substitute the organization country for missing evidence', async () => {
+      await entities.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'OCR seller',
+        registrationKey: 'IE5550000',
+        goodsVsServices: 'services',
+      });
+      expect(
+        await service.resolveTriageContext({
+          ...input(),
+          evidence: {
+            ...input().evidence,
+            registrationKey: null,
+            country: null,
+          },
+        }),
+      ).toEqual({
+        supplier: { resolution: 'unmatched' },
+        classificationMemory: [],
+      });
+    });
+    it('rejects a country contradiction and unknown category', async () => {
+      await entities.onboard({
+        role: 'supplier',
+        country: 'IE',
+        name: 'Seller',
+        registrationKey: 'IE5550000',
+        goodsVsServices: 'services',
+      });
+      await expect(
+        service.resolveTriageContext({
+          ...input(),
+          evidence: { ...input().evidence, country: 'US' },
+        }),
+      ).rejects.toThrow('contradicts');
+      await expect(
+        service.resolveTriageContext({ ...input(), category: 'invented' }),
+      ).rejects.toThrow('Unknown candidate category');
+    });
+    it('does not perform a supplier lookup for outgoing or irrelevant documents', async () => {
+      const spy = jest.spyOn(entities, 'resolveByIdentifier');
+      for (const kind of ['new_sales_invoice', 'not_a_document'] as const) {
+        await service.resolveTriageContext({
+          ...input(),
+          kind,
+          category: null,
+        });
+      }
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('buildBankMappingAgent', () => {
     it('builds a tool-less bank-mapping agent from settings', async () => {
       const agent = await service.buildBankMappingAgent();
@@ -98,16 +206,15 @@ describe('MastraService', () => {
   });
 
   describe('buildTriageEnrichmentAgent', () => {
-    it('builds a read-only enrichment agent led by getClassificationContext', async () => {
+    it('builds a tool-free evidence extractor with categories and the evidence contract', async () => {
       const agent = await service.buildTriageEnrichmentAgent();
-      const toolNames = Object.keys((await agent.listTools()) ?? {});
-
-      expect(toolNames).toEqual(
-        expect.arrayContaining(EXPECTED_ENRICHMENT_TOOL_NAMES),
+      expect(Object.keys((await agent.listTools()) ?? {})).toEqual([]);
+      expect(await agent.getInstructions()).toContain(
+        'Never output a database entity ID',
       );
-      expect(toolNames).toHaveLength(EXPECTED_ENRICHMENT_TOOL_NAMES.length);
-      expect(toolNames).not.toContain('searchSuppliers');
-      expect(toolNames).toContain('getClassificationContext');
+      expect(await agent.getInstructions()).not.toContain(
+        'Call listCategories',
+      );
     });
 
     it('agent has no write tools (grep-clean: no post/createDraft/proposeDraft)', async () => {

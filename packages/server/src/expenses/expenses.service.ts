@@ -141,6 +141,24 @@ export class ExpensesService {
     return this.mapRow(result);
   }
 
+  /** Only accepted, non-reversed purchases inform classification history. */
+  async getPostedCategoryHistory(
+    supplierId: number,
+  ): Promise<{ category: string; count: number }[]> {
+    const rows = await this.db
+      .selectFrom('expense')
+      .select(['category', (eb) => eb.fn.count<number>('id').as('count')])
+      .where('supplier_id', '=', supplierId)
+      .where('status', '=', 'posted')
+      .groupBy('category')
+      .orderBy('category')
+      .execute();
+    return rows.map((row) => ({
+      category: row.category,
+      count: Number(row.count),
+    }));
+  }
+
   async getExpenses(): Promise<(Expense & { reconciled: boolean })[]> {
     const rows = await this.db
       .selectFrom('expense')

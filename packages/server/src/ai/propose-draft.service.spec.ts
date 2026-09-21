@@ -33,51 +33,33 @@ import {
 import { SalesInvoicesService } from '../sales-invoices/sales-invoices.service';
 import { TriageResult, Pass2Enrichment } from '../triage/types';
 import { BadRequestException } from '@nestjs/common';
-import {
-  extractPass2EnrichmentSupplier,
-  type EnrichmentToolResultChunk,
-} from './pass2-agent.service';
+import { enrichmentFromContext } from './triage-context';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { DuplicateExpenseException } from '../expenses/duplicate-expense.exception';
 
-/**
- * Build a `toolResults` array shaped exactly like a real enrichment turn's
- * `getClassificationContext` call — then run it through the SAME production
- * extraction function `Pass2AgentService` uses (`extractPass2EnrichmentSupplier`)
- * to derive `enrichmentContext`. This is the "real capture path" (issue #179
- * review): the guard tests below exercise the production wiring from
- * toolResults -> Pass2Enrichment, rather than hand-constructing the
- * `{ summary, supplier: { matchEntityId } }` shape and risking it silently
- * drifting from what pass2-agent.service.ts actually produces.
- */
-function getClassificationContextToolResult(
-  matchedEntityId: number,
-): EnrichmentToolResultChunk[] {
-  return [
+/** Exercise the same validated application-context conversion as Pass2. */
+function enrichmentFromLookup(matchedEntityId: number): Pass2Enrichment {
+  return enrichmentFromContext(
     {
-      payload: {
-        toolName: 'getClassificationContext',
-        result: {
-          supplier: {
-            resolution: 'matched',
-            matchEntityId: matchedEntityId,
-            name: 'Deterministically Resolved Supplier',
-            country: 'EE',
-            goodsVsServices: 'services',
-          },
-          classificationMemory: [],
-          mapping: { accountCode: 'EXPENSE_SOFTWARE', vatCode: 'EE_STANDARD' },
-        },
+      kind: 'new_expense',
+      category: 'software',
+      evidence: {
+        name: null,
+        country: 'EE',
+        registrationKey: null,
+        goodsVsServices: 'services',
       },
     },
-  ];
-}
-
-function enrichmentFromToolResults(matchedEntityId: number): Pass2Enrichment {
-  const { supplier } = extractPass2EnrichmentSupplier(
-    getClassificationContextToolResult(matchedEntityId),
+    {
+      supplier: {
+        resolution: 'matched',
+        matchEntityId: matchedEntityId,
+        name: 'Resolved Supplier',
+        country: 'EE',
+      },
+      classificationMemory: [],
+    },
   );
-  return { summary: 'supplier match from deterministic enrichment', supplier };
 }
 
 /**
@@ -840,7 +822,7 @@ describe('ProposeDraftService (integration)', () => {
           observed_registration_key: 'EE22000000',
         },
       };
-      const enrichmentContext = enrichmentFromToolResults(eeSupplier.id);
+      const enrichmentContext = enrichmentFromLookup(eeSupplier.id);
 
       const result = expectDraft(
         await service.proposeDraft(
@@ -880,9 +862,7 @@ describe('ProposeDraftService (integration)', () => {
           observed_registration_key: 'EE44000000',
         },
       };
-      const enrichmentContext = enrichmentFromToolResults(
-        enrichmentSupplier.id,
-      );
+      const enrichmentContext = enrichmentFromLookup(enrichmentSupplier.id);
 
       const outcome = await service.proposeDraft(
         triageResult,
@@ -928,7 +908,7 @@ describe('ProposeDraftService (integration)', () => {
           observed_registration_key: 'EE102139798',
         },
       };
-      const enrichmentContext = enrichmentFromToolResults(entityA.id);
+      const enrichmentContext = enrichmentFromLookup(entityA.id);
 
       const outcome = await service.proposeDraft(
         triageResult,

@@ -48,7 +48,7 @@ const TRIAGE_OUTPUT_GUIDANCE =
   'When you include supplier_proposal it MUST set a "mode" discriminant ' +
   'and carry EXACTLY the fields for that mode: ' +
   'either { mode: "match", match_entity_id, observed_country, ' +
-  'observed_registration_key } when getClassificationContext resolved the ' +
+  'observed_registration_key } when the application lookup context resolved the ' +
   "document to an existing supplier (use that supplier's id) — ALSO set " +
   'observed_country (the ISO country code) and observed_registration_key (the ' +
   'registration/VAT number) EXACTLY AS PRINTED ON THIS DOCUMENT, using null ' +
@@ -77,17 +77,12 @@ export type ModelConfig =
  * These were moved verbatim from mastra.service.ts / intent-classifier.service.ts. */
 export const AGENT_PROMPTS: Record<AgentKey, string> = {
   triage_enrichment:
-    TRIAGE_RELEVANCE_AND_KIND_GUIDANCE +
-    'This is the deterministic enrichment phase for Pass 2. ' +
-    'Call listCategories to see the available categories, then call ' +
-    'getClassificationContext ONCE with the supplier evidence and your ' +
-    'candidate category. Treat getClassificationContext as the primary path. ' +
-    'Use getClassificationMemory or previewCategoryMapping only when you need ' +
-    'a fallback read; do NOT rely on searchSuppliers. ' +
-    'You are READ-ONLY — you cannot post vouchers or modify the ledger. ' +
-    'Return a concise enrichment summary that preserves the observed supplier ' +
-    'evidence, the chosen category, the classification-memory hints, and the ' +
-    'mapping preview for the next strict-classification phase.',
+    'Extract evidence from a document for bookkeeping; do not classify amounts or propose database entities. ' +
+    'Set kind=new_expense for an incoming supplier invoice or receipt, new_sales_invoice for an outgoing invoice issued by our organization, ' +
+    'correction only for an explicit credit note/revision referencing an earlier invoice, duplicate only when there is evidence of an already recorded document. ' +
+    'Use not_a_document for newsletters, correspondence, contracts, delivery notes and order confirmations (even if they show a total); unknown when accounting evidence is insufficient. ' +
+    'Select a candidate expense category from the supplied list only for new_expense; otherwise category=null. ' +
+    'Return the evidence schema only.',
   triage_classification:
     TRIAGE_RELEVANCE_AND_KIND_GUIDANCE +
     'This is the strict structured-output classification phase for Pass 2. ' +
