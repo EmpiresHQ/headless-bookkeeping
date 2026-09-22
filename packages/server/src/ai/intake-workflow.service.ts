@@ -530,7 +530,13 @@ export class IntakeWorkflowService {
       // attempt — so junk never reaches proposeDraft / the posting pipeline
       // (where it fails structural validation and surfaces as a confusing
       // "Unexpected error during intake"). High confidence does NOT post it.
-      if (triageResult.kind === 'not_a_document') {
+      // A recognized order/proforma has a more specific hold reason even when
+      // the model also calls it irrelevant. Neither route may create a draft.
+      if (
+        triageResult.kind === 'not_a_document' &&
+        triageResult.document_type !== 'order_confirmation' &&
+        triageResult.document_type !== 'proforma'
+      ) {
         this.logger.warn(
           `Document ${documentId} classified as not_a_document — routing to needs_triage (relevance gate)`,
         );

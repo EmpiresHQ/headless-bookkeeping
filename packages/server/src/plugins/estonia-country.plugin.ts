@@ -503,8 +503,10 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     return (
       'DOCUMENT-TYPE GUIDANCE (Estonian documents):\n' +
       '- "Tellimus", "Tellimuse kinnitus", "Tellimuse number" = an ORDER / ' +
-      'order confirmation. Even if it shows "Kokku tasuda" or "Makstud" ' +
-      '(paid), it is NOT a tax invoice. Set document_type="order_confirmation".\n' +
+      'order confirmation. Do not infer payment from "Kokku tasuda" or "Makstud" ' +
+      '(paid) alone. Set document_type="order_confirmation" unless the document also identifies itself as an invoice. ' +
+      'Keep document type separate from relevance: an itemized supplier billing document with identified parties and final net/VAT/gross totals is kind="new_expense" (an expense candidate), even when document_type="order_confirmation". ' +
+      'The application holds that document type for review; do not use not_a_document merely to prevent posting. Explicitly preliminary/nonpayable orders remain not_a_document.\n' +
       '- "Ettemaksuarve" = prepayment/pro-forma invoice; "Pakkumine" / ' +
       '"Hinnapakkumine" = quote. Neither is a final invoice — set ' +
       'document_type="proforma". "Saateleht" = delivery note; a Saateleht ' +
