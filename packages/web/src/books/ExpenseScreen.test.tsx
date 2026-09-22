@@ -276,6 +276,20 @@ describe('ExpenseScreen', () => {
     expect(screen.queryByText(/Held for approval/)).toBeNull();
   });
 
+  it('states a non-EUR expense in its own currency on hero, VAT fact and posting toast (no conversion)', async () => {
+    vi.mocked(postExpense).mockResolvedValue({
+      expense: { id: 12, status: 'posted' },
+      policy: { action: 'auto-post' },
+    } as never);
+    mountAt({ status: 'draft', currency: 'USD' }, 'draft');
+    expect(await screen.findByText('−650.00 USD')).toBeInTheDocument();
+    expect(screen.getByText('117.21 USD (22%)')).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Submit for posting' }),
+    );
+    expect(await screen.findByText('Posted · −650.00 USD')).toBeInTheDocument();
+  });
+
   it('Bank fact shows "—" while the bank list query is still loading — never a false "Not matched"', async () => {
     vi.mocked(getExpense).mockResolvedValue(DETAIL as never);
     // Never resolves — pins listQ in the pending state for the assertion.

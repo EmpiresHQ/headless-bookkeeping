@@ -9,7 +9,7 @@ import {
 } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
-import { signedEuros } from '../lib/money';
+import { currencyMark, signedMoney } from '../lib/money';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -136,7 +136,9 @@ export function ExpenseScreen() {
           `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
         );
       } else {
-        toastOk(`Posted · ${signedEuros(-detail.gross_amount)}`);
+        toastOk(
+          `Posted · ${signedMoney(-detail.gross_amount, detail.currency)}`,
+        );
       }
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -194,7 +196,7 @@ export function ExpenseScreen() {
         <KeyValue k="Category" v={detail.category} />
         <KeyValue
           k="VAT"
-          v={`${fmtCents(detail.vat_amount)} €${rate != null ? ` (${rate}%)` : ''}`}
+          v={`${fmtCents(detail.vat_amount)} ${currencyMark(detail.currency)}${rate != null ? ` (${rate}%)` : ''}`}
         />
         <KeyValue
           k="Tax point"

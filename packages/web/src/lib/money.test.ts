@@ -3,6 +3,7 @@ import {
   centsToEuroInput,
   eurosToCents,
   signedEuros,
+  signedMoney,
   vatFromGross,
 } from './money';
 
@@ -53,5 +54,14 @@ describe('signedEuros — the app-wide signed-display idiom (Plan 07 Task 1)', (
     // once, whatever the caller passes.
     expect(signedEuros(-(-4820))).toBe('+48.20 €');
     expect(signedEuros(-0)).toBe('0.00 €');
+  });
+});
+
+describe('signedMoney — signedEuros for an explicit currency', () => {
+  it('keeps the exact EUR output and uses the ISO code otherwise, unconverted', () => {
+    expect(signedMoney(-120000, 'EUR')).toBe(signedEuros(-120000));
+    expect(signedMoney(-120000, 'USD')).toBe('−1200.00 USD');
+    expect(signedMoney(4820, 'DKK')).toBe('+48.20 DKK');
+    expect(signedMoney(0, 'GBP')).toBe('0.00 GBP');
   });
 });

@@ -18,6 +18,13 @@ export function vatFromGross(grossCents: number, ratePct: number): number {
   return Math.round((grossCents * ratePct) / (100 + ratePct));
 }
 
+/** Display mark for a currency: '€' for EUR (the app's existing
+ *  convention), the unambiguous ISO code for anything else. Display only —
+ *  nothing here converts between currencies. */
+export function currencyMark(currency: string): string {
+  return currency === 'EUR' ? '€' : currency;
+}
+
 /** Signed euro DISPLAY for hero amounts, group totals, and outcome-stating
  *  button labels/toasts. Signs by the INPUT's sign: negative → typographic
  *  minus U+2212, positive → '+', zero → unsigned. Callers showing an
@@ -26,7 +33,13 @@ export function vatFromGross(grossCents: number, ratePct: number): number {
  *  fmtCents/toFixed output instead — fmtCents self-signs, so that pattern
  *  renders '−−' the day a negative flows in (Plan 07 Task 1 decision). */
 export function signedEuros(cents: number): string {
-  const base = `${(Math.abs(cents) / 100).toFixed(2)} €`;
+  return signedMoney(cents, 'EUR');
+}
+
+/** `signedEuros` for an amount in an explicit currency ('−1200.00 USD').
+ *  EUR output is identical to `signedEuros`. The amount is never converted. */
+export function signedMoney(cents: number, currency: string): string {
+  const base = `${(Math.abs(cents) / 100).toFixed(2)} ${currencyMark(currency)}`;
   if (cents < 0) return `−${base}`;
   if (cents > 0) return `+${base}`;
   return base;
