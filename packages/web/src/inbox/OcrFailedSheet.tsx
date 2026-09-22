@@ -6,6 +6,7 @@ import {
   uploadDocument,
   type TriageOutcome,
 } from '../api';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { Button } from '../ui/Button';
 import { Sheet } from '../ui/Sheet';
 import { toastErr } from '../ui/toast';
@@ -30,17 +31,26 @@ export function OcrFailedSheet({
   onRetried: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [hasFile, setHasFile] = useState(false);
+  // The chosen File itself (identity), not a flag: a new selection after a
+  // discard or a failed attempt is a new, unsaved choice.
+  const [file, setFile] = useState<File | null>(null);
+  const hasFile = file !== null;
   const [busy, setBusy] = useState(false);
+  const guard = useUnsavedChanges({
+    label: 'Fix file',
+    active: open,
+    values: file,
+    baseline: null,
+  });
 
   const onReplace = async () => {
-    const file = fileRef.current?.files?.[0];
-    if (file === undefined) return;
+    if (file === null) return;
     setBusy(true);
     try {
       const { document } = await uploadDocument(file);
       const outcome = await triageDocument(document.id);
       await completeDocument(documentId); // archive the unreadable original
+      guard.release();
       onReplaced(outcome);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -49,6 +59,13 @@ export function OcrFailedSheet({
   };
 
   const onRetry = async () => {
+    // Retrying the ORIGINAL abandons a chosen replacement: ask first, before
+    // anything irreversible runs (confirmDiscard releases on "Discard").
+    if (!(await guard.confirmDiscard())) return;
+    // Discarded: clear the choice, so a failed retry leaves a clean form
+    // and any later selection reads as new input.
+    if (fileRef.current !== null) fileRef.current.value = '';
+    setFile(null);
     setBusy(true);
     try {
       await retryDocument(documentId);
@@ -60,7 +77,13 @@ export function OcrFailedSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Fix file">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Fix file"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-3 px-5 pb-2">
         <p className="text-[13px] text-ink-2">
           OCR could not read this file. Upload a clearer scan of the SAME
@@ -71,7 +94,7 @@ export function OcrFailedSheet({
           type="file"
           aria-label="Replacement file"
           className="w-full text-[13px]"
-          onChange={(e) => setHasFile((e.target.files?.length ?? 0) > 0)}
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
         <Button
           className="w-full"

@@ -27,6 +27,7 @@ import type { Approval } from '../api';
 import { invalidateInbox } from '../queries/inbox';
 import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const APPROVAL = (over: Partial<Approval> = {}): Approval => ({
   id: 7,
@@ -57,7 +58,9 @@ function renderAt(path: string) {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;

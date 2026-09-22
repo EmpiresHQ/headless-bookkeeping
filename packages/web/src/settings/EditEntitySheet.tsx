@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /** Edit sheet — EXACTLY the server's PATCH surface: name, country,
  *  goods/services, tax status (identity fields are immutable). */
@@ -35,6 +36,14 @@ export function EditEntitySheet({
       : 'unknown',
   );
 
+  const values = { name, country, goods, taxStatus };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Edit entity',
+    active: open,
+    values,
+    baseline,
+  });
   const valid = name.trim() !== '' && country.trim() !== '';
 
   const submit = async () => {
@@ -47,6 +56,7 @@ export function EditEntitySheet({
         taxStatus,
       });
       toastOk('Entity updated');
+      guard.release();
       onClose();
       void invalidateEntities(qc);
     } catch (e) {
@@ -58,7 +68,9 @@ export function EditEntitySheet({
   return (
     <Sheet
       open={open}
-      onOpenChange={(o) => !o && !busy && onClose()}
+      onOpenChange={(o) => !o && onClose()}
+      guard={guard}
+      busy={busy}
       title="Edit entity"
     >
       <div className="space-y-4 px-6 pb-2">

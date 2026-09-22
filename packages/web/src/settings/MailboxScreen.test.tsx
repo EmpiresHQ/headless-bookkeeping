@@ -23,6 +23,7 @@ import {
 } from '../api';
 import { AppToaster } from '../ui/toast';
 import { MailboxScreen } from './MailboxScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const CONNECTOR: MailboxConnector = {
   id: 4,
@@ -46,8 +47,10 @@ function mount(initial = '/settings/mailbox') {
   );
   render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
@@ -180,6 +183,8 @@ describe('MailboxScreen', () => {
       target: { value: 'imap.half-typed.example' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('IMAP host')).toBeNull(),
     );

@@ -19,7 +19,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
 import { KeyValue, ListGroup, ListRow } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
@@ -52,7 +52,7 @@ export function InvoiceScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (invoicesQ.isError) {
+  if (invoicesQ.isError && invoicesQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
         <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
@@ -129,6 +129,7 @@ export function InvoiceScreen() {
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+      <RefetchError query={invoicesQ} />
 
       <div className="px-5 pb-4 pt-1 text-center">
         <AmountText

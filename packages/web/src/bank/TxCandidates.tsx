@@ -11,6 +11,7 @@ import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { GroupLabel } from '../ui/List';
 import { toastErr } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
  * State C — the server found open candidates; N:M with a live remainder.
@@ -42,6 +43,13 @@ export function TxCandidates({
       ),
   );
   const [busy, setBusy] = useState(false);
+  // Seeded once from the high-confidence proposals (frozen alike).
+  const [baseline] = useState(selected);
+  const guard = useUnsavedChanges({
+    label: 'Match open items',
+    values: selected,
+    baseline,
+  });
 
   // Allocation in candidate order: each selected candidate settles up to its
   // own outstanding, capped by what is left of the line.
@@ -83,6 +91,7 @@ export function TxCandidates({
           }),
         );
       }
+      guard.release();
       onMatched(matchIds, allocated);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -91,6 +100,8 @@ export function TxCandidates({
         const landed = allocations
           .slice(0, matchIds.length)
           .reduce((sum, a) => sum + a.amount, 0);
+        // What landed is on the server and onMatched leaves this line.
+        guard.release();
         onMatched(matchIds, landed);
       } else {
         // The FIRST match threw after staging (BookingPartialError, zero

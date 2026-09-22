@@ -10,6 +10,7 @@ vi.mock('../api', async (io) => ({
 import { onboardEntity, type Entity } from '../api';
 import { AppToaster } from '../ui/toast';
 import { CreateEntitySheet } from './CreateEntitySheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -26,8 +27,10 @@ function mount() {
   );
   render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { router, onClose };

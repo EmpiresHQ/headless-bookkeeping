@@ -11,15 +11,18 @@ vi.mock('../api', async (io) => ({
 import { getSettings, setSetting } from '../api';
 import { AppToaster } from '../ui/toast';
 import { LlmScreen } from './LlmScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/settings/llm']}>
-        <LlmScreen />
-      </MemoryRouter>
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/settings/llm']}>
+          <LlmScreen />
+        </MemoryRouter>
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

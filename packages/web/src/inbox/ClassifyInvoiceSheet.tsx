@@ -13,6 +13,7 @@ import {
   signedEuros,
   vatFromGross,
 } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { useCustomers } from '../queries/shared';
 import { Button } from '../ui/Button';
@@ -28,6 +29,16 @@ const VAT_MARKINGS = [
   { value: 'Z', label: 'Z — Zero-rated' },
   { value: 'E', label: 'E — Exempt' },
 ] as const;
+
+const EMPTY_INVOICE = {
+  customerId: null as number | null,
+  invoiceNumber: '',
+  gross: '',
+  vat: '',
+  currency: 'EUR',
+  date: '',
+  vatMarking: '',
+};
 
 /** Triage flow — a document the AI recognized as YOUR outgoing invoice.
  *  Records it as a sales invoice (customer optional). Same prefill-first
@@ -62,6 +73,8 @@ export function ClassifyInvoiceSheet({
   const [vatMarking, setVatMarking] = useState('');
   const [prefilled, setPrefilled] = useState(false);
   const [busy, setBusy] = useState(false);
+  // What the prefill offered, committed with it (see ClassifyExpenseSheet).
+  const [prefillBase, setPrefillBase] = useState(EMPTY_INVOICE);
 
   // Prefill runs once the AI data lands — via FUNCTIONAL updates, so it only
   // ever fills a field that is still at its untouched default. The reclassify
@@ -95,9 +108,34 @@ export function ClassifyInvoiceSheet({
       setInvoiceNumber((cur) =>
         cur === '' ? (c.result.supplier_invoice_number ?? '') : cur,
       );
+      setPrefillBase({
+        ...EMPTY_INVOICE,
+        invoiceNumber: c.result.supplier_invoice_number ?? '',
+        gross: centsToEuroInput(c.result.gross_amount),
+        vat: centsToEuroInput(c.result.vat_amount),
+        currency: c.result.currency !== '' ? c.result.currency : 'EUR',
+        date: c.result.tax_point_date,
+        vatMarking: c.result.document_vat_marking ?? '',
+      });
       setPrefilled(true);
     }
   }, [reclassifyQ.data, prefilled]);
+
+  // The customer search is a filter. Values are compared as displayed.
+  const guard = useUnsavedChanges({
+    label: 'Record sales invoice',
+    active: open,
+    values: {
+      customerId: customer?.id ?? null,
+      invoiceNumber,
+      gross,
+      vat,
+      currency,
+      date,
+      vatMarking,
+    },
+    baseline: prefillBase,
+  });
 
   const onGrossChange = (v: string) => {
     setGross(v);
@@ -123,18 +161,18 @@ export function ClassifyInvoiceSheet({
     if (!valid || grossCents === null || vatCents === null) return;
     setBusy(true);
     try {
-      onDone(
-        await manualClassifyInvoice(documentId, {
-          target: 'sales_invoice',
-          customer_id: customer?.id ?? null,
-          invoice_number: invoiceNumber.trim(),
-          document_vat_marking: vatMarking !== '' ? vatMarking : null,
-          gross_amount: grossCents,
-          vat_amount: vatCents,
-          currency,
-          tax_point_date: date,
-        }),
-      );
+      const outcome = await manualClassifyInvoice(documentId, {
+        target: 'sales_invoice',
+        customer_id: customer?.id ?? null,
+        invoice_number: invoiceNumber.trim(),
+        document_vat_marking: vatMarking !== '' ? vatMarking : null,
+        gross_amount: grossCents,
+        vat_amount: vatCents,
+        currency,
+        tax_point_date: date,
+      });
+      guard.release();
+      onDone(outcome);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -146,7 +184,13 @@ export function ClassifyInvoiceSheet({
     .slice(0, 5);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Record sales invoice">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Record sales invoice"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-3 px-5 pb-2">
         {reclassifyQ.isPending && (
           <p className="text-[13px] text-ink-2">

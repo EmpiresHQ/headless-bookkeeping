@@ -7,9 +7,11 @@ import {
   type PolicyConfig,
 } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
+import { sameValues, useUnsavedChanges } from '../lib/unsavedChanges';
 import {
   invalidateAdminSettings,
   invalidatePolicy,
+  settingsKeys,
   useAdminSettings,
   usePolicyConfig,
 } from '../queries/settings';
@@ -36,22 +38,24 @@ export function PolicyScreen() {
       </Frame>
     );
   }
-  if (policyQ.isError || settingsQ.isError) {
-    const err = policyQ.error ?? settingsQ.error;
-    return (
-      <Frame>
-        <LoadError
-          message={err instanceof Error ? err.message : 'Failed to load policy'}
-          onRetry={() => {
-            void policyQ.refetch();
-            void settingsQ.refetch();
-          }}
-        />
-      </Frame>
-    );
+  const err = policyQ.error ?? settingsQ.error;
+  const loadError = (
+    <LoadError
+      message={err instanceof Error ? err.message : 'Failed to load policy'}
+      onRetry={() => {
+        void policyQ.refetch();
+        void settingsQ.refetch();
+      }}
+    />
+  );
+  // Only a FIRST load failure replaces the screen; a failed background
+  // refetch keeps the forms (and unsaved input) mounted and says so.
+  if (policyQ.data === undefined || settingsQ.data === undefined) {
+    return <Frame>{loadError}</Frame>;
   }
   return (
     <Frame>
+      {(policyQ.isError || settingsQ.isError) && loadError}
       <IngestPolicyGroup current={settingsQ.data['ingest_policy'] ?? ''} />
       <RiskGateForm data={policyQ.data} />
     </Frame>
@@ -119,36 +123,52 @@ function IngestPolicyGroup({ current }: { current: string }) {
   );
 }
 
+/** The form's view of a server snapshot — the unsaved-changes baseline. */
+function policyForm(data: PolicyConfig) {
+  return {
+    ceiling: centsToEuroInput(data.auto_post_amount_ceiling),
+    confidence: String(data.auto_post_min_confidence),
+    unknownSupplier: data.unknown_supplier_requires_approval,
+    alwaysApprove: data.always_approve_operations.join(', '),
+  };
+}
+
 function RiskGateForm({ data }: { data: PolicyConfig }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const [ceiling, setCeiling] = useState(
-    centsToEuroInput(data.auto_post_amount_ceiling),
-  );
-  const [confidence, setConfidence] = useState(
-    String(data.auto_post_min_confidence),
-  );
+  const [initial] = useState(() => policyForm(data));
+  const [ceiling, setCeiling] = useState(initial.ceiling);
+  const [confidence, setConfidence] = useState(initial.confidence);
   const [unknownSupplier, setUnknownSupplier] = useState(
-    data.unknown_supplier_requires_approval,
+    initial.unknownSupplier,
   );
-  const [alwaysApprove, setAlwaysApprove] = useState(
-    data.always_approve_operations.join(', '),
-  );
+  const [alwaysApprove, setAlwaysApprove] = useState(initial.alwaysApprove);
+  const values = { ceiling, confidence, unknownSupplier, alwaysApprove };
+  const adopt = (f: ReturnType<typeof policyForm>) => {
+    setCeiling(f.ceiling);
+    setConfidence(f.confidence);
+    setUnknownSupplier(f.unknownSupplier);
+    setAlwaysApprove(f.alwaysApprove);
+  };
+  // Unsaved = differs from the LATEST server snapshot (issue #250).
+  useUnsavedChanges({
+    label: 'Risk gate',
+    values,
+    baseline: policyForm(data),
+  });
+  const latest = useRef(values);
+  latest.current = values;
 
   // Sync guard (SettingField.tsx's syncedCurrent pattern, ported to a
   // multi-field form): a background refetch (staleTime 15s +
   // refetchOnWindowFocus) adopts the new server snapshot into the fields
-  // ONLY while the operator has no unsaved edit — otherwise tabbing away
-  // mid-edit silently clobbers every typed field on return.
+  // ONLY while they still equal the previous snapshot — otherwise tabbing
+  // away mid-edit silently clobbers every typed field on return.
   const syncedData = useRef(data);
-  const dirty = useRef(false);
   useEffect(() => {
     if (data === syncedData.current) return;
-    if (!dirty.current) {
-      setCeiling(centsToEuroInput(data.auto_post_amount_ceiling));
-      setConfidence(String(data.auto_post_min_confidence));
-      setUnknownSupplier(data.unknown_supplier_requires_approval);
-      setAlwaysApprove(data.always_approve_operations.join(', '));
+    if (sameValues(latest.current, policyForm(syncedData.current))) {
+      adopt(policyForm(data));
     }
     syncedData.current = data;
   }, [data]);
@@ -171,8 +191,9 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
   const save = async () => {
     if (ceilingCents === null || ceilingCents < 0 || !confidenceOk) return;
     setBusy(true);
+    const sent = values;
     try {
-      await updatePolicyConfig({
+      const saved = await updatePolicyConfig({
         auto_post_amount_ceiling: ceilingCents,
         auto_post_min_confidence: confidenceNum,
         unknown_supplier_requires_approval: unknownSupplier,
@@ -181,9 +202,11 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
           .map((s) => s.trim())
           .filter((s) => s.length > 0),
       });
-      // The saved snapshot is the new clean baseline — a subsequent
-      // refetch (below) must be free to sync it in.
-      dirty.current = false;
+      // The saved (server-normalized) snapshot is the new baseline; adopt it
+      // unless the operator kept typing during the save.
+      if (sameValues(latest.current, sent)) adopt(policyForm(saved));
+      syncedData.current = saved;
+      qc.setQueryData(settingsKeys.policy, saved);
       await invalidatePolicy(qc);
       toastOk('Policy saved');
     } catch (e) {
@@ -211,7 +234,6 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
             inputMode="decimal"
             value={ceiling}
             onChange={(e) => {
-              dirty.current = true;
               setCeiling(e.target.value);
             }}
           />
@@ -226,7 +248,6 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
             inputMode="decimal"
             value={confidence}
             onChange={(e) => {
-              dirty.current = true;
               setConfidence(e.target.value);
             }}
           />
@@ -237,7 +258,6 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
             aria-label="Unknown supplier requires approval"
             checked={unknownSupplier}
             onChange={(e) => {
-              dirty.current = true;
               setUnknownSupplier(e.target.checked);
             }}
           />
@@ -251,7 +271,6 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
             aria-label="Always-approve operations"
             value={alwaysApprove}
             onChange={(e) => {
-              dirty.current = true;
               setAlwaysApprove(e.target.value);
             }}
             placeholder="comma-separated"

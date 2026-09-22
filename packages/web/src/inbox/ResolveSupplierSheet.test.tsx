@@ -12,6 +12,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { ResolveSupplierSheet } from './ResolveSupplierSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const OUTCOME = { kind: 'expense', document_id: 12, expense_id: 500 } as const;
 
@@ -21,12 +22,14 @@ function renderSheet(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <ResolveSupplierSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onDone={onDone}
-      />
+      <UnsavedChangesProvider>
+        <ResolveSupplierSheet
+          documentId={12}
+          open
+          onOpenChange={() => undefined}
+          onDone={onDone}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onDone;

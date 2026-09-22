@@ -14,6 +14,7 @@ import {
   type ExpenseDetail,
 } from '../api';
 import { absoluteDate } from '../inbox/format';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { booksKeys, invalidateBooks } from '../queries/books';
 import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
@@ -64,6 +65,16 @@ export function AttachDocumentSheet({
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  // Unsaved = a choice not yet accepted by the server. Once the attach was
+  // accepted ('unverified' — only the re-read is pending) the document is on
+  // the server: closing loses the re-check UI, not the operator's input.
+  const guard = useUnsavedChanges({
+    label: 'Attach receipt',
+    active: open && phase.kind !== 'unverified',
+    // Both choices survive a mode switch, so both count; the mode alone not.
+    values: { file, chosen },
+    baseline: { file: null, chosen: null },
+  });
 
   const candidatesQ = useQuery({
     queryKey: booksKeys.attachable(detail.id),
@@ -123,6 +134,7 @@ export function AttachDocumentSheet({
         ? 'This document was already attached'
         : `Attached · ${result.document.filename}`,
     );
+    guard.release();
     onOpenChange(false);
   };
 
@@ -172,7 +184,13 @@ export function AttachDocumentSheet({
   const posted = detail.status === 'posted' || detail.status === 'reversed';
 
   return (
-    <Sheet open={open} onOpenChange={close} title="Attach receipt">
+    <Sheet
+      open={open}
+      onOpenChange={close}
+      title="Attach receipt"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-3 px-5 pb-2">
         <SegmentedControl<Mode>
           options={[

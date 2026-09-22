@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { approveApproval, fmtCents, rejectApproval } from '../api';
@@ -18,11 +17,12 @@ import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { KeyValue, ListGroup } from '../ui/List';
 import { LinkButton } from '../ui/LinkButton';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { DocPreviewRow } from './DocPreviewRow';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 import { humanizePolicyReason } from './reason';
+import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
 
 function WhyHeldBox({ reason }: { reason: string | null }) {
@@ -97,7 +97,7 @@ export function ApprovalScreen() {
 
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [rejectOpen, setRejectOpen] = useState(false);
+  const rejectSheet = useSheet();
   // Computed from the CURRENT queue before the mutation lands (the refetch
   // will drop this entry).
   const next = nextRouteAfter(entries, route);
@@ -119,9 +119,13 @@ export function ApprovalScreen() {
   });
 
   const rejectMut = useMutation({
-    mutationFn: (reason: string) => rejectApproval(approvalId, reason),
-    onSuccess: async () => {
-      setRejectOpen(false);
+    // `release` travels with the call: it must run before navigate(next),
+    // and this hook-level onSuccess runs before any per-call callback.
+    mutationFn: ({ reason }: { reason: string; release: () => void }) =>
+      rejectApproval(approvalId, reason),
+    onSuccess: async (_res, { release }) => {
+      release();
+      rejectSheet.close();
       toastOk('Rejected — returned to draft');
       navigate(next);
       await invalidateInbox(qc);
@@ -140,7 +144,7 @@ export function ApprovalScreen() {
       </div>
     );
   }
-  if (approvalsQ.isError) {
+  if (approvalsQ.isError && approvalsQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Approval" backTo="/inbox" />
@@ -294,13 +298,14 @@ export function ApprovalScreen() {
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title={title} backTo="/inbox" />
+      <RefetchError query={approvalsQ} />
       {body}
       <div className="mx-3.5 mt-2 flex gap-2.5">
         <Button
           variant="secondary"
           className="flex-1"
           disabled={approveMut.isPending || rejectMut.isPending}
-          onClick={() => setRejectOpen(true)}
+          onClick={() => rejectSheet.open()}
         >
           Reject…
         </Button>
@@ -316,16 +321,18 @@ export function ApprovalScreen() {
       <p className="px-6 pt-2 text-center text-[10.5px] text-ink-2">
         Approve posts to the books immediately — recover via a correction
       </p>
-      <RejectSheet
-        // Remount per approval: auto-advance re-renders this same element
-        // for the NEXT item, and a carried-over reason would land a stale
-        // justification in the next item's audit trail.
-        key={approvalId}
-        open={rejectOpen}
-        onOpenChange={setRejectOpen}
-        busy={rejectMut.isPending}
-        onSubmit={(reason) => rejectMut.mutate(reason)}
-      />
+      {rejectSheet.epoch > 0 && (
+        <RejectSheet
+          // Remount per approval AND per open: auto-advance re-renders this
+          // same element for the NEXT item, and a carried-over reason would
+          // land a stale justification in the next item's audit trail.
+          key={`${approvalId}-${rejectSheet.epoch}`}
+          open={rejectSheet.isOpen}
+          onOpenChange={(o) => !o && rejectSheet.close()}
+          busy={rejectMut.isPending}
+          onSubmit={(reason, release) => rejectMut.mutate({ reason, release })}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   createExpense,
@@ -15,6 +15,7 @@ import {
   signedEuros,
   vatFromGross,
 } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import {
   useCategories,
@@ -66,6 +67,8 @@ export function CreateMenu({
   );
 }
 
+const EMPTY_MONEY = { gross: '', vat: '' };
+
 /** Shared euro-amount pair: gross typed, VAT auto at the standard rate until
  *  touched (same convention as Plans 02/03; field stays editable). */
 function useMoneyPair() {
@@ -79,6 +82,12 @@ function useMoneyPair() {
       : null;
   const vatEffective = vatTouched ? eurosToCents(vat) : vatAuto;
   return {
+    /** The values as displayed — the dirty check compares what the
+     *  operator sees, not whether a field was touched. */
+    draft: {
+      gross,
+      vat: vatTouched ? vat : vatAuto !== null ? centsToEuroInput(vatAuto) : '',
+    },
     gross,
     setGross,
     vat,
@@ -107,6 +116,12 @@ export function NewExpenseSheet({
   const [date, setDate] = useState('');
   const m = useMoneyPair();
   const [busy, setBusy] = useState(false);
+  const guard = useUnsavedChanges({
+    label: 'New expense',
+    active: open,
+    values: { category, supplierId, date, ...m.draft },
+    baseline: { category: '', supplierId: '', date: '', ...EMPTY_MONEY },
+  });
 
   const valid =
     category !== '' &&
@@ -130,6 +145,7 @@ export function NewExpenseSheet({
       });
       await invalidateBooks(qc);
       toastOk('Draft created — submit it for posting from the detail');
+      guard.release();
       onOpenChange(false);
       navigate(`/books/expenses/${created.id}`);
     } catch (e) {
@@ -140,7 +156,12 @@ export function NewExpenseSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="New expense">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New expense"
+      guard={guard}
+    >
       <div className="space-y-3 px-5 pb-2">
         <Field label="Category">
           <SelectInput
@@ -239,6 +260,18 @@ export function NewInvoiceSheet({
   const [dueDate, setDueDate] = useState('');
   const m = useMoneyPair();
   const [busy, setBusy] = useState(false);
+  const guard = useUnsavedChanges({
+    label: 'New sales invoice',
+    active: open,
+    values: { number, customerId, date, dueDate, ...m.draft },
+    baseline: {
+      number: '',
+      customerId: '',
+      date: '',
+      dueDate: '',
+      ...EMPTY_MONEY,
+    },
+  });
 
   const valid =
     number.trim() !== '' &&
@@ -263,6 +296,7 @@ export function NewInvoiceSheet({
       });
       await invalidateBooks(qc);
       toastOk('Draft created — submit it for posting from the detail');
+      guard.release();
       onOpenChange(false);
       navigate(`/books/invoices/${created.id}`);
     } catch (e) {
@@ -273,7 +307,12 @@ export function NewInvoiceSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="New sales invoice">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New sales invoice"
+      guard={guard}
+    >
       <div className="space-y-3 px-5 pb-2">
         <Field label="Invoice number">
           <TextInput
@@ -363,10 +402,16 @@ export function UploadSheet({
   const qc = useQueryClient();
   const navigate = useNavigate();
   const entitiesQ = useEntities();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  // The chosen File (identity) — also what is uploaded.
+  const [file, setFile] = useState<File | null>(null);
   const [claimantId, setClaimantId] = useState('');
   const [busy, setBusy] = useState(false);
+  const guard = useUnsavedChanges({
+    label: 'Upload a document',
+    active: open,
+    values: { file, claimantId },
+    baseline: { file: null as File | null, claimantId: '' },
+  });
 
   // ADR-0036: employee/director who paid out-of-pocket.
   const claimants = (entitiesQ.data ?? []).filter(
@@ -375,8 +420,7 @@ export function UploadSheet({
 
   const submit = async () => {
     if (busy) return;
-    const file = fileRef.current?.files?.[0];
-    if (!file) return;
+    if (file === null) return;
     setBusy(true);
     try {
       const { document, deduplicated } = await uploadDocument(file, {
@@ -388,6 +432,7 @@ export function UploadSheet({
       if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
       else toastOk(outcomeText(outcome));
       await invalidateBooks(qc);
+      guard.release();
       onOpenChange(false);
       navigate(`/books/documents/${document.id}`);
     } catch (e) {
@@ -398,14 +443,18 @@ export function UploadSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Upload a document">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Upload a document"
+      guard={guard}
+    >
       <div className="space-y-3 px-5 pb-2">
         <Field label="File">
           <input
-            ref={fileRef}
             type="file"
             className="w-full text-[14px]"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
         </Field>
         {claimants.length > 0 && (
@@ -429,7 +478,7 @@ export function UploadSheet({
         <Button
           className="w-full"
           busy={busy}
-          disabled={fileName === null || busy}
+          disabled={file === null || busy}
           onClick={() => void submit()}
         >
           Upload &amp; process

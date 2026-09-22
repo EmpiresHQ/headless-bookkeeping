@@ -12,6 +12,7 @@ import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 const ROLES: readonly EntityRole[] = [
   'supplier',
@@ -52,6 +53,23 @@ export function CreateEntitySheet({
   const [taxStatus, setTaxStatus] = useState<TaxStatus>('unknown');
   const [email, setEmail] = useState('');
   const [tgUserId, setTgUserId] = useState('');
+  const values = {
+    role,
+    name,
+    country,
+    regKey,
+    goods,
+    taxStatus,
+    email,
+    tgUserId,
+  };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Add entity',
+    active: open,
+    values,
+    baseline,
+  });
 
   const needsRegKey = NEEDS_REG_KEY.includes(role);
   const valid =
@@ -80,6 +98,7 @@ export function CreateEntitySheet({
           };
       const created = await onboardEntity(input);
       toastOk(`${ROLE_LABEL[role]} added — ${name.trim()}`);
+      guard.release();
       onClose();
       navigate(`/settings/entities/${created.id}`);
       void invalidateEntities(qc);
@@ -99,7 +118,13 @@ export function CreateEntitySheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={guardedOnOpenChange} title="Add entity">
+    <Sheet
+      open={open}
+      onOpenChange={guardedOnOpenChange}
+      title="Add entity"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-4 px-6 pb-2">
         <Field label="Role">
           <SelectInput

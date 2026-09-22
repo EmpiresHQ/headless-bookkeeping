@@ -6,6 +6,7 @@ import {
   type BankTransaction,
 } from '../api';
 import { signedEuros } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
@@ -200,7 +201,8 @@ export function PrepaymentSheet({
   busy: boolean;
   /** Treatments the country plugin allows for this receipt date. */
   vatTreatments: { vat_code: string; rate_permille: number }[];
-  onConfirm: (tax?: AdvanceTaxInput) => void;
+  /** `release` marks the form saved — call it on success BEFORE leaving. */
+  onConfirm: (tax: AdvanceTaxInput | undefined, release: () => void) => void;
 }) {
   const incoming = tx.amount > 0;
   const abs = fmtCents(Math.abs(tx.amount));
@@ -208,6 +210,17 @@ export function PrepaymentSheet({
   const [vatCode, setVatCode] = useState('');
   const [supply, setSupply] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
+  const guard = useUnsavedChanges({
+    label: 'Record prepayment',
+    active: open,
+    values: { treatment, vatCode, supply, documentNumber },
+    baseline: {
+      treatment: 'unresolved',
+      vatCode: '',
+      supply: '',
+      documentNumber: '',
+    },
+  });
 
   const effectiveVatCode = vatCode || vatTreatments[0]?.vat_code || '';
   const rate = vatTreatments.find(
@@ -224,8 +237,8 @@ export function PrepaymentSheet({
     (supply.trim() === '' || effectiveVatCode === '');
 
   const submit = () => {
-    if (!incoming) return onConfirm();
-    if (treatment === 'unresolved') return onConfirm();
+    if (!incoming) return onConfirm(undefined, guard.release);
+    if (treatment === 'unresolved') return onConfirm(undefined, guard.release);
     onConfirm(
       treatment === 'taxable_supply'
         ? {
@@ -237,11 +250,18 @@ export function PrepaymentSheet({
               : {}),
           }
         : { tax_treatment: 'non_taxable_deposit' },
+      guard.release,
     );
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Record prepayment">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Record prepayment"
+      guard={guard}
+      busy={busy}
+    >
       <p className="px-7 pb-2.5 text-center text-[12px] text-ink-2">
         {tx.description ?? 'Bank line'} · {incoming ? '+' : '−'}
         {abs} €
@@ -353,7 +373,10 @@ export function PrepaymentSheet({
         <Button
           variant="secondary"
           className="h-[46px] flex-1"
-          onClick={() => onOpenChange(false)}
+          disabled={busy}
+          onClick={() =>
+            void guard.confirmDiscard().then((ok) => ok && onOpenChange(false))
+          }
         >
           Cancel
         </Button>

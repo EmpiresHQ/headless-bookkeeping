@@ -27,6 +27,8 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { TxCreateExpense } from './TxCreateExpense';
+import { MemoryRouter } from 'react-router-dom';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -46,7 +48,11 @@ function renderForm(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <TxCreateExpense statementId={3} tx={TX as never} onDone={onDone} />
+      <MemoryRouter>
+        <UnsavedChangesProvider>
+          <TxCreateExpense statementId={3} tx={TX as never} onDone={onDone} />
+        </UnsavedChangesProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   return onDone;

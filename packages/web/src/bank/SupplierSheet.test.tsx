@@ -27,6 +27,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { SupplierSheet } from './SupplierSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -46,12 +47,14 @@ function renderSheet(onPick = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <SupplierSheet
-        open
-        onOpenChange={vi.fn()}
-        tx={TX as never}
-        onPick={onPick}
-      />
+      <UnsavedChangesProvider>
+        <SupplierSheet
+          open
+          onOpenChange={vi.fn()}
+          tx={TX as never}
+          onPick={onPick}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onPick;

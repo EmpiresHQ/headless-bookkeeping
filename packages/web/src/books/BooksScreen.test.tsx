@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { BooksScreen } from './BooksScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
@@ -25,7 +26,9 @@ function mount(url = '/books') {
   );
   const view = render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { ...view, router };
@@ -89,6 +92,8 @@ describe('BooksScreen', () => {
       target: { value: '48.20' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('Gross (€)')).toBeNull(),
     );
@@ -107,6 +112,8 @@ describe('BooksScreen', () => {
       target: { value: 'INV-HALF' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('Invoice number')).toBeNull(),
     );
@@ -128,6 +135,8 @@ describe('BooksScreen', () => {
     fireEvent.change(fileInput, { target: { files: [file] } });
     expect(screen.getByRole('button', { name: /Upload/ })).not.toBeDisabled();
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(screen.queryByLabelText('File')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Add to the books' }));
     fireEvent.click(await screen.findByText('Upload a document'));

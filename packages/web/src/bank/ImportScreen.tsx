@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Field, TextInput } from '../ui/Form';
 import { LinkButton } from '../ui/LinkButton';
 import { ScreenHeader } from '../shell/Headers';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 type StepState = 'done' | 'active' | 'failed' | 'idle';
 
@@ -53,6 +54,14 @@ export function ImportScreen() {
   const [jobId, setJobId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Only the form is input to keep; once the server accepted the file
+  // (a job exists) the import runs server-side and leaving loses nothing.
+  const guard = useUnsavedChanges({
+    label: 'Import statement',
+    active: jobId === null,
+    values: { file, accountCode },
+    baseline: { file: null, accountCode: 'BANK_EUR' },
+  });
   const jobQ = useImportJob(jobId);
   const job = jobQ.data;
 
@@ -62,6 +71,7 @@ export function ImportScreen() {
     setSubmitError(null);
     try {
       const { jobId: id } = await importBankStatement(file, accountCode);
+      guard.release();
       setJobId(id);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : String(e));

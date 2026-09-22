@@ -28,6 +28,7 @@ import {
   getPeriodWarnings,
   setExpenseDocumentMetadata,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const PERIOD = {
   id: 7,
@@ -126,10 +127,12 @@ function mount(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
-        <AppToaster />
-        {ui}
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter>
+          <AppToaster />
+          {ui}
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -190,9 +193,11 @@ describe('InfGapsSection', () => {
     });
     const { container } = render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter>
-          <InfGapsSection period={PERIOD} />
-        </MemoryRouter>
+        <UnsavedChangesProvider>
+          <MemoryRouter>
+            <InfGapsSection period={PERIOD} />
+          </MemoryRouter>
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     await waitFor(() => expect(getExpenses).toHaveBeenCalled());
@@ -208,6 +213,8 @@ describe('InfGapsSection', () => {
       target: { value: 'INV-HALF' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('Supplier invoice number')).toBeNull(),
     );
@@ -226,10 +233,12 @@ describe('InfGapsSection', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter>
-          <AppToaster />
-          <InfGapsSection period={PERIOD} />
-        </MemoryRouter>
+        <UnsavedChangesProvider>
+          <MemoryRouter>
+            <AppToaster />
+            <InfGapsSection period={PERIOD} />
+          </MemoryRouter>
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     fireEvent.click(
@@ -339,9 +348,11 @@ describe('InPeriodSection', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter>
-          <InPeriodSection period={PERIOD} />
-        </MemoryRouter>
+        <UnsavedChangesProvider>
+          <MemoryRouter>
+            <InPeriodSection period={PERIOD} />
+          </MemoryRouter>
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     // A bare waitFor(getExpenses called) resolves before the (already-

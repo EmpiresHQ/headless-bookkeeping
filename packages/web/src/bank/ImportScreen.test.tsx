@@ -26,6 +26,7 @@ vi.mock('../api', () => ({
 
 import * as api from '../api';
 import { ImportScreen } from './ImportScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function renderScreen() {
   const client = new QueryClient({
@@ -41,7 +42,9 @@ function renderScreen() {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;

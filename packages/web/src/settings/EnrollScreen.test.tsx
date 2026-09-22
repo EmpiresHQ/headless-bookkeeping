@@ -14,14 +14,17 @@ vi.mock('../api', async (io) => ({
 import QRCode from 'qrcode';
 import { createDeviceEnrollment, getSettings } from '../api';
 import { EnrollScreen } from './EnrollScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/settings/enroll']}>
-        <EnrollScreen />
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/settings/enroll']}>
+          <EnrollScreen />
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

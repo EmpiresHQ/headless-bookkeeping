@@ -18,6 +18,7 @@ import { getOrganization, updateOrganization, type Organization } from '../api';
 import { sharedKeys } from '../queries/keys';
 import { AppToaster } from '../ui/toast';
 import { OrganizationScreen } from './OrganizationScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const ORG: Organization = {
   id: 1,
@@ -43,8 +44,10 @@ function mount() {
   );
   render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return qc;

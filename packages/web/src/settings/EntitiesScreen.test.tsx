@@ -9,6 +9,7 @@ vi.mock('../api', async (io) => ({
 }));
 import { getEntities, type Entity } from '../api';
 import { EntitiesScreen } from './EntitiesScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const ROWS: Entity[] = [
   {
@@ -44,7 +45,9 @@ function mount(initial = '/settings/entities') {
   );
   render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
@@ -127,6 +130,8 @@ describe('EntitiesScreen', () => {
       target: { value: 'employee' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(screen.queryByLabelText('Name')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
     expect(await screen.findByLabelText('Name')).toHaveValue('');

@@ -22,6 +22,7 @@ import {
   useStatementMatches,
   type CreateFromLineResult,
 } from '../queries/bank';
+import { useSheet } from '../lib/useSheet';
 import { AmountText } from '../ui/AmountText';
 import { Chip } from '../ui/Chip';
 import { SkeletonRows } from '../ui/Feedback';
@@ -57,10 +58,27 @@ const DISPOSED_TITLE: Record<string, string> = {
 
 /** /bank/statements/:id/tx/:txId — the 90%-of-time screen. It reads the
  *  line's context and opens on the right action (routing matrix, Task 8). */
+/** Keyed by the line it shows: /tx/1 → /tx/2 (Back/forward, after the
+ *  unsaved-changes guard allowed it) remounts, so no inline form draft,
+ *  open sheet or `createDone` flag of line 1 carries over to line 2. */
 export function TxScreen() {
   const params = useParams();
-  const statementId = Number(params.id);
-  const txId = Number(params.txId);
+  return (
+    <TxScreenFor
+      key={`${params.id}-${params.txId}`}
+      statementId={Number(params.id)}
+      txId={Number(params.txId)}
+    />
+  );
+}
+
+function TxScreenFor({
+  statementId,
+  txId,
+}: {
+  statementId: number;
+  txId: number;
+}) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -105,7 +123,7 @@ export function TxScreen() {
 
   const [otherOpen, setOtherOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
-  const [prepayOpen, setPrepayOpen] = useState(false);
+  const prepay = useSheet();
   const [busy, setBusy] = useState(false);
   // Carry-over guard from Task 10's review: TxCreateExpense re-enables its
   // own primary in a `finally` right after calling onDone, and navigating
@@ -176,7 +194,10 @@ export function TxScreen() {
     }
   };
 
-  const onPrepayment = async (tax?: AdvanceTaxInput) => {
+  const onPrepayment = async (
+    tax: AdvanceTaxInput | undefined,
+    release: () => void,
+  ) => {
     setBusy(true);
     try {
       await createPrepayment(txId, tax);
@@ -193,13 +214,15 @@ export function TxScreen() {
               ? 'Recorded as a taxable advance — VAT declared on the payment date'
               : 'Recorded as a deposit',
       );
+      release();
+      prepay.close();
       await backToStatement();
     } catch (e) {
+      // Keep the sheet and what was typed: a failed record is retryable.
       toastErr(e instanceof Error ? e.message : String(e));
       void invalidateStatement(qc, statementId);
     } finally {
       setBusy(false);
-      setPrepayOpen(false);
     }
   };
 
@@ -300,9 +323,7 @@ export function TxScreen() {
           />
         );
       case 'incoming-open':
-        return (
-          <IncomingOpen tx={tx} onPrepayment={() => setPrepayOpen(true)} />
-        );
+        return <IncomingOpen tx={tx} onPrepayment={() => prepay.open()} />;
       default:
         return assertNever(state);
     }
@@ -377,7 +398,7 @@ export function TxScreen() {
             onFee={() => void onFee()}
             onPrepayment={() => {
               setOtherOpen(false);
-              setPrepayOpen(true);
+              prepay.open();
             }}
           />
           <PersonalSheet
@@ -387,14 +408,17 @@ export function TxScreen() {
             busy={busy}
             onConfirm={() => void onPersonal()}
           />
-          <PrepaymentSheet
-            open={prepayOpen}
-            onOpenChange={setPrepayOpen}
-            tx={tx}
-            busy={busy}
-            vatTreatments={vatTreatmentsQ.data ?? []}
-            onConfirm={(tax) => void onPrepayment(tax)}
-          />
+          {prepay.epoch > 0 && (
+            <PrepaymentSheet
+              key={prepay.epoch}
+              open={prepay.isOpen}
+              onOpenChange={(o) => !o && prepay.close()}
+              tx={tx}
+              busy={busy}
+              vatTreatments={vatTreatmentsQ.data ?? []}
+              onConfirm={(tax, release) => void onPrepayment(tax, release)}
+            />
+          )}
         </>
       )}
     </div>

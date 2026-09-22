@@ -11,6 +11,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { ClassifyInvoiceSheet } from './ClassifyInvoiceSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function renderSheet(onDone = vi.fn()) {
   const client = new QueryClient({
@@ -18,12 +19,14 @@ function renderSheet(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <ClassifyInvoiceSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onDone={onDone}
-      />
+      <UnsavedChangesProvider>
+        <ClassifyInvoiceSheet
+          documentId={12}
+          open
+          onOpenChange={() => undefined}
+          onDone={onDone}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onDone;

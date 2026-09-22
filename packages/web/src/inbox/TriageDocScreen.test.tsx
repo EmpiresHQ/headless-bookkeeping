@@ -32,6 +32,7 @@ import * as api from '../api';
 import type { Entity, NeedsTriageItem } from '../api';
 import { invalidateInbox } from '../queries/inbox';
 import { TriageDocScreen } from './TriageDocScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
   id: 12,
@@ -112,7 +113,9 @@ function renderAt(path: string) {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;

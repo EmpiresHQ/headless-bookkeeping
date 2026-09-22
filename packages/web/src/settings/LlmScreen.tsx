@@ -2,7 +2,7 @@ import { useAdminSettings } from '../queries/settings';
 import { ScreenHeader } from '../shell/Headers';
 import { SkeletonRows } from '../ui/Feedback';
 import { GroupLabel } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { SettingField, type SettingDef } from './SettingField';
 
 const ENDPOINT_DEFS: SettingDef[] = [
@@ -77,7 +77,7 @@ export function LlmScreen() {
       </Frame>
     );
   }
-  if (settingsQ.isError) {
+  if (settingsQ.isError && settingsQ.data === undefined) {
     return (
       <Frame>
         <LoadError
@@ -101,6 +101,7 @@ export function LlmScreen() {
   );
   return (
     <Frame>
+      <RefetchError query={settingsQ} />
       <p className="mx-6 mb-3 text-[12.5px] text-ink-2">
         Model ids must include a provider prefix, e.g.{' '}
         <code className="font-mono">openai/gpt-4o-mini</code>. For a custom

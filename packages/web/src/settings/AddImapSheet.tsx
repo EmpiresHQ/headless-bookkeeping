@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /** App-password IMAP connector (Reality #9). Credentials are encrypted at
  *  rest server-side; access is read-only. */
@@ -29,6 +30,14 @@ export function AddImapSheet({
   const [username, setUsername] = useState('');
   const [secret, setSecret] = useState('');
   const [folder, setFolder] = useState('INBOX');
+  const values = { channel, provider, host, port, username, secret, folder };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Add IMAP mailbox',
+    active: open,
+    values,
+    baseline,
+  });
 
   const valid =
     host.trim() !== '' && username.trim() !== '' && secret.length > 0;
@@ -46,6 +55,7 @@ export function AddImapSheet({
         folder: folder.trim() || undefined,
       });
       toastOk(`Mailbox added — ${username.trim()}`);
+      guard.release();
       onClose();
       void invalidateMailbox(qc);
     } catch (e) {
@@ -58,7 +68,9 @@ export function AddImapSheet({
   return (
     <Sheet
       open={open}
-      onOpenChange={(o) => !o && !busy && onClose()}
+      onOpenChange={(o) => !o && onClose()}
+      guard={guard}
+      busy={busy}
       title="Add IMAP mailbox"
     >
       <div className="space-y-4 px-6 pb-2">

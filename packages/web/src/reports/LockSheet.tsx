@@ -19,6 +19,7 @@ import { Button } from '../ui/Button';
 import { Field, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
  * The ADR-0015 filing guard: surface every unresolved in-period item, state
@@ -40,6 +41,12 @@ export function LockSheet({
 }) {
   const qc = useQueryClient();
   const [typed, setTyped] = useState('');
+  const guard = useUnsavedChanges({
+    label: 'Close period',
+    active: open,
+    values: typed,
+    baseline: '',
+  });
   const warningsQ = usePeriodWarnings(period.id, open);
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
@@ -76,6 +83,7 @@ export function LockSheet({
     onSuccess: async () => {
       await invalidateReports(qc);
       toastOk(`${periodTitle(period.name)} closed — declaration frozen`);
+      guard.release();
       onOpenChange(false);
     },
     onError: (e) =>
@@ -102,6 +110,8 @@ export function LockSheet({
       open={open}
       onOpenChange={guardedOnOpenChange}
       title={`Close ${periodTitle(period.name)}`}
+      guard={guard}
+      busy={lock.isPending}
     >
       <div className="space-y-3 px-6">
         <ul className="list-disc space-y-1 pl-5 text-[13.5px] text-ink-2">

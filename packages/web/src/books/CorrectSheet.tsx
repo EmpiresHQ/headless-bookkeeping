@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { correctExpense, correctInvoice, type CorrectionRequest } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import { useCategories } from '../queries/shared';
 import { Button } from '../ui/Button';
@@ -55,6 +56,15 @@ export function CorrectSheet({
   const [cat, setCat] = useState(category ?? '');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // The fields were seeded from these props once; a later refetch of the
+  // props does not reseed them, so the baseline is frozen the same way.
+  const [baseline] = useState(() => ({ kind, gross, vat, cat, reason }));
+  const guard = useUnsavedChanges({
+    label: 'Correct',
+    active: open,
+    values: { kind, gross, vat, cat, reason },
+    baseline,
+  });
 
   const grossParsed = eurosToCents(gross);
   const vatParsed = eurosToCents(vat);
@@ -109,6 +119,7 @@ export function CorrectSheet({
           `Correction posted · ${sign}${centsToEuroInput(grossParsed as number)} €`,
         );
       }
+      guard.release();
       onOpenChange(false);
       onDone();
     } catch (e) {
@@ -119,7 +130,12 @@ export function CorrectSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Correct">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Correct"
+      guard={guard}
+    >
       <div className="space-y-3 px-5 pb-2">
         <div className="space-y-2">
           {(

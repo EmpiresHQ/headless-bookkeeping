@@ -14,6 +14,7 @@ import {
   signedMoney,
   vatFromGross,
 } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { sharedKeys } from '../queries/keys';
 import { useCategories, useExpenses, useSuppliers } from '../queries/shared';
@@ -30,6 +31,20 @@ const VAT_MARKINGS = [
   { value: 'Z', label: 'Z — Zero-rated' },
   { value: 'E', label: 'E — Exempt' },
 ] as const;
+
+const EMPTY_CLASSIFY = {
+  supplierId: null as number | null,
+  category: '',
+  gross: '',
+  vat: '',
+  currency: 'EUR',
+  date: '',
+  vatMarking: '',
+  invoiceNumber: '',
+  newName: '',
+  newCountry: '',
+  newRegKey: '',
+};
 
 /**
  * Triage flows 2/3 (low confidence / unknown category / classification
@@ -84,6 +99,11 @@ export function ClassifyExpenseSheet({
   const [newCountry, setNewCountry] = useState('');
   const [newRegKey, setNewRegKey] = useState('');
   const [creating, setCreating] = useState(false);
+  // What the prefill put in each field, committed in the SAME batch as the
+  // prefill itself — so neither the empty pre-prefill form nor a prefilled
+  // one reads as unsaved, while a field typed before or after the prefill
+  // does (its value differs from what the prefill offered).
+  const [prefillBase, setPrefillBase] = useState(EMPTY_CLASSIFY);
 
   // Prefill runs once the persisted facts land — via FUNCTIONAL updates, so
   // it only ever fills a field that is still at its untouched default. An
@@ -123,6 +143,19 @@ export function ClassifyExpenseSheet({
         setNewCountry((cur) => (cur === '' ? (ex.country ?? '') : cur));
         setNewRegKey((cur) => (cur === '' ? (ex.registration_key ?? '') : cur));
       }
+      setPrefillBase({
+        ...EMPTY_CLASSIFY,
+        category: c.result.category,
+        gross: centsToEuroInput(c.result.gross_amount),
+        vat: centsToEuroInput(c.result.vat_amount),
+        currency: c.result.currency !== '' ? c.result.currency : 'EUR',
+        date: c.result.tax_point_date,
+        vatMarking: c.result.document_vat_marking ?? '',
+        invoiceNumber: c.result.supplier_invoice_number ?? '',
+        newName: ex?.name ?? '',
+        newCountry: ex?.country ?? '',
+        newRegKey: ex?.registration_key ?? '',
+      });
       setPrefilled(true);
     } else if (
       !prefilled &&
@@ -132,6 +165,27 @@ export function ClassifyExpenseSheet({
       setPrefilled(true);
     }
   }, [detailsQ.data, prefilled]);
+
+  // The supplier search and "show all" are view state, not input. Values
+  // are compared as displayed (an untouched currency shows EUR).
+  const guard = useUnsavedChanges({
+    label: 'Classify',
+    active: open,
+    values: {
+      supplierId: supplier?.id ?? null,
+      category,
+      gross,
+      vat,
+      currency: currencyChoice ?? 'EUR',
+      date,
+      vatMarking,
+      invoiceNumber,
+      newName,
+      newCountry,
+      newRegKey,
+    },
+    baseline: prefillBase,
+  });
 
   const onGrossChange = (v: string) => {
     setGross(v);
@@ -209,18 +263,18 @@ export function ClassifyExpenseSheet({
       return;
     setBusy(true);
     try {
-      onDone(
-        await manualClassify(documentId, {
-          supplier_id: supplier.id,
-          category,
-          document_vat_marking: vatMarking !== '' ? vatMarking : null,
-          gross_amount: grossCents,
-          vat_amount: vatCents,
-          currency,
-          tax_point_date: date,
-          supplier_invoice_number: invoiceNumber !== '' ? invoiceNumber : null,
-        }),
-      );
+      const outcome = await manualClassify(documentId, {
+        supplier_id: supplier.id,
+        category,
+        document_vat_marking: vatMarking !== '' ? vatMarking : null,
+        gross_amount: grossCents,
+        vat_amount: vatCents,
+        currency,
+        tax_point_date: date,
+        supplier_invoice_number: invoiceNumber !== '' ? invoiceNumber : null,
+      });
+      guard.release();
+      onDone(outcome);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -256,7 +310,13 @@ export function ClassifyExpenseSheet({
     (detailsClassification == null || !detailsClassification.ok);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Classify">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Classify"
+      guard={guard}
+      busy={busy || creating}
+    >
       <div className="space-y-3 px-5 pb-2">
         {detailsQ.isPending && (
           <p className="text-[13px] text-ink-2">Loading the saved facts…</p>

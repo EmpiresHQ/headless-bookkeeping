@@ -6,6 +6,8 @@ import {
   type CreateFromLineResult,
 } from '../queries/bank';
 import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
+import { useSheet } from '../lib/useSheet';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
@@ -40,12 +42,20 @@ export function TxCreateExpense({
   const categoriesQ = useCategories();
   const [category, setCategory] = useState('');
   const [supplier, setSupplier] = useState<Entity | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const picker = useSheet();
   const [docPolicy, setDocPolicy] = useState<'later' | 'none'>('later');
   const [vatInput, setVatInput] = useState(() =>
     centsToEuroInput(vatFromGross(absCents, STANDARD_VAT_RATE_PCT)),
   );
   const [busy, setBusy] = useState(false);
+  // VAT is seeded from the line amount once (frozen with the rest).
+  const values = { category, supplier, docPolicy, vatInput };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Expense from bank line',
+    values,
+    baseline,
+  });
 
   const vatCents = docPolicy === 'none' ? 0 : eurosToCents(vatInput);
   const valid =
@@ -68,6 +78,7 @@ export function TxCreateExpense({
         taxPointDate: tx.transaction_date,
         supplierId: supplier?.id ?? null,
       });
+      guard.release();
       onDone(result);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
@@ -82,7 +93,7 @@ export function TxCreateExpense({
       <div className="mx-3.5 mb-3 overflow-hidden rounded-2xl bg-surface">
         <button
           type="button"
-          onClick={() => setPickerOpen(true)}
+          onClick={() => picker.open()}
           className="flex w-full items-center justify-between gap-3 border-b border-line px-3.5 py-2.5 text-left"
         >
           <span className="text-[13px] text-ink-2">Supplier</span>
@@ -195,12 +206,17 @@ export function TxCreateExpense({
         The amount and date come from the bank — they are facts, not fields
       </p>
 
-      <SupplierSheet
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        tx={tx}
-        onPick={setSupplier}
-      />
+      {/* Remount-on-open (epoch): a discarded new-supplier draft never
+          comes back on the next open. */}
+      {picker.epoch > 0 && (
+        <SupplierSheet
+          key={picker.epoch}
+          open={picker.isOpen}
+          onOpenChange={(o) => !o && picker.close()}
+          tx={tx}
+          onPick={setSupplier}
+        />
+      )}
     </>
   );
 }

@@ -33,6 +33,7 @@ import {
   postInvoice,
   type SalesInvoice,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 // Typed against SalesInvoice (not inferred) so overrides like
 // `sent_at: null` in the draft test type-check against the real
@@ -76,13 +77,15 @@ function mountAt(
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/books/invoices/${id}`]}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/invoices/:id" element={<InvoiceScreen />} />
-          <Route path="/books" element={<div>BOOKS LIST</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={[`/books/invoices/${id}`]}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/invoices/:id" element={<InvoiceScreen />} />
+            <Route path="/books" element={<div>BOOKS LIST</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { ...utils, qc };
@@ -119,6 +122,8 @@ describe('InvoiceScreen', () => {
     fireEvent.change(reason, { target: { value: 'wrong VAT rate' } });
     expect(reason).toHaveValue('wrong VAT rate');
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
     );

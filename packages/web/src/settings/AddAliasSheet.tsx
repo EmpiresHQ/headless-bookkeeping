@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 const KINDS: AddAliasInput['kind'][] = [
   'merchant_descriptor',
@@ -31,12 +32,21 @@ export function AddAliasSheet({
     'merchant_descriptor',
   );
   const [value, setValue] = useState('');
+  const values = { kind, value };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Add alias',
+    active: open,
+    values,
+    baseline,
+  });
 
   const submit = async () => {
     setBusy(true);
     try {
       await addEntityAlias(entityId, { kind, value: value.trim() });
       toastOk('Alias added');
+      guard.release();
       onClose();
       void invalidateEntities(qc);
     } catch (e) {
@@ -48,7 +58,9 @@ export function AddAliasSheet({
   return (
     <Sheet
       open={open}
-      onOpenChange={(o) => !o && !busy && onClose()}
+      onOpenChange={(o) => !o && onClose()}
+      guard={guard}
+      busy={busy}
       title="Add alias"
     >
       <div className="space-y-4 px-6 pb-2">

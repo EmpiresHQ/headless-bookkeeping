@@ -32,6 +32,7 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { AppToaster } from '../ui/toast';
 import { TxScreen } from './TxScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const BASE_TX = {
   id: 9,
@@ -113,8 +114,10 @@ function renderTx(path = '/bank/statements/3/tx/9') {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;

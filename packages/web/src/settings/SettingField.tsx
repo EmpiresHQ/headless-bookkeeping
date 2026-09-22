@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { deleteSetting, setSetting } from '../api';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateAdminSettings } from '../queries/settings';
 import { Button } from '../ui/Button';
 import { Field, INPUT_CLS, TextInput } from '../ui/Form';
@@ -33,6 +34,16 @@ export function SettingField({
   const [draft, setDraft] = useState(current);
   const [busy, setBusy] = useState(false);
 
+  // Unsaved = the draft differs from the server value (secrets included —
+  // held in memory only, never persisted).
+  const guard = useUnsavedChanges({
+    label: def.label,
+    values: draft,
+    baseline: current,
+  });
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
+
   const syncedCurrent = useRef(current);
   useEffect(() => {
     if (current === syncedCurrent.current) return;
@@ -40,10 +51,22 @@ export function SettingField({
     syncedCurrent.current = current;
   }, [current, draft]);
 
-  const run = async (fn: () => Promise<unknown>, receipt: string) => {
+  const run = async (
+    fn: () => Promise<unknown>,
+    receipt: string,
+    saved?: string,
+  ) => {
     setBusy(true);
+    const sent = draft;
     try {
       await fn();
+      // Saved as typed-then-trimmed: show exactly what the server holds, and
+      // release until the refetch brings it back as `current` — unless the
+      // operator kept typing meanwhile (then that newer draft stays unsaved).
+      if (saved !== undefined && latestDraft.current === sent) {
+        setDraft(saved);
+        guard.release(saved);
+      }
       await invalidateAdminSettings(qc);
       toastOk(receipt);
     } catch (e) {
@@ -83,6 +106,7 @@ export function SettingField({
               void run(
                 () => setSetting(def.key, draft.trim()),
                 `${def.label} saved`,
+                draft.trim(),
               )
             }
             aria-label={`Save ${def.label}`}

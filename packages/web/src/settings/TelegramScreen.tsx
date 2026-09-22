@@ -2,7 +2,7 @@ import { useAdminSettings } from '../queries/settings';
 import { ScreenHeader } from '../shell/Headers';
 import { SkeletonRows } from '../ui/Feedback';
 import { GroupLabel } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { SettingField, type SettingDef } from './SettingField';
 
 const TELEGRAM_DEFS: SettingDef[] = [
@@ -55,7 +55,7 @@ export function TelegramScreen() {
       </Frame>
     );
   }
-  if (settingsQ.isError) {
+  if (settingsQ.isError && settingsQ.data === undefined) {
     return (
       <Frame>
         <LoadError
@@ -79,6 +79,7 @@ export function TelegramScreen() {
   );
   return (
     <Frame>
+      <RefetchError query={settingsQ} />
       <GroupLabel>Telegram bot</GroupLabel>
       {group(TELEGRAM_DEFS)}
       <p className="mx-6 -mt-2 mb-3.5 text-[12px] text-warn">

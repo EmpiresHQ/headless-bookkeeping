@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { Field, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
  * Create-next-period flow (POST /api/reporting-periods/next) — the legacy
@@ -31,6 +32,13 @@ export function NewPeriodSheet({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [name, setName] = useState('');
+  // Showing the override fields is not input; what is typed into them is.
+  const guard = useUnsavedChanges({
+    label: 'New period',
+    active: open,
+    values: { startDate, endDate, name },
+    baseline: { startDate: '', endDate: '', name: '' },
+  });
 
   const create = useMutation({
     mutationFn: () => {
@@ -44,6 +52,7 @@ export function NewPeriodSheet({
     onSuccess: async (p) => {
       await invalidateReports(qc);
       toastOk(`Period ${periodTitle(p.name)} opened`);
+      guard.release();
       onOpenChange(false);
     },
     onError: (e) =>
@@ -61,7 +70,13 @@ export function NewPeriodSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={guardedOnOpenChange} title="New period">
+    <Sheet
+      open={open}
+      onOpenChange={guardedOnOpenChange}
+      title="New period"
+      guard={guard}
+      busy={create.isPending}
+    >
       <div className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">
           The next period is computed from your
