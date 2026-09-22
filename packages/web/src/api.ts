@@ -253,6 +253,9 @@ export interface ExpenseDetail {
   supplier_invoice_number: string | null;
   ai_confidence: number | null;
   claimant_id: number | null;
+  /** Only meaningful with a claimant (ADR-0036); null ⇒ not recorded.
+   *  Always sent by the server; optional so older fixtures stay valid. */
+  company_addressed_receipt?: boolean | null;
   created_at: number;
 }
 
@@ -544,6 +547,51 @@ export const createInvoice = (input: CreateInvoiceInput) =>
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
+  });
+
+// ── Draft edits (issue #247 — draft/pending only, never posts) ────────────
+/** PATCH /api/expenses/:id — the server's closed editable-field set. Amounts
+ *  are integer cents; provenance (document_id, AI facts) is not editable. */
+export interface ExpenseDraftPatch {
+  category?: string;
+  supplier_id?: number | null;
+  gross_amount?: number;
+  vat_amount?: number;
+  currency?: string;
+  tax_point_date?: string;
+  supplier_invoice_number?: string | null;
+  claimant_id?: number | null;
+  company_addressed_receipt?: boolean | null;
+  /** Deliberate override when the edit collides with another expense (409). */
+  allow_duplicate?: boolean;
+}
+
+export const updateExpenseDraft = (id: number, patch: ExpenseDraftPatch) =>
+  apiFetch<ExpenseDetail>(`/api/expenses/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+
+/** PATCH /api/sales-invoices/:id. invoice_number/customer_id only while the
+ *  invoice has never been sent (409 otherwise). */
+export interface InvoiceDraftPatch {
+  invoice_number?: string;
+  customer_id?: number | null;
+  gross_amount?: number;
+  vat_amount?: number;
+  currency?: string;
+  tax_point_date?: string;
+  due_date?: string | null;
+  supply_type?: 'goods' | 'services' | null;
+  service_place_rule?: ServicePlaceRule;
+}
+
+export const updateInvoiceDraft = (id: number, patch: InvoiceDraftPatch) =>
+  apiFetch<SalesInvoice>(`/api/sales-invoices/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
   });
 
 // ── Corrections (reversal + corrected voucher of a POSTED object) ──────────

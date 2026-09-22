@@ -1,6 +1,14 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { BusinessObjectStatus } from '../common/types/business-object-status';
+import {
+  currencyCodeSchema,
+  grossMinorSchema,
+  isoDateSchema,
+  optionalTextSchema,
+  draftEditObject,
+  vatMinorSchema,
+} from '../common/draft-edit';
 
 export type ExpenseStatus = BusinessObjectStatus;
 
@@ -77,6 +85,77 @@ export const postOverrideSchema = z.preprocess(
 );
 
 export class PostOverrideDto extends createZodDto(postOverrideSchema) {}
+
+/** The facts an operator may correct on a draft/pending expense (issue #247). */
+export const EXPENSE_DRAFT_EDITABLE_FIELDS = [
+  'category',
+  'supplier_id',
+  'gross_amount',
+  'vat_amount',
+  'currency',
+  'tax_point_date',
+  'supplier_invoice_number',
+  'claimant_id',
+  'company_addressed_receipt',
+] as const;
+
+/**
+ * Fields a draft edit refuses BY NAME, with the reason — never silently
+ * dropped. Provenance (the source document and what the AI read from it) is
+ * evidence, not an opinion to overwrite; status/voucher move only through the
+ * posting pipeline; the fixed-asset facts belong to the asset register flow.
+ */
+const EXPENSE_DRAFT_IMMUTABLE: Record<string, string> = {
+  document_id:
+    'document_id is the source document (provenance) and cannot be changed on an existing expense',
+  document_vat_marking:
+    'document_vat_marking is read from the source document and cannot be edited',
+  ai_confidence: 'AI classification facts are preserved as recorded (ADR-0039)',
+  ai_document_type:
+    'AI classification facts are preserved as recorded (ADR-0039)',
+  ai_kind: 'AI classification facts are preserved as recorded (ADR-0039)',
+  asset_name:
+    'fixed-asset facts are set when the expense is recorded and are not part of the draft-edit contract',
+  asset_useful_life_years:
+    'fixed-asset facts are set when the expense is recorded and are not part of the draft-edit contract',
+  asset_residual_value_minor:
+    'fixed-asset facts are set when the expense is recorded and are not part of the draft-edit contract',
+  status: 'status changes only through submit/approve/reject, never by editing',
+  voucher_id: 'voucher_id is owned by the posting pipeline',
+  id: 'id is immutable',
+};
+
+/**
+ * A draft-only edit of an expense's economic facts (issue #247). Draft or
+ * pending only — a pending expense returns to draft and its approval is
+ * superseded; a posted/reversed one is corrected via POST
+ * /api/expenses/:id/correct, never edited. Saving never posts.
+ */
+export const patchExpenseDraftSchema = draftEditObject(
+  {
+    category: z.string().min(1).optional(),
+    supplier_id: z.number().int().positive().nullable().optional(),
+    gross_amount: grossMinorSchema.optional(),
+    vat_amount: vatMinorSchema.optional(),
+    currency: currencyCodeSchema.optional(),
+    tax_point_date: isoDateSchema.optional(),
+    supplier_invoice_number: optionalTextSchema.optional(),
+    claimant_id: z.number().int().positive().nullable().optional(),
+    company_addressed_receipt: z.boolean().nullable().optional(),
+    // Same operator escape hatch as create (issue #195): only needed when the
+    // edit moves the expense onto another expense's duplicate key.
+    allow_duplicate: z.boolean().optional(),
+  },
+  EXPENSE_DRAFT_IMMUTABLE,
+).refine((v) => EXPENSE_DRAFT_EDITABLE_FIELDS.some((k) => v[k] !== undefined), {
+  message: `Supply at least one field to edit (${EXPENSE_DRAFT_EDITABLE_FIELDS.join(', ')})`,
+});
+
+export class PatchExpenseDraftDto extends createZodDto(
+  patchExpenseDraftSchema,
+) {}
+
+export type PatchExpenseDraftInput = z.infer<typeof patchExpenseDraftSchema>;
 
 export interface ExpenseWithVoucher extends Expense {
   voucher?: unknown;

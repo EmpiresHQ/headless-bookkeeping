@@ -30,6 +30,7 @@ import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
+import { ExpenseEditSheet } from './EditDraftSheet';
 
 /** Honest history (Reality #2): built ONLY from exposed facts — created_at,
  *  the rejection log, and the reversed status. The correction's own date and
@@ -89,6 +90,7 @@ export function ExpenseScreen() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const correctSheet = useSheet();
+  const editSheet = useSheet();
   const [busy, setBusy] = useState(false);
 
   if (detailQ.isError) {
@@ -258,6 +260,14 @@ export function ExpenseScreen() {
               Submit for posting
             </Button>
             <Button
+              variant="secondary"
+              className="w-full"
+              disabled={busy}
+              onClick={() => editSheet.open()}
+            >
+              Edit draft…
+            </Button>
+            <Button
               variant="danger"
               className="w-full"
               disabled={busy}
@@ -319,6 +329,19 @@ export function ExpenseScreen() {
        *  stays gated on status; only the mount moved to the sheet's own
        *  open/close lifecycle (epoch keeps state fresh per open, P07 T7
        *  discipline). */}
+      {/* Same keep-mounted lifecycle as CorrectSheet: a save refetches the
+       *  object while the sheet closes; the epoch key gives every open a
+       *  fresh form prefilled from the current facts. */}
+      {editSheet.epoch > 0 && (
+        <ExpenseEditSheet
+          key={`edit-${detail.id}-${editSheet.epoch}`}
+          open={editSheet.isOpen}
+          onOpenChange={(o) => !o && editSheet.close()}
+          detail={detail}
+          onSaved={() => void detailQ.refetch()}
+        />
+      )}
+
       {correctSheet.epoch > 0 && (
         <CorrectSheet
           key={`${detail.id}-${correctSheet.epoch}`}

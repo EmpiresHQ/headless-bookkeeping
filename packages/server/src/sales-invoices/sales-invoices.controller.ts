@@ -70,27 +70,41 @@ export class SalesInvoicesController {
   }
 
   /**
-   * Correct a DRAFT invoice's amounts and supply facts, then post it again.
+   * Correct a DRAFT invoice's facts, then post it again.
    *
    * The supported remedy for the 422 refusals a service sale can hit (issue
    * #209) — a wrongly stated `supply_type` / `service_place_rule`, or a VAT
-   * amount that contradicts the resolved treatment. Draft/pending only; a
-   * posted invoice is 409 (its voucher is immutable — reverse it instead).
+   * amount that contradicts the resolved treatment — and for a rejection
+   * (issue #247). Draft/pending only; a posted invoice is 409 (its voucher is
+   * immutable — reverse it instead). Saving never posts.
    */
   @Patch(':id')
   @ApiOperation({
     summary: 'Patch a draft sales invoice',
     description:
-      'Correct a draft (or pending) invoice: gross_amount, vat_amount, ' +
-      'supply_type, service_place_rule. A pending invoice returns to draft and ' +
-      'its approval is superseded. Posted/reversed -> 409.',
+      'Correct a draft (or pending) invoice: gross_amount, vat_amount ' +
+      '(integer cents), currency, tax_point_date, due_date, supply_type, ' +
+      'service_place_rule, and — only while never sent — invoice_number and ' +
+      'customer_id (sent -> 409; duplicate number -> 409). A pending invoice ' +
+      'returns to draft and its approval is superseded. Provenance ' +
+      '(document_id) is not editable (400). Posted/reversed -> 409. Never posts.',
   })
   @ApiParam({ name: 'id', description: 'Sales invoice id' })
   async patchDraft(
     @Param('id') id: string,
     @Body() dto: PatchSalesInvoiceDraftDto,
   ): Promise<SalesInvoice> {
-    return this.salesInvoicesService.updateDraft(Number(id), dto);
+    try {
+      return await this.salesInvoicesService.updateDraft(Number(id), dto);
+    } catch (err) {
+      // The UNIQUE constraint is the backstop for the service's own pre-check.
+      if (isInvoiceNumberConflict(err)) {
+        throw new ConflictException(
+          `Invoice number ${String(dto.invoice_number)} already exists`,
+        );
+      }
+      throw err;
+    }
   }
 
   @Post(':id/generate-draft')

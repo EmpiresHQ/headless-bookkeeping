@@ -73,4 +73,23 @@ describe('apiFetch', () => {
       apiFetch('/api/expenses/7', { method: 'DELETE' }),
     ).rejects.toThrow(/only a draft can be deleted/);
   });
+
+  it('renders the Zod pipe field-error body as "field: message"', async () => {
+    setToken('tok');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          gross_amount: ['must be greater than zero'],
+          _errors: ['document_id is the source document (provenance)'],
+        }),
+        { status: 400, statusText: 'Bad Request' },
+      ),
+    );
+
+    await expect(
+      apiFetch('/api/expenses/7', { method: 'PATCH' }),
+    ).rejects.toThrow(
+      '400 Bad Request: gross_amount: must be greater than zero · document_id is the source document (provenance)',
+    );
+  });
 });
