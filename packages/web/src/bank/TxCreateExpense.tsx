@@ -6,6 +6,7 @@ import {
   type CreateFromLineResult,
 } from '../queries/bank';
 import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
+import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { GroupLabel, KeyValue } from '../ui/List';
@@ -180,7 +181,7 @@ export function TxCreateExpense({
         })}
       </div>
 
-      <div className="sticky bottom-0 bg-gradient-to-t from-bg via-bg/95 to-transparent px-4 pb-3.5 pt-3">
+      <ActionBar>
         <Button
           className="h-[46px] w-full"
           disabled={!valid}
@@ -189,7 +190,7 @@ export function TxCreateExpense({
         >
           Create &amp; match · {fmtCents(tx.amount)} €
         </Button>
-      </div>
+      </ActionBar>
       <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         The amount and date come from the bank — they are facts, not fields
       </p>

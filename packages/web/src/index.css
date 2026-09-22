@@ -3,6 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  /* Mobile tab bar geometry (shell/TabBar). Sticky action bars offset by
+     --tabbar-h so they rest ABOVE the fixed bar instead of under it; the
+     bar is lg:hidden, so the offset collapses to 0 on desktop. The 47px
+     row covers pt-2 + a 22px icon + the 9.5px label (measured 46.25px). */
+  :root {
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --tabbar-row-h: 47px;
+    --tabbar-h: calc(var(--tabbar-row-h) + max(var(--safe-bottom), 8px));
+  }
+  @media (min-width: theme('screens.lg')) {
+    :root {
+      --tabbar-h: 0px;
+    }
+  }
   body {
     @apply bg-bg text-ink antialiased;
     font-family:

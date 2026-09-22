@@ -19,7 +19,7 @@ export function AppLayout({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <Sidebar onSignOut={onSignOut} inboxCount={inboxCount} />
-      <div className="pb-24 lg:pb-6 lg:pl-56">
+      <div className="pb-[calc(var(--tabbar-h)+2.5rem)] lg:pb-6 lg:pl-56">
         <Suspense
           fallback={
             <div className="mx-auto max-w-3xl pt-6">
