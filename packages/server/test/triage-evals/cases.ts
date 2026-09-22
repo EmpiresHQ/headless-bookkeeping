@@ -1,3 +1,8 @@
+import {
+  classifyDocumentClass,
+  DocumentType,
+  IntakeRoute,
+} from '../../src/intake/document-class';
 import type { Pass2Outcome } from '../../src/ai/pass2-agent.service';
 import type { TriageEvidence } from '../../src/ai/triage-context';
 
@@ -11,6 +16,8 @@ export interface TriageEvalCase {
     failure?: { category: string; detail: string };
     amount?: number;
     vatAmount?: number;
+    documentType?: DocumentType;
+    route?: IntakeRoute;
     category?: string;
     registrationKey?: string | null;
     country?: string | null;
@@ -142,6 +149,8 @@ Payment bank: SWEDBANK`,
       kind: 'new_expense',
       amount: 9100,
       vatAmount: 1761,
+      documentType: 'order_confirmation',
+      route: 'non_postable',
       registrationKey: 'EE100000003',
       country: 'EE',
       matched: false,
@@ -207,6 +216,16 @@ export function evaluateTriageCase(
     result.vat_amount !== expected.vatAmount
   )
     errors.push(`vat: ${result.vat_amount}`);
+  if (expected.documentType && result.document_type !== expected.documentType)
+    errors.push(`document type: ${result.document_type}`);
+  if (
+    expected.route &&
+    classifyDocumentClass({
+      documentType: result.document_type,
+      ibanMatched: test.direction === 'outgoing',
+    }).route !== expected.route
+  )
+    errors.push('wrong downstream intake route');
   if (expected.category !== undefined && result.category !== expected.category)
     errors.push(`category: ${result.category}`);
   if (
