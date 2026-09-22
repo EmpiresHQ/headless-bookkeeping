@@ -319,7 +319,10 @@ const ACCOUNTING_RELEVANCE_CONTRACT =
   'Treat such a concrete incoming purchase as new_expense unless the document explicitly says it is only a quote/estimate, has no payment obligation, or a separate invoice will follow. ' +
   'A total alone is insufficient. Explicit preliminary orders, quotations and nonpayable confirmations remain not_a_document. ' +
   'If the evidence is ambiguous, use unknown for human review rather than dismissing an accounting candidate as irrelevant. ' +
-  'This triage decision does not certify tax validity or establish that payment occurred. ';
+  'This triage decision does not certify tax validity or establish that payment occurred. ' +
+  'Examples of the boundary: (A) Tellimus T42, dated, named seller with VAT ID, named buyer, one keyboard, net EUR 50, VAT EUR 12, final total EUR 62, seller bank details, no preliminary disclaimer: kind=new_expense, extract the seller; the heading is not an exclusion. ' +
+  '(B) The same details plus quotation only / estimated price / invoice will follow on dispatch: kind=not_a_document. ' +
+  'Do not require the literal word invoice, an explicit payment demand, due date or proof of payment for case A. Never invent a preliminary disclaimer that is absent from the document. ';
 
 export const EVIDENCE_CONTRACT =
   ACCOUNTING_RELEVANCE_CONTRACT +
