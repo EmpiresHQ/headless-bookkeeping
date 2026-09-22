@@ -19,7 +19,7 @@ import { Button } from '../ui/Button';
 import { toastErr } from '../ui/toast';
 import { SupplierDecisionPanel } from './SupplierDecisionPanel';
 
-type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr';
+type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
 
 interface Props {
   documentId: number;
@@ -161,7 +161,7 @@ function GenericDecision(
     outgoing_invoice: ['Review sales invoice', 'invoice', ReceiptText],
     ocr_failed: ['Replace or retry file', 'ocr', FileUp],
     classification_failed: ['Classify manually', 'classify', FileSearch],
-    possible_duplicate: ['Review possible duplicate', 'classify', FileSearch],
+    possible_duplicate: ['Review possible duplicate', 'duplicate', FileSearch],
     non_postable_document: ['Review document type', 'classify', FileSearch],
     unimplemented: ['Classify manually', 'classify', FileSearch],
     unknown: ['Classify manually', 'classify', FileSearch],
