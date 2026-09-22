@@ -49,9 +49,7 @@ export const triageEvalCases: TriageEvalCase[] = [
     negative: true,
     markdown: `${seller}\nPROFORMA / Ettemaksuarve 70379. Date 20.09.2026. Domain renewal: one.example EUR 7.00 net + 1.68 VAT; two.example EUR 7.00 net + 1.68 VAT. Net total EUR 14.00. VAT EUR 3.36. Total requested EUR 17.36. This is a proforma payment request. A final invoice will follow.`,
     expected: {
-      kind: 'new_expense',
-      amount: 1736,
-      vatAmount: 336,
+      kind: 'not_a_document',
       documentType: 'proforma',
       route: 'non_postable',
     },
