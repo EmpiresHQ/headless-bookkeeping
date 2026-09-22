@@ -419,7 +419,14 @@ export class IntakeWorkflowService {
     documentId: number,
     claimantId?: number | null,
   ): Promise<IntakeWorkflowResult> {
-    return this.gate.run(() => this.processInner(documentId, claimantId));
+    // The per-document exclusion (issue #248) spans the status read through
+    // routing, so a deliberate attach cannot claim the document between this
+    // run's "still pending" read and its draft creation — nor the reverse.
+    return this.gate.run(() =>
+      this.documents.runExclusive(documentId, () =>
+        this.processInner(documentId, claimantId),
+      ),
+    );
   }
 
   private async processInner(
@@ -908,6 +915,15 @@ export class IntakeWorkflowService {
     documentId: number,
     supplierEntityId: number,
   ): Promise<IntakeWorkflowResult> {
+    return this.documents.runExclusive(documentId, () =>
+      this.resolveSupplierInner(documentId, supplierEntityId),
+    );
+  }
+
+  private async resolveSupplierInner(
+    documentId: number,
+    supplierEntityId: number,
+  ): Promise<IntakeWorkflowResult> {
     const doc = await this.documents.getById(documentId);
 
     // Idempotent replay: already resolved into a draft.
@@ -1034,6 +1050,15 @@ export class IntakeWorkflowService {
    * existing draft instead of creating a second expense.
    */
   async manualClassify(
+    documentId: number,
+    dto: ManualClassifyDto,
+  ): Promise<IntakeWorkflowResult> {
+    return this.documents.runExclusive(documentId, () =>
+      this.manualClassifyInner(documentId, dto),
+    );
+  }
+
+  private async manualClassifyInner(
     documentId: number,
     dto: ManualClassifyDto,
   ): Promise<IntakeWorkflowResult> {
