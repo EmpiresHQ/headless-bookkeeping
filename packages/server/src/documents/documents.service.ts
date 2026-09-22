@@ -456,6 +456,9 @@ export class DocumentsService {
       .updateTable('document')
       .set({
         status: 'pending',
+        classification_snapshot: null,
+        pending_triage_result: null,
+        pending_triage_enrichment: null,
         processing_since: null,
         processing_attempts: 0,
       })
@@ -562,6 +565,46 @@ export class DocumentsService {
         `(claimant_id=${candidate.claimant_id ?? 'null'})`,
     );
     return { id: candidate.id, claimant_id: candidate.claimant_id ?? null };
+  }
+
+  /** Read-only extraction evidence; never used to authorize supplier replay. */
+  async setClassificationSnapshot(
+    id: number,
+    result: TriageResult,
+    enrichment: Pass2Enrichment | null,
+  ): Promise<void> {
+    await this.db
+      .updateTable('document')
+      .set({
+        classification_snapshot: JSON.stringify({
+          triageResult: result,
+          enrichment,
+        }),
+      })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  async getClassificationSnapshot(
+    id: number,
+  ): Promise<PendingTriageReplay | null> {
+    const row = await this.db
+      .selectFrom('document')
+      .select('classification_snapshot')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (row?.classification_snapshot == null) return null;
+    const value = JSON.parse(row.classification_snapshot) as {
+      triageResult: unknown;
+      enrichment: unknown;
+    };
+    return {
+      triageResult: triageResultSchema.parse(value.triageResult),
+      enrichment:
+        value.enrichment == null
+          ? null
+          : pass2EnrichmentSchema.parse(value.enrichment),
+    };
   }
 
   /**

@@ -47,11 +47,11 @@ export function DuplicateReviewSheet({
   const classification = detailsQ.data?.classification;
   const current = classification?.ok ? classification.result : null;
   const existing = existingQ.data;
+  const missing = current ? 'Not extracted' : 'Classification unavailable';
   const money = (
     amount: number | null | undefined,
     currency: string | null | undefined,
-  ) =>
-    amount == null ? 'Not extracted' : `${fmtCents(amount)} ${currency ?? '—'}`;
+  ) => (amount == null ? missing : `${fmtCents(amount)} ${currency ?? '—'}`);
   const rows = existing
     ? [
         [
@@ -125,9 +125,7 @@ export function DuplicateReviewSheet({
                         <th scope="row" className="p-2">
                           {label}
                         </th>
-                        <td className="break-words p-2">
-                          {value ?? 'Not extracted'}
-                        </td>
+                        <td className="break-words p-2">{value ?? missing}</td>
                         <td className="break-words p-2">
                           {previous ?? 'Not recorded'}
                         </td>

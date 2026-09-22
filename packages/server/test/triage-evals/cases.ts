@@ -32,6 +32,29 @@ const seller =
 const invoice = `${seller}\nInvoice INV-1, 2026-09-10. Software subscription. Total EUR 24.80, VAT EUR 4.80 (24%).`;
 export const triageEvalCases: TriageEvalCase[] = [
   {
+    id: 'duplicate-review-domain-invoice',
+    markdown: `${seller}\nArve / Invoice 70379. Date 20.09.2026. Domain renewal: one.example EUR 7.00 net + 1.68 VAT; two.example EUR 7.00 net + 1.68 VAT. Net total EUR 14.00. VAT 24% EUR 3.36. Total due EUR 17.36. Paid EUR 0.00. Left to pay EUR 17.36.`,
+    expected: {
+      kind: 'new_expense',
+      amount: 1736,
+      vatAmount: 336,
+      invoiceNumber: '70379',
+      documentType: 'invoice',
+      route: 'expense',
+      category: 'software',
+    },
+  },
+  {
+    id: 'duplicate-review-domain-proforma-negative',
+    negative: true,
+    markdown: `${seller}\nPROFORMA / Ettemaksuarve 70379. Date 20.09.2026. Domain renewal: one.example EUR 7.00 net + 1.68 VAT; two.example EUR 7.00 net + 1.68 VAT. Net total EUR 14.00. VAT EUR 3.36. Total requested EUR 17.36. This is a proforma payment request. A final invoice will follow.`,
+    expected: {
+      kind: 'not_a_document',
+      documentType: 'proforma',
+      route: 'non_postable',
+    },
+  },
+  {
     id: 'known-supplier',
     markdown: invoice,
     expected: {
