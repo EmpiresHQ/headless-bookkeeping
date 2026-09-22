@@ -6,6 +6,7 @@ import {
   type BankTransaction,
 } from '../api';
 import { signedEuros } from '../lib/money';
+import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { SegmentedControl } from '../ui/SegmentedControl';
@@ -389,11 +390,11 @@ export function IncomingOpen({
         is: a payment for a supply is taxed on the day it arrived, a deposit is
         not, and an unclassified receipt is held until someone says which.
       </div>
-      <div className="sticky bottom-0 bg-gradient-to-t from-bg via-bg/95 to-transparent px-4 pb-3.5 pt-3">
+      <ActionBar>
         <Button className="h-[46px] w-full" onClick={onPrepayment}>
           Record prepayment · {signedEuros(tx.amount)}
         </Button>
-      </div>
+      </ActionBar>
     </>
   );
 }

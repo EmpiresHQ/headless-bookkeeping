@@ -7,6 +7,7 @@ import {
   type MatchCandidatesResult,
 } from '../api';
 import { bookManualMatch, invalidateStatement } from '../queries/bank';
+import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { GroupLabel } from '../ui/List';
 import { toastErr } from '../ui/toast';
@@ -160,7 +161,7 @@ export function TxCandidates({
           be recorded as a whole-line prepayment from the "Or" sheet.)
         </div>
       )}
-      <div className="sticky bottom-0 bg-gradient-to-t from-bg via-bg/95 to-transparent px-4 pb-3.5 pt-3">
+      <ActionBar>
         <Button
           className="h-[46px] w-full"
           disabled={allocated <= 0}
@@ -169,7 +170,7 @@ export function TxCandidates({
         >
           Match {fmtCents(allocated)} €
         </Button>
-      </div>
+      </ActionBar>
       <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         N:M — the remainder is never lost: it stays visible on the line
       </p>

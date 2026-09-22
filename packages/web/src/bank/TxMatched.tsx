@@ -6,6 +6,7 @@ import {
   type ReconciliationStatusRow,
 } from '../api';
 import { confirmStagedMatch, undoMatches } from '../queries/bank';
+import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { GroupLabel, KeyValue } from '../ui/List';
@@ -125,7 +126,7 @@ export function TxMatched({
           </div>
         </>
       )}
-      <div className="sticky bottom-0 flex gap-2.5 bg-gradient-to-t from-bg via-bg/95 to-transparent px-4 pb-3.5 pt-3">
+      <ActionBar className="flex gap-2.5">
         {staged.length > 0 && (
           <Button
             className="h-[46px] flex-1"
@@ -143,7 +144,7 @@ export function TxMatched({
         >
           Unmatch
         </Button>
-      </div>
+      </ActionBar>
       <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         Unmatch returns the line to unmatched · the booked object is untouched
       </p>
