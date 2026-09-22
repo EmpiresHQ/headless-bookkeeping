@@ -80,6 +80,22 @@ describe('TriageDecisionPanel', () => {
     expect(details).toHaveTextContent('AI confidence 0.41 below threshold 0.8');
   });
 
+  it.each(['future_reason', null, undefined, 'constructor', '__proto__'])(
+    'renders a manual-review fallback for an unexpected API reason %s',
+    (reason) => {
+      const { onOpen } = renderPanel({
+        item: ITEM({ reason_type: reason as NeedsTriageItem['reason_type'] }),
+      });
+      expect(
+        screen.getByRole('heading', { name: 'Review this document manually' }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Classify manually' }),
+      );
+      expect(onOpen).toHaveBeenCalledWith('classify');
+    },
+  );
+
   describe('supplier_unresolved', () => {
     const supplierItem = ITEM({
       reason_type: 'supplier_unresolved',
@@ -226,6 +242,8 @@ describe('TriageDecisionPanel', () => {
       ['outgoing_invoice', 'Review sales invoice', 'invoice'],
       ['ocr_failed', 'Replace or retry file', 'ocr'],
       ['classification_failed', 'Classify manually', 'classify'],
+      ['possible_duplicate', 'Review possible duplicate', 'classify'],
+      ['non_postable_document', 'Review document type', 'classify'],
     ] as const;
 
     it.each(cases)('%s → %s opens %s', (reason_type, label, sheet) => {

@@ -59,6 +59,14 @@ const COPY = {
     'No booking is needed',
     'This file does not appear to be an accounting document.',
   ],
+  possible_duplicate: [
+    'This purchase may already be booked',
+    'Compare this document with the existing expense before booking it again. Archive it if it is a duplicate.',
+  ],
+  non_postable_document: [
+    'Review the document type',
+    'This appears to be an order confirmation, proforma, or quote. Check for a final invoice before booking.',
+  ],
   unimplemented: [
     'Review this document manually',
     'The document type is recognized but is not handled automatically yet.',
@@ -76,7 +84,14 @@ export function TriageDecisionPanel(props: Props) {
     queryFn: () => getPendingDraft(props.documentId),
     enabled: props.item.reason_type === 'supplier_unresolved',
   });
-  const [title, subtitle] = COPY[props.item.reason_type];
+  // API responses can contain newer, missing or invalid reason codes.
+  const reasonType = Object.prototype.hasOwnProperty.call(
+    COPY,
+    props.item.reason_type,
+  )
+    ? props.item.reason_type
+    : 'unknown';
+  const [title, subtitle] = COPY[reasonType];
 
   const resolveSuggested = async (draft: PendingDraft) => {
     const proposal = draft.supplier_proposal;
@@ -124,7 +139,7 @@ export function TriageDecisionPanel(props: Props) {
           onChoose={() => props.onOpen('resolve')}
         />
       ) : (
-        <GenericDecision {...props} />
+        <GenericDecision {...props} reasonType={reasonType} />
       )}
 
       <details className="mx-3.5 mt-2 text-[12px] text-ink-2">
@@ -137,17 +152,21 @@ export function TriageDecisionPanel(props: Props) {
   );
 }
 
-function GenericDecision(props: Props) {
+function GenericDecision(
+  props: Props & { reasonType: NeedsTriageItem['reason_type'] },
+) {
   const actions = {
     low_confidence: ['Review extracted data', 'classify', FileSearch],
     category_unresolved: ['Choose category', 'classify', FileSearch],
     outgoing_invoice: ['Review sales invoice', 'invoice', ReceiptText],
     ocr_failed: ['Replace or retry file', 'ocr', FileUp],
     classification_failed: ['Classify manually', 'classify', FileSearch],
+    possible_duplicate: ['Review possible duplicate', 'classify', FileSearch],
+    non_postable_document: ['Review document type', 'classify', FileSearch],
     unimplemented: ['Classify manually', 'classify', FileSearch],
     unknown: ['Classify manually', 'classify', FileSearch],
   } as const;
-  if (props.item.reason_type === 'not_a_document') {
+  if (props.reasonType === 'not_a_document') {
     return (
       <div className="mx-3.5 mb-3">
         <Button
@@ -160,8 +179,8 @@ function GenericDecision(props: Props) {
       </div>
     );
   }
-  if (props.item.reason_type === 'supplier_unresolved') return null;
-  const [label, sheet, Icon] = actions[props.item.reason_type];
+  if (props.reasonType === 'supplier_unresolved') return null;
+  const [label, sheet, Icon] = actions[props.reasonType];
   return (
     <div className="mx-3.5 mb-3">
       <Button

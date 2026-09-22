@@ -156,6 +156,8 @@ export type TriageReasonType =
   | 'classification_failed'
   | 'unimplemented'
   | 'not_a_document'
+  | 'non_postable_document'
+  | 'possible_duplicate'
   | 'unknown';
 
 /**

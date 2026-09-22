@@ -55,6 +55,10 @@ export function triageSubtitle(
       return 'OCR could not read the file — retry or replace';
     case 'classification_failed':
       return 'AI classification failed — retry or classify manually';
+    case 'possible_duplicate':
+      return 'May already be booked — compare with the existing expense';
+    case 'non_postable_document':
+      return 'Order or proforma — check for a final invoice';
     case 'not_a_document':
       return 'Does not look like a business document';
     case 'unimplemented':

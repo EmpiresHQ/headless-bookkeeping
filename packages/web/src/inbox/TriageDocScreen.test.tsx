@@ -152,6 +152,34 @@ describe('TriageDocScreen', () => {
     );
   });
 
+  it('renders document 195 with a possible-duplicate reason and allows review without booking', async () => {
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        id: 195,
+        reason_type: 'possible_duplicate',
+        reason:
+          'possible duplicate of expense #113: same supplier and invoice number 2AUEKTA3 0002.',
+      }),
+    ]);
+    renderAt('/inbox/doc/195');
+    expect(
+      await screen.findByRole('heading', {
+        name: 'This purchase may already be booked',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Archive without booking' }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review possible duplicate' }),
+    );
+    await waitFor(() =>
+      expect(api.getDocumentDetails).toHaveBeenCalledWith(195),
+    );
+    expect(api.manualClassify).not.toHaveBeenCalled();
+    expect(api.resolveSupplier).not.toHaveBeenCalled();
+  });
+
   it('leads with the semantic decision, keeps the raw reason as collapsed technical detail, and shows persisted facts', async () => {
     renderAt('/inbox/doc/12');
     expect(await screen.findByText('2 of 2')).toBeInTheDocument();
