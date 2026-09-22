@@ -10,6 +10,7 @@ export interface TriageEvalCase {
     kind: string;
     failure?: { category: string; detail: string };
     amount?: number;
+    vatAmount?: number;
     category?: string;
     registrationKey?: string | null;
     country?: string | null;
@@ -123,6 +124,30 @@ export const triageEvalCases: TriageEvalCase[] = [
     },
   },
   {
+    // Document 228 regression; buyer/contact details anonymized.
+    id: 'order-heading-accounting-document',
+    markdown: `Tellimus W76155
+Klient: Sample Buyer OÜ, Tallinn, Reg.nr.: 17499653
+Kuupäev: 21.09.2026
+1. Logitech BRIO 500 webcam, tk 1, 89.00 EUR
+2. Kohaletoimetamine: Smartpost, tk 1, 2.00 EUR
+Kokku: 73.39 EUR
+Käibemaks(24%): 17.61 EUR
+Summa kokku: 91.00 EUR
+Seller: Example Hardware OÜ, Tallinn, Estonia
+Reg nr.: 10345355, KMKR: EE100000003
+E-post: web@example.invalid
+Payment bank: SWEDBANK`,
+    expected: {
+      kind: 'new_expense',
+      amount: 9100,
+      vatAmount: 1761,
+      registrationKey: 'EE100000003',
+      country: 'EE',
+      matched: false,
+    },
+  },
+  {
     id: 'order-is-not-invoice',
     negative: true,
     markdown: `${seller}\nTellimus W123, 2026-09-21. ORDER CONFIRMATION ONLY, NOT AN INVOICE. Webcam EUR 89.00, delivery EUR 2.00. Estimated total EUR 91.00. Payment not requested; invoice will be issued on dispatch.`,
@@ -177,6 +202,11 @@ export function evaluateTriageCase(
   if (result.kind !== expected.kind) errors.push(`kind: ${result.kind}`);
   if (expected.amount !== undefined && result.gross_amount !== expected.amount)
     errors.push(`amount: ${result.gross_amount}`);
+  if (
+    expected.vatAmount !== undefined &&
+    result.vat_amount !== expected.vatAmount
+  )
+    errors.push(`vat: ${result.vat_amount}`);
   if (expected.category !== undefined && result.category !== expected.category)
     errors.push(`category: ${result.category}`);
   if (

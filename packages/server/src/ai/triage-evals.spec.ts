@@ -110,6 +110,22 @@ describe('prompt eval assertions (negative controls)', () => {
     ]);
   });
 
+  it('catches rejecting an accounting document solely for its order heading and catches wrong VAT', () => {
+    const test = triageEvalCases.find(
+      (entry) => entry.id === 'order-heading-accounting-document',
+    )!;
+    const outcome = good();
+    if (!outcome.ok) throw new Error('fixture');
+    outcome.result.kind = 'not_a_document';
+    expect(evaluateTriageCase(test, outcome, evidence)).toContain(
+      'kind: not_a_document',
+    );
+    outcome.result.kind = 'new_expense';
+    outcome.result.gross_amount = 9100;
+    outcome.result.vat_amount = 0;
+    expect(evaluateTriageCase(test, outcome, evidence)).toContain('vat: 0');
+  });
+
   it('includes explicit negative scenarios in the live corpus', () => {
     expect(
       triageEvalCases.filter((test) => test.negative).length,
