@@ -16,6 +16,7 @@ export interface TriageEvalCase {
     failure?: { category: string; detail: string };
     amount?: number;
     vatAmount?: number;
+    invoiceNumber?: string;
     documentType?: DocumentType;
     route?: IntakeRoute;
     category?: string;
@@ -157,6 +158,46 @@ Payment bank: SWEDBANK`,
     },
   },
   {
+    // Final invoice for the order-heading regression, with the advance applied.
+    id: 'prepaid-final-invoice',
+    markdown: `Arve 649284
+Kuupäev: 22.09.2026. Tasumistingimus: Ettemaks. Tasumistähtaeg: 23.09.2026
+Kliendi tellimuse nr: W76155. Kommentaar: full_prepayment
+Maksja: Sample Buyer OÜ, KMKR EE100000002, Tallinn, Estonia
+Seller: Example Hardware OÜ, Tallinn, Estonia, KMKR EE100000003
+Logitech BRIO 500 webcam and Smartpost delivery
+Neto 73.39 EUR, KM 24% 17.61 EUR, Kokku 91.00 EUR
+Ettemaks (EUR): -91.00
+Tasuda (EUR): 0.00`,
+    expected: {
+      kind: 'new_expense',
+      documentType: 'invoice',
+      route: 'expense',
+      amount: 9100,
+      vatAmount: 1761,
+      invoiceNumber: '649284',
+      category: 'it_equipment',
+      registrationKey: 'EE100000003',
+      country: 'EE',
+      matched: false,
+    },
+  },
+  {
+    id: 'prepaid-proforma-stays-proforma',
+    negative: true,
+    markdown: `${seller}
+Ettemaksuarve P-45 / PROFORMA ONLY. 2026-09-21.
+Webcam and delivery, net 73.39 EUR, VAT 17.61 EUR, total 91.00 EUR.
+Advance paid 91.00 EUR; balance 0.00 EUR.
+This is a preliminary document; a separate final invoice will follow on dispatch.`,
+    expected: {
+      kind: 'not_a_document',
+      documentType: 'proforma',
+      route: 'non_postable',
+      matched: false,
+    },
+  },
+  {
     id: 'order-is-not-invoice',
     negative: true,
     markdown: `${seller}\nTellimus W123, 2026-09-21. ORDER CONFIRMATION ONLY, NOT AN INVOICE. Webcam EUR 89.00, delivery EUR 2.00. Estimated total EUR 91.00. Payment not requested; invoice will be issued on dispatch.`,
@@ -216,6 +257,11 @@ export function evaluateTriageCase(
     result.vat_amount !== expected.vatAmount
   )
     errors.push(`vat: ${result.vat_amount}`);
+  if (
+    expected.invoiceNumber &&
+    result.supplier_invoice_number !== expected.invoiceNumber
+  )
+    errors.push(`invoice number: ${result.supplier_invoice_number}`);
   if (expected.documentType && result.document_type !== expected.documentType)
     errors.push(`document type: ${result.document_type}`);
   if (

@@ -126,6 +126,28 @@ describe('prompt eval assertions (negative controls)', () => {
     expect(evaluateTriageCase(test, outcome, evidence)).toContain('vat: 0');
   });
 
+  it('rejects confusing a settled invoice with its payment balance, order number or proforma route', () => {
+    const test = triageEvalCases.find(
+      (entry) => entry.id === 'prepaid-final-invoice',
+    )!;
+    const outcome = good();
+    if (!outcome.ok) throw new Error('fixture');
+    outcome.result.gross_amount = 0;
+    outcome.result.supplier_invoice_number = 'W76155';
+    outcome.result.document_type = 'proforma';
+    const errors = evaluateTriageCase(test, outcome, evidence);
+    expect(errors).toContain('amount: 0');
+    expect(errors).toContain('invoice number: W76155');
+    expect(errors).toContain('wrong downstream intake route');
+    const proforma = triageEvalCases.find(
+      (entry) => entry.id === 'prepaid-proforma-stays-proforma',
+    )!;
+    outcome.result.document_type = 'invoice';
+    expect(evaluateTriageCase(proforma, outcome, evidence)).toContain(
+      'wrong downstream intake route',
+    );
+  });
+
   it('includes explicit negative scenarios in the live corpus', () => {
     expect(
       triageEvalCases.filter((test) => test.negative).length,
