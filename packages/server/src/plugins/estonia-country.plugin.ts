@@ -517,6 +517,9 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       'document_type="invoice".\n' +
       '- A document titled "Arve nr X / Tellimus nr Y" is the INVOICE for order ' +
       'Y — classify it as invoice, not as an order.\n' +
+      '- Distinguish the title Ettemaksuarve (proforma) from payment terms Tasumistingimus: Ettemaks and settlement lines Ettemaks / Tasuda on an Arve. A numbered Arve referencing a customer order remains document_type=invoice even when an advance covers it in full. ' +
+      'Example: Arve 123, Tellimus W45, net 73.39, VAT 17.61, gross 91.00, Ettemaks -91.00, Tasuda 0.00 => invoice number 123, gross_amount=9100, vat_amount=1761; not proforma, order, correction or zero-value purchase. ' +
+      'An explicitly titled proforma/Ettemaksuarve remains proforma even if paid.\n' +
       'When both a Tellimus and an Arve describe the same purchase, ONLY the ' +
       'Arve is postable.'
     );
