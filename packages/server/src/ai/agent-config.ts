@@ -33,7 +33,7 @@ const TRIAGE_RELEVANCE_AND_KIND_GUIDANCE =
   '- "not_a_document": the file is not a business accounting document at all (see Step 1).\n' +
   '- "unknown": it DOES look like an accounting document but you genuinely cannot tell what it is.\n' +
   'When unsure between new_expense and correction, choose new_expense. ' +
-  'When unsure whether a file is an accounting document at all, prefer "not_a_document" over guessing "new_expense".\n\n' +
+  'When accounting evidence is ambiguous, choose "unknown" for human review; reserve "not_a_document" for clearly irrelevant or explicitly preliminary/nonpayable files.\n\n' +
   'Amounts `gross_amount` and `vat_amount` are INTEGER MINOR UNITS (cents): ' +
   'US$16.00 → 1600, and the European-formatted "6 157,00" EUR → 615700. ' +
   'Read European number formats correctly (space/dot = thousands, comma = decimal) and NEVER divide by 100. ' +
@@ -80,7 +80,7 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'Extract evidence from a document for bookkeeping; do not classify amounts or propose database entities. ' +
     'Set kind=new_expense for an incoming supplier invoice or receipt, new_sales_invoice for an outgoing invoice issued by our organization, ' +
     'correction only for an explicit credit note/revision referencing an earlier invoice, duplicate only when there is evidence of an already recorded document. ' +
-    'Use not_a_document for newsletters, correspondence, contracts, delivery notes and order confirmations (even if they show a total); unknown when accounting evidence is insufficient. ' +
+    'Use not_a_document for newsletters, correspondence, contracts, plain delivery notes and explicitly preliminary orders with no current payment obligation; unknown when accounting evidence is insufficient. ' +
     'Select a candidate expense category from the supplied list only for new_expense; otherwise category=null. ' +
     'Return the evidence schema only.',
   triage_classification:
