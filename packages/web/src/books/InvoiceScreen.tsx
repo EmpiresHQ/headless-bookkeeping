@@ -23,6 +23,7 @@ import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
+import { InvoiceEditSheet } from './EditDraftSheet';
 
 /** /books/invoices/:id — facts come from the LIST row (no single-invoice
  *  endpoint exists, Reality #13; the row is cache-shared with the segment).
@@ -47,6 +48,7 @@ export function InvoiceScreen() {
   );
 
   const correctSheet = useSheet();
+  const editSheet = useSheet();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -218,6 +220,14 @@ export function InvoiceScreen() {
               Submit for posting
             </Button>
             <Button
+              variant="secondary"
+              className="w-full"
+              disabled={busy}
+              onClick={() => editSheet.open()}
+            >
+              Edit draft…
+            </Button>
+            <Button
               variant="danger"
               className="w-full"
               disabled={busy}
@@ -274,6 +284,19 @@ export function InvoiceScreen() {
        *  stays gated on status; only the mount moved to the sheet's own
        *  open/close lifecycle (epoch keeps state fresh per open, P07 T7
        *  discipline). */}
+      {/* Same keep-mounted lifecycle as CorrectSheet: a save refetches the
+       *  object while the sheet closes; the epoch key gives every open a
+       *  fresh form prefilled from the current facts. */}
+      {editSheet.epoch > 0 && (
+        <InvoiceEditSheet
+          key={`edit-${inv.id}-${editSheet.epoch}`}
+          open={editSheet.isOpen}
+          onOpenChange={(o) => !o && editSheet.close()}
+          invoice={inv}
+          onSaved={() => void invoicesQ.refetch()}
+        />
+      )}
+
       {correctSheet.epoch > 0 && (
         <CorrectSheet
           key={`${inv.id}-${correctSheet.epoch}`}

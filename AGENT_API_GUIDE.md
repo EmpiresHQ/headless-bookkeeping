@@ -205,6 +205,22 @@ curl -H "$H" -H "$J" -X POST $B/api/expenses/<id>/post -d '{}'
 ```
 The response contains `policy.action`: **`auto-post`** (e.g. "within ceiling" → a voucher is created; double entry Dr EXPENSE_* + Dr VAT_RECEIVABLE = Cr AP, VAT code from the plugin e.g. `IE_INPUT_23`) or **`hold-for-approval`** ("exceeds ceiling …").
 
+A draft that is wrong (typo, rejected approval, posting refusal) is fixed on the
+SAME expense and submitted again — the source document, AI facts and approval
+history stay attached:
+```bash
+curl -H "$H" -H "$J" -X PATCH $B/api/expenses/<id> -d '{
+  "category":"software","supplier_id":2,"gross_amount":6150,"vat_amount":1150,
+  "currency":"EUR","tax_point_date":"2026-06-10","supplier_invoice_number":"INV-9"}'
+# editable: category, supplier_id, gross_amount, vat_amount (integer cents),
+#   currency, tax_point_date, supplier_invoice_number, claimant_id,
+#   company_addressed_receipt. Anything else (document_id, ai_*, status, …) -> 400
+#   naming the field. draft/pending only (pending -> draft, approval superseded);
+#   posted/reversed -> 409 (use .../correct). Moving onto another expense's
+#   duplicate key -> 409 unless "allow_duplicate":true (audited). Never posts.
+curl -H "$H" -H "$J" -X POST $B/api/expenses/<id>/post -d '{}'   # resubmit
+```
+
 ### Cross-border purchases: where a reverse charge is declared (EE)
 
 A purchase from a foreign supplier is self-assessed (pöördmaksustamine) when the
@@ -322,6 +338,9 @@ curl -H "$H" -H "$J" -X PATCH $B/api/sales-invoices/<id> -d '{
 # a posted voucher is immutable, correct it via POST .../correct (reversal).
 # Amounts are validated AFTER the merge: sending vat_amount alone still has to
 # fit the invoice's existing gross_amount (400 otherwise).
+# Also editable: currency, tax_point_date, due_date, and — only while the
+# invoice has never been sent — invoice_number (unique, 409) and customer_id
+# (sent -> 409). document_id and other non-editable fields -> 400 by name.
 # Customer-side facts go to PATCH /api/entities/:id instead.
 ```
 

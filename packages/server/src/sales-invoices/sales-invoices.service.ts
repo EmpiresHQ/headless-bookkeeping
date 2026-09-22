@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
@@ -13,6 +14,7 @@ import {
   SalesInvoice,
   SalesInvoiceStatus,
   CreateSalesInvoiceDto,
+  PatchSalesInvoiceDraftInput,
   SERVICE_PLACE_RULES,
 } from './types';
 import type { ServicePlaceRule } from '../plugins/country-plugin.interface';
@@ -370,13 +372,9 @@ export class SalesInvoicesService {
    */
   async updateDraft(
     id: number,
-    patch: {
-      gross_amount?: number;
-      vat_amount?: number;
-      category?: string;
-      supply_type?: 'goods' | 'services' | null;
-      service_place_rule?: ServicePlaceRule;
-    },
+    // `category` arrives from the corrections flow's shared amount patch and
+    // is ignored: an invoice always posts to revenue.
+    patch: PatchSalesInvoiceDraftInput & { category?: string },
   ): Promise<SalesInvoice> {
     const now = Math.floor(Date.now() / 1000);
 
@@ -399,10 +397,22 @@ export class SalesInvoicesService {
       }
       this.assertEditable(id, current.status);
       this.assertPatchedAmounts(id, current, patch);
+      await this.assertIdentityPatch(trx, id, current, patch);
 
       const updated = await trx
         .updateTable('sales_invoice')
         .set({
+          ...(patch.invoice_number !== undefined && {
+            invoice_number: patch.invoice_number,
+          }),
+          ...(patch.customer_id !== undefined && {
+            customer_id: patch.customer_id,
+          }),
+          ...(patch.currency !== undefined && { currency: patch.currency }),
+          ...(patch.tax_point_date !== undefined && {
+            tax_point_date: patch.tax_point_date,
+          }),
+          ...(patch.due_date !== undefined && { due_date: patch.due_date }),
           ...(patch.gross_amount !== undefined && {
             gross_amount: patch.gross_amount,
           }),
@@ -478,6 +488,77 @@ export class SalesInvoicesService {
     });
 
     return this.mapRow(row);
+  }
+
+  /**
+   * Identity (number, customer) may change only on an invoice that has never
+   * been sent — after that the customer holds a document with that identity,
+   * and a different number or customer is a different invoice. A new number
+   * must stay unique (the UNIQUE constraint is the backstop; this check gives
+   * the caller a clear 409 first). A changed customer must exist and be one.
+   */
+  private async assertIdentityPatch(
+    trx: Kysely<Database>,
+    id: number,
+    current: {
+      invoice_number: string;
+      customer_id: number | null;
+      sent_at: number | null;
+    },
+    patch: { invoice_number?: string; customer_id?: number | null },
+  ): Promise<void> {
+    const numberChanges =
+      patch.invoice_number !== undefined &&
+      patch.invoice_number !== current.invoice_number;
+    const customerChanges =
+      patch.customer_id !== undefined &&
+      patch.customer_id !== current.customer_id;
+    if (!numberChanges && !customerChanges) return;
+
+    if (current.sent_at !== null) {
+      const fields = [
+        numberChanges && 'invoice_number',
+        customerChanges && 'customer_id',
+      ].filter(Boolean);
+      throw new ConflictException(
+        `Sales invoice ${id} has already been sent to the customer, so its ` +
+          `identity (${fields.join(', ')}) is immutable: the customer holds a ` +
+          `document with that number and addressee. Amounts, dates and supply ` +
+          `facts remain editable while it is a draft.`,
+      );
+    }
+
+    if (numberChanges) {
+      const taken = await trx
+        .selectFrom('sales_invoice')
+        .select('id')
+        .where('invoice_number', '=', patch.invoice_number!)
+        .where('id', '!=', id)
+        .executeTakeFirst();
+      if (taken) {
+        throw new ConflictException(
+          `Invoice number ${patch.invoice_number} already exists`,
+        );
+      }
+    }
+
+    if (customerChanges && patch.customer_id != null) {
+      const customer = await trx
+        .selectFrom('entity')
+        .select(['id', 'role'])
+        .where('id', '=', patch.customer_id)
+        .executeTakeFirst();
+      if (!customer) {
+        throw new UnprocessableEntityException(
+          `customer_id: entity ${patch.customer_id} does not exist`,
+        );
+      }
+      if (customer.role !== 'customer') {
+        throw new UnprocessableEntityException(
+          `customer_id: entity ${patch.customer_id} is a ${customer.role}, expected customer`,
+        );
+      }
+    }
   }
 
   /** Only a draft (or a pending invoice, whose approval is then superseded) is editable. */

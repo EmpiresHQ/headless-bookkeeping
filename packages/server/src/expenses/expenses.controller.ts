@@ -16,7 +16,11 @@ import {
 import { ExpensesService } from './expenses.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
 import { FixedAssetRegistrarService } from '../fixed-assets/fixed-asset-registrar.service';
-import { CreateExpenseDto, PostOverrideDto } from './types';
+import {
+  CreateExpenseDto,
+  PatchExpenseDraftDto,
+  PostOverrideDto,
+} from './types';
 import type { Expense } from './types';
 import type { DraftVoucher } from '../ledger/voucher/types';
 import {
@@ -74,6 +78,35 @@ export class ExpensesController {
   @ApiParam({ name: 'id', description: 'Expense id' })
   async deleteExpense(@Param('id') id: string): Promise<Expense> {
     return this.expensesService.deleteDraft(Number(id));
+  }
+
+  /**
+   * Edit a DRAFT expense's facts in place, then submit it again (issue #247).
+   *
+   * The remedy a rejection or a posting refusal points at: the SAME expense
+   * keeps its source document, AI facts and approval history. Draft/pending
+   * only; a posted/reversed expense is 409 (its voucher is immutable — use
+   * POST /api/expenses/:id/correct). Saving never posts.
+   */
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Edit a draft expense',
+    description:
+      'Edit a draft (or pending) expense: category, supplier_id, gross_amount, ' +
+      'vat_amount (integer cents), currency, tax_point_date, ' +
+      'supplier_invoice_number, claimant_id, company_addressed_receipt. A ' +
+      'pending expense returns to draft and its approval is superseded. ' +
+      'Provenance (document_id, AI facts) is not editable (400). Changing the ' +
+      'duplicate key onto another expense is 409 unless allow_duplicate. ' +
+      'Posted/reversed -> 409. Never posts.',
+  })
+  @ApiParam({ name: 'id', description: 'Expense id' })
+  @ApiOkResponse({ schema: expenseResponseSchema })
+  async patchDraft(
+    @Param('id') id: string,
+    @Body() dto: PatchExpenseDraftDto,
+  ): Promise<Expense> {
+    return this.expensesService.updateDraft(Number(id), dto);
   }
 
   /**

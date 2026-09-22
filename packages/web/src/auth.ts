@@ -84,11 +84,26 @@ export async function apiFetchRaw(
 async function errorDetail(res: Response): Promise<string> {
   const body = await res.text();
   try {
-    const parsed = JSON.parse(body) as { message?: string | string[] };
+    const parsed = JSON.parse(body) as Record<string, unknown> & {
+      message?: string | string[];
+    };
     if (parsed.message) {
       return Array.isArray(parsed.message)
         ? parsed.message.join('; ')
         : parsed.message;
+    }
+    // The server's Zod pipe answers 400 with `{ field: [messages] }` (plus
+    // `_errors` for payload-level ones) — render it as "field: message".
+    const fieldErrors = Object.entries(parsed).filter(
+      (e): e is [string, string[]] =>
+        Array.isArray(e[1]) && e[1].every((m) => typeof m === 'string'),
+    );
+    if (fieldErrors.length > 0) {
+      return fieldErrors
+        .map(([k, msgs]) =>
+          k === '_errors' ? msgs.join('; ') : `${k}: ${msgs.join('; ')}`,
+        )
+        .join(' · ');
     }
   } catch {
     // Not JSON — fall through to the raw body.

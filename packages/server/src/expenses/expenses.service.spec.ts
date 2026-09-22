@@ -25,9 +25,11 @@ describe('ExpensesService (integration)', () => {
   let service: ExpensesService;
   let entitiesService: EntitiesService;
   let organizationService: OrganizationService;
+  let auditLog: AuditLogService;
+  let rawDb: SqliteDb.Database;
 
   beforeEach(async () => {
-    const rawDb = new SqliteDb(':memory:');
+    rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: rawDb }),
@@ -68,6 +70,7 @@ describe('ExpensesService (integration)', () => {
     service = module.get(ExpensesService);
     entitiesService = module.get(EntitiesService);
     organizationService = module.get(OrganizationService);
+    auditLog = module.get(AuditLogService);
   });
 
   afterEach(async () => {
@@ -397,6 +400,181 @@ describe('ExpensesService (integration)', () => {
         .executeTakeFirstOrThrow();
       expect(resolvedFinding.status).toBe('resolved');
       expect(resolvedFinding.resolved_at).not.toBeNull();
+    });
+  });
+
+  describe('updateDraft hardening (issue #247)', () => {
+    async function makeVoucher(number: string): Promise<number> {
+      const v = await db
+        .insertInto('voucher')
+        .values({
+          voucher_number: number,
+          tax_point_date: '2026-03-15',
+          posted_at: 1,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      return v.id;
+    }
+
+    async function supplier(name: string, key: string) {
+      return entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name,
+        registrationKey: key,
+      });
+    }
+
+    it('edits every editable fact of a draft in place, keeping provenance', async () => {
+      const s = await supplier('Edit Supplier', 'EE100000001');
+      const e = await service.createExpense({
+        ...sampleDto(),
+        ai_confidence: 0.7,
+        ai_document_type: 'receipt',
+        document_vat_marking: '24%',
+      });
+      const updated = await service.updateDraft(e.id, {
+        category: 'transport',
+        supplier_id: s.id,
+        gross_amount: 6200,
+        vat_amount: 1200,
+        currency: 'USD',
+        tax_point_date: '2026-04-01',
+        supplier_invoice_number: 'S-1',
+        company_addressed_receipt: true,
+      });
+      expect(updated).toMatchObject({
+        id: e.id,
+        status: 'draft',
+        category: 'transport',
+        supplier_id: s.id,
+        gross_amount: 6200,
+        vat_amount: 1200,
+        currency: 'USD',
+        tax_point_date: '2026-04-01',
+        supplier_invoice_number: 'S-1',
+        company_addressed_receipt: true,
+        ai_confidence: 0.7,
+        ai_document_type: 'receipt',
+        document_vat_marking: '24%',
+      });
+    });
+
+    it('refuses a posted or reversed expense and writes nothing', async () => {
+      for (const status of ['posted', 'reversed'] as const) {
+        const e = await service.createExpense(sampleDto());
+        const v = await makeVoucher(`V-${status}`);
+        await service.updateExpenseStatus(e.id, status, v);
+        const before = await service.getExpenseById(e.id);
+        await expect(
+          service.updateDraft(e.id, { gross_amount: 1 }),
+        ).rejects.toThrow(new RegExp(`is ${status}`));
+        expect(await service.getExpenseById(e.id)).toEqual(before);
+      }
+    });
+
+    it('refuses a voucher-backed "draft" row (the claim requires voucher_id IS NULL)', async () => {
+      const e = await service.createExpense(sampleDto());
+      const v = await makeVoucher('V-ORPHAN');
+      await db
+        .updateTable('expense')
+        .set({ voucher_id: v })
+        .where('id', '=', e.id)
+        .execute();
+      await expect(
+        service.updateDraft(e.id, { gross_amount: 1000, vat_amount: 0 }),
+      ).rejects.toThrow(/changed while this edit was being applied/);
+      const after = await service.getExpenseById(e.id);
+      expect(after.gross_amount).toBe(12300);
+      expect(after.voucher_id).toBe(v);
+    });
+
+    it('does NOT overwrite an expense that gets posted mid-edit (conditional claim)', async () => {
+      const e = await service.createExpense(sampleDto());
+      const voucherId = await makeVoucher('V-MID-EDIT');
+      // Interleave a post between the in-transaction read and the UPDATE on
+      // the single connection the transaction holds.
+      const flip = jest
+        .spyOn(
+          service as unknown as { assertMergedAmounts: () => void },
+          'assertMergedAmounts',
+        )
+        .mockImplementation(() => {
+          rawDb
+            .prepare(
+              "UPDATE expense SET status = 'posted', voucher_id = ? WHERE id = ?",
+            )
+            .run(voucherId, e.id);
+        });
+      await expect(
+        service.updateDraft(e.id, {
+          gross_amount: 99900,
+          category: 'transport',
+        }),
+      ).rejects.toThrow(/changed while this edit was being applied/);
+      flip.mockRestore();
+      const after = await service.getExpenseById(e.id);
+      expect(after.gross_amount).toBe(12300);
+      expect(after.category).toBe('software');
+    });
+
+    it('validates the MERGED amounts, not just the fields sent', async () => {
+      const e = await service.createExpense(sampleDto());
+      await expect(
+        service.updateDraft(e.id, { vat_amount: 50000 }),
+      ).rejects.toThrow(/would exceed gross_amount/);
+      await expect(
+        service.updateDraft(e.id, { gross_amount: 1000 }),
+      ).rejects.toThrow(/would exceed gross_amount/);
+    });
+
+    it('an edit of a newly editable fact makes a prepared draft stale', async () => {
+      const s = await supplier('Fingerprint Supplier', 'EE100000002');
+      const e = await service.createExpense(sampleDto());
+      for (const patch of [
+        { supplier_id: s.id },
+        { currency: 'USD' },
+        { tax_point_date: '2026-03-16' },
+        { company_addressed_receipt: true },
+      ]) {
+        const before = await service.draftFactsFingerprint(e.id);
+        await service.updateDraft(e.id, patch);
+        await expect(
+          service.assertDraftFactsUnchangedTx(db, e.id, before),
+        ).rejects.toThrow(/changed while it was being posted/);
+      }
+    });
+
+    it('rolls the edit back when the duplicate-override audit entry fails', async () => {
+      const s = await supplier('Dup Supplier', 'EE100000003');
+      await service.createExpense({
+        ...sampleDto(),
+        supplier_id: s.id,
+        supplier_invoice_number: 'N-1',
+      });
+      const b = await service.createExpense({
+        ...sampleDto(),
+        supplier_id: s.id,
+        supplier_invoice_number: 'N-2',
+      });
+      const record = jest
+        .spyOn(auditLog, 'record')
+        .mockRejectedValueOnce(new Error('audit_log unavailable'));
+      await expect(
+        service.updateDraft(b.id, {
+          supplier_invoice_number: 'N-1',
+          category: 'transport',
+          allow_duplicate: true,
+        }),
+      ).rejects.toThrow(/audit_log unavailable/);
+      record.mockRestore();
+      const after = await service.getExpenseById(b.id);
+      expect(after.supplier_invoice_number).toBe('N-2');
+      expect(after.category).toBe('software');
+      expect(
+        await db.selectFrom('audit_log').select('id').execute(),
+      ).toHaveLength(0);
     });
   });
 

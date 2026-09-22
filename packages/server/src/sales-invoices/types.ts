@@ -2,6 +2,13 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { BusinessObjectStatus } from '../common/types/business-object-status';
 import type { ServicePlaceRule } from '../plugins/country-plugin.interface';
+import {
+  currencyCodeSchema,
+  grossMinorSchema,
+  isoDateSchema,
+  draftEditObject,
+  vatMinorSchema,
+} from '../common/draft-edit';
 
 /** The place-of-supply rules a caller may declare for a service invoice. */
 export const SERVICE_PLACE_RULES = [
@@ -81,30 +88,72 @@ export class SalesInvoicePostOverrideDto extends createZodDto(
   salesInvoicePostOverrideSchema,
 ) {}
 
+/** The facts an operator may correct on a draft/pending invoice (issues #209, #247). */
+export const SALES_INVOICE_DRAFT_EDITABLE_FIELDS = [
+  'invoice_number',
+  'customer_id',
+  'gross_amount',
+  'vat_amount',
+  'currency',
+  'tax_point_date',
+  'due_date',
+  'supply_type',
+  'service_place_rule',
+] as const;
+
 /**
- * A draft-only correction of the facts a posting is derived from (issue #209).
+ * Fields a draft edit refuses BY NAME, with the reason — never silently dropped.
+ * `invoice_number` / `customer_id` are editable but only until the invoice has
+ * been SENT (enforced in the service, 409): after that the customer holds a
+ * document with that identity.
+ */
+const SALES_INVOICE_DRAFT_IMMUTABLE: Record<string, string> = {
+  document_id:
+    'document_id is the source document (provenance) and cannot be changed on an existing invoice',
+  document_vat_marking:
+    'document_vat_marking is read from the source document and cannot be edited',
+  sent_at: 'sent_at changes only through POST /api/sales-invoices/:id/send',
+  status: 'status changes only through submit/approve/reject, never by editing',
+  voucher_id: 'voucher_id is owned by the posting pipeline',
+  category: 'a sales invoice always posts to revenue; category is not editable',
+  id: 'id is immutable',
+};
+
+/**
+ * A draft-only correction of the facts a posting is derived from (issues
+ * #209, #247).
  *
  * The refusals tell a caller to fix an invoice's supply facts or amounts and
- * post again, so there has to be a supported way to do exactly that on the
- * SAME draft: the invoice number is unique, so "create it again" is not a
- * remedy. Only a `draft` (or a `pending` one, whose approval is then
- * superseded) can be patched — a POSTED invoice's voucher is immutable and is
- * corrected by reversal (ADR-0006), never by editing the object underneath it.
+ * post again, and a rejection asks for the same, so there has to be a
+ * supported way to do exactly that on the SAME draft: the invoice number is
+ * unique, so "create it again" is not a remedy. Only a `draft` (or a `pending`
+ * one, whose approval is then superseded) can be patched — a POSTED invoice's
+ * voucher is immutable and is corrected by reversal (ADR-0006), never by
+ * editing the object underneath it.
  *
- * Identity (invoice number, customer) is NOT patchable here: a different
- * customer is a different invoice.
+ * Identity (invoice number, customer) is patchable only while the invoice has
+ * never been sent: once the customer holds the document, a different number or
+ * customer is a different invoice (409). A new number must still be unique.
  */
-export const patchSalesInvoiceDraftSchema = z
-  .object({
-    gross_amount: z.number().positive().optional(),
-    vat_amount: z.number().nonnegative().optional(),
+export const patchSalesInvoiceDraftSchema = draftEditObject(
+  {
+    invoice_number: z.string().trim().min(1).max(100).optional(),
+    customer_id: z.number().int().positive().nullable().optional(),
+    gross_amount: grossMinorSchema.optional(),
+    vat_amount: vatMinorSchema.optional(),
+    currency: currencyCodeSchema.optional(),
+    tax_point_date: isoDateSchema.optional(),
+    due_date: isoDateSchema.nullable().optional(),
     supply_type: z.enum(['goods', 'services']).nullable().optional(),
     service_place_rule: z.enum(SERVICE_PLACE_RULES).optional(),
-  })
-  .refine((v) => Object.keys(v).length > 0, {
-    message:
-      'Supply at least one field to patch (gross_amount, vat_amount, supply_type, service_place_rule)',
-  });
+  },
+  SALES_INVOICE_DRAFT_IMMUTABLE,
+).refine(
+  (v) => SALES_INVOICE_DRAFT_EDITABLE_FIELDS.some((k) => v[k] !== undefined),
+  {
+    message: `Supply at least one field to patch (${SALES_INVOICE_DRAFT_EDITABLE_FIELDS.join(', ')})`,
+  },
+);
 
 export class PatchSalesInvoiceDraftDto extends createZodDto(
   patchSalesInvoiceDraftSchema,
