@@ -11,7 +11,7 @@ import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import {
   centsToEuroInput,
   eurosToCents,
-  signedEuros,
+  signedMoney,
   vatFromGross,
 } from '../lib/money';
 import { inboxKeys } from '../queries/inbox';
@@ -69,7 +69,10 @@ export function ClassifyExpenseSheet({
   const [gross, setGross] = useState('');
   const [vat, setVat] = useState('');
   const [vatTouched, setVatTouched] = useState(false);
-  const [currency, setCurrency] = useState('EUR');
+  // null = untouched: renders/submits as EUR until the persisted currency or
+  // the operator sets it. A deliberate EUR pick is non-null, so a late
+  // prefill cannot overwrite it (the old `cur === 'EUR'` check could).
+  const [currencyChoice, setCurrencyChoice] = useState<string | null>(null);
   const [date, setDate] = useState('');
   const [vatMarking, setVatMarking] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -100,12 +103,8 @@ export function ClassifyExpenseSheet({
       setVat((cur) =>
         cur === '' ? centsToEuroInput(c.result.vat_amount) : cur,
       );
-      setCurrency((cur) =>
-        cur === 'EUR'
-          ? c.result.currency !== ''
-            ? c.result.currency
-            : 'EUR'
-          : cur,
+      setCurrencyChoice((cur) =>
+        cur === null && c.result.currency !== '' ? c.result.currency : cur,
       );
       setDate((cur) => (cur === '' ? c.result.tax_point_date : cur));
       setCategory((cur) => (cur === '' ? c.result.category : cur));
@@ -184,6 +183,15 @@ export function ClassifyExpenseSheet({
     const label = categories.find((c) => c.key === topKey)?.label ?? topKey;
     return `Usually ${label} · ${topCount} of ${es.length}`;
   }, [supplier, expenses, categories]);
+
+  const currency = currencyChoice ?? 'EUR';
+  // A persisted currency outside the fixed list stays selectable, so the
+  // select never shows a different value than the payload carries.
+  const currencyOptions: readonly string[] = (
+    CURRENCIES as readonly string[]
+  ).includes(currency)
+    ? CURRENCIES
+    : [...CURRENCIES, currency];
 
   const grossCents = eurosToCents(gross);
   const vatCents = eurosToCents(vat);
@@ -376,11 +384,11 @@ export function ClassifyExpenseSheet({
         <div className="flex gap-2.5">
           <div className="flex-1">
             <Field
-              label="Amount (EUR)"
+              label={`Amount (${currency})`}
               hint={`saved from the AI read · VAT auto at ${STANDARD_VAT_RATE_PCT}%`}
             >
               <TextInput
-                aria-label="Amount (EUR)"
+                aria-label={`Amount (${currency})`}
                 inputMode="decimal"
                 value={gross}
                 onChange={(e) => onGrossChange(e.target.value)}
@@ -388,9 +396,12 @@ export function ClassifyExpenseSheet({
             </Field>
           </div>
           <div className="flex-1">
-            <Field label="VAT" hint="edit if the receipt differs">
+            <Field
+              label={`VAT (${currency})`}
+              hint="edit if the receipt differs"
+            >
               <TextInput
-                aria-label="VAT"
+                aria-label={`VAT (${currency})`}
                 inputMode="decimal"
                 value={vat}
                 onChange={(e) => {
@@ -415,10 +426,11 @@ export function ClassifyExpenseSheet({
           <div className="flex-1">
             <Field label="Currency">
               <SelectInput
+                aria-label="Currency"
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
+                onChange={(e) => setCurrencyChoice(e.target.value)}
               >
-                {CURRENCIES.map((c) => (
+                {currencyOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -491,7 +503,7 @@ export function ClassifyExpenseSheet({
           onClick={() => void submit()}
         >
           {grossCents !== null && grossCents > 0
-            ? `Create expense · ${signedEuros(-grossCents)}`
+            ? `Create expense · ${signedMoney(-grossCents, currency)}`
             : 'Create expense'}
         </Button>
       </div>

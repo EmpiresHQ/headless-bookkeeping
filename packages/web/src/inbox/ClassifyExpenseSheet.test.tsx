@@ -184,13 +184,13 @@ describe('ClassifyExpenseSheet', () => {
     const onDone = renderSheet();
     expect(await screen.findByText(/no saved ai facts/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/amount \(eur\)/i)).toHaveValue('');
-    expect(screen.getByLabelText('VAT')).toHaveValue('');
+    expect(screen.getByLabelText('VAT (EUR)')).toHaveValue('');
     expect(api.getDocumentReclassify).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/amount \(eur\)/i), {
       target: { value: '25.00' },
     });
-    fireEvent.change(screen.getByLabelText('VAT'), {
+    fireEvent.change(screen.getByLabelText('VAT (EUR)'), {
       target: { value: '4.51' },
     });
     fireEvent.change(screen.getByLabelText(/date/i), {
@@ -452,7 +452,7 @@ describe('ClassifyExpenseSheet', () => {
     // 10000 * 22 / 122 = 1803
     expect(screen.getByDisplayValue('18.03')).toBeInTheDocument();
     // Exact-string match: a /vat/i regex would also hit "VAT marking".
-    const vat = screen.getByLabelText('VAT');
+    const vat = screen.getByLabelText('VAT (EUR)');
     fireEvent.change(vat, { target: { value: '0.00' } });
     fireEvent.change(gross, { target: { value: '50.00' } });
     expect(screen.getByDisplayValue('0.00')).toBeInTheDocument(); // manual VAT kept
@@ -498,6 +498,121 @@ describe('ClassifyExpenseSheet', () => {
       document_id: 12,
       expense_id: 700,
     });
+  });
+
+  it('shows the selected currency on amount, VAT and button without converting', async () => {
+    const onDone = renderSheet();
+    await screen.findByDisplayValue('48.20');
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'USD' },
+    });
+    fireEvent.change(screen.getByLabelText('Amount (USD)'), {
+      target: { value: '1200' },
+    });
+    // 120000 * 22 / 122 = 21639 — unchanged by the currency switch below.
+    expect(screen.getByLabelText('VAT (USD)')).toHaveValue('216.39');
+    expect(
+      screen.getByRole('button', { name: 'Create expense · −1200.00 USD' }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'SEK' },
+    });
+    expect(screen.getByLabelText('Amount (SEK)')).toHaveValue('1200');
+    expect(screen.getByLabelText('VAT (SEK)')).toHaveValue('216.39');
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'USD' },
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
+      target: { value: 'circle' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Circle K Eesti AS/ }));
+    const submit = screen.getByRole('button', {
+      name: 'Create expense · −1200.00 USD',
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(api.manualClassify).toHaveBeenCalledWith(
+        12,
+        expect.objectContaining({
+          gross_amount: 120000,
+          vat_amount: 21639,
+          currency: 'USD',
+        }),
+      ),
+    );
+    expect(onDone).toHaveBeenCalled();
+  });
+
+  it('keeps a deliberate currency pick (even EUR) when the persisted facts land later', async () => {
+    let resolveDetails!: (
+      v: Awaited<ReturnType<typeof api.getDocumentDetails>>,
+    ) => void;
+    vi.mocked(api.getDocumentDetails).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetails = resolve;
+      }),
+    );
+    renderSheet();
+    const select = await screen.findByLabelText('Currency');
+    fireEvent.change(select, { target: { value: 'USD' } });
+    fireEvent.change(select, { target: { value: 'EUR' } });
+
+    resolveDetails({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'X …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'USD',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+      },
+    });
+    await screen.findByDisplayValue('48.20');
+    expect(select).toHaveValue('EUR');
+    expect(
+      screen.getByRole('button', { name: 'Create expense · −48.20 €' }),
+    ).toBeInTheDocument();
+  });
+
+  it('prefills a persisted currency, including one outside the fixed list', async () => {
+    vi.mocked(api.getDocumentDetails).mockResolvedValue({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'X …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'CHF',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+      },
+    });
+    renderSheet();
+    expect(await screen.findByLabelText('Amount (CHF)')).toHaveValue('48.20');
+    expect(screen.getByLabelText('Currency')).toHaveValue('CHF');
+    expect(screen.getByLabelText('VAT (CHF)')).toHaveValue('8.67');
+    expect(
+      screen.getByRole('button', { name: 'Create expense · −48.20 CHF' }),
+    ).toBeInTheDocument();
   });
 
   it('expands the full category list behind "All…"', async () => {
