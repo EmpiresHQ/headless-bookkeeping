@@ -51,9 +51,11 @@ export function ListRow({
   chip?: ReactNode;
 }) {
   const interactive = to != null || onClick != null;
-  const body = (
+  const leadingSlot = leading != null && (
+    <div className="flex-none">{leading}</div>
+  );
+  const content = (
     <>
-      {leading != null && <div className="flex-none">{leading}</div>}
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14.5px] font-semibold">{title}</div>
         {subtitle != null && (
@@ -72,12 +74,32 @@ export function ListRow({
     </>
   );
   if (to != null) {
+    // Stretched link: `leading` is a sibling of the <Link>, never inside it,
+    // so the slot may hold its own control (e.g. DocThumbLightbox's preview
+    // button and its dialog) without nesting interactive content in the <a>
+    // or bubbling clicks to it — in the DOM and in React's tree alike. The
+    // link's ::after still covers the whole row, so a tap on a decorative
+    // leading glyph navigates; a leading control opts out of that with
+    // `relative z-10`.
     return (
-      <Link to={to} viewTransition className={ROW_CLS}>
-        {body}
-      </Link>
+      <div className={`relative ${ROW_CLS}`}>
+        {leadingSlot}
+        <Link
+          to={to}
+          viewTransition
+          className="flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0"
+        >
+          {content}
+        </Link>
+      </div>
     );
   }
+  const body = (
+    <>
+      {leadingSlot}
+      {content}
+    </>
+  );
   if (onClick != null) {
     return (
       <button type="button" onClick={onClick} className={ROW_CLS}>

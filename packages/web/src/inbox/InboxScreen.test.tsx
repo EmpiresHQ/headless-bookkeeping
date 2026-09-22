@@ -193,6 +193,84 @@ describe('InboxScreen', () => {
       expect(link).toHaveAttribute('href', '/inbox/doc/12');
     });
 
+    describe('preview lightbox stays out of the row link (UI-002)', () => {
+      async function openPreview() {
+        const router = renderAt('/inbox');
+        const thumb = await screen.findByRole('button', {
+          name: 'Open document preview',
+        });
+        fireEvent.click(thumb);
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Document preview',
+        });
+        return { router, thumb, dialog };
+      }
+
+      it('renders no interactive element inside any row link', async () => {
+        await openPreview();
+        const links = screen.getAllByRole('link');
+        expect(links.length).toBeGreaterThan(0);
+        for (const link of links) {
+          expect(
+            link.querySelector(
+              'a, button, input, select, textarea, [tabindex]',
+            ),
+          ).toBeNull();
+        }
+        // Neither the thumb button nor the open dialog sit inside the link.
+        const button = screen.getByRole('button', {
+          name: 'Open document preview',
+        });
+        expect(button.closest('a')).toBeNull();
+        expect(screen.getByRole('dialog').closest('a')).toBeNull();
+      });
+
+      it.each([
+        ['the backdrop', (dialog: HTMLElement) => fireEvent.click(dialog)],
+        [
+          'the X button',
+          (dialog: HTMLElement) =>
+            fireEvent.click(
+              within(dialog).getByRole('button', { name: 'Close preview' }),
+            ),
+        ],
+        ['Escape', () => fireEvent.keyDown(window, { key: 'Escape' })],
+      ])(
+        'closing via %s only closes the preview and keeps /inbox',
+        async (_label, close) => {
+          const { router, dialog } = await openPreview();
+          // jsdom doesn't run an <a>'s native default action, so an X click
+          // bubbling through a real <a> would pass unnoticed here — assert the
+          // dialog is outside any link as well as the router outcome.
+          expect(dialog.closest('a')).toBeNull();
+          close(dialog);
+
+          await waitFor(() =>
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+          );
+          expect(router.state.location.pathname).toBe('/inbox');
+          expect(router.state.historyAction).toBe('POP');
+          expect(screen.queryByText('doc detail')).not.toBeInTheDocument();
+          // The list (and its row) is still mounted, not re-rendered from a
+          // detail round-trip.
+          expect(screen.getByText('cheque_scan_038.jpg')).toBeInTheDocument();
+        },
+      );
+
+      it('opening the preview does not navigate', async () => {
+        const { router } = await openPreview();
+        expect(router.state.location.pathname).toBe('/inbox');
+      });
+
+      it('clicking the row itself still navigates to the document', async () => {
+        const router = renderAt('/inbox');
+        await screen.findByRole('button', { name: 'Open document preview' });
+        fireEvent.click(screen.getByText('cheque_scan_038.jpg'));
+        expect(await screen.findByText('doc detail')).toBeInTheDocument();
+        expect(router.state.location.pathname).toBe('/inbox/doc/12');
+      });
+    });
+
     it('does not fetch a thumbnail for an approval row (no document id) and shows the checkmark glyph', async () => {
       renderAt('/inbox');
       expect(await screen.findByText('Telia Eesti AS')).toBeInTheDocument();

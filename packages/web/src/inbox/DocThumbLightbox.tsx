@@ -10,12 +10,14 @@ import {
 /**
  * Clickable document thumbnail that opens the full-screen preview lightbox.
  *
- * Drops into a `ListRow`'s `leading` slot the same way {@link DocThumb} does,
- * but the row itself is usually a navigating `<Link>`, so when a preview
- * exists the thumb is a `<button>` that stops the click from bubbling to the
- * row (preventDefault + stopPropagation) and opens the lightbox instead. When
- * there is no preview to show we render the plain `fallback` glyph with no
- * button, so a tap there just navigates with the rest of the row.
+ * Drops into a `ListRow`'s `leading` slot the same way {@link DocThumb} does.
+ * A navigating `ListRow` keeps `leading` outside its `<Link>` and stretches the
+ * link over the row, so when a preview exists the thumb is a `<button>` raised
+ * above that overlay (`relative z-10`) and neither it nor the lightbox is a
+ * descendant of the link: closing the preview can't bubble into a navigation.
+ * When there is no preview we render the plain `fallback` glyph with no
+ * button, so a tap there lands on the stretched link and navigates with the
+ * rest of the row.
  */
 export function DocThumbLightbox({
   id,
@@ -49,13 +51,8 @@ export function DocThumbLightbox({
       <button
         type="button"
         aria-label="Open document preview"
-        onClick={(event) => {
-          // The thumb lives inside the row's <Link>; keep the click from
-          // navigating so it opens the lightbox instead.
-          event.preventDefault();
-          event.stopPropagation();
-          setOpen(true);
-        }}
+        className="relative z-10 block"
+        onClick={() => setOpen(true)}
       >
         <img src={src} alt="" className={`${className} object-cover`} />
       </button>
