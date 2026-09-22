@@ -30,6 +30,7 @@ import {
 } from '../api';
 import { AppToaster } from '../ui/toast';
 import { EntityScreen } from './EntityScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const SUPPLIER: Entity = {
   id: 3,
@@ -111,8 +112,10 @@ function mount(id = '3') {
   );
   render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
@@ -320,10 +323,13 @@ describe('EntityScreen (asset §8 card)', () => {
       target: { value: 'HALF-TYPED' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(screen.queryByLabelText('Value')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: '＋ Add alias' }));
     expect(await screen.findByLabelText('Value')).toHaveValue('');
 
+    // Clean: closes without asking.
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByLabelText('Value')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -331,6 +337,8 @@ describe('EntityScreen (asset §8 card)', () => {
       target: { value: 'Scratch that' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(screen.queryByLabelText('Name')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     expect(await screen.findByLabelText('Name')).toHaveValue(

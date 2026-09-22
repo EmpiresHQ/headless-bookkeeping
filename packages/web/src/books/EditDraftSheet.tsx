@@ -9,6 +9,7 @@ import {
   type ServicePlaceRule,
 } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
+import { useUnsavedChanges, type DismissGuard } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import { useCategories, useEntities } from '../queries/shared';
 import { Button } from '../ui/Button';
@@ -85,6 +86,8 @@ function useFacts(init: {
     date: isRealDate(date) ? null : 'Pick a valid date',
   };
   return {
+    /** What the operator can type — the dirty-check values. */
+    draft: { gross, vat, currency, date },
     gross,
     setGross,
     vat,
@@ -154,12 +157,14 @@ function EditShell({
   onOpenChange,
   busy,
   title,
+  guard,
   children,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   busy: boolean;
   title: string;
+  guard: DismissGuard;
   children: ReactNode;
 }) {
   return (
@@ -170,6 +175,8 @@ function EditShell({
         onOpenChange(o);
       }}
       title={title}
+      guard={guard}
+      busy={busy}
     >
       <div className="space-y-3 px-5 pb-2">{children}</div>
     </Sheet>
@@ -239,6 +246,22 @@ export function ExpenseEditSheet({
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const values = {
+    ...f.draft,
+    category,
+    supplierId,
+    invoiceNo,
+    claimantId,
+    receipt,
+  };
+  // Seeded once from `detail` (initializers above) — frozen alike.
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Edit draft expense',
+    active: open,
+    values,
+    baseline,
+  });
 
   const entities = entitiesQ.data ?? [];
   const suppliers = entities.filter((e) => e.role === 'supplier');
@@ -284,6 +307,7 @@ export function ExpenseEditSheet({
       });
       await invalidateBooks(qc);
       toastOk('Draft saved — submit it for posting when ready');
+      guard.release();
       onSaved?.();
       onOpenChange(false);
     } catch (e) {
@@ -302,6 +326,7 @@ export function ExpenseEditSheet({
       onOpenChange={onOpenChange}
       busy={busy}
       title="Edit draft expense"
+      guard={guard}
     >
       <fieldset disabled={busy} className="space-y-3">
         <Field label="Category" error={lookupError(categoriesQ, 'categories')}>
@@ -462,6 +487,22 @@ export function InvoiceEditSheet({
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const values = {
+    ...f.draft,
+    number,
+    customerId,
+    dueDate,
+    supplyType,
+    placeRule,
+  };
+  // Seeded once from `invoice` (initializers above) — frozen alike.
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Edit draft invoice',
+    active: open,
+    values,
+    baseline,
+  });
 
   const customers = (entitiesQ.data ?? []).filter((e) => e.role === 'customer');
   const numberError =
@@ -496,6 +537,7 @@ export function InvoiceEditSheet({
       });
       await invalidateBooks(qc);
       toastOk('Draft saved — submit it for posting when ready');
+      guard.release();
       onSaved?.();
       onOpenChange(false);
     } catch (e) {
@@ -512,6 +554,7 @@ export function InvoiceEditSheet({
       onOpenChange={onOpenChange}
       busy={busy}
       title="Edit draft invoice"
+      guard={guard}
     >
       <fieldset disabled={busy} className="space-y-3">
         <Field

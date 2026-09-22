@@ -26,7 +26,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
 import { KeyValue, ListGroup, ListRow } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
@@ -95,7 +95,7 @@ export function ExpenseScreen() {
   const attachSheet = useSheet();
   const [busy, setBusy] = useState(false);
 
-  if (detailQ.isError) {
+  if (detailQ.isError && detailQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
         <ScreenHeader title="Expense" backTo="/books" />
@@ -166,6 +166,7 @@ export function ExpenseScreen() {
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="Expense" backTo="/books" />
+      <RefetchError query={detailQ} />
 
       <div className="px-5 pb-4 pt-1 text-center">
         <AmountText

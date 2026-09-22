@@ -9,14 +9,17 @@ vi.mock('../api', async (io) => ({
 }));
 import { getSettings } from '../api';
 import { TelegramScreen } from './TelegramScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/settings/telegram']}>
-        <TelegramScreen />
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/settings/telegram']}>
+          <TelegramScreen />
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

@@ -21,7 +21,7 @@ import {
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
 import { ClassifyInvoiceSheet } from './ClassifyInvoiceSheet';
@@ -56,7 +56,21 @@ export function TriageDocScreen() {
     queryFn: () => getDocumentDetails(docId),
   });
 
-  const [sheet, setSheet] = useState<SheetKind | null>(null);
+  const [sheet, setSheetKind] = useState<SheetKind | null>(null);
+  // Remount-on-open (issue #250): every open gets fresh sheet state, so a
+  // discarded draft never reappears when the same sheet is reopened.
+  const [sheetEpoch, setSheetEpoch] = useState(0);
+  const setSheet = (kind: SheetKind | null) => {
+    if (kind !== null) setSheetEpoch((e) => e + 1);
+    setSheetKind(kind);
+  };
+  // A sheet belongs to its document: Back/forward to another doc re-renders
+  // this same element, so close it instead of reopening over doc N±1.
+  const [sheetDoc, setSheetDoc] = useState(docId);
+  if (sheetDoc !== docId) {
+    setSheetDoc(docId);
+    setSheetKind(null);
+  }
   const [confirm, setConfirm] = useState<'dismiss' | 'delete' | null>(null);
   const [busy, setBusy] = useState(false);
   // Remount nonce for the sheets: bumped when an unknown outcome keeps the
@@ -117,7 +131,7 @@ export function TriageDocScreen() {
       </div>
     );
   }
-  if (triageQ.isError) {
+  if (triageQ.isError && triageQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Document" backTo="/inbox" />
@@ -149,6 +163,7 @@ export function TriageDocScreen() {
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title={title} backTo="/inbox" />
+      <RefetchError query={triageQ} />
       <div className="px-5 pb-2 pt-1 text-center">
         <p className="truncate text-[17px] font-extrabold">{item.filename}</p>
       </div>
@@ -240,14 +255,14 @@ export function TriageDocScreen() {
        *  Same fix class as the Task 11/12 prefill race — disclosed per the
        *  binding review note for this task. */}
       <ResolveSupplierSheet
-        key={`resolve-${docId}-${attempt}`}
+        key={`resolve-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         open={sheet === 'resolve'}
         onOpenChange={(o) => setSheet(o ? 'resolve' : null)}
         onDone={(o) => void finishTriage(o)}
       />
       <DuplicateReviewSheet
-        key={`duplicate-${docId}-${attempt}`}
+        key={`duplicate-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         reason={item.reason}
         open={sheet === 'duplicate'}
@@ -258,21 +273,21 @@ export function TriageDocScreen() {
         }}
       />
       <ClassifyExpenseSheet
-        key={`classify-${docId}-${attempt}`}
+        key={`classify-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         open={sheet === 'classify'}
         onOpenChange={(o) => setSheet(o ? 'classify' : null)}
         onDone={(o) => void finishTriage(o)}
       />
       <ClassifyInvoiceSheet
-        key={`invoice-${docId}-${attempt}`}
+        key={`invoice-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         open={sheet === 'invoice'}
         onOpenChange={(o) => setSheet(o ? 'invoice' : null)}
         onDone={(o) => void finishTriage(o)}
       />
       <OcrFailedSheet
-        key={`ocr-${docId}-${attempt}`}
+        key={`ocr-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         open={sheet === 'ocr'}
         onOpenChange={(o) => setSheet(o ? 'ocr' : null)}

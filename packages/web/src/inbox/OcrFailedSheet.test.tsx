@@ -10,6 +10,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 import { OcrFailedSheet } from './OcrFailedSheet';
 
 describe('OcrFailedSheet', () => {
@@ -17,13 +18,15 @@ describe('OcrFailedSheet', () => {
 
   function renderSheet(onReplaced = vi.fn(), onRetried = vi.fn()) {
     render(
-      <OcrFailedSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onReplaced={onReplaced}
-        onRetried={onRetried}
-      />,
+      <UnsavedChangesProvider>
+        <OcrFailedSheet
+          documentId={12}
+          open
+          onOpenChange={() => undefined}
+          onReplaced={onReplaced}
+          onRetried={onRetried}
+        />
+      </UnsavedChangesProvider>,
     );
     return { onReplaced, onRetried };
   }

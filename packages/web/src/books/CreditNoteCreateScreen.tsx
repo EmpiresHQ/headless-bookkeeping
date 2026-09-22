@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createCreditNote } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import {
   entityName,
   invalidateBooks,
@@ -60,6 +61,22 @@ export function CreditNoteCreateScreen() {
   const [vatTouched, setVatTouched] = useState(false);
   const [date, setDate] = useState('');
   const [busy, setBusy] = useState(false);
+  // The search box is a filter, not input to keep. `picked` starts from the
+  // ?type&id deep link (the correction sheet's hand-off) — frozen alike.
+  // Compared as displayed: an untouched VAT shows the auto amount.
+  const grossForVat = eurosToCents(gross);
+  const shownVat = vatTouched
+    ? vat
+    : grossForVat !== null && grossForVat > 0
+      ? centsToEuroInput(vatFromGross(grossForVat, STANDARD_VAT_RATE_PCT))
+      : '';
+  const values = { picked, number, gross, vat: shownVat, date };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'New credit note',
+    values,
+    baseline,
+  });
 
   const loading =
     notesQ.isPending || invoicesQ.isPending || expensesQ.isPending;
@@ -156,6 +173,7 @@ export function CreditNoteCreateScreen() {
       toastOk(
         `Credit note issued · ${sign}${centsToEuroInput(grossParsed as number)} €`,
       );
+      guard.release();
       navigate(`/books/credit-notes/${created.id}`, { replace: true });
     } catch (e) {
       // Server cap/state errors carry the remaining amount — show verbatim.

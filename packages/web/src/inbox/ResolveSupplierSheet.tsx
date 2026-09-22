@@ -7,6 +7,7 @@ import {
   type TriageOutcome,
 } from '../api';
 import { signedEuros } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
@@ -45,21 +46,47 @@ export function ResolveSupplierSheet({
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');
   const [prefilled, setPrefilled] = useState(false);
+  // What the proposal offered, committed with the prefill: the offered
+  // values are not unsaved input, anything typed over them is.
+  const [prefillBase, setPrefillBase] = useState({
+    name: '',
+    country: '',
+    regKey: '',
+  });
 
+  // Untouched-only functional updates (ClassifyExpenseSheet's pattern): the
+  // operator may already be typing when the draft lands.
   useEffect(() => {
     if (!prefilled && draftQ.data !== undefined) {
       const proposal = draftQ.data.supplier_proposal;
-      if (proposal.kind === 'create') {
-        setName(proposal.create_name);
-        setCountry(proposal.create_country);
-        setRegKey(proposal.create_registration_key ?? '');
-      } else {
-        setCountry(proposal.observed_country ?? '');
-        setRegKey(proposal.observed_registration_key ?? '');
-      }
+      const offered =
+        proposal.kind === 'create'
+          ? {
+              name: proposal.create_name,
+              country: proposal.create_country,
+              regKey: proposal.create_registration_key ?? '',
+            }
+          : {
+              name: '',
+              country: proposal.observed_country ?? '',
+              regKey: proposal.observed_registration_key ?? '',
+            };
+      setName((cur) => (cur === '' ? offered.name : cur));
+      setCountry((cur) => (cur === '' ? offered.country : cur));
+      setRegKey((cur) => (cur === '' ? offered.regKey : cur));
+      setPrefillBase(offered);
       setPrefilled(true);
     }
   }, [draftQ.data, prefilled]);
+
+  // The search box is a filter. Picking an existing supplier or creating
+  // one both complete the task, so either success releases the form.
+  const guard = useUnsavedChanges({
+    label: 'Resolve supplier',
+    active: open,
+    values: { name, country, regKey },
+    baseline: prefillBase,
+  });
 
   const draft = draftQ.data?.draft;
   const amount = draft !== undefined ? signedEuros(-draft.gross_amount) : null;
@@ -67,7 +94,9 @@ export function ResolveSupplierSheet({
   const finish = async (supplierEntityId: number) => {
     setBusy(true);
     try {
-      onDone(await resolveSupplier(documentId, supplierEntityId));
+      const outcome = await resolveSupplier(documentId, supplierEntityId);
+      guard.release();
+      onDone(outcome);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -84,7 +113,9 @@ export function ResolveSupplierSheet({
         country: country.trim(),
         registrationKey: regKey.trim(),
       });
-      onDone(await resolveSupplier(documentId, entity.id));
+      const outcome = await resolveSupplier(documentId, entity.id);
+      guard.release();
+      onDone(outcome);
     } catch (e) {
       toastErr(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -98,7 +129,13 @@ export function ResolveSupplierSheet({
     .slice(0, 6);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Resolve supplier">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Resolve supplier"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-3 px-5 pb-2">
         {draftQ.isPending && (
           <p className="text-[13px] text-ink-2">Loading the AI proposal…</p>

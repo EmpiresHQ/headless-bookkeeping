@@ -21,6 +21,7 @@ import {
   getInvoices,
   listCreditNotes,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function seed() {
   vi.mocked(listCreditNotes).mockResolvedValue([
@@ -109,19 +110,21 @@ function mount(url = '/books/credit-notes/new') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[url]}>
-        <AppToaster />
-        <Routes>
-          <Route
-            path="/books/credit-notes/new"
-            element={<CreditNoteCreateScreen />}
-          />
-          <Route
-            path="/books/credit-notes/:id"
-            element={<div>NOTE DETAIL</div>}
-          />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={[url]}>
+          <AppToaster />
+          <Routes>
+            <Route
+              path="/books/credit-notes/new"
+              element={<CreditNoteCreateScreen />}
+            />
+            <Route
+              path="/books/credit-notes/:id"
+              element={<div>NOTE DETAIL</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

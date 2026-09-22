@@ -1,5 +1,10 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { Drawer } from 'vaul';
+import type { DismissGuard } from '../lib/unsavedChanges';
+
+// vaul's own reset transition (TRANSITIONS in vaul/dist) — used to put a
+// swiped-down drawer back when a close is vetoed.
+const VAUL_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 /** Bottom sheet for actions attached to the current screen (spec: action =
  *  sheet; object with identity = route; irreversible = ConfirmDialog). */
@@ -7,13 +12,25 @@ export function Sheet({
   open,
   onOpenChange,
   title,
+  guard,
+  busy = false,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
+  /** Unsaved-input guard of the form inside (lib/unsavedChanges): a dismiss
+   *  (Escape, backdrop, swipe) while it is dirty asks before closing. */
+  guard?: DismissGuard;
+  /** A save is in flight: every dismiss is refused (drawer put back), and
+   *  no discard question is asked for a form that is mid-save. Issue #251
+   *  owns the pending-operation contract beyond this. */
+  busy?: boolean;
   children: ReactNode;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const vetoFrame = useRef<number | null>(null);
   // Radix marks the app root aria-hidden while the sheet animates out; if
   // focus is still INSIDE the closing sheet the browser logs "Blocked
   // aria-hidden on an element because its descendant retained focus".
@@ -34,11 +51,62 @@ export function Sheet({
   // the trigger stays gated, the mount does not. The blur belts below
   // remain as defense-in-depth for direct open-prop flips.
   const handleOpenChange = (o: boolean) => {
+    if (!o && busy) {
+      restoreAfterVeto();
+      return;
+    }
+    if (!o && guard?.isDirty()) {
+      // Veto: `open` stays true, but vaul has already started its close —
+      // a swipe leaves the panel translated down and vaul re-enables body
+      // pointer-events right after this callback. Put both back (mirrors
+      // vaul's resetDrawer); focus stays where it was, so Radix returns it
+      // there when the discard dialog closes.
+      restoreAfterVeto();
+      void guard.confirmDiscard().then((ok) => {
+        if (!ok) return;
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        onOpenChange(false);
+      });
+      return;
+    }
     if (!o && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     onOpenChange(o);
   };
+  const restoreAfterVeto = () => {
+    const content = contentRef.current;
+    if (content) {
+      content.style.transition = `transform 0.5s ${VAUL_EASE}`;
+      content.style.transform = 'translate3d(0, 0, 0)';
+    }
+    const overlay = overlayRef.current;
+    if (overlay) {
+      overlay.style.transition = `opacity 0.5s ${VAUL_EASE}`;
+      overlay.style.opacity = '1';
+    }
+    // vaul sets body pointer-events to 'auto' AFTER this callback returns;
+    // put back the value Radix's modal layer owns right now — only while
+    // this sheet is still mounted and open (a 401 or route unmount in
+    // between must never leave the next screen locked).
+    const lock = document.body.style.pointerEvents;
+    if (vetoFrame.current !== null) cancelAnimationFrame(vetoFrame.current);
+    vetoFrame.current = requestAnimationFrame(() => {
+      vetoFrame.current = null;
+      const el = contentRef.current;
+      if (el?.isConnected && el.getAttribute('data-state') === 'open') {
+        document.body.style.pointerEvents = lock;
+      }
+    });
+  };
+  useEffect(
+    () => () => {
+      if (vetoFrame.current !== null) cancelAnimationFrame(vetoFrame.current);
+    },
+    [],
+  );
   // OPEN edge (Plan 07 Task 9 smoke): the trigger button keeps focus after
   // the click that opens the sheet, and vaul deliberately prevents Radix's
   // open-autofocus (autoFocus=false — no mobile keyboard pop). Radix then
@@ -57,8 +125,12 @@ export function Sheet({
   return (
     <Drawer.Root open={open} onOpenChange={handleOpenChange}>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/45" />
+        <Drawer.Overlay
+          ref={overlayRef}
+          className="fixed inset-0 z-40 bg-black/45"
+        />
         <Drawer.Content
+          ref={contentRef}
           onCloseAutoFocus={(e) => e.preventDefault()}
           className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col rounded-t-3xl bg-bg pb-6 outline-none"
         >

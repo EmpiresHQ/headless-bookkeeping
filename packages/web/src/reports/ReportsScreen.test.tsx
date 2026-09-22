@@ -20,6 +20,7 @@ import {
   getReportingPeriods,
   getSubmissionState,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const PERIODS = [
   {
@@ -94,16 +95,18 @@ function mountList(periods = PERIODS) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/reports']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/reports" element={<ReportsScreen />} />
-          <Route
-            path="/reports/periods/:id"
-            element={<div>PERIOD DETAIL</div>}
-          />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/reports']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/reports" element={<ReportsScreen />} />
+            <Route
+              path="/reports/periods/:id"
+              element={<div>PERIOD DETAIL</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -217,6 +220,8 @@ describe('ReportsScreen', () => {
       target: { value: '2026-08-01' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('Start date')).toBeNull(),
     );

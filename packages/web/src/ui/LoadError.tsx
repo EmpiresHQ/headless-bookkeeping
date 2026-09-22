@@ -17,3 +17,25 @@ export function LoadError({
     </div>
   );
 }
+
+/** A failed BACKGROUND refetch while cached data is still shown: say so and
+ *  offer a retry, without replacing the screen — which would unmount any
+ *  form on it and drop the operator's unsaved input (issue #250). Screens
+ *  return the full LoadError only while there is no data at all. */
+export function RefetchError({
+  query,
+}: {
+  query: { isError: boolean; error: unknown; refetch: () => unknown };
+}) {
+  if (!query.isError) return null;
+  return (
+    <LoadError
+      message={
+        query.error instanceof Error
+          ? `Could not refresh — ${query.error.message}`
+          : 'Could not refresh'
+      }
+      onRetry={() => void query.refetch()}
+    />
+  );
+}

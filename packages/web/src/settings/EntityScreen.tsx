@@ -21,7 +21,7 @@ import { Chip } from '../ui/Chip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { GroupLabel, KeyValue, ListGroup, ListRow } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { AddAliasSheet } from './AddAliasSheet';
 import { EditEntitySheet } from './EditEntitySheet';
@@ -55,7 +55,7 @@ export function EntityScreen() {
       </Frame>
     );
   }
-  if (entityQ.isError) {
+  if (entityQ.isError && entityQ.data === undefined) {
     return (
       <Frame>
         <LoadError
@@ -69,6 +69,7 @@ export function EntityScreen() {
   }
   return (
     <Frame>
+      <RefetchError query={entityQ} />
       <EntityCard entity={entityQ.data} />
     </Frame>
   );

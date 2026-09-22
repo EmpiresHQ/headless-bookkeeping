@@ -39,6 +39,7 @@ import {
   updateInvoiceDraft,
   type SalesInvoice,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 /** Issue #247: a new or rejected draft is edited in place and resubmitted. */
 
@@ -118,13 +119,15 @@ function mountExpense(detail: Partial<typeof EXPENSE> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/expenses/12']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
-          <Route path="/books" element={<div>BOOKS LIST</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/books/expenses/12']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+            <Route path="/books" element={<div>BOOKS LIST</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -154,12 +157,14 @@ function mountInvoice(inv: Partial<SalesInvoice> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/invoices/3']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/invoices/:id" element={<InvoiceScreen />} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/books/invoices/3']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/invoices/:id" element={<InvoiceScreen />} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

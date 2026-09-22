@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { Button } from '../ui/Button';
 import { Field, INPUT_CLS } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
@@ -14,11 +15,24 @@ export function RejectSheet({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   busy: boolean;
-  onSubmit: (reason: string) => void;
+  /** `release` marks the reason saved — call it on success before leaving. */
+  onSubmit: (reason: string, release: () => void) => void;
 }) {
   const [reason, setReason] = useState('');
+  const guard = useUnsavedChanges({
+    label: 'Reject',
+    active: open,
+    values: reason.trim(),
+    baseline: '',
+  });
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Reject">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Reject"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-3 px-5 pb-2">
         <p className="text-[13px] text-ink-2">
           The item returns to draft with your reason attached — nothing is
@@ -37,7 +51,7 @@ export function RejectSheet({
           className="w-full"
           busy={busy}
           disabled={reason.trim() === ''}
-          onClick={() => onSubmit(reason.trim())}
+          onClick={() => onSubmit(reason.trim(), guard.release)}
         >
           Reject &amp; return to draft
         </Button>

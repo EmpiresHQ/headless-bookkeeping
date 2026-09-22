@@ -10,6 +10,7 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
+  cancelLabel = 'Cancel',
   destructive = false,
   busy = false,
   onConfirm,
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   title: string;
   body: ReactNode;
   confirmLabel: string;
+  cancelLabel?: string;
   destructive?: boolean;
   busy?: boolean;
   onConfirm: () => void;
@@ -37,7 +39,7 @@ export function ConfirmDialog({
           <div className="mt-4 flex gap-2.5">
             <AlertDialog.Cancel asChild>
               <Button variant="secondary" className="flex-1">
-                Cancel
+                {cancelLabel}
               </Button>
             </AlertDialog.Cancel>
             <Button

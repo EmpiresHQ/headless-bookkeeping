@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Field, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
  * The INF fix-in-place: PATCH /api/expenses/:id/document-metadata — no
@@ -26,6 +27,12 @@ export function FixInvoiceNumberSheet({
 }) {
   const qc = useQueryClient();
   const [value, setValue] = useState('');
+  const guard = useUnsavedChanges({
+    label: 'Invoice number',
+    active: open,
+    values: value,
+    baseline: '',
+  });
 
   const save = useMutation({
     mutationFn: () =>
@@ -35,6 +42,7 @@ export function FixInvoiceNumberSheet({
     onSuccess: async () => {
       await invalidateReports(qc);
       toastOk('Invoice number saved');
+      guard.release();
       onOpenChange(false);
     },
     onError: (e) =>
@@ -54,6 +62,8 @@ export function FixInvoiceNumberSheet({
       open={open}
       onOpenChange={guardedOnOpenChange}
       title={supplierName ?? 'Add invoice number'}
+      guard={guard}
+      busy={save.isPending}
     >
       <div className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">

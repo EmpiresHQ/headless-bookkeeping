@@ -20,6 +20,7 @@ import {
   getPeriodWarnings,
   lockPeriod,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const PERIOD = {
   id: 6,
@@ -61,15 +62,17 @@ function mountSheet(warnings: unknown[] = []) {
   const onOpenChange = vi.fn();
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
-        <AppToaster />
-        <LockSheet
-          period={PERIOD}
-          netVatDueCents={62407}
-          open
-          onOpenChange={onOpenChange}
-        />
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter>
+          <AppToaster />
+          <LockSheet
+            period={PERIOD}
+            netVatDueCents={62407}
+            open
+            onOpenChange={onOpenChange}
+          />
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { onOpenChange };

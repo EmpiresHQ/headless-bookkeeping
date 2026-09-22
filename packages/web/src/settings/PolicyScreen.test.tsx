@@ -26,6 +26,7 @@ import {
 import { settingsKeys } from '../queries/settings';
 import { AppToaster } from '../ui/toast';
 import { PolicyScreen } from './PolicyScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const POLICY: PolicyConfig = {
   auto_post_amount_ceiling: 5000,
@@ -38,10 +39,12 @@ function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/settings/policy']}>
-        <PolicyScreen />
-      </MemoryRouter>
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/settings/policy']}>
+          <PolicyScreen />
+        </MemoryRouter>
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return qc;

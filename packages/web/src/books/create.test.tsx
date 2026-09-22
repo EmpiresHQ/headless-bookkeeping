@@ -22,6 +22,7 @@ import {
   triageDocument,
   uploadDocument,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function seed(entities: unknown[] = []) {
   vi.mocked(getCategories).mockResolvedValue([
@@ -34,15 +35,20 @@ function mount(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books" element={ui} />
-          <Route path="/books/expenses/:id" element={<div>EXP DETAIL</div>} />
-          <Route path="/books/invoices/:id" element={<div>INV DETAIL</div>} />
-          <Route path="/books/documents/:id" element={<div>DOC DETAIL</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/books']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books" element={ui} />
+            <Route path="/books/expenses/:id" element={<div>EXP DETAIL</div>} />
+            <Route path="/books/invoices/:id" element={<div>INV DETAIL</div>} />
+            <Route
+              path="/books/documents/:id"
+              element={<div>DOC DETAIL</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

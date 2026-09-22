@@ -32,6 +32,7 @@ import {
   listApprovals,
   listAttachableDocuments,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 /** Issue #248: a "Receipt coming later" expense, posted from a bank line. */
 const DETAIL = {
@@ -95,12 +96,14 @@ function mount(detail: Partial<typeof DETAIL> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/expenses/12']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/books/expenses/12']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -359,6 +362,32 @@ describe('Attach a late receipt (issue #248)', () => {
       await screen.findByText('Attached · late-receipt.pdf'),
     ).toBeInTheDocument();
     expect(attachExpenseDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('unsaved guard (#250): a chosen file asks before closing; once the server accepted it, closing does not', async () => {
+    mount();
+    const sheet = await openSheet();
+    pick(sheet);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Keep editing' }),
+    );
+    expect(within(sheet).getByText('late-receipt.pdf')).toBeInTheDocument();
+
+    // Accepted by the server, re-read not confirming yet: the file is on the
+    // server — closing loses the re-check view, not the operator's input.
+    vi.mocked(attachExpenseDocument).mockResolvedValueOnce({
+      outcome: 'attached',
+      expense: { ...DETAIL, document_id: 31 },
+      document: DOC,
+    } as never);
+    fireEvent.click(
+      within(sheet).getByRole('button', { name: 'Upload & attach' }),
+    );
+    await within(sheet).findByRole('status');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
   it.each([

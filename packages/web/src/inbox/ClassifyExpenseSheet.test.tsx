@@ -16,19 +16,22 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
-function renderSheet(onDone = vi.fn()) {
+function renderSheet(onDone = vi.fn(), onOpenChange = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <ClassifyExpenseSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onDone={onDone}
-      />
+      <UnsavedChangesProvider>
+        <ClassifyExpenseSheet
+          documentId={12}
+          open
+          onOpenChange={onOpenChange}
+          onDone={onDone}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onDone;
@@ -622,5 +625,25 @@ describe('ClassifyExpenseSheet', () => {
     expect(
       screen.getByRole('button', { name: 'Software & IT' }),
     ).toBeInTheDocument();
+  });
+
+  it('unsaved guard (#250): the prefill is not an edit; a VAT typed then reverted to the prefill closes without asking', async () => {
+    const onOpenChange = vi.fn();
+    renderSheet(vi.fn(), onOpenChange);
+    const vat = screen.getByLabelText('VAT (EUR)');
+    await waitFor(() => expect(vat).toHaveValue('8.67'));
+
+    fireEvent.change(vat, { target: { value: '10.00' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Keep editing' }),
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(vat).toHaveValue('10.00');
+
+    fireEvent.change(vat, { target: { value: '8.67' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });

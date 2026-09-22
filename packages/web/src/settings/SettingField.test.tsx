@@ -10,6 +10,7 @@ vi.mock('../api', async (io) => ({
 import { deleteSetting, setSetting } from '../api';
 import { AppToaster } from '../ui/toast';
 import { SettingField } from './SettingField';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const DEF = {
   key: 'ai_model',
@@ -21,8 +22,10 @@ function mount(current = '') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <SettingField def={DEF} current={current} />
-      <AppToaster />
+      <UnsavedChangesProvider>
+        <SettingField def={DEF} current={current} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -87,7 +90,9 @@ describe('SettingField', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <SettingField def={DEF} current="one" />
+        <UnsavedChangesProvider>
+          <SettingField def={DEF} current="one" />
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     // Untouched → a refetched value flows in.
@@ -97,7 +102,9 @@ describe('SettingField', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <SettingField def={DEF} current="two" />
+        <UnsavedChangesProvider>
+          <SettingField def={DEF} current="two" />
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     await waitFor(() =>
@@ -113,7 +120,9 @@ describe('SettingField', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <SettingField def={DEF} current="three" />
+        <UnsavedChangesProvider>
+          <SettingField def={DEF} current="three" />
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     expect(screen.getByLabelText('Global model')).toHaveValue('operator-draft');

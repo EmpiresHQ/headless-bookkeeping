@@ -5,6 +5,7 @@ import {
   type BankTransaction,
   type Entity,
 } from '../api';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useOrganizationCountry, useSuppliers } from '../queries/bank';
 import { Button } from '../ui/Button';
 import { Field, TextInput } from '../ui/Form';
@@ -39,6 +40,16 @@ export function SupplierSheet({
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');
   const [busy, setBusy] = useState(false);
+  // Only the create sub-form is input to keep — the search box filters and
+  // a list pick is immediate. Its name is seeded from the line (frozen).
+  const values = { name, country, regKey };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'New supplier',
+    active: open && creating,
+    values,
+    baseline,
+  });
 
   const effCountry = country !== '' ? country : (countryQ.data ?? 'EE');
   const filtered = (suppliersQ.data ?? []).filter((e) =>
@@ -74,6 +85,7 @@ export function SupplierSheet({
       } catch {
         // Alias write-back is advisory; the supplier itself was created.
       }
+      guard.release();
       onPick(entity);
       onOpenChange(false);
     } catch (e) {
@@ -84,7 +96,13 @@ export function SupplierSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Supplier">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Supplier"
+      guard={guard}
+      busy={busy}
+    >
       <div className="space-y-3 px-4 pb-4">
         {!creating && (
           <>

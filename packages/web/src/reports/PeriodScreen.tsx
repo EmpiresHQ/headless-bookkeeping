@@ -24,7 +24,7 @@ import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow, KeyValue, GroupLabel } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr } from '../ui/toast';
 import { LockSheet } from './LockSheet';
 import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
@@ -172,7 +172,7 @@ export function PeriodScreen() {
       </div>
     );
   }
-  if (periodsQ.isError) {
+  if (periodsQ.isError && periodsQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Period" backTo="/reports" />
@@ -211,6 +211,7 @@ export function PeriodScreen() {
           </Chip>
         }
       />
+      <RefetchError query={periodsQ} />
       <p className="mb-2 px-5 text-[12.5px] text-ink-2">
         {absoluteDateFromIso(period.start_date)} –{' '}
         {absoluteDateFromIso(period.end_date)}

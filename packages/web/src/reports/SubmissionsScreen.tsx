@@ -22,9 +22,10 @@ import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { Field, SelectInput, TextInput } from '../ui/Form';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /** Human timeline labels per event kind (ADR-0037 lifecycle). */
 const EVENT_LABELS: Record<SubmissionEventKind, string> = {
@@ -82,6 +83,12 @@ function AddEventSheet({
   const [kind, setKind] = useState<RecordableSubmissionKind>('submitted');
   const [ref, setRef] = useState('');
   const [note, setNote] = useState('');
+  const guard = useUnsavedChanges({
+    label: 'Record what happened',
+    active: open,
+    values: { kind, ref, note },
+    baseline: { kind: 'submitted', ref: '', note: '' },
+  });
 
   const record = useMutation({
     mutationFn: () => {
@@ -97,6 +104,7 @@ function AddEventSheet({
     onSuccess: async (ev) => {
       await invalidateReports(qc);
       toastOk(`Recorded — ${EVENT_LABELS[ev.event_kind]}`);
+      guard.release();
       onOpenChange(false);
     },
     onError: (e) =>
@@ -118,6 +126,8 @@ function AddEventSheet({
       open={open}
       onOpenChange={guardedOnOpenChange}
       title="Record what happened"
+      guard={guard}
+      busy={record.isPending}
     >
       <div className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">
@@ -187,7 +197,7 @@ export function SubmissionsScreen() {
       </div>
     );
   }
-  if (periodsQ.isError) {
+  if (periodsQ.isError && periodsQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Filing" backTo="/reports" />
@@ -236,6 +246,7 @@ export function SubmissionsScreen() {
           ) : undefined
         }
       />
+      <RefetchError query={periodsQ} />
       {stateQ.isPending && <SkeletonRows count={3} />}
       {stateQ.isError && (
         <LoadError

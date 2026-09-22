@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { updateOrganization, type Organization } from '../api';
+import { sameValues, useUnsavedChanges } from '../lib/unsavedChanges';
 import { sharedKeys } from '../queries/keys';
 import { invalidateOrganization, useOrganization } from '../queries/settings';
 import { ScreenHeader } from '../shell/Headers';
@@ -26,7 +27,9 @@ export function OrganizationScreen() {
       </Frame>
     );
   }
-  if (orgQ.isError) {
+  // Only a FIRST load failure replaces the screen. A failed background
+  // refetch keeps the form (and any unsaved input) mounted and says so.
+  if (orgQ.data === undefined) {
     return (
       <Frame>
         <LoadError
@@ -38,6 +41,12 @@ export function OrganizationScreen() {
   }
   return (
     <Frame>
+      {orgQ.isError && (
+        <LoadError
+          message={orgQ.error instanceof Error ? orgQ.error.message : 'Failed'}
+          onRetry={() => void orgQ.refetch()}
+        />
+      )}
       <OrgForm data={orgQ.data} />
     </Frame>
   );
@@ -52,56 +61,89 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** The form's view of a server snapshot — the unsaved-changes baseline. */
+function fromServer(data: Organization) {
+  return {
+    country: data.country,
+    orgType:
+      data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
+    vatRegistered: data.vat_registered,
+    vatKind: data.vat_registration_kind,
+    entitlement: data.input_vat_entitlement,
+    permille:
+      data.input_vat_deduction_permille === null
+        ? ''
+        : String(data.input_vat_deduction_permille),
+    name: data.name ?? '',
+    vatNumber: data.vat_registration_number ?? '',
+    registryCode: data.registry_code ?? '',
+    iban: data.iban ?? '',
+    currency: data.base_currency ?? '',
+  };
+}
+
 function OrgForm({ data }: { data: Organization }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const [country, setCountry] = useState(data.country);
-  const [orgType, setOrgType] = useState(
-    data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
-  );
-  const [vatRegistered, setVatRegistered] = useState(data.vat_registered);
-  const [vatKind, setVatKind] = useState(data.vat_registration_kind);
-  const [entitlement, setEntitlement] = useState(data.input_vat_entitlement);
-  const [permille, setPermille] = useState(
-    data.input_vat_deduction_permille === null
-      ? ''
-      : String(data.input_vat_deduction_permille),
-  );
-  const [name, setName] = useState(data.name ?? '');
-  const [vatNumber, setVatNumber] = useState(
-    data.vat_registration_number ?? '',
-  );
-  const [registryCode, setRegistryCode] = useState(data.registry_code ?? '');
-  const [iban, setIban] = useState(data.iban ?? '');
-  const [currency, setCurrency] = useState(data.base_currency ?? '');
+  const [initial] = useState(() => fromServer(data));
+  const [country, setCountry] = useState(initial.country);
+  const [orgType, setOrgType] = useState(initial.orgType);
+  const [vatRegistered, setVatRegistered] = useState(initial.vatRegistered);
+  const [vatKind, setVatKind] = useState(initial.vatKind);
+  const [entitlement, setEntitlement] = useState(initial.entitlement);
+  const [permille, setPermille] = useState(initial.permille);
+  const [name, setName] = useState(initial.name);
+  const [vatNumber, setVatNumber] = useState(initial.vatNumber);
+  const [registryCode, setRegistryCode] = useState(initial.registryCode);
+  const [iban, setIban] = useState(initial.iban);
+  const [currency, setCurrency] = useState(initial.currency);
+  const values = {
+    country,
+    orgType,
+    vatRegistered,
+    vatKind,
+    entitlement,
+    permille,
+    name,
+    vatNumber,
+    registryCode,
+    iban,
+    currency,
+  };
+  const adopt = (f: ReturnType<typeof fromServer>) => {
+    setCountry(f.country);
+    setOrgType(f.orgType);
+    setVatRegistered(f.vatRegistered);
+    setVatKind(f.vatKind);
+    setEntitlement(f.entitlement);
+    setPermille(f.permille);
+    setName(f.name);
+    setVatNumber(f.vatNumber);
+    setRegistryCode(f.registryCode);
+    setIban(f.iban);
+    setCurrency(f.currency);
+  };
+
+  // Unsaved = differs from the LATEST server snapshot (issue #250). The
+  // baseline and the fields are derived from the same `data`.
+  useUnsavedChanges({
+    label: 'Organization',
+    values,
+    baseline: fromServer(data),
+  });
+  const latest = useRef(values);
+  latest.current = values;
 
   // Sync guard (SettingField.tsx's syncedCurrent pattern, ported to a
   // multi-field form): a background refetch (staleTime 15s +
   // refetchOnWindowFocus) adopts the new server snapshot into the fields
-  // ONLY while the operator has no unsaved edit — otherwise tabbing away
-  // mid-edit silently clobbers every typed field on return.
+  // ONLY while they still equal the previous snapshot — otherwise tabbing
+  // away mid-edit silently clobbers every typed field on return.
   const syncedData = useRef(data);
-  const dirty = useRef(false);
   useEffect(() => {
     if (data === syncedData.current) return;
-    if (!dirty.current) {
-      setCountry(data.country);
-      setOrgType(
-        data.org_type === 'sole_proprietor' ? 'sole_proprietor' : 'company',
-      );
-      setVatRegistered(data.vat_registered);
-      setVatKind(data.vat_registration_kind);
-      setEntitlement(data.input_vat_entitlement);
-      setPermille(
-        data.input_vat_deduction_permille === null
-          ? ''
-          : String(data.input_vat_deduction_permille),
-      );
-      setName(data.name ?? '');
-      setVatNumber(data.vat_registration_number ?? '');
-      setRegistryCode(data.registry_code ?? '');
-      setIban(data.iban ?? '');
-      setCurrency(data.base_currency ?? '');
+    if (sameValues(latest.current, fromServer(syncedData.current))) {
+      adopt(fromServer(data));
     }
     syncedData.current = data;
   }, [data]);
@@ -133,6 +175,7 @@ function OrgForm({ data }: { data: Organization }) {
 
   const save = async () => {
     setBusy(true);
+    const sent = values;
     try {
       const saved = await updateOrganization({
         country: country.trim().toUpperCase(),
@@ -152,9 +195,11 @@ function OrgForm({ data }: { data: Organization }) {
         registry_code: registryCode.trim() || null,
         iban: iban.trim() ? iban.trim() : null,
       });
-      // The saved snapshot is the new clean baseline — a subsequent
-      // refetch (below) must be free to sync it in.
-      dirty.current = false;
+      // The saved (server-normalized) snapshot is the new baseline; adopt it
+      // into the fields unless the operator kept typing during the save —
+      // their newer edits stay, and stay unsaved.
+      if (sameValues(latest.current, sent)) adopt(fromServer(saved));
+      syncedData.current = saved;
       qc.setQueryData(sharedKeys.organization, saved);
       await invalidateOrganization(qc);
       toastOk('Organization saved');
@@ -172,7 +217,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="Name"
           value={name}
           onChange={(e) => {
-            dirty.current = true;
             setName(e.target.value);
           }}
           placeholder="e.g. Acme OÜ"
@@ -187,7 +231,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="Country"
           value={country}
           onChange={(e) => {
-            dirty.current = true;
             setCountry(e.target.value.toUpperCase());
           }}
           placeholder="EE"
@@ -200,7 +243,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="Type"
           value={orgType}
           onChange={(e) => {
-            dirty.current = true;
             setOrgType(e.target.value);
           }}
         >
@@ -214,7 +256,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="VAT registered"
           checked={vatRegistered}
           onChange={(e) => {
-            dirty.current = true;
             setVatRegistered(e.target.checked);
           }}
         />
@@ -230,7 +271,6 @@ function OrgForm({ data }: { data: Organization }) {
               aria-label="Registration kind"
               value={vatKind}
               onChange={(e) => {
-                dirty.current = true;
                 setVatKind(
                   e.target.value === 'limited' ? 'limited' : 'ordinary',
                 );
@@ -253,7 +293,6 @@ function OrgForm({ data }: { data: Organization }) {
               disabled={vatKind === 'limited'}
               value={effectiveEntitlement}
               onChange={(e) => {
-                dirty.current = true;
                 const v = e.target.value;
                 setEntitlement(v === 'partial' || v === 'none' ? v : 'full');
               }}
@@ -273,7 +312,6 @@ function OrgForm({ data }: { data: Organization }) {
                 aria-label="Deductible proportion (per mille)"
                 value={permille}
                 onChange={(e) => {
-                  dirty.current = true;
                   setPermille(e.target.value);
                 }}
                 placeholder="e.g. 500"
@@ -291,7 +329,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="VAT registration number"
           value={vatNumber}
           onChange={(e) => {
-            dirty.current = true;
             setVatNumber(e.target.value);
           }}
           placeholder="e.g. EE123456789"
@@ -305,7 +342,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="Registry code"
           value={registryCode}
           onChange={(e) => {
-            dirty.current = true;
             setRegistryCode(e.target.value);
           }}
           placeholder="e.g. 17499653"
@@ -316,7 +352,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="IBAN"
           value={iban}
           onChange={(e) => {
-            dirty.current = true;
             setIban(e.target.value);
           }}
           placeholder="e.g. EE382200221020145685"
@@ -331,7 +366,6 @@ function OrgForm({ data }: { data: Organization }) {
           aria-label="Base currency"
           value={currency}
           onChange={(e) => {
-            dirty.current = true;
             setCurrency(e.target.value.toUpperCase());
           }}
           placeholder="(inherit)"

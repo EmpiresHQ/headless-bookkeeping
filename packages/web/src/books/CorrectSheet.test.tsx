@@ -12,6 +12,7 @@ vi.mock('../api', async (io) => ({
   getCategories: vi.fn(),
 }));
 import { correctExpense, getCategories } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -26,28 +27,33 @@ function mount(props: Partial<Parameters<typeof CorrectSheet>[0]> = {}) {
   const onDone = vi.fn();
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/expenses/12']}>
-        <AppToaster />
-        <Routes>
-          <Route
-            path="/books/expenses/:id"
-            element={
-              <CorrectSheet
-                open
-                onOpenChange={() => undefined}
-                objectType="expense"
-                objectId={12}
-                grossCents={65000}
-                vatCents={11721}
-                category="rent"
-                onDone={onDone}
-                {...props}
-              />
-            }
-          />
-          <Route path="/books/credit-notes/new" element={<div>CN FORM</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider>
+        <MemoryRouter initialEntries={['/books/expenses/12']}>
+          <AppToaster />
+          <Routes>
+            <Route
+              path="/books/expenses/:id"
+              element={
+                <CorrectSheet
+                  open
+                  onOpenChange={() => undefined}
+                  objectType="expense"
+                  objectId={12}
+                  grossCents={65000}
+                  vatCents={11721}
+                  category="rent"
+                  onDone={onDone}
+                  {...props}
+                />
+              }
+            />
+            <Route
+              path="/books/credit-notes/new"
+              element={<div>CN FORM</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { onDone };

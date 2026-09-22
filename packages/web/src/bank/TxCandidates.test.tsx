@@ -27,6 +27,7 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { AppToaster } from '../ui/toast';
 import { TxCandidates } from './TxCandidates';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -72,8 +73,10 @@ function renderWithClient(
 ) {
   render(
     <QueryClientProvider client={client}>
-      {ui}
-      <AppToaster />
+      <UnsavedChangesProvider>
+        {ui}
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return client;
