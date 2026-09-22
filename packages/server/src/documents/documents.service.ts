@@ -50,6 +50,17 @@ export class DocumentsService {
    */
   private reprocessKicker: (() => void) | null = null;
 
+  /**
+   * Per-document exclusion (issue #248). Every read-then-act path that may
+   * turn a Document into a business object — the intake workflow's `process`,
+   * `resolveSupplier`, `manualClassify`, and the deliberate attach to an
+   * existing expense — holds this for its whole body, so none of them can act
+   * on a status another one has already moved. In-process by design, like the
+   * ProcessingGate (one Node process; multi-instance is out of scope); the
+   * conditional UPDATEs behind it remain the database-level backstop.
+   */
+  private readonly exclusive = new Map<number, Promise<void>>();
+
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly storage: DocumentStorageService,
@@ -59,6 +70,45 @@ export class DocumentsService {
   /** Register the worker's wake callback. Idempotent; last registration wins. */
   setReprocessKicker(kicker: () => void): void {
     this.reprocessKicker = kicker;
+  }
+
+  /** Run `fn` holding document `id`'s exclusion, waiting for any holder. */
+  async runExclusive<T>(id: number, fn: () => Promise<T>): Promise<T> {
+    for (let held = this.exclusive.get(id); held; ) {
+      await held;
+      held = this.exclusive.get(id);
+    }
+    return this.holdExclusive(id, fn);
+  }
+
+  /**
+   * Run `fn` holding document `id`'s exclusion, or throw `busy()` at once when
+   * another path holds it — for operator actions that must not queue behind a
+   * minutes-long OCR run.
+   */
+  tryRunExclusive<T>(
+    id: number,
+    fn: () => Promise<T>,
+    busy: () => Error,
+  ): Promise<T> {
+    if (this.exclusive.has(id)) return Promise.reject(busy());
+    return this.holdExclusive(id, fn);
+  }
+
+  private async holdExclusive<T>(id: number, fn: () => Promise<T>): Promise<T> {
+    let release!: () => void;
+    this.exclusive.set(
+      id,
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    try {
+      return await fn();
+    } finally {
+      this.exclusive.delete(id);
+      release();
+    }
   }
 
   async upload(input: UploadDocumentInput): Promise<UploadDocumentResult> {

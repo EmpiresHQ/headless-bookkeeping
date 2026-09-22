@@ -10,6 +10,7 @@ describe('IntakeWorkflowService.process gating', () => {
     // the body executed (inside the gate) without standing up the whole pipeline.
     const documents = {
       getById: jest.fn().mockRejectedValue(new Error('sentinel')),
+      runExclusive: jest.fn((_id: number, fn: () => Promise<unknown>) => fn()),
     };
 
     const service = new IntakeWorkflowService(

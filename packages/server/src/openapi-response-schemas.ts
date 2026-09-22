@@ -255,3 +255,44 @@ export const reportingPeriodsListResponseSchema = {
     },
   },
 };
+
+/** GET /api/expenses/:id/attachable-documents (issue #248). */
+export const attachableDocumentsResponseSchema = {
+  type: 'object',
+  required: ['documents'],
+  properties: {
+    documents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'filename',
+          'mime_type',
+          'status',
+          'created_at',
+          'reason',
+        ],
+        properties: {
+          id: integerSchema,
+          filename: stringSchema,
+          mime_type: stringSchema,
+          status: { type: 'string', enum: ['pending', 'needs_triage'] },
+          created_at: integerSchema,
+          reason: nullableStringSchema,
+        },
+      },
+    },
+  },
+};
+
+/** POST /api/expenses/:id/attach-document (issue #248). */
+export const attachDocumentResponseSchema = {
+  type: 'object',
+  required: ['outcome', 'expense', 'document'],
+  properties: {
+    outcome: { type: 'string', enum: ['attached', 'already_attached'] },
+    expense: expenseResponseSchema,
+    document: documentResponseSchema,
+  },
+};

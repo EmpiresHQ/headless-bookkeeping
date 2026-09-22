@@ -13,8 +13,11 @@ import { PeriodLockModule } from '../reporting-periods/period-lock.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { FixedAssetsModule } from '../fixed-assets/fixed-assets.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
+import { ExpenseDocumentsController } from './expense-documents.controller';
+import { ExpenseDocumentAttachService } from './expense-document-attach.service';
 
 @Module({
   imports: [
@@ -32,9 +35,10 @@ import { ExpensesService } from './expenses.service';
     CategoriesModule,
     FixedAssetsModule,
     AuditLogModule,
+    DocumentsModule,
   ],
-  controllers: [ExpensesController],
-  providers: [ExpensesService],
+  controllers: [ExpensesController, ExpenseDocumentsController],
+  providers: [ExpensesService, ExpenseDocumentAttachService],
   exports: [ExpensesService],
 })
 export class ExpensesModule {}

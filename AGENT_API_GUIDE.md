@@ -367,6 +367,36 @@ curl -H "$H" -H "$J" -X POST $B/api/documents/<id>/complete -d '{}' # mark proce
 # an expense can be linked to a document at creation: document_id field on POST /api/expenses
 ```
 
+### Attach a late receipt to an existing expense
+For an expense entered without its document (e.g. bank line → "receipt coming
+later"). Do NOT upload via `POST /api/documents` first: that queues intake, which
+may book a SECOND expense. Attach instead — one deliberate operation:
+```bash
+# a new file: stored and attached in one step, never queued for intake
+curl -H "$H" -F "file=@receipt.pdf" $B/api/expenses/<id>/attach-document
+# or an existing document — only ids the server lists as attachable:
+curl -H "$H" $B/api/expenses/<id>/attachable-documents        # → {documents:[{id,filename,status,reason,…}]}
+curl -H "$H" -H "$J" -X POST $B/api/expenses/<id>/attach-document -d '{"document_id":44}'
+# → {outcome: attached|already_attached, expense, document}
+```
+- Exactly one of: multipart `file` (no other fields) or JSON `{"document_id": <int>}`
+  (no other keys; a string id is refused). Anything else → 400.
+- SAME expense: only its empty `document_id` is filled. Id, amounts, VAT, status,
+  voucher, reconciliation and approval history are unchanged; nothing is posted and
+  VAT is NOT recalculated from the receipt (claiming VAT a "no receipt" entry left
+  out is a PATCH on a draft or a `.../correct` on a posted expense). Allowed for
+  draft/pending/posted/reversed and inside a locked period (additive evidence;
+  audited as `expense.document_attached`).
+- An existing source is never replaced → 409. Retrying the same file or id →
+  `already_attached` (idempotent); byte-identical content is the SAME document.
+- Eligible existing documents: idle `pending` or `needs_triage`, not used as the
+  source of an expense or sales invoice, not an allowance's evidence, not a receipt
+  intake already filed against another expense, not submitted by a claimant.
+  Anything else → 409 with the reason. Attaching resolves its needs_triage item.
+- 409 "being processed or changed right now": intake is working on that document —
+  nothing was attached; retry when it finishes. Verify by `GET /api/expenses/<id>`
+  (`document_id` equals the returned document id).
+
 ### Read the VAT figures (safe, read-only)
 ```bash
 curl -H "$H" "$B/api/reporting-periods/<id>/vat-report/preview"

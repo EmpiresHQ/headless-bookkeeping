@@ -31,6 +31,7 @@ import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
 import { ExpenseEditSheet } from './EditDraftSheet';
+import { AttachDocumentSheet } from './AttachDocumentSheet';
 
 /** Honest history (Reality #2): built ONLY from exposed facts — created_at,
  *  the rejection log, and the reversed status. The correction's own date and
@@ -91,6 +92,7 @@ export function ExpenseScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const correctSheet = useSheet();
   const editSheet = useSheet();
+  const attachSheet = useSheet();
   const [busy, setBusy] = useState(false);
 
   if (detailQ.isError) {
@@ -231,8 +233,10 @@ export function ExpenseScreen() {
       {detail.document_id == null && (
         <ListGroup label="Document">
           <ListRow
-            title="No source document"
-            subtitle="Entered without a receipt/invoice — uploads land in Documents (auto-attach is a server follow-up)"
+            leading={<span aria-hidden>📎</span>}
+            title="Attach receipt…"
+            subtitle="No source document yet — upload it or pick one from Documents"
+            onClick={() => attachSheet.open()}
           />
         </ListGroup>
       )}
@@ -339,6 +343,18 @@ export function ExpenseScreen() {
           onOpenChange={(o) => !o && editSheet.close()}
           detail={detail}
           onSaved={() => void detailQ.refetch()}
+        />
+      )}
+
+      {/* Same keep-mounted lifecycle: a successful attach refetches the
+       *  expense (its Document group flips to the linked file) while the
+       *  sheet closes. */}
+      {attachSheet.epoch > 0 && (
+        <AttachDocumentSheet
+          key={`attach-${detail.id}-${attachSheet.epoch}`}
+          open={attachSheet.isOpen}
+          onOpenChange={(o) => !o && attachSheet.close()}
+          detail={detail}
         />
       )}
 

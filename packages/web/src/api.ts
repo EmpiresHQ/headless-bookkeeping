@@ -262,6 +262,50 @@ export interface ExpenseDetail {
 export const getExpense = (id: number) =>
   apiFetch<ExpenseDetail>(`/api/expenses/${id}`);
 
+/** A document the server says may become this expense's source (issue #248).
+ *  The server owns eligibility — a document with no linked expense can still
+ *  be a sales invoice's source, an allowance's evidence or a filed receipt. */
+export interface AttachableDocument {
+  id: number;
+  filename: string;
+  mime_type: string;
+  status: 'pending' | 'needs_triage';
+  created_at: number;
+  reason: string | null;
+}
+
+export const listAttachableDocuments = (expenseId: number) =>
+  apiFetch<{ documents: AttachableDocument[] }>(
+    `/api/expenses/${expenseId}/attachable-documents`,
+  ).then((r) => r.documents);
+
+export interface AttachDocumentResult {
+  outcome: 'attached' | 'already_attached';
+  expense: ExpenseDetail;
+  document: DocumentRow;
+}
+
+/** Attach a late receipt to an EXISTING expense: a new file (stored and
+ *  attached in one step, never queued for intake) or an attachable document.
+ *  Fills an empty source only; amounts, status and entry are unchanged. */
+export const attachExpenseDocument = (
+  expenseId: number,
+  source: { file: File } | { documentId: number },
+) => {
+  const path = `/api/expenses/${expenseId}/attach-document`;
+  if ('file' in source) {
+    // Multipart: set NO content-type so the browser adds the boundary.
+    const body = new FormData();
+    body.append('file', source.file);
+    return apiFetch<AttachDocumentResult>(path, { method: 'POST', body });
+  }
+  return apiFetch<AttachDocumentResult>(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ document_id: source.documentId }),
+  });
+};
+
 /** Set the supplier invoice number on a POSTED expense — no ledger impact;
  *  400 when the expense's reporting period is locked (expenses.service.ts:
  *  217-233). The Reports INF-gap fix goes through this. */

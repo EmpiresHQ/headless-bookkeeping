@@ -29,6 +29,8 @@ export const booksKeys = {
   creditNotes: ['books', 'credit-notes'] as const,
   creditNote: (id: number) => ['books', 'credit-notes', id] as const,
   expense: (id: number) => ['books', 'expense', id] as const,
+  attachable: (expenseId: number) =>
+    ['books', 'expense', expenseId, 'attachable'] as const,
   rejection: (objectType: 'expense' | 'sales_invoice', objectId: number) =>
     ['books', 'rejection', objectType, objectId] as const,
 };
