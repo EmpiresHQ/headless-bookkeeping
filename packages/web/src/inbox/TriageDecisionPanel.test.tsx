@@ -242,7 +242,7 @@ describe('TriageDecisionPanel', () => {
       ['outgoing_invoice', 'Review sales invoice', 'invoice'],
       ['ocr_failed', 'Replace or retry file', 'ocr'],
       ['classification_failed', 'Classify manually', 'classify'],
-      ['possible_duplicate', 'Review possible duplicate', 'classify'],
+      ['possible_duplicate', 'Review possible duplicate', 'duplicate'],
       ['non_postable_document', 'Review document type', 'classify'],
     ] as const;
 

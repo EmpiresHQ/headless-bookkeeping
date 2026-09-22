@@ -25,6 +25,7 @@ import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
 import { ClassifyInvoiceSheet } from './ClassifyInvoiceSheet';
+import { DuplicateReviewSheet } from './DuplicateReviewSheet';
 import { DocPreviewRow } from './DocPreviewRow';
 import { OcrFailedSheet } from './OcrFailedSheet';
 import { outcomeText } from './reason';
@@ -32,7 +33,7 @@ import { ResolveSupplierSheet } from './ResolveSupplierSheet';
 import { TriageDecisionPanel } from './TriageDecisionPanel';
 import { TriageDocumentContext } from './TriageDocumentContext';
 
-type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr';
+type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
 
 /** /inbox/doc/:id — triage detail: persisted facts + the right resolution
  *  flow for the reason (fullscreen sheets), plus Retry AI / Dismiss / Delete.
@@ -244,6 +245,17 @@ export function TriageDocScreen() {
         open={sheet === 'resolve'}
         onOpenChange={(o) => setSheet(o ? 'resolve' : null)}
         onDone={(o) => void finishTriage(o)}
+      />
+      <DuplicateReviewSheet
+        key={`duplicate-${docId}-${attempt}`}
+        documentId={docId}
+        reason={item.reason}
+        open={sheet === 'duplicate'}
+        onOpenChange={(o) => setSheet(o ? 'duplicate' : null)}
+        onArchive={() => {
+          setSheet(null);
+          setConfirm('dismiss');
+        }}
       />
       <ClassifyExpenseSheet
         key={`classify-${docId}-${attempt}`}

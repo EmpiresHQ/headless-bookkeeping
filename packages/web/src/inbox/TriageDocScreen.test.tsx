@@ -13,6 +13,7 @@ vi.mock('../api', async (importOriginal) => ({
   getCategories: vi.fn(),
   getEntities: vi.fn(),
   getExpenses: vi.fn(),
+  getExpense: vi.fn(),
   completeDocument: vi.fn(),
   retryDocument: vi.fn(),
   deleteDocument: vi.fn(),
@@ -161,6 +162,21 @@ describe('TriageDocScreen', () => {
           'possible duplicate of expense #113: same supplier and invoice number 2AUEKTA3 0002.',
       }),
     ]);
+    vi.mocked(api.getExpense).mockResolvedValue({
+      id: 113,
+      document_id: 194,
+      supplier_id: 51,
+      category: 'software',
+      gross_amount: 400,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2026-09-10',
+      status: 'posted',
+      supplier_invoice_number: '2AUEKTA3 0002',
+      ai_confidence: null,
+      claimant_id: null,
+      created_at: 100,
+    });
     renderAt('/inbox/doc/195');
     expect(
       await screen.findByRole('heading', {
@@ -176,8 +192,26 @@ describe('TriageDocScreen', () => {
     await waitFor(() =>
       expect(api.getDocumentDetails).toHaveBeenCalledWith(195),
     );
+    expect(
+      await screen.findByRole('link', { name: 'Open existing expense' }),
+    ).toHaveAttribute('href', '/books/expenses/113');
+    expect(
+      screen.getByRole('link', { name: 'Open existing document' }),
+    ).toHaveAttribute('href', '/books/documents/194');
+    expect(screen.getByText('Expense #113 · posted')).toBeInTheDocument();
+    expect(screen.getByText('4.00 EUR')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Create expense/ }),
+    ).not.toBeInTheDocument();
+    expect(api.getDocumentReclassify).not.toHaveBeenCalled();
     expect(api.manualClassify).not.toHaveBeenCalled();
     expect(api.resolveSupplier).not.toHaveBeenCalled();
+    expect(api.completeDocument).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Archive this duplicate' }),
+    );
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(api.completeDocument).not.toHaveBeenCalled();
   });
 
   it('leads with the semantic decision, keeps the raw reason as collapsed technical detail, and shows persisted facts', async () => {
