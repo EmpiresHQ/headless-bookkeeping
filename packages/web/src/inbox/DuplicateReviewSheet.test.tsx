@@ -114,7 +114,9 @@ it('shows the actual draft status and missing extracted facts without claiming i
   });
   mount('possible duplicate of expense #113:');
   expect(await screen.findByText('Expense #113 · draft')).toBeInTheDocument();
-  expect(screen.getAllByText('Not extracted').length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText('Classification unavailable').length,
+  ).toBeGreaterThan(0);
   expect(
     screen.queryByRole('link', { name: 'Open existing document' }),
   ).not.toBeInTheDocument();

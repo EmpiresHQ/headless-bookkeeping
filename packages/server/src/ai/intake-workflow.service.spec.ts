@@ -561,6 +561,74 @@ describe('IntakeWorkflowService', () => {
       );
     });
 
+    it('retains duplicate facts without enabling supplier replay, and clears stale facts on failed retry', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({
+        confidence: 0.94,
+        gross_amount: 1736,
+        vat_amount: 336,
+        tax_point_date: '2026-09-20',
+        supplier_invoice_number: '70379',
+        category: 'software',
+        supplier_proposal: { mode: 'match', match_entity_id: 7 },
+      });
+      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: triage });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'possible-duplicate',
+        reason:
+          'possible duplicate of expense #146: same supplier and invoice number 70379.',
+      });
+      await service.process(docId);
+      const calls = mockPass2Agent.classify.mock.calls.length;
+      const details = await service.details(docId);
+      expect(details.classification).toMatchObject({
+        ok: true,
+        result: {
+          gross_amount: 1736,
+          vat_amount: 336,
+          supplier_invoice_number: '70379',
+        },
+      });
+      expect(JSON.stringify(details)).not.toContain('match_entity_id');
+      expect(JSON.stringify(details)).not.toContain('supplier_proposal');
+      expect(await documentsService.getPendingTriageReplay(docId)).toBeNull();
+      await expect(service.resolveSupplier(docId, 7)).rejects.toThrow(
+        'no pending supplier proposal',
+      );
+      expect(mockPass2Agent.classify).toHaveBeenCalledTimes(calls);
+      expect(await db.selectFrom('expense').selectAll().execute()).toEqual([]);
+
+      await documentsService.reprocessDocument(docId);
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'agent-unavailable',
+        detail: 'timeout',
+      });
+      await service.process(docId);
+      expect((await service.details(docId)).classification).toBeNull();
+      expect(
+        await documentsService.getClassificationSnapshot(docId),
+      ).toBeNull();
+    });
+
+    it.each(['duplicate', 'unknown', 'not_a_document'] as const)(
+      'retains %s classification before a no-expense route',
+      async (kind) => {
+        const docId = await seedDocument();
+        mockPass2Agent.classify.mockResolvedValue({
+          ok: true,
+          result: sampleTriageResult({ kind, confidence: 0.5 }),
+        });
+        await service.process(docId);
+        expect((await service.details(docId)).classification).toMatchObject({
+          ok: true,
+          result: { kind },
+        });
+        expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+        expect(await documentsService.getPendingTriageReplay(docId)).toBeNull();
+      },
+    );
+
     it('files a matched RECEIPT away as processed with an audit_log trace, without creating work for a human', async () => {
       // The dominant production pattern: a vendor emails the invoice and the
       // payment receipt as two attachments. The receipt evidences a purchase

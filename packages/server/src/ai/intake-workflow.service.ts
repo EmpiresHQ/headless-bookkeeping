@@ -298,9 +298,9 @@ export class IntakeWorkflowService {
    * ai_confidence → confidence; the remaining fields (amounts, category, etc.)
    * come from the Expense's own columns.
    *
-   * A document with no linked Expense (e.g. needs_triage or OCR-only) returns
-   * OCR text with classification: null. A missing OCR artifact returns the OCR
-   * failure shape with classification: null.
+   * Without a linked Expense, use the saved classification snapshot (or the
+   * legacy supplier replay). OCR-only documents return classification: null.
+   * A missing OCR artifact returns the OCR failure shape with classification: null.
    */
   // Not gated: details() is read-only and does not run the OCR/LLM pipeline,
   // so it does not need ProcessingGate serialization (unlike process() which
@@ -335,7 +335,8 @@ export class IntakeWorkflowService {
 
     if (!expense) {
       const pendingReplay =
-        await this.documents.getPendingTriageReplay(documentId);
+        (await this.documents.getClassificationSnapshot(documentId)) ??
+        (await this.documents.getPendingTriageReplay(documentId));
       if (pendingReplay) {
         // Strip supplier_proposal / customer_proposal off the wire — a raw
         // proposal can carry match_entity_id (the AI's unverified guess at an
@@ -520,6 +521,13 @@ export class IntakeWorkflowService {
 
       const triageResult = pass2.result;
       const pass2Enrichment = pass2.enrichment ?? null;
+      // Preserve evidence before ANY routing decision, including holds which
+      // intentionally create no Expense. This does not enable supplier replay.
+      await this.documents.setClassificationSnapshot(
+        documentId,
+        triageResult,
+        pass2Enrichment,
+      );
       this.logger.debug(
         `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
       );

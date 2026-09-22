@@ -1,3 +1,4 @@
+import * as m080 from './080_add_document_classification_snapshot';
 import { Migration } from 'kysely/migration';
 import * as m001 from './001_create_organization';
 import * as m002 from './002_create_account';
@@ -155,4 +156,5 @@ export const migrations: Record<string, Migration> = {
   '077_add_input_vat_entitlement': m077,
   '078_add_health_allowance_facts': m078,
   '079_add_prepayment_tax_treatment': m079,
+  '080_add_document_classification_snapshot': m080,
 };

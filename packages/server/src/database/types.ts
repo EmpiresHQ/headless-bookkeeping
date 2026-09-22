@@ -263,6 +263,8 @@ export interface DocumentTable {
   status: string;
   // Nullable JSON (TEXT): the JSON-stringified TriageResult that blocked this
   // document on the supplier-unresolved route (migration 039). NULL otherwise.
+  // Read-only successful extraction, independent of supplier replay eligibility.
+  classification_snapshot: Generated<string | null>;
   pending_triage_result: string | null;
   // Nullable JSON (TEXT): deterministic Pass-2 enrichment retained alongside
   // pending_triage_result for parked replay/debug flows.

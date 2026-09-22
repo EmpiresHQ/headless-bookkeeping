@@ -7,7 +7,7 @@ import { TriageEvidence } from './triage-context';
 import { Pass2Outcome } from './pass2-agent.service';
 
 describe('prompt eval assertions (negative controls)', () => {
-  const known = triageEvalCases[0];
+  const known = triageEvalCases.find((test) => test.id === 'known-supplier')!;
   const evidence: TriageEvidence = {
     kind: 'new_expense',
     category: 'software',
