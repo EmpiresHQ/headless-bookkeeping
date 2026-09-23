@@ -78,8 +78,12 @@ export function useInboxCompletion(route: string) {
   // '/inbox' = no next item: leave the run.
   const next = position !== null ? nextRouteAfter(members, route) : '/inbox';
 
+  // A single item from an Inbox list goes back to that exact list (#278).
   const backHref =
-    run !== null ? segmentHref(run.seg) : (source?.href ?? '/inbox');
+    run !== null
+      ? segmentHref(run.seg)
+      : (source?.href ??
+        (fromInbox && nav.origin !== null ? nav.origin.href : '/inbox'));
   const context =
     run !== null
       ? next !== '/inbox'
@@ -104,6 +108,15 @@ export function useInboxCompletion(route: string) {
       });
     } else if (run !== null && to !== '/inbox') {
       nav.advance(to, runWithout(run, route));
+    } else if (run === null && fromInbox && nav.origin !== null) {
+      // A single item opened from an Inbox list (a search hit, #278): even
+      // without the #252 proof, land on that exact list — its ?q=/?seg= and
+      // its own history state — never a bare /inbox.
+      nav.returnTo({
+        fallback: nav.origin.href,
+        fallbackState: nav.origin.state,
+        acceptOrigin: (p) => p === '/inbox',
+      });
     } else {
       nav.returnTo({ fallback: backHref, acceptOrigin: (p) => p === '/inbox' });
     }

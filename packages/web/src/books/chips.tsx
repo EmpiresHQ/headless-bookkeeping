@@ -212,6 +212,7 @@ export function ActiveFilters({
   onReset,
   resetLabel = 'Reset',
   resetName = 'Reset filters and search',
+  resetDisabled = false,
 }: {
   /** Applied segment filters, already parsed (never raw params). */
   filters: readonly string[];
@@ -227,6 +228,8 @@ export function ActiveFilters({
   resetLabel?: string;
   /** Accessible name; starts with the visible label. */
   resetName?: string;
+  /** While an operation on the listed rows is pending (issue #278). */
+  resetDisabled?: boolean;
 }) {
   const needle = q.trim();
   if (filters.length === 0 && needle === '') return null;
@@ -258,6 +261,7 @@ export function ActiveFilters({
       <button
         type="button"
         aria-label={resetName}
+        disabled={resetDisabled}
         onClick={onReset}
         className="flex min-h-11 min-w-11 flex-none items-center justify-center"
       >

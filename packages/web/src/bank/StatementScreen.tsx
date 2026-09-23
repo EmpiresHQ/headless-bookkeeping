@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   useLocation,
   useNavigate,
@@ -35,12 +35,16 @@ import {
   useReconciliation,
   useStatementMatches,
 } from '../queries/bank';
+import { ActiveFilters } from '../books/chips';
+import { useSetFilterParam } from '../books/filters';
+import { searchNeedle } from '../lib/searchText';
 import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { GroupLabel, ROW_BODY, ROW_IDENTITY, ROW_TRAILING } from '../ui/List';
+import { SearchInput } from '../ui/SearchInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { toastErr, toastUndo } from '../ui/toast';
 import { ScreenHeader } from '../shell/Headers';
@@ -51,6 +55,7 @@ import {
 import { formatStatementPeriod, formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
 import { undoIncomplete } from './lineResults';
+import { STATEMENT_SEARCH, lineMatches } from './search';
 import {
   bucketOf,
   buildLines,
@@ -262,6 +267,23 @@ export function StatementScreen() {
   const origin = useOriginState();
   const { returnTo } = useCompletionNavigation();
   const seg = searchParams.get('seg') === 'all' ? 'all' : 'unmatched';
+  // Search inside the statement (issue #278): ?q= narrows the listed lines
+  // only — counts, the selection and its preselect are the statement's.
+  const q = searchParams.get('q') ?? '';
+  const needle = searchNeedle(q);
+  const searchId = useId();
+  const scopeId = useId();
+  const setParam = useSetFilterParam();
+  const [focusSearch, setFocusSearch] = useState(false);
+  useEffect(() => {
+    if (!focusSearch) return;
+    setFocusSearch(false);
+    document.getElementById(searchId)?.focus({ preventScroll: true });
+  }, [focusSearch, searchId]);
+  const clearSearch = () => {
+    setParam('q', null);
+    setFocusSearch(true);
+  };
 
   const statementsQ = useBankStatements();
   const txQ = useBankTransactions(statementId);
@@ -277,6 +299,13 @@ export function StatementScreen() {
   const sessionTask = useSessionTask();
   const [running, setRunning] = useState<'book' | 'confirm' | 'delete'>('book');
   const deleting = op.pending && running === 'delete';
+  // The booking request as captured at click: while it is pending the Book
+  // button shows exactly it (issue #278), whatever the selection does.
+  const [bookingShown, setBookingShown] = useState<{
+    count: number;
+    netCents: number;
+    searched: boolean;
+  } | null>(null);
   const booking = op.pending;
   const confirmBusy = op.pending;
 
@@ -331,14 +360,51 @@ export function StatementScreen() {
       return next;
     });
 
-  const chosen = (proposalsQ.data ?? []).filter((p) =>
+  const proposalLines = lines.filter((l) => bucketOf(l) === 'proposals');
+  const decideLines = lines.filter((l) => bucketOf(l) === 'decide');
+  const doneLines = lines.filter((l) => bucketOf(l) === 'done');
+  const unmatchedCount = proposalLines.length + decideLines.length;
+  const shownOf = (ls: LineView[]) =>
+    needle === null ? ls : ls.filter((l) => lineMatches(l, needle));
+  const shownProposals = shownOf(proposalLines);
+  const shownDecide = shownOf(decideLines);
+  const shownDone = seg === 'all' ? shownOf(doneLines) : [];
+  const shownCount =
+    shownProposals.length + shownDecide.length + shownDone.length;
+  const segCount = seg === 'all' ? lines.length : unmatchedCount;
+
+  // Bulk booking books ONLY what is on screen (issue #278): a selected
+  // proposal hidden by the search stays selected (Clear shows it again) but
+  // is never part of the request. Unfiltered, this is every selection.
+  const shownTx = new Set(shownProposals.map((l) => l.tx.id));
+  const allChosen = (proposalsQ.data ?? []).filter((p) =>
     selected.has(proposalKey(p)),
   );
+  const chosen = allChosen.filter((p) => shownTx.has(p.bankTransactionId));
+  // Hidden BY THE SEARCH: selections on lines still awaiting a proposal
+  // decision that the search leaves off screen — never a stale proposal on
+  // a line that is done meanwhile.
+  const eligibleTx = new Set(proposalLines.map((l) => l.tx.id));
+  const hiddenChosen =
+    needle === null
+      ? 0
+      : allChosen.filter((p) => eligibleTx.has(p.bankTransactionId)).length -
+        chosen.length;
   const txById = new Map(lines.map((l) => [l.tx.id, l.tx]));
   const netCents = chosen.reduce((sum, p) => {
     const tx = txById.get(p.bankTransactionId);
     return sum + (tx && tx.amount < 0 ? -p.amountMatched : p.amountMatched);
   }, 0);
+
+  const bookButton =
+    booking && running === 'book' && bookingShown !== null
+      ? { ...bookingShown, pending: true }
+      : {
+          count: chosen.length,
+          netCents,
+          searched: needle !== null,
+          pending: false,
+        };
 
   // Durable receipts of bookings on this statement (#259).
   const log = useResultLog();
@@ -398,6 +464,11 @@ export function StatementScreen() {
 
   const onBook = () => {
     const proposals = chosen;
+    const captured = {
+      count: chosen.length,
+      netCents,
+      searched: needle !== null,
+    };
     // One record per booking series: staged → each activation → outcome;
     // a retry after a failure supersedes it.
     const note = (
@@ -446,12 +517,14 @@ export function StatementScreen() {
       },
       {
         onSuccess: (matchIds) => {
+          setBookingShown(null);
           const record = slotHandle(bookRecord);
           // A new booking is a new record.
           bookRecord.current = null;
           offerUndo(`Booked ${plural(matchIds.length)}`, matchIds, record);
         },
         onError: (e) => {
+          setBookingShown(null);
           if (!accepted) {
             // No staging was confirmed: nothing is claimed either way.
             note(
@@ -474,7 +547,10 @@ export function StatementScreen() {
         },
       },
     );
-    if (started) setRunning('book');
+    if (started) {
+      setRunning('book');
+      setBookingShown(captured);
+    }
   };
 
   const onConfirmStaged = (m: MatchRowView) => {
@@ -554,11 +630,6 @@ export function StatementScreen() {
     if (started) setRunning('delete');
   };
 
-  const proposalLines = lines.filter((l) => bucketOf(l) === 'proposals');
-  const decideLines = lines.filter((l) => bucketOf(l) === 'decide');
-  const doneLines = lines.filter((l) => bucketOf(l) === 'done');
-  const unmatchedCount = proposalLines.length + decideLines.length;
-
   const openTx = (txId: number) =>
     navigate(
       `/bank/statements/${statementId}/tx/${txId}${seg === 'all' ? '?seg=all' : ''}`,
@@ -584,22 +655,56 @@ export function StatementScreen() {
           </button>
         }
       />
-      <div className="px-4 pb-3">
+      <div className="space-y-2.5 px-4 pb-3">
         <SegmentedControl
           options={[
             { value: 'unmatched', label: `Unmatched ${unmatchedCount}` },
             { value: 'all', label: `All ${lines.length}` },
           ]}
           value={seg}
-          onChange={(v) =>
-            // In place: keep this entry's own origin record (issue #252).
-            setSearchParams(v === 'all' ? { seg: 'all' } : {}, {
+          // No list change under a pending operation (issue #278): the
+          // shown rows and Book figures stay those of the request.
+          disabled={op.pending}
+          onChange={(v) => {
+            // In place: keep this entry's own origin record (issue #252)
+            // and every other param — the search survives (issue #278).
+            const next = new URLSearchParams(searchParams);
+            if (v === 'all') next.set('seg', 'all');
+            else next.delete('seg');
+            setSearchParams(next, {
               replace: true,
               state: location.state as unknown,
-            })
-          }
+            });
+          }}
         />
+        <SearchInput
+          id={searchId}
+          value={q}
+          onChange={(v) => setParam('q', v === '' ? null : v)}
+          placeholder={STATEMENT_SEARCH.placeholder}
+          aria-label="Search this statement"
+          aria-describedby={scopeId}
+          disabled={op.pending}
+        />
+        <span id={scopeId} className="sr-only">
+          Matches {STATEMENT_SEARCH.scope}. Book matches books only the selected
+          matches shown.
+        </span>
       </div>
+      <ActiveFilters
+        filters={[]}
+        q={q}
+        searchScope={STATEMENT_SEARCH.scope}
+        result={
+          loading || hasBlockingError
+            ? undefined
+            : { shown: shownCount, total: segCount, noun: 'lines' }
+        }
+        onReset={clearSearch}
+        resetLabel="Clear"
+        resetName="Clear search"
+        resetDisabled={op.pending}
+      />
 
       {loading && <SkeletonRows count={5} />}
       {failingQuery && (
@@ -627,11 +732,11 @@ export function StatementScreen() {
               </button>
             </div>
           )}
-          {proposalLines.length > 0 && (
+          {shownProposals.length > 0 && (
             <>
               <GroupLabel>AI proposals</GroupLabel>
               <div className="mx-3.5 mb-3.5 overflow-hidden rounded-2xl bg-surface">
-                {proposalLines.map((line) => (
+                {shownProposals.map((line) => (
                   <ProposalRow
                     key={line.tx.id}
                     line={line}
@@ -643,7 +748,7 @@ export function StatementScreen() {
                   />
                 ))}
               </div>
-              {chosen.length > 0 && (
+              {(chosen.length > 0 || bookButton.pending) && (
                 <div className="mx-3.5 mb-3.5">
                   <button
                     type="button"
@@ -652,23 +757,37 @@ export function StatementScreen() {
                     className="flex h-[46px] w-full items-center justify-between rounded-[13px] bg-accent-deep px-4 text-[13.5px] font-bold text-white disabled:opacity-60"
                   >
                     <span>
-                      Book {chosen.length}{' '}
-                      {chosen.length === 1 ? 'match' : 'matches'}
+                      Book {bookButton.count} {bookButton.searched && 'shown '}
+                      {bookButton.count === 1 ? 'match' : 'matches'}
                     </span>
                     <span className="text-[10.5px] font-medium opacity-70">
-                      {netCents > 0 ? '+' : ''}
-                      {fmtCents(netCents)} € net
+                      {bookButton.netCents > 0 ? '+' : ''}
+                      {fmtCents(bookButton.netCents)} € net
                     </span>
                   </button>
                 </div>
               )}
+              {hiddenChosen > 0 && (
+                <p className="mx-4 mb-3.5 text-[12px] text-ink-2">
+                  {hiddenChosen} selected{' '}
+                  {hiddenChosen === 1 ? 'match is' : 'matches are'} hidden by
+                  the search and will not be booked.
+                </p>
+              )}
             </>
           )}
-          {decideLines.length > 0 && (
+          {shownProposals.length === 0 && hiddenChosen > 0 && (
+            <p className="mx-4 mb-3.5 text-[12px] text-ink-2">
+              {hiddenChosen} selected{' '}
+              {hiddenChosen === 1 ? 'match is' : 'matches are'} hidden by the
+              search — clear it to book {hiddenChosen === 1 ? 'it' : 'them'}.
+            </p>
+          )}
+          {shownDecide.length > 0 && (
             <>
               <GroupLabel>Decide yourself</GroupLabel>
               <div className="mx-3.5 mb-3.5 overflow-hidden rounded-2xl bg-surface">
-                {decideLines.map((line) => (
+                {shownDecide.map((line) => (
                   <DecideRow
                     key={line.tx.id}
                     line={line}
@@ -678,18 +797,39 @@ export function StatementScreen() {
               </div>
             </>
           )}
-          {unmatchedCount === 0 && (
+          {needle !== null && shownCount === 0 && (
+            <EmptyState
+              icon="⌕"
+              title="No lines match"
+              hint={`The search looks at ${STATEMENT_SEARCH.scope}.${
+                seg === 'unmatched' && doneLines.length > 0
+                  ? ' Matched lines are under All.'
+                  : ''
+              }`}
+              action={
+                <button
+                  type="button"
+                  disabled={op.pending}
+                  onClick={clearSearch}
+                  className="min-h-11 text-[14px] font-semibold text-accent"
+                >
+                  Clear search
+                </button>
+              }
+            />
+          )}
+          {needle === null && unmatchedCount === 0 && (
             <EmptyState
               icon="✓"
               title="All lines reconciled"
               hint="Switch to All to review matched lines."
             />
           )}
-          {seg === 'all' && doneLines.length > 0 && (
+          {shownDone.length > 0 && (
             <>
               <GroupLabel>Matched</GroupLabel>
               <div className="mx-3.5 mb-3.5 overflow-hidden rounded-2xl bg-surface">
-                {doneLines.map((line) => (
+                {shownDone.map((line) => (
                   <DoneRow
                     key={line.tx.id}
                     line={line}

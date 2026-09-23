@@ -18,6 +18,8 @@ export function SearchInput({
   id?: string;
   onBlur?: () => void;
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
+  /** While an operation on the listed rows is pending (issue #278). */
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2">
@@ -30,7 +32,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-transparent text-[13px] outline-none placeholder:text-ink-2"
+        className="w-full bg-transparent text-[13px] outline-none placeholder:text-ink-2 disabled:opacity-60"
       />
     </div>
   );
