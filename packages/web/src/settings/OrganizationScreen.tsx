@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   updateOrganization,
   type Organization,
@@ -13,11 +13,22 @@ import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
 import { Field, INPUT_CLS, SelectInput, TextInput } from '../ui/Form';
 import { LoadError } from '../ui/LoadError';
-import { toastOk } from '../ui/toast';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { toastErr, toastOk } from '../ui/toast';
+import {
+  errorMessage,
+  usePendingOperation,
+  wasRejected,
+} from '../lib/pendingOperation';
 
 const COUNTRY_RE = /^[A-Z]{2}$/;
 const CURRENCY_RE = /^[A-Z]{3}$/;
+
+const STATUS_TONE = {
+  muted: 'text-ink-2',
+  ok: 'text-ok',
+  warn: 'text-warn',
+  err: 'text-err',
+} as const;
 
 /** /settings/organization — the GET+PUT /api/organization surface
  *  (Reality #1). Country/base-currency are constrained TEXT inputs, not the
@@ -52,7 +63,7 @@ export function OrganizationScreen() {
           onRetry={() => void orgQ.refetch()}
         />
       )}
-      <OrgForm data={orgQ.data} />
+      <OrgForm data={orgQ.data} stale={orgQ.isError} />
     </Frame>
   );
 }
@@ -65,6 +76,23 @@ function Frame({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+type OrgValues = ReturnType<typeof fromServer>;
+
+/** Names for the unsaved-changes status, in form order. */
+const FIELD_NAMES: [keyof OrgValues, string][] = [
+  ['name', 'Name'],
+  ['country', 'Country'],
+  ['orgType', 'Type'],
+  ['vatRegistered', 'VAT registered'],
+  ['vatKind', 'Registration kind'],
+  ['entitlement', 'Input VAT deduction'],
+  ['permille', 'Deductible proportion'],
+  ['vatNumber', 'VAT registration number'],
+  ['registryCode', 'Registry code'],
+  ['iban', 'IBAN'],
+  ['currency', 'Base currency'],
+];
 
 /** The form's view of a server snapshot — the unsaved-changes baseline. */
 function fromServer(data: Organization) {
@@ -87,7 +115,7 @@ function fromServer(data: Organization) {
   };
 }
 
-function OrgForm({ data }: { data: Organization }) {
+function OrgForm({ data, stale }: { data: Organization; stale: boolean }) {
   const qc = useQueryClient();
   // Stays editable while saving (inline form): a save adopts the server's
   // values only if nothing was typed meanwhile — newer edits stay unsaved.
@@ -118,7 +146,7 @@ function OrgForm({ data }: { data: Organization }) {
     iban,
     currency,
   };
-  const adopt = (f: ReturnType<typeof fromServer>) => {
+  const adopt = (f: OrgValues) => {
     setCountry(f.country);
     setOrgType(f.orgType);
     setVatRegistered(f.vatRegistered);
@@ -134,11 +162,29 @@ function OrgForm({ data }: { data: Organization }) {
 
   // Unsaved = differs from the LATEST server snapshot (issue #250). The
   // baseline and the fields are derived from the same `data`.
-  useUnsavedChanges({
+  const baseline = fromServer(data);
+  const guard = useUnsavedChanges({
     label: 'Organization',
     values,
-    baseline: fromServer(data),
+    baseline,
   });
+  // The last Save's outcome, tied to what it is about: "saved" while the
+  // cache still holds that very response (a refetch with other data ends
+  // it), "failed" while the fields still hold what was submitted.
+  const [outcome, setOutcome] = useState<
+    | { kind: 'saved'; data: Organization }
+    | {
+        kind: 'failed';
+        message: string;
+        sent: OrgValues;
+        /** False when the server may still have applied it (wasRejected);
+         *  such an outcome is moot once a re-read brings other data. */
+        definite: boolean;
+        data: Organization;
+      }
+    | null
+  >(null);
+  const [sentValues, setSentValues] = useState<OrgValues | null>(null);
   const latest = useRef(values);
   latest.current = values;
 
@@ -201,22 +247,91 @@ function OrgForm({ data }: { data: Organization }) {
       registry_code: registryCode.trim() || null,
       iban: iban.trim() ? iban.trim() : null,
     };
-    op.run(() => updateOrganization(req), {
+    const started = op.run(() => updateOrganization(req), {
       onSuccess: (saved) => {
         // The saved (server-normalized) snapshot is the new baseline; adopt
         // it into the fields unless the operator kept typing during the save
         // — their newer edits stay, and stay unsaved.
         if (sameValues(latest.current, sent)) adopt(fromServer(saved));
-        syncedData.current = saved;
-        qc.setQueryData(sharedKeys.organization, saved);
+        // Keyed to the object the CACHE holds (structural sharing may
+        // not store `saved` itself).
+        const cached =
+          qc.setQueryData<Organization>(sharedKeys.organization, saved) ??
+          saved;
+        syncedData.current = cached;
+        setOutcome({ kind: 'saved', data: cached });
         void invalidateOrganization(qc);
         toastOk('Organization saved');
       },
+      onError: (e) => {
+        const message = errorMessage(e);
+        const definite = wasRejected(e);
+        setOutcome({ kind: 'failed', message, sent, definite, data });
+        toastErr(message);
+        // It may have applied: re-read, so the baseline can say so.
+        if (!definite) void invalidateOrganization(qc);
+      },
     });
+    if (started) {
+      setOutcome(null);
+      setSentValues(sent);
+    }
   };
+
+  const statusId = useId();
+  const changed = FIELD_NAMES.filter(
+    ([k]) => !sameValues(values[k], baseline[k]),
+  ).map(([, n]) => n);
+  const status = ((): {
+    tone: 'muted' | 'ok' | 'warn' | 'err';
+    text: string;
+  } => {
+    const qualifier = stale
+      ? ' Could not refresh — compared with the last organization the server returned.'
+      : '';
+    if (busy) {
+      const newer =
+        sentValues !== null && !sameValues(values, sentValues)
+          ? ' Edits made after pressing Save are not included and stay unsaved.'
+          : '';
+      return { tone: 'muted', text: `Saving the whole organization…${newer}` };
+    }
+    if (outcome?.kind === 'failed' && sameValues(values, outcome.sent)) {
+      if (outcome.definite) {
+        return {
+          tone: 'err',
+          text: `Not saved — ${outcome.message}. Your edits are kept.`,
+        };
+      }
+      if (outcome.data === data) {
+        return {
+          tone: 'warn',
+          text: `Save not confirmed — ${outcome.message}. It may or may not have been stored; your edits are kept.`,
+        };
+      }
+    }
+    if (guard.dirty && changed.length > 0) {
+      return {
+        tone: 'warn',
+        text: `Unsaved changes: ${changed.join(', ')}. Save organization stores the whole form.${qualifier}`,
+      };
+    }
+    if (outcome?.kind === 'saved' && outcome.data === data) {
+      return {
+        tone: 'ok',
+        text: `Saved — the fields show what the server stored.${qualifier}`,
+      };
+    }
+    return { tone: 'muted', text: `No unsaved changes.${qualifier}` };
+  })();
 
   return (
     <div className="mx-3.5 mb-3.5 space-y-4 rounded-2xl bg-surface p-4">
+      <p className="text-[12.5px] text-ink-2">
+        These fields are one record: <b>Save organization</b> stores all of them
+        together. (AI, Telegram, mailbox and device settings are different —
+        each of those saves on its own.)
+      </p>
       <Field label="Name">
         <TextInput
           aria-label="Name"
@@ -378,8 +493,15 @@ function OrgForm({ data }: { data: Organization }) {
           className={`${INPUT_CLS} uppercase`}
         />
       </Field>
+      <p
+        id={statusId}
+        className={`text-[12px] leading-snug ${STATUS_TONE[status.tone]}`}
+      >
+        {status.text}
+      </p>
       <Button
         className="w-full"
+        aria-describedby={statusId}
         busy={busy}
         disabled={!valid || busy}
         onClick={save}

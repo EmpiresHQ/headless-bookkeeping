@@ -3,7 +3,11 @@ import { ScreenHeader } from '../shell/Headers';
 import { SkeletonRows } from '../ui/Feedback';
 import { GroupLabel } from '../ui/List';
 import { LoadError, RefetchError } from '../ui/LoadError';
-import { SettingField, type SettingDef } from './SettingField';
+import {
+  IndependentSaveNote,
+  SettingField,
+  type SettingDef,
+} from './SettingField';
 
 const TELEGRAM_DEFS: SettingDef[] = [
   {
@@ -11,18 +15,22 @@ const TELEGRAM_DEFS: SettingDef[] = [
     label: 'Bot token',
     placeholder: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11',
     secret: true,
+    unset: 'Telegram stays unconnected — no webhook is registered at startup.',
   },
   {
     key: 'telegram_webhook_secret',
     label: 'Webhook secret',
     placeholder: 'telegram-webhook-secret',
     secret: true,
+    unset:
+      'No webhook is registered at startup and inbound Telegram updates are refused.',
   },
   {
     key: 'telegram_allowlist',
     label: 'Allowlist chat ids',
     placeholder: '123456789, 987654321',
     multiline: true,
+    unset: 'No chat is allowlisted.',
   },
 ];
 
@@ -32,6 +40,7 @@ const APPROVER_DEFS: SettingDef[] = [
     label: 'Approvers',
     placeholder: '123456789, boss@example.com',
     hint: 'Comma-separated Telegram user IDs and/or email addresses — who gets approval prompts',
+    unset: 'Nobody is listed as an approver.',
   },
   {
     key: 'email_whitelist',
@@ -39,6 +48,7 @@ const APPROVER_DEFS: SettingDef[] = [
     placeholder: 'boss@example.com, cfo@example.com',
     multiline: true,
     hint: 'Senders allowed to converse/command over email',
+    unset: 'No sender is allowed to converse/command over email.',
   },
 ];
 
@@ -69,17 +79,17 @@ export function TelegramScreen() {
       </Frame>
     );
   }
-  const map = settingsQ.data;
   const group = (defs: SettingDef[]) => (
     <div className="mx-3.5 mb-3.5 space-y-4 rounded-2xl bg-surface p-4">
       {defs.map((def) => (
-        <SettingField key={def.key} def={def} current={map[def.key] ?? ''} />
+        <SettingField key={def.key} def={def} />
       ))}
     </div>
   );
   return (
     <Frame>
       <RefetchError query={settingsQ} />
+      <IndependentSaveNote />
       <GroupLabel>Telegram bot</GroupLabel>
       {group(TELEGRAM_DEFS)}
       <p className="mx-6 -mt-2 mb-3.5 text-[12px] text-warn">

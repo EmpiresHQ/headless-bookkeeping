@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  HttpError,
   SessionChangedError,
   UnauthorizedError,
   isSameSession,
@@ -105,6 +106,13 @@ export function findUnauthorized(e: unknown): UnauthorizedError | null {
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+/** A write the server definitely REFUSED: it answered with a 4xx. Anything
+ *  else (network drop, unreadable body, 5xx) cannot prove the write did not
+ *  apply — its outcome is unconfirmed. */
+export function wasRejected(e: unknown): boolean {
+  return e instanceof HttpError && e.status >= 400 && e.status < 500;
 }
 
 export function usePendingOperation(label: string): PendingOperation {
