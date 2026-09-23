@@ -43,10 +43,13 @@ export function CreateEntitySheet({
   open,
   onClose,
   defaultRole = 'supplier',
+  roleHint,
 }: {
   open: boolean;
   onClose: () => void;
   defaultRole?: EntityRole;
+  /** Visible note under Role, e.g. documenting the All-segment default. */
+  roleHint?: string;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -133,7 +136,7 @@ export function CreateEntitySheet({
       busy={busy}
     >
       <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
-        <Field label="Role">
+        <Field label="Role" hint={roleHint}>
           <SelectInput
             aria-label="Role"
             value={role}
