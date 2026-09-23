@@ -1,6 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import {
   getExpense,
+  getMatchFacts,
   getNeedsTriageItems,
   getPendingApprovals,
   type Approval,
@@ -37,6 +38,7 @@ export const inboxKeys = {
   reclassify: (id: number) => ['inbox', 'doc', id, 'reclassify'] as const,
   pendingDraft: (id: number) => ['inbox', 'doc', id, 'pending-draft'] as const,
   approvalExpense: (id: number) => ['inbox', 'approval-expense', id] as const,
+  approvalMatch: (id: number) => ['inbox', 'approval-match', id] as const,
 };
 
 const oldestFirst = <T extends { created_at: number }>(rows: T[]): T[] =>
@@ -68,6 +70,17 @@ export function useExpenseDetail(id: number | null) {
     queryKey: inboxKeys.approvalExpense(id ?? -1),
     queryFn: () => getExpense(id as number),
     enabled: id !== null,
+  });
+}
+
+/** The exact line/object pair of a reconciliation_match approval (#256).
+ *  Raw (`unknown`) on purpose: the screen validates the shape before it may
+ *  enable a decision. */
+export function useMatchFacts(matchId: number | null) {
+  return useQuery({
+    queryKey: inboxKeys.approvalMatch(matchId ?? -1),
+    queryFn: () => getMatchFacts(matchId as number),
+    enabled: matchId !== null,
   });
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setToken } from './auth';
-import { getExpense } from './api';
+import { getExpense, getMatchFacts } from './api';
 
 describe('inbox api additions', () => {
   beforeEach(() => {
@@ -34,5 +34,15 @@ describe('inbox api additions', () => {
     expect(res.document_id).toBe(88);
     expect(res.ai_confidence).toBe(0.94);
     expect(res.gross_amount).toBe(8900);
+  });
+
+  it('getMatchFacts GETs the single-match read by match id (#256)', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"matchId":41}', { status: 200 }));
+    await expect(getMatchFacts(41)).resolves.toEqual({ matchId: 41 });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/reconciliation/matches/41');
+    expect(init?.method ?? 'GET').toBe('GET');
   });
 });

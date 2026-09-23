@@ -7,8 +7,10 @@ import { usePendingOperation } from '../lib/pendingOperation';
 import {
   invalidateInbox,
   useExpenseDetail,
+  useMatchFacts,
   usePendingApprovals,
 } from '../queries/inbox';
+import { HttpError } from '../auth';
 import { useEntities, useInvoices } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
@@ -20,6 +22,12 @@ import { toastOk } from '../ui/toast';
 import { DocPreviewRow } from './DocPreviewRow';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 import { humanizePolicyReason } from './reason';
+import {
+  MatchApprovalFacts,
+  matchHero,
+  matchMeaning,
+} from './MatchApprovalFacts';
+import { checkMatchFacts, formatMoney } from './matchFacts';
 import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
 import { useInboxCompletion } from './useInboxCompletion';
@@ -65,6 +73,17 @@ export function ApprovalScreen() {
   const expenseQ = useExpenseDetail(
     approval?.object_type === 'expense' ? approval.object_id : null,
   );
+  // A bank-match approval carries only the match id (issue #256): the exact
+  // line/object pair comes from its own read, validated before use.
+  const matchQ = useMatchFacts(
+    approval?.object_type === 'reconciliation_match'
+      ? approval.object_id
+      : null,
+  );
+  const matchCheck =
+    approval !== undefined && matchQ.data !== undefined
+      ? checkMatchFacts(matchQ.data, approval)
+      : null;
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
   const entities = entitiesQ.data ?? [];
@@ -86,14 +105,18 @@ export function ApprovalScreen() {
   // errored, OR settled-without-a-match — all three leave heroAmount null,
   // so `undefined`/"not found" IS "unresolved" here (unlike the body render
   // below, which must tell those three states apart to avoid a dead-end
-  // skeleton). generic/reconciliation_match types never load sub-facts, so
-  // they keep the previous (always-enabled) behavior.
+  // skeleton). A bank match needs its VALIDATED exact pair, and a failed
+  // re-check blocks it even over cached facts until a re-check succeeds
+  // (the pair may have been unmatched/re-staged meanwhile). Other types
+  // (allowance, future) load no sub-facts and keep the previous behavior.
   const factsUnresolved =
     approval?.object_type === 'expense'
       ? expenseQ.data === undefined
       : approval?.object_type === 'sales_invoice'
         ? invoicesQ.data?.find((x) => x.id === approval.object_id) === undefined
-        : false;
+        : approval?.object_type === 'reconciliation_match'
+          ? matchCheck?.ok !== true || matchQ.isError
+          : false;
 
   const qc = useQueryClient();
   const rejectSheet = useSheet();
@@ -107,15 +130,27 @@ export function ApprovalScreen() {
   // would otherwise flash "not found" here); the leave itself is the
   // operation's synchronous continuation.
   const approve = () => {
+    // The button's gate, enforced again here: a stale or synthetic click must
+    // never decide on facts that are not (or no longer) established.
+    if (factsUnresolved) return;
     const to = next;
+    const matchFacts = matchCheck?.ok === true ? matchCheck.facts : null;
     const receipt =
-      heroAmount !== null
-        ? `Approved & posted · ${heroAmount}`
-        : 'Approved & posted';
+      matchFacts !== null
+        ? matchFacts.status === 'active'
+          ? 'Approval closed — the match was already active'
+          : matchFacts.target.kind === 'prepayment'
+            ? `Match confirmed · applied to the advance · ${formatMoney(matchFacts.amountMatched, matchFacts.baseCurrency)}`
+            : `Match confirmed · settlement booked · ${formatMoney(matchFacts.amountMatched, matchFacts.baseCurrency)}`
+        : heroAmount !== null
+          ? `Approved & posted · ${heroAmount}`
+          : 'Approved & posted';
     const started = op.run(() => approveApproval(approvalId, 'operator'), {
       onSuccess: () => {
-        // NO Undo: approve posts the voucher in the same transaction
-        // (Reality #1); recovery is the correction flow.
+        // NO Undo: approve posts in the same transaction (Reality #1) — the
+        // object's voucher, or a bank match's settlement (an already-active
+        // match only closes the request). Recovery is the correction flow,
+        // or Unmatch in Bank for a match.
         toastOk(receipt);
         leave(to);
         void invalidateInbox(qc);
@@ -124,14 +159,23 @@ export function ApprovalScreen() {
     if (started) setRunning('approve');
   };
 
+  // Reject is never gated on facts: it posts nothing for any type, so
+  // blocking it adds no safety and would strand the held item. For a bank
+  // match the server succeeds ONLY by deleting the draft link
+  // (discardDraftMatch; an active or missing match is refused 409/404 and the
+  // approval stays pending), so the receipt below is true whenever it shows.
   const reject = (reason: string, release: () => void) => {
     const to = next;
+    const receipt =
+      approval?.object_type === 'reconciliation_match'
+        ? 'Rejected — the staged match was discarded'
+        : 'Rejected — returned to draft';
     const started = op.run(() => rejectApproval(approvalId, reason), {
       onSuccess: () => {
         // `release` must run before leave(to).
         release();
         rejectSheet.close();
-        toastOk('Rejected — returned to draft');
+        toastOk(receipt);
         leave(to);
         void invalidateInbox(qc);
       },
@@ -271,14 +315,74 @@ export function ApprovalScreen() {
         hint="The invoice could not be loaded"
       />
     );
+  } else if (approval.object_type === 'reconciliation_match') {
+    const shown = matchCheck?.facts ?? null;
+    const gone =
+      matchQ.error instanceof HttpError && matchQ.error.status === 404;
+    body =
+      shown !== null ? (
+        <>
+          <Hero {...matchHero(shown)} />
+          {matchQ.isError && (
+            // Cached facts stay readable, but they are no longer confirmed:
+            // Approve stays off until a re-check succeeds.
+            <LoadError
+              message={
+                gone
+                  ? 'This match no longer exists — it was discarded or unmatched. The facts below are from before.'
+                  : `Could not re-check this match — ${
+                      matchQ.error instanceof Error
+                        ? matchQ.error.message
+                        : 'unknown error'
+                    }. Approve is off until it re-loads; the facts below may be out of date.`
+              }
+              onRetry={() => void matchQ.refetch()}
+            />
+          )}
+          {matchCheck?.ok === false && (
+            <div className="mx-3.5 mb-3 rounded-[13px] bg-err-bg px-3.5 py-2.5">
+              <p className="text-[12.5px] font-semibold leading-snug text-err">
+                {matchCheck.reason}
+              </p>
+            </div>
+          )}
+          <WhyHeldBox reason={approval.policy_reason} />
+          <MatchApprovalFacts facts={shown} />
+          {matchCheck?.ok === true && (
+            <p className="mx-6 mb-3 text-[12px] leading-snug text-ink-2">
+              {matchMeaning(shown)}
+            </p>
+          )}
+        </>
+      ) : matchQ.isError ? (
+        gone ? (
+          <EmptyState
+            icon="⚠"
+            title="Match no longer exists"
+            hint="It was discarded or unmatched in Bank, so there is nothing to approve."
+          />
+        ) : (
+          <LoadError
+            message={
+              matchQ.error instanceof Error
+                ? matchQ.error.message
+                : 'Failed to load the bank match'
+            }
+            onRetry={() => void matchQ.refetch()}
+          />
+        )
+      ) : matchCheck?.ok === false ? (
+        <LoadError
+          message={`Facts unavailable — ${matchCheck.reason}`}
+          onRetry={() => void matchQ.refetch()}
+        />
+      ) : (
+        <SkeletonRows count={3} />
+      );
   } else {
-    // reconciliation_match / allowance / future types: generic, safe.
+    // allowance / future types: generic, safe.
     const label =
-      approval.object_type === 'reconciliation_match'
-        ? 'Bank match'
-        : approval.object_type === 'allowance'
-          ? 'Allowance'
-          : approval.object_type;
+      approval.object_type === 'allowance' ? 'Allowance' : approval.object_type;
     body = (
       <>
         <div className="px-5 pb-3 pt-1 text-center">
@@ -290,13 +394,6 @@ export function ApprovalScreen() {
           <KeyValue k="Requested by" v={approval.requested_by} />
           <KeyValue k="Waiting since" v={absoluteDate(approval.created_at)} />
         </ListGroup>
-        {approval.object_type === 'reconciliation_match' && (
-          <p className="mx-6 mb-3 text-[12px] text-ink-2">
-            This hold is normally confirmed from the Bank section, where the
-            matched line and its object are visible. Approving here activates
-            the match; rejecting discards it.
-          </p>
-        )}
       </>
     );
   }
@@ -328,7 +425,11 @@ export function ApprovalScreen() {
         </Button>
       </div>
       <p className="px-6 pt-2 text-center text-[10.5px] text-ink-2">
-        Approve posts to the books immediately — recover via a correction
+        {approval.object_type !== 'reconciliation_match'
+          ? 'Approve posts to the books immediately — recover via a correction'
+          : matchCheck?.facts?.status === 'active'
+            ? 'Approve only closes this request · Reject is refused for an active match — reverse it with Unmatch in Bank'
+            : 'Approve settles the match immediately — undo via Unmatch in Bank'}
       </p>
       {rejectSheet.epoch > 0 && (
         <RejectSheet

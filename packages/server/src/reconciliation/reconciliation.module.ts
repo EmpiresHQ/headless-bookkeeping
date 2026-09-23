@@ -11,7 +11,10 @@ import { OrganizationModule } from '../organization/organization.module';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
 import { PrepaymentFactsModule } from './prepayment-facts.module';
-import { ReconciliationController } from './reconciliation.controller';
+import {
+  ReconciliationController,
+  ReconciliationMatchController,
+} from './reconciliation.controller';
 import { PrepaymentService } from './prepayment.service';
 import { PrepaymentController } from './prepayment.controller';
 import { PersonalDispositionService } from './personal-disposition.service';
@@ -43,6 +46,7 @@ import { FXRealizedController } from './fx-realized.controller';
   ],
   controllers: [
     ReconciliationController,
+    ReconciliationMatchController,
     PrepaymentController,
     PersonalDispositionController,
     FXRealizedController,

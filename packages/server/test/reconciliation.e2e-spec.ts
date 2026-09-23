@@ -684,6 +684,108 @@ describe('Reconciliation E2E (full flow)', () => {
 
   // ── Test: Prepayment draw-down ──────────────────────────────────────
 
+  it('GET /api/reconciliation/matches/:id resolves an approval to its exact pair, read-only (#256)', async () => {
+    const { voucher } = await postSalesInvoice('INV-256', 12500, 0);
+    const { statement, transactions } = await uploadBankStatement([
+      {
+        transaction_date: '2024-01-15',
+        amount: 12500,
+        description: 'Payment INV-256',
+        reference: 'INV-256',
+      },
+    ]);
+    const txId = Reflect.get(transactions[0], 'id') as number;
+
+    const staged = await request(app.getHttpServer())
+      .post(
+        `/api/bank-statements/${Reflect.get(statement, 'id') as number}/match`,
+      )
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({
+        matches: [
+          {
+            bankTransactionId: txId,
+            voucherId: Reflect.get(voucher, 'id') as number,
+            matchType: 'exact',
+            amountMatched: 12500,
+            confidence: 'high',
+            signal: 'manual',
+          },
+        ],
+      })
+      .expect(201);
+    const { approvals } = staged.body as {
+      approvals: { id: number; matchId: number }[];
+    };
+    const pending = await request(app.getHttpServer())
+      .get('/api/approvals/pending')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200);
+    const approval = (
+      pending.body as {
+        approvals: { id: number; object_type: string; object_id: number }[];
+      }
+    ).approvals.find((a) => a.id === approvals[0].id);
+    expect(approval).toMatchObject({
+      object_type: 'reconciliation_match',
+      object_id: approvals[0].matchId,
+    });
+
+    const countRows = async () =>
+      Promise.all(
+        (
+          [
+            'voucher',
+            'voucher_line',
+            'reconciliation_match',
+            'approval',
+          ] as const
+        ).map((t) =>
+          db
+            .selectFrom(t)
+            .select((eb) => eb.fn.countAll<number>().as('n'))
+            .executeTakeFirstOrThrow(),
+        ),
+      );
+    const before = await countRows();
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/reconciliation/matches/${approval!.object_id}`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200);
+    expect(res.body).toMatchObject({
+      matchId: approval!.object_id,
+      status: 'draft',
+      matchType: 'exact',
+      amountMatched: 12500,
+      baseCurrency: 'EUR',
+      bankTransaction: {
+        id: txId,
+        statementId: Reflect.get(statement, 'id'),
+        amount: 12500,
+        currency: 'EUR',
+        description: 'Payment INV-256',
+      },
+      target: {
+        kind: 'sales_invoice',
+        objectId: expect.any(Number),
+        objectLabel: 'INV-256',
+        counterpartyName: 'Test Customer',
+        grossAmount: 12500,
+        currency: 'EUR',
+      },
+    });
+    expect(await countRows()).toEqual(before);
+
+    await request(app.getHttpServer())
+      .get('/api/reconciliation/matches/999999')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/reconciliation/matches/${approval!.object_id}`)
+      .expect(401);
+  });
+
   it('supports prepayment draw-down against an AR invoice', async () => {
     // Post a sales invoice.
     const { voucher: arVoucher } = await postSalesInvoice(

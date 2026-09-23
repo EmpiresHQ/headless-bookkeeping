@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +19,7 @@ vi.mock('../api', async (importOriginal) => ({
   getEntities: vi.fn(),
   approveApproval: vi.fn(),
   rejectApproval: vi.fn(),
+  getMatchFacts: vi.fn(),
   fetchDocumentPreviewObjectUrl: vi.fn(),
   openSignedDocument: vi.fn(),
 }));
@@ -23,7 +30,8 @@ vi.mock('../queries/inbox', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
-import type { Approval } from '../api';
+import type { Approval, MatchFacts } from '../api';
+import { HttpError } from '../auth';
 import { invalidateInbox } from '../queries/inbox';
 import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
@@ -45,6 +53,59 @@ const APPROVAL = (over: Partial<Approval> = {}): Approval => ({
   ...over,
 });
 
+/** A staged bank match (issue #256): an incoming EUR line paying 600.00 of
+ *  invoice INV-7001 (1000.00 open), split with another staged match. */
+const FACTS = (over: Partial<MatchFacts> = {}): MatchFacts => ({
+  matchId: 41,
+  status: 'draft',
+  matchType: 'partial',
+  signal: 'invoice_number',
+  amountMatched: 60000,
+  baseCurrency: 'EUR',
+  bankTransaction: {
+    id: 501,
+    statementId: 12,
+    transactionDate: '2026-07-10',
+    description: 'Payment INV-7001',
+    amount: 100000,
+    currency: 'EUR',
+    sourceAmount: null,
+    sourceCurrency: null,
+    counterpartyIban: 'EE382200221020145685',
+    counterpartyDescriptor: null,
+    reference: 'RF-7001',
+    status: 'open',
+  },
+  line: {
+    activeAllocatedBase: 0,
+    activeCashBase: 0,
+    otherDraftCount: 1,
+    otherDraftAllocatedBase: 40000,
+  },
+  target: {
+    kind: 'sales_invoice',
+    advanceKind: null,
+    objectId: 77,
+    objectLabel: 'INV-7001',
+    counterpartyName: 'Acme OÜ',
+    grossAmount: 100000,
+    currency: 'EUR',
+    voucherRemaining: 100000,
+    advance: null,
+  },
+  ...over,
+});
+
+/** A facts KeyValue row by its label. */
+const row = (label: string) => screen.getByText(label).parentElement;
+
+const MATCH_APPROVAL = APPROVAL({
+  id: 9,
+  object_type: 'reconciliation_match',
+  object_id: 41,
+  policy_reason: null,
+});
+
 /** The queue run these tests process in (issue #253): opened from the
  *  approvals list, in its rendered order. `null` = single-item entry (deep link,
  *  Books). */
@@ -53,10 +114,14 @@ const QUEUE: QueueRun = {
   members: ['/inbox/approval/8', '/inbox/approval/7'],
 };
 
+/** The last rendered client — lets a test drive a background refetch. */
+let lastClient: QueryClient;
+
 function renderAt(path: string, run: QueueRun | null = QUEUE) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  lastClient = client;
   const router = createMemoryRouter(
     [
       { path: '/inbox', element: <p>queue</p> },
@@ -172,21 +237,424 @@ describe('ApprovalScreen', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
   });
 
-  it('renders a reconciliation_match approval safely (generic facts, no crash)', async () => {
-    vi.mocked(api.getPendingApprovals).mockResolvedValue([
-      APPROVAL({
-        id: 9,
-        object_type: 'reconciliation_match',
-        object_id: 41,
-        policy_reason: null,
-      }),
-    ]);
-    renderAt('/inbox/approval/9');
-    expect(await screen.findByText('Bank match')).toBeInTheDocument();
-    expect(screen.getByText('Held for your approval')).toBeInTheDocument();
-    expect(
-      screen.getByText(/normally confirmed from the Bank section/),
-    ).toBeInTheDocument();
+  describe('bank-match approval facts (issue #256)', () => {
+    beforeEach(() => {
+      vi.mocked(api.getPendingApprovals).mockResolvedValue([MATCH_APPROVAL]);
+      vi.mocked(api.getMatchFacts).mockResolvedValue(FACTS());
+      vi.mocked(api.approveApproval).mockResolvedValue({
+        approval: { ...MATCH_APPROVAL, status: 'approved' },
+      });
+    });
+
+    const approveBtn = () => screen.getByRole('button', { name: 'Approve' });
+
+    it('shows the exact line, the business object, amounts with units and the meaning before deciding', async () => {
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText('10.07.2026 · Payment INV-7001'),
+      ).toBeInTheDocument();
+      expect(api.getMatchFacts).toHaveBeenCalledWith(41);
+      // Bank line
+      expect(screen.getByText('Payment INV-7001')).toBeInTheDocument();
+      expect(screen.getByText('RF-7001')).toBeInTheDocument();
+      expect(screen.getByText('EE382200221020145685')).toBeInTheDocument();
+      // Target: business label linking to the Books object, no voucher id.
+      expect(screen.getByRole('link', { name: 'INV-7001 ›' })).toHaveAttribute(
+        'href',
+        '/books/invoices/77',
+      );
+      expect(screen.getByText('Acme OÜ')).toBeInTheDocument();
+      // A draft is not settled yet: conditional labels, not "booked".
+      expect(screen.getByText('Would settle (EUR)')).toBeInTheDocument();
+      expect(screen.queryByText(/booked\)/)).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Partly settled — 400.00 € stays open'),
+      ).toBeInTheDocument();
+      // Actual cash vs the hypothetical after THIS approval; the other staged
+      // match reserves nothing and is listed as not settled.
+      expect(row('Line cash unallocated now (EUR)')).toHaveTextContent(
+        '1000.00 €',
+      );
+      expect(row('Line cash unallocated if approved (EUR)')).toHaveTextContent(
+        '400.00 €',
+      );
+      expect(
+        screen.getByText(/Other staged matches on this line — not settled/),
+      ).toBeInTheDocument();
+      expect(screen.getByText('1 · 400.00 €')).toBeInTheDocument();
+      // Exact amounts wrap, never truncate (390/320px review).
+      for (const label of [
+        'Object if approved',
+        'Line cash unallocated if approved (EUR)',
+      ])
+        expect(row(label)?.lastElementChild).not.toHaveClass('truncate');
+      expect(screen.getByText('1 · 400.00 €')).not.toHaveClass('truncate');
+      expect(
+        screen.getByText(
+          'Approve settles the match immediately — undo via Unmatch in Bank',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /pays invoice INV-7001 with 600\.00 € and books the settlement/,
+        ),
+      ).toBeInTheDocument();
+      // No Bank decision detour from here (#252: no decided approval left in
+      // Back history by a confirm elsewhere).
+      expect(
+        screen.queryByRole('link', { name: /bank/i }),
+      ).not.toBeInTheDocument();
+      expect(approveBtn()).toBeEnabled();
+    });
+
+    it('approves with a scoped receipt (not "posted") and leaves', async () => {
+      render(<AppToaster />);
+      const router = renderAt('/inbox/approval/9', null);
+      await screen.findByText('10.07.2026 · Payment INV-7001');
+      fireEvent.click(approveBtn());
+      await waitFor(() =>
+        expect(api.approveApproval).toHaveBeenCalledWith(9, 'operator'),
+      );
+      expect(
+        await screen.findByText(
+          'Match confirmed · settlement booked · 600.00 €',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Approved & posted/)).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox'),
+      );
+    });
+
+    it('keeps Approve off while the facts load', async () => {
+      vi.mocked(api.getMatchFacts).mockReturnValue(new Promise(() => {}));
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByRole('button', { name: 'Approve' }),
+      ).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Reject…' })).toBeEnabled();
+    });
+
+    it('shows a retryable error and keeps Approve off when the facts fail to load', async () => {
+      vi.mocked(api.getMatchFacts).mockRejectedValue(new Error('facts down'));
+      renderAt('/inbox/approval/9', null);
+      expect(await screen.findByText('facts down')).toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+      vi.mocked(api.getMatchFacts).mockResolvedValue(FACTS());
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(
+        await screen.findByText('10.07.2026 · Payment INV-7001'),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(approveBtn()).toBeEnabled());
+    });
+
+    it('a deleted match (404) is final: nothing to approve', async () => {
+      vi.mocked(api.getMatchFacts).mockRejectedValue(
+        new HttpError(404, 'Reconciliation match 41 not found'),
+      );
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText('Match no longer exists'),
+      ).toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+    });
+
+    it('refuses facts for a different match (wrong/stale identity)', async () => {
+      vi.mocked(api.getMatchFacts).mockResolvedValue(FACTS({ matchId: 42 }));
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText(/not the one this approval decides/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('INV-7001 ›')).not.toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+    });
+
+    it('refuses a malformed payload (missing amounts/currency) — the target kind alone never passes', async () => {
+      const f = FACTS();
+      vi.mocked(api.getMatchFacts).mockResolvedValue({
+        ...f,
+        target: { ...f.target, grossAmount: null, currency: null },
+      });
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText(/could not be identified/),
+      ).toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+
+      vi.mocked(api.getMatchFacts).mockResolvedValue({
+        ...f,
+        bankTransaction: { ...f.bankTransaction, currency: undefined },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(
+        await screen.findByText(/bank line could not be read/),
+      ).toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+    });
+
+    it('an unidentified target shows the line but blocks Approve (no "prepayment" guess, no blind Bank detour)', async () => {
+      const f = FACTS();
+      vi.mocked(api.getMatchFacts).mockResolvedValue(
+        FACTS({
+          target: {
+            ...f.target,
+            kind: 'unidentified',
+            objectId: null,
+            objectLabel: 'Unidentified object',
+            counterpartyName: null,
+            grossAmount: null,
+            currency: null,
+          },
+        }),
+      );
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText(/matched object could not be identified/),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Unidentified object')).toBeInTheDocument();
+      expect(screen.queryByText(/prepayment|advance/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/decide in Bank/i)).not.toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Reject…' })).toBeEnabled();
+    });
+
+    it('a failed re-check keeps the cached facts visible but turns Approve off until a re-check succeeds', async () => {
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText('10.07.2026 · Payment INV-7001'),
+      ).toBeInTheDocument();
+      expect(approveBtn()).toBeEnabled();
+
+      vi.mocked(api.getMatchFacts).mockRejectedValue(new Error('gateway down'));
+      await act(() =>
+        lastClient.refetchQueries({
+          queryKey: ['inbox', 'approval-match', 41],
+        }),
+      );
+      expect(
+        await screen.findByText(/Could not re-check this match — gateway down/),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText('+1000.00 €')).toHaveLength(2);
+      expect(approveBtn()).toBeDisabled();
+
+      vi.mocked(api.getMatchFacts).mockResolvedValue(FACTS());
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => expect(approveBtn()).toBeEnabled());
+    });
+
+    it('a 404 on re-check keeps the cached facts marked as gone and Approve off', async () => {
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText('10.07.2026 · Payment INV-7001'),
+      ).toBeInTheDocument();
+      vi.mocked(api.getMatchFacts).mockRejectedValue(
+        new HttpError(404, 'Reconciliation match 41 not found'),
+      );
+      await act(() =>
+        lastClient.refetchQueries({
+          queryKey: ['inbox', 'approval-match', 41],
+        }),
+      );
+      expect(
+        await screen.findByText(/This match no longer exists/),
+      ).toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+    });
+
+    it('a converted foreign line states its original amount and the FX meaning', async () => {
+      const f = FACTS();
+      vi.mocked(api.getMatchFacts).mockResolvedValue(
+        FACTS({
+          bankTransaction: {
+            ...f.bankTransaction,
+            sourceAmount: 110000,
+            sourceCurrency: 'USD',
+          },
+          target: { ...f.target, currency: 'USD', grossAmount: 110000 },
+        }),
+      );
+      renderAt('/inbox/approval/9', null);
+      expect(await screen.findByText('Original amount')).toBeInTheDocument();
+      expect(screen.getAllByText('1100.00 USD')).toHaveLength(2);
+      expect(screen.getByText(/converted from USD/)).toBeInTheDocument();
+      // Nothing is converted client-side: no line remainder across units.
+      expect(
+        screen.queryByText(/Line cash unallocated/),
+      ).not.toBeInTheDocument();
+      // The allocation is the USD document at its booked rate — not cash.
+      expect(
+        screen.getByText('Would settle (EUR, at the document’s booked rate)'),
+      ).toBeInTheDocument();
+    });
+
+    it('a prepayment shows WHICH advance from its record and its own meaning', async () => {
+      const f = FACTS();
+      vi.mocked(api.getMatchFacts).mockResolvedValue(
+        FACTS({
+          matchType: 'prepayment',
+          amountMatched: 50000,
+          target: {
+            kind: 'prepayment',
+            advanceKind: 'supplier',
+            objectId: null,
+            objectLabel: 'Supplier advance',
+            counterpartyName: 'Parts AS',
+            grossAmount: null,
+            currency: null,
+            voucherRemaining: 80000,
+            advance: {
+              date: '2026-06-01',
+              originalBaseAmount: 80000,
+              currency: 'EUR',
+              fundingLine: {
+                transactionDate: '2026-06-01',
+                description: 'Deposit order 55',
+                reference: null,
+                amount: -80000,
+                currency: 'EUR',
+              },
+              needsReview: false,
+              taxTreatment: 'non_taxable_deposit',
+              ownerResolved: true,
+            },
+          },
+          bankTransaction: { ...f.bankTransaction, amount: -50000 },
+        }),
+      );
+      render(<AppToaster />);
+      renderAt('/inbox/approval/9', null);
+      expect(await screen.findByText('Supplier advance')).toBeInTheDocument();
+      expect(screen.getByText('Parts AS')).toBeInTheDocument();
+      expect(screen.getByText('01.06.2026')).toBeInTheDocument();
+      expect(
+        screen.getByText('01.06.2026 · Deposit order 55 · −800.00 €'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /applies this bank line to the supplier advance of 01\.06\.2026/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/No settlement voucher is posted/),
+      ).toBeInTheDocument();
+      fireEvent.click(approveBtn());
+      expect(
+        await screen.findByText(
+          'Match confirmed · applied to the advance · 500.00 €',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it.each([
+      ['no resolved owner', { ownerResolved: false }, /no resolved owner/],
+      ['an unverified balance', { needsReview: true }, /unverified/],
+      [
+        'an unclassified advance',
+        { taxTreatment: 'unresolved' },
+        /unclassified/,
+      ],
+    ])('blocks a prepayment with %s', async (_label, over, reason) => {
+      vi.mocked(api.getMatchFacts).mockResolvedValue(
+        FACTS({
+          matchType: 'prepayment',
+          target: {
+            kind: 'prepayment',
+            advanceKind: 'customer',
+            objectId: null,
+            objectLabel: 'Customer advance',
+            counterpartyName: 'Acme OÜ',
+            grossAmount: null,
+            currency: null,
+            voucherRemaining: 80000,
+            advance: {
+              date: '2026-06-01',
+              originalBaseAmount: 80000,
+              currency: 'EUR',
+              fundingLine: null,
+              needsReview: false,
+              taxTreatment: 'taxable_supply',
+              ownerResolved: true,
+              ...over,
+            },
+          },
+        }),
+      );
+      renderAt('/inbox/approval/9', null);
+      expect(await screen.findByText(reason)).toBeInTheDocument();
+      expect(approveBtn()).toBeDisabled();
+    });
+
+    it('an already-active match says nothing new is booked and approving only closes the request', async () => {
+      vi.mocked(api.getMatchFacts).mockResolvedValue(
+        FACTS({
+          status: 'active',
+          line: {
+            activeAllocatedBase: 60000,
+            activeCashBase: 60000,
+            otherDraftCount: 0,
+            otherDraftAllocatedBase: 0,
+          },
+          target: { ...FACTS().target, voucherRemaining: 40000 },
+        }),
+      );
+      render(<AppToaster />);
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByText(/already active .* nothing new is booked/),
+      ).toBeInTheDocument();
+      // The active match is already inside the remaining/line figures.
+      expect(
+        screen.getByText('Partly settled — 400.00 € stays open'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Settles (EUR)')).toBeInTheDocument();
+      expect(
+        screen.getByText('Line cash settled, incl. this match (EUR)'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/unallocated if approved/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Approve only closes this request · Reject is refused/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Approve settles the match/),
+      ).not.toBeInTheDocument();
+      fireEvent.click(approveBtn());
+      expect(
+        await screen.findByText(
+          'Approval closed — the match was already active',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('rejecting stays available without facts and is scoped as discarding the staged match', async () => {
+      vi.mocked(api.getMatchFacts).mockRejectedValue(new Error('facts down'));
+      vi.mocked(api.rejectApproval).mockResolvedValue({
+        approval: { ...MATCH_APPROVAL, status: 'rejected' },
+      });
+      render(<AppToaster />);
+      const router = renderAt('/inbox/approval/9', null);
+      await screen.findByText('facts down');
+      fireEvent.click(screen.getByRole('button', { name: 'Reject…' }));
+      fireEvent.change(
+        await screen.findByPlaceholderText(/why this should not be posted/i),
+        { target: { value: 'Wrong invoice' } },
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reject & return to draft' }),
+      );
+      await waitFor(() =>
+        expect(api.rejectApproval).toHaveBeenCalledWith(9, 'Wrong invoice'),
+      );
+      expect(
+        await screen.findByText('Rejected — the staged match was discarded'),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox'),
+      );
+    });
   });
 
   it('shows the already-decided state for an id not in the pending list', async () => {

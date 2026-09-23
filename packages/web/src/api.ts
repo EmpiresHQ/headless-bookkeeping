@@ -1264,6 +1264,69 @@ export interface MatchRowView {
   counterpartyName: string | null;
 }
 
+/** The exact pair a reconciliation_match approval decides, by match id
+ *  (issue #256). Built server-side from persisted figures only — no FX
+ *  conversion — so every amount names its own unit: the line in its own
+ *  currency (+ original foreign amount), the target document in ITS currency,
+ *  allocations in `baseCurrency`. No voucher ids (ADR-0030). Untrusted shape:
+ *  validate with `matchFactsProblem` before any decision depends on it. */
+export interface MatchFacts {
+  matchId: number;
+  status: 'draft' | 'active';
+  matchType: 'exact' | 'partial' | 'prepayment';
+  signal: string | null;
+  amountMatched: number; // BASE cents, booked
+  baseCurrency: string;
+  bankTransaction: {
+    id: number;
+    statementId: number;
+    transactionDate: string;
+    description: string | null;
+    amount: number; // signed cents in `currency`
+    currency: string;
+    sourceAmount: number | null;
+    sourceCurrency: string | null;
+    counterpartyIban: string | null;
+    counterpartyDescriptor: string | null;
+    reference: string | null;
+    status: string;
+  };
+  line: {
+    activeAllocatedBase: number;
+    activeCashBase: number;
+    otherDraftCount: number;
+    otherDraftAllocatedBase: number;
+  };
+  target: {
+    kind: 'sales_invoice' | 'expense' | 'prepayment' | 'unidentified';
+    advanceKind: 'customer' | 'supplier' | null;
+    objectId: number | null;
+    objectLabel: string;
+    counterpartyName: string | null;
+    grossAmount: number | null;
+    currency: string | null;
+    voucherRemaining: number; // BASE cents
+    advance: {
+      date: string;
+      originalBaseAmount: number;
+      currency: string;
+      fundingLine: {
+        transactionDate: string;
+        description: string | null;
+        reference: string | null;
+        amount: number;
+        currency: string;
+      } | null;
+      needsReview: boolean;
+      taxTreatment: string;
+      ownerResolved: boolean;
+    } | null;
+  };
+}
+
+export const getMatchFacts = (matchId: number) =>
+  apiFetch<unknown>(`/api/reconciliation/matches/${matchId}`);
+
 export const getStatementMatches = (statementId: number) =>
   apiFetch<MatchRowView[]>(`/api/bank-statements/${statementId}/matches`);
 
