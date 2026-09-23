@@ -18,6 +18,7 @@ import { Field, PendingFieldset, SelectInput } from '../ui/Form';
 import { lookupState, LookupNotice } from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { ChosenFileReview } from './ChosenFileReview';
 import {
   claimantOptions,
   continuation,
@@ -313,13 +314,17 @@ export function UploadDocumentSheet({
         status="AI is reading the document — this can take a minute…"
         className="space-y-3 px-5 pb-2"
       >
-        <Field label="File">
-          <input
-            type="file"
-            className="w-full text-[14px]"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </Field>
+        {/* Chosen and checked locally (#293); a changed file is a new
+            operation — a staged upload stays bound to ITS File (and its
+            receipt stays in the log), so returning to that File resumes it. */}
+        <ChosenFileReview
+          label="File"
+          file={file}
+          onChoose={setFile}
+          onRemove={() => setFile(null)}
+          submitLabel="Upload & process"
+          uploadedAs={partial?.document.id ?? null}
+        />
         {entitiesQ.isError && entitiesQ.data === undefined ? (
           <div className="rounded-2xl bg-err-bg px-4 py-3">
             <p className="text-[13px] font-semibold text-err">

@@ -9,6 +9,13 @@ import {
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The chosen file's local preview (#293) is not under test here: pdf.js
+// never settles, so no viewer state or control joins these flows.
+vi.mock('../inbox/pdfjs', () => ({
+  loadPdfJs: () => new Promise(() => undefined),
+  pdfDocumentOptions: () => ({}),
+}));
+
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
   uploadDocument: vi.fn(),
@@ -260,5 +267,51 @@ describe('upload durable receipts (issue #259)', () => {
       tone: 'ok',
       outcome: 'Sales invoice recorded',
     });
+  });
+});
+
+describe('upload receipts when the chosen file changes (issue #293)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    setToken('test-token');
+    vi.mocked(getEntities).mockResolvedValue([SUPPLIER, MARI, JAAN]);
+    vi.mocked(getNeedsTriageItems).mockResolvedValue([]);
+  });
+
+  it('a stored-but-unprocessed file keeps its partial receipt when another file is chosen and uploaded', async () => {
+    vi.mocked(uploadDocument)
+      .mockResolvedValueOnce({ document: doc({ id: 32 }), deduplicated: false })
+      .mockResolvedValueOnce({
+        document: doc({ id: 33 }),
+        deduplicated: false,
+      });
+    vi.mocked(triageDocument)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValueOnce({
+        kind: 'expense',
+        document_id: 33,
+        expense_id: 12,
+      });
+    const { router } = mount();
+    await pick();
+    go();
+    await screen.findByRole('button', { name: 'Retry processing' });
+    fireEvent.change(screen.getByLabelText('File'), {
+      target: {
+        files: [new File(['z'], 'clearer.pdf', { type: 'application/pdf' })],
+      },
+    });
+    go();
+    await waitFor(() => expect(path(router)).toBe('/books/expenses/12'));
+    const entries = stored().entries;
+    expect(entries).toHaveLength(2);
+    const first = entries.find((e) => e.title === 'r.pdf')!;
+    expect(first.tone).toBe('partial');
+    expect(first.outcome).toMatch(
+      /Stored as document #32, but processing was not confirmed/,
+    );
+    const second = entries.find((e) => e.title === 'clearer.pdf')!;
+    expect(second.tone).toBe('ok');
   });
 });

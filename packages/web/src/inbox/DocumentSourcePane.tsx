@@ -82,7 +82,7 @@ function errorText(e: unknown, missing: string): string {
 }
 
 /** An object URL for a blob, revoked when the blob changes or on unmount. */
-function useObjectUrl(blob: Blob | null): string | null {
+export function useObjectUrl(blob: Blob | null): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (blob === null) {
@@ -284,14 +284,27 @@ function Toolbar({ children }: { children: ReactNode }) {
   );
 }
 
+/** What a viewer reports once it settles: drawn, or an error shown. */
+export type ViewerStatus = 'ready' | 'error';
+
 /** A long image scrolls; zoom widens it past the pane (both axes scroll). */
-function ImageViewer({ url }: { url: string }) {
+export function ImageViewer({
+  url,
+  alt = 'Source document',
+  failedText = 'This image could not be displayed — download the original to view it.',
+  onStatus,
+}: {
+  url: string;
+  alt?: string;
+  /** Copy for an image the browser cannot draw — what to do instead
+   *  depends on where the file is (the server's original vs. a local pick). */
+  failedText?: string;
+  onStatus?: (s: ViewerStatus) => void;
+}) {
   const [zoom, setZoom] = useState(0);
   const [failed, setFailed] = useState(false);
   if (failed) {
-    return (
-      <SourceMessage text="This image could not be displayed — download the original to view it." />
-    );
+    return <SourceMessage text={failedText} />;
   }
   return (
     <>
@@ -302,8 +315,12 @@ function ImageViewer({ url }: { url: string }) {
       <div className="min-h-0 flex-1 overflow-auto p-2">
         <img
           src={url}
-          alt="Source document"
-          onError={() => setFailed(true)}
+          alt={alt}
+          onLoad={() => onStatus?.('ready')}
+          onError={() => {
+            setFailed(true);
+            onStatus?.('error');
+          }}
           style={{ width: `${ZOOMS[zoom] * 100}%`, maxWidth: 'none' }}
           className="block h-auto"
         />
@@ -365,8 +382,38 @@ type PdfState =
   | { status: 'ready'; doc: PDFDocumentProxy }
   | { status: 'error'; message: string; retry: boolean };
 
-function pdfLoadError(e: unknown): { message: string; retry: boolean } {
+/** Whose PDF is shown: the stored original (the alternative is to download
+ *  it) or a file the operator just chose on this device (the alternative is
+ *  another file — there is no "original" to download). */
+export type PdfSubject = 'source' | 'local';
+
+function pdfLoadError(
+  e: unknown,
+  subject: PdfSubject,
+): { message: string; retry: boolean } {
   const name = e instanceof Error ? e.name : '';
+  if (subject === 'local') {
+    if (name === 'PasswordException') {
+      return {
+        message:
+          'This PDF is password-protected, so its pages can’t be checked here — and it may not be readable after upload either. Choose an unprotected copy or a photo of the document if you can.',
+        retry: false,
+      };
+    }
+    if (name === 'InvalidPDFException') {
+      return {
+        message:
+          'This file could not be opened as a PDF — it may be damaged or not really a PDF. Choose another file (a PDF that opens, or a photo) to check it before uploading.',
+        retry: false,
+      };
+    }
+    return {
+      message: `The PDF preview could not open this file: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+      retry: true,
+    };
+  }
   if (name === 'PasswordException') {
     return {
       message:
@@ -423,7 +470,16 @@ function useContentWidth(): [(el: HTMLElement | null) => void, number] {
  * drawing: while page 5 renders, page 4's pixels are never on screen under
  * a "Page 5" label, and a failed render never leaves another page visible.
  */
-function PdfViewer({ blob }: { blob: Blob }) {
+export function PdfViewer({
+  blob,
+  subject = 'source',
+  onStatus,
+}: {
+  blob: Blob;
+  subject?: PdfSubject;
+  /** Told when the first page is drawn, or the document failed to open. */
+  onStatus?: (s: ViewerStatus) => void;
+}) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<PdfState>({ status: 'loading' });
   const [page, setPage] = useState(1);
@@ -458,13 +514,26 @@ function PdfViewer({ blob }: { blob: Blob }) {
       setPage((p) => Math.min(Math.max(1, p), doc.numPages));
       setState({ status: 'ready', doc });
     })().catch((e: unknown) => {
-      if (!cancelled) setState({ status: 'error', ...pdfLoadError(e) });
+      if (!cancelled)
+        setState({ status: 'error', ...pdfLoadError(e, subject) });
     });
     return () => {
       cancelled = true;
       void destroy?.();
     };
+    // `subject` is fixed for a viewer's life (its caller's context).
   }, [blob, attempt]);
+  const statusRef = useRef(onStatus);
+  statusRef.current = onStatus;
+  const settled: ViewerStatus | null =
+    state.status === 'error' || pageError !== null
+      ? 'error'
+      : drawn !== null
+        ? 'ready'
+        : null;
+  useEffect(() => {
+    if (settled !== null) statusRef.current?.(settled);
+  }, [settled]);
 
   const doc = state.status === 'ready' ? state.doc : null;
   useLayoutEffect(() => {
