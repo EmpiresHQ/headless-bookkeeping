@@ -20,3 +20,7 @@ export function toastUndo(message: string, onUndo: () => void) {
  *  notice when a leave is refused while an operation is in flight. */
 export const toastWait = (id: string, message: string) =>
   toast.info(message, { id });
+
+/** Drop every visible toast — an ended session's receipts are not shown
+ *  under the next sign-in (issue #285). */
+export const dismissToasts = () => toast.dismiss();

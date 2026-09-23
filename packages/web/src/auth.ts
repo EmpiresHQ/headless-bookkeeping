@@ -13,20 +13,42 @@ export const TOKEN_KEY = 'bk_api_token';
  */
 let revision = 0;
 
-/** Which session a request or operation belongs to: this tab's revision
- *  AND the token itself — another tab can replace the stored token without
- *  this module's revision moving. */
+/** Which session a request or operation belongs to: this tab's revision,
+ *  the token, the stored sign-in's id AND the shared auth epoch — another
+ *  tab can replace or end the stored sign-in without this module's
+ *  revision moving: with the same token string (its setToken mints a new
+ *  id), or by signing in and out again so token and id end as they began
+ *  (both calls write a new epoch). All three are read from storage on every
+ *  check, so no storage event has to be delivered first (issue #285). */
 export interface SessionStamp {
   readonly revision: number;
   readonly token: string | null;
+  readonly id: string | null;
+  readonly epoch: string | null;
 }
 
 export function sessionStamp(): SessionStamp {
-  return { revision, token: getToken() };
+  // A token stored before ids existed gets its id once, before the first
+  // stamp, so a later lazy mint cannot make this stamp look like another
+  // sign-in. The stamp itself is the raw stored pair — the same thing
+  // isSameSession reads — so e.g. an orphan id left without a token is
+  // simply part of an unchanged "signed out" state.
+  currentSessionId();
+  return {
+    revision,
+    token: getToken(),
+    id: storedSessionId(),
+    epoch: storedAuthEpoch(),
+  };
 }
 
 export function isSameSession(stamp: SessionStamp): boolean {
-  return stamp.revision === revision && stamp.token === getToken();
+  return (
+    stamp.revision === revision &&
+    stamp.token === getToken() &&
+    stamp.id === storedSessionId() &&
+    stamp.epoch === storedAuthEpoch()
+  );
 }
 
 export function getToken(): string | null {
@@ -59,14 +81,48 @@ export function currentSessionId(): string | null {
   return id;
 }
 
+/** The stored sign-in's id as it is — never minted (a storage observer
+ *  must not write). */
+export function storedSessionId(): string | null {
+  return localStorage.getItem(SESSION_ID_KEY);
+}
+
+/**
+ * A random, non-secret marker of the browser's latest sign-in OR sign-out
+ * (issue #285), shared by all tabs: setToken and clearToken each write a
+ * new one, and it stays while signed out — so "signed out, then in and out
+ * again elsewhere" is distinguishable from "still signed out" even though
+ * token and session id end as they began. Random rather than a counter, so
+ * two tabs never need a read-modify-write. Only those two calls write it;
+ * null until the first of them in this browser.
+ */
+export const AUTH_EPOCH_KEY = 'bk_auth_epoch';
+
+export function storedAuthEpoch(): string | null {
+  return localStorage.getItem(AUTH_EPOCH_KEY);
+}
+
+/** Another tab replaced or removed the stored sign-in (issue #285; the
+ *  shell observed it through a storage event). Everything this tab started
+ *  belongs to the ended session — even when the new sign-in reuses the same
+ *  token string — so it is moved past without touching storage: the other
+ *  tab's sign-in is the current one. */
+export function endObservedSession(): void {
+  revision += 1;
+}
+
+// Both transitions advance the epoch FIRST: whoever reads storage midway
+// already sees the marker of the transition that is under way.
 export function setToken(token: string): void {
   revision += 1;
+  localStorage.setItem(AUTH_EPOCH_KEY, newSessionId());
   localStorage.setItem(SESSION_ID_KEY, newSessionId());
   localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
   revision += 1;
+  localStorage.setItem(AUTH_EPOCH_KEY, newSessionId());
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(SESSION_ID_KEY);
 }
@@ -265,4 +321,43 @@ async function errorDetail(
     // Not JSON — fall through to the raw body.
   }
   return { detail: body, validation: null };
+}
+
+/** The answer to a sign-in attempt (issue #285). Only `rejected` says
+ *  anything about the token; `unavailable` (network error, any other
+ *  status) means it could not be checked. */
+export type TokenCheck = 'accepted' | 'rejected' | 'unavailable';
+
+/** Read-only endpoint that needs nothing but a valid token: a plain list
+ *  (empty is a valid answer) with no organization dependency, so a fresh,
+ *  unconfigured install can still sign in. */
+const CHECK_PATH = '/api/entities';
+
+/**
+ * Check a candidate token before it is stored: sent once as a Bearer
+ * header, never stored, logged or echoed. The response body is not read.
+ * An aborted check rejects (the caller has moved on); every other failure
+ * resolves to a verdict.
+ */
+export async function checkToken(
+  token: string,
+  signal?: AbortSignal,
+): Promise<TokenCheck> {
+  let res: Response;
+  try {
+    res = await fetch(CHECK_PATH, {
+      headers: { Authorization: `Bearer ${token}` },
+      // A credential check is never answered from a cache: a revoked token
+      // must not pass on an earlier 200.
+      cache: 'no-store',
+      signal,
+    });
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    return 'unavailable';
+  }
+  void res.body?.cancel().catch(() => undefined);
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  if (res.status === 401) return 'rejected';
+  return res.ok ? 'accepted' : 'unavailable';
 }
