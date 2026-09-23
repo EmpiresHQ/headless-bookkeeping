@@ -5,6 +5,7 @@ import {
   useLocation,
   type RouteObject,
 } from 'react-router-dom';
+import { NotFoundScreen } from './NotFoundScreen';
 import { Root } from './Root';
 
 /* Route-level code-split (Plan 07 Task 8): every screen is its own chunk;
@@ -215,7 +216,8 @@ export function buildRoutes(): RouteObject[] {
           path: from,
           element: <RedirectMergingSearch to={to} />,
         })),
-        { path: '*', element: <Navigate to="/inbox" replace /> },
+        // Issue #291: an unknown address is said, not silently redirected.
+        { path: '*', element: <NotFoundScreen /> },
       ],
     },
   ];
