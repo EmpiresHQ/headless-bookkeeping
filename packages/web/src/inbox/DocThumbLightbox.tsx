@@ -29,10 +29,10 @@ export function DocThumbLightbox({
   fallback?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const src = usePreviewObjectUrl(id);
-  // The sharp lg variant is only fetched once the lightbox is opened; the thumb
-  // (`src`) is the instant placeholder until it swaps in.
-  const lgSrc = usePreviewObjectUrl(id, { size: 'lg', active: open });
+  const thumb = usePreviewObjectUrl(id);
+  // The sharp lg variant is only fetched once the lightbox is opened (and
+  // released on close); the thumb is the placeholder until it swaps in.
+  const lg = usePreviewObjectUrl(id, { size: 'lg', active: open });
 
   // Always mounted, driven by `open` (portaled to <body>, so never in the
   // row's link): the close edge returns focus to the thumb (issue #269). It
@@ -41,13 +41,17 @@ export function DocThumbLightbox({
   const lightbox = (
     <DocumentPreviewLightbox
       open={open}
-      src={lgSrc ?? src}
+      thumb={thumb}
+      lg={lg}
       onClose={() => setOpen(false)}
       onOpenOriginal={() => void openSignedDocument(id)}
     />
   );
 
-  if (src === null) {
+  // Loading, no preview or a failed read: the row's own glyph, no button
+  // (issue #246 — the tap navigates with the row). Only a shown thumbnail
+  // opens the preview.
+  if (thumb.status !== 'ready') {
     return (
       <>
         {fallback !== undefined ? (
@@ -73,7 +77,13 @@ export function DocThumbLightbox({
         className="relative z-10 block"
         onClick={() => setOpen(true)}
       >
-        <img src={src} alt="" className={`${className} object-cover`} />
+        <img
+          key={thumb.src}
+          src={thumb.src}
+          alt=""
+          onError={() => thumb.reportBroken(thumb.src)}
+          className={`${className} object-cover`}
+        />
       </button>
       {lightbox}
     </>

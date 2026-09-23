@@ -829,14 +829,17 @@ export const getSignedDocumentUrl = (id: number) =>
  * Pass `{ size: 'lg' }` for the larger, sharper lightbox variant
  * (`?size=lg`); omitted/default fetches the ~256px thumbnail — backwards
  * compatible with every existing caller.
+ *
+ * A 404 (HttpError) means this document has no preview — not that its
+ * original is missing; any other failure is worth a retry.
  */
 export async function fetchDocumentPreviewObjectUrl(
   id: number,
   opts: { size?: 'lg' } = {},
 ): Promise<string> {
-  const qs = opts.size === 'lg' ? '?size=lg' : '';
-  const res = await apiFetchRaw(`/api/documents/${id}/preview${qs}`);
-  return URL.createObjectURL(await res.blob());
+  // Session-owned through the body read (issue #270): bytes of an ended
+  // session never become an object URL.
+  return URL.createObjectURL(await fetchDocumentPreviewBlob(id, opts));
 }
 
 /** Read a raw response body, then re-check it still belongs to the session
