@@ -11,6 +11,10 @@ import {
   HttpError,
   currentSessionId,
   UnauthorizedError,
+  checkToken,
+  sessionStamp,
+  isSameSession,
+  AUTH_EPOCH_KEY,
 } from './auth';
 
 describe('auth token store', () => {
@@ -343,5 +347,168 @@ describe('apiFetch session ownership (#251)', () => {
     const p = apiFetch<{ id: number }>('/api/expenses', { method: 'POST' });
     release();
     await expect(p).resolves.toEqual({ id: 24 });
+  });
+});
+
+describe('same-token sign-in in another tab (#285)', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  /** What another tab's setToken leaves behind: storage only, no event
+   *  delivered here yet, this tab's revision untouched. */
+  const otherTabSignsInWith = (token: string) => {
+    localStorage.setItem(SESSION_ID_KEY, 'other-tab-session');
+    localStorage.setItem(TOKEN_KEY, token);
+  };
+
+  it('a 401 settling after the session id changed does not clear the other tab’s sign-in', async () => {
+    setToken('same');
+    let reply!: (r: Response) => void;
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(
+      new Promise((r) => (reply = r)),
+    );
+    const p = apiFetch('/api/expenses', { method: 'POST' });
+    otherTabSignsInWith('same');
+    reply(new Response('{"message":"no"}', { status: 401 }));
+    await expect(p).rejects.toBeInstanceOf(SessionChangedError);
+    expect(getToken()).toBe('same');
+    expect(localStorage.getItem(SESSION_ID_KEY)).toBe('other-tab-session');
+  });
+
+  it('a body still being read when the session id changes is not delivered', async () => {
+    setToken('same');
+    const { res, release } = heldBody(200, '{"id":24}');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(res);
+    const p = apiFetch('/api/expenses', { method: 'POST' });
+    await new Promise((r) => setTimeout(r, 0));
+    otherTabSignsInWith('same');
+    release();
+    await expect(p).rejects.toBeInstanceOf(SessionChangedError);
+  });
+
+  it('an orphan id left without a token is one unchanged signed-out state (a check started there can commit)', () => {
+    localStorage.setItem(SESSION_ID_KEY, 'orphan');
+    const stamp = sessionStamp();
+    expect(stamp).toMatchObject({ token: null, id: 'orphan' });
+    expect(isSameSession(stamp)).toBe(true);
+    expect(localStorage.getItem(SESSION_ID_KEY)).toBe('orphan');
+  });
+
+  it('signed out, then signed in and out again by another context: token and id end as they began, yet it is not the same session', async () => {
+    const stamp = sessionStamp();
+    expect(stamp).toMatchObject({ token: null, id: null });
+    vi.resetModules();
+    const other = await import('./auth');
+    other.setToken('b');
+    other.clearToken();
+    expect(getToken()).toBeNull();
+    expect(currentSessionId()).toBeNull(); // still signed out, no id
+    expect(localStorage.getItem(AUTH_EPOCH_KEY)).toEqual(expect.any(String));
+    expect(isSameSession(stamp)).toBe(false);
+  });
+
+  it.each([
+    ['sign-in', () => setToken('b')],
+    ['sign-out', () => clearToken()],
+  ])(
+    '%s advances the epoch before token or id change (no midway state under the old epoch)',
+    (_label, transition) => {
+      setToken('a');
+      const before = localStorage.getItem(AUTH_EPOCH_KEY);
+      const midway: (string | null)[] = [];
+      const record = () => midway.push(localStorage.getItem(AUTH_EPOCH_KEY));
+      const set = Storage.prototype.setItem;
+      const remove = Storage.prototype.removeItem;
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+        this: Storage,
+        key: string,
+        value: string,
+      ) {
+        if (key !== AUTH_EPOCH_KEY) record();
+        set.call(this, key, value);
+      });
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(function (
+        this: Storage,
+        key: string,
+      ) {
+        record();
+        remove.call(this, key);
+      });
+      transition();
+      expect(midway.length).toBeGreaterThan(0);
+      for (const epoch of midway) expect(epoch).not.toBe(before);
+    },
+  );
+
+  it('a token stored before ids existed: the id minted at the first stamp keeps it the same session', async () => {
+    localStorage.setItem(TOKEN_KEY, 'legacy');
+    const stamp = sessionStamp();
+    expect(stamp.id).toEqual(expect.any(String));
+    expect(currentSessionId()).toBe(stamp.id); // no second mint
+    expect(isSameSession(stamp)).toBe(true);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"ok":true}', { status: 200 }),
+    );
+    await expect(apiFetch('/api/expenses')).resolves.toEqual({ ok: true });
+  });
+});
+
+describe('checkToken (#285)', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  const answer = (r: Response | Error) =>
+    vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() =>
+        r instanceof Error ? Promise.reject(r) : Promise.resolve(r),
+      );
+
+  it('sends the candidate once, uncached, without storing it', async () => {
+    const fetchMock = answer(new Response('{"entities":[]}', { status: 200 }));
+    await expect(checkToken('candidate')).resolves.toBe('accepted');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/entities');
+    expect(init?.cache).toBe('no-store');
+    expect(new Headers(init?.headers).get('Authorization')).toBe(
+      'Bearer candidate',
+    );
+    expect(getToken()).toBeNull();
+    expect(localStorage.length).toBe(0);
+  });
+
+  it('only a 401 is a rejection; other statuses and network errors are "could not check"', async () => {
+    answer(
+      new Response('{"message":"Invalid or revoked API token"}', {
+        status: 401,
+      }),
+    );
+    await expect(checkToken('x')).resolves.toBe('rejected');
+    vi.restoreAllMocks();
+    answer(new Response('down', { status: 503 }));
+    await expect(checkToken('x')).resolves.toBe('unavailable');
+    vi.restoreAllMocks();
+    answer(new TypeError('Failed to fetch'));
+    await expect(checkToken('x')).resolves.toBe('unavailable');
+  });
+
+  it('a 401 does not touch a token stored by someone else', async () => {
+    setToken('stored');
+    answer(new Response('no', { status: 401 }));
+    await expect(checkToken('candidate')).resolves.toBe('rejected');
+    expect(getToken()).toBe('stored');
+  });
+
+  it('an aborted check rejects instead of giving a verdict', async () => {
+    const ctrl = new AbortController();
+    let reply!: (r: Response) => void;
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(
+      new Promise((r) => (reply = r)),
+    );
+    const p = checkToken('x', ctrl.signal);
+    ctrl.abort();
+    reply(new Response('{}', { status: 200 }));
+    await expect(p).rejects.toThrow();
   });
 });

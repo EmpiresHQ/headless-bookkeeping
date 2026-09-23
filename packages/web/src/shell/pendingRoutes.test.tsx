@@ -137,7 +137,7 @@ function signIn(token: string) {
   fireEvent.change(screen.getByLabelText('API token'), {
     target: { value: token },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 }
 
 describe('pending operations on the production routes (#251)', () => {

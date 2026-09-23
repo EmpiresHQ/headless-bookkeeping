@@ -143,8 +143,9 @@ describe('router', () => {
     localStorage.clear();
     renderAt('/inbox');
     expect(
-      screen.getByRole('heading', { name: /api token/i }),
+      screen.getByRole('heading', { name: 'Sign in' }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText('API token')).toHaveValue('');
   });
 
   it('redirects / to /inbox and renders the new queue screen', async () => {
