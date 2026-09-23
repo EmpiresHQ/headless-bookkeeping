@@ -422,6 +422,28 @@ describe('usePreviewObjectUrl', () => {
     expect(result.current).toMatchObject({ status: 'ready', src: 'blob:A2' });
   });
 
+  it('variant change on the same id (thumb → lg → thumb): at once loading, never the revoked URL', async () => {
+    // Issue #271: the source is bound to the id AND the variant.
+    const { result, rerender } = renderHook(
+      ({ size }: { size?: 'lg' }) => usePreviewObjectUrl(3, { size }),
+      { initialProps: {} as { size?: 'lg' } },
+    );
+    await settle(call(3, 'thumb'), 'blob:t1');
+    expect(result.current).toMatchObject({ status: 'ready', src: 'blob:t1' });
+    rerender({ size: 'lg' });
+    expect(result.current.status).toBe('loading');
+    expect(revoked).toContain('blob:t1');
+    rerender({});
+    expect(result.current.status).toBe('loading');
+    // The held lg read lands after the variant moved on: dropped, revoked.
+    await settle(call(3, 'lg'), 'blob:lg');
+    expect(result.current.status).toBe('loading');
+    expect(revoked).toContain('blob:lg');
+    await settle(call(3, 'thumb'), 'blob:t2');
+    expect(result.current).toMatchObject({ status: 'ready', src: 'blob:t2' });
+    expect(reads(3, 'thumb')).toBe(2);
+  });
+
   it('inactive → active: the first active render is loading, never the previous activation', async () => {
     const { result, rerender } = renderHook(
       ({ active }) => usePreviewObjectUrl(5, { size: 'lg', active }),
