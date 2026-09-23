@@ -119,6 +119,38 @@ async function back() {
     await new Promise((r) => setTimeout(r, 30));
   });
 }
+async function forward() {
+  await act(async () => {
+    window.history.forward();
+    await new Promise((r) => setTimeout(r, 30));
+  });
+}
+
+/* The browser's own history scroll restoration: each entry keeps the
+ * offset it was left at, and a traversal restores the target entry's
+ * offset right after `popstate` (queued behind the event's listeners) —
+ * while the list it leaves is still mounted. */
+const savedOffsets = new Map<string, number>();
+const historyKey = () =>
+  (window.history.state as { key?: string } | null)?.key ?? 'default';
+function restoreNatively() {
+  let current = historyKey();
+  const push = window.history.pushState.bind(window.history);
+  vi.spyOn(window.history, 'pushState').mockImplementation((...args) => {
+    savedOffsets.set(current, scrollY);
+    push(...args);
+    current = historyKey();
+  });
+  const onPop = () => {
+    savedOffsets.set(current, scrollY);
+    current = historyKey();
+    const y = savedOffsets.get(current) ?? 0;
+    queueMicrotask(() => scrollTo(y));
+  };
+  window.addEventListener('popstate', onPop);
+  return () => window.removeEventListener('popstate', onPop);
+}
+
 async function openRow(i: number, init: MouseEventInit = {}) {
   await act(async () => {
     fireEvent.click(row(i), { button: 0, ...init });
@@ -132,6 +164,7 @@ beforeEach(() => {
   scrollY = 0;
   growth = 0;
   observers.clear();
+  savedOffsets.clear();
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   window.history.replaceState(null, '', '/list');
   Object.defineProperty(window, 'scrollY', {
@@ -367,5 +400,118 @@ describe('list return position (issue #283)', () => {
     } finally {
       bar.remove();
     }
+  });
+});
+
+describe('repeated returns over the same history entry (issue #356)', () => {
+  let stopRestoring = () => {};
+  beforeEach(() => {
+    stopRestoring = restoreNatively();
+  });
+  afterEach(() => stopRestoring());
+
+  it('Back → Forward → Back returns to the opened row, focused, every time', async () => {
+    mount();
+    scrollTo(pageTop(40) - 300);
+    await openRow(40);
+    scrollTo(0); // the detail is read at its top
+    await back();
+    expect(row(40).getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(row(40));
+    for (let cycle = 0; cycle < 3; cycle++) {
+      await forward();
+      expect(window.location.pathname).toBe('/item/40');
+      await back();
+      expect(window.location.pathname).toBe('/list');
+      expect(row(40).getBoundingClientRect().top).toBe(300);
+      expect(document.activeElement).toBe(row(40));
+    }
+  });
+
+  it('a list left without opening a row returns to the same place again, no focus taken', async () => {
+    mount();
+    scrollTo(pageTop(30) - 17);
+    await act(async () => {
+      fireEvent.click(screen.getByText('Elsewhere'), { button: 0 });
+    });
+    scrollTo(0);
+    await back();
+    expect(window.scrollY).toBe(pageTop(30) - 17);
+    await forward();
+    await back();
+    expect(window.scrollY).toBe(pageTop(30) - 17);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('after the user scrolls the returned list, the next return is where they left it', async () => {
+    mount();
+    scrollTo(pageTop(40) - 300);
+    await openRow(40);
+    scrollTo(0);
+    await back();
+    fireEvent.wheel(window);
+    scrollTo(pageTop(10) - 50);
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await forward();
+    await back();
+    expect(window.scrollY).toBe(pageTop(10) - 50);
+    // The earlier row is no longer what the user left from.
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('Forward before the returned rows arrive keeps the pending return', async () => {
+    mount();
+    scrollTo(pageTop(40) - 300);
+    await openRow(40);
+    scrollTo(0);
+    ready = false; // the list arrives loading
+    await back();
+    await forward();
+    ready = true;
+    await back();
+    expect(row(40).getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(row(40));
+  });
+
+  it('Forward while a failed refetch awaits Retry keeps the return', async () => {
+    mount();
+    scrollTo(pageTop(40) - 300);
+    await openRow(40);
+    scrollTo(0);
+    await back();
+    act(() => setReady(false)); // the refetch fails
+    scrollTo(0); // the page collapsed to its top
+    await forward();
+    act(() => setReady(true));
+    await back();
+    expect(row(40).getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(row(40));
+  });
+
+  it('late layout after a repeated return still re-anchors the row', async () => {
+    mount();
+    scrollTo(pageTop(40) - 300);
+    await openRow(40);
+    scrollTo(0);
+    await back();
+    await forward();
+    await back();
+    relayout(120);
+    expect(row(40).getBoundingClientRect().top).toBe(300);
+  });
+
+  it('a new entry for the same list after repeated returns starts fresh', async () => {
+    mount();
+    scrollTo(pageTop(40) - 300);
+    await openRow(40);
+    scrollTo(0);
+    await back();
+    await forward();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Fresh list'));
+    });
+    expect(window.location.pathname).toBe('/list');
+    expect(window.scrollY).toBe(0);
+    expect(document.activeElement).not.toBe(row(40));
   });
 });
