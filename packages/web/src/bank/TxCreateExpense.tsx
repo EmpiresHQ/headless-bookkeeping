@@ -289,8 +289,10 @@ export function TxCreateExpense({
           >
             Expense #{landed.expenseId}
           </Link>{' '}
+          {/* A lost post response is not a refusal (#373): only a
+              confirmed post is stated as fact. */}
           {landed.posted === null
-            ? 'was created as a draft but not posted.'
+            ? 'was created; posting it was not confirmed — it may or may not be posted.'
             : 'was created and posted.'}{' '}
           {landed.stagedMatchIds !== null
             ? 'Its match is staged but not approved — confirm it on the statement.'

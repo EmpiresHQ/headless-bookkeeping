@@ -247,9 +247,13 @@ describe('TxCreateExpense', () => {
       'href',
       '/books/expenses/24',
     );
+    // #373: a failed post response does not establish "not posted".
     expect(
-      screen.getByText(/created as a draft but not posted/),
+      screen.getByText(
+        /posting it was not confirmed — it may or may not be posted/,
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/not posted\./)).toBeNull();
     // Its facts are the server's now: editing them cannot pretend to apply.
     expect(screen.getByLabelText('Category')).toBeDisabled();
     expect(screen.getByLabelText('VAT (EUR)')).toBeDisabled();
@@ -275,6 +279,60 @@ describe('TxCreateExpense', () => {
     expect(api.createExpense).toHaveBeenCalledTimes(1);
     expect(api.postExpense).toHaveBeenCalledTimes(2);
     expect(api.postExpense).toHaveBeenLastCalledWith(24);
+  });
+
+  it('a confirmed post stays stated as posted; the retry resumes at matching without re-posting (#373)', async () => {
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 24 } as never);
+    vi.mocked(api.postExpense).mockResolvedValue({
+      expense: { id: 24, status: 'posted' },
+      policy: { action: 'auto-post', reason: 'ok' },
+    } as never);
+    vi.mocked(api.getMatchCandidates)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValue({
+        bankTransactionId: 9,
+        lineRemaining: 1860,
+        candidates: [
+          {
+            voucherId: 70,
+            objectType: 'expense',
+            objectId: 24,
+            objectLabel: 'Expense #24',
+            counterpartyName: null,
+            voucherRemaining: 1860,
+          },
+        ],
+      });
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 88 }],
+      approvals: [{ id: 12, matchId: 88 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    const onDone = renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    const finish = await screen.findByRole('button', {
+      name: 'Finish · expense #24',
+    });
+    expect(screen.getByText(/was created and posted\./)).toBeInTheDocument();
+    expect(screen.queryByText(/not confirmed/)).toBeNull();
+    fireEvent.click(finish);
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({
+        outcome: 'matched',
+        expenseId: 24,
+        matchId: 88,
+      }),
+    );
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(1);
   });
 
   it('passes the held outcome up when policy holds the expense', async () => {
