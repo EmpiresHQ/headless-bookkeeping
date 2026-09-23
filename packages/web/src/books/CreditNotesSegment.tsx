@@ -16,7 +16,8 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
-import { statusChip } from './chips';
+import { ActiveFilters, statusChip } from './chips';
+import { useResetWithFocus } from './filters';
 
 export interface CreditedContext {
   expenses: Expense[];
@@ -62,6 +63,8 @@ export const creditNoteSign = (n: CreditNote): number =>
   n.credits_object_type === 'sales_invoice' ? -n.gross_amount : n.gross_amount;
 
 export function CreditNotesSegment({ q }: { q: string }) {
+  // Credit notes have no filters — the search is the only restriction.
+  const { rootRef, onReset } = useResetWithFocus('credit-notes');
   const notesQ = useCreditNotes();
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
@@ -72,17 +75,42 @@ export function CreditNotesSegment({ q }: { q: string }) {
     entities: entitiesQ.data ?? [],
   };
 
-  if (notesQ.isPending) return <SkeletonRows count={4} />;
+  const activeFilters = (result?: {
+    shown: number;
+    total: number;
+    noun: string;
+  }) => (
+    <ActiveFilters
+      filters={[]}
+      q={q}
+      result={result}
+      onReset={onReset}
+      resetLabel="Clear search"
+      resetName="Clear search"
+    />
+  );
+
+  if (notesQ.isPending) {
+    return (
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <SkeletonRows count={4} />
+      </div>
+    );
+  }
   if (notesQ.isError) {
     return (
-      <LoadError
-        message={
-          notesQ.error instanceof Error
-            ? notesQ.error.message
-            : 'Failed to load credit notes'
-        }
-        onRetry={() => void notesQ.refetch()}
-      />
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <LoadError
+          message={
+            notesQ.error instanceof Error
+              ? notesQ.error.message
+              : 'Failed to load credit notes'
+          }
+          onRetry={() => void notesQ.refetch()}
+        />
+      </div>
     );
   }
 
@@ -97,8 +125,11 @@ export function CreditNotesSegment({ q }: { q: string }) {
   });
   const groups = groupByMonth(rows);
 
+  const total = (notesQ.data ?? []).length;
+
   return (
-    <div>
+    <div ref={rootRef} tabIndex={-1} className="outline-none">
+      {activeFilters({ shown: rows.length, total, noun: 'credit notes' })}
       <div className="px-4 pb-3">
         <LinkButton
           to="/books/credit-notes/new"
