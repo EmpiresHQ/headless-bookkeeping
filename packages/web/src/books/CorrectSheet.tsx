@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { correctExpense, correctInvoice, type CorrectionRequest } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
 import { usePendingOperation } from '../lib/pendingOperation';
@@ -45,6 +45,7 @@ export function CorrectSheet({
   vatCents,
   category,
   onDone,
+  returnFocusFallback,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -55,6 +56,8 @@ export function CorrectSheet({
   /** Current category — expenses only; invoices pass undefined. */
   category?: string;
   onDone: () => void;
+  /** Focus target on close once a correction removed the trigger. */
+  returnFocusFallback?: RefObject<HTMLElement | null>;
 }) {
   const qc = useQueryClient();
   const categoriesQ = useCategories();
@@ -151,6 +154,7 @@ export function CorrectSheet({
       title="Correct"
       guard={guard}
       busy={busy}
+      returnFocusFallback={returnFocusFallback}
     >
       <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         <div className="space-y-2">

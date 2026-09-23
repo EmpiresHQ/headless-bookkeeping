@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -143,5 +149,37 @@ describe('BooksScreen', () => {
     expect(
       await screen.findByRole('button', { name: /Upload/ }),
     ).toBeDisabled();
+  });
+  it('issue #268: keyboard menu → New expense handoff; closing returns to "Add to the books", the menu never steals late', async () => {
+    const user = userEvent.setup();
+    mount();
+    const add = await screen.findByRole('button', {
+      name: 'Add to the books',
+    });
+    add.focus();
+    await user.keyboard('{Enter}');
+    const menu = await screen.findByRole('dialog', {
+      name: 'Add to the books',
+    });
+    expect(document.activeElement).toBe(
+      within(menu).getByRole('button', { name: 'Close' }),
+    );
+    within(menu)
+      .getByRole('button', { name: /New expense/ })
+      .focus();
+    await user.keyboard('{Enter}');
+    const form = await screen.findByRole('dialog', { name: 'New expense' });
+    const formClose = within(form).getByRole('button', { name: 'Close' });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Add to the books' }),
+      ).toBeNull(),
+    );
+    // The menu's exit has run its close-autofocus: focus stayed in the form.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(formClose);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(document.activeElement).toBe(add));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

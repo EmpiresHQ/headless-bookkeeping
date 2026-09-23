@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   downloadStatutoryReport,
@@ -29,25 +29,38 @@ import { toastErr } from '../ui/toast';
 import { LockSheet } from './LockSheet';
 import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
 
-/** Info banner — live vs frozen is THE §7 marking decision. */
-function StatusBanner({ period }: { period: ReportingPeriod }) {
-  if (period.status === 'open') {
+/** Info banner — live vs frozen is THE §7 marking decision. Focusable
+ *  (tabIndex -1): the same-screen return target once closing the period
+ *  removed the "Close period…" trigger (issue #268) — it then states the
+ *  outcome. */
+const StatusBanner = forwardRef<HTMLDivElement, { period: ReportingPeriod }>(
+  function StatusBanner({ period }, ref) {
+    if (period.status === 'open') {
+      return (
+        <div
+          ref={ref}
+          tabIndex={-1}
+          className="mx-3.5 mb-3.5 rounded-2xl bg-tint px-4 py-3 text-[13px] text-accent"
+        >
+          Live preview — recomputed from the posted books every time you open
+          this screen.
+        </div>
+      );
+    }
     return (
-      <div className="mx-3.5 mb-3.5 rounded-2xl bg-tint px-4 py-3 text-[13px] text-accent">
-        Live preview — recomputed from the posted books every time you open this
-        screen.
+      <div
+        ref={ref}
+        tabIndex={-1}
+        className="mx-3.5 mb-3.5 rounded-2xl bg-surface px-4 py-3 text-[13px] text-ink-2"
+      >
+        Frozen — closed{' '}
+        {period.filed_at !== null ? absoluteDate(period.filed_at) : 'earlier'}.
+        The declaration can no longer change; corrections go forward into the
+        open period.
       </div>
     );
-  }
-  return (
-    <div className="mx-3.5 mb-3.5 rounded-2xl bg-surface px-4 py-3 text-[13px] text-ink-2">
-      Frozen — closed{' '}
-      {period.filed_at !== null ? absoluteDate(period.filed_at) : 'earlier'}.
-      The declaration can no longer change; corrections go forward into the open
-      period.
-    </div>
-  );
-}
+  },
+);
 
 /** The declaration itself: seven human-labeled boxes + the highlighted net
  *  line + the VD 3S row with its manual-filing notice (Reality #5/#6). */
@@ -165,6 +178,7 @@ export function PeriodScreen() {
   // (issue #255); said once here instead of in every section.
   const entitiesQ = useEntities();
   const lock = useSheet();
+  const statusRef = useRef<HTMLDivElement>(null);
   const oldest = oldestOpen(periodsQ.data ?? []);
 
   if (periodsQ.isPending) {
@@ -219,7 +233,7 @@ export function PeriodScreen() {
         {absoluteDateFromIso(period.start_date)} –{' '}
         {absoluteDateFromIso(period.end_date)}
       </p>
-      <StatusBanner period={period} />
+      <StatusBanner ref={statusRef} period={period} />
       {period.status === 'locked' && submissionQ.data !== undefined && (
         <ListGroup>
           <ListRow
@@ -283,6 +297,7 @@ export function PeriodScreen() {
           period={period}
           open={lock.isOpen}
           onOpenChange={(o) => !o && lock.close()}
+          returnFocusFallback={statusRef}
         />
       )}
     </div>

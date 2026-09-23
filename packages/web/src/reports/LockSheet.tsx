@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   fmtCents,
@@ -52,10 +52,13 @@ export function LockSheet({
   period,
   open,
   onOpenChange,
+  returnFocusFallback,
 }: {
   period: ReportingPeriod;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Focus target on close once closing the period removed the trigger. */
+  returnFocusFallback?: RefObject<HTMLElement | null>;
 }) {
   const qc = useQueryClient();
   const [typed, setTyped] = useState('');
@@ -200,6 +203,7 @@ export function LockSheet({
       title={`Close ${periodTitle(period.name)}`}
       guard={guard}
       busy={busy}
+      returnFocusFallback={returnFocusFallback}
     >
       <PendingFieldset pending={busy} className="space-y-3 px-6">
         <ul className="list-disc space-y-1 pl-5 text-[13.5px] text-ink-2">

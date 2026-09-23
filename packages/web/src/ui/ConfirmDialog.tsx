@@ -1,5 +1,6 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useRef, type ReactNode } from 'react';
+import { useFocusReturn } from '../lib/focusReturn';
 import { useModalLayer } from '../lib/modalLayers';
 import { Button } from './Button';
 
@@ -40,6 +41,11 @@ export function ConfirmDialog({
     },
     contentRef,
   );
+  // Focus (issue #268): Radix still starts on Cancel; on close focus returns
+  // to where it was when the question opened — inside a still-open sheet
+  // for "Keep editing" — never into a closing sheet (its own return
+  // applies), under a newer layer or after the route moved on.
+  const focus = useFocusReturn({ open, contentRef });
   return (
     <AlertDialog.Root
       open={open}
@@ -52,6 +58,8 @@ export function ConfirmDialog({
         <AlertDialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
         <AlertDialog.Content
           ref={contentRef}
+          onOpenAutoFocus={focus.onOpenAutoFocus}
+          onCloseAutoFocus={focus.onCloseAutoFocus}
           className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-48px)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-surface p-5"
         >
           <AlertDialog.Title className="text-[17px] font-extrabold">
