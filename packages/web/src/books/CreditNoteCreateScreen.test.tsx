@@ -146,6 +146,23 @@ describe('CreditNoteCreateScreen', () => {
     expect(screen.queryByLabelText(/object id/i)).toBeNull();
   });
 
+  it('the picker search is named by its purpose, not its placeholder (#287)', async () => {
+    mount();
+    await screen.findByText(/2026-018 · Nordic Consulting OÜ/);
+    const search = screen.getByRole('searchbox', {
+      name: 'Search invoices and expenses to credit',
+    });
+    await userEvent.type(search, 'merko');
+    // Still named once the placeholder is gone; the list narrows.
+    expect(
+      screen.getByRole('searchbox', {
+        name: 'Search invoices and expenses to credit',
+      }),
+    ).toHaveValue('merko');
+    expect(screen.getByText(/rent · AS Merko Ehitus/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-018/)).toBeNull();
+  });
+
   it('?type=&id= preselects the object and the form submits CENTS from euro inputs', async () => {
     vi.mocked(createCreditNote).mockResolvedValue({ id: 8 } as never);
     mount('/books/credit-notes/new?type=sales_invoice&id=3');

@@ -87,14 +87,21 @@ describe('EntitiesScreen', () => {
   it('search narrows by name and persists in ?q=', async () => {
     const router = mount();
     await screen.findByText('Circle K Eesti AS');
-    fireEvent.change(screen.getByPlaceholderText('Search entities'), {
-      target: { value: 'mari' },
-    });
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search entities' }),
+      {
+        target: { value: 'mari' },
+      },
+    );
     await waitFor(() =>
       expect(router.state.location.search).toContain('q=mari'),
     );
     expect(screen.getByText('Mari Maasikas')).toBeInTheDocument();
     expect(screen.queryByText('Acme Oy')).toBeNull();
+    // The name is explicit, so it outlives the placeholder (#287).
+    expect(
+      screen.getByRole('searchbox', { name: 'Search entities' }),
+    ).toHaveValue('mari');
   });
 
   it('honest empty state on a fresh install points at creation', async () => {
