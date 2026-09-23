@@ -65,6 +65,48 @@ describe('books pure model', () => {
     expect(expenseMatchesQuery(row, '', null)).toBe(true);
   });
 
+  it('expenseMatchesQuery also searches the supplier invoice number (issue #277)', () => {
+    const long = 'EECTB-' + '1805772/'.repeat(14); // 118 chars
+    const alpha = exp({ supplier_invoice_number: `${long}ALPHA` });
+    const beta = exp({ supplier_invoice_number: `${long}BETA` });
+    // Previously unmatched: the full copied number, exact and any case.
+    expect(expenseMatchesQuery(alpha, `${long}ALPHA`, null)).toBe(true);
+    expect(expenseMatchesQuery(alpha, `${long}alpha`.toLowerCase(), null)).toBe(
+      true,
+    );
+    expect(expenseMatchesQuery(alpha, ` \t${long}ALPHA\n `, null)).toBe(true);
+    // Partial, and the same prefix with different tails.
+    expect(expenseMatchesQuery(alpha, '1805772/1805', null)).toBe(true);
+    expect(expenseMatchesQuery(alpha, `${long}BETA`, null)).toBe(false);
+    expect(expenseMatchesQuery(beta, `${long}BETA`, null)).toBe(true);
+    expect(expenseMatchesQuery(beta, `${long}ALPHA`, null)).toBe(false);
+    // Punctuation is kept: no separator folding.
+    expect(expenseMatchesQuery(alpha, 'EECTB1805772', null)).toBe(false);
+    // Internal whitespace runs (tab, NBSP, doubles) read as one space on
+    // both sides; spaces are never dropped.
+    const gamma = exp({ supplier_invoice_number: 'INV\t2026\u00a0 GAMMA' });
+    expect(expenseMatchesQuery(gamma, 'inv 2026 gamma', null)).toBe(true);
+    expect(expenseMatchesQuery(gamma, 'INV  2026\tGAMMA', null)).toBe(true);
+    expect(expenseMatchesQuery(gamma, 'inv2026', null)).toBe(false);
+    // Null, omitted and blank numbers never match; empty query still does.
+    const omitted = exp({});
+    delete (omitted as Partial<Expense>).supplier_invoice_number;
+    for (const row of [
+      exp({}),
+      omitted,
+      exp({ supplier_invoice_number: ' ' }),
+    ]) {
+      expect(expenseMatchesQuery(row, 'inv', null)).toBe(false);
+      expect(expenseMatchesQuery(row, '', null)).toBe(true);
+    }
+    // The old arms still match a row that has a number.
+    expect(expenseMatchesQuery(gamma, 'telia', 'Telia Eesti AS')).toBe(true);
+    expect(expenseMatchesQuery(gamma, 'fue', null)).toBe(true);
+    expect(expenseMatchesQuery(gamma, '48.20', null)).toBe(true);
+    // Internal ids are not searched.
+    expect(expenseMatchesQuery(exp({ id: 4242 }), '4242', null)).toBe(false);
+  });
+
   it('invoiceMatchesQuery searches customer name, invoice number, and amount', () => {
     const inv: SalesInvoice = {
       id: 3,

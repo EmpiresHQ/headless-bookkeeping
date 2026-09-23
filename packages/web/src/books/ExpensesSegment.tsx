@@ -36,7 +36,11 @@ function ExpenseRow({
   supplierName: string | null;
   hasDocument: boolean;
 }) {
-  const parts = [e.category, shortDate(e.tax_point_date)];
+  const parts = [e.category];
+  // The supplier's own number identifies the row a search found (#277).
+  if ((e.supplier_invoice_number ?? '').trim() !== '')
+    parts.push(`Invoice no. ${e.supplier_invoice_number}`);
+  parts.push(shortDate(e.tax_point_date));
   if (e.reconciled) parts.push('🏦');
   if (!hasDocument) parts.push('📎 no document');
   return (
