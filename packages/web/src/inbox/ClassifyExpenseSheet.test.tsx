@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -12,6 +18,7 @@ vi.mock('../api', async (importOriginal) => ({
   getExpenses: vi.fn(),
   manualClassify: vi.fn(),
   onboardEntity: vi.fn(),
+  fetchDocumentFile: vi.fn(),
 }));
 
 import * as api from '../api';
@@ -40,6 +47,10 @@ function renderSheet(onDone = vi.fn(), onOpenChange = vi.fn()) {
 describe('ClassifyExpenseSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.fetchDocumentFile).mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/png' }),
+      filename: 'circle-k.png',
+    });
     vi.mocked(api.getDocumentDetails).mockResolvedValue({
       document_id: 12,
       ocr: { ok: true, markdown: 'CIRCLE K …' },
@@ -645,5 +656,31 @@ describe('ClassifyExpenseSheet', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('source document (#257): viewable from the form; switching keeps typed input and the dirty guard', async () => {
+    const onOpenChange = vi.fn();
+    renderSheet(vi.fn(), onOpenChange);
+    const vat = screen.getByLabelText('VAT (EUR)');
+    await waitFor(() => expect(vat).toHaveValue('8.67'));
+    fireEvent.change(vat, { target: { value: '10.00' } });
+
+    const source = screen.getByRole('region', { name: 'Source document' });
+    expect(await within(source).findByAltText('Source document')).toBeVisible();
+    expect(api.fetchDocumentFile).toHaveBeenCalledWith(12);
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
+      fireEvent.click(within(source).getByRole('button', { name: 'Zoom in' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+    }
+    expect(screen.getByLabelText('VAT (EUR)')).toBe(vat);
+    expect(vat).toHaveValue('10.00');
+    // Viewing the source released nothing: a dismiss still asks.
+    expect(onOpenChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(
+      await screen.findByRole('button', { name: 'Keep editing' }),
+    ).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });

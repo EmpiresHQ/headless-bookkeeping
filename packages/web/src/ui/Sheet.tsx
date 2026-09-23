@@ -1,6 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Drawer } from 'vaul';
 import type { DismissGuard } from '../lib/unsavedChanges';
+import { SegmentedControl } from './SegmentedControl';
 
 // vaul's own reset transition (TRANSITIONS in vaul/dist) — used to put a
 // swiped-down drawer back when a close is vetoed.
@@ -14,6 +21,7 @@ export function Sheet({
   title,
   guard,
   busy = false,
+  source,
   children,
 }: {
   open: boolean;
@@ -26,8 +34,17 @@ export function Sheet({
    *  is refused (drawer put back), and no discard question is asked for a
    *  form that is mid-save. */
   busy?: boolean;
+  /** The document this form verifies (issue #257). Given, the sheet grows
+   *  to full height: side by side with the form on wide screens; a
+   *  Form/Source switch on narrow ones. Both panes stay MOUNTED — the hidden
+   *  one is only `invisible` — so typed input, the form's scroll and the
+   *  viewer's page/zoom survive every switch. Switching is view state:
+   *  never a dismissal, never consults or releases the guard, and stays
+   *  available while busy. Absent, the sheet is unchanged. */
+  source?: ReactNode;
   children: ReactNode;
 }) {
+  const [view, setView] = useState<'form' | 'source'>('form');
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const vetoFrame = useRef<number | null>(null);
@@ -132,7 +149,9 @@ export function Sheet({
         <Drawer.Content
           ref={contentRef}
           onCloseAutoFocus={(e) => e.preventDefault()}
-          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col rounded-t-3xl bg-bg pb-6 outline-none"
+          className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-bg outline-none ${
+            source === undefined ? 'max-h-[92vh] pb-6' : 'h-[92vh] pb-3'
+          }`}
         >
           <div className="mx-auto mb-3 mt-2.5 h-1 w-10 flex-none rounded-full bg-handle" />
           {title != null && (
@@ -140,7 +159,43 @@ export function Sheet({
               {title}
             </Drawer.Title>
           )}
-          <div className="overflow-y-auto">{children}</div>
+          {source === undefined ? (
+            <div className="overflow-y-auto">{children}</div>
+          ) : (
+            <>
+              <div className="mb-2 flex-none px-5 lg:hidden">
+                <SegmentedControl
+                  options={[
+                    { value: 'form', label: 'Form' },
+                    { value: 'source', label: 'Source document' },
+                  ]}
+                  value={view}
+                  onChange={setView}
+                />
+              </div>
+              <div className="relative min-h-0 flex-1 lg:grid lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-4 lg:px-5">
+                <div
+                  data-vaul-no-drag
+                  data-sheet-pane="source"
+                  data-active={view === 'source'}
+                  className={`absolute inset-0 overflow-hidden lg:static lg:visible lg:rounded-2xl lg:border lg:border-line ${
+                    view === 'source' ? '' : 'invisible'
+                  }`}
+                >
+                  {source}
+                </div>
+                <div
+                  data-sheet-pane="form"
+                  data-active={view === 'form'}
+                  className={`absolute inset-0 overflow-y-auto lg:static lg:visible ${
+                    view === 'form' ? '' : 'invisible'
+                  }`}
+                >
+                  {children}
+                </div>
+              </div>
+            </>
+          )}
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>
