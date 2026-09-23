@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSeg } from '../lib/useSeg';
 import { useSheet } from '../lib/useSheet';
@@ -10,16 +10,28 @@ import { CreateMenu, NewExpenseSheet, NewInvoiceSheet } from './create';
 import { CreditNotesSegment } from './CreditNotesSegment';
 import { DocumentsSegment } from './DocumentsSegment';
 import { ExpensesSegment } from './ExpensesSegment';
-import { SEGMENT_PARAMS } from './filters';
+import { BOOKS_SEARCH, SEGMENT_PARAMS, useSetFilterParam } from './filters';
 import { InvoicesSegment } from './InvoicesSegment';
 
 const SEGMENTS = ['expenses', 'invoices', 'documents', 'credit-notes'] as const;
 type Segment = (typeof SEGMENTS)[number];
 
 export function BooksScreen() {
-  const [params, setParams] = useSearchParams();
-  const [seg, setSeg] = useSeg<Segment>(SEGMENTS, 'expenses', SEGMENT_PARAMS);
+  const [params] = useSearchParams();
+  const [seg, switchSeg] = useSeg<Segment>(
+    SEGMENTS,
+    'expenses',
+    SEGMENT_PARAMS,
+  );
+  // Tapping the segment already on screen is not a switch: it must not drop
+  // its filters (useSeg clears the segment params on every write).
+  const setSeg = (next: Segment) => {
+    if (next !== seg) switchSeg(next);
+  };
   const q = params.get('q') ?? '';
+  const search = BOOKS_SEARCH[seg];
+  const scopeId = useId();
+  const setParam = useSetFilterParam();
   const [createOpen, setCreateOpen] = useState(false);
   const expenseSheet = useSheet();
   const invoiceSheet = useSheet();
@@ -30,12 +42,10 @@ export function BooksScreen() {
     upload: uploadSheet,
   } as const;
 
-  const setQ = (next: string) => {
-    const p = new URLSearchParams(params);
-    if (next === '') p.delete('q');
-    else p.set('q', next);
-    setParams(p, { replace: true });
-  };
+  // ?q= survives a segment switch (a counterparty name is useful across
+  // segments); each segment's summary then says what the search looks at
+  // there (#276). Replace-history, the entry's state kept.
+  const setQ = (next: string) => setParam('q', next === '' ? null : next);
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
@@ -70,8 +80,13 @@ export function BooksScreen() {
         <SearchInput
           value={q}
           onChange={setQ}
-          placeholder="Counterparty, amount, category…"
+          placeholder={search.placeholder}
+          aria-label={`Search ${search.noun}`}
+          aria-describedby={scopeId}
         />
+        <span id={scopeId} className="sr-only">
+          Matches {search.scope}.
+        </span>
       </div>
       {seg === 'expenses' && <ExpensesSegment q={q} />}
       {seg === 'invoices' && <InvoicesSegment q={q} />}

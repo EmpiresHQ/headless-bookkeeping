@@ -9,7 +9,7 @@ import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { DocThumb } from './DocThumb';
 import { ActiveFilters, FilterChip, FilterStrip } from './chips';
-import { useResetWithFocus, useSetFilterParam } from './filters';
+import { BOOKS_SEARCH, useResetWithFocus, useSetFilterParam } from './filters';
 
 export function channelLabel(channel: string | null): string {
   switch (channel) {
@@ -86,7 +86,13 @@ export function DocumentsSegment({ q }: { q: string }) {
     total: number;
     noun: string;
   }) => (
-    <ActiveFilters filters={applied} q={q} result={result} onReset={onReset} />
+    <ActiveFilters
+      filters={applied}
+      q={q}
+      searchScope={BOOKS_SEARCH.documents.scope}
+      result={result}
+      onReset={onReset}
+    />
   );
 
   if (docsQ.isPending) {

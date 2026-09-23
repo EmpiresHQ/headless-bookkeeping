@@ -25,7 +25,7 @@ import {
   statusChip,
   StatusChipRow,
 } from './chips';
-import { useResetWithFocus, useSetFilterParam } from './filters';
+import { BOOKS_SEARCH, useResetWithFocus, useSetFilterParam } from './filters';
 
 function ExpenseRow({
   e,
@@ -100,7 +100,13 @@ export function ExpensesSegment({ q }: { q: string }) {
     total: number;
     noun: string;
   }) => (
-    <ActiveFilters filters={applied} q={q} result={result} onReset={onReset} />
+    <ActiveFilters
+      filters={applied}
+      q={q}
+      searchScope={BOOKS_SEARCH.expenses.scope}
+      result={result}
+      onReset={onReset}
+    />
   );
 
   if (expensesQ.isPending) {

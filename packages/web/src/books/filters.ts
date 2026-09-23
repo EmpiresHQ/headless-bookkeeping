@@ -5,6 +5,34 @@ import { useLocation, useSearchParams } from 'react-router-dom';
  *  filter has no meaning on Documents); ?q= survives. */
 export const SEGMENT_PARAMS = ['status', 'nodoc', 'dstatus'] as const;
 
+/** What each segment's search matches (issue #276) — the wording mirrors the
+ *  segment's actual predicate, never more: Documents and Credit notes are
+ *  not searched by amount. `scope` is shown next to an active search and is
+ *  the input's description, since the placeholder is gone once typed in. */
+export const BOOKS_SEARCH = {
+  expenses: {
+    noun: 'expenses',
+    placeholder: 'Supplier, category, amount…',
+    scope: 'supplier, category or amount',
+  },
+  invoices: {
+    noun: 'invoices',
+    placeholder: 'Customer, invoice number, amount…',
+    scope: 'customer, invoice number or amount',
+  },
+  documents: {
+    noun: 'documents',
+    placeholder: 'File name or supplier…',
+    scope: 'file name or supplier',
+  },
+  'credit-notes': {
+    noun: 'credit notes',
+    placeholder: 'Note number, counterparty, invoice number, category…',
+    scope:
+      'credit note number, credited customer or supplier, invoice number or expense category',
+  },
+} as const;
+
 /** The URL after Reset (issue #274): the segment filters AND the search go;
  *  ?seg=, every unrelated param and the history state stay. A lingering
  *  legacy ?tab= is normalized to ?seg=<the segment on screen>, as useSeg

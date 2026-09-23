@@ -17,7 +17,7 @@ import { LinkButton } from '../ui/LinkButton';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { ActiveFilters, statusChip } from './chips';
-import { useResetWithFocus } from './filters';
+import { BOOKS_SEARCH, useResetWithFocus } from './filters';
 
 export interface CreditedContext {
   expenses: Expense[];
@@ -83,6 +83,7 @@ export function CreditNotesSegment({ q }: { q: string }) {
     <ActiveFilters
       filters={[]}
       q={q}
+      searchScope={BOOKS_SEARCH['credit-notes'].scope}
       result={result}
       onReset={onReset}
       resetLabel="Clear search"

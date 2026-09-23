@@ -17,7 +17,7 @@ import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { ActiveFilters, LABELS, statusChip, StatusChipRow } from './chips';
-import { useResetWithFocus, useSetFilterParam } from './filters';
+import { BOOKS_SEARCH, useResetWithFocus, useSetFilterParam } from './filters';
 
 function InvoiceRow({
   inv,
@@ -73,7 +73,13 @@ export function InvoicesSegment({ q }: { q: string }) {
     total: number;
     noun: string;
   }) => (
-    <ActiveFilters filters={applied} q={q} result={result} onReset={onReset} />
+    <ActiveFilters
+      filters={applied}
+      q={q}
+      searchScope={BOOKS_SEARCH.invoices.scope}
+      result={result}
+      onReset={onReset}
+    />
   );
 
   if (invoicesQ.isPending) {
