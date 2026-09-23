@@ -123,14 +123,13 @@ async function fillNew(regKey = 'EE100200300') {
   });
 }
 
-/** The React onClick of a rendered button — to call a handler directly,
- *  bypassing the disabled state a re-render would give it. */
-function reactOnClick(el: HTMLElement): () => void {
-  const key = Object.keys(el).find((k) => k.startsWith('__reactProps'));
-  const props = (el as unknown as Record<string, { onClick: () => void }>)[
-    key as string
-  ];
-  return () => props.onClick();
+/** A native submit of the form a rendered submit button belongs to
+ *  (issue #266: `requestSubmit()` ignores the disabled state a re-render
+ *  gives the button, so only the form's own guards stop it). */
+function submitFormOf(el: HTMLElement): () => void {
+  const form = (el as HTMLButtonElement).form;
+  if (form === null) throw new Error('button has no form owner');
+  return () => form.requestSubmit();
 }
 
 describe('manual create — find or add the counterparty in the form (#263)', () => {
@@ -403,16 +402,16 @@ describe('manual create — find or add the counterparty in the form (#263)', ()
     await screen.findByRole('button', { name: /Neste Eesti/ });
     openNew('supplier', 'Uus Tarnija');
     await fillNew();
-    const add = reactOnClick(addBtn());
+    const add = submitFormOf(addBtn());
     act(() => {
       add();
       add();
     });
     expect(onboardEntity).toHaveBeenCalledTimes(1);
     // The whole sheet is locked (fieldset) and the draft submit is a no-op
-    // even when its handler is called directly.
+    // even when its form is submitted programmatically.
     expect(screen.getByLabelText('Gross (€)')).toBeDisabled();
-    const submit = reactOnClick(createExpenseBtn());
+    const submit = submitFormOf(createExpenseBtn());
     act(() => submit());
     expect(createExpense).not.toHaveBeenCalled();
     await act(async () => pending.resolve(NEW_SUP));

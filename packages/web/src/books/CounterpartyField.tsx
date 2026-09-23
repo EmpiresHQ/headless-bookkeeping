@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   onboardEntity,
   type Entity,
@@ -28,7 +29,14 @@ import {
 } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { HttpError } from '../auth';
-import { Field, SelectInput, TextInput, useFormErrors } from '../ui/Form';
+import {
+  blockComposingEnter,
+  Field,
+  noImplicitSubmit,
+  SelectInput,
+  TextInput,
+  useFormErrors,
+} from '../ui/Form';
 import {
   lookupBlocker,
   lookupState,
@@ -377,6 +385,9 @@ function SearchList({
           aria-invalid={error !== null ? true : undefined}
           value={cp.search}
           onChange={cp.setSearch}
+          // Enter only narrows the list — it never creates the sheet's
+          // draft before a choice (issue #266).
+          onKeyDown={noImplicitSubmit}
           placeholder={`Search ${w.many}…`}
         />
         <span id={hintId} className="mt-1 block text-xs text-ink-2">
@@ -505,6 +516,15 @@ function CreateForm({
     return hit === undefined ? null : hit[1].join('; ');
   };
   const fieldError = (k: CreateFieldKey) => v.error(k) ?? serverError(k);
+  // Its own submit (issue #266): these controls join a separate form — never
+  // one nested in the sheet's — so Enter here adds the counterparty (through
+  // the same gate as the button) and never submits the draft around it.
+  // The empty form element lives outside the sheet's form; `add` is its one
+  // submit path, the shared operation's lock keeps it to one request.
+  const formId = `${useId()}-form`;
+  const add = () => {
+    if (v.attempt()) cp.create(effCountry);
+  };
   const set = <K extends keyof CounterpartyDraft>(
     k: K,
     v: CounterpartyDraft[K],
@@ -521,8 +541,25 @@ function CreateForm({
       tabIndex={focusId !== undefined ? -1 : undefined}
       role="group"
       aria-label={`New ${w.one}`}
+      // These controls are not inside their (portalled) form's DOM: the
+      // composing-Enter guard sits on their own ancestor (issue #266).
+      onKeyDown={blockComposingEnter}
       className="space-y-3 rounded-2xl border-[1.5px] border-dashed border-line bg-surface p-3.5 outline-none"
     >
+      {createPortal(
+        <form
+          id={formId}
+          noValidate
+          hidden
+          onSubmit={(e) => {
+            e.preventDefault();
+            // Portalled: React would still bubble it to the sheet's form.
+            e.stopPropagation();
+            add();
+          }}
+        />,
+        document.body,
+      )}
       <p className="text-[13px] font-semibold">
         {`New ${w.one} — added to Entities as a ${w.one}`}
       </p>
@@ -530,6 +567,7 @@ function CreateForm({
       <Field label="Name" required error={fieldError('name')}>
         <TextInput
           {...v.bind('name')}
+          form={formId}
           value={draft.name}
           onChange={(e) => set('name', e.target.value)}
         />
@@ -577,6 +615,7 @@ function CreateForm({
         >
           <TextInput
             {...v.bind('country')}
+            form={formId}
             value={effCountry}
             onChange={(e) => set('country', e.target.value.toUpperCase())}
             maxLength={2}
@@ -601,12 +640,14 @@ function CreateForm({
       >
         <TextInput
           {...v.bind('regKey')}
+          form={formId}
           value={draft.regKey}
           onChange={(e) => set('regKey', e.target.value)}
         />
       </Field>
       <Field label="Goods or services">
         <SelectInput
+          form={formId}
           value={draft.goods}
           onChange={(e) => set('goods', e.target.value as GoodsOrServices)}
         >
@@ -619,6 +660,7 @@ function CreateForm({
       </Field>
       <Field label="Tax status" hint={TAX_STATUS_HINT}>
         <SelectInput
+          form={formId}
           value={draft.taxStatus}
           onChange={(e) => set('taxStatus', e.target.value as TaxStatus)}
         >
@@ -637,13 +679,7 @@ function CreateForm({
           {`Adding the ${w.one} was not confirmed (${cp.createError}). Your input is kept — search the list before adding it again, in case it was stored.`}
         </p>
       )}
-      <Button
-        className="w-full"
-        busy={busy}
-        onClick={() => {
-          if (v.attempt()) cp.create(effCountry);
-        }}
-      >
+      <Button className="w-full" busy={busy} type="submit" form={formId}>
         {`Add ${w.one}`}
       </Button>
       <div className="flex justify-between gap-3">

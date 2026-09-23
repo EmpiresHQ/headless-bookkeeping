@@ -7,7 +7,10 @@ import {
   useState,
 } from 'react';
 import type {
+  FormEvent,
+  FormHTMLAttributes,
   InputHTMLAttributes,
+  KeyboardEvent,
   ReactElement,
   ReactNode,
   SelectHTMLAttributes,
@@ -154,6 +157,66 @@ export function PendingFieldset({
       </p>
     </fieldset>
   );
+}
+
+/**
+ * A form's ONE submit path (issue #266): the submit button's click, Enter in
+ * a field (the browser's implicit submission through the default button)
+ * and `requestSubmit()` all arrive here — never a page load. `noValidate`:
+ * the form's own checks (useFormErrors) decide, never a browser bubble. The
+ * caller's `onSubmit` holds every guard (blocker, field errors, the pending
+ * operation's duplicate lock), since a programmatic submit ignores the
+ * disabled button. A submit of ANOTHER form that bubbles here through the
+ * React tree (a portalled inner form, see CounterpartyField) is not ours.
+ * An Enter that belongs to an IME composition never submits it.
+ */
+export function SubmitForm({
+  onSubmit,
+  onKeyDown,
+  children,
+  ...rest
+}: Omit<FormHTMLAttributes<HTMLFormElement>, 'onSubmit' | 'noValidate'> & {
+  onSubmit: () => void;
+}) {
+  return (
+    <form
+      {...rest}
+      noValidate
+      onKeyDown={(e) => {
+        blockComposingEnter(e);
+        onKeyDown?.(e);
+      }}
+      onSubmit={(e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (e.target !== e.currentTarget) return;
+        onSubmit();
+      }}
+    >
+      {children}
+    </form>
+  );
+}
+
+/**
+ * onKeyDown for an ancestor of a form's controls: an Enter that belongs to
+ * an IME composition (it commits the candidate) must not submit the form.
+ * Browsers are not uniform — Chromium can report the Enter keydown of an
+ * active composition as `isComposing` with keyCode 13 and then submit;
+ * Safari fires compositionend BEFORE the committing keydown, so that one has
+ * `isComposing` false and only keyCode 229 tells it. Only that Enter is
+ * cancelled: a plain Enter (submit, or a textarea's newline) is untouched.
+ * No compositionstart/end tracking: with Safari's order it would already be
+ * cleared when the keydown arrives, and the event itself carries both marks.
+ */
+export function blockComposingEnter(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== 'Enter') return;
+  if (e.nativeEvent.isComposing || e.keyCode === 229) e.preventDefault();
+}
+
+/** onKeyDown for a field whose Enter must NOT submit its form (e.g. a
+ *  search that only narrows a list). */
+export function noImplicitSubmit(e: KeyboardEvent<HTMLElement>) {
+  if (e.key === 'Enter') e.preventDefault();
 }
 
 const isBlank = (v: unknown) =>
