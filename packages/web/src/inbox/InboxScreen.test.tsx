@@ -9,6 +9,13 @@ import {
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The chosen file's local preview (#293) is not under test here: pdf.js
+// never settles, so no viewer state or control joins these flows.
+vi.mock('./pdfjs', () => ({
+  loadPdfJs: () => new Promise(() => undefined),
+  pdfDocumentOptions: () => ({}),
+}));
+
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   getNeedsTriageItems: vi.fn(),

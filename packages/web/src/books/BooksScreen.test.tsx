@@ -9,6 +9,13 @@ import {
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+
+// The chosen file's local preview (#293) is not under test here: pdf.js
+// never settles, so no viewer state or control joins these flows.
+vi.mock('../inbox/pdfjs', () => ({
+  loadPdfJs: () => new Promise(() => undefined),
+  pdfDocumentOptions: () => ({}),
+}));
 import { BooksScreen } from './BooksScreen';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 

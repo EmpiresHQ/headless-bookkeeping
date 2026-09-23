@@ -12,6 +12,7 @@ import { Button } from '../ui/Button';
 import { PendingFieldset } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr } from '../ui/toast';
+import { ChosenFileReview } from '../upload/ChosenFileReview';
 
 /**
  * Triage flow 4 — OCR failed. Replacement = upload a clearer scan (the NEW
@@ -32,7 +33,6 @@ export function OcrFailedSheet({
   onReplaced: (o: TriageOutcome) => void;
   onRetried: () => void;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
   // The chosen File itself (identity), not a flag: a new selection after a
   // discard or a failed attempt is a new, unsaved choice.
   const [file, setFile] = useState<File | null>(null);
@@ -107,7 +107,6 @@ export function OcrFailedSheet({
     if (!(await guard.confirmDiscard())) return;
     // Discarded: clear the choice, so a failed retry leaves a clean form
     // and any later selection reads as new input.
-    if (fileRef.current !== null) fileRef.current.value = '';
     setFile(null);
     op.run(() => retryDocument(documentId), { onSuccess: onRetried });
   };
@@ -125,12 +124,15 @@ export function OcrFailedSheet({
           OCR could not read this file. Upload a clearer scan of the SAME
           document (the broken one is archived), or retry on this file.
         </p>
-        <input
-          ref={fileRef}
-          type="file"
-          aria-label="Replacement file"
-          className="w-full text-[13px]"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        {/* Checked locally before anything is sent (#293) — the same
+            chooser as "Upload a document". */}
+        <ChosenFileReview
+          label="Replacement file"
+          file={file}
+          onChoose={setFile}
+          onRemove={() => setFile(null)}
+          submitLabel="Upload replacement"
+          uploadedAs={partial?.documentId ?? null}
         />
         <Button
           className="w-full"

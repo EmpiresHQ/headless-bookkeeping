@@ -10,6 +10,13 @@ import {
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The chosen file's local preview (#293) is not under test here: pdf.js
+// never settles, so no viewer state or control joins these flows.
+vi.mock('../inbox/pdfjs', () => ({
+  loadPdfJs: () => new Promise(() => undefined),
+  pdfDocumentOptions: () => ({}),
+}));
+
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
   uploadDocument: vi.fn(),
@@ -608,5 +615,162 @@ describe('UploadDocumentSheet — payer list states (#260)', () => {
       await screen.findByRole('option', { name: 'Mari Maasikas' }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Couldn't refresh payers/)).toBeNull();
+  });
+});
+
+describe('UploadDocumentSheet — choose and check before processing (issue #293)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    setToken('test-token');
+    vi.mocked(getEntities).mockResolvedValue([SUPPLIER, MARI, JAAN]);
+    vi.mocked(getNeedsTriageItems).mockResolvedValue([]);
+  });
+
+  const selected = () => screen.getByRole('region', { name: 'Selected file' });
+  const choose = (f: File) =>
+    fireEvent.change(screen.getByLabelText('File'), {
+      target: { files: [f] },
+    });
+
+  it('choosing a file writes nothing and reads nothing from the server; only the explicit submit sends that same File', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    vi.mocked(uploadDocument).mockResolvedValue({
+      document: doc({ id: 40 }),
+      deduplicated: false,
+    });
+    vi.mocked(triageDocument).mockResolvedValue({
+      kind: 'expense',
+      document_id: 40,
+      expense_id: 4,
+    });
+    const { router } = mount();
+    const file = await pick('5');
+    expect(selected()).toHaveTextContent('r.pdf');
+    expect(selected()).toHaveTextContent('selected on this device');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(triageDocument).not.toHaveBeenCalled();
+    // The local preview never asks the server for a document.
+    expect(
+      fetchSpy.mock.calls.filter(([u]) => String(u).includes('/api/documents')),
+    ).toEqual([]);
+    go();
+    await waitFor(() => expect(path(router)).toBe('/books/expenses/4'));
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(uploadDocument).mock.calls[0][0]).toBe(file);
+    fetchSpy.mockRestore();
+  });
+
+  it('a cancelled picker keeps the file; Remove clears it (nothing to send); another file is what gets sent', async () => {
+    vi.mocked(uploadDocument).mockResolvedValue({
+      document: doc({ id: 41 }),
+      deduplicated: false,
+    });
+    vi.mocked(triageDocument).mockResolvedValue({
+      kind: 'invoice',
+      document_id: 41,
+      invoice_id: 9,
+    });
+    const { router } = mount();
+    await pick();
+    fireEvent.change(screen.getByLabelText('File'), { target: { files: [] } });
+    expect(selected()).toHaveTextContent('r.pdf');
+    expect(
+      screen.getByRole('button', { name: 'Upload & process' }),
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(screen.queryByRole('region', { name: 'Selected file' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Upload & process' }),
+    ).toBeDisabled();
+    const other = new File(['y'], 'photo.jpg', { type: 'image/jpeg' });
+    choose(other);
+    expect(selected()).toHaveTextContent('photo.jpg');
+    go();
+    await waitFor(() => expect(path(router)).toBe('/books/invoices/9'));
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(uploadDocument).mock.calls[0][0]).toBe(other);
+  });
+
+  it('a slow upload keeps the chosen file on screen and locked — no change, removal or second send', async () => {
+    let land!: (v: unknown) => void;
+    vi.mocked(uploadDocument).mockReturnValue(
+      new Promise((r) => (land = r)) as never,
+    );
+    vi.mocked(triageDocument).mockResolvedValue({
+      kind: 'expense',
+      document_id: 77,
+      expense_id: 1,
+    });
+    const { router } = mount();
+    await pick();
+    go();
+    expect(selected()).toHaveTextContent('r.pdf');
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Change file' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+    go();
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    land({ document: doc(), deduplicated: false });
+    await waitFor(() => expect(path(router)).toBe('/books/expenses/1'));
+  });
+
+  it('an unconfirmed upload never claims the file is or is not stored in the file header', async () => {
+    vi.mocked(uploadDocument).mockRejectedValueOnce(new Error('Network error'));
+    mount();
+    await pick();
+    go();
+    expect(
+      await screen.findByText('Upload failed: Network error'),
+    ).toBeInTheDocument();
+    expect(selected()).toHaveTextContent('selected on this device');
+    expect(selected()).not.toHaveTextContent(/not uploaded/);
+  });
+
+  it('accepted but not processed: the header names the stored document, the payer stays fixed, retry never re-uploads; another file is a new upload', async () => {
+    vi.mocked(uploadDocument)
+      .mockResolvedValueOnce({
+        document: doc({ id: 32, claimant_id: 5 }),
+        deduplicated: false,
+      })
+      .mockResolvedValueOnce({
+        document: doc({ id: 33, claimant_id: 5 }),
+        deduplicated: false,
+      });
+    vi.mocked(triageDocument)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValueOnce({
+        kind: 'expense',
+        document_id: 33,
+        expense_id: 12,
+      });
+    const { router } = mount();
+    const a = await pick('5');
+    go();
+    await screen.findByRole('button', { name: 'Retry processing' });
+    expect(selected()).toHaveTextContent('already uploaded as document #32');
+    expect(screen.getByLabelText('Paid by (claimant)')).toBeDisabled();
+    expect(screen.getByLabelText('Paid by (claimant)')).toHaveValue('5');
+    go('Retry processing');
+    await waitFor(() => expect(triageDocument).toHaveBeenCalledTimes(2));
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect(triageDocument).toHaveBeenLastCalledWith(32);
+    // A different file is a new operation: its own upload, header and payer.
+    const b = new File(['z'], 'clearer.pdf', { type: 'application/pdf' });
+    choose(b);
+    expect(selected()).toHaveTextContent('selected on this device');
+    expect(screen.getByLabelText('Paid by (claimant)')).toBeEnabled();
+    go();
+    await waitFor(() => expect(path(router)).toBe('/books/expenses/12'));
+    expect(uploadDocument).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(uploadDocument).mock.calls[0][0]).toBe(a);
+    expect(vi.mocked(uploadDocument).mock.calls[1]).toEqual([
+      b,
+      { claimantId: 5 },
+    ]);
   });
 });
