@@ -153,8 +153,13 @@ describe('create flows', () => {
       expect(screen.getByLabelText('Gross (€)')).not.toBeDisabled(),
     );
     expect(screen.getByLabelText('Gross (€)')).toHaveValue('123.45');
-    expect(
-      await screen.findByText(/503 Service Unavailable/),
-    ).toBeInTheDocument();
+    // Stated in the form too (#265) — persistently, and without claiming
+    // the unknown outcome was a refusal.
+    const alert = await screen.findByText(
+      /Creating the draft expense was not confirmed/,
+    );
+    expect(alert.closest('[role="alert"]')).toHaveTextContent(
+      /503 Service Unavailable/,
+    );
   });
 });

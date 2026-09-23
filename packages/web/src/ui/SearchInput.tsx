@@ -11,6 +11,10 @@ export function SearchInput({
   'aria-label'?: string;
   'aria-labelledby'?: string;
   'aria-describedby'?: string;
+  'aria-invalid'?: boolean;
+  /** For focusing it from a form's error summary (issue #265). */
+  id?: string;
+  onBlur?: () => void;
 }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2">

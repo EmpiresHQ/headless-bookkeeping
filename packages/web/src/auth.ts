@@ -91,12 +91,23 @@ export class SessionChangedError extends Error {
   }
 }
 
+/** The server's request-validation answer (issue #265): the Zod pipe's flat
+ *  `{ field: [messages], _errors?: [messages] }`, kept as sent. */
+export interface ValidationDetail {
+  readonly fields: Readonly<Record<string, readonly string[]>>;
+  /** `_errors` — payload-level messages that belong to no field. */
+  readonly formErrors: readonly string[];
+}
+
 /** A non-OK, non-401 response of the current session. The message keeps
- *  the "<status> <text>: <detail>" shape callers already render. */
+ *  the "<status> <text>: <detail>" shape callers already render;
+ *  `validation` is set only for the Zod pipe's structured 400 — a free-text
+ *  message never names a field. */
 export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly validation: ValidationDetail | null = null,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -141,14 +152,17 @@ async function send(path: string, init: RequestInit): Promise<Response> {
     throw new UnauthorizedError(revision);
   }
   if (!res.ok) {
-    const detail = await errorDetail(res).catch((e: unknown) => {
-      owned(startedAt);
-      throw e;
-    });
+    const { detail, validation } = await errorDetail(res).catch(
+      (e: unknown) => {
+        owned(startedAt);
+        throw e;
+      },
+    );
     owned(startedAt);
     throw new HttpError(
       res.status,
       `${res.status} ${res.statusText}: ${detail}`,
+      validation,
     );
   }
   return res;
@@ -196,34 +210,59 @@ export async function apiFetchRaw(
  * Extract a human-readable detail from an error response. NestJS errors return
  * `{ statusCode, message, error }` where `message` is a string (or string[] for
  * validation errors); prefer that over the raw JSON blob. Falls back to the raw
- * body when it is not the expected JSON shape.
+ * body when it is not the expected JSON shape. The Zod pipe's structured 400
+ * is also returned as `validation` — only when EVERY key is a string array,
+ * so a Nest error or any other body is never read as field errors.
  */
-async function errorDetail(res: Response): Promise<string> {
+async function errorDetail(
+  res: Response,
+): Promise<{ detail: string; validation: ValidationDetail | null }> {
   const body = await res.text();
   try {
     const parsed = JSON.parse(body) as Record<string, unknown> & {
       message?: string | string[];
     };
     if (parsed.message) {
-      return Array.isArray(parsed.message)
-        ? parsed.message.join('; ')
-        : parsed.message;
+      return {
+        detail: Array.isArray(parsed.message)
+          ? parsed.message.join('; ')
+          : parsed.message,
+        validation: null,
+      };
     }
     // The server's Zod pipe answers 400 with `{ field: [messages] }` (plus
     // `_errors` for payload-level ones) — render it as "field: message".
-    const fieldErrors = Object.entries(parsed).filter(
-      (e): e is [string, string[]] =>
-        Array.isArray(e[1]) && e[1].every((m) => typeof m === 'string'),
+    const entries = Object.entries(parsed);
+    const isMessages = (v: unknown): v is string[] =>
+      Array.isArray(v) && v.every((m) => typeof m === 'string');
+    const fieldErrors = entries.filter((e): e is [string, string[]] =>
+      isMessages(e[1]),
     );
     if (fieldErrors.length > 0) {
-      return fieldErrors
-        .map(([k, msgs]) =>
-          k === '_errors' ? msgs.join('; ') : `${k}: ${msgs.join('; ')}`,
-        )
-        .join(' · ');
+      const structured =
+        res.status === 400 &&
+        parsed !== null &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        fieldErrors.length === entries.length;
+      return {
+        detail: fieldErrors
+          .map(([k, msgs]) =>
+            k === '_errors' ? msgs.join('; ') : `${k}: ${msgs.join('; ')}`,
+          )
+          .join(' · '),
+        validation: structured
+          ? {
+              fields: Object.fromEntries(
+                fieldErrors.filter(([k]) => k !== '_errors'),
+              ),
+              formErrors: fieldErrors.find(([k]) => k === '_errors')?.[1] ?? [],
+            }
+          : null,
+      };
     }
   } catch {
     // Not JSON — fall through to the raw body.
   }
-  return body;
+  return { detail: body, validation: null };
 }

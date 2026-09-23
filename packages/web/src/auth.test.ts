@@ -162,6 +162,93 @@ describe('apiFetch', () => {
       '400 Bad Request: gross_amount: must be greater than zero · document_id is the source document (provenance)',
     );
   });
+
+  describe('structured validation detail (#265)', () => {
+    const fail = async (body: string, status = 400, statusText = 'Bad') => {
+      setToken('tok');
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(body, { status, statusText }),
+      );
+      const err = await apiFetch('/api/expenses', { method: 'POST' }).catch(
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(HttpError);
+      return err as HttpError;
+    };
+
+    it("keeps the Zod pipe's flat 400 object as fields + _errors, message unchanged", async () => {
+      const err = await fail(
+        JSON.stringify({
+          gross_amount: ['must be greater than zero'],
+          _errors: ['Invalid input'],
+        }),
+        400,
+        'Bad Request',
+      );
+      expect(err.status).toBe(400);
+      expect(err.message).toBe(
+        '400 Bad Request: gross_amount: must be greater than zero · Invalid input',
+      );
+      expect(err.validation).toEqual({
+        fields: { gross_amount: ['must be greater than zero'] },
+        formErrors: ['Invalid input'],
+      });
+    });
+
+    it('a Nest {message} error names no field, even if it mentions one', async () => {
+      const err = await fail(
+        JSON.stringify({
+          statusCode: 400,
+          message: "Unknown category 'x'. Valid categories: a",
+          error: 'Bad Request',
+        }),
+      );
+      expect(err.validation).toBeNull();
+      expect(err.message).toBe(
+        "400 Bad: Unknown category 'x'. Valid categories: a",
+      );
+    });
+
+    it('a Nest message array names no field', async () => {
+      const err = await fail(JSON.stringify({ message: ['a', 'b'] }));
+      expect(err.validation).toBeNull();
+      expect(err.message).toBe('400 Bad: a; b');
+    });
+
+    it('free text is never read as fields', async () => {
+      const err = await fail('gross_amount: bad');
+      expect(err.validation).toBeNull();
+      expect(err.message).toBe('400 Bad: gross_amount: bad');
+    });
+
+    it('a mixed object (not every value a string array) is not structured', async () => {
+      const err = await fail(
+        JSON.stringify({ gross_amount: ['bad'], statusCode: 400 }),
+      );
+      expect(err.validation).toBeNull();
+      expect(err.message).toBe('400 Bad: gross_amount: bad');
+    });
+
+    it('an array of string arrays is not structured', async () => {
+      const err = await fail(JSON.stringify([['bad'], ['worse']]));
+      expect(err.validation).toBeNull();
+    });
+
+    it('the flat shape on a non-400 status (e.g. 422) is not structured', async () => {
+      const err = await fail(
+        JSON.stringify({ gross_amount: ['bad'] }),
+        422,
+        'Unprocessable Entity',
+      );
+      expect(err.validation).toBeNull();
+      expect(err.message).toBe('422 Unprocessable Entity: gross_amount: bad');
+    });
+
+    it('JSON null is not structured', async () => {
+      const err = await fail('null');
+      expect(err.validation).toBeNull();
+    });
+  });
 });
 
 /** A Response whose body read is held until the test releases it. */

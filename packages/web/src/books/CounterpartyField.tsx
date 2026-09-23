@@ -27,7 +27,8 @@ import {
   useSuppliers,
 } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { HttpError } from '../auth';
+import { Field, SelectInput, TextInput, useFormErrors } from '../ui/Form';
 import {
   lookupBlocker,
   lookupState,
@@ -112,6 +113,12 @@ export function useCounterparty({
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(EMPTY_COUNTERPARTY_DRAFT);
   const [createError, setCreateError] = useState<string | null>(null);
+  // The refused add and what it sent (issue #265): the Zod pipe's field
+  // errors are shown at their fields while those still hold the sent value.
+  const [createFailure, setCreateFailure] = useState<{
+    error: unknown;
+    sent: Record<CreateFieldKey, string>;
+  } | null>(null);
   const w = WORDS[role];
 
   const choose = (e: Entity | null) => {
@@ -120,6 +127,7 @@ export function useCounterparty({
     setCreating(false);
     setDraft(EMPTY_COUNTERPARTY_DRAFT);
     setCreateError(null);
+    setCreateFailure(null);
     setSearch('');
   };
 
@@ -174,6 +182,7 @@ export function useCounterparty({
           setCreating(false);
           setDraft(EMPTY_COUNTERPARTY_DRAFT);
           setCreateError(null);
+          setCreateFailure(null);
           setSearch('');
         },
         onError: (e) => {
@@ -182,6 +191,10 @@ export function useCounterparty({
           // Whether the server stored it is unknown; the input stays for a
           // deliberate retry, and a fresh list may show it if it was stored.
           setCreateError(errorMessage(e));
+          setCreateFailure({
+            error: e,
+            sent: { name: draft.name, country, regKey: draft.regKey },
+          });
           receipt(key, {
             action: `New ${w.one}`,
             title: name,
@@ -223,6 +236,7 @@ export function useCounterparty({
     draft,
     setDraft,
     createError,
+    createFailure,
     choose,
     create,
     startCreate: () => {
@@ -232,12 +246,14 @@ export function useCounterparty({
           : d,
       );
       setCreateError(null);
+      setCreateFailure(null);
       setCreating(true);
     },
     backToSearch: () => setCreating(false),
     discardDraft: () => {
       setDraft(EMPTY_COUNTERPARTY_DRAFT);
       setCreateError(null);
+      setCreateFailure(null);
       setCreating(false);
     },
   };
@@ -245,26 +261,41 @@ export function useCounterparty({
 
 export type Counterparty = ReturnType<typeof useCounterparty>;
 
+type CreateFieldKey = 'name' | 'country' | 'regKey';
+const CREATE_SERVER_FIELDS: Record<string, CreateFieldKey> = {
+  name: 'name',
+  country: 'country',
+  registrationKey: 'regKey',
+};
+
 export function CounterpartyField({
   cp,
   hint,
   busy,
+  focusId,
+  error = null,
 }: {
   cp: Counterparty;
   /** Why it is optional, shown with the search. */
   hint: string;
   /** This field's create is in flight. */
   busy: boolean;
+  /** Id for the control the form focuses for this field (issue #265) —
+   *  whichever mode is showing: the search, the picked row's Change, or
+   *  the new-counterparty group. */
+  focusId?: string;
+  /** The form's error for this field (e.g. the server refused the id). */
+  error?: string | null;
 }) {
   const { words: w, query } = cp;
   return (
     <div>
       {cp.entity !== null ? (
-        <Picked cp={cp} />
+        <Picked cp={cp} focusId={focusId} error={error} />
       ) : cp.creating ? (
-        <CreateForm cp={cp} busy={busy} />
+        <CreateForm cp={cp} busy={busy} focusId={focusId} error={error} />
       ) : (
-        <SearchList cp={cp} hint={hint} />
+        <SearchList cp={cp} hint={hint} focusId={focusId} error={error} />
       )}
       {/* Every mode — searching, adding or picked: a failed load/refresh
           and its Retry never disappear (#260). */}
@@ -282,7 +313,9 @@ export function CounterpartyField({
   );
 }
 
-function Picked({ cp }: { cp: Counterparty }) {
+type Focus = { focusId?: string; error: string | null };
+
+function Picked({ cp, focusId, error }: { cp: Counterparty } & Focus) {
   const { words: w } = cp;
   const e = cp.entity as Entity;
   return (
@@ -290,7 +323,7 @@ function Picked({ cp }: { cp: Counterparty }) {
       label={w.label}
       group
       error={
-        cp.gone ? `This ${w.one} is no longer available — change it` : undefined
+        cp.gone ? `This ${w.one} is no longer available — change it` : error
       }
     >
       <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2.5">
@@ -302,6 +335,7 @@ function Picked({ cp }: { cp: Counterparty }) {
           {cp.gone && ' (not available)'}
         </span>
         <button
+          id={focusId}
           type="button"
           onClick={() => cp.choose(null)}
           className="flex-none text-[13px] font-semibold text-accent"
@@ -313,7 +347,12 @@ function Picked({ cp }: { cp: Counterparty }) {
   );
 }
 
-function SearchList({ cp, hint }: { cp: Counterparty; hint: string }) {
+function SearchList({
+  cp,
+  hint,
+  focusId,
+  error,
+}: { cp: Counterparty; hint: string } & Focus) {
   const { words: w, query } = cp;
   const state = lookupState(query);
   const list = query.data;
@@ -322,6 +361,7 @@ function SearchList({ cp, hint }: { cp: Counterparty; hint: string }) {
   const id = useId();
   const labelId = `${id}-label`;
   const hintId = `${id}-hint`;
+  const errId = `${id}-err`;
   const kept = draftStarted(cp.draft);
   const keptName = cp.draft.name.trim();
   return (
@@ -331,8 +371,10 @@ function SearchList({ cp, hint }: { cp: Counterparty; hint: string }) {
           {w.label}
         </span>
         <SearchInput
+          id={focusId}
           aria-labelledby={labelId}
-          aria-describedby={hintId}
+          aria-describedby={error !== null ? `${errId} ${hintId}` : hintId}
+          aria-invalid={error !== null ? true : undefined}
           value={cp.search}
           onChange={cp.setSearch}
           placeholder={`Search ${w.many}…`}
@@ -342,6 +384,11 @@ function SearchList({ cp, hint }: { cp: Counterparty; hint: string }) {
             ? `${hint} — no ${w.many} on file yet`
             : hint}
         </span>
+        {error !== null && (
+          <span id={errId} className="mt-1 block text-xs text-err">
+            {error}
+          </span>
+        )}
       </div>
       {list !== undefined && (
         <div className="mt-1 overflow-hidden rounded-xl bg-surface">
@@ -410,7 +457,12 @@ function SearchList({ cp, hint }: { cp: Counterparty; hint: string }) {
   );
 }
 
-function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
+function CreateForm({
+  cp,
+  busy,
+  focusId,
+  error,
+}: { cp: Counterparty; busy: boolean } & Focus) {
   const { words: w, draft, setDraft, query } = cp;
   // Mounted only while adding: the organization's country is a default only
   // once it is KNOWN (#260) — a typed country always wins.
@@ -418,10 +470,41 @@ function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
   const countryState = lookupState(countryQ);
   const effCountry =
     draft.country !== '' ? draft.country : (countryQ.data ?? '');
-  const valid =
-    draft.name.trim() !== '' &&
-    draft.regKey.trim() !== '' &&
-    effCountry.trim() !== '';
+  // Required by the add (issue #265): the server needs a registration key
+  // for a supplier/customer; name and country are the entity itself.
+  const v = useFormErrors({
+    values: { name: draft.name, country: effCountry, regKey: draft.regKey },
+    errors: {
+      name: draft.name.trim() === '' ? `Enter the ${w.one}'s name` : null,
+      country:
+        effCountry.trim() === '' ? 'Enter the country code, e.g. EE' : null,
+      regKey:
+        draft.regKey.trim() === ''
+          ? `Enter the registration key — a ${w.one} needs one`
+          : null,
+    },
+    labels: { name: 'Name', country: 'Country', regKey: 'Registration key' },
+  });
+  // The server's own field errors for the refused add, while the field
+  // still holds what was sent — only its structured 400, only known keys.
+  const serverError = (k: CreateFieldKey): string | null => {
+    const f = cp.createFailure;
+    const val = f?.error instanceof HttpError ? f.error.validation : null;
+    if (f === null || val === null) return null;
+    const current = {
+      name: draft.name,
+      country: effCountry,
+      regKey: draft.regKey,
+    };
+    if (current[k] !== f.sent[k]) return null;
+    const hit = Object.entries(val.fields).find(
+      ([key]) =>
+        Object.prototype.hasOwnProperty.call(CREATE_SERVER_FIELDS, key) &&
+        CREATE_SERVER_FIELDS[key] === k,
+    );
+    return hit === undefined ? null : hit[1].join('; ');
+  };
+  const fieldError = (k: CreateFieldKey) => v.error(k) ?? serverError(k);
   const set = <K extends keyof CounterpartyDraft>(
     k: K,
     v: CounterpartyDraft[K],
@@ -434,15 +517,19 @@ function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
       : (query.data ?? []).filter((e) => norm(e.name) === norm(draft.name));
   return (
     <div
+      id={focusId}
+      tabIndex={focusId !== undefined ? -1 : undefined}
       role="group"
       aria-label={`New ${w.one}`}
-      className="space-y-3 rounded-2xl border-[1.5px] border-dashed border-line bg-surface p-3.5"
+      className="space-y-3 rounded-2xl border-[1.5px] border-dashed border-line bg-surface p-3.5 outline-none"
     >
       <p className="text-[13px] font-semibold">
         {`New ${w.one} — added to Entities as a ${w.one}`}
       </p>
-      <Field label="Name">
+      {error !== null && <p className="text-xs text-err">{error}</p>}
+      <Field label="Name" required error={fieldError('name')}>
         <TextInput
+          {...v.bind('name')}
           value={draft.name}
           onChange={(e) => set('name', e.target.value)}
         />
@@ -472,6 +559,7 @@ function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
       <div>
         <Field
           label="Country"
+          required
           hint={
             draft.country === '' && countryState === 'loading'
               ? "ISO code, e.g. EE — loading the organization's country…"
@@ -484,10 +572,11 @@ function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
           error={
             draft.country === '' && countryState === 'error'
               ? `Couldn't load the organization's country — enter the ${w.one}'s country`
-              : undefined
+              : fieldError('country')
           }
         >
           <TextInput
+            {...v.bind('country')}
             value={effCountry}
             onChange={(e) => set('country', e.target.value.toUpperCase())}
             maxLength={2}
@@ -504,8 +593,14 @@ function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
             </Button>
           )}
       </div>
-      <Field label="Registration key" hint={REG_KEY_HINT}>
+      <Field
+        label="Registration key"
+        required
+        hint={REG_KEY_HINT}
+        error={fieldError('regKey')}
+      >
         <TextInput
+          {...v.bind('regKey')}
           value={draft.regKey}
           onChange={(e) => set('regKey', e.target.value)}
         />
@@ -545,8 +640,9 @@ function CreateForm({ cp, busy }: { cp: Counterparty; busy: boolean }) {
       <Button
         className="w-full"
         busy={busy}
-        disabled={!valid}
-        onClick={() => cp.create(effCountry)}
+        onClick={() => {
+          if (v.attempt()) cp.create(effCountry);
+        }}
       >
         {`Add ${w.one}`}
       </Button>
