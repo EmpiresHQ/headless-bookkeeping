@@ -27,7 +27,6 @@ import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SkeletonRows } from '../ui/Feedback';
-import { LinkButton } from '../ui/LinkButton';
 import { KeyValue, ListGroup, ListRow } from '../ui/List';
 import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
@@ -35,6 +34,7 @@ import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
 import { ExpenseEditSheet } from './EditDraftSheet';
 import { AttachDocumentSheet } from './AttachDocumentSheet';
+import { PendingApproval } from './PendingApproval';
 
 /** Honest history (Reality #2): built ONLY from exposed facts — created_at,
  *  the rejection log, and the reversed status. The correction's own date and
@@ -159,12 +159,7 @@ export function ExpenseScreen() {
               ? `Held for approval — ${humanizePolicyReason(res.policy.reason)}. Not posted until approved.`
               : `Posted · ${signedMoney(-gross_amount, currency)}`,
             tone: held ? 'pending' : 'ok',
-            links: [
-              { label: `Expense #${id}`, to: `/books/expenses/${id}` },
-              ...(held
-                ? [{ label: 'Inbox approvals', to: '/inbox?seg=approvals' }]
-                : []),
-            ],
+            links: [{ label: `Expense #${id}`, to: `/books/expenses/${id}` }],
           },
           ctx.live,
         );
@@ -339,14 +334,12 @@ export function ExpenseScreen() {
           </>
         )}
         {detail.status === 'pending' && (
-          <>
-            <p className="text-center text-[12.5px] text-ink-2">
-              Waiting for approval — decide it in the Inbox.
-            </p>
-            <LinkButton to="/inbox?seg=approvals" className="w-full">
-              Open Inbox
-            </LinkButton>
-          </>
+          <PendingApproval
+            objectType="expense"
+            objectId={detail.id}
+            noun="expense"
+            onReload={() => void detailQ.refetch()}
+          />
         )}
         {detail.status === 'posted' && (
           <>

@@ -12,6 +12,7 @@ import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
 import { useReceipt, type ResultLink } from '../lib/resultLog';
 import {
   invalidateInbox,
+  pendingApprovalFor,
   useExpenseDetail,
   useMatchFacts,
   usePendingApprovals,
@@ -37,7 +38,7 @@ import { checkMatchFacts, formatMoney } from './matchFacts';
 import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
 import { useInboxCompletion } from './useInboxCompletion';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /** The decided object by its real name, and where it lives (#259). */
 function decidedObject(
@@ -109,10 +110,35 @@ export function ApprovalScreen() {
   const approvalId = Number(id);
   const route = `/inbox/approval/${approvalId}`;
 
-  const approvalsQ = usePendingApprovals();
-  const approval = approvalsQ.data?.find((a) => a.id === approvalId);
-  const { position, next, leave, context, backHref } =
+  const { position, next, leave, context, backHref, source, advance } =
     useInboxCompletion(route);
+  // Opened from a Books record (issue #262): the link was built from a list
+  // that may be outdated by now (decided/withdrawn elsewhere) — this entry
+  // re-checks, even over a fresh cached list that still holds it.
+  const approvalsQ = usePendingApprovals(
+    source !== null ? { refetchOnMount: 'always', staleTime: 0 } : {},
+  );
+  const approval = approvalsQ.data?.find((a) => a.id === approvalId);
+  // Absence is claimed only from a list fetched since this screen mounted:
+  // a cached list without this id is re-checked once first.
+  const absentUnchecked =
+    approvalsQ.data !== undefined &&
+    approval === undefined &&
+    !approvalsQ.isFetchedAfterMount;
+  // A Books-origin entry is neither shown as pending nor decidable until
+  // its own re-check has settled; a failed re-check keeps Approve off.
+  const sourceUnchecked =
+    source !== null &&
+    approvalsQ.data !== undefined &&
+    !approvalsQ.isFetchedAfterMount;
+  const sourceUnverified =
+    source !== null && (sourceUnchecked || approvalsQ.isError);
+  const refetchApprovals = approvalsQ.refetch;
+  const recheckRunning = approvalsQ.isFetching;
+  useEffect(() => {
+    if (absentUnchecked && !recheckRunning)
+      void refetchApprovals({ cancelRefetch: false });
+  }, [absentUnchecked, recheckRunning, refetchApprovals]);
 
   const expenseQ = useExpenseDetail(
     approval?.object_type === 'expense' ? approval.object_id : null,
@@ -154,13 +180,14 @@ export function ApprovalScreen() {
   // (the pair may have been unmatched/re-staged meanwhile). Other types
   // (allowance, future) load no sub-facts and keep the previous behavior.
   const factsUnresolved =
-    approval?.object_type === 'expense'
+    sourceUnverified ||
+    (approval?.object_type === 'expense'
       ? expenseQ.data === undefined
       : approval?.object_type === 'sales_invoice'
         ? invoicesQ.data?.find((x) => x.id === approval.object_id) === undefined
         : approval?.object_type === 'reconciliation_match'
           ? matchCheck?.ok !== true || matchQ.isError
-          : false;
+          : false);
 
   const qc = useQueryClient();
   const rejectSheet = useSheet();
@@ -339,15 +366,83 @@ export function ApprovalScreen() {
       </div>
     );
   }
+  if (sourceUnchecked || absentUnchecked) {
+    return (
+      <div className="mx-auto max-w-3xl pb-6">
+        <ScreenHeader title="Approval" backTo={backHref} />
+        <p role="status" className="mx-6 mb-3.5 text-[12.5px] text-ink-2">
+          Checking this approval…
+        </p>
+        <SkeletonRows count={3} />
+      </div>
+    );
+  }
   if (approval === undefined) {
+    // A Books-record origin (#262) gets its record back — with its own
+    // history state — never the global queue.
+    const toSource = source !== null && (
+      <Button
+        variant={approvalsQ.isError ? 'secondary' : 'primary'}
+        onClick={() => leave('/inbox')}
+      >
+        Return to {source.label}
+      </Button>
+    );
+    if (approvalsQ.isError) {
+      return (
+        <div className="mx-auto max-w-3xl pb-6">
+          <ScreenHeader title="Approval" backTo={backHref} />
+          <LoadError
+            message={`Couldn't check whether approval #${approvalId} is still pending — ${
+              approvalsQ.error instanceof Error
+                ? approvalsQ.error.message
+                : 'request failed'
+            }`}
+            onRetry={() => void approvalsQ.refetch()}
+          />
+          {toSource !== false && <div className="mx-3.5">{toSource}</div>}
+        </div>
+      );
+    }
+    // Only a CURRENT pending approval of exactly the origin's typed pair —
+    // never the raw `superseded_by` pointer, which the server does not tie
+    // to the same object.
+    const current =
+      source !== null
+        ? pendingApprovalFor(
+            { object_type: source.objectType, object_id: source.objectId },
+            approvalsQ.data,
+          )
+        : null;
     return (
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Approval" backTo={backHref} />
         <EmptyState
           icon="✓"
-          title="Already decided"
-          hint="This approval is no longer pending."
-          action={<LinkButton to={backHref}>Back to Inbox</LinkButton>}
+          title="No pending approval"
+          hint={
+            source === null
+              ? `Approval #${approvalId} is not in the pending list — it may have been decided or withdrawn.`
+              : current !== null
+                ? `Approval #${approvalId} is not pending now. ${source.label} is waiting for approval #${current.id}.`
+                : `Approval #${approvalId} is not pending now — it may have been decided or withdrawn. Open ${source.label} for its current status.`
+          }
+          action={
+            source === null ? (
+              <LinkButton to={backHref}>Back to Inbox</LinkButton>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {current !== null && (
+                  <Button
+                    onClick={() => advance(`/inbox/approval/${current.id}`)}
+                  >
+                    Open approval #{current.id}
+                  </Button>
+                )}
+                {toSource}
+              </div>
+            )
+          }
         />
       </div>
     );
@@ -535,6 +630,11 @@ export function ApprovalScreen() {
         {context}
       </p>
       <RefetchError query={approvalsQ} />
+      {sourceUnverified && (
+        <p className="mx-6 mb-3 text-[12px] leading-snug text-ink-2">
+          Approve is off until this approval re-checks as still pending.
+        </p>
+      )}
       {body}
       <div className="mx-3.5 mt-2 flex gap-2.5">
         <Button

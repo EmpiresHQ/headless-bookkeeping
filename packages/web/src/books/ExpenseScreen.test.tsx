@@ -371,7 +371,7 @@ describe('ExpenseScreen', () => {
       setToken('t');
     });
 
-    it('a held post is recorded as waiting for approval, with the expense and the approvals queue', async () => {
+    it('a held post is recorded as waiting for approval, linking the expense (its card leads to the exact approval)', async () => {
       vi.mocked(postExpense).mockResolvedValue({
         expense: { id: 12, status: 'pending' },
         policy: {
@@ -389,10 +389,7 @@ describe('ExpenseScreen', () => {
       expect(rec.outcome).toMatch(
         /^Held for approval — .*Not posted until approved\.$/,
       );
-      expect(rec.links.map((l) => l.to)).toEqual([
-        '/books/expenses/12',
-        '/inbox?seg=approvals',
-      ]);
+      expect(rec.links.map((l) => l.to)).toEqual(['/books/expenses/12']);
     });
 
     it('an unconfirmed post is recorded as such; the retry supersedes it', async () => {

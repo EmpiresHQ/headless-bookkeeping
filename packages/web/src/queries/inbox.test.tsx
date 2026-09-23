@@ -28,6 +28,7 @@ import {
   invalidateInbox,
   nextRouteAfter,
   openPeriod,
+  pendingApprovalFor,
   periodExpensesTotal,
   queuePosition,
   splitTodayEarlier,
@@ -98,6 +99,39 @@ describe('buildQueue', () => {
       buildQueue(triage, approvals, 'triage').every((e) => e.kind === 'triage'),
     ).toBe(true);
     expect(buildQueue(triage, approvals, 'approvals')).toHaveLength(1);
+  });
+});
+
+describe('pendingApprovalFor (#262)', () => {
+  const rows = [
+    A(12, 1, { object_type: 'expense', object_id: 99 }),
+    A(90, 1, { object_type: 'reconciliation_match', object_id: 12 }),
+    A(101, 1, { object_type: 'expense', object_id: 12 }),
+    A(102, 1, { object_type: 'sales_invoice', object_id: 12 }),
+    A(103, 1, {
+      object_type: 'expense',
+      object_id: 12,
+      status: 'superseded',
+      superseded_by: 90,
+    }),
+  ];
+  it('matches the exact typed pair only — never an approval id or another type', () => {
+    const find = (object_type: string, object_id: number) =>
+      pendingApprovalFor({ object_type, object_id }, rows)?.id ?? null;
+    expect(find('expense', 12)).toBe(101);
+    expect(find('sales_invoice', 12)).toBe(102);
+    expect(find('reconciliation_match', 12)).toBe(90);
+    expect(find('expense', 101)).toBeNull();
+    expect(find('allowance', 12)).toBeNull();
+  });
+  it('several pending: the newest, whatever the list order', () => {
+    const more = [
+      A(140, 1, { object_type: 'expense', object_id: 12 }),
+      ...rows,
+    ];
+    expect(
+      pendingApprovalFor({ object_type: 'expense', object_id: 12 }, more)?.id,
+    ).toBe(140);
   });
 });
 
