@@ -24,10 +24,15 @@ export function ScreenHeader({
   title,
   backTo,
   trailing,
+  heading,
 }: {
   title: string;
   backTo?: string;
   trailing?: ReactNode;
+  /** A record's screen (issue #357): the title becomes the page's h1 and
+   *  the focus target of a new entry (lib/screenEntry), named by what the
+   *  record is — e.g. "Document scan.pdf" around a "1 of 79" title. */
+  heading?: string;
 }) {
   const navigate = useNavigate();
   const canGoBack = window.history.state?.idx > 0;
@@ -50,7 +55,20 @@ export function ScreenHeader({
           ‹ Back
         </Link>
       )}
-      <span className="text-[15px] font-bold">{title}</span>
+      {heading === undefined ? (
+        <span className="text-[15px] font-bold">{title}</span>
+      ) : (
+        <h1
+          data-screen-title=""
+          tabIndex={-1}
+          aria-label={
+            heading.startsWith(title) ? heading : `${heading}, ${title}`
+          }
+          className="text-[15px] font-bold outline-none"
+        >
+          {title}
+        </h1>
+      )}
       <div className="min-w-[44px] text-right">{trailing}</div>
     </div>
   );

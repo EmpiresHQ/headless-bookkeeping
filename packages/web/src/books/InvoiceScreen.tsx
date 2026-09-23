@@ -28,6 +28,7 @@ import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
 import { InvoiceEditSheet } from './EditDraftSheet';
 import { PendingApproval } from './PendingApproval';
+import { useScreenEntry } from '../lib/screenEntry';
 
 /** /books/invoices/:id — facts come from the LIST row (no single-invoice
  *  endpoint exists, Reality #13; the row is cache-shared with the segment).
@@ -59,6 +60,7 @@ export function InvoiceScreen() {
   const op = usePendingOperation('Invoice');
   const receipt = useReceipt();
   const busy = op.pending;
+  useScreenEntry(!invoicesQ.isPending);
   // Opened from a period drill-down list (issue #261): say so, offer the
   // way back, and return there after a delete instead of global Books.
   const periodOrigin = usePeriodOrigin();
@@ -69,7 +71,11 @@ export function InvoiceScreen() {
   if (invoicesQ.isError && invoicesQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+        <ScreenHeader
+          title="Invoice"
+          heading="Invoice"
+          backTo="/books?seg=invoices"
+        />
         {periodNotice}
         <LoadError
           message={
@@ -85,7 +91,11 @@ export function InvoiceScreen() {
   if (invoicesQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+        <ScreenHeader
+          title="Invoice"
+          heading="Invoice"
+          backTo="/books?seg=invoices"
+        />
         <SkeletonRows count={4} />
       </div>
     );
@@ -93,7 +103,11 @@ export function InvoiceScreen() {
   if (inv === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+        <ScreenHeader
+          title="Invoice"
+          heading="Invoice"
+          backTo="/books?seg=invoices"
+        />
         {periodNotice}
         <EmptyState
           icon="🤷"
@@ -196,7 +210,11 @@ export function InvoiceScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+      <ScreenHeader
+        title="Invoice"
+        heading={`Invoice ${inv.invoice_number}`}
+        backTo="/books?seg=invoices"
+      />
       {periodNotice}
       <RefetchError query={invoicesQ} />
 

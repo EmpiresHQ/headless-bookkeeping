@@ -114,12 +114,12 @@ export function TriageDecisionPanel(props: Props) {
         <div className="flex items-start gap-2.5">
           <AlertTriangle className="mt-0.5 size-4 flex-none text-warn" />
           <div>
-            <h1
+            <h2
               id="triage-decision-title"
               className="text-[14px] font-bold text-warn-deep"
             >
               {title}
-            </h1>
+            </h2>
             <p className="mt-0.5 text-[13px] leading-snug text-warn">
               {subtitle}
             </p>

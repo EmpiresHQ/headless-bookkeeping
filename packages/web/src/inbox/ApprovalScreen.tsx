@@ -40,6 +40,7 @@ import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
 import { useInboxCompletion } from './useInboxCompletion';
 import { useEffect, useState } from 'react';
+import { useScreenEntry } from '../lib/screenEntry';
 
 /** The decided object by its real name, and where it lives (#259). */
 function decidedObject(
@@ -354,11 +355,12 @@ export function ApprovalScreen() {
 
   const title =
     position !== null ? `${position.pos} of ${position.total}` : 'Approval';
+  useScreenEntry(!approvalsQ.isPending);
 
   if (approvalsQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo={backHref} />
+        <ScreenHeader title="Approval" heading="Approval" backTo={backHref} />
         <SkeletonRows count={3} />
       </div>
     );
@@ -366,7 +368,7 @@ export function ApprovalScreen() {
   if (approvalsQ.isError && approvalsQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo={backHref} />
+        <ScreenHeader title="Approval" heading="Approval" backTo={backHref} />
         <LoadError
           message={
             approvalsQ.error instanceof Error
@@ -381,7 +383,7 @@ export function ApprovalScreen() {
   if (sourceUnchecked || absentUnchecked) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo={backHref} />
+        <ScreenHeader title="Approval" heading="Approval" backTo={backHref} />
         <p role="status" className="mx-6 mb-3.5 text-[12.5px] text-ink-2">
           Checking this approval…
         </p>
@@ -403,7 +405,7 @@ export function ApprovalScreen() {
     if (approvalsQ.isError) {
       return (
         <div className="mx-auto max-w-3xl pb-6">
-          <ScreenHeader title="Approval" backTo={backHref} />
+          <ScreenHeader title="Approval" heading="Approval" backTo={backHref} />
           <LoadError
             message={`Couldn't check whether approval #${approvalId} is still pending — ${
               approvalsQ.error instanceof Error
@@ -428,7 +430,7 @@ export function ApprovalScreen() {
         : null;
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo={backHref} />
+        <ScreenHeader title="Approval" heading="Approval" backTo={backHref} />
         <EmptyState
           icon="✓"
           title="No pending approval"
@@ -645,7 +647,11 @@ export function ApprovalScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title={title} backTo={backHref} />
+      <ScreenHeader
+        title={title}
+        heading={`Approval #${approvalId}`}
+        backTo={backHref}
+      />
       <p className="-mt-1 px-5 pb-1 text-center text-[11.5px] text-ink-2">
         {context}
       </p>
