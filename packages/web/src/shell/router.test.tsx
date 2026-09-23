@@ -167,7 +167,7 @@ describe('router', () => {
     renderAt('/inbox/approval/7');
     // No approval with id 7 in the empty mocked list — the "already
     // decided" state proves ApprovalScreen (not a 404/blank route) mounted.
-    expect(await screen.findByText('Already decided')).toBeInTheDocument();
+    expect(await screen.findByText('No pending approval')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /back to inbox/i }),
     ).toHaveAttribute('href', '/inbox');

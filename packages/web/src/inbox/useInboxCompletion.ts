@@ -20,6 +20,23 @@ function sectionLabel(path: string): string {
   return SECTIONS[path.split('/')[1] ?? ''] ?? 'Inbox';
 }
 
+const BOOKS_RECORD = /^\/books\/(expenses|invoices)\/([1-9]\d*)$/;
+
+/** A Books record an approval was opened from (issue #262): its typed pair
+ *  and name — null for any other path. */
+export function booksRecordOf(path: string): {
+  objectType: 'expense' | 'sales_invoice';
+  objectId: number;
+  label: string;
+} | null {
+  const m = BOOKS_RECORD.exec(path);
+  if (m === null) return null;
+  const objectId = Number(m[2]);
+  return m[1] === 'expenses'
+    ? { objectType: 'expense', objectId, label: `Expense #${objectId}` }
+    : { objectType: 'sales_invoice', objectId, label: `Invoice #${objectId}` };
+}
+
 /** The processing context of an Inbox item (issue #253) and where it goes
  *  once decided — see queueRun.ts for the run model.
  *
@@ -29,12 +46,23 @@ function sectionLabel(path: string): string {
  *  to the Inbox entry of the run's segment. Never another segment's item.
  *
  *  SINGLE ITEM (Books, deep link, no run): no count; a cross-section origin
- *  gets the task back (#252), otherwise the entry becomes /inbox. */
+ *  gets the task back (#252), otherwise the entry becomes /inbox. A Books
+ *  record origin (`source`, #262) is also the fallback — with its own
+ *  history state — so its operator never lands in the global queue. */
 export function useInboxCompletion(route: string) {
   const nav = useCompletionNavigation();
   const location = useLocation();
   const originPath = nav.origin ? pathOf(nav.origin.href) : null;
   const fromInbox = originPath === '/inbox';
+  const source =
+    nav.origin !== null && originPath !== null
+      ? (() => {
+          const record = booksRecordOf(originPath);
+          return record !== null
+            ? { ...record, href: nav.origin.href, state: nav.origin.state }
+            : null;
+        })()
+      : null;
   const found = readRun(location.state);
   const run = found !== null && found.members.includes(route) ? found : null;
 
@@ -50,14 +78,19 @@ export function useInboxCompletion(route: string) {
   // '/inbox' = no next item: leave the run.
   const next = position !== null ? nextRouteAfter(members, route) : '/inbox';
 
-  const backHref = run !== null ? segmentHref(run.seg) : '/inbox';
+  const backHref =
+    run !== null ? segmentHref(run.seg) : (source?.href ?? '/inbox');
   const context =
     run !== null
       ? next !== '/inbox'
         ? `${segmentLabel(run.seg)} queue · next item follows`
         : `${segmentLabel(run.seg)} queue · returns to ${segmentLabel(run.seg)}`
       : `Single item · returns to ${
-          originPath !== null ? sectionLabel(originPath) : 'Inbox'
+          source !== null
+            ? source.label
+            : originPath !== null
+              ? sectionLabel(originPath)
+              : 'Inbox'
         }`;
 
   /** `gone`: the decision destroyed the object a cross-section origin
@@ -65,7 +98,8 @@ export function useInboxCompletion(route: string) {
   const leave = (to: string, gone?: { path: string; to: string }) => {
     if (originPath !== null && !fromInbox) {
       nav.returnTo({
-        fallback: '/inbox',
+        fallback: source?.href ?? '/inbox',
+        fallbackState: source?.state,
         originGone: gone && gone.path === originPath ? gone.to : undefined,
       });
     } else if (run !== null && to !== '/inbox') {
@@ -75,5 +109,13 @@ export function useInboxCompletion(route: string) {
     }
   };
 
-  return { position, next, leave, context, backHref };
+  return {
+    position,
+    next,
+    leave,
+    context,
+    backHref,
+    source,
+    advance: nav.advance,
+  };
 }

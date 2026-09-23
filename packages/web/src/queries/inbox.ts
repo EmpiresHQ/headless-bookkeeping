@@ -76,6 +76,26 @@ export function usePendingApprovals(
   });
 }
 
+/**
+ * The PENDING approval of exactly one object. `object_id` is the object's
+ * own ID, never an approval ID, and IDs are per type: expense 12, sales
+ * invoice 12 and bank match 12 are different objects — the typed pair must
+ * match. Several pending for one object (should not happen): the newest.
+ */
+export function pendingApprovalFor(
+  object: { object_type: string; object_id: number },
+  approvals: Approval[],
+): Approval | null {
+  const found = approvals.filter(
+    (a) =>
+      a.status === 'pending' &&
+      a.object_type === object.object_type &&
+      a.object_id === object.object_id,
+  );
+  if (found.length === 0) return null;
+  return found.reduce((a, b) => (b.id > a.id ? b : a));
+}
+
 /** Single-expense facts for the approval detail. */
 export function useExpenseDetail(id: number | null) {
   return useQuery({

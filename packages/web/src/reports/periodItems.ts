@@ -1,4 +1,5 @@
 import type { Approval, PeriodWarning } from '../api';
+import { pendingApprovalFor } from '../queries/inbox';
 
 /**
  * Period warning drill-down (issue #261). A pre-close warning bucket opens
@@ -138,23 +139,11 @@ export function objectLabel(objectType: string, id: number): string {
   return `${objectType} #${id}`;
 }
 
-/**
- * The PENDING approval of exactly this warned object. `object_id` is the
- * object's own ID, never an approval ID, and IDs are per type: expense 12
- * and sales invoice 12 are different objects — the typed pair must match.
- * Other approval kinds (e.g. bank reconciliation matches) never match.
- * Several pending for one object (should not happen): the newest one.
- */
+/** The PENDING approval of exactly this warned object (typed pair, see
+ *  `pendingApprovalFor`). */
 export function approvalFor(
   w: Pick<PeriodWarning, 'object_type' | 'object_id'>,
   approvals: Approval[],
 ): Approval | null {
-  const found = approvals.filter(
-    (a) =>
-      a.status === 'pending' &&
-      a.object_type === w.object_type &&
-      a.object_id === w.object_id,
-  );
-  if (found.length === 0) return null;
-  return found.reduce((a, b) => (b.id > a.id ? b : a));
+  return pendingApprovalFor(w, approvals);
 }

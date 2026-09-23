@@ -27,6 +27,7 @@ import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
 import { InvoiceEditSheet } from './EditDraftSheet';
+import { PendingApproval } from './PendingApproval';
 
 /** /books/invoices/:id — facts come from the LIST row (no single-invoice
  *  endpoint exists, Reality #13; the row is cache-shared with the segment).
@@ -131,9 +132,6 @@ export function InvoiceScreen() {
                 label: `Invoice ${inv.invoice_number}`,
                 to: `/books/invoices/${id}`,
               },
-              ...(held
-                ? [{ label: 'Inbox approvals', to: '/inbox?seg=approvals' }]
-                : []),
             ],
           },
           ctx.live,
@@ -304,14 +302,12 @@ export function InvoiceScreen() {
           </>
         )}
         {inv.status === 'pending' && (
-          <>
-            <p className="text-center text-[12.5px] text-ink-2">
-              Waiting for approval — decide it in the Inbox.
-            </p>
-            <LinkButton to="/inbox?seg=approvals" className="w-full">
-              Open Inbox
-            </LinkButton>
-          </>
+          <PendingApproval
+            objectType="sales_invoice"
+            objectId={inv.id}
+            noun="invoice"
+            onReload={() => void invoicesQ.refetch()}
+          />
         )}
         {inv.status === 'posted' && (
           <>

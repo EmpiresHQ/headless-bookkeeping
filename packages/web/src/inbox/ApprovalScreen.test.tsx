@@ -663,7 +663,7 @@ describe('ApprovalScreen', () => {
 
   it('shows the already-decided state for an id not in the pending list', async () => {
     renderAt('/inbox/approval/404');
-    expect(await screen.findByText('Already decided')).toBeInTheDocument();
+    expect(await screen.findByText('No pending approval')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /back to inbox/i }),
     ).toHaveAttribute('href', '/inbox');
@@ -772,7 +772,7 @@ describe('ApprovalScreen', () => {
     ).toBeDisabled();
   });
 
-  it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — approve', async () => {
+  it('navigates to the next item WHILE the inbox invalidation is still pending (no "No pending approval" flash) — approve', async () => {
     let release!: () => void;
     vi.mocked(invalidateInbox).mockReturnValue(
       new Promise<void>((r) => (release = r)),
@@ -796,7 +796,7 @@ describe('ApprovalScreen', () => {
     }
   });
 
-  it('navigates to the next item WHILE the inbox invalidation is still pending (no "Already decided" flash) — reject', async () => {
+  it('navigates to the next item WHILE the inbox invalidation is still pending (no "No pending approval" flash) — reject', async () => {
     let release!: () => void;
     vi.mocked(invalidateInbox).mockReturnValue(
       new Promise<void>((r) => (release = r)),

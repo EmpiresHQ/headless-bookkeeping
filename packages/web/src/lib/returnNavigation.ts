@@ -212,6 +212,8 @@ function hasNonce(loc: Location, nonce: string): boolean {
 export interface ReturnOptions {
   /** Where to go without a proven origin (deep link, cross-section). */
   fallback: string;
+  /** History state for that fallback entry (default: none). */
+  fallbackState?: unknown;
   /** The origin must look like this to be returned to (else: fallback). */
   acceptOrigin?: (originPath: string) => boolean;
   /** The task destroyed what the origin shows: this replaces both entries. */
@@ -236,7 +238,12 @@ export function useCompletionNavigation() {
   };
 
   /** Leave a finished task for its origin — see the module comment. */
-  const returnTo = ({ fallback, acceptOrigin, originGone }: ReturnOptions) => {
+  const returnTo = ({
+    fallback,
+    fallbackState,
+    acceptOrigin,
+    originGone,
+  }: ReturnOptions) => {
     const router = dataRouter?.router as unknown as Router | undefined;
     const accepted =
       origin !== null &&
@@ -248,8 +255,12 @@ export function useCompletionNavigation() {
       !provenParent(origin) ||
       here === null
     ) {
-      void navigate(accepted && originGone ? originGone : fallback, {
+      const gone = accepted && originGone !== undefined;
+      void navigate(gone ? originGone : fallback, {
         replace: true,
+        ...(!gone && fallbackState !== undefined
+          ? { state: fallbackState }
+          : {}),
       });
       return;
     }
