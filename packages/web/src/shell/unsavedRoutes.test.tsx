@@ -46,6 +46,11 @@ const expense = (id: number) => ({
 
 let createStatus = 200;
 const posts: unknown[] = [];
+// GET /api/expenses/:id per test: a distinct amount per id (so the screen
+// shows WHICH object is committed, not just the router's path), and an
+// optional gate holding one id's response.
+const detailGross = new Map<number, number>();
+let detailGate: { id: number; until: Promise<void> } | null = null;
 
 function mockApi() {
   vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
@@ -60,7 +65,16 @@ function mockApi() {
         : json({ message: 'Fixture save failed' }, createStatus);
     }
     const one = /\/api\/expenses\/(\d+)$/.exec(url);
-    if (one) return json(expense(Number(one[1])));
+    if (one) {
+      const id = Number(one[1]);
+      const body = {
+        ...expense(id),
+        gross_amount: detailGross.get(id) ?? 1000,
+      };
+      return detailGate?.id === id
+        ? detailGate.until.then(() => json(body))
+        : json(body);
+    }
     if (url.includes('/api/expenses')) return json({ expenses: [] });
     if (/\/api\/organization$/.test(url)) return json(ORG);
     if (url.includes('/api/categories'))
@@ -101,6 +115,8 @@ describe('unsaved-changes guard on the production routes (#250)', () => {
     setToken('test-token');
     createStatus = 200;
     posts.length = 0;
+    detailGross.clear();
+    detailGate = null;
     mockApi();
   });
   afterEach(() => vi.restoreAllMocks());
@@ -161,6 +177,7 @@ describe('unsaved-changes guard on the production routes (#250)', () => {
   });
 
   it('same screen, another object: asks, and after Discard no sheet or draft follows to the new id', async () => {
+    detailGross.set(6, 1234);
     const router = renderAt(['/books/expenses/5']);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit draft…' }));
     const sheet = await screen.findByRole('dialog', {
@@ -173,13 +190,65 @@ describe('unsaved-changes guard on the production routes (#250)', () => {
     void router.navigate('/books/expenses/6');
     fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(path(router)).toBe('/books/expenses/6'));
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('dialog', { name: 'Edit draft expense' }),
-      ).toBeNull(),
-    );
+    // The router's path moves before React commits the new screen; the
+    // remounted #5 screen (and its "Edit draft…") is still on display until
+    // then. Wait for #6 itself to be committed before using its button.
+    await screen.findByText(/12\.34/);
+    expect(
+      screen.queryByRole('dialog', { name: 'Edit draft expense' }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit draft…' }));
+    expect(await screen.findByLabelText(/Gross/)).toHaveValue('12.34');
+  });
+
+  it('a click in the window after Discard (path already the new id, old screen still shown) opens no sheet on the new id', async () => {
+    detailGross.set(6, 1234);
+    let release6 = () => {};
+    detailGate = {
+      id: 6,
+      until: new Promise<void>((r) => {
+        release6 = r;
+      }),
+    };
+    const router = renderAt(['/books/expenses/5']);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit draft…' }));
-    expect(await screen.findByLabelText(/Gross/)).toHaveValue('10.00');
+    fireEvent.change(await screen.findByLabelText(/Gross/), {
+      target: { value: '99.00' },
+    });
+
+    // The instant the router holds #6 — before React commits it — the
+    // discard-remounted #5 screen is what is on display: path alone is not
+    // the committed object. Click its "Edit draft…" right there.
+    let staleClick: { amount6Shown: boolean } | null = null;
+    const unsubscribe = router.subscribe((state) => {
+      if (staleClick !== null) return;
+      if (state.location.pathname !== '/books/expenses/6') return;
+      const stale = screen.queryByRole('button', { name: 'Edit draft…' });
+      if (stale === null) return;
+      staleClick = { amount6Shown: screen.queryByText(/12\.34/) !== null };
+      fireEvent.click(stale);
+    });
+    void router.navigate('/books/expenses/6');
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(path(router)).toBe('/books/expenses/6'));
+    unsubscribe();
+    expect(staleClick).toEqual({ amount6Shown: false });
+
+    // #6 held: its screen commits as a skeleton — no button of #5 survives.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Edit draft…' })).toBeNull(),
+    );
+    expect(
+      screen.queryByRole('dialog', { name: 'Edit draft expense' }),
+    ).toBeNull();
+    expect(screen.queryByLabelText(/Gross/)).toBeNull();
+    release6();
+    await screen.findByText(/12\.34/);
+    // The stale open belonged to #5's pathname and did not follow to #6.
+    expect(
+      screen.queryByRole('dialog', { name: 'Edit draft expense' }),
+    ).toBeNull();
+    expect(screen.queryByLabelText(/Gross/)).toBeNull();
   });
 
   it('a successful create releases synchronously: one POST, navigates to the draft, no question', async () => {
