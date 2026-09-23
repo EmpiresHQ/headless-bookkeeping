@@ -12,6 +12,13 @@ import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import {
+  GOODS_OPTIONS,
+  REG_KEY_HINT,
+  TAX_STATUS_HINT,
+  TAX_STATUS_OPTIONS,
+  type GoodsOrServices,
+} from '../lib/entityOptions';
 import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
@@ -49,9 +56,7 @@ export function CreateEntitySheet({
   const [name, setName] = useState('');
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');
-  const [goods, setGoods] = useState<'goods' | 'services' | 'unknown'>(
-    'unknown',
-  );
+  const [goods, setGoods] = useState<GoodsOrServices>('unknown');
   const [taxStatus, setTaxStatus] = useState<TaxStatus>('unknown');
   const [email, setEmail] = useState('');
   const [tgUserId, setTgUserId] = useState('');
@@ -168,10 +173,7 @@ export function CreateEntitySheet({
         </Field>
         {needsRegKey ? (
           <>
-            <Field
-              label="Registration key"
-              hint="Registry or VAT number — the strong identity that matches documents and bank lines. Cannot be changed later."
-            >
+            <Field label="Registration key" hint={REG_KEY_HINT}>
               <TextInput
                 aria-label="Registration key"
                 value={regKey}
@@ -183,29 +185,26 @@ export function CreateEntitySheet({
               <SelectInput
                 aria-label="Goods or services"
                 value={goods}
-                onChange={(e) =>
-                  setGoods(e.target.value as 'goods' | 'services' | 'unknown')
-                }
+                onChange={(e) => setGoods(e.target.value as GoodsOrServices)}
               >
-                <option value="unknown">Unknown</option>
-                <option value="goods">Goods</option>
-                <option value="services">Services</option>
+                {GOODS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </SelectInput>
             </Field>
-            <Field
-              label="Tax status"
-              hint="Whether this counterparty is a business acting as such. Needed before a cross-border service invoice can be posted — while it is unknown the server refuses rather than guessing."
-            >
+            <Field label="Tax status" hint={TAX_STATUS_HINT}>
               <SelectInput
                 aria-label="Tax status"
                 value={taxStatus}
                 onChange={(e) => setTaxStatus(e.target.value as TaxStatus)}
               >
-                <option value="unknown">Unknown</option>
-                <option value="taxable_business">
-                  Business (taxable person)
-                </option>
-                <option value="non_taxable">Consumer (non-taxable)</option>
+                {TAX_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </SelectInput>
             </Field>
           </>

@@ -106,7 +106,12 @@ describe('create sheets — reference-data states (#260)', () => {
       target: { value: 'fuel' },
     });
     expect(
-      await screen.findByRole('option', { name: 'Suppliers unavailable' }),
+      await screen.findByText(/Couldn't load suppliers \(HTTP 503\)/),
+    ).toBeInTheDocument();
+    // Unavailable is not "no match": nothing claims absence.
+    expect(screen.queryByText(/No matches/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/an existing supplier may not be shown/),
     ).toBeInTheDocument();
     expect(createBtn()).toBeDisabled();
     expect(
@@ -118,9 +123,6 @@ describe('create sheets — reference-data states (#260)', () => {
     expect(
       await screen.findByText(/no suppliers on file yet/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('option', { name: '— none —' }),
-    ).toBeInTheDocument();
     expect(createBtn()).toBeEnabled();
   });
 
@@ -128,7 +130,7 @@ describe('create sheets — reference-data states (#260)', () => {
     vi.mocked(getCategories).mockResolvedValue(CATS as never);
     vi.mocked(getEntities).mockResolvedValue([SUP] as never);
     const qc = mount(<NewExpenseSheet open onOpenChange={() => undefined} />);
-    await screen.findByRole('option', { name: 'Neste Eesti' });
+    await screen.findByRole('button', { name: /Neste Eesti/ });
     vi.mocked(getEntities).mockRejectedValueOnce(new Error('HTTP 503'));
     await act(() => qc.refetchQueries({ queryKey: sharedKeys.entities }));
     expect(
@@ -139,8 +141,15 @@ describe('create sheets — reference-data states (#260)', () => {
       target: { value: 'fuel' },
     });
     fireEvent.change(screen.getByLabelText('Supplier'), {
-      target: { value: '5' },
+      target: { value: 'zzz' },
     });
+    expect(
+      screen.getByText(/No matches in the list loaded earlier/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Supplier'), {
+      target: { value: 'nes' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Neste Eesti/ }));
     expect(createBtn()).toBeEnabled();
   });
 
@@ -148,14 +157,12 @@ describe('create sheets — reference-data states (#260)', () => {
     vi.mocked(getCategories).mockResolvedValue(CATS as never);
     vi.mocked(getEntities).mockResolvedValue([SUP] as never);
     const qc = mount(<NewExpenseSheet open onOpenChange={() => undefined} />);
-    await screen.findByRole('option', { name: 'Neste Eesti' });
+    await screen.findByRole('option', { name: 'Fuel' });
     fillExpense();
     fireEvent.change(screen.getByLabelText('Category'), {
       target: { value: 'fuel' },
     });
-    fireEvent.change(screen.getByLabelText('Supplier'), {
-      target: { value: '5' },
-    });
+    fireEvent.click(await screen.findByRole('button', { name: /Neste Eesti/ }));
     expect(createBtn()).toBeEnabled();
 
     // The supplier became a customer (role change) and the category vanished.
@@ -169,23 +176,19 @@ describe('create sheets — reference-data states (#260)', () => {
       await qc.refetchQueries({ queryKey: sharedKeys.entities });
       await qc.refetchQueries({ queryKey: sharedKeys.categories });
     });
+    const picked = await screen.findByRole('group', { name: 'Supplier' });
+    await waitFor(() =>
+      expect(picked).toHaveTextContent('Neste Eesti · EE · #5 (not available)'),
+    );
+    // The error is tied to the picked control, not just rendered next to it.
     expect(
-      await screen.findByRole('option', {
-        name: 'Neste Eesti (not available)',
-      }),
-    ).toBeInTheDocument();
+      screen.getByRole('group', { name: 'Supplier' }),
+    ).toHaveAccessibleDescription(
+      'This supplier is no longer available — change it',
+    );
     expect(
       screen.getByRole('option', { name: 'fuel (not available)' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Supplier')).toHaveValue('5');
-    // The error is tied to the control, not just rendered next to it.
-    expect(screen.getByLabelText('Supplier')).toHaveAttribute(
-      'aria-invalid',
-      'true',
-    );
-    expect(screen.getByLabelText('Supplier')).toHaveAccessibleDescription(
-      'This supplier is no longer available — choose again',
-    );
     expect(screen.getByLabelText('Category')).toHaveValue('fuel');
     expect(createBtn()).toBeDisabled();
     expect(
@@ -210,27 +213,21 @@ describe('create sheets — reference-data states (#260)', () => {
     });
     const submit = () => screen.getByRole('button', { name: /Create invoice/ });
     expect(
-      await screen.findByRole('option', { name: 'Customers unavailable' }),
+      await screen.findByText(/Couldn't load customers \(HTTP 503\)/),
     ).toBeInTheDocument();
     expect(submit()).toBeDisabled();
 
     vi.mocked(getEntities).mockResolvedValue([CUS] as never);
     fireEvent.click(screen.getByRole('button', { name: 'Retry customers' }));
-    await screen.findByRole('option', { name: 'Acme OÜ' });
-    fireEvent.change(screen.getByLabelText('Customer'), {
-      target: { value: '6' },
-    });
+    fireEvent.click(await screen.findByRole('button', { name: /Acme OÜ/ }));
     expect(submit()).toBeEnabled();
 
     vi.mocked(getEntities).mockResolvedValue([] as never);
     await act(() => qc.refetchQueries({ queryKey: sharedKeys.entities }));
-    expect(
-      await screen.findByRole('option', { name: 'Acme OÜ (not available)' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/\(not available\)/)).toBeInTheDocument();
     expect(submit()).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Customer'), {
-      target: { value: '' },
-    });
+    // Change clears the pick: no customer, against a fresh (empty) list.
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }));
     expect(submit()).toBeEnabled();
     expect(screen.getByLabelText('Invoice number')).toHaveValue('INV-1');
     expect(createInvoice).not.toHaveBeenCalled();

@@ -13,7 +13,7 @@ import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
 import { useReceipt } from '../lib/resultLog';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
-import { useCategories, useCustomers, useSuppliers } from '../queries/shared';
+import { useCategories } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { ListGroup, ListRow } from '../ui/List';
@@ -25,6 +25,11 @@ import {
   NO_CATEGORIES,
 } from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
+import {
+  CounterpartyField,
+  EMPTY_COUNTERPARTY_DRAFT,
+  useCounterparty,
+} from './CounterpartyField';
 import { toastErr, toastOk } from '../ui/toast';
 
 export type CreateKind = 'expense' | 'invoice' | 'upload';
@@ -66,59 +71,7 @@ export function CreateMenu({
 }
 
 const EMPTY_MONEY = { gross: '', vat: '' };
-
-/** Optional counterparty select. Without a usable list it offers nothing but
- *  says why — "none" stays the value, but the submit is blocked (#260). A
- *  selection the list no longer offers stays visible as not available. */
-function SupplierOrCustomerSelect({
-  value,
-  onChange,
-  options,
-  loading,
-  gone,
-  what,
-  ...aria
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: number; name: string }[] | undefined;
-  loading: boolean;
-  gone: boolean;
-  what: string;
-  /** Field's injected aria-describedby / aria-invalid, kept on the control. */
-  'aria-describedby'?: string;
-  'aria-invalid'?: boolean;
-}) {
-  // Names this select has shown, so a selection a refetch dropped is still
-  // shown by the name the operator picked.
-  const seen = useRef(new Map<string, string>());
-  for (const o of options ?? []) seen.current.set(String(o.id), o.name);
-  return (
-    <SelectInput
-      {...aria}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">
-        {options !== undefined
-          ? '— none —'
-          : loading
-            ? `Loading ${what}…`
-            : `${what[0].toUpperCase()}${what.slice(1)} unavailable`}
-      </option>
-      {gone && (
-        <option value={value}>
-          {`${seen.current.get(value) ?? `#${value}`} (not available)`}
-        </option>
-      )}
-      {(options ?? []).map((o) => (
-        <option key={o.id} value={o.id}>
-          {o.name}
-        </option>
-      ))}
-    </SelectInput>
-  );
-}
+const NO_COUNTERPARTY = { id: null, draft: EMPTY_COUNTERPARTY_DRAFT };
 
 /** Shared euro-amount pair: gross typed, VAT auto at the standard rate until
  *  touched (same convention as Plans 02/03; field stays editable). */
@@ -161,12 +114,19 @@ export function NewExpenseSheet({
   const qc = useQueryClient();
   const navigate = useNavigate();
   const categoriesQ = useCategories();
-  const suppliersQ = useSuppliers();
   const [category, setCategory] = useState('');
-  const [supplierId, setSupplierId] = useState('');
   const [date, setDate] = useState('');
   const m = useMoneyPair();
+  // One operation for the sheet (issue #251): adding the supplier and
+  // creating the draft never overlap; `running` only says which button
+  // shows it. The sheet is busy — and locked — for either.
   const op = usePendingOperation('New expense');
+  const [running, setRunning] = useState<'submit' | 'counterparty'>('submit');
+  const supplier = useCounterparty({
+    role: 'supplier',
+    op,
+    onStart: () => setRunning('counterparty'),
+  });
   const receipt = useReceipt();
   // Attempts of ONE draft share a receipt (a retry supersedes a failure);
   // a created draft closes the series.
@@ -175,34 +135,32 @@ export function NewExpenseSheet({
   const guard = useUnsavedChanges({
     label: 'New expense',
     active: open,
-    values: { category, supplierId, date, ...m.draft },
-    baseline: { category: '', supplierId: '', date: '', ...EMPTY_MONEY },
+    values: { category, supplier: supplier.guardValue, date, ...m.draft },
+    baseline: {
+      category: '',
+      supplier: NO_COUNTERPARTY,
+      date: '',
+      ...EMPTY_MONEY,
+    },
   });
 
   // Issue #260: a loading/failed list is not an empty one. The category must
-  // be one the (usable) list offers; "none" as supplier is an answer only
-  // against a usable supplier list; a selection a refetch no longer lists
-  // stays visible and blocks until corrected.
+  // be one the (usable) list offers; no supplier is an answer only against a
+  // usable supplier list (or once one was just added here); a pick a refetch
+  // no longer lists stays visible and blocks until corrected; a supplier
+  // being added blocks until it is added or discarded (#263).
   const categories = categoriesQ.data;
-  const suppliers = suppliersQ.data;
   const categoryGone =
     category !== '' &&
     categories !== undefined &&
     !categories.some((c) => c.key === category);
-  const supplierGone =
-    supplierId !== '' &&
-    suppliers !== undefined &&
-    !suppliers.some((s) => String(s.id) === supplierId);
   const blocker =
     lookupBlocker(categoriesQ, 'categories') ??
     (categories?.length === 0 ? NO_CATEGORIES : null) ??
     (categoryGone
       ? 'The chosen category is no longer available — choose again.'
       : null) ??
-    lookupBlocker(suppliersQ, 'suppliers') ??
-    (supplierGone
-      ? 'The chosen supplier is no longer available — choose again or pick none.'
-      : null);
+    supplier.blocker;
 
   const valid =
     blocker === null &&
@@ -221,11 +179,11 @@ export function NewExpenseSheet({
       vat_amount: m.vatEffective as number,
       currency: 'EUR',
       tax_point_date: date,
-      supplier_id: supplierId === '' ? null : Number(supplierId),
+      supplier_id: supplier.entity?.id ?? null,
     };
     const key = `create:${series.current}`;
     let accepted = false;
-    op.run(
+    const started = op.run(
       async (ctx) => {
         const created = await createExpense(req);
         accepted = true;
@@ -271,6 +229,7 @@ export function NewExpenseSheet({
         },
       },
     );
+    if (started) setRunning('submit');
   };
 
   return (
@@ -318,31 +277,11 @@ export function NewExpenseSheet({
           </Field>
           <LookupNotice query={categoriesQ} what="categories" />
         </div>
-        <div>
-          <Field
-            label="Supplier"
-            error={
-              supplierGone
-                ? 'This supplier is no longer available — choose again'
-                : undefined
-            }
-            hint={
-              lookupState(suppliersQ) === 'ready' && suppliers?.length === 0
-                ? 'Optional — no suppliers on file yet; unknown suppliers can be resolved later'
-                : 'Optional — unknown suppliers can be resolved later'
-            }
-          >
-            <SupplierOrCustomerSelect
-              value={supplierId}
-              onChange={setSupplierId}
-              options={suppliers}
-              loading={lookupState(suppliersQ) === 'loading'}
-              gone={supplierGone}
-              what="suppliers"
-            />
-          </Field>
-          <LookupNotice query={suppliersQ} what="suppliers" />
-        </div>
+        <CounterpartyField
+          cp={supplier}
+          hint="Optional — leave it unpicked for none; unknown suppliers can be resolved later"
+          busy={op.pending && running === 'counterparty'}
+        />
         <Field label="Gross (€)">
           <TextInput
             inputMode="decimal"
@@ -382,7 +321,7 @@ export function NewExpenseSheet({
         </Field>
         <Button
           className="w-full"
-          busy={busy}
+          busy={busy && running === 'submit'}
           disabled={!valid}
           onClick={submit}
         >
@@ -405,13 +344,18 @@ export function NewInvoiceSheet({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const customersQ = useCustomers();
   const [number, setNumber] = useState('');
-  const [customerId, setCustomerId] = useState('');
   const [date, setDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const m = useMoneyPair();
+  // One operation for the sheet (issue #251) — see NewExpenseSheet.
   const op = usePendingOperation('New sales invoice');
+  const [running, setRunning] = useState<'submit' | 'counterparty'>('submit');
+  const customer = useCounterparty({
+    role: 'customer',
+    op,
+    onStart: () => setRunning('counterparty'),
+  });
   const receipt = useReceipt();
   // Attempts of ONE draft share a receipt (a retry supersedes a failure);
   // a created draft closes the series.
@@ -420,27 +364,25 @@ export function NewInvoiceSheet({
   const guard = useUnsavedChanges({
     label: 'New sales invoice',
     active: open,
-    values: { number, customerId, date, dueDate, ...m.draft },
+    values: {
+      number,
+      customer: customer.guardValue,
+      date,
+      dueDate,
+      ...m.draft,
+    },
     baseline: {
       number: '',
-      customerId: '',
+      customer: NO_COUNTERPARTY,
       date: '',
       dueDate: '',
       ...EMPTY_MONEY,
     },
   });
 
-  // Issue #260: "none" is an answer only against a usable customer list.
-  const customers = customersQ.data;
-  const customerGone =
-    customerId !== '' &&
-    customers !== undefined &&
-    !customers.some((c) => String(c.id) === customerId);
-  const blocker =
-    lookupBlocker(customersQ, 'customers') ??
-    (customerGone
-      ? 'The chosen customer is no longer available — choose again or pick none.'
-      : null);
+  // Issue #260: no customer is an answer only against a usable customer
+  // list; see NewExpenseSheet and CounterpartyField.
+  const blocker = customer.blocker;
 
   const valid =
     blocker === null &&
@@ -459,12 +401,12 @@ export function NewInvoiceSheet({
       vat_amount: m.vatEffective as number,
       currency: 'EUR',
       tax_point_date: date,
-      customer_id: customerId === '' ? null : Number(customerId),
+      customer_id: customer.entity?.id ?? null,
       due_date: dueDate === '' ? null : dueDate,
     };
     const key = `create:${series.current}`;
     let accepted = false;
-    op.run(
+    const started = op.run(
       async (ctx) => {
         const created = await createInvoice(req);
         accepted = true;
@@ -510,6 +452,7 @@ export function NewInvoiceSheet({
         },
       },
     );
+    if (started) setRunning('submit');
   };
 
   return (
@@ -527,31 +470,11 @@ export function NewInvoiceSheet({
             onChange={(e) => setNumber(e.target.value)}
           />
         </Field>
-        <div>
-          <Field
-            label="Customer"
-            error={
-              customerGone
-                ? 'This customer is no longer available — choose again'
-                : undefined
-            }
-            hint={
-              lookupState(customersQ) === 'ready' && customers?.length === 0
-                ? 'Optional — no customers on file yet'
-                : 'Optional'
-            }
-          >
-            <SupplierOrCustomerSelect
-              value={customerId}
-              onChange={setCustomerId}
-              options={customers}
-              loading={lookupState(customersQ) === 'loading'}
-              gone={customerGone}
-              what="customers"
-            />
-          </Field>
-          <LookupNotice query={customersQ} what="customers" />
-        </div>
+        <CounterpartyField
+          cp={customer}
+          hint="Optional — leave it unpicked for none"
+          busy={op.pending && running === 'counterparty'}
+        />
         <Field label="Gross (€)">
           <TextInput
             inputMode="decimal"
@@ -598,7 +521,7 @@ export function NewInvoiceSheet({
         </Field>
         <Button
           className="w-full"
-          busy={busy}
+          busy={busy && running === 'submit'}
           disabled={!valid}
           onClick={submit}
         >
