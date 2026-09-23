@@ -18,7 +18,7 @@ import {
   useKmd,
   useSubmissionState,
 } from '../queries/reports';
-import { useReportingPeriods } from '../queries/shared';
+import { useEntities, useReportingPeriods } from '../queries/shared';
 import { ScreenHeader } from '../shell/Headers';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
@@ -161,6 +161,9 @@ export function PeriodScreen() {
   const period = (periodsQ.data ?? []).find((p) => p.id === periodId);
   const kmdQ = useKmd(periodId, validPeriodId);
   const submissionQ = useSubmissionState(periodId, period?.status === 'locked');
+  // Entities only ENRICH row labels — their failure is not a failed check
+  // (issue #255); said once here instead of in every section.
+  const entitiesQ = useEntities();
   const lock = useSheet();
   const oldest = oldestOpen(periodsQ.data ?? []);
 
@@ -227,7 +230,8 @@ export function PeriodScreen() {
         </ListGroup>
       )}
       {kmdQ.isPending && <SkeletonRows count={4} />}
-      {kmdQ.isError && (
+      {kmdQ.isError && kmdQ.data !== undefined && <RefetchError query={kmdQ} />}
+      {kmdQ.isError && kmdQ.data === undefined && (
         <LoadError
           message={
             kmdQ.error instanceof Error
@@ -242,6 +246,17 @@ export function PeriodScreen() {
           <DeclarationGroup decl={kmdQ.data} />
           <ReviewFlags flags={kmdQ.data.review_flags} />
         </>
+      )}
+      {entitiesQ.isError && entitiesQ.data === undefined && (
+        <div className="mx-3.5 mb-3.5 flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-[12.5px] text-ink-2">
+          <span>
+            Supplier and customer names could not be loaded — rows show
+            categories and numbers instead. The checks below are unaffected.
+          </span>
+          <Button variant="secondary" onClick={() => void entitiesQ.refetch()}>
+            Retry names
+          </Button>
+        </div>
       )}
       <InfGapsSection period={period} />
       <StragglersSection period={period} />
@@ -266,9 +281,6 @@ export function PeriodScreen() {
         <LockSheet
           key={`${period.id}-${lock.epoch}`}
           period={period}
-          netVatDueCents={
-            kmdQ.data !== undefined ? kmdQ.data.net_vat_due : null
-          }
           open={lock.isOpen}
           onOpenChange={(o) => !o && lock.close()}
         />

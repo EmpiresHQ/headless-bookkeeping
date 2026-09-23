@@ -185,7 +185,7 @@ describe('InfGapsSection', () => {
     ).toBeNull();
   });
 
-  it('renders nothing when there are no gaps', async () => {
+  it('checked with no gaps: an explicit all-clear line, not silence', async () => {
     vi.mocked(getExpenses).mockResolvedValue([] as never);
     vi.mocked(getEntities).mockResolvedValue([] as never);
     const qc = new QueryClient({
@@ -200,8 +200,12 @@ describe('InfGapsSection', () => {
         </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
-    await waitFor(() => expect(getExpenses).toHaveBeenCalled());
-    expect(container.textContent).not.toContain('INF annex');
+    expect(
+      await screen.findByText(
+        'INF annex — no supplier invoice numbers missing in this period.',
+      ),
+    ).toBeInTheDocument();
+    expect(container.textContent).not.toContain('invoice numbers to add');
   });
 
   it('Fix-invoice-number sheet resets across open/close/reopen', async () => {
@@ -292,7 +296,7 @@ describe('StragglersSection', () => {
     ).toBeInTheDocument();
     // Approval straggler → Inbox; draft straggler → Books drafts.
     expect(
-      screen.getByRole('link', { name: /1 awaiting approval/ }),
+      await screen.findByRole('link', { name: /1 awaiting approval/ }),
     ).toHaveAttribute('href', '/inbox?seg=approvals');
     expect(
       screen.getByRole('link', { name: /1 invoice draft not posted/ }),
@@ -364,5 +368,190 @@ describe('InPeriodSection', () => {
       expect(qc.getQueryState(sharedKeys.expenses)?.status).toBe('success'),
     );
     expect(screen.queryByText(/Purchases in this period/)).toBeNull();
+  });
+});
+
+// Issue #255: a failed or pending check never reads as "checked — nothing".
+function mountWith(
+  ui: ReactElement,
+  seed?: (qc: QueryClient) => void,
+): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seed?.(qc);
+  render(
+    <QueryClientProvider client={qc}>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <MemoryRouter>
+          <InfGapsSection period={PERIOD} />
+          {ui}
+        </MemoryRouter>
+      </UnsavedChangesProvider>
+    </QueryClientProvider>,
+  );
+  return qc;
+}
+
+describe('check status (issue #255)', () => {
+  it('failed warnings/expenses/invoices: each section says so with a scoped Retry; Retry recovers', async () => {
+    vi.mocked(getPeriodWarnings).mockRejectedValue(new Error('503 warnings'));
+    vi.mocked(getExpenses).mockRejectedValue(new Error('503 expenses'));
+    vi.mocked(getInvoices).mockRejectedValue(new Error('503 invoices'));
+    vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+    mountWith(
+      <>
+        <StragglersSection period={PERIOD} />
+        <InPeriodSection period={PERIOD} />
+      </>,
+    );
+    expect(
+      await screen.findByText("Couldn't check undecided items — 503 warnings"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Couldn't check INF invoice numbers — 503 expenses"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Couldn't check documents dated in this period — 503 (expenses|invoices)/,
+      ),
+    ).toBeInTheDocument();
+    // No all-clear anywhere.
+    expect(screen.queryByText(/^None/)).toBeNull();
+    expect(
+      screen.queryByText(/no supplier invoice numbers missing/),
+    ).toBeNull();
+    expect(screen.queryByText(/No documents dated/)).toBeNull();
+
+    vi.mocked(getPeriodWarnings).mockResolvedValue([] as never);
+    vi.mocked(getExpenses).mockResolvedValue(EXPENSES as never);
+    vi.mocked(getInvoices).mockResolvedValue(INVOICES as never);
+    for (const b of screen.getAllByRole('button', { name: 'Retry' })) {
+      fireEvent.click(b);
+    }
+    expect(
+      await screen.findByText(
+        'None — no pending approvals or unposted drafts dated in this period.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('Purchases in this period'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('INF annex — invoice numbers to add'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't check/)).toBeNull();
+  });
+
+  it('never-resolving checks show "checking", not an empty section', async () => {
+    vi.mocked(getPeriodWarnings).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getExpenses).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getInvoices).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+    mountWith(
+      <>
+        <StragglersSection period={PERIOD} />
+        <InPeriodSection period={PERIOD} />
+      </>,
+    );
+    expect(
+      await screen.findByText('Checking undecided items…'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Checking INF invoice numbers…'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Checking documents dated in this period…'),
+    ).toBeInTheDocument();
+  });
+
+  it('checked and empty: explicit all-clear in every section', async () => {
+    vi.mocked(getPeriodWarnings).mockResolvedValue([] as never);
+    vi.mocked(getExpenses).mockResolvedValue([] as never);
+    vi.mocked(getInvoices).mockResolvedValue([] as never);
+    vi.mocked(getEntities).mockResolvedValue([] as never);
+    mountWith(
+      <>
+        <StragglersSection period={PERIOD} />
+        <InPeriodSection period={PERIOD} />
+      </>,
+    );
+    expect(
+      await screen.findByText(
+        'None — no pending approvals or unposted drafts dated in this period.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('No documents dated in this period.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'INF annex — no supplier invoice numbers missing in this period.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('stale cached EMPTY lists after a failed refresh never show an unqualified all-clear', async () => {
+    vi.mocked(getPeriodWarnings).mockRejectedValue(new Error('503'));
+    vi.mocked(getExpenses).mockRejectedValue(new Error('503'));
+    vi.mocked(getInvoices).mockRejectedValue(new Error('503'));
+    vi.mocked(getEntities).mockResolvedValue([] as never);
+    mountWith(
+      <>
+        <StragglersSection period={PERIOD} />
+        <InPeriodSection period={PERIOD} />
+      </>,
+      (qc) => {
+        // Cached empties, already stale → the mount refetch fails.
+        qc.setQueryData(['reports', 'warnings', PERIOD.id], [], {
+          updatedAt: 1,
+        });
+        qc.setQueryData(sharedKeys.expenses, [], { updatedAt: 1 });
+        qc.setQueryData(sharedKeys.invoices, [], { updatedAt: 1 });
+      },
+    );
+    expect(
+      await screen.findByText(/Couldn't refresh undecided items — 503/),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Couldn't refresh INF invoice numbers — 503/),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /Couldn't refresh documents dated in this period — 503/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'None in the last loaded result — not confirmed current.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/none missing in the last loaded result; not confirmed/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /No documents dated in this period in the last loaded result — not confirmed current/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^None — no pending/)).toBeNull();
+    expect(screen.queryByText('No documents dated in this period.')).toBeNull();
+    expect(
+      screen.queryByText(/no supplier invoice numbers missing in this period/),
+    ).toBeNull();
+  });
+
+  it('cached rows stay visible under a failed refresh (not replaced by an error)', async () => {
+    vi.mocked(getExpenses).mockRejectedValue(new Error('503'));
+    vi.mocked(getInvoices).mockRejectedValue(new Error('503'));
+    vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+    mountWith(<InPeriodSection period={PERIOD} />, (qc) => {
+      qc.setQueryData(sharedKeys.expenses, EXPENSES, { updatedAt: 1 });
+      qc.setQueryData(sharedKeys.invoices, INVOICES, { updatedAt: 1 });
+    });
+    expect(
+      await screen.findByText(
+        /Couldn't refresh documents dated in this period/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Purchases in this period')).toBeInTheDocument();
   });
 });
