@@ -60,13 +60,14 @@ export function DocPreviewRow({
           subtitle={subtitle}
         />
       </ListGroup>
-      {lightboxOpen && (
-        <DocumentPreviewLightbox
-          src={lgSrc ?? src}
-          onClose={() => setLightboxOpen(false)}
-          onOpenOriginal={() => void openSignedDocument(documentId)}
-        />
-      )}
+      {/* Always mounted, driven by `open`: the close edge returns focus to
+          the row (issue #269). */}
+      <DocumentPreviewLightbox
+        open={lightboxOpen}
+        src={lgSrc ?? src}
+        onClose={() => setLightboxOpen(false)}
+        onOpenOriginal={() => void openSignedDocument(documentId)}
+      />
     </>
   );
 }

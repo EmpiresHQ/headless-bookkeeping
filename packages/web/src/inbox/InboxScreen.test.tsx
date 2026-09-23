@@ -220,7 +220,10 @@ describe('InboxScreen', () => {
 
       it('renders no interactive element inside any row link', async () => {
         await openPreview();
-        const links = screen.getAllByRole('link');
+        // The modal preview hides the list from the accessibility tree
+        // (issue #269) — the links are still in the DOM behind it.
+        expect(screen.queryAllByRole('link')).toHaveLength(0);
+        const links = screen.getAllByRole('link', { hidden: true });
         expect(links.length).toBeGreaterThan(0);
         for (const link of links) {
           expect(
@@ -232,6 +235,7 @@ describe('InboxScreen', () => {
         // Neither the thumb button nor the open dialog sit inside the link.
         const button = screen.getByRole('button', {
           name: 'Open document preview',
+          hidden: true,
         });
         expect(button.closest('a')).toBeNull();
         expect(screen.getByRole('dialog').closest('a')).toBeNull();
@@ -246,7 +250,9 @@ describe('InboxScreen', () => {
               within(dialog).getByRole('button', { name: 'Close preview' }),
             ),
         ],
-        ['Escape', () => fireEvent.keyDown(window, { key: 'Escape' })],
+        // A real keypress bubbles from the focused control to the document,
+        // where Radix listens for the top layer's Escape.
+        ['Escape', () => fireEvent.keyDown(document, { key: 'Escape' })],
       ])(
         'closing via %s only closes the preview and keeps /inbox',
         async (_label, close) => {
