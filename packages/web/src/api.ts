@@ -142,6 +142,10 @@ export interface DocumentRow {
   status: string;
   processing_since: number | null;
   created_at: number;
+  /** The stored out-of-pocket payer (ADR-0036); null = company paid. The
+   *  server always sends it; optional so older fixtures stay valid —
+   *  absent means UNKNOWN, never company paid. */
+  claimant_id?: number | null;
 }
 
 export type DocumentChannel =

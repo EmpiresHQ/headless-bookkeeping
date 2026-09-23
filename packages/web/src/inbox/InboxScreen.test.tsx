@@ -420,7 +420,25 @@ describe('InboxScreen', () => {
     expect(screen.queryByText(/expenses this period/)).not.toBeInTheDocument();
   });
 
-  it('uploads a file, auto-triages it and refreshes the queue', async () => {
+  it('uploads through the shared sheet: same payer field, claimant sent, a needs-review result opens as a SINGLE item returning to this segment (#258)', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([
+      {
+        id: 3,
+        role: 'supplier',
+        country: 'EE',
+        name: 'Telia Eesti AS',
+        goods_vs_services: null,
+        tax_status: null,
+      },
+      {
+        id: 5,
+        role: 'employee',
+        country: 'EE',
+        name: 'Mari Maasikas',
+        goods_vs_services: null,
+        tax_status: null,
+      },
+    ]);
     vi.mocked(api.uploadDocument).mockResolvedValue({
       document: {
         id: 99,
@@ -430,28 +448,47 @@ describe('InboxScreen', () => {
         status: 'pending',
         processing_since: null,
         created_at: 1,
+        claimant_id: 5,
       },
       deduplicated: false,
     });
-    vi.mocked(api.triageDocument).mockResolvedValue({
-      kind: 'expense',
-      document_id: 99,
-      expense_id: 500,
+    vi.mocked(api.triageDocument).mockImplementation(async () => {
+      // The workflow parked it: the queue now holds it.
+      vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+        {
+          id: 99,
+          filename: 'r.pdf',
+          created_at: NOW,
+          reason: 'Unknown supplier',
+          reason_type: 'supplier_unresolved',
+        },
+      ]);
+      return { kind: 'unknown', document_id: 99, reason: 'Unknown supplier' };
     });
-    renderAt('/inbox');
-    await screen.findByText('Telia Eesti AS');
-    const callsBefore = vi.mocked(api.getNeedsTriageItems).mock.calls.length;
-    const input = screen.getByLabelText('Upload document');
-    fireEvent.change(input, {
-      target: {
-        files: [new File(['x'], 'r.pdf', { type: 'application/pdf' })],
-      },
+    const router = renderAt('/inbox?seg=triage');
+    await screen.findByText('cheque_scan_038.jpg');
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    const payer = await screen.findByLabelText('Paid by (claimant)');
+    // Suppliers are never offered as the payer.
+    expect(
+      within(payer).queryByRole('option', { name: 'Telia Eesti AS' }),
+    ).toBeNull();
+    fireEvent.change(payer, { target: { value: '5' } });
+    const file = new File(['x'], 'r.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('File'), {
+      target: { files: [file] },
     });
-    await waitFor(() => expect(api.triageDocument).toHaveBeenCalledWith(99));
+    fireEvent.click(screen.getByRole('button', { name: 'Upload & process' }));
     await waitFor(() =>
-      expect(
-        vi.mocked(api.getNeedsTriageItems).mock.calls.length,
-      ).toBeGreaterThan(callsBefore),
+      expect(router.state.location.pathname).toBe('/inbox/doc/99'),
+    );
+    expect(api.uploadDocument).toHaveBeenCalledWith(file, { claimantId: 5 });
+    expect(api.triageDocument).toHaveBeenCalledTimes(1);
+    const state = router.state.location.state as Record<string, unknown>;
+    // Single item: no queue run; its origin is this Inbox segment.
+    expect(state.hbkRun).toBeUndefined();
+    expect((state.hbkOrigin as { href: string }).href).toBe(
+      '/inbox?seg=triage',
     );
   });
 });

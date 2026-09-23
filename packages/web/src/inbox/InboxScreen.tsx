@@ -1,7 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useRef } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { triageDocument, uploadDocument } from '../api';
 import { DocThumbLightbox } from './DocThumbLightbox';
 import { signedEuros } from '../lib/money';
 import { useOriginState } from '../lib/returnNavigation';
@@ -12,7 +9,6 @@ import {
   splitTodayEarlier,
   useInboxQueue,
   approvalDisplay,
-  invalidateInbox,
   useInboxHero,
   type InboxEntry,
   type InboxSegment,
@@ -24,15 +20,14 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { SegmentedControl } from '../ui/SegmentedControl';
-import { toastErr, toastOk } from '../ui/toast';
+import { UploadDocumentSheet } from '../upload/UploadDocumentSheet';
+import { useSheet } from '../lib/useSheet';
 import {
   humanizePolicyReason,
-  outcomeText,
   triageChipLabel,
   triageSubtitle,
 } from './reason';
 import { runState } from './queueRun';
-import { usePendingOperation } from '../lib/pendingOperation';
 
 const SEGMENTS: readonly InboxSegment[] = ['all', 'triage', 'approvals'];
 
@@ -159,76 +154,6 @@ function InboxHero({
   );
 }
 
-/** Minimal upload entry point (legacy Intake tab capability kept): upload →
- *  auto-triage → outcome toast. The full upload flow (claimant dropdown,
- *  ADR-0036) belongs to the Books plan. */
-function UploadAction() {
-  const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const op = usePendingOperation('Upload');
-  const busy = op.pending;
-
-  const onPick = (file: File) => {
-    // The uploaded stage, for an honest failure message: picking the same
-    // file again is deduplicated by the server (never a second document).
-    let uploadedId: number | null = null;
-    const started = op.run(
-      async (ctx) => {
-        const { document, deduplicated } = await uploadDocument(file);
-        uploadedId = document.id;
-        ctx.check();
-        const outcome = await triageDocument(document.id);
-        ctx.check();
-        await invalidateInbox(qc);
-        return { deduplicated, outcome };
-      },
-      {
-        onSuccess: ({ deduplicated, outcome }) => {
-          if (deduplicated)
-            toastOk('Already uploaded — using the existing document');
-          if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
-          else toastOk(outcomeText(outcome));
-          if (fileRef.current) fileRef.current.value = '';
-        },
-        onError: (e) => {
-          const message = e instanceof Error ? e.message : String(e);
-          toastErr(
-            uploadedId === null
-              ? message
-              : `Uploaded as document #${uploadedId}, but processing failed: ${message}`,
-          );
-          if (fileRef.current) fileRef.current.value = '';
-          if (uploadedId !== null) void invalidateInbox(qc);
-        },
-      },
-    );
-    if (!started && fileRef.current) fileRef.current.value = '';
-  };
-
-  return (
-    <>
-      <input
-        ref={fileRef}
-        type="file"
-        className="hidden"
-        aria-label="Upload document"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onPick(f);
-        }}
-      />
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => fileRef.current?.click()}
-        className="text-[15px] font-semibold text-accent disabled:opacity-50"
-      >
-        {busy ? 'Processing…' : 'Upload'}
-      </button>
-    </>
-  );
-}
-
 /** /inbox — the unified decision queue: needs-triage documents + pending
  *  approvals, ONE FIFO list (oldest on top — the queue must end). Polls at
  *  30s while mounted; see queries/inbox.ts for the polling rule. */
@@ -240,6 +165,8 @@ export function InboxScreen() {
     { poll: true },
   );
   const hero = useInboxHero();
+  // The same upload flow as Books (issue #258).
+  const uploadSheet = useSheet();
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
@@ -271,7 +198,13 @@ export function InboxScreen() {
             <span className="text-[12.5px] font-semibold text-ink-2">
               {total === 1 ? '1 task' : `${total} tasks`}
             </span>
-            <UploadAction />
+            <button
+              type="button"
+              onClick={() => uploadSheet.open()}
+              className="text-[15px] font-semibold text-accent"
+            >
+              Upload
+            </button>
           </div>
         }
       />
@@ -337,6 +270,14 @@ export function InboxScreen() {
         <p className="pb-2 text-center text-[10.5px] text-ink-2">
           Oldest first — the queue clears FIFO
         </p>
+      )}
+      {/* Remount-on-open (epoch key), as in Books. */}
+      {uploadSheet.epoch > 0 && (
+        <UploadDocumentSheet
+          key={`upload-${uploadSheet.epoch}`}
+          open={uploadSheet.isOpen}
+          onOpenChange={(o) => !o && uploadSheet.close()}
+        />
       )}
     </div>
   );

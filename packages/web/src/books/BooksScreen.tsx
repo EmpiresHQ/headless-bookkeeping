@@ -5,12 +5,8 @@ import { useSheet } from '../lib/useSheet';
 import { LargeTitleHeader } from '../shell/Headers';
 import { SearchInput } from '../ui/SearchInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
-import {
-  CreateMenu,
-  NewExpenseSheet,
-  NewInvoiceSheet,
-  UploadSheet,
-} from './create';
+import { UploadDocumentSheet } from '../upload/UploadDocumentSheet';
+import { CreateMenu, NewExpenseSheet, NewInvoiceSheet } from './create';
 import { CreditNotesSegment } from './CreditNotesSegment';
 import { DocumentsSegment } from './DocumentsSegment';
 import { ExpensesSegment } from './ExpensesSegment';
@@ -106,7 +102,7 @@ export function BooksScreen() {
         />
       )}
       {uploadSheet.epoch > 0 && (
-        <UploadSheet
+        <UploadDocumentSheet
           key={`upload-${uploadSheet.epoch}`}
           open={uploadSheet.isOpen}
           onOpenChange={(o) => !o && uploadSheet.close()}
