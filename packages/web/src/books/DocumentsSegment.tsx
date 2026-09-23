@@ -8,6 +8,7 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { DocThumb } from './DocThumb';
+import { FilterChip } from './chips';
 
 export function channelLabel(channel: string | null): string {
   switch (channel) {
@@ -99,29 +100,24 @@ export function DocumentsSegment({ q }: { q: string }) {
 
   return (
     <div>
-      <div className="flex gap-1.5 overflow-x-auto px-4 pb-2.5">
+      <div className="flex gap-1.5 overflow-x-auto px-4 pb-1">
         {DOC_FILTERS.map((f) => {
           const count = searched.filter((d) =>
             matchesDocFilter(d, f.key),
           ).length;
           return (
-            <button
+            <FilterChip
               key={f.key}
-              type="button"
+              active={f.key === filter}
               onClick={() => {
                 const next = new URLSearchParams(params);
                 if (f.key === 'all') next.delete('dstatus');
                 else next.set('dstatus', f.key);
                 setParams(next, { replace: true });
               }}
-              className={`flex-none whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold ${
-                f.key === filter
-                  ? 'bg-accent text-white'
-                  : 'bg-surface text-ink-2'
-              }`}
             >
               {f.key === 'all' ? f.label : `${f.label} ${count}`}
-            </button>
+            </FilterChip>
           );
         })}
       </div>

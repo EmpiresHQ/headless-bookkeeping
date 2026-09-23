@@ -18,7 +18,7 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
-import { statusChip, StatusChipRow } from './chips';
+import { FilterChip, statusChip, StatusChipRow } from './chips';
 
 function ExpenseRow({
   e,
@@ -115,15 +115,12 @@ export function ExpensesSegment({ q }: { q: string }) {
         active={status}
         onChange={(f) => setParam('status', f === 'all' ? null : f)}
         extra={
-          <button
-            type="button"
+          <FilterChip
+            active={noDocOnly}
             onClick={() => setParam('nodoc', noDocOnly ? null : '1')}
-            className={`flex-none whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold ${
-              noDocOnly ? 'bg-accent text-white' : 'bg-surface text-ink-2'
-            }`}
           >
             📎 No document {noDocCount}
-          </button>
+          </FilterChip>
         }
       />
       {groups.length === 0 && (

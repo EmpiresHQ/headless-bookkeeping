@@ -49,9 +49,13 @@ export function BooksScreen() {
             type="button"
             aria-label="Add to the books"
             onClick={() => setCreateOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-lg font-bold text-white"
+            className="-m-1.5 flex h-11 w-11 items-center justify-center"
           >
-            +
+            {/* 44px touch box, 32px visual (#273); the -m-1.5 overhang sits
+                in header padding so the title row keeps its height. */}
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-lg font-bold text-white">
+              +
+            </span>
           </button>
         }
       />

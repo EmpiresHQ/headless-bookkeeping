@@ -27,6 +27,35 @@ const LABELS: Record<StatusFilter, string> = {
   corrected: 'Corrected',
 };
 
+/** One filter chip: a 44×44-minimum native button (DESIGN.md touch minimum,
+ *  #273) around the compact visual pill, so the pill keeps its size while
+ *  neighbouring buttons (gap-1.5) never overlap. */
+export function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-11 min-w-11 flex-none items-center justify-center"
+    >
+      <span
+        className={`whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold ${
+          active ? 'bg-accent text-white' : 'bg-surface text-ink-2'
+        }`}
+      >
+        {children}
+      </span>
+    </button>
+  );
+}
+
 /** Horizontal filter-chip row. Counts are computed by the CALLER under the
  *  active search so chips stay honest (data rule 6). `extra` hosts
  *  segment-specific chips (📎 No document). */
@@ -42,18 +71,11 @@ export function StatusChipRow({
   extra?: ReactNode;
 }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto px-4 pb-2.5">
+    <div className="flex gap-1.5 overflow-x-auto px-4 pb-1">
       {STATUS_FILTERS.map((f) => (
-        <button
-          key={f}
-          type="button"
-          onClick={() => onChange(f)}
-          className={`flex-none whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold ${
-            f === active ? 'bg-accent text-white' : 'bg-surface text-ink-2'
-          }`}
-        >
+        <FilterChip key={f} active={f === active} onClick={() => onChange(f)}>
           {f === 'all' ? LABELS[f] : `${LABELS[f]} ${counts[f]}`}
-        </button>
+        </FilterChip>
       ))}
       {extra}
     </div>

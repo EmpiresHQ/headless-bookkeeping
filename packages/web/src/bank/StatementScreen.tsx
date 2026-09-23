@@ -139,18 +139,25 @@ function ProposalRow({
               aria-checked={on}
               aria-label={`Select match ${p.objectLabel}`}
               onClick={() => onToggle(p)}
-              className={`flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[7px] border-2 text-[13px] font-bold ${
-                on
-                  ? 'border-accent bg-accent text-white'
-                  : 'border-chevron text-transparent'
-              }`}
+              // 44×44 touch box around the 22px visual (#273); -m-[11px]
+              // keeps the 22px layout footprint so it ends 1px short of
+              // the detail button and never overlaps it.
+              className="-m-[11px] flex h-11 w-11 flex-none items-center justify-center"
             >
-              ✓
+              <span
+                className={`flex h-[22px] w-[22px] items-center justify-center rounded-[7px] border-2 text-[13px] font-bold ${
+                  on
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-chevron text-transparent'
+                }`}
+              >
+                ✓
+              </span>
             </button>
             <button
               type="button"
               onClick={onOpen}
-              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
             >
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14.5px] font-semibold">
@@ -170,7 +177,7 @@ function ProposalRow({
           <button
             type="button"
             onClick={onOpen}
-            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
           >
             <div className="min-w-0 flex-1">
               <div className="truncate text-[14.5px] font-semibold">
@@ -184,7 +191,7 @@ function ProposalRow({
           </button>
           <Button
             variant="secondary"
-            className="flex-none px-3 py-1.5 text-[12px]"
+            className="min-h-11 flex-none px-3 py-1.5 text-[12px]"
             busy={confirmBusy}
             onClick={() => onConfirmStaged(m)}
           >
