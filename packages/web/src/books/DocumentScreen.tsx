@@ -28,6 +28,7 @@ import { channelLabel } from './DocumentsSegment';
 import { statusChip } from './chips';
 import { usePendingOperation } from '../lib/pendingOperation';
 import { useOriginState } from '../lib/returnNavigation';
+import { useScreenEntry } from '../lib/screenEntry';
 
 /** Technical failure detail, collapsed below the plain explanation. */
 function Diagnostics({
@@ -99,6 +100,7 @@ export function DocumentScreen() {
   const origin = useOriginState();
   const docsQ = useDocumentsArchive();
   const detailsQ = useDocDetails(id);
+  useScreenEntry(!docsQ.isPending);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const op = usePendingOperation('Document');
@@ -107,7 +109,11 @@ export function DocumentScreen() {
   if (docsQ.isError) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Document" backTo="/books?seg=documents" />
+        <ScreenHeader
+          title="Document"
+          heading="Document"
+          backTo="/books?seg=documents"
+        />
         <LoadError
           message={
             docsQ.error instanceof Error
@@ -122,7 +128,11 @@ export function DocumentScreen() {
   if (docsQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Document" backTo="/books?seg=documents" />
+        <ScreenHeader
+          title="Document"
+          heading="Document"
+          backTo="/books?seg=documents"
+        />
         <SkeletonRows count={4} />
       </div>
     );
@@ -131,7 +141,11 @@ export function DocumentScreen() {
   if (doc === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Document" backTo="/books?seg=documents" />
+        <ScreenHeader
+          title="Document"
+          heading="Document"
+          backTo="/books?seg=documents"
+        />
         <EmptyState
           icon="🤷"
           title="Document not found"
@@ -193,7 +207,11 @@ export function DocumentScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title="Document" backTo="/books?seg=documents" />
+      <ScreenHeader
+        title="Document"
+        heading={`Document ${doc.filename}`}
+        backTo="/books?seg=documents"
+      />
 
       <DocPreviewRow documentId={doc.id} />
 

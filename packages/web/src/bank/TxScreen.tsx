@@ -62,6 +62,7 @@ import {
 } from './TxDispositions';
 import { TxMatched } from './TxMatched';
 import { READABLE } from '../ui/List';
+import { useScreenEntry } from '../lib/screenEntry';
 
 /** Exhaustiveness guard for the `TxState` switch below — a compile error at
  *  the `default` case is the point: adding a TxState kind without handling
@@ -118,6 +119,7 @@ function TxScreenFor({
   const matchesQ = useStatementMatches(statementId);
   const proposalsQ = useMatchProposals(statementId);
   const categoriesQ = useCategories();
+  useScreenEntry(!txQ.isPending);
 
   const tx = txQ.data?.find((t) => t.id === txId);
   // The treatments this jurisdiction allows for a receipt on THIS date — the
@@ -516,7 +518,11 @@ function TxScreenFor({
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title={title} backTo={statementPath} />
+      <ScreenHeader
+        title={title}
+        heading={tx !== undefined ? `Bank line ${txTitle(tx)}` : 'Bank line'}
+        backTo={statementPath}
+      />
       {failingQuery ? (
         <LoadError
           message={

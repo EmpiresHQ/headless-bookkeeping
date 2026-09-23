@@ -35,6 +35,7 @@ import { CorrectSheet } from './CorrectSheet';
 import { ExpenseEditSheet } from './EditDraftSheet';
 import { AttachDocumentSheet } from './AttachDocumentSheet';
 import { PendingApproval } from './PendingApproval';
+import { useScreenEntry } from '../lib/screenEntry';
 
 /** Honest history (Reality #2): built ONLY from exposed facts — created_at,
  *  the rejection log, and the reversed status. The correction's own date and
@@ -86,6 +87,7 @@ export function ExpenseScreen() {
   const entitiesQ = useEntities();
   const docsQ = useDocumentsArchive();
   const detail = detailQ.data;
+  useScreenEntry(detail !== undefined || detailQ.isError);
   const rejectionQ = useRejectedReason(
     'expense',
     id,
@@ -111,7 +113,7 @@ export function ExpenseScreen() {
   if (detailQ.isError && detailQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Expense" backTo="/books" />
+        <ScreenHeader title="Expense" heading="Expense" backTo="/books" />
         {periodNotice}
         <LoadError
           message={
@@ -127,7 +129,7 @@ export function ExpenseScreen() {
   if (detail === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Expense" backTo="/books" />
+        <ScreenHeader title="Expense" heading="Expense" backTo="/books" />
         <SkeletonRows count={4} />
       </div>
     );
@@ -219,7 +221,11 @@ export function ExpenseScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title="Expense" backTo="/books" />
+      <ScreenHeader
+        title="Expense"
+        heading={`Expense #${detail.id}${supplier != null ? `, ${supplier}` : ''}`}
+        backTo="/books"
+      />
       {periodNotice}
       <RefetchError query={detailQ} />
 

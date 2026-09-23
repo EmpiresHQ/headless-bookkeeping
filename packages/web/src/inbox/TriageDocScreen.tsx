@@ -30,6 +30,7 @@ import { useInboxCompletion } from './useInboxCompletion';
 import { usePendingOperation } from '../lib/pendingOperation';
 import { useResultLog } from '../lib/resultLog';
 import { outcomeLinks } from '../upload/uploadFlow';
+import { useScreenEntry } from '../lib/screenEntry';
 
 type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
 
@@ -51,6 +52,9 @@ export function TriageDocScreen() {
     queryKey: inboxKeys.docDetails(docId),
     queryFn: () => getDocumentDetails(docId),
   });
+  // A new document (opened, or the next one after a decision) starts at
+  // its top (issue #357).
+  useScreenEntry(!triageQ.isPending);
 
   const [sheet, setSheetKind] = useState<SheetKind | null>(null);
   // Remount-on-open (issue #250): every open gets fresh sheet state, so a
@@ -145,7 +149,7 @@ export function TriageDocScreen() {
   if (triageQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Document" backTo={backHref} />
+        <ScreenHeader title="Document" heading="Document" backTo={backHref} />
         <SkeletonRows count={3} />
       </div>
     );
@@ -153,7 +157,7 @@ export function TriageDocScreen() {
   if (triageQ.isError && triageQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Document" backTo={backHref} />
+        <ScreenHeader title="Document" heading="Document" backTo={backHref} />
         <LoadError
           message={
             triageQ.error instanceof Error
@@ -168,7 +172,7 @@ export function TriageDocScreen() {
   if (item === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Document" backTo={backHref} />
+        <ScreenHeader title="Document" heading="Document" backTo={backHref} />
         <EmptyState
           icon="✓"
           title="Already handled"
@@ -181,7 +185,11 @@ export function TriageDocScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title={title} backTo={backHref} />
+      <ScreenHeader
+        title={title}
+        heading={`Document ${item.filename}`}
+        backTo={backHref}
+      />
       <p className="-mt-1 px-5 pb-1 text-center text-[11.5px] text-ink-2">
         {context}
       </p>
