@@ -372,9 +372,12 @@ describe('TxScreen state composition', () => {
     );
     // Every API stage landed; only the refresh is outstanding.
     await waitFor(() => expect(api.approveApproval).toHaveBeenCalledTimes(1));
-    expect(
-      screen.queryByRole('button', { name: 'Create & match · −18.60 €' }),
-    ).toBeNull(); // busy: the primary reads '…' and is disabled
+    // Busy (#281): the primary keeps its operation name but is locked.
+    const primary = screen.getByRole('button', {
+      name: 'Create & match · −18.60 €',
+    });
+    expect(primary).toBeDisabled();
+    expect(primary).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByRole('status')).toHaveTextContent(/locked/);
     expect(
       screen.queryByText('Expense created & matched · −18.60 €'),
