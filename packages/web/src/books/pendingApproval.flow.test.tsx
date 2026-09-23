@@ -287,7 +287,7 @@ describe('pending Books record → its own approval (#262)', () => {
     await expectAt('/books/expenses/12', 2);
     // The record re-reads its status after the decision.
     expect(
-      await screen.findByText(/only through a correction/),
+      await screen.findByText(/change it with a correction/),
     ).toBeInTheDocument();
     await browserForward('/books/expenses/12', 3);
     await browserBack('/books/expenses/12', 2);

@@ -53,7 +53,7 @@ function History({
       {detail.status === 'reversed' && (
         <ListRow
           title="Corrected"
-          subtitle="A reversal + corrected entry replaced the original (ADR-0009); the figures above are the corrected ones"
+          subtitle="The original entry was reversed and replaced; the figures above are the corrected ones"
         />
       )}
       {rejectedReason != null && (
@@ -353,7 +353,7 @@ export function ExpenseScreen() {
               Correct…
             </Button>
             <p className="text-center text-[12.5px] text-ink-2">
-              Posted entries change only through a correction (ADR-0009).
+              A posted expense can’t be edited — change it with a correction.
             </p>
           </>
         )}
@@ -363,8 +363,8 @@ export function ExpenseScreen() {
             tabIndex={-1}
             className="text-center text-[12.5px] text-ink-2"
           >
-            Already corrected — corrections are one-shot (ADR-0009). Issue a
-            credit note or a new expense for further changes.
+            Already corrected — a posted expense can be corrected only once. For
+            further changes, ask your bookkeeper.
           </p>
         )}
       </div>

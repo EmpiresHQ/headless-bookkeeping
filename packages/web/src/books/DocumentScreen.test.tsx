@@ -95,7 +95,7 @@ describe('DocumentScreen', () => {
     expect(await screen.findByText('rent')).toBeInTheDocument();
     expect(screen.getByText('650.00 € (VAT 117.21 €)')).toBeInTheDocument();
     // OCR collapsible:
-    await userEvent.click(screen.getByText(/OCR text/));
+    await userEvent.click(screen.getByText(/Text read from the file/));
     expect(screen.getByText('# Arve 183')).toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe('DocumentScreen', () => {
     await screen.findByText('arve-183.pdf');
     expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull();
     expect(
-      screen.getByText(/evidence for a posted expense/i),
+      screen.getByText(/kept as evidence for the posted expense/i),
     ).toBeInTheDocument();
   });
 

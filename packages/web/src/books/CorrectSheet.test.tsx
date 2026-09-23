@@ -122,13 +122,13 @@ describe('CorrectSheet', () => {
     ).toBeInTheDocument();
     // The hint must not claim the reason lands in the audit trail — the
     // server discards it for cosmetic corrections.
-    expect(screen.getByText(/not stored/i)).toBeInTheDocument();
+    expect(screen.getByText(/not saved anywhere/i)).toBeInTheDocument();
     expect(screen.queryByText(/lands in the audit trail/i)).toBeNull();
     fireEvent.change(screen.getByLabelText('Reason'), {
       target: { value: 'typo in note' },
     });
     fireEvent.click(
-      screen.getByRole('button', { name: 'Record cosmetic correction' }),
+      screen.getByRole('button', { name: 'Confirm — nothing will be saved' }),
     );
     await waitFor(() =>
       expect(correctExpense).toHaveBeenCalledWith(12, {
@@ -138,7 +138,7 @@ describe('CorrectSheet', () => {
     );
     // The success toast must not claim persistence either.
     expect(
-      await screen.findByText(/not stored, nothing changed/i),
+      await screen.findByText(/Nothing saved — the books are unchanged/i),
     ).toBeInTheDocument();
   });
 
@@ -154,7 +154,7 @@ describe('CorrectSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: /Post correction/ }));
     expect(
       await screen.findByText(
-        /already corrected \(corrections are one-shot\)/i,
+        /already corrected, and a correction can be made only once/i,
       ),
     ).toBeInTheDocument();
     // No success toast — "Correction posted" would be a lie here.

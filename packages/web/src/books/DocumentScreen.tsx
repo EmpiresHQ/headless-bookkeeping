@@ -29,20 +29,45 @@ import { statusChip } from './chips';
 import { usePendingOperation } from '../lib/pendingOperation';
 import { useOriginState } from '../lib/returnNavigation';
 
+/** Technical failure detail, collapsed below the plain explanation. */
+function Diagnostics({
+  category,
+  detail,
+}: {
+  category: string;
+  detail: string;
+}) {
+  return (
+    <details className="mt-1.5">
+      <summary className="cursor-pointer text-[12px] text-ink-3">
+        Technical details
+      </summary>
+      <p className="mt-1 break-words text-[12px] text-ink-3">
+        {category}: {detail}
+      </p>
+    </details>
+  );
+}
+
 function ClassificationFacts({ details }: { details: DocumentDetails }) {
   if (details.classification === null) {
     return (
       <p className="px-3.5 py-2.5 text-[13px] text-ink-2">
-        No classification — OCR produced no text.
+        {details.ocr.ok
+          ? 'No saved AI reading for this document.'
+          : 'The AI has not read this document — its text could not be read from the file.'}
       </p>
     );
   }
   if (!details.classification.ok) {
     return (
-      <p className="px-3.5 py-2.5 text-[13px] text-err">
-        Classification failed ({details.classification.category}):{' '}
-        {details.classification.detail}
-      </p>
+      <div className="px-3.5 py-2.5 text-[13px]">
+        <p className="text-err">The AI could not read this document.</p>
+        <Diagnostics
+          category={details.classification.category}
+          detail={details.classification.detail}
+        />
+      </div>
     );
   }
   const r = details.classification.result;
@@ -239,7 +264,7 @@ export function DocumentScreen() {
         </ListGroup>
       )}
 
-      <ListGroup label="AI reading (persisted — never re-run here)">
+      <ListGroup label="AI reading — saved when the document was processed">
         {detailsQ.isPending && (
           <p className="px-3.5 py-2.5 text-[13px] text-ink-2">Loading…</p>
         )}
@@ -255,17 +280,22 @@ export function DocumentScreen() {
             <ClassificationFacts details={detailsQ.data} />
             <details className="border-t border-line px-3.5 py-2.5">
               <summary className="cursor-pointer text-[13px] font-semibold">
-                OCR text
+                Text read from the file
               </summary>
               {detailsQ.data.ocr.ok ? (
                 <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap text-xs">
                   {detailsQ.data.ocr.markdown}
                 </pre>
               ) : (
-                <p className="mt-2 text-[13px] text-err">
-                  OCR failed ({detailsQ.data.ocr.category}):{' '}
-                  {detailsQ.data.ocr.detail}
-                </p>
+                <div className="mt-2 text-[13px]">
+                  <p className="text-err">
+                    The text could not be read from this file.
+                  </p>
+                  <Diagnostics
+                    category={detailsQ.data.ocr.category}
+                    detail={detailsQ.data.ocr.detail}
+                  />
+                </div>
               )}
             </details>
           </>
@@ -275,8 +305,9 @@ export function DocumentScreen() {
       <div className="space-y-2 px-5 pt-2">
         {deleteLocked ? (
           <p className="text-center text-[12.5px] text-ink-2">
-            This document is evidence for a posted expense — correct or reverse
-            the expense first (ADR-0012).
+            {doc.expense_status === 'posted'
+              ? 'This document can’t be deleted — it is kept as evidence for the posted expense. To change the figures, open the expense and use Correct….'
+              : 'This document can’t be deleted — it is kept as evidence for the corrected expense.'}
           </p>
         ) : (
           <Button

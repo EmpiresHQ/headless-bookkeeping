@@ -399,7 +399,7 @@ describe('Attach a late receipt (issue #248)', () => {
     ['draft', /change it with Edit draft…/],
     ['pending', /awaiting approval/],
     ['posted', /use Correct… for that/],
-    ['reversed', /issue a credit note or a new expense/],
+    ['reversed', /already corrected and can’t be corrected again/],
   ])(
     'a VAT-0 ("no receipt") %s expense says where VAT can change',
     async (status, hint) => {

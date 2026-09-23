@@ -342,7 +342,7 @@ function vatZeroHint(status: string): string {
     case 'posted':
       return `${base} — use Correct… for that.`;
     default:
-      return `${base}; corrections are one-shot — issue a credit note or a new expense for further changes.`;
+      return `${base} — this expense was already corrected and can’t be corrected again; ask your bookkeeper.`;
   }
 }
 
