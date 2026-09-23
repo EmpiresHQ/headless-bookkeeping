@@ -1,0 +1,252 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import { BooksScreen } from './BooksScreen';
+
+vi.mock('../api', async (io) => ({
+  ...(await io<typeof import('../api')>()),
+  getExpenses: vi.fn(),
+  getInvoices: vi.fn(),
+  getEntities: vi.fn(),
+  getDocuments: vi.fn(),
+  listCreditNotes: vi.fn(),
+  getCategories: vi.fn().mockResolvedValue([]),
+}));
+import {
+  getDocuments,
+  getEntities,
+  getExpenses,
+  getInvoices,
+  listCreditNotes,
+} from '../api';
+
+const ENTITIES = [
+  { id: 1, role: 'supplier', country: 'EE', name: 'Office Depot' },
+  { id: 2, role: 'customer', country: 'EE', name: 'Acme Customer' },
+];
+const expense = (id: number, supplier: number | null, category: string) => ({
+  id,
+  supplier_id: supplier,
+  category,
+  gross_amount: 12345 * id,
+  vat_amount: 0,
+  currency: 'EUR',
+  tax_point_date: '2026-07-0' + id,
+  supplier_invoice_number: null,
+  status: 'posted',
+  reconciled: false,
+});
+// 123.45 (expense 1), 246.90 (expense 2).
+const EXPENSES = [expense(1, 1, 'software'), expense(2, null, 'office rent')];
+const INVOICES = [
+  {
+    id: 1,
+    customer_id: 2,
+    invoice_number: 'INV-7',
+    gross_amount: 12345,
+    vat_amount: 0,
+    currency: 'EUR',
+    tax_point_date: '2026-07-01',
+    due_date: null,
+    document_id: null,
+    status: 'posted',
+    sent_at: null,
+    supply_type: null,
+  },
+];
+const doc = (id: number, filename: string, supplier: string | null) => ({
+  id,
+  expense_id: null,
+  filename,
+  supplier_name: supplier,
+  status: 'processed',
+  channel: 'upload',
+  created_at: id,
+  claimant_name: null,
+  reason_type: null,
+});
+const DOCS = [
+  doc(1, 'receipt-123.45.pdf', 'Office Depot'),
+  doc(2, 'scan.pdf', null),
+];
+const note = (id: number, type: string, objectId: number) => ({
+  id,
+  credit_note_number: `CN-${id}`,
+  status: 'posted',
+  gross_amount: 12345,
+  vat_amount: 0,
+  currency: 'EUR',
+  tax_point_date: '2026-07-10',
+  created_at: id,
+  credits_object_type: type,
+  credits_object_id: objectId,
+});
+// CN-1 credits Acme Customer's INV-7; CN-2 credits Office Depot's software
+// expense. Both are 123.45 — an amount credit notes are NOT searched by.
+const NOTES = [note(1, 'sales_invoice', 1), note(2, 'expense', 1)];
+
+beforeEach(() => {
+  vi.mocked(getExpenses).mockResolvedValue(EXPENSES as never);
+  vi.mocked(getInvoices).mockResolvedValue(INVOICES as never);
+  vi.mocked(getEntities).mockResolvedValue(ENTITIES as never);
+  vi.mocked(getDocuments).mockResolvedValue(DOCS as never);
+  vi.mocked(listCreditNotes).mockResolvedValue(NOTES as never);
+});
+
+function mount(search: string, state?: unknown) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(
+    [
+      { path: '/', element: <p>home</p> },
+      { path: '/books', element: <BooksScreen /> },
+    ],
+    { initialEntries: ['/', { pathname: '/books', search, state }] },
+  );
+  render(
+    <QueryClientProvider client={qc}>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
+    </QueryClientProvider>,
+  );
+  return router;
+}
+
+const params = (router: ReturnType<typeof mount>) =>
+  new URLSearchParams(router.state.location.search);
+const bar = () => screen.findByRole('group', { name: 'Active filters' });
+
+const HINTS = [
+  {
+    seg: 'expenses',
+    name: 'Search expenses',
+    placeholder: 'Supplier, category, amount…',
+    scope: 'supplier, category or amount',
+  },
+  {
+    seg: 'invoices',
+    name: 'Search invoices',
+    placeholder: 'Customer, invoice number, amount…',
+    scope: 'customer, invoice number or amount',
+  },
+  {
+    seg: 'documents',
+    name: 'Search documents',
+    placeholder: 'File name or supplier…',
+    scope: 'file name or supplier',
+  },
+  {
+    seg: 'credit-notes',
+    name: 'Search credit notes',
+    placeholder: 'Note number, counterparty, invoice number, category…',
+    scope:
+      'credit note number, credited customer or supplier, invoice number or expense category',
+  },
+] as const;
+
+describe('Books search scope (issue #276)', () => {
+  it.each(HINTS)(
+    '$seg: the field names its segment and describes what it matches',
+    async ({ seg, name, placeholder, scope }) => {
+      mount(`?seg=${seg}`);
+      const box = await screen.findByRole('searchbox', { name });
+      expect(box).toHaveAttribute('placeholder', placeholder);
+      expect(box).toHaveAccessibleDescription(`Matches ${scope}.`);
+    },
+  );
+
+  it.each([
+    // An amount: matched where the hint promises it, nowhere else.
+    ['expenses', '123.45', 'Showing 1 of 2 expenses'],
+    ['invoices', '123.45', 'Showing 1 of 1 invoices'],
+    ['documents', '123.45', 'Showing 1 of 2 documents'], // the file NAME
+    ['documents', '246.90', 'Showing 0 of 2 documents'],
+    ['credit-notes', '123.45', 'Showing 0 of 2 credit notes'],
+    // What the credit-note hint promises is actually matched.
+    ['credit-notes', 'cn-1', 'Showing 1 of 2 credit notes'],
+    ['credit-notes', 'acme', 'Showing 1 of 2 credit notes'],
+    ['credit-notes', 'office depot', 'Showing 1 of 2 credit notes'],
+    ['credit-notes', 'inv-7', 'Showing 1 of 2 credit notes'],
+    ['credit-notes', 'software', 'Showing 1 of 2 credit notes'],
+  ])('%s ?q=%s → %s, with the scope shown', async (seg, q, shown) => {
+    mount(`?seg=${seg}&q=${encodeURIComponent(q)}`);
+    const scope = HINTS.find((h) => h.seg === seg)!.scope;
+    await vi.waitFor(async () =>
+      expect(await bar()).toHaveTextContent(
+        `${shown} · Search “${q}” in ${scope}`,
+      ),
+    );
+  });
+
+  it('a search carried to another segment keeps its value and says what it looks at there', async () => {
+    const router = mount('?seg=expenses&q=office&status=posted');
+    await vi.waitFor(async () =>
+      expect(await bar()).toHaveTextContent(
+        'Showing 2 of 2 expenses · Posted · Search “office” in supplier, category or amount',
+      ),
+    );
+    const transfers = [
+      [
+        'Invoices',
+        'Showing 0 of 1 invoices',
+        'customer, invoice number or amount',
+      ],
+      ['Documents', 'Showing 1 of 2 documents', 'file name or supplier'],
+      ['Credit notes', 'Showing 1 of 2 credit notes', HINTS[3].scope],
+    ] as const;
+    for (const [tab, shown, scope] of transfers) {
+      await userEvent.click(screen.getByRole('tab', { name: tab }));
+      await vi.waitFor(async () =>
+        expect(await bar()).toHaveTextContent(
+          `${shown} · Search “office” in ${scope}`,
+        ),
+      );
+      expect(screen.getByRole('searchbox')).toHaveValue('office');
+      expect(params(router).get('q')).toBe('office');
+      expect(params(router).get('status')).toBeNull();
+    }
+  });
+
+  it('typing keeps other params and the entry state, replacing history', async () => {
+    const router = mount('?seg=expenses&status=posted&keep=1', {
+      origin: 'x',
+    });
+    await userEvent.type(
+      await screen.findByRole('searchbox', { name: 'Search expenses' }),
+      'so',
+    );
+    expect(params(router).toString()).toBe(
+      'seg=expenses&status=posted&keep=1&q=so',
+    );
+    expect(router.state.location.state).toEqual({ origin: 'x' });
+    await userEvent.clear(screen.getByRole('searchbox'));
+    expect(params(router).has('q')).toBe(false);
+    expect(router.state.location.state).toEqual({ origin: 'x' });
+    // Still one Books entry: Back leaves Books.
+    await act(() => router.navigate(-1));
+    expect(router.state.location.pathname).toBe('/');
+  });
+
+  it('tapping the segment already on screen keeps its filters and search', async () => {
+    const router = mount('?seg=expenses&status=posted&q=office', {
+      origin: 'x',
+    });
+    await userEvent.click(await screen.findByRole('tab', { name: 'Expenses' }));
+    expect(params(router).get('status')).toBe('posted');
+    expect(params(router).get('q')).toBe('office');
+    expect(router.state.location.state).toEqual({ origin: 'x' });
+  });
+
+  it('a legacy ?tab= link keeps its search and gets that segment’s hint', async () => {
+    const router = mount('?tab=credit-notes&q=CN-2');
+    expect(
+      await screen.findByRole('searchbox', { name: 'Search credit notes' }),
+    ).toHaveValue('CN-2');
+    await vi.waitFor(() =>
+      expect(params(router).toString()).toBe('q=CN-2&seg=credit-notes'),
+    );
+  });
+});

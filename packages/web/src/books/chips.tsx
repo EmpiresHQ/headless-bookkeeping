@@ -207,6 +207,7 @@ export function FilterStrip({ children }: { children: ReactNode }) {
 export function ActiveFilters({
   filters,
   q,
+  searchScope,
   result,
   onReset,
   resetLabel = 'Reset',
@@ -216,6 +217,10 @@ export function ActiveFilters({
   filters: readonly string[];
   /** The active search; matched trimmed, as the segments do. */
   q: string;
+  /** What the search matches in this segment (#276): the placeholder is gone
+   *  while a search is typed, and a search carried over from another segment
+   *  must say why it finds nothing here. */
+  searchScope?: string;
   /** Rendered rows vs all loaded rows of the segment — only with data. */
   result?: { shown: number; total: number; noun: string };
   onReset: () => void;
@@ -243,7 +248,12 @@ export function ActiveFilters({
         {result ? ' · ' : ': '}
         {filters.join(' · ')}
         {filters.length > 0 && needle !== '' && ' · '}
-        {needle !== '' && <span title={needle}>Search “{excerpt}”</span>}
+        {needle !== '' && (
+          <>
+            <span title={needle}>Search “{excerpt}”</span>
+            {searchScope && ` in ${searchScope}`}
+          </>
+        )}
       </p>
       <button
         type="button"
