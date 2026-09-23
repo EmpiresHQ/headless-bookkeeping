@@ -294,13 +294,15 @@ describe('StragglersSection', () => {
     expect(
       await screen.findByText('Not decided in this period'),
     ).toBeInTheDocument();
-    // Approval straggler → Inbox; draft straggler → Books drafts.
+    // Each bucket opens THIS period's own list (issue #261) — never the
+    // global Inbox/Books segment.
     expect(
       await screen.findByRole('link', { name: /1 awaiting approval/ }),
-    ).toHaveAttribute('href', '/inbox?seg=approvals');
+    ).toHaveAttribute('href', '/reports/periods/7/undecided/approvals');
     expect(
       screen.getByRole('link', { name: /1 invoice draft not posted/ }),
-    ).toHaveAttribute('href', '/books?seg=invoices&status=draft');
+    ).toHaveAttribute('href', '/reports/periods/7/undecided/invoice-drafts');
+    expect(screen.queryByRole('link', { name: /expense draft/ })).toBeNull();
     // Raw cents from the server description never render (Reality #8):
     expect(screen.queryByText(/EUR 244000/)).toBeNull();
   });

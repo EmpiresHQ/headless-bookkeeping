@@ -54,13 +54,25 @@ export function useNeedsTriage(opts: { poll?: boolean } = {}) {
   });
 }
 
-/** Pending approvals, FIFO. */
-export function usePendingApprovals(opts: { poll?: boolean } = {}) {
+/** Pending approvals, FIFO. `enabled`/`refetchOnMount`/`staleTime` let a
+ *  scoped reader (the period drill-down, issue #261) fetch only where it
+ *  joins, and re-check when it becomes enabled after mount. */
+export function usePendingApprovals(
+  opts: {
+    poll?: boolean;
+    enabled?: boolean;
+    refetchOnMount?: 'always';
+    staleTime?: number;
+  } = {},
+) {
   return useQuery({
     queryKey: inboxKeys.approvals,
     queryFn: getPendingApprovals,
     select: oldestFirst,
     refetchInterval: inboxRefetchInterval(opts.poll === true),
+    enabled: opts.enabled ?? true,
+    ...(opts.refetchOnMount ? { refetchOnMount: opts.refetchOnMount } : {}),
+    ...(opts.staleTime !== undefined ? { staleTime: opts.staleTime } : {}),
   });
 }
 
