@@ -225,11 +225,13 @@ export function useCompletionNavigation() {
   const api = useLeaveGuardApi();
   const origin = readOrigin(location.state);
 
-  /** Next task: replace the finished entry, keep the origin record. */
-  const advance = (to: string) => {
+  /** Next task: replace the finished entry, keep the origin record (plus
+   *  the caller's own per-entry `extra` state, e.g. an Inbox run). */
+  const advance = (to: string, extra?: Record<string, unknown>) => {
+    const state = { ...extra, ...(origin ? { [ORIGIN]: origin } : {}) };
     void navigate(to, {
       replace: true,
-      state: origin ? { [ORIGIN]: origin } : null,
+      state: Object.keys(state).length > 0 ? state : null,
     });
   };
 

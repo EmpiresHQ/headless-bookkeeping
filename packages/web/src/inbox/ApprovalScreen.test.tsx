@@ -28,6 +28,7 @@ import { invalidateInbox } from '../queries/inbox';
 import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import type { QueueRun } from './queueRun';
 
 const APPROVAL = (over: Partial<Approval> = {}): Approval => ({
   id: 7,
@@ -44,7 +45,15 @@ const APPROVAL = (over: Partial<Approval> = {}): Approval => ({
   ...over,
 });
 
-function renderAt(path: string) {
+/** The queue run these tests process in (issue #253): opened from the
+ *  approvals list, in its rendered order. `null` = single-item entry (deep link,
+ *  Books). */
+const QUEUE: QueueRun = {
+  seg: 'approvals',
+  members: ['/inbox/approval/8', '/inbox/approval/7'],
+};
+
+function renderAt(path: string, run: QueueRun | null = QUEUE) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -54,7 +63,9 @@ function renderAt(path: string) {
       { path: '/inbox/approval/:id', element: <ApprovalScreen /> },
       { path: '/inbox/doc/:id', element: <p>doc detail</p> },
     ],
-    { initialEntries: [path] },
+    {
+      initialEntries: [{ pathname: path, state: run ? { hbkRun: run } : null }],
+    },
   );
   render(
     <QueryClientProvider client={client}>
@@ -360,5 +371,45 @@ describe('ApprovalScreen', () => {
     expect(
       screen.queryByRole('button', { name: 'Undo' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('processing context (issue #253)', () => {
+    beforeEach(() => {
+      vi.mocked(api.approveApproval).mockResolvedValue({
+        approval: APPROVAL({ status: 'approved' }),
+      });
+    });
+
+    it('deep link is a single item: no queue count, approve returns to the Inbox', async () => {
+      const router = renderAt('/inbox/approval/7', null);
+      expect(
+        await screen.findByText('Single item · returns to Inbox'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('‹ Back').parentElement).toHaveTextContent(
+        /^‹ BackApproval$/,
+      );
+      expect(screen.queryByText(/\d+ of \d+/)).not.toBeInTheDocument();
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox'),
+      );
+    });
+
+    it('an approvals run ignores a failing triage list and never advances into triage', async () => {
+      vi.mocked(api.getNeedsTriageItems).mockRejectedValue(
+        new Error('triage down'),
+      );
+      const router = renderAt('/inbox/approval/8');
+      expect(await screen.findByText('1 of 2')).toBeInTheDocument();
+      expect(
+        screen.getByText('Approvals queue · next item follows'),
+      ).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole('button', { name: /^Approve/ }));
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox/approval/7'),
+      );
+    });
   });
 });

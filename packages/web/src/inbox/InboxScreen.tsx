@@ -31,6 +31,7 @@ import {
   triageChipLabel,
   triageSubtitle,
 } from './reason';
+import { runState } from './queueRun';
 import { usePendingOperation } from '../lib/pendingOperation';
 
 const SEGMENTS: readonly InboxSegment[] = ['all', 'triage', 'approvals'];
@@ -59,12 +60,15 @@ function ReasonGlyph({ entry }: { entry: InboxEntry }) {
 function QueueRow({
   entry,
   facts,
+  run,
 }: {
   entry: InboxEntry;
   facts: Parameters<typeof approvalDisplay>[1];
+  run: ReturnType<typeof runState>;
 }) {
-  // Opening an item records this Inbox entry as its origin (issue #252).
-  const origin = useOriginState();
+  // Opening an item records this Inbox entry as its origin (issue #252)
+  // and starts a queue run over the visible segment (issue #253).
+  const origin = { ...run, ...useOriginState() };
   if (entry.kind === 'triage') {
     return (
       <ListRow
@@ -122,13 +126,15 @@ function InboxHero({
   monthTotalCents,
   taskCount,
   firstRoute,
+  run,
 }: {
   periodName: string;
   monthTotalCents: number;
   taskCount: number;
   firstRoute: string | null;
+  run: ReturnType<typeof runState>;
 }) {
-  const origin = useOriginState();
+  const origin = { ...run, ...useOriginState() };
   return (
     <div className="mx-3.5 mb-3.5 rounded-2xl bg-accent-deep px-5 py-4 text-white">
       <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">
@@ -243,6 +249,10 @@ export function InboxScreen() {
     entities: entitiesQ.data ?? [],
   };
   const { today, earlier } = splitTodayEarlier(entries);
+  // The rows as rendered — Earlier, then Today — are the run's snapshot
+  // order (issue #253); "Start clearing" opens its first member.
+  const ordered = [...earlier, ...today];
+  const run = runState(seg, ordered);
   const total = counts.triage + counts.approvals;
   const listError = triageQ.error ?? approvalsQ.error;
 
@@ -284,7 +294,8 @@ export function InboxScreen() {
           periodName={hero.periodName}
           monthTotalCents={hero.monthTotalCents}
           taskCount={entries.length}
-          firstRoute={entries[0]?.route ?? null}
+          firstRoute={ordered[0]?.route ?? null}
+          run={run}
         />
       )}
       {isPending && <SkeletonRows count={4} />}
@@ -311,14 +322,14 @@ export function InboxScreen() {
       {earlier.length > 0 && (
         <ListGroup label={`Earlier · ${earlier.length}`}>
           {earlier.map((e) => (
-            <QueueRow key={e.route} entry={e} facts={facts} />
+            <QueueRow key={e.route} entry={e} facts={facts} run={run} />
           ))}
         </ListGroup>
       )}
       {today.length > 0 && (
         <ListGroup label={`Today · ${today.length}`}>
           {today.map((e) => (
-            <QueueRow key={e.route} entry={e} facts={facts} />
+            <QueueRow key={e.route} entry={e} facts={facts} run={run} />
           ))}
         </ListGroup>
       )}

@@ -56,6 +56,15 @@ function renderAt(path: string) {
   return router;
 }
 
+async function openRowByText(
+  router: ReturnType<typeof renderAt>,
+  text: string,
+  path: string,
+) {
+  fireEvent.click(await screen.findByText(text));
+  await waitFor(() => expect(router.state.location.pathname).toBe(path));
+}
+
 describe('InboxScreen', () => {
   beforeEach(() => {
     // Not vi.useFakeTimers(): setSystemTime alone only mocks Date/new Date()
@@ -353,8 +362,56 @@ describe('InboxScreen', () => {
       within(hero as HTMLElement).getByText('−89.00 €'),
     ).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /Start clearing · 2/ });
-    // Newest first = the fresh triage doc (created an hour ago).
-    expect(cta).toHaveAttribute('href', '/inbox/doc/12');
+    // The first row AS RENDERED (Earlier before Today) — the same member the
+    // run starts with (issue #253), not the newest entry.
+    expect(cta).toHaveAttribute('href', '/inbox/approval/7');
+  });
+
+  describe('queue run (issue #253)', () => {
+    const runOf = (router: ReturnType<typeof renderAt>) =>
+      (router.state.location.state as { hbkRun?: unknown } | null)?.hbkRun;
+
+    it('Start clearing snapshots the rendered order, Earlier then Today', async () => {
+      vi.mocked(api.getReportingPeriods).mockResolvedValue([
+        {
+          id: 1,
+          name: 'July 2026',
+          start_date: '2026-07-01',
+          end_date: '2026-07-31',
+          status: 'open',
+          filed_at: null,
+        },
+      ]);
+      const router = renderAt('/inbox');
+      fireEvent.click(
+        await screen.findByRole('link', { name: /Start clearing · 2/ }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox/approval/7'),
+      );
+      expect(runOf(router)).toEqual({
+        seg: 'all',
+        members: ['/inbox/approval/7', '/inbox/doc/12'],
+      });
+    });
+
+    it('a non-first row starts a run over the whole visible segment, clicked item included', async () => {
+      const router = renderAt('/inbox');
+      await openRowByText(router, 'cheque_scan_038.jpg', '/inbox/doc/12');
+      expect(runOf(router)).toEqual({
+        seg: 'all',
+        members: ['/inbox/approval/7', '/inbox/doc/12'],
+      });
+    });
+
+    it("a segment run holds only that segment's items", async () => {
+      const router = renderAt('/inbox?seg=triage');
+      await openRowByText(router, 'cheque_scan_038.jpg', '/inbox/doc/12');
+      expect(runOf(router)).toEqual({
+        seg: 'triage',
+        members: ['/inbox/doc/12'],
+      });
+    });
   });
 
   it('hides the hero when no period is open', async () => {

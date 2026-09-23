@@ -59,7 +59,8 @@ export function ApprovalScreen() {
 
   const approvalsQ = usePendingApprovals();
   const approval = approvalsQ.data?.find((a) => a.id === approvalId);
-  const { position, next, leave } = useInboxCompletion(route);
+  const { position, next, leave, context, backHref } =
+    useInboxCompletion(route);
 
   const expenseQ = useExpenseDetail(
     approval?.object_type === 'expense' ? approval.object_id : null,
@@ -144,7 +145,7 @@ export function ApprovalScreen() {
   if (approvalsQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo="/inbox" />
+        <ScreenHeader title="Approval" backTo={backHref} />
         <SkeletonRows count={3} />
       </div>
     );
@@ -152,7 +153,7 @@ export function ApprovalScreen() {
   if (approvalsQ.isError && approvalsQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo="/inbox" />
+        <ScreenHeader title="Approval" backTo={backHref} />
         <LoadError
           message={
             approvalsQ.error instanceof Error
@@ -167,12 +168,12 @@ export function ApprovalScreen() {
   if (approval === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Approval" backTo="/inbox" />
+        <ScreenHeader title="Approval" backTo={backHref} />
         <EmptyState
           icon="✓"
           title="Already decided"
           hint="This approval is no longer pending."
-          action={<LinkButton to="/inbox">Back to Inbox</LinkButton>}
+          action={<LinkButton to={backHref}>Back to Inbox</LinkButton>}
         />
       </div>
     );
@@ -302,7 +303,10 @@ export function ApprovalScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title={title} backTo="/inbox" />
+      <ScreenHeader title={title} backTo={backHref} />
+      <p className="-mt-1 px-5 pb-1 text-center text-[11.5px] text-ink-2">
+        {context}
+      </p>
       <RefetchError query={approvalsQ} />
       {body}
       <div className="mx-3.5 mt-2 flex gap-2.5">
