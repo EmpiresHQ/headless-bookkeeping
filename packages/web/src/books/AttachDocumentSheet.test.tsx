@@ -315,7 +315,10 @@ describe('Attach a late receipt (issue #248)', () => {
       within(sheet).getByRole('button', { name: 'Upload & attach' }),
     );
 
-    const status = await within(sheet).findByRole('status');
+    // The outcome's own status (the busy button also owns an empty one).
+    const status = (
+      await within(sheet).findByText('Attached — not yet confirmed')
+    ).closest('[role="status"]');
     expect(status).toHaveTextContent('Attached — not yet confirmed');
     expect(status).toHaveTextContent('verify down');
     expect(
@@ -346,9 +349,11 @@ describe('Attach a late receipt (issue #248)', () => {
       within(sheet).getByRole('button', { name: 'Upload & attach' }),
     );
 
-    expect(await within(sheet).findByRole('status')).toHaveTextContent(
-      'does not show it yet',
-    );
+    expect(
+      (await within(sheet).findByText(/does not show it yet/)).closest(
+        '[role="status"]',
+      ),
+    ).toHaveTextContent('does not show it yet');
     expect(within(sheet).queryByRole('alert')).toBeNull();
     expect(
       within(sheet).queryByRole('button', { name: 'Upload & attach' }),

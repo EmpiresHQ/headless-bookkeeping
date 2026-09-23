@@ -16,6 +16,7 @@ import type {
   SelectHTMLAttributes,
 } from 'react';
 import { HttpError } from '../auth';
+import { PendingAnnouncedContext } from './Button';
 
 export const INPUT_CLS =
   'w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[15px] outline-none focus:border-accent disabled:opacity-50';
@@ -133,7 +134,8 @@ export function SelectInput(props: SelectHTMLAttributes<HTMLSelectElement>) {
  * The status line is a live region that exists before it has text, so the
  * progress is announced as well as shown. Deliberately NO aria-busy on the
  * fieldset: assistive tech may defer a busy subtree's live announcements
- * until busy clears — exactly when this text disappears.
+ * until busy clears — exactly when this text disappears. A busy Button
+ * inside adds no status of its own (PendingAnnouncedContext).
  */
 export function PendingFieldset({
   pending,
@@ -151,7 +153,9 @@ export function PendingFieldset({
       disabled={pending}
       className={`m-0 min-w-0 border-0 p-0 ${className}`}
     >
-      {children}
+      <PendingAnnouncedContext.Provider value={true}>
+        {children}
+      </PendingAnnouncedContext.Provider>
       <p role="status" className="text-center text-[12.5px] text-ink-2">
         {pending ? status : ''}
       </p>
