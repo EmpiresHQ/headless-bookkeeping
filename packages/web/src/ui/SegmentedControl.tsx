@@ -16,11 +16,18 @@ export function SegmentedControl<T extends string>({
           aria-selected={o.value === value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`flex-1 whitespace-nowrap rounded-lg py-1.5 text-xs font-semibold ${
-            o.value === value ? 'bg-surface text-ink shadow-sm' : 'text-ink-2'
-          }`}
+          // Square 44px-min button so its whole box is the hit area (a
+          // rounded button loses its corners to the track); the rounded
+          // selected pill is the inner span filling it (#273).
+          className="flex min-h-11 flex-auto text-xs font-semibold leading-tight"
         >
-          {o.label}
+          <span
+            className={`flex min-w-11 flex-1 items-center justify-center rounded-lg px-1 py-1 text-center ${
+              o.value === value ? 'bg-surface text-ink shadow-sm' : 'text-ink-2'
+            }`}
+          >
+            {o.label}
+          </span>
         </button>
       ))}
     </div>

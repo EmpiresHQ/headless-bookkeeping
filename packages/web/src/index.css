@@ -6,7 +6,8 @@
   /* Mobile tab bar geometry (shell/TabBar). Sticky action bars offset by
      --tabbar-h so they rest ABOVE the fixed bar instead of under it; the
      bar is lg:hidden, so the offset collapses to 0 on desktop. The 47px
-     row covers pt-2 + a 22px icon + the 9.5px label (measured 46.25px). */
+     row is the 1px border + pt-0.5 + a 44px-tall link (issue #273 touch
+     minimum) holding the 22px icon + the 9.5px label. */
   :root {
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --tabbar-row-h: 47px;
