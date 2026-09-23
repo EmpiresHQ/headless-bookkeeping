@@ -1915,6 +1915,258 @@ describe('ReconciliationService (integration)', () => {
     });
   });
 
+  describe('getMatchFacts (#256)', () => {
+    /** A bare posted voucher no business object or advance record claims. */
+    async function seedOrphanVoucher(): Promise<number> {
+      voucherCounter++;
+      const v = await db
+        .insertInto('voucher')
+        .values({
+          voucher_number: `V-2025-${String(voucherCounter).padStart(6, '0')}`,
+          tax_point_date: '2025-01-10',
+          posted_at: Math.floor(Date.now() / 1000),
+          previous_hash: null,
+          reverses_id: null,
+          corrects_object_type: null,
+          corrects_object_id: null,
+          reason: null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return v.id;
+    }
+
+    async function insertDraftMatch(
+      bankTransactionId: number,
+      voucherId: number,
+      matchType: 'exact' | 'partial' | 'prepayment',
+      amountMatched: number,
+    ): Promise<number> {
+      const row = await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: bankTransactionId,
+          voucher_id: voucherId,
+          match_type: matchType,
+          amount_matched: amountMatched,
+          status: 'draft',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      return row.id;
+    }
+
+    it('returns the exact line, the invoice and the split context', async () => {
+      const customer = await seedCustomer();
+      const inv1 = await seedSalesInvoiceVoucher(
+        customer.id,
+        60000,
+        'INV-7001',
+        '2025-01-05',
+      );
+      const inv2 = await seedSalesInvoiceVoucher(
+        customer.id,
+        40000,
+        'INV-7002',
+        '2025-01-06',
+      );
+      const stmt = await seedBankStatement([
+        {
+          transaction_date: '2025-01-12',
+          description: 'Payment INV-7001 INV-7002',
+          amount: 100000,
+          reference: 'REF-9',
+        },
+      ]);
+      const txId = stmt.transactions[0].id;
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: txId,
+          voucherId: inv1,
+          matchType: 'exact',
+          amountMatched: 60000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+        {
+          bankTransactionId: txId,
+          voucherId: inv2,
+          matchType: 'exact',
+          amountMatched: 40000,
+          confidence: 'high',
+          signal: 'invoice_number',
+        },
+      ]);
+
+      const facts = await reconciliationService.getMatchFacts(
+        staged.records[0].id,
+      );
+      expect(facts).toMatchObject({
+        matchId: staged.records[0].id,
+        status: 'draft',
+        matchType: 'exact',
+        amountMatched: 60000,
+        baseCurrency: 'EUR',
+        bankTransaction: {
+          id: txId,
+          statementId: stmt.statement.id,
+          transactionDate: '2025-01-12',
+          description: 'Payment INV-7001 INV-7002',
+          amount: 100000,
+          currency: 'EUR',
+          reference: 'REF-9',
+        },
+        line: {
+          activeAllocatedBase: 0,
+          activeCashBase: 0,
+          otherDraftCount: 1,
+          otherDraftAllocatedBase: 40000,
+        },
+        target: {
+          kind: 'sales_invoice',
+          objectLabel: 'INV-7001',
+          counterpartyName: 'Test Customer Ltd',
+          grossAmount: 60000,
+          currency: 'EUR',
+          voucherRemaining: 60000,
+          advance: null,
+        },
+      });
+      expect(facts.target.objectId).toEqual(expect.any(Number));
+
+      // Once the sibling is active it counts as settled, not staged — its
+      // persisted cash figure, not a fresh conversion (flipped directly: this
+      // is a read test, and the fixture vouchers' numbering would collide
+      // with a posted settlement's).
+      await db
+        .updateTable('reconciliation_match')
+        .set({ status: 'active', cash_base_amount: 39000 })
+        .where('id', '=', staged.records[1].id)
+        .execute();
+      const after = await reconciliationService.getMatchFacts(
+        staged.records[0].id,
+      );
+      expect(after.line).toEqual({
+        activeAllocatedBase: 40000,
+        activeCashBase: 39000,
+        otherDraftCount: 0,
+        otherDraftAllocatedBase: 0,
+      });
+    });
+
+    it('identifies an expense target', async () => {
+      const supplier = await seedSupplier();
+      const voucherId = await seedExpenseVoucher(
+        supplier.id,
+        30000,
+        '2025-01-10',
+        'SUP-1',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', amount: -30000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId,
+          matchType: 'exact',
+          amountMatched: 30000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+      const facts = await reconciliationService.getMatchFacts(
+        staged.records[0].id,
+      );
+      expect(facts.target).toMatchObject({
+        kind: 'expense',
+        objectLabel: '2025-01-10 · SUP-1',
+        counterpartyName: 'Test Supplier Co',
+        grossAmount: 30000,
+        currency: 'EUR',
+      });
+      expect(facts.bankTransaction.amount).toBe(-30000);
+    });
+
+    it('never presents an unrecognised voucher as a prepayment', async () => {
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', amount: 5000 },
+      ]);
+      const orphan = await seedOrphanVoucher();
+      const asCash = await insertDraftMatch(
+        stmt.transactions[0].id,
+        orphan,
+        'exact',
+        5000,
+      );
+      const asPrepayment = await insertDraftMatch(
+        stmt.transactions[0].id,
+        await seedOrphanVoucher(),
+        'prepayment',
+        5000,
+      );
+
+      for (const id of [asCash, asPrepayment]) {
+        const facts = await reconciliationService.getMatchFacts(id);
+        expect(facts.target).toMatchObject({
+          kind: 'unidentified',
+          advanceKind: null,
+          objectId: null,
+          advance: null,
+        });
+      }
+    });
+
+    it('404s a missing match', async () => {
+      await expect(reconciliationService.getMatchFacts(999)).rejects.toThrow(
+        'Reconciliation match 999 not found',
+      );
+    });
+
+    it('writes nothing', async () => {
+      const customer = await seedCustomer();
+      const inv = await seedSalesInvoiceVoucher(
+        customer.id,
+        1000,
+        'INV-1',
+        '2025-01-05',
+      );
+      const stmt = await seedBankStatement([
+        { transaction_date: '2025-01-12', amount: 1000 },
+      ]);
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: stmt.transactions[0].id,
+          voucherId: inv,
+          matchType: 'exact',
+          amountMatched: 1000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+      const count = async () =>
+        Promise.all(
+          (
+            [
+              'voucher',
+              'voucher_line',
+              'reconciliation_match',
+              'bank_transaction',
+            ] as const
+          ).map((t) =>
+            db
+              .selectFrom(t)
+              .select((eb) => eb.fn.countAll<number>().as('n'))
+              .executeTakeFirstOrThrow(),
+          ),
+        );
+      const before = await count();
+      await reconciliationService.getMatchFacts(staged.records[0].id);
+      expect(await count()).toEqual(before);
+    });
+  });
+
   describe('unmatch', () => {
     it('removes a same-currency match and restores the outstanding balance', async () => {
       const supplier = await seedSupplier();
@@ -2153,6 +2405,42 @@ describe('ReconciliationService (integration)', () => {
       await expect(
         reconciliationService.activateMatch(staged.records[0].id),
       ).resolves.toMatchObject({ matchId: staged.records[0].id });
+    });
+
+    it('getMatchFacts (#256) identifies WHICH advance from its record', async () => {
+      const { advance, settlingLine } = await seedOwnedAdvance();
+      const staged = await reconciliationService.executeMatch([
+        {
+          bankTransactionId: settlingLine.id,
+          voucherId: advance.id,
+          matchType: 'prepayment',
+          amountMatched: 5000,
+          confidence: 'high',
+          signal: 'manual',
+        },
+      ]);
+      const facts = await reconciliationService.getMatchFacts(
+        staged.records[0].id,
+      );
+      expect(facts.target).toMatchObject({
+        kind: 'prepayment',
+        advanceKind: 'customer',
+        objectId: null,
+        objectLabel: 'Customer advance',
+        counterpartyName: 'Test Customer Ltd',
+        advance: {
+          date: '2025-01-15',
+          originalBaseAmount: 10000,
+          currency: 'EUR',
+          fundingLine: {
+            transactionDate: '2025-01-15',
+            amount: 10000,
+            currency: 'EUR',
+          },
+          needsReview: false,
+          ownerResolved: true,
+        },
+      });
     });
 
     it('refuses to settle an advance from another counterparty line', async () => {

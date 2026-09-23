@@ -29,6 +29,7 @@ vi.mock('../api', async (importOriginal) => ({
   completeDocument: vi.fn(),
   deleteDocument: vi.fn(),
   approveApproval: vi.fn(),
+  getMatchFacts: vi.fn(),
   fetchDocumentPreviewObjectUrl: vi.fn(),
   listBankStatements: vi.fn(),
   listBankTransactions: vi.fn(),
@@ -152,6 +153,47 @@ function mockApi() {
   vi.mocked(api.deleteDocument).mockImplementation((id: number) => {
     triage = triage.filter((t) => t.id !== id);
     return Promise.resolve({} as never);
+  });
+  // Every approval here is a bank match on match 41; issue #256 enables its
+  // Approve only on the validated exact pair.
+  vi.mocked(api.getMatchFacts).mockResolvedValue({
+    matchId: 41,
+    status: 'draft',
+    matchType: 'exact',
+    signal: null,
+    amountMatched: 1860,
+    baseCurrency: 'EUR',
+    bankTransaction: {
+      id: 9,
+      statementId: 3,
+      transactionDate: '2026-06-27',
+      description: 'WOLT 220627',
+      amount: -1860,
+      currency: 'EUR',
+      sourceAmount: null,
+      sourceCurrency: null,
+      counterpartyIban: null,
+      counterpartyDescriptor: null,
+      reference: null,
+      status: 'open',
+    },
+    line: {
+      activeAllocatedBase: 0,
+      activeCashBase: 0,
+      otherDraftCount: 0,
+      otherDraftAllocatedBase: 0,
+    },
+    target: {
+      kind: 'expense',
+      advanceKind: null,
+      objectId: 5,
+      objectLabel: '2026-06-27',
+      counterpartyName: null,
+      grossAmount: 1860,
+      currency: 'EUR',
+      voucherRemaining: 1860,
+      advance: null,
+    },
   });
   vi.mocked(api.approveApproval).mockImplementation((id: number) => {
     approvals = approvals.filter((a) => a.id !== id);

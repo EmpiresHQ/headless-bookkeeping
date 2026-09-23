@@ -107,6 +107,85 @@ export interface MatchRowView {
   counterpartyName: string | null;
 }
 
+/**
+ * The exact pair a reconciliation_match approval decides (issue #256), by
+ * match id — the approval only carries that id. Read-only and built from
+ * PERSISTED figures: no FX conversion runs here (a foreign rate lookup may hit
+ * the network), so each amount states its own unit.
+ */
+export interface MatchFactsView {
+  matchId: number;
+  status: 'draft' | 'active';
+  matchType: MatchType;
+  signal: string | null;
+  /** This match's allocation of the target, BASE cents at the booked rate. */
+  amountMatched: number;
+  baseCurrency: string;
+  bankTransaction: {
+    id: number;
+    statementId: number;
+    transactionDate: string;
+    description: string | null;
+    /** Signed cents in `currency` (the account currency of the line). */
+    amount: number;
+    currency: string;
+    /** The original foreign amount when the bank converted it. */
+    sourceAmount: number | null;
+    sourceCurrency: string | null;
+    counterpartyIban: string | null;
+    counterpartyDescriptor: string | null;
+    reference: string | null;
+    status: string;
+  };
+  /** The other matches on the same line — split / partial context. */
+  line: {
+    /** SUM(amount_matched) of the line's ACTIVE matches, BASE cents. */
+    activeAllocatedBase: number;
+    /** Cash those active matches consumed, BASE cents (persisted). */
+    activeCashBase: number;
+    otherDraftCount: number;
+    /** SUM(amount_matched) of the OTHER staged matches, BASE cents. */
+    otherDraftAllocatedBase: number;
+  };
+  target: {
+    /** 'unidentified': the voucher resolves to no invoice, expense or
+     *  recorded advance — never presented as a prepayment. */
+    kind: MatchObjectType | 'unidentified';
+    /** Whose advance, for kind 'prepayment' (the recorded advance's kind). */
+    advanceKind: 'customer' | 'supplier' | null;
+    objectId: number | null;
+    objectLabel: string;
+    counterpartyName: string | null;
+    /** The object's own document total, in `currency`. */
+    grossAmount: number | null;
+    currency: string | null;
+    /** BASE cents still open on the target (ACTIVE matches only). */
+    voucherRemaining: number;
+    /** kind 'prepayment' only: WHICH advance, from its persisted record. */
+    advance: {
+      /** The advance's own date (its voucher's tax point). */
+      date: string;
+      /** The recorded advance amount, BASE cents. */
+      originalBaseAmount: number;
+      /** The currency the advance was received/paid in. */
+      currency: string;
+      /** The bank line the advance was created from, if recorded. */
+      fundingLine: {
+        transactionDate: string;
+        description: string | null;
+        reference: string | null;
+        amount: number;
+        currency: string;
+      } | null;
+      /** Remaining balance unknown (unlinked historical draw-downs). */
+      needsReview: boolean;
+      taxTreatment: string;
+      /** Owner resolved on the record (null entity = unresolved). */
+      ownerResolved: boolean;
+    } | null;
+  };
+}
+
 /** Per-transaction reconciliation state for the operator UI. */
 export interface ReconciliationStatusRow {
   bankTransactionId: number;

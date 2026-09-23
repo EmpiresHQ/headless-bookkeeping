@@ -32,6 +32,7 @@ import {
   MatchCandidateView,
   MatchCandidatesResult,
   MatchRowView,
+  MatchFactsView,
   OpenItemView,
   OpenItemReconciliation,
 } from './reconciliation.types';
@@ -422,6 +423,175 @@ export class ReconciliationService {
       });
     }
     return views;
+  }
+
+  /**
+   * The exact pair one match links (issue #256): its bank line, its business
+   * object and the line's other allocations — what a reconciliation_match
+   * approval must show before anyone activates it. Read-only; no FX
+   * conversion (only persisted figures). The target is identified
+   * POSITIVELY: an invoice or expense by its voucher, a prepayment only when
+   * the voucher carries a recorded advance (the check activation applies).
+   * Anything else is 'unidentified' — resolveVoucherDisplay's graceful
+   * "Voucher settlement" fallback is not an identification.
+   */
+  async getMatchFacts(matchId: number): Promise<MatchFactsView> {
+    const match = await this.db
+      .selectFrom('reconciliation_match')
+      .select([
+        'id',
+        'bank_transaction_id',
+        'voucher_id',
+        'match_type',
+        'amount_matched',
+        'status',
+        'signal',
+      ])
+      .where('id', '=', matchId)
+      .executeTakeFirst();
+    if (!match) {
+      throw new NotFoundException(`Reconciliation match ${matchId} not found`);
+    }
+    const txn = await this.transactionRepo.findById(match.bank_transaction_id);
+    if (!txn) {
+      throw new NotFoundException(
+        `Bank transaction ${match.bank_transaction_id} not found`,
+      );
+    }
+
+    const siblings = await this.db
+      .selectFrom('reconciliation_match')
+      .select(['id', 'status', 'amount_matched', 'cash_base_amount'])
+      .where('bank_transaction_id', '=', match.bank_transaction_id)
+      .execute();
+    const line = {
+      activeAllocatedBase: 0,
+      activeCashBase: 0,
+      otherDraftCount: 0,
+      otherDraftAllocatedBase: 0,
+    };
+    for (const s of siblings) {
+      if (s.status === 'active') {
+        line.activeAllocatedBase += s.amount_matched;
+        // A match activated before migration 071 consumed its booked amount.
+        line.activeCashBase += s.cash_base_amount ?? s.amount_matched;
+      } else if (s.id !== match.id) {
+        line.otherDraftCount += 1;
+        line.otherDraftAllocatedBase += s.amount_matched;
+      }
+    }
+
+    const baseCurrency = await this.currencyService.getBaseCurrency();
+    const matchType = match.match_type as MatchType;
+    const info = await this.resolveVoucherDisplay(match.voucher_id, matchType);
+    let target: MatchFactsView['target'];
+    if (info.objectType === 'sales_invoice' || info.objectType === 'expense') {
+      const doc = await this.db
+        .selectFrom(info.objectType)
+        .select(['gross_amount', 'currency'])
+        .where('id', '=', info.objectId as number)
+        .executeTakeFirst();
+      target = {
+        kind: info.objectType,
+        advanceKind: null,
+        objectId: info.objectId,
+        objectLabel: info.objectLabel,
+        counterpartyName: info.counterpartyName,
+        grossAmount: doc?.gross_amount ?? null,
+        currency: doc?.currency ?? null,
+        voucherRemaining: info.voucherRemaining,
+        advance: null,
+      };
+    } else {
+      // The advance record is what activation requires of a prepayment match
+      // (findAdvanceKind) — the same positive identification, with its owner.
+      const advance =
+        matchType === 'prepayment'
+          ? await this.allocations.findAdvanceByVoucherId(match.voucher_id)
+          : null;
+      const advanceVoucher =
+        advance !== null
+          ? await this.db
+              .selectFrom('voucher')
+              .select(['tax_point_date'])
+              .where('id', '=', advance.voucherId)
+              .executeTakeFirst()
+          : undefined;
+      if (advance !== null && advanceVoucher !== undefined) {
+        const funding =
+          advance.bankTransactionId !== null
+            ? await this.transactionRepo.findById(advance.bankTransactionId)
+            : null;
+        target = {
+          kind: 'prepayment',
+          advanceKind: advance.kind,
+          objectId: null,
+          objectLabel:
+            advance.kind === 'customer'
+              ? 'Customer advance'
+              : 'Supplier advance',
+          counterpartyName: await this.safeEntityName(advance.entityId),
+          grossAmount: null,
+          currency: null,
+          voucherRemaining: info.voucherRemaining,
+          advance: {
+            date: advanceVoucher.tax_point_date,
+            originalBaseAmount: advance.originalBaseAmount,
+            currency: advance.currency,
+            fundingLine:
+              funding !== null
+                ? {
+                    transactionDate: funding.transaction_date,
+                    description: funding.description,
+                    reference: funding.reference,
+                    amount: funding.amount,
+                    currency: funding.currency,
+                  }
+                : null,
+            needsReview: advance.needsReview,
+            taxTreatment: advance.tax.treatment,
+            ownerResolved: advance.entityId !== null,
+          },
+        };
+      } else {
+        target = {
+          kind: 'unidentified',
+          advanceKind: null,
+          objectId: null,
+          objectLabel: 'Unidentified object',
+          counterpartyName: null,
+          grossAmount: null,
+          currency: null,
+          voucherRemaining: info.voucherRemaining,
+          advance: null,
+        };
+      }
+    }
+
+    return {
+      matchId: match.id,
+      status: match.status as 'draft' | 'active',
+      matchType,
+      signal: match.signal,
+      amountMatched: match.amount_matched,
+      baseCurrency,
+      bankTransaction: {
+        id: txn.id,
+        statementId: txn.statement_id,
+        transactionDate: txn.transaction_date,
+        description: txn.description,
+        amount: txn.amount,
+        currency: txn.currency,
+        sourceAmount: txn.source_amount,
+        sourceCurrency: txn.source_currency,
+        counterpartyIban: txn.counterparty_iban,
+        counterpartyDescriptor: txn.counterparty_descriptor,
+        reference: txn.reference,
+        status: txn.status,
+      },
+      line,
+      target,
+    };
   }
 
   /**

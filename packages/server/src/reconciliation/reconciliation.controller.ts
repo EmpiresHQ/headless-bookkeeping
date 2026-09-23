@@ -17,6 +17,7 @@ import type {
   ReconciliationStatusRow,
   MatchCandidatesResult,
   MatchRowView,
+  MatchFactsView,
   OpenItemReconciliation,
 } from './reconciliation.types';
 
@@ -156,5 +157,28 @@ export class ReconciliationController {
     @Param('matchId', ParseIntPipe) matchId: number,
   ) {
     return this.service.unmatch(matchId);
+  }
+}
+
+/**
+ * A single match by id (issue #256): a reconciliation_match approval carries
+ * only the match id, and every other match read is statement-scoped. Read-only.
+ */
+@ApiTags('reconciliation')
+@Controller('api/reconciliation/matches')
+export class ReconciliationMatchController {
+  constructor(private readonly service: ReconciliationService) {}
+
+  @ApiOperation({
+    summary: 'Get match facts',
+    description:
+      'The exact bank line and business object one reconciliation match links, with the line’s other allocations. Read-only.',
+  })
+  @ApiParam({ name: 'matchId', description: 'Reconciliation match id' })
+  @Get(':matchId')
+  async getMatchFacts(
+    @Param('matchId', ParseIntPipe) matchId: number,
+  ): Promise<MatchFactsView> {
+    return this.service.getMatchFacts(matchId);
   }
 }

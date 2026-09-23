@@ -113,7 +113,28 @@ export function ListRow({
   return <div className={ROW_CLS}>{body}</div>;
 }
 
-export function KeyValue({ k, v }: { k: ReactNode; v: ReactNode }) {
+/** `wrap`: opt-in for facts that must stay fully readable (exact amounts,
+ *  long references) — label and value wrap instead of truncating. */
+export function KeyValue({
+  k,
+  v,
+  wrap = false,
+}: {
+  k: ReactNode;
+  v: ReactNode;
+  wrap?: boolean;
+}) {
+  if (wrap)
+    return (
+      <div className="flex items-start justify-between gap-3 border-b border-line px-3.5 py-2.5 text-sm last:border-b-0">
+        <span className="min-w-0 flex-1 text-ink-2 [overflow-wrap:anywhere]">
+          {k}
+        </span>
+        <span className="min-w-0 max-w-[60%] text-right font-semibold tabular-nums [overflow-wrap:anywhere]">
+          {v}
+        </span>
+      </div>
+    );
   return (
     <div className="flex items-center justify-between gap-4 border-b border-line px-3.5 py-2.5 text-sm last:border-b-0">
       <span className="text-ink-2">{k}</span>
