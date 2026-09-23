@@ -1,13 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fmtCents, type BankTransaction, type Entity } from '../api';
+import { fmtCents, type BankTransaction } from '../api';
 import {
   BookingPartialError,
   createExpenseFromLine,
   invalidateStatement,
   newFromLineProgress,
   useCategories,
+  useSuppliers,
   type CreateFromLineResult,
   type FromLineProgress,
 } from '../queries/bank';
@@ -20,6 +21,14 @@ import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { GroupLabel, KeyValue } from '../ui/List';
+import {
+  BlockedReason,
+  lookupBlocker,
+  lookupState,
+  LookupNotice,
+  NO_CATEGORIES,
+  useEntityPick,
+} from '../ui/Lookup';
 import { toastErr } from '../ui/toast';
 import { STANDARD_VAT_RATE_PCT, txTitle } from './format';
 import { fromLineRecord } from './lineResults';
@@ -55,7 +64,14 @@ export function TxCreateExpense({
   const absCents = Math.abs(tx.amount);
   const categoriesQ = useCategories();
   const [category, setCategory] = useState('');
-  const [supplier, setSupplier] = useState<Entity | null>(null);
+  const suppliersQ = useSuppliers();
+  // Checked against the supplier list (#260): a supplier the SupplierSheet
+  // just created is authoritative over a cached list that predates it, but
+  // a list successfully fetched after the creation that lacks it — like any
+  // later list that drops a picked one (deleted / role changed) — shows it
+  // as unavailable (useEntityPick).
+  const supplierPick = useEntityPick(suppliersQ);
+  const supplier = supplierPick.entity;
   const picker = useSheet();
   const [docPolicy, setDocPolicy] = useState<'later' | 'none'>('later');
   const [vatInput, setVatInput] = useState(() =>
@@ -77,7 +93,12 @@ export function TxCreateExpense({
   // and there is no unsaved input left to lose.
   const locked = landed !== null && landed.expenseId !== null;
   // VAT is seeded from the line amount once (frozen with the rest).
-  const values = { category, supplier, docPolicy, vatInput };
+  const values = {
+    category,
+    supplierId: supplier?.id ?? null,
+    docPolicy,
+    vatInput,
+  };
   const [baseline] = useState(values);
   const guard = useUnsavedChanges({
     label: 'Expense from bank line',
@@ -87,14 +108,37 @@ export function TxCreateExpense({
   });
 
   const vatCents = docPolicy === 'none' ? 0 : eurosToCents(vatInput);
+  // Issue #260: a loading/failed list is not an empty one — the category
+  // must be one the list offers, and "no supplier" is an answer only against
+  // a usable supplier list. Once the expense exists (locked) its facts are
+  // the server's and a lookup no longer gates finishing the chain.
+  const categories = categoriesQ.data;
+  const categoryGone =
+    category !== '' &&
+    categories !== undefined &&
+    !categories.some((c) => c.key === category);
+  const blocker = locked
+    ? null
+    : (lookupBlocker(categoriesQ, 'categories') ??
+      (categories?.length === 0 ? NO_CATEGORIES : null) ??
+      (categoryGone
+        ? 'The chosen category is no longer available — choose again.'
+        : null) ??
+      // A picked (or just created) supplier is itself the answer; only
+      // "no supplier" needs the list to be known.
+      (supplier === null ? lookupBlocker(suppliersQ, 'suppliers') : null) ??
+      (supplierPick.gone
+        ? 'The chosen supplier is no longer available — choose again.'
+        : null));
   const valid =
+    blocker === null &&
     category !== '' &&
     vatCents !== null &&
     vatCents >= 0 &&
     vatCents <= absCents;
 
   const onSubmit = () => {
-    if (vatCents === null) return;
+    if (!valid || vatCents === null) return;
     const input = {
       statementId,
       bankTransactionId: tx.id,
@@ -199,24 +243,58 @@ export function TxCreateExpense({
             className="flex w-full items-center justify-between gap-3 border-b border-line px-3.5 py-2.5 text-left"
           >
             <span className="text-[13px] text-ink-2">Supplier</span>
-            <span className="min-w-0 truncate text-[13px] font-semibold">
-              {supplier ? supplier.name : 'Choose or create ›'}
+            <span
+              className={`min-w-0 truncate text-[13px] font-semibold ${
+                supplierPick.gone ? 'text-err' : ''
+              }`}
+            >
+              {supplier
+                ? supplierPick.gone
+                  ? `${supplier.name} — no longer available ›`
+                  : supplier.name
+                : 'Choose or create ›'}
             </span>
           </button>
+          {lookupState(suppliersQ) !== 'ready' && (
+            <div className="border-b border-line px-3.5 pb-2.5">
+              <LookupNotice query={suppliersQ} what="suppliers" />
+            </div>
+          )}
           <div className="border-b border-line px-3.5 py-2.5">
-            <Field label="Category">
+            <Field
+              label="Category"
+              error={
+                categoryGone
+                  ? 'This category is no longer available — choose again'
+                  : categories?.length === 0
+                    ? NO_CATEGORIES
+                    : undefined
+              }
+            >
               <SelectInput
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                <option value="">Select category…</option>
-                {(categoriesQ.data ?? []).map((c) => (
+                <option value="">
+                  {categories === undefined
+                    ? lookupState(categoriesQ) === 'loading'
+                      ? 'Loading categories…'
+                      : 'Categories unavailable'
+                    : categories.length === 0
+                      ? 'No categories defined'
+                      : 'Select category…'}
+                </option>
+                {categoryGone && (
+                  <option value={category}>{category} (not available)</option>
+                )}
+                {(categories ?? []).map((c) => (
                   <option key={c.key} value={c.key}>
                     {c.label}
                   </option>
                 ))}
               </SelectInput>
             </Field>
+            <LookupNotice query={categoriesQ} what="categories" />
           </div>
           <div className="border-b border-line px-3.5 py-2.5">
             <Field
@@ -308,6 +386,7 @@ export function TxCreateExpense({
               ? `Finish · expense #${landed?.expenseId}`
               : `Create & match · ${fmtCents(tx.amount)} €`}
           </Button>
+          <BlockedReason reason={blocker} />
         </ActionBar>
       )}
       <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
@@ -322,7 +401,7 @@ export function TxCreateExpense({
           open={picker.isOpen}
           onOpenChange={(o) => !o && picker.close()}
           tx={tx}
-          onPick={setSupplier}
+          onPick={(e, created) => supplierPick.set(e, { created })}
         />
       )}
     </PendingFieldset>

@@ -14,6 +14,7 @@ import { useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
+import { lookupState, LookupNotice } from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
 import { toastErr } from '../ui/toast';
 import { absoluteDateFromIso } from './format';
@@ -228,6 +229,12 @@ export function ResolveSupplierSheet({
               ? `Create supplier & book · ${amount}`
               : 'Create supplier & book'}
         </Button>
+        {suppliersQ.data === undefined && landed === null && (
+          <p className="text-[12.5px] text-ink-2">
+            The supplier list is not available, so an existing supplier may not
+            be shown below — create one only if you are sure it is new.
+          </p>
+        )}
         {landed !== null && createdShown === landed.entityId && (
           <p className="rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
             Supplier “{landed.name}” already exists on the server — only booking
@@ -258,10 +265,15 @@ export function ResolveSupplierSheet({
               </span>
             </button>
           ))}
-          {matches.length === 0 && (
-            <p className="px-3.5 py-3 text-[12.5px] text-ink-2">No matches</p>
+          {suppliersQ.data !== undefined && matches.length === 0 && (
+            <p className="px-3.5 py-3 text-[12.5px] text-ink-2">
+              {lookupState(suppliersQ) === 'stale'
+                ? 'No matches in the list loaded earlier'
+                : 'No matches'}
+            </p>
           )}
         </div>
+        <LookupNotice query={suppliersQ} what="suppliers" />
       </PendingFieldset>
     </Sheet>
   );

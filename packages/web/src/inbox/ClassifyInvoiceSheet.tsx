@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   getDocumentReclassify,
   manualClassifyInvoice,
-  type Entity,
   type TriageOutcome,
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
@@ -19,6 +18,13 @@ import { inboxKeys } from '../queries/inbox';
 import { useCustomers } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
+import {
+  BlockedReason,
+  lookupBlocker,
+  lookupState,
+  LookupNotice,
+  useEntityPick,
+} from '../ui/Lookup';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
 import { DocumentSourcePane } from './DocumentSourcePane';
@@ -63,7 +69,11 @@ export function ClassifyInvoiceSheet({
   });
   const customersQ = useCustomers();
 
-  const [customer, setCustomer] = useState<Entity | null>(null);
+  // Checked against the customer list (#260): a picked customer a later
+  // list no longer has stays shown and must be changed.
+  const customerPick = useEntityPick(customersQ);
+  const customer = customerPick.entity;
+  const setCustomer = customerPick.set;
   const [search, setSearch] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [gross, setGross] = useState('');
@@ -151,7 +161,14 @@ export function ClassifyInvoiceSheet({
 
   const grossCents = eurosToCents(gross);
   const vatCents = eurosToCents(vat);
+  // Issue #260: "no customer" is an answer only against a usable list.
+  const blocker =
+    (customer === null ? lookupBlocker(customersQ, 'customers') : null) ??
+    (customerPick.gone
+      ? 'The chosen customer is no longer available — change it or leave it empty.'
+      : null);
   const valid =
+    blocker === null &&
     invoiceNumber.trim() !== '' &&
     date !== '' &&
     grossCents !== null &&
@@ -228,16 +245,23 @@ export function ClassifyInvoiceSheet({
                     </span>
                   </button>
                 ))}
-                {matches.length === 0 && (
+                {customersQ.data !== undefined && matches.length === 0 && (
                   <p className="px-3.5 py-2.5 text-[12.5px] text-ink-2">
-                    No matches — leave empty if unknown
+                    {lookupState(customersQ) === 'stale'
+                      ? 'No matches in the list loaded earlier — it could not be refreshed'
+                      : 'No matches — leave empty if unknown'}
                   </p>
                 )}
               </div>
             </>
           ) : (
             <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2.5">
-              <span className="text-[15px] font-semibold">{customer.name}</span>
+              <span
+                className={`text-[15px] font-semibold ${customerPick.gone ? 'text-err' : ''}`}
+              >
+                {customer.name}
+                {customerPick.gone && ' — no longer available'}
+              </span>
               <button
                 type="button"
                 onClick={() => setCustomer(null)}
@@ -248,6 +272,8 @@ export function ClassifyInvoiceSheet({
             </div>
           )}
         </Field>
+        {/* Shown whatever is picked: a failed refresh is worth knowing. */}
+        <LookupNotice query={customersQ} what="customers" />
 
         <Field label="Invoice number">
           <TextInput
@@ -331,6 +357,7 @@ export function ClassifyInvoiceSheet({
             ? `Record invoice · ${signedEuros(grossCents)}`
             : 'Record invoice'}
         </Button>
+        <BlockedReason reason={blocker} />
       </PendingFieldset>
     </Sheet>
   );

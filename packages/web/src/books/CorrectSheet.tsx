@@ -15,6 +15,7 @@ import {
   TextInput,
 } from '../ui/Form';
 import { LinkButton } from '../ui/LinkButton';
+import { LookupNotice } from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
 
@@ -210,23 +211,26 @@ export function CorrectSheet({
                   />
                 </Field>
                 {objectType === 'expense' && (
-                  <Field label="Category">
-                    <SelectInput
-                      value={cat}
-                      onChange={(e) => setCat(e.target.value)}
-                    >
-                      {/* Keep a predating category selectable so it is never lost */}
-                      {cat !== '' &&
-                        !(categoriesQ.data ?? []).some(
-                          (c) => c.key === cat,
-                        ) && <option value={cat}>{cat}</option>}
-                      {(categoriesQ.data ?? []).map((c) => (
-                        <option key={c.key} value={c.key}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </SelectInput>
-                  </Field>
+                  <div>
+                    <Field label="Category">
+                      <SelectInput
+                        value={cat}
+                        onChange={(e) => setCat(e.target.value)}
+                      >
+                        {/* Keep a predating category selectable so it is never lost */}
+                        {cat !== '' &&
+                          !(categoriesQ.data ?? []).some(
+                            (c) => c.key === cat,
+                          ) && <option value={cat}>{cat}</option>}
+                        {(categoriesQ.data ?? []).map((c) => (
+                          <option key={c.key} value={c.key}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    </Field>
+                    <LookupNotice query={categoriesQ} what="categories" />
+                  </div>
                 )}
               </>
             )}

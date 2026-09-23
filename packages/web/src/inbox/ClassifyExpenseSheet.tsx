@@ -4,7 +4,6 @@ import {
   getDocumentDetails,
   manualClassify,
   onboardEntity,
-  type Entity,
   type TriageOutcome,
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
@@ -21,6 +20,14 @@ import { sharedKeys } from '../queries/keys';
 import { useCategories, useExpenses, useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
+import {
+  BlockedReason,
+  lookupBlocker,
+  lookupState,
+  LookupNotice,
+  NO_CATEGORIES,
+  useEntityPick,
+} from '../ui/Lookup';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
 import { DocumentSourcePane } from './DocumentSourcePane';
@@ -79,7 +86,13 @@ export function ClassifyExpenseSheet({
   const suppliersQ = useSuppliers();
   const expensesQ = useExpenses();
 
-  const [supplier, setSupplier] = useState<Entity | null>(null);
+  // Checked against the supplier list (#260): a supplier created here is
+  // authoritative over a cached list that predates it; a list successfully
+  // fetched after the creation (or pick) that lacks it shows it as no longer
+  // available (useEntityPick).
+  const supplierPick = useEntityPick(suppliersQ);
+  const supplier = supplierPick.entity;
+  const setSupplier = supplierPick.set;
   const [supplierSearch, setSupplierSearch] = useState('');
   const [category, setCategory] = useState('');
   const [gross, setGross] = useState('');
@@ -254,7 +267,25 @@ export function ClassifyExpenseSheet({
 
   const grossCents = eurosToCents(gross);
   const vatCents = eurosToCents(vat);
+  // Issue #260: a loading/failed list is not an empty one. The category —
+  // including one the prefill supplied — must be one the (usable) list
+  // offers; a supplier a later list no longer has must be changed.
+  const categoryGone =
+    category !== '' &&
+    categoriesQ.data !== undefined &&
+    !categoriesQ.data.some((c) => c.key === category);
+  const blocker =
+    lookupBlocker(categoriesQ, 'categories') ??
+    (categoriesQ.data?.length === 0 ? NO_CATEGORIES : null) ??
+    (categoryGone
+      ? `The category “${category}” is not in the category list — choose one.`
+      : null) ??
+    (supplier === null ? lookupBlocker(suppliersQ, 'suppliers') : null) ??
+    (supplierPick.gone
+      ? 'The chosen supplier is no longer available — change it.'
+      : null);
   const valid =
+    blocker === null &&
     supplier !== null &&
     category !== '' &&
     date !== '' &&
@@ -301,7 +332,7 @@ export function ClassifyExpenseSheet({
       },
       {
         onSuccess: (entity) => {
-          setSupplier(entity);
+          setSupplier(entity, { created: true });
           setCreatingSupplier(false);
         },
       },
@@ -309,6 +340,7 @@ export function ClassifyExpenseSheet({
     if (started) setRunning('supplier');
   };
 
+  const supplierListState = lookupState(suppliersQ);
   const supplierMatches = (suppliersQ.data ?? [])
     .filter((s) => s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
     .slice(0, 5);
@@ -364,12 +396,21 @@ export function ClassifyExpenseSheet({
                   </span>
                 </button>
               ))}
-              {supplierMatches.length === 0 && (
-                <p className="px-3.5 py-2.5 text-[12.5px] text-ink-2">
-                  No matches — create it with “New supplier…” below
-                </p>
-              )}
+              {suppliersQ.data !== undefined &&
+                supplierMatches.length === 0 && (
+                  <p className="px-3.5 py-2.5 text-[12.5px] text-ink-2">
+                    {supplierListState === 'stale'
+                      ? 'No matches in the list loaded earlier — it could not be refreshed'
+                      : 'No matches — create it with “New supplier…” below'}
+                  </p>
+                )}
             </div>
+            {suppliersQ.data === undefined && (
+              <p className="mt-1 text-[12.5px] text-ink-2">
+                Without the supplier list an existing supplier may not be shown
+                — create one only if you are sure it is new.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -437,9 +478,19 @@ export function ClassifyExpenseSheet({
         )}
 
         {supplier !== null && (
-          <Field label="Supplier">
+          <Field
+            label="Supplier"
+            error={
+              supplierPick.gone
+                ? 'This supplier is no longer available — change it'
+                : undefined
+            }
+          >
             <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2.5">
-              <span className="text-[15px] font-semibold">{supplier.name}</span>
+              <span className="text-[15px] font-semibold">
+                {supplier.name}
+                {supplierPick.gone && ' (not available)'}
+              </span>
               <button
                 type="button"
                 onClick={() => setSupplier(null)}
@@ -450,6 +501,9 @@ export function ClassifyExpenseSheet({
             </div>
           </Field>
         )}
+        {/* Shown in every supplier state — searching, creating or picked:
+            a failed load/refresh and its Retry never disappear (#260). */}
+        <LookupNotice query={suppliersQ} what="suppliers" />
 
         <div className="flex gap-2.5">
           <div className="flex-1">
@@ -510,8 +564,30 @@ export function ClassifyExpenseSheet({
           </div>
         </div>
 
-        <Field label="Category" hint={usuallyHint ?? undefined} group>
+        <Field
+          label="Category"
+          hint={usuallyHint ?? undefined}
+          error={
+            categoryGone
+              ? 'Not in the category list — choose a category'
+              : categoriesQ.data?.length === 0
+                ? NO_CATEGORIES
+                : undefined
+          }
+          group
+        >
           <div className="flex flex-wrap gap-1.5">
+            {/* The chosen key is never hidden: one the list lacks (or that
+                cannot be checked yet) stays visible, marked. */}
+            {category !== '' &&
+              (categoriesQ.data === undefined || categoryGone) && (
+                <span
+                  aria-label={`${category} (${categoryGone ? 'not available' : 'unverified'})`}
+                  className="rounded-full border border-dashed border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2"
+                >
+                  {category} ({categoryGone ? 'not available' : 'unverified'})
+                </span>
+              )}
             {visibleCats.map((c) => (
               <button
                 key={c.key}
@@ -539,6 +615,7 @@ export function ClassifyExpenseSheet({
               </button>
             )}
           </div>
+          <LookupNotice query={categoriesQ} what="categories" />
         </Field>
 
         <div className="flex gap-2.5">
@@ -576,6 +653,7 @@ export function ClassifyExpenseSheet({
             ? `Create expense · ${signedMoney(-grossCents, currency)}`
             : 'Create expense'}
         </Button>
+        <BlockedReason reason={blocker} />
       </PendingFieldset>
     </Sheet>
   );

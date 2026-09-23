@@ -17,6 +17,13 @@ import { useCategories, useCustomers, useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { ListGroup, ListRow } from '../ui/List';
+import {
+  BlockedReason,
+  lookupBlocker,
+  lookupState,
+  LookupNotice,
+  NO_CATEGORIES,
+} from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
 
@@ -59,6 +66,59 @@ export function CreateMenu({
 }
 
 const EMPTY_MONEY = { gross: '', vat: '' };
+
+/** Optional counterparty select. Without a usable list it offers nothing but
+ *  says why — "none" stays the value, but the submit is blocked (#260). A
+ *  selection the list no longer offers stays visible as not available. */
+function SupplierOrCustomerSelect({
+  value,
+  onChange,
+  options,
+  loading,
+  gone,
+  what,
+  ...aria
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: number; name: string }[] | undefined;
+  loading: boolean;
+  gone: boolean;
+  what: string;
+  /** Field's injected aria-describedby / aria-invalid, kept on the control. */
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean;
+}) {
+  // Names this select has shown, so a selection a refetch dropped is still
+  // shown by the name the operator picked.
+  const seen = useRef(new Map<string, string>());
+  for (const o of options ?? []) seen.current.set(String(o.id), o.name);
+  return (
+    <SelectInput
+      {...aria}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">
+        {options !== undefined
+          ? '— none —'
+          : loading
+            ? `Loading ${what}…`
+            : `${what[0].toUpperCase()}${what.slice(1)} unavailable`}
+      </option>
+      {gone && (
+        <option value={value}>
+          {`${seen.current.get(value) ?? `#${value}`} (not available)`}
+        </option>
+      )}
+      {(options ?? []).map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
+    </SelectInput>
+  );
+}
 
 /** Shared euro-amount pair: gross typed, VAT auto at the standard rate until
  *  touched (same convention as Plans 02/03; field stays editable). */
@@ -119,7 +179,33 @@ export function NewExpenseSheet({
     baseline: { category: '', supplierId: '', date: '', ...EMPTY_MONEY },
   });
 
+  // Issue #260: a loading/failed list is not an empty one. The category must
+  // be one the (usable) list offers; "none" as supplier is an answer only
+  // against a usable supplier list; a selection a refetch no longer lists
+  // stays visible and blocks until corrected.
+  const categories = categoriesQ.data;
+  const suppliers = suppliersQ.data;
+  const categoryGone =
+    category !== '' &&
+    categories !== undefined &&
+    !categories.some((c) => c.key === category);
+  const supplierGone =
+    supplierId !== '' &&
+    suppliers !== undefined &&
+    !suppliers.some((s) => String(s.id) === supplierId);
+  const blocker =
+    lookupBlocker(categoriesQ, 'categories') ??
+    (categories?.length === 0 ? NO_CATEGORIES : null) ??
+    (categoryGone
+      ? 'The chosen category is no longer available — choose again.'
+      : null) ??
+    lookupBlocker(suppliersQ, 'suppliers') ??
+    (supplierGone
+      ? 'The chosen supplier is no longer available — choose again or pick none.'
+      : null);
+
   const valid =
+    blocker === null &&
     category !== '' &&
     date !== '' &&
     m.grossParsed !== null &&
@@ -196,35 +282,67 @@ export function NewExpenseSheet({
       busy={busy}
     >
       <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
-        <Field label="Category">
-          <SelectInput
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+        <div>
+          <Field
+            label="Category"
+            error={
+              categoryGone
+                ? 'This category is no longer available — choose again'
+                : categories?.length === 0
+                  ? NO_CATEGORIES
+                  : undefined
+            }
           >
-            <option value="">— select —</option>
-            {(categoriesQ.data ?? []).map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label}
+            <SelectInput
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              <option value="">
+                {categories === undefined
+                  ? lookupState(categoriesQ) === 'loading'
+                    ? 'Loading categories…'
+                    : 'Categories unavailable'
+                  : categories.length === 0
+                    ? 'No categories defined'
+                    : '— select —'}
               </option>
-            ))}
-          </SelectInput>
-        </Field>
-        <Field
-          label="Supplier"
-          hint="Optional — unknown suppliers can be resolved later"
-        >
-          <SelectInput
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
+              {categoryGone && (
+                <option value={category}>{category} (not available)</option>
+              )}
+              {(categories ?? []).map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+          <LookupNotice query={categoriesQ} what="categories" />
+        </div>
+        <div>
+          <Field
+            label="Supplier"
+            error={
+              supplierGone
+                ? 'This supplier is no longer available — choose again'
+                : undefined
+            }
+            hint={
+              lookupState(suppliersQ) === 'ready' && suppliers?.length === 0
+                ? 'Optional — no suppliers on file yet; unknown suppliers can be resolved later'
+                : 'Optional — unknown suppliers can be resolved later'
+            }
           >
-            <option value="">— none —</option>
-            {(suppliersQ.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </SelectInput>
-        </Field>
+            <SupplierOrCustomerSelect
+              value={supplierId}
+              onChange={setSupplierId}
+              options={suppliers}
+              loading={lookupState(suppliersQ) === 'loading'}
+              gone={supplierGone}
+              what="suppliers"
+            />
+          </Field>
+          <LookupNotice query={suppliersQ} what="suppliers" />
+        </div>
         <Field label="Gross (€)">
           <TextInput
             inputMode="decimal"
@@ -272,6 +390,7 @@ export function NewExpenseSheet({
             ? `Create expense · ${signedEuros(-m.grossParsed)}`
             : 'Create expense'}
         </Button>
+        <BlockedReason reason={blocker} />
       </PendingFieldset>
     </Sheet>
   );
@@ -311,7 +430,20 @@ export function NewInvoiceSheet({
     },
   });
 
+  // Issue #260: "none" is an answer only against a usable customer list.
+  const customers = customersQ.data;
+  const customerGone =
+    customerId !== '' &&
+    customers !== undefined &&
+    !customers.some((c) => String(c.id) === customerId);
+  const blocker =
+    lookupBlocker(customersQ, 'customers') ??
+    (customerGone
+      ? 'The chosen customer is no longer available — choose again or pick none.'
+      : null);
+
   const valid =
+    blocker === null &&
     number.trim() !== '' &&
     date !== '' &&
     m.grossParsed !== null &&
@@ -395,19 +527,31 @@ export function NewInvoiceSheet({
             onChange={(e) => setNumber(e.target.value)}
           />
         </Field>
-        <Field label="Customer" hint="Optional">
-          <SelectInput
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
+        <div>
+          <Field
+            label="Customer"
+            error={
+              customerGone
+                ? 'This customer is no longer available — choose again'
+                : undefined
+            }
+            hint={
+              lookupState(customersQ) === 'ready' && customers?.length === 0
+                ? 'Optional — no customers on file yet'
+                : 'Optional'
+            }
           >
-            <option value="">— none —</option>
-            {(customersQ.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </SelectInput>
-        </Field>
+            <SupplierOrCustomerSelect
+              value={customerId}
+              onChange={setCustomerId}
+              options={customers}
+              loading={lookupState(customersQ) === 'loading'}
+              gone={customerGone}
+              what="customers"
+            />
+          </Field>
+          <LookupNotice query={customersQ} what="customers" />
+        </div>
         <Field label="Gross (€)">
           <TextInput
             inputMode="decimal"
@@ -462,6 +606,7 @@ export function NewInvoiceSheet({
             ? `Create invoice · ${signedEuros(m.grossParsed)}`
             : 'Create invoice'}
         </Button>
+        <BlockedReason reason={blocker} />
       </PendingFieldset>
     </Sheet>
   );

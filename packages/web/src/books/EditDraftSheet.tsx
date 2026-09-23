@@ -152,6 +152,28 @@ function lookupError(q: { isError: boolean; error: unknown }, what: string) {
     : null;
 }
 
+/** One Retry for every lookup of the form that failed (#260). */
+function LookupRetry({
+  queries,
+  disabled,
+}: {
+  queries: { isError: boolean; refetch: () => unknown }[];
+  disabled: boolean;
+}) {
+  const failed = queries.filter((q) => q.isError);
+  if (failed.length === 0) return null;
+  return (
+    <Button
+      variant="secondary"
+      className="px-3 py-1.5 text-[13px]"
+      disabled={disabled}
+      onClick={() => failed.forEach((q) => void q.refetch())}
+    >
+      Retry loading the lists
+    </Button>
+  );
+}
+
 /** Sheet shell: refuses to close while a save is in flight. */
 function EditShell({
   open,
@@ -421,6 +443,7 @@ export function ExpenseEditSheet({
           </Field>
         )}
       </fieldset>
+      <LookupRetry queries={[categoriesQ, entitiesQ]} disabled={busy} />
 
       <p className="text-[12px] text-ink-2">
         The source document, the AI reading and the approval history stay
@@ -658,6 +681,7 @@ export function InvoiceEditSheet({
           </SelectInput>
         </Field>
       </fieldset>
+      <LookupRetry queries={[entitiesQ]} disabled={busy} />
 
       <p className="text-[12px] text-ink-2">
         The source document and the approval history stay attached and cannot be
