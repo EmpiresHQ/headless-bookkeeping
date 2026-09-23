@@ -9,9 +9,11 @@ import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
 import { SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
-import { ListGroup, ListRow } from '../ui/List';
+import { ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { BooksEmpty, effectiveDateFilter } from './BooksEmpty';
+import { useReturnPosition } from '../lib/listPosition';
+import { BooksColumnsHeader, BooksRow, type BooksColumns } from './BooksRow';
 import { ActiveFilters, statusChip } from './chips';
 import { BOOKS_RESET_NAME, BOOKS_SEARCH, useResetWithFocus } from './filters';
 import {
@@ -34,7 +36,14 @@ export interface CreditedContext {
 export function creditNoteDisplay(
   n: CreditNote,
   ctx: CreditedContext,
-): { title: string; subtitle: string; objectRoute: string | null } {
+): {
+  title: string;
+  subtitle: string;
+  /** The subtitle's parts, as the desktop columns show them (#283). */
+  kind: string;
+  date: string;
+  objectRoute: string | null;
+} {
   if (n.credits_object_type === 'sales_invoice') {
     const inv = ctx.invoices.find((i) => i.id === n.credits_object_id);
     const customer = inv ? entityName(ctx.entities, inv.customer_id) : null;
@@ -45,6 +54,8 @@ export function creditNoteDisplay(
           : `Invoice ${inv.invoice_number}`
         : n.credit_note_number,
       subtitle: `${n.credit_note_number} · credits invoice · ${shortDate(n.tax_point_date)}`,
+      kind: 'credits invoice',
+      date: shortDate(n.tax_point_date),
       objectRoute: inv ? `/books/invoices/${inv.id}` : null,
     };
   }
@@ -57,6 +68,8 @@ export function creditNoteDisplay(
         : `Expense ${e.category}`
       : n.credit_note_number,
     subtitle: `${n.credit_note_number} · credits expense · ${shortDate(n.tax_point_date)}`,
+    kind: 'credits expense',
+    date: shortDate(n.tax_point_date),
     objectRoute: e ? `/books/expenses/${e.id}` : null,
   };
 }
@@ -65,6 +78,13 @@ export function creditNoteDisplay(
  *  reduces cost (+). */
 export const creditNoteSign = (n: CreditNote): number =>
   n.credits_object_type === 'sales_invoice' ? -n.gross_amount : n.gross_amount;
+
+/** Desktop columns (xl, issue #283). */
+export const CREDIT_NOTE_COLUMNS: BooksColumns = {
+  grid: 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_7.5rem_5.5rem_minmax(9rem,1.1fr)_5.5rem_0.75rem]',
+  labels: ['Credits', 'Note no.', 'Type', 'Tax point', 'Amount', 'Status'],
+  amountAt: 4,
+};
 
 export function CreditNotesSegment({
   q,
@@ -78,6 +98,8 @@ export function CreditNotesSegment({
   // says what it does — Clear search; otherwise it is the Books Reset.
   const { rootRef, onReset } = useResetWithFocus('credit-notes');
   const notesQ = useCreditNotes();
+  // Back from a row lands on that row again, once the rows are here (#283).
+  useReturnPosition(rootRef, notesQ.isSuccess);
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
@@ -207,25 +229,38 @@ export function CreditNotesSegment({
       )}
       {sections.map((g) => (
         <ListGroup key={g.key} label={g.label}>
+          <BooksColumnsHeader columns={CREDIT_NOTE_COLUMNS} />
           {g.rows.map((n) => {
             const d = creditNoteDisplay(n, ctx);
             return (
-              <ListRow
+              <BooksRow
                 key={n.id}
                 to={`/books/credit-notes/${n.id}`}
+                columns={CREDIT_NOTE_COLUMNS}
                 title={d.title}
-                subtitle={d.subtitle}
-                trailing={
-                  <div className="flex-none">
-                    <AmountText
-                      cents={creditNoteSign(n)}
-                      currency={n.currency}
-                      showSign
-                      className="block text-[14px]"
-                    />
-                    <div className="mt-0.5">{statusChip(n.status)}</div>
-                  </div>
+                titleXl={
+                  d.objectRoute === null ? 'Credited item not found' : undefined
                 }
+                cells={[
+                  // Titled by its own number when the credited object is
+                  // not found; the column keeps it.
+                  {
+                    key: 'number',
+                    value: n.credit_note_number,
+                    xlOnly: d.objectRoute === null,
+                  },
+                  { key: 'kind', value: d.kind },
+                  { key: 'date', value: d.date },
+                ]}
+                amount={
+                  <AmountText
+                    cents={creditNoteSign(n)}
+                    currency={n.currency}
+                    showSign
+                    className="block text-[14px]"
+                  />
+                }
+                status={statusChip(n.status)}
               />
             );
           })}

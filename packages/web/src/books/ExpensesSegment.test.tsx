@@ -13,6 +13,7 @@ vi.mock('../api', async (io) => ({
   getDocuments: vi.fn(),
 }));
 import { getDocuments, getEntities, getExpenses, type Expense } from '../api';
+import { rowTitle, metaLine } from './rowText.test-util';
 
 const EXPENSES: Expense[] = [
   {
@@ -109,7 +110,7 @@ describe('ExpensesSegment', () => {
     expect(screen.getByText('June 2026')).toBeInTheDocument();
     expect(screen.getByText('−48.20 € · 1')).toBeInTheDocument();
     // Supplier-less draft falls back to its category as the title:
-    expect(screen.getByText('fuel')).toBeInTheDocument();
+    expect(screen.getByText(rowTitle('fuel'))).toBeInTheDocument();
     // Row navigates to the detail route:
     expect(
       screen.getByRole('link', { name: /Telia Eesti AS/ }),
@@ -120,16 +121,27 @@ describe('ExpensesSegment', () => {
     mount();
     await screen.findByText('Telia Eesti AS');
     // Expense 2 is reconciled; expense 1 has a document; 2 and 3 do not.
-    expect(screen.getByText(/transport · 2 Jul · 🏦/)).toBeInTheDocument();
-    expect(screen.getByText(/software · 3 Jul$/)).toBeInTheDocument();
     expect(
-      screen.getByText(/fuel · 25 Jun · 📎 no document/),
+      screen.getByText(metaLine(/transport · 2 Jul · 🏦/)),
     ).toBeInTheDocument();
+    expect(screen.getByText(metaLine(/software · 3 Jul$/))).toBeInTheDocument();
+    // The supplier-less card is titled by its category; its cells carry
+    // the category (column only), date and the 📎 marker.
+    const fuel = screen.getByText(rowTitle('fuel')).closest('a')!;
+    expect(
+      fuel.querySelector('[data-books-cell="category"]'),
+    ).toHaveTextContent('fuel');
+    expect(fuel.querySelector('[data-books-cell="date"]')).toHaveTextContent(
+      '25 Jun',
+    );
+    expect(fuel.querySelector('[data-books-cell="notes"]')).toHaveTextContent(
+      '📎 no document',
+    );
   });
 
   it('status chips filter via ?status= and totals follow the filter', async () => {
     mount('', '/books?status=draft');
-    await screen.findByText('fuel');
+    await screen.findByText(rowTitle('fuel'));
     expect(screen.queryByText('Telia Eesti AS')).not.toBeInTheDocument();
     expect(screen.getByText('−48.20 € · 1')).toBeInTheDocument();
     expect(screen.queryByText('July 2026')).not.toBeInTheDocument();
@@ -167,7 +179,7 @@ describe('ExpensesSegment', () => {
     // Only expenses WITHOUT a linked document remain (ids 2 and 3).
     expect(screen.queryByText('Telia Eesti AS')).not.toBeInTheDocument();
     expect(screen.getByText('Bolt Operations OÜ')).toBeInTheDocument();
-    expect(screen.getByText('fuel')).toBeInTheDocument();
+    expect(screen.getByText(rowTitle('fuel'))).toBeInTheDocument();
   });
 
   it('suppresses the 📎 marker AND the no-document chip count while the archive query is still loading — no false "no document" flash', async () => {

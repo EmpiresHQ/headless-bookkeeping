@@ -7,9 +7,11 @@ import { relativeTime } from '../relativeTime';
 import { Chip } from '../ui/Chip';
 import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
-import { ListGroup, ListRow } from '../ui/List';
+import { ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
+import { useReturnPosition } from '../lib/listPosition';
+import { BooksColumnsHeader, BooksRow, type BooksColumns } from './BooksRow';
 import { DocThumb } from './DocThumb';
 import { ActiveFilters, FilterChip, FilterStrip } from './chips';
 import {
@@ -61,6 +63,14 @@ const matchesDocFilter = (d: DocumentArchiveRow, f: DocFilter): boolean => {
   return d.status === f;
 };
 
+/** Desktop columns (xl, issue #283); the thumbnail stays the row's
+ *  leading slot, outside the link. */
+export const DOCUMENT_COLUMNS: BooksColumns = {
+  grid: 'xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_7rem_7rem_minmax(0,1fr)_6rem_0.75rem]',
+  labels: ['Supplier', 'File', 'Channel', 'Added', 'Claimant', 'Status'],
+  leading: 'xl:w-9',
+};
+
 function docStatusChip(d: DocumentArchiveRow) {
   switch (d.status) {
     case 'processed':
@@ -96,6 +106,8 @@ export function DocumentsSegment({
   const { rootRef, onReset } = useResetWithFocus('documents');
   const create = useContext(BooksCreate);
   const docsQ = useDocumentsArchive();
+  // Back from a row lands on that row again, once the rows are here (#283).
+  useReturnPosition(rootRef, docsQ.isSuccess);
 
   // Applied restrictions from PARSED state (an unknown ?dstatus= is All).
   // Documents have no amount: an amount ?sort= arrives here as a
@@ -214,27 +226,34 @@ export function DocumentsSegment({
       )}
       {rows.length > 0 && (
         <ListGroup>
-          {rows.map((d) => {
-            const subtitleParts = [
-              // Filename moves to the subtitle once the supplier is known.
-              ...(d.supplier_name != null ? [d.filename] : []),
-              channelLabel(d.channel),
-              relativeTime(d.created_at),
-              ...(d.claimant_name != null
-                ? [`Claimant: ${d.claimant_name}`]
-                : []),
-            ];
-            return (
-              <ListRow
-                key={d.id}
-                to={`/books/documents/${d.id}`}
-                leading={<DocThumb id={d.id} />}
-                title={d.supplier_name ?? d.filename}
-                subtitle={subtitleParts.join(' · ')}
-                chip={docStatusChip(d)}
-              />
-            );
-          })}
+          <BooksColumnsHeader columns={DOCUMENT_COLUMNS} />
+          {rows.map((d) => (
+            <BooksRow
+              key={d.id}
+              to={`/books/documents/${d.id}`}
+              columns={DOCUMENT_COLUMNS}
+              leading={<DocThumb id={d.id} />}
+              title={d.supplier_name ?? d.filename}
+              titleXl={d.supplier_name == null ? 'Unrecognized' : undefined}
+              cells={[
+                // An unrecognized card is titled by its filename; the File
+                // column always shows it.
+                {
+                  key: 'file',
+                  value: d.filename,
+                  xlOnly: d.supplier_name == null,
+                },
+                { key: 'channel', value: channelLabel(d.channel) },
+                { key: 'added', value: relativeTime(d.created_at) },
+                {
+                  key: 'claimant',
+                  value: d.claimant_name,
+                  prefix: 'Claimant:',
+                },
+              ]}
+              status={docStatusChip(d)}
+            />
+          ))}
         </ListGroup>
       )}
     </div>

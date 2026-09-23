@@ -178,8 +178,16 @@ export function Sheet({
           ref={contentRef}
           onOpenAutoFocus={focus.onOpenAutoFocus}
           onCloseAutoFocus={focus.onCloseAutoFocus}
-          className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-bg outline-none ${
-            source === undefined ? 'max-h-[92vh] pb-6' : 'h-[92vh] pb-3'
+          // Desktop width (issue #283): inset-x-0 + mx-auto + max-width
+          // centres the panel by layout alone — vaul owns `transform` (drag,
+          // open/close, the veto reset above), so no translate is used. A
+          // form reads at a bounded column from md up; a source sheet gets
+          // a wide bound so document and form sit side by side (lg split).
+          // Phones keep the full-width bottom sheet.
+          className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex flex-col rounded-t-3xl bg-bg outline-none ${
+            source === undefined
+              ? 'max-h-[92vh] pb-6 md:max-w-xl'
+              : 'h-[92vh] pb-3 lg:max-w-7xl'
           }`}
         >
           <div className="mx-auto mb-3 mt-2.5 h-1 w-10 flex-none rounded-full bg-handle" />

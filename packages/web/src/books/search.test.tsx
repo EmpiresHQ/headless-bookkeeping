@@ -251,7 +251,13 @@ describe('Books search scope (issue #276)', () => {
         expect(await bar()).toHaveTextContent(`${shown} · Search “`),
       );
       expect(await bar()).toHaveTextContent(`” in ${HINTS[0].scope}`);
-      const numbers = screen.getAllByText(/Invoice no\./);
+      // The prefix is its own span (spoken, hidden in the desktop column
+      // under its header, issue #283): the number is its cell.
+      // Rows only: the desktop column header also reads "Invoice no.".
+      const numbers = screen
+        .getAllByText(/Invoice no\./)
+        .map((el) => el.closest<HTMLElement>('[data-books-cell]'))
+        .filter((el): el is HTMLElement => el !== null);
       expect(numbers).toHaveLength(id === null ? 2 : 1);
       if (id !== null) {
         expect(numbers[0].closest('a')).toHaveAttribute(

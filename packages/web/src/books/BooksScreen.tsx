@@ -65,7 +65,10 @@ export function BooksScreen() {
 
   return (
     <BooksResetSignal.Provider value={signalReset}>
-      <div className="mx-auto max-w-3xl pb-6">
+      {/* Workspace (issue #283): the familiar 768px column below xl; from
+          xl (1280px) the rows become aligned columns (books/BooksRow) and
+          the workspace widens to 72rem. Forms stay in bounded sheets. */}
+      <div className="mx-auto max-w-3xl pb-6 xl:max-w-6xl">
         <LargeTitleHeader
           title="Books"
           trailing={

@@ -3,7 +3,10 @@ import { NAV_ITEMS } from './nav';
 
 export function TabBar({ inboxCount = 0 }: { inboxCount?: number }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-line h-[var(--tabbar-h)] bg-surface/95 pb-[max(var(--safe-bottom),8px)] pt-0.5 backdrop-blur lg:hidden">
+    <nav
+      data-tabbar
+      className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-line h-[var(--tabbar-h)] bg-surface/95 pb-[max(var(--safe-bottom),8px)] pt-0.5 backdrop-blur lg:hidden"
+    >
       {NAV_ITEMS.map(({ to, label, Icon }) => (
         <NavLink
           key={to}

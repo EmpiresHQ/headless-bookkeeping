@@ -14,9 +14,11 @@ import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
-import { ListGroup, ListRow } from '../ui/List';
+import { ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
+import { useReturnPosition } from '../lib/listPosition';
+import { BooksColumnsHeader, BooksRow, type BooksColumns } from './BooksRow';
 import { ActiveFilters, LABELS, statusChip, StatusChipRow } from './chips';
 import {
   BOOKS_RESET_NAME,
@@ -42,6 +44,13 @@ const invoiceTotals = (rows: SalesInvoice[]) =>
     ),
   );
 
+/** Desktop columns (xl, issue #283). */
+export const INVOICE_COLUMNS: BooksColumns = {
+  grid: 'xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1.2fr)_5.5rem_minmax(0,0.8fr)_minmax(9rem,1.1fr)_5.5rem_0.75rem]',
+  labels: ['Customer', 'Invoice no.', 'Tax point', 'Notes', 'Amount', 'Status'],
+  amountAt: 4,
+};
+
 function InvoiceRow({
   inv,
   customerName,
@@ -49,25 +58,41 @@ function InvoiceRow({
   inv: SalesInvoice;
   customerName: string | null;
 }) {
-  const parts = [inv.invoice_number, shortDate(inv.tax_point_date)];
-  if (inv.reconciled) parts.push('🏦');
-  if (inv.sent_at != null) parts.push('sent');
+  const notes: string[] = [];
+  if (inv.reconciled) notes.push('🏦');
+  if (inv.sent_at != null) notes.push('sent');
   return (
-    <ListRow
+    <BooksRow
       to={`/books/invoices/${inv.id}`}
+      columns={INVOICE_COLUMNS}
       title={customerName ?? inv.invoice_number}
-      subtitle={parts.join(' · ')}
-      trailing={
-        <div className="flex-none">
-          <AmountText
-            cents={inv.gross_amount}
-            currency={inv.currency}
-            showSign
-            className="block text-[14px]"
-          />
-          <div className="mt-0.5">{statusChip(inv.status)}</div>
-        </div>
+      titleXl={
+        customerName != null
+          ? undefined
+          : inv.customer_id == null
+            ? 'No customer'
+            : // Assigned, but its name is not loaded — never "No customer".
+              `Customer #${inv.customer_id}`
       }
+      cells={[
+        // A customer-less card is titled by its number; the column keeps it.
+        {
+          key: 'number',
+          value: inv.invoice_number,
+          xlOnly: customerName == null,
+        },
+        { key: 'date', value: shortDate(inv.tax_point_date) },
+        { key: 'notes', value: notes.join(' · ') },
+      ]}
+      amount={
+        <AmountText
+          cents={inv.gross_amount}
+          currency={inv.currency}
+          showSign
+          className="block text-[14px]"
+        />
+      }
+      status={statusChip(inv.status)}
     />
   );
 }
@@ -95,6 +120,8 @@ export function InvoicesSegment({
   const create = useContext(BooksCreate);
 
   const invoicesQ = useInvoices();
+  // Back from a row lands on that row again, once the rows are here (#283).
+  useReturnPosition(rootRef, invoicesQ.isSuccess);
   const entitiesQ = useEntities();
   const entities = entitiesQ.data ?? [];
 
@@ -214,6 +241,7 @@ export function InvoicesSegment({
             />
           }
         >
+          <BooksColumnsHeader columns={INVOICE_COLUMNS} />
           {g.rows.map((inv) => (
             <InvoiceRow
               key={inv.id}
