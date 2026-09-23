@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -14,6 +13,7 @@ import {
   type PendingDraft,
   type TriageOutcome,
 } from '../api';
+import type { PendingOperation } from '../lib/pendingOperation';
 import { inboxKeys } from '../queries/inbox';
 import { Button } from '../ui/Button';
 import { toastErr } from '../ui/toast';
@@ -24,10 +24,12 @@ type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
 interface Props {
   documentId: number;
   item: NeedsTriageItem;
-  busy: boolean;
+  /** The document's operation, owned by the screen (one at a time). */
+  op: PendingOperation;
   onOpen: (sheet: SheetKind) => void;
   onArchive: () => void;
-  onResolved: (outcome: TriageOutcome) => Promise<void>;
+  /** Synchronous continuation (issue #251). */
+  onResolved: (outcome: TriageOutcome) => void;
 }
 
 const COPY = {
@@ -78,7 +80,7 @@ const COPY = {
 } satisfies Record<NeedsTriageItem['reason_type'], readonly [string, string]>;
 
 export function TriageDecisionPanel(props: Props) {
-  const [resolving, setResolving] = useState(false);
+  const busy = props.op.pending;
   const draftQ = useQuery({
     queryKey: inboxKeys.pendingDraft(props.documentId),
     queryFn: () => getPendingDraft(props.documentId),
@@ -93,19 +95,17 @@ export function TriageDecisionPanel(props: Props) {
     : 'unknown';
   const [title, subtitle] = COPY[reasonType];
 
-  const resolveSuggested = async (draft: PendingDraft) => {
+  const resolveSuggested = (draft: PendingDraft) => {
     const proposal = draft.supplier_proposal;
     if (proposal.kind !== 'invalid_match' || !proposal.suggested_supplier)
       return;
-    setResolving(true);
-    try {
-      await props.onResolved(
-        await resolveSupplier(props.documentId, proposal.suggested_supplier.id),
-      );
-    } catch (error) {
-      toastErr(error instanceof Error ? error.message : String(error));
-      setResolving(false);
-    }
+    const { documentId } = props;
+    const supplierId = proposal.suggested_supplier.id;
+    props.op.run(() => resolveSupplier(documentId, supplierId), {
+      onSuccess: props.onResolved,
+      onError: (error) =>
+        toastErr(error instanceof Error ? error.message : String(error)),
+    });
   };
 
   return (
@@ -132,9 +132,9 @@ export function TriageDecisionPanel(props: Props) {
           draft={draftQ.data}
           pending={draftQ.isPending}
           error={draftQ.error}
-          busy={props.busy || resolving}
+          busy={busy}
           onResolve={() => {
-            if (draftQ.data) void resolveSuggested(draftQ.data);
+            if (draftQ.data) resolveSuggested(draftQ.data);
           }}
           onChoose={() => props.onOpen('resolve')}
         />
@@ -171,7 +171,7 @@ function GenericDecision(
       <div className="mx-3.5 mb-3">
         <Button
           className="flex w-full items-center justify-center gap-2"
-          disabled={props.busy}
+          disabled={props.op.pending}
           onClick={props.onArchive}
         >
           <Archive className="size-4" /> Archive without booking
@@ -185,7 +185,7 @@ function GenericDecision(
     <div className="mx-3.5 mb-3">
       <Button
         className="flex w-full items-center justify-center gap-2"
-        disabled={props.busy}
+        disabled={props.op.pending}
         onClick={() => props.onOpen(sheet)}
       >
         <Icon className="size-4" /> {label}

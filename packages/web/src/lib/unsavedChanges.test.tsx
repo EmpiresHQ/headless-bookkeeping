@@ -37,7 +37,9 @@ function Form({ initial = 'A' }: { initial?: string }) {
 function renderForm(ui = <Form />) {
   return render(
     <StrictMode>
-      <UnsavedChangesProvider>{ui}</UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        {ui}
+      </UnsavedChangesProvider>
     </StrictMode>,
   );
 }

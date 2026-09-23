@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Link,
   useNavigate,
@@ -12,6 +12,7 @@ import type { BankTransaction } from '../api';
 import {
   createExpenseFromLine,
   invalidateStatement,
+  newFromLineProgress,
   undoMatches,
   useAdvanceVatTreatments,
   useBankTransactions,
@@ -22,6 +23,7 @@ import {
   useStatementMatches,
   type CreateFromLineResult,
 } from '../queries/bank';
+import { usePendingOperation, useSessionTask } from '../lib/pendingOperation';
 import { useSheet } from '../lib/useSheet';
 import { AmountText } from '../ui/AmountText';
 import { Chip } from '../ui/Chip';
@@ -124,16 +126,16 @@ function TxScreenFor({
   const [otherOpen, setOtherOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const prepay = useSheet();
-  const [busy, setBusy] = useState(false);
-  // Carry-over guard from Task 10's review: TxCreateExpense re-enables its
-  // own primary in a `finally` right after calling onDone, and navigating
-  // away from onDone is async (invalidate, then navigate). Without this
-  // flag, TxCreateExpense would stay mounted with busy=false for one tick
-  // after a successful create — a second click would post a duplicate,
-  // undeletable expense. Setting `createDone` synchronously, first thing in
-  // onCreateDone, unmounts TxCreateExpense in the SAME batched re-render as
-  // its own setBusy(false) (React 18 batches updates across the microtask
-  // continuation of the same async handler), closing the window.
+  const op = usePendingOperation('Bank line');
+  const sessionTask = useSessionTask();
+  const busy = op.pending;
+  // Stages of the bank-fee chain the server already accepted (issue #251):
+  // choosing "Bank fee" again resumes, never creates a second expense.
+  const feeProgress = useRef(newFromLineProgress());
+  // Belt to the line operation's own duplicate lock (issue #251 — held
+  // until onCreateDone returns): once a create has succeeded, the create
+  // form is gone for good on this line, whatever the refetch routes to
+  // next, so its posted, undeletable expense can never be posted twice.
   const [createDone, setCreateDone] = useState(false);
 
   const preselect = useMemo(
@@ -147,23 +149,35 @@ function TxScreenFor({
     (c) => c.key === 'bank fee',
   );
 
-  const backToStatement = async () => {
-    await invalidateStatement(qc, statementId);
-    navigate(statementPath);
-  };
+  // Every operation on this line — including the conditional children's
+  // (TxCreateExpense, TxCandidates get `op`) — belongs to THIS component:
+  // it stays mounted while the awaited statement refresh re-routes the
+  // line and unmounts a child, so a genuine success is never dropped as
+  // stale, and one line runs one operation at a time. The leave itself is
+  // the synchronous continuation.
+  const leaveToStatement = () => navigate(statementPath);
 
   const onMatched = (matchIds: number[], totalCents: number) => {
     const total = fmtCents(totalCents);
-    void backToStatement().then(() => {
-      toastUndo(`Matched · ${total} €`, () => {
-        void undoMatches(statementId, matchIds)
-          .then(() => invalidateStatement(qc, statementId))
-          .catch((e) => {
+    // Undo belongs to the session that booked the matches.
+    const undo = sessionTask();
+    leaveToStatement();
+    toastUndo(`Matched · ${total} €`, () =>
+      undo(
+        (stage) =>
+          undoMatches(statementId, matchIds, stage).then(() => {
+            stage();
+            return invalidateStatement(qc, statementId);
+          }),
+        {
+          onSuccess: () => undefined,
+          onError: (e) => {
             toastErr(e instanceof Error ? e.message : String(e));
             void invalidateStatement(qc, statementId);
-          });
-      });
-    });
+          },
+        },
+      ),
+    );
   };
 
   const onCreateDone = (r: CreateFromLineResult) => {
@@ -176,85 +190,118 @@ function TxScreenFor({
         `Expense created — held for approval: ${r.reason}. Match it after approval.`,
       );
     }
-    void backToStatement();
+    leaveToStatement();
   };
 
-  const onPersonal = async () => {
-    setBusy(true);
-    try {
-      await markPersonal(txId);
-      toastOk('Recorded as personal');
-      await backToStatement();
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      void invalidateStatement(qc, statementId);
-    } finally {
-      setBusy(false);
-      setPersonalOpen(false);
-    }
+  const onPersonal = () => {
+    op.run(
+      async (ctx) => {
+        await markPersonal(txId);
+        ctx.check();
+        await invalidateStatement(qc, statementId);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Recorded as personal');
+          setPersonalOpen(false);
+          leaveToStatement();
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e));
+          setPersonalOpen(false);
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
   };
 
-  const onPrepayment = async (
+  const onPrepayment = (
     tax: AdvanceTaxInput | undefined,
     release: () => void,
   ) => {
-    setBusy(true);
-    try {
-      await createPrepayment(txId, tax);
-      // Say what actually happened. Only money RECEIVED can be held: a
-      // supplier advance declares no output VAT, so it is usable as it always
-      // was (issue #213).
-      const incoming = (tx?.amount ?? 0) > 0;
-      toastOk(
-        !incoming
-          ? 'Recorded as prepayment'
-          : tax === undefined || tax.tax_treatment === 'unresolved'
-            ? 'Recorded — held until its tax treatment is set'
-            : tax.tax_treatment === 'taxable_supply'
-              ? 'Recorded as a taxable advance — VAT declared on the payment date'
-              : 'Recorded as a deposit',
-      );
-      release();
-      prepay.close();
-      await backToStatement();
-    } catch (e) {
-      // Keep the sheet and what was typed: a failed record is retryable.
-      toastErr(e instanceof Error ? e.message : String(e));
-      void invalidateStatement(qc, statementId);
-    } finally {
-      setBusy(false);
-    }
+    // Say what actually happened. Only money RECEIVED can be held: a
+    // supplier advance declares no output VAT, so it is usable as it always
+    // was (issue #213).
+    const incoming = (tx?.amount ?? 0) > 0;
+    const receipt = !incoming
+      ? 'Recorded as prepayment'
+      : tax === undefined || tax.tax_treatment === 'unresolved'
+        ? 'Recorded — held until its tax treatment is set'
+        : tax.tax_treatment === 'taxable_supply'
+          ? 'Recorded as a taxable advance — VAT declared on the payment date'
+          : 'Recorded as a deposit';
+    op.run(
+      async (ctx) => {
+        await createPrepayment(txId, tax);
+        ctx.check();
+        await invalidateStatement(qc, statementId);
+      },
+      {
+        onSuccess: () => {
+          toastOk(receipt);
+          release();
+          prepay.close();
+          leaveToStatement();
+        },
+        onError: (e) => {
+          // Keep the sheet and what was typed: a failed record is retryable.
+          toastErr(e instanceof Error ? e.message : String(e));
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
   };
 
-  const onFee = async () => {
+  const onFee = () => {
     if (!tx || !feeCategory) return;
-    setBusy(true);
-    try {
-      const r = await createExpenseFromLine({
-        statementId,
-        bankTransactionId: txId,
-        category: feeCategory.key,
-        grossCents: Math.abs(tx.amount),
-        vatCents: 0, // financial services — no input VAT
-        currency: tx.currency,
-        taxPointDate: tx.transaction_date,
-        supplierId: null,
-      });
-      setOtherOpen(false);
-      if (r.outcome === 'matched') {
-        toastOk(`Bank fee recorded · ${fmtCents(tx.amount)} €`);
-      } else {
-        toastOk(`Bank fee held for approval: ${r.reason}`);
-      }
-      await backToStatement();
-    } catch (e) {
-      // createExpenseFromLine can post the expense then fail at match —
-      // invalidate so the line reflects the posted expense on refetch.
-      toastErr(e instanceof Error ? e.message : String(e));
-      await invalidateStatement(qc, statementId);
-    } finally {
-      setBusy(false);
-    }
+    const input = {
+      statementId,
+      bankTransactionId: txId,
+      category: feeCategory.key,
+      grossCents: Math.abs(tx.amount),
+      vatCents: 0, // financial services — no input VAT
+      currency: tx.currency,
+      taxPointDate: tx.transaction_date,
+      supplierId: null,
+    };
+    const amount = tx.amount;
+    op.run(
+      async (ctx) => {
+        const r = await createExpenseFromLine(
+          input,
+          feeProgress.current,
+          ctx.check,
+        );
+        ctx.check();
+        await invalidateStatement(qc, statementId);
+        return r;
+      },
+      {
+        onSuccess: (r) => {
+          setOtherOpen(false);
+          if (r.outcome === 'matched') {
+            toastOk(`Bank fee recorded · ${fmtCents(amount)} €`);
+          } else {
+            toastOk(`Bank fee held for approval: ${r.reason}`);
+          }
+          leaveToStatement();
+        },
+        onError: (e) => {
+          // The chain can land its first stages then fail: say what is
+          // already on the books, and refetch so the line reflects it.
+          const p = feeProgress.current;
+          const message = e instanceof Error ? e.message : String(e);
+          toastErr(
+            p.expenseId === null
+              ? message
+              : p.stagedMatchIds !== null
+                ? `Bank-fee expense #${p.expenseId} is posted and its match is staged but not approved (${message}) — confirm it on the statement.`
+                : `Bank-fee expense #${p.expenseId} is already ${p.posted === null ? 'created' : 'posted'} (${message}) — choosing Bank fee again finishes it, without a second expense.`,
+          );
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
   };
 
   const title =
@@ -309,6 +356,7 @@ function TxScreenFor({
             tx={tx}
             result={state.result}
             preselectVoucherIds={preselect}
+            op={op}
             onMatched={onMatched}
           />
         );
@@ -319,6 +367,7 @@ function TxScreenFor({
           <TxCreateExpense
             statementId={statementId}
             tx={tx}
+            op={op}
             onDone={onCreateDone}
           />
         );
@@ -395,7 +444,7 @@ function TxScreenFor({
               setOtherOpen(false);
               setPersonalOpen(true);
             }}
-            onFee={() => void onFee()}
+            onFee={onFee}
             onPrepayment={() => {
               setOtherOpen(false);
               prepay.open();
@@ -406,7 +455,7 @@ function TxScreenFor({
             onOpenChange={setPersonalOpen}
             tx={tx}
             busy={busy}
-            onConfirm={() => void onPersonal()}
+            onConfirm={onPersonal}
           />
           {prepay.epoch > 0 && (
             <PrepaymentSheet
@@ -416,7 +465,7 @@ function TxScreenFor({
               tx={tx}
               busy={busy}
               vatTreatments={vatTreatmentsQ.data ?? []}
-              onConfirm={(tax, release) => void onPrepayment(tax, release)}
+              onConfirm={onPrepayment}
             />
           )}
         </>

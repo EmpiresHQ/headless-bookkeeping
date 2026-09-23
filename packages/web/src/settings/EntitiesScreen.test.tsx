@@ -45,7 +45,7 @@ function mount(initial = '/settings/entities') {
   );
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <RouterProvider router={router} />
       </UnsavedChangesProvider>
     </QueryClientProvider>,

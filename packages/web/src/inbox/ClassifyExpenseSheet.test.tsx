@@ -24,7 +24,7 @@ function renderSheet(onDone = vi.fn(), onOpenChange = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <ClassifyExpenseSheet
           documentId={12}
           open

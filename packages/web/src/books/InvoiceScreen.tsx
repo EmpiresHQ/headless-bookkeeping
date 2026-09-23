@@ -5,6 +5,7 @@ import { deleteInvoice, fmtCents, postInvoice } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
 import { signedEuros } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -50,7 +51,8 @@ export function InvoiceScreen() {
   const correctSheet = useSheet();
   const editSheet = useSheet();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Invoice');
+  const busy = op.pending;
 
   if (invoicesQ.isError && invoicesQ.data === undefined) {
     return (
@@ -92,38 +94,49 @@ export function InvoiceScreen() {
   const rate = vatRatePct(inv.gross_amount, inv.vat_amount);
   const rejection = rejectionQ.data ?? null;
 
-  const onSubmitForPosting = async () => {
-    setBusy(true);
-    try {
-      const res = await postInvoice(inv.id);
-      await invalidateBooks(qc);
-      if (res.policy.action === 'hold-for-approval') {
-        toastOk(
-          `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
-        );
-      } else {
-        toastOk(`Posted · ${signedEuros(inv.gross_amount)}`);
-      }
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const onSubmitForPosting = () => {
+    const { id, gross_amount } = inv;
+    op.run(
+      async (ctx) => {
+        const res = await postInvoice(id);
+        ctx.check();
+        await invalidateBooks(qc);
+        return res;
+      },
+      {
+        onSuccess: (res) => {
+          if (res.policy.action === 'hold-for-approval') {
+            toastOk(
+              `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
+            );
+          } else {
+            toastOk(`Posted · ${signedEuros(gross_amount)}`);
+          }
+        },
+      },
+    );
   };
 
-  const onDelete = async () => {
-    setBusy(true);
-    try {
-      await deleteInvoice(inv.id);
-      await invalidateBooks(qc);
-      toastOk('Draft invoice deleted');
-      navigate('/books?seg=invoices', { replace: true });
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setConfirmDelete(false);
-    } finally {
-      setBusy(false);
-    }
+  const onDelete = () => {
+    const { id } = inv;
+    op.run(
+      async (ctx) => {
+        await deleteInvoice(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Draft invoice deleted');
+          setConfirmDelete(false);
+          navigate('/books?seg=invoices', { replace: true });
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e));
+          setConfirmDelete(false);
+        },
+      },
+    );
   };
 
   return (
@@ -213,11 +226,7 @@ export function InvoiceScreen() {
       <div className="space-y-2 px-5 pt-2">
         {inv.status === 'draft' && (
           <>
-            <Button
-              className="w-full"
-              busy={busy}
-              onClick={() => void onSubmitForPosting()}
-            >
+            <Button className="w-full" busy={busy} onClick={onSubmitForPosting}>
               Submit for posting
             </Button>
             <Button
@@ -319,7 +328,7 @@ export function InvoiceScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
     </div>
   );

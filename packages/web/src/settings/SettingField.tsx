@@ -5,7 +5,8 @@ import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateAdminSettings } from '../queries/settings';
 import { Button } from '../ui/Button';
 import { Field, INPUT_CLS, TextInput } from '../ui/Form';
-import { toastErr, toastOk } from '../ui/toast';
+import { toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 export interface SettingDef {
   key: string;
@@ -32,7 +33,8 @@ export function SettingField({
 }) {
   const qc = useQueryClient();
   const [draft, setDraft] = useState(current);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation(def.label);
+  const busy = op.pending;
 
   // Unsaved = the draft differs from the server value (secrets included —
   // held in memory only, never persisted).
@@ -51,29 +53,22 @@ export function SettingField({
     syncedCurrent.current = current;
   }, [current, draft]);
 
-  const run = async (
-    fn: () => Promise<unknown>,
-    receipt: string,
-    saved?: string,
-  ) => {
-    setBusy(true);
+  const run = (fn: () => Promise<unknown>, receipt: string, saved?: string) => {
     const sent = draft;
-    try {
-      await fn();
-      // Saved as typed-then-trimmed: show exactly what the server holds, and
-      // release until the refetch brings it back as `current` — unless the
-      // operator kept typing meanwhile (then that newer draft stays unsaved).
-      if (saved !== undefined && latestDraft.current === sent) {
-        setDraft(saved);
-        guard.release(saved);
-      }
-      await invalidateAdminSettings(qc);
-      toastOk(receipt);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    op.run(fn, {
+      onSuccess: () => {
+        // Saved as typed-then-trimmed: show exactly what the server holds,
+        // and release that SUBMITTED snapshot until the refetch brings it
+        // back as `current` — unless the operator kept typing meanwhile
+        // (then that newer draft stays unsaved).
+        if (saved !== undefined && latestDraft.current === sent) {
+          setDraft(saved);
+          guard.release(saved);
+        }
+        void invalidateAdminSettings(qc);
+        toastOk(receipt);
+      },
+    });
   };
 
   return (
@@ -103,7 +98,7 @@ export function SettingField({
             busy={busy}
             disabled={busy || draft.trim().length === 0}
             onClick={() =>
-              void run(
+              run(
                 () => setSetting(def.key, draft.trim()),
                 `${def.label} saved`,
                 draft.trim(),
@@ -117,7 +112,7 @@ export function SettingField({
             variant="ghost"
             disabled={busy || current.length === 0}
             onClick={() =>
-              void run(() => deleteSetting(def.key), `${def.label} cleared`)
+              run(() => deleteSetting(def.key), `${def.label} cleared`)
             }
             aria-label={`Clear ${def.label}`}
           >

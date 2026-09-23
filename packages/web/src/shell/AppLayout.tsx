@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
+import type { UnauthorizedError } from '../auth';
 import {
   UnsavedChangesProvider,
   useConfirmLeave,
@@ -18,12 +19,20 @@ export interface ShellOutletContext {
 }
 
 /** The unsaved-changes guard lives with the authenticated shell: explicit
- *  sign-out asks before dropping a dirty form, while a forced 401 (Root's
- *  onUnauthorized, called directly by the query client) unmounts this whole
- *  tree — every draft and the guard itself — without asking. */
-export function AppLayout({ onSignOut }: { onSignOut: () => void }) {
+ *  sign-out asks before dropping a dirty form (and is refused while an
+ *  operation is in flight), while a forced 401 (Root's onUnauthorized,
+ *  called by the query client or an operation) unmounts this whole tree —
+ *  every draft, every pending operation's continuation and the guard
+ *  itself — without asking. */
+export function AppLayout({
+  onSignOut,
+  onUnauthorized,
+}: {
+  onSignOut: () => void;
+  onUnauthorized: (error: UnauthorizedError) => void;
+}) {
   return (
-    <UnsavedChangesProvider>
+    <UnsavedChangesProvider onUnauthorized={onUnauthorized}>
       <Shell onSignOut={onSignOut} />
     </UnsavedChangesProvider>
   );

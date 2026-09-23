@@ -25,6 +25,7 @@ import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { AddAliasSheet } from './AddAliasSheet';
 import { EditEntitySheet } from './EditEntitySheet';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 /** /settings/entities/:id — asset §8: identity + links + memory in one card. */
 /** Labels for entity.tax_status — 'unknown' (and a never-recorded NULL) reads
@@ -90,7 +91,8 @@ function EntityCard({ entity }: { entity: Entity }) {
   const edit = useSheet();
   const alias = useSheet();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const op = usePendingOperation('Entity');
+  const deleting = op.pending;
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
 
@@ -116,19 +118,21 @@ function EntityCard({ entity }: { entity: Entity }) {
       ? classificationMemory(expensesQ.data ?? [], entity.id)
       : null;
 
-  const onDelete = async () => {
-    setDeleting(true);
-    try {
-      await deleteEntity(entity.id);
-      toastOk(`Deleted — ${entity.name}`);
-      navigate('/settings/entities');
-      void invalidateEntities(qc);
-    } catch (e) {
-      // The server's 409 sentence is already human (Reality #5).
-      toastErr(e instanceof Error ? e.message : String(e));
-      setDeleting(false);
-      setDeleteOpen(false);
-    }
+  const onDelete = () => {
+    const { id, name } = entity;
+    op.run(() => deleteEntity(id), {
+      onSuccess: () => {
+        toastOk(`Deleted — ${name}`);
+        setDeleteOpen(false);
+        navigate('/settings/entities');
+        void invalidateEntities(qc);
+      },
+      onError: (e) => {
+        // The server's 409 sentence is already human (Reality #5).
+        toastErr(e instanceof Error ? e.message : String(e));
+        setDeleteOpen(false);
+      },
+    });
   };
 
   const bookingsQuery = `q=${encodeURIComponent(entity.name).replace(/%20/g, '+')}`;
@@ -278,7 +282,7 @@ function EntityCard({ entity }: { entity: Entity }) {
         confirmLabel="Delete entity"
         destructive
         busy={deleting}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
     </>
   );

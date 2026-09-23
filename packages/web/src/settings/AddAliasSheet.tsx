@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { addEntityAlias, type AddAliasInput } from '../api';
 import { ALIAS_KIND_LABEL, invalidateEntities } from '../queries/settings';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 const KINDS: AddAliasInput['kind'][] = [
@@ -27,7 +28,8 @@ export function AddAliasSheet({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Add alias');
+  const busy = op.pending;
   const [kind, setKind] = useState<AddAliasInput['kind']>(
     'merchant_descriptor',
   );
@@ -41,18 +43,18 @@ export function AddAliasSheet({
     baseline,
   });
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      await addEntityAlias(entityId, { kind, value: value.trim() });
-      toastOk('Alias added');
-      guard.release();
-      onClose();
-      void invalidateEntities(qc);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const submit = () => {
+    op.run(() => addEntityAlias(entityId, { kind, value: value.trim() }), {
+      onSuccess: () => {
+        toastOk('Alias added');
+        guard.release();
+        onClose();
+        void invalidateEntities(qc);
+      },
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+      },
+    });
   };
 
   return (
@@ -63,7 +65,7 @@ export function AddAliasSheet({
       busy={busy}
       title="Add alias"
     >
-      <div className="space-y-4 px-6 pb-2">
+      <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
         <p className="text-[12.5px] text-ink-2">
           How documents and bank lines name this counterparty — an IBAN or card
           descriptor lets reconciliation recognise it automatically.
@@ -93,11 +95,11 @@ export function AddAliasSheet({
           className="w-full"
           busy={busy}
           disabled={busy || value.trim() === ''}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           Add alias
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

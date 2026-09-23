@@ -5,13 +5,13 @@ import {
   type BankTransaction,
   type Entity,
 } from '../api';
+import { rethrowIfEnded, usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useOrganizationCountry, useSuppliers } from '../queries/bank';
 import { Button } from '../ui/Button';
-import { Field, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
-import { toastErr } from '../ui/toast';
 
 /**
  * Supplier selection for create-from-line. No alias-lookup endpoint exists
@@ -39,7 +39,8 @@ export function SupplierSheet({
   );
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('New supplier');
+  const busy = op.pending;
   // Only the create sub-form is input to keep — the search box filters and
   // a list pick is immediate. Its name is seeded from the line (frozen).
   const values = { name, country, regKey };
@@ -56,43 +57,49 @@ export function SupplierSheet({
     e.name.toLowerCase().includes(q.toLowerCase()),
   );
 
-  const onCreate = async () => {
-    setBusy(true);
-    try {
-      const entity = await onboardEntity({
-        role: 'supplier',
-        country: effCountry,
-        name: name.trim(),
-        registrationKey: regKey.trim(),
-      });
-      // Best-effort alias write-back — a failed alias must not lose the pick.
-      try {
-        if (tx.counterparty_iban) {
-          await addEntityAlias(entity.id, {
-            kind: 'iban',
-            value: tx.counterparty_iban,
-          });
+  const onCreate = () => {
+    const req = {
+      role: 'supplier' as const,
+      country: effCountry,
+      name: name.trim(),
+      registrationKey: regKey.trim(),
+    };
+    const iban = tx.counterparty_iban;
+    const aliasText = tx.counterparty_descriptor ?? tx.description;
+    const aliasKind = tx.counterparty_descriptor
+      ? ('merchant_descriptor' as const)
+      : ('name_alias' as const);
+    op.run(
+      async (ctx) => {
+        const entity = await onboardEntity(req);
+        // Best-effort alias write-back — a failed alias must not lose the
+        // pick. An ended session is not "best effort": it stops here.
+        try {
+          if (iban) {
+            ctx.check();
+            await addEntityAlias(entity.id, { kind: 'iban', value: iban });
+          }
+          if (aliasText) {
+            ctx.check();
+            await addEntityAlias(entity.id, {
+              kind: aliasKind,
+              value: aliasText,
+            });
+          }
+        } catch (e) {
+          rethrowIfEnded(e);
+          // Alias write-back is advisory; the supplier itself was created.
         }
-        const aliasText = tx.counterparty_descriptor ?? tx.description;
-        if (aliasText) {
-          await addEntityAlias(entity.id, {
-            kind: tx.counterparty_descriptor
-              ? 'merchant_descriptor'
-              : 'name_alias',
-            value: aliasText,
-          });
-        }
-      } catch {
-        // Alias write-back is advisory; the supplier itself was created.
-      }
-      guard.release();
-      onPick(entity);
-      onOpenChange(false);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+        return entity;
+      },
+      {
+        onSuccess: (entity) => {
+          guard.release();
+          onPick(entity);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   return (
@@ -103,7 +110,7 @@ export function SupplierSheet({
       guard={guard}
       busy={busy}
     >
-      <div className="space-y-3 px-4 pb-4">
+      <PendingFieldset pending={busy} className="space-y-3 px-4 pb-4">
         {!creating && (
           <>
             <SearchInput
@@ -180,7 +187,7 @@ export function SupplierSheet({
                 effCountry.trim() === ''
               }
               busy={busy}
-              onClick={() => void onCreate()}
+              onClick={onCreate}
             >
               Create supplier
             </Button>
@@ -190,7 +197,7 @@ export function SupplierSheet({
             </p>
           </div>
         )}
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

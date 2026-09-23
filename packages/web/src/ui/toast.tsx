@@ -15,3 +15,8 @@ export function toastUndo(message: string, onUndo: () => void) {
     action: { label: 'Undo', onClick: onUndo },
   });
 }
+
+/** A status that replaces itself (fixed id) — e.g. the protected-wait
+ *  notice when a leave is refused while an operation is in flight. */
+export const toastWait = (id: string, message: string) =>
+  toast.info(message, { id });

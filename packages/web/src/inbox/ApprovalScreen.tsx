@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { approveApproval, fmtCents, rejectApproval } from '../api';
 import { ScreenHeader } from '../shell/Headers';
 import { signedEuros } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import {
   invalidateInbox,
   nextRouteAfter,
@@ -18,12 +19,13 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { KeyValue, ListGroup } from '../ui/List';
 import { LinkButton } from '../ui/LinkButton';
 import { LoadError, RefetchError } from '../ui/LoadError';
-import { toastErr, toastOk } from '../ui/toast';
+import { toastOk } from '../ui/toast';
 import { DocPreviewRow } from './DocPreviewRow';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 import { humanizePolicyReason } from './reason';
 import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
+import { useState } from 'react';
 
 function WhyHeldBox({ reason }: { reason: string | null }) {
   return (
@@ -102,36 +104,46 @@ export function ApprovalScreen() {
   // will drop this entry).
   const next = nextRouteAfter(entries, route);
 
-  const approveMut = useMutation({
-    mutationFn: () => approveApproval(approvalId, 'operator'),
-    onSuccess: async (_res, _vars, _ctx) => {
-      // NO Undo: approve posts the voucher in the same transaction
-      // (Reality #1); recovery is the correction flow.
-      toastOk(
-        heroAmount !== null
-          ? `Approved & posted · ${heroAmount}`
-          : 'Approved & posted',
-      );
-      navigate(next);
-      await invalidateInbox(qc);
-    },
-    onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
-  });
+  const op = usePendingOperation('Approval');
+  const [running, setRunning] = useState<'approve' | 'reject'>('approve');
+  const approving = op.pending && running === 'approve';
+  const rejecting = op.pending && running === 'reject';
 
-  const rejectMut = useMutation({
-    // `release` travels with the call: it must run before navigate(next),
-    // and this hook-level onSuccess runs before any per-call callback.
-    mutationFn: ({ reason }: { reason: string; release: () => void }) =>
-      rejectApproval(approvalId, reason),
-    onSuccess: async (_res, { release }) => {
-      release();
-      rejectSheet.close();
-      toastOk('Rejected — returned to draft');
-      navigate(next);
-      await invalidateInbox(qc);
-    },
-    onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
-  });
+  // The queue is refetched AFTER leaving (the refetch drops this entry and
+  // would otherwise flash "not found" here); the leave itself is the
+  // operation's synchronous continuation.
+  const approve = () => {
+    const to = next;
+    const receipt =
+      heroAmount !== null
+        ? `Approved & posted · ${heroAmount}`
+        : 'Approved & posted';
+    const started = op.run(() => approveApproval(approvalId, 'operator'), {
+      onSuccess: () => {
+        // NO Undo: approve posts the voucher in the same transaction
+        // (Reality #1); recovery is the correction flow.
+        toastOk(receipt);
+        navigate(to);
+        void invalidateInbox(qc);
+      },
+    });
+    if (started) setRunning('approve');
+  };
+
+  const reject = (reason: string, release: () => void) => {
+    const to = next;
+    const started = op.run(() => rejectApproval(approvalId, reason), {
+      onSuccess: () => {
+        // `release` must run before navigate(to).
+        release();
+        rejectSheet.close();
+        toastOk('Rejected — returned to draft');
+        navigate(to);
+        void invalidateInbox(qc);
+      },
+    });
+    if (started) setRunning('reject');
+  };
 
   const title =
     position !== null ? `${position.pos} of ${position.total}` : 'Approval';
@@ -304,16 +316,16 @@ export function ApprovalScreen() {
         <Button
           variant="secondary"
           className="flex-1"
-          disabled={approveMut.isPending || rejectMut.isPending}
+          disabled={op.pending}
           onClick={() => rejectSheet.open()}
         >
           Reject…
         </Button>
         <Button
           className="flex-1"
-          busy={approveMut.isPending}
-          disabled={rejectMut.isPending || factsUnresolved}
-          onClick={() => approveMut.mutate()}
+          busy={approving}
+          disabled={rejecting || factsUnresolved}
+          onClick={approve}
         >
           {heroAmount !== null ? `Approve · ${heroAmount}` : 'Approve'}
         </Button>
@@ -329,8 +341,8 @@ export function ApprovalScreen() {
           key={`${approvalId}-${rejectSheet.epoch}`}
           open={rejectSheet.isOpen}
           onOpenChange={(o) => !o && rejectSheet.close()}
-          busy={rejectMut.isPending}
-          onSubmit={(reason, release) => rejectMut.mutate({ reason, release })}
+          busy={rejecting}
+          onSubmit={reject}
         />
       )}
     </div>

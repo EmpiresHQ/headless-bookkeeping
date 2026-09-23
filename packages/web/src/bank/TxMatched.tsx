@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import {
   fmtCents,
   type BankTransaction,
   type MatchRowView,
   type ReconciliationStatusRow,
 } from '../api';
+import { usePendingOperation, useSessionTask } from '../lib/pendingOperation';
 import { confirmStagedMatch, undoMatches } from '../queries/bank';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
@@ -34,7 +34,9 @@ export function TxMatched({
   recon: ReconciliationStatusRow | undefined;
   onChanged: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Matched line');
+  const sessionTask = useSessionTask();
+  const busy = op.pending;
   const all = [...active, ...staged];
 
   const coverage =
@@ -44,48 +46,55 @@ export function TxMatched({
         ? `full · ${fmtCents(recon.matchedSum)} of ${fmtCents(recon.amountBase)} €`
         : `partial · ${fmtCents(recon.matchedSum)} of ${fmtCents(recon.amountBase)} €`;
 
-  const onUnmatch = async () => {
-    setBusy(true);
-    try {
-      await undoMatches(
-        statementId,
-        all.map((m) => m.id),
-      );
-      toastOk('Match removed — the line is unmatched again');
-      onChanged();
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
+  const onUnmatch = () => {
+    const ids = all.map((m) => m.id);
+    op.run((ctx) => undoMatches(statementId, ids, ctx.check), {
+      onSuccess: () => {
+        toastOk('Match removed — the line is unmatched again');
+        onChanged();
+      },
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+        onChanged();
+      },
+    });
   };
 
-  const onConfirm = async () => {
-    setBusy(true);
-    try {
-      for (const m of staged) {
-        await confirmStagedMatch(m.id);
-      }
-      toastUndo(`Confirmed · ${fmtCents(Math.abs(tx.amount))} €`, () => {
-        void undoMatches(
-          statementId,
-          staged.map((m) => m.id),
-        )
-          .then(onChanged)
-          .catch((e) => {
-            toastErr(e instanceof Error ? e.message : String(e));
-            // A partial undo may have changed server state — refresh anyway.
-            onChanged();
-          });
-      });
-      onChanged();
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
+  const onConfirm = () => {
+    const ids = staged.map((m) => m.id);
+    const amount = tx.amount;
+    op.run(
+      async (ctx) => {
+        for (const id of ids) {
+          ctx.check();
+          await confirmStagedMatch(id, ctx.check);
+        }
+      },
+      {
+        onSuccess: () => {
+          // Undo belongs to the session that confirmed.
+          const undo = sessionTask();
+          toastUndo(`Confirmed · ${fmtCents(Math.abs(amount))} €`, () =>
+            undo((stage) => undoMatches(statementId, ids, stage), {
+              onSuccess: onChanged,
+              onError: (e) => {
+                toastErr(e instanceof Error ? e.message : String(e));
+                // A partial undo may have changed server state — refresh
+                // anyway.
+                onChanged();
+              },
+            }),
+          );
+          onChanged();
+        },
+        onError: (e) => {
+          // Some confirmations may have landed: the refetch shows which
+          // are still staged, and a retry confirms only those.
+          toastErr(e instanceof Error ? e.message : String(e));
+          onChanged();
+        },
+      },
+    );
   };
 
   return (
@@ -128,11 +137,7 @@ export function TxMatched({
       )}
       <ActionBar className="flex gap-2.5">
         {staged.length > 0 && (
-          <Button
-            className="h-[46px] flex-1"
-            busy={busy}
-            onClick={() => void onConfirm()}
-          >
+          <Button className="h-[46px] flex-1" busy={busy} onClick={onConfirm}>
             Confirm match
           </Button>
         )}
@@ -140,7 +145,7 @@ export function TxMatched({
           variant="secondary"
           className="h-[46px] flex-1"
           busy={busy}
-          onClick={() => void onUnmatch()}
+          onClick={onUnmatch}
         >
           Unmatch
         </Button>

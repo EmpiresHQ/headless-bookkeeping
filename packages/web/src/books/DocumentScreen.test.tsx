@@ -24,6 +24,7 @@ import {
   openSignedDocument,
   type DocumentArchiveRow,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const ROW: DocumentArchiveRow = {
   id: 9,
@@ -68,13 +69,15 @@ function mountAt(row: Partial<typeof ROW> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/documents/9']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/documents/:id" element={<DocumentScreen />} />
-          <Route path="/books" element={<div>ARCHIVE</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <MemoryRouter initialEntries={['/books/documents/9']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/documents/:id" element={<DocumentScreen />} />
+            <Route path="/books" element={<div>ARCHIVE</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }

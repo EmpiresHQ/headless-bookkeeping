@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { Button } from '../ui/Button';
-import { Field, INPUT_CLS } from '../ui/Form';
+import { Field, INPUT_CLS, PendingFieldset } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 
 /** Reject = a deliberate decision with a MANDATORY reason (ADR-0015; the
@@ -33,7 +33,7 @@ export function RejectSheet({
       guard={guard}
       busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         <p className="text-[13px] text-ink-2">
           The item returns to draft with your reason attached — nothing is
           deleted. (A rejected bank match is discarded instead.)
@@ -55,7 +55,7 @@ export function RejectSheet({
         >
           Reject &amp; return to draft
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

@@ -96,7 +96,7 @@ function mount(detail: Partial<typeof DETAIL> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={['/books/expenses/12']}>
           <AppToaster />
           <Routes>

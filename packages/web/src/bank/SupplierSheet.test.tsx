@@ -47,7 +47,7 @@ function renderSheet(onPick = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <SupplierSheet
           open
           onOpenChange={vi.fn()}

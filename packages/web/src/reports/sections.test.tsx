@@ -127,7 +127,7 @@ function mount(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter>
           <AppToaster />
           {ui}
@@ -193,7 +193,7 @@ describe('InfGapsSection', () => {
     });
     const { container } = render(
       <QueryClientProvider client={qc}>
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <MemoryRouter>
             <InfGapsSection period={PERIOD} />
           </MemoryRouter>
@@ -233,7 +233,7 @@ describe('InfGapsSection', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <MemoryRouter>
             <AppToaster />
             <InfGapsSection period={PERIOD} />
@@ -348,7 +348,7 @@ describe('InPeriodSection', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <MemoryRouter>
             <InPeriodSection period={PERIOD} />
           </MemoryRouter>

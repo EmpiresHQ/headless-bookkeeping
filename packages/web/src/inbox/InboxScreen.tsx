@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { triageDocument, uploadDocument } from '../api';
 import { DocThumbLightbox } from './DocThumbLightbox';
@@ -30,6 +30,7 @@ import {
   triageChipLabel,
   triageSubtitle,
 } from './reason';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 const SEGMENTS: readonly InboxSegment[] = ['all', 'triage', 'approvals'];
 
@@ -152,24 +153,44 @@ function InboxHero({
 function UploadAction() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Upload');
+  const busy = op.pending;
 
-  const onPick = async (file: File) => {
-    setBusy(true);
-    try {
-      const { document, deduplicated } = await uploadDocument(file);
-      if (deduplicated)
-        toastOk('Already uploaded — using the existing document');
-      const outcome = await triageDocument(document.id);
-      if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
-      else toastOk(outcomeText(outcome));
-      await invalidateInbox(qc);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
+  const onPick = (file: File) => {
+    // The uploaded stage, for an honest failure message: picking the same
+    // file again is deduplicated by the server (never a second document).
+    let uploadedId: number | null = null;
+    const started = op.run(
+      async (ctx) => {
+        const { document, deduplicated } = await uploadDocument(file);
+        uploadedId = document.id;
+        ctx.check();
+        const outcome = await triageDocument(document.id);
+        ctx.check();
+        await invalidateInbox(qc);
+        return { deduplicated, outcome };
+      },
+      {
+        onSuccess: ({ deduplicated, outcome }) => {
+          if (deduplicated)
+            toastOk('Already uploaded — using the existing document');
+          if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
+          else toastOk(outcomeText(outcome));
+          if (fileRef.current) fileRef.current.value = '';
+        },
+        onError: (e) => {
+          const message = e instanceof Error ? e.message : String(e);
+          toastErr(
+            uploadedId === null
+              ? message
+              : `Uploaded as document #${uploadedId}, but processing failed: ${message}`,
+          );
+          if (fileRef.current) fileRef.current.value = '';
+          if (uploadedId !== null) void invalidateInbox(qc);
+        },
+      },
+    );
+    if (!started && fileRef.current) fileRef.current.value = '';
   };
 
   return (
@@ -181,7 +202,7 @@ function UploadAction() {
         aria-label="Upload document"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) void onPick(f);
+          if (f) onPick(f);
         }}
       />
       <button

@@ -3,7 +3,7 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   attachExpenseDocument,
   fmtCents,
@@ -14,6 +14,11 @@ import {
   type ExpenseDetail,
 } from '../api';
 import { absoluteDate } from '../inbox/format';
+import {
+  rethrowIfEnded,
+  usePendingOperation,
+  type OperationContext,
+} from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { booksKeys, invalidateBooks } from '../queries/books';
 import { Button } from '../ui/Button';
@@ -63,8 +68,8 @@ export function AttachDocumentSheet({
   // offering it, its name and context stay on screen.
   const [chosen, setChosen] = useState<AttachableDocument | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
+  const op = usePendingOperation('Attach receipt');
+  const busy = op.pending;
   // Unsaved = a choice not yet accepted by the server. Once the attach was
   // accepted ('unverified' — only the re-read is pending) the document is on
   // the server: closing loses the re-check UI, not the operator's input.
@@ -103,83 +108,108 @@ export function AttachDocumentSheet({
    * the screen into its load-error state (that would unmount this sheet and
    * its recovery UI). The cache is written only with a confirmed read.
    */
-  const verify = async (result: AttachDocumentResult) => {
+  const expenseId = detail.id;
+  type Verified =
+    | { kind: 'confirmed'; result: AttachDocumentResult }
+    | { kind: 'unverified'; result: AttachDocumentResult; message: string };
+
+  /**
+   * Re-read the expense; success only when it carries the new source. A
+   * direct read, not the screen's detail query: a failed re-read must not
+   * put the screen into its load-error state (that would unmount this sheet
+   * and its recovery UI). The cache is written only with a confirmed read —
+   * and only while the operation still owns its session.
+   */
+  const verify = async (
+    ctx: OperationContext,
+    result: AttachDocumentResult,
+  ): Promise<Verified> => {
+    ctx.check();
     let fresh: ExpenseDetail;
     try {
-      fresh = await getExpense(detail.id);
+      fresh = await getExpense(expenseId);
     } catch (e) {
-      setPhase({
+      rethrowIfEnded(e);
+      return {
         kind: 'unverified',
         result,
         message: `The server accepted the document, but the expense could not be re-read to confirm it (${errText(e)}).`,
-      });
-      return;
+      };
     }
     if (fresh.document_id !== result.document.id) {
       // The server accepted the write; do not invite a second one.
-      setPhase({
+      return {
         kind: 'unverified',
         result,
         message:
           fresh.document_id == null
             ? 'The server accepted the document, but the expense does not show it yet.'
             : `The server accepted the document, but the expense now shows source document #${fresh.document_id}.`,
-      });
+      };
+    }
+    ctx.check();
+    qc.setQueryData(booksKeys.expense(expenseId), fresh);
+    await invalidateBooks(qc);
+    return { kind: 'confirmed', result };
+  };
+
+  const settle = (v: Verified) => {
+    if (v.kind === 'unverified') {
+      setPhase(v);
       return;
     }
-    qc.setQueryData(booksKeys.expense(detail.id), fresh);
-    await invalidateBooks(qc);
     toastOk(
-      result.outcome === 'already_attached'
+      v.result.outcome === 'already_attached'
         ? 'This document was already attached'
-        : `Attached · ${result.document.filename}`,
+        : `Attached · ${v.result.document.filename}`,
     );
     guard.release();
     onOpenChange(false);
   };
 
-  const run = async (step: () => Promise<void>) => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    try {
-      await step();
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
+  const attach = () => {
+    if (!canAttach) return;
+    const source =
+      mode === 'upload'
+        ? { file: file as File }
+        : { documentId: (chosen as AttachableDocument).id };
+    const fromExisting = mode === 'existing';
+    const started = op.run(
+      async (ctx) => {
+        const result = await attachExpenseDocument(expenseId, source);
+        return verify(ctx, result);
+      },
+      {
+        onSuccess: settle,
+        onError: (e) => {
+          setPhase({ kind: 'failed', message: errText(e) });
+          // Eligibility may have changed (claimed by intake, used
+          // elsewhere): refresh the list, but keep what the operator chose
+          // on screen.
+          if (fromExisting) {
+            void qc.invalidateQueries({
+              queryKey: booksKeys.attachable(expenseId),
+            });
+          }
+        },
+      },
+    );
+    if (started) setPhase({ kind: 'idle' });
   };
 
-  const attach = () =>
-    run(async () => {
-      if (!canAttach) return;
-      setPhase({ kind: 'idle' });
-      let result: AttachDocumentResult;
-      try {
-        result = await attachExpenseDocument(
-          detail.id,
-          mode === 'upload'
-            ? { file: file as File }
-            : { documentId: (chosen as AttachableDocument).id },
-        );
-      } catch (e) {
-        setPhase({ kind: 'failed', message: errText(e) });
-        // Eligibility may have changed (claimed by intake, used elsewhere):
-        // refresh the list, but keep what the operator chose on screen.
-        if (mode === 'existing') {
-          void qc.invalidateQueries({
-            queryKey: booksKeys.attachable(detail.id),
-          });
-        }
-        return;
-      }
-      await verify(result);
+  const recheck = () => {
+    if (phase.kind !== 'unverified') return;
+    const { result } = phase;
+    op.run((ctx) => verify(ctx, result), {
+      onSuccess: settle,
+      onError: (e) =>
+        setPhase({
+          kind: 'unverified',
+          result,
+          message: `The server accepted the document, but the expense could not be re-read to confirm it (${errText(e)}).`,
+        }),
     });
-
-  const recheck = () =>
-    run(async () => {
-      if (phase.kind === 'unverified') await verify(phase.result);
-    });
+  };
 
   const posted = detail.status === 'posted' || detail.status === 'reversed';
 
@@ -280,7 +310,7 @@ export function AttachDocumentSheet({
         )}
 
         {phase.kind === 'unverified' ? (
-          <Button className="w-full" busy={busy} onClick={() => void recheck()}>
+          <Button className="w-full" busy={busy} onClick={recheck}>
             Check the expense again
           </Button>
         ) : (
@@ -288,7 +318,7 @@ export function AttachDocumentSheet({
             className="w-full"
             busy={busy}
             disabled={!canAttach}
-            onClick={() => void attach()}
+            onClick={attach}
           >
             {mode === 'upload' ? 'Upload & attach' : 'Attach document'}
           </Button>

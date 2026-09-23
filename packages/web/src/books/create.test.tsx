@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AppToaster } from '../ui/toast';
@@ -35,7 +41,7 @@ function mount(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={['/books']}>
           <AppToaster />
           <Routes>
@@ -158,6 +164,72 @@ describe('create flows', () => {
     );
     await waitFor(() => expect(triageDocument).toHaveBeenCalledWith(77));
     expect(await screen.findByText('DOC DETAIL')).toBeInTheDocument();
+  });
+
+  it('UploadSheet partial success: processing failed after the upload landed — retry only re-runs processing (#251)', async () => {
+    vi.clearAllMocks();
+    seed();
+    vi.mocked(uploadDocument).mockResolvedValue({
+      document: { id: 32 },
+      deduplicated: false,
+    } as never);
+    vi.mocked(triageDocument)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValueOnce({
+        kind: 'expense',
+        document_id: 32,
+        expense_id: 31,
+      } as never);
+    mount(<UploadSheet open onOpenChange={() => undefined} />);
+    const file = new File(['x'], 'r.pdf', { type: 'application/pdf' });
+    fireEvent.change(await screen.findByLabelText('File'), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload & process' }));
+    const retry = await screen.findByRole('button', {
+      name: 'Retry processing',
+    });
+    expect(screen.getByRole('link', { name: 'document #32' })).toHaveAttribute(
+      'href',
+      '/books/documents/32',
+    );
+    fireEvent.click(retry);
+    expect(await screen.findByText('DOC DETAIL')).toBeInTheDocument();
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect(triageDocument).toHaveBeenCalledTimes(2);
+    expect(triageDocument).toHaveBeenLastCalledWith(32);
+  });
+
+  it('NewExpenseSheet locks its fields while saving and keeps them after a failure (#251)', async () => {
+    vi.clearAllMocks();
+    seed();
+    let fail!: (e: unknown) => void;
+    vi.mocked(createExpense).mockReturnValue(
+      new Promise((_, rej) => (fail = rej)) as never,
+    );
+    mount(<NewExpenseSheet open onOpenChange={() => undefined} />);
+    await screen.findByText('Fuel');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'fuel' },
+    });
+    fireEvent.change(screen.getByLabelText('Gross (€)'), {
+      target: { value: '123.45' },
+    });
+    fireEvent.change(screen.getByLabelText('Tax point date'), {
+      target: { value: '2026-07-01' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Create expense/ }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Gross (€)')).toBeDisabled(),
+    );
+    await act(async () => fail(new Error('503 Service Unavailable')));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Gross (€)')).not.toBeDisabled(),
+    );
+    expect(screen.getByLabelText('Gross (€)')).toHaveValue('123.45');
+    expect(
+      await screen.findByText(/503 Service Unavailable/),
+    ).toBeInTheDocument();
   });
 
   it('UploadSheet hides the claimant dropdown when no employee/director exists', async () => {

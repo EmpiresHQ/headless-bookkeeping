@@ -15,7 +15,9 @@ import {
   useBlocker,
   type BlockerFunction,
 } from 'react-router-dom';
+import type { UnauthorizedError } from '../auth';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { toastWait } from '../ui/toast';
 
 /**
  * Unsaved-input guard (issue #250). One rule for every editable form: input
@@ -45,8 +47,11 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
  * under a plain <MemoryRouter> (isolated component tests) there is honestly
  * no route guard — sheet, sign-out and unload guards still work.
  *
- * Out of scope here (issue #251): a save still in flight when the operator
- * confirms leaving is not cancelled, and its completion may still act.
+ * Pending operations (issue #251, lib/pendingOperation) register here too:
+ * while one is in flight the same exits are REFUSED outright — route leave
+ * and sign-out with a protected-wait status, refresh/close with the
+ * browser's prompt even when the form is clean — so its completion can
+ * never act on a screen the operator has moved on to.
  */
 
 export interface UnsavedEntry {
@@ -55,13 +60,37 @@ export interface UnsavedEntry {
   release: () => void;
 }
 
+/** One in-flight operation (lib/pendingOperation). */
+export interface PendingEntry {
+  label: string;
+}
+
 interface UnsavedChangesApi {
   register: (entry: UnsavedEntry) => () => void;
+  /** Register an in-flight operation; the returned release is idempotent. */
+  registerPending: (entry: PendingEntry) => () => void;
+  pendingLabels: () => string[];
+  /** False once the authenticated shell (this provider) has unmounted. */
+  isAlive: () => boolean;
+  /** Route a 401 from an operation to the shell's session handling. */
+  onUnauthorized: (error: UnauthorizedError) => void;
   dirtyEntries: () => UnsavedEntry[];
   confirmDiscard: (labels: string[]) => Promise<boolean>;
   /** Run `fn` now if nothing is dirty; else after the operator confirms
    *  discarding every dirty form (which are then released). */
   confirmLeave: (fn: () => void) => void;
+}
+
+/** The protected-wait status: an aria-live toast with a fixed id, so
+ *  repeated attempts update one message instead of stacking. */
+export const PENDING_TOAST_ID = 'pending-operation';
+
+function announcePending(labels: string[]): void {
+  const what = labels.map((l) => `“${l}”`).join(', ');
+  toastWait(
+    PENDING_TOAST_ID,
+    `${what} is still saving — wait for it to finish before leaving.`,
+  );
 }
 
 const UnsavedChangesContext = createContext<UnsavedChangesApi | null>(null);
@@ -110,8 +139,20 @@ function uniqueLabels(entries: UnsavedEntry[]): string[] {
   return [...new Set(entries.map((e) => e.label))];
 }
 
-export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
+export function UnsavedChangesProvider({
+  children,
+  onUnauthorized,
+}: {
+  children: ReactNode;
+  /** The shell's session handler (Root) — required: operations must never
+   *  swallow a current 401 for lack of a route to sign-out. */
+  onUnauthorized: (error: UnauthorizedError) => void;
+}) {
   const entries = useRef(new Set<UnsavedEntry>());
+  const pendingOps = useRef(new Set<PendingEntry>());
+  const alive = useRef(true);
+  const onUnauthorizedRef = useRef(onUnauthorized);
+  onUnauthorizedRef.current = onUnauthorized;
   const [registered, setRegistered] = useState(0);
   const pendingRef = useRef<{
     labels: string[];
@@ -130,6 +171,11 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<UnsavedChangesApi>(() => {
     const dirtyEntries = () => [...entries.current].filter((e) => e.isDirty());
+    const pendingLabels = () => [
+      ...new Set([...pendingOps.current].map((p) => p.label)),
+    ];
+    const recount = () =>
+      setRegistered(entries.current.size + pendingOps.current.size);
     const confirmDiscard = (labels: string[]) =>
       new Promise<boolean>((resolve) => {
         // A newer request supersedes an unanswered one (answered "keep").
@@ -140,15 +186,31 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     return {
       register: (entry) => {
         entries.current.add(entry);
-        setRegistered(entries.current.size);
+        recount();
         return () => {
           entries.current.delete(entry);
-          setRegistered(entries.current.size);
+          recount();
         };
       },
+      registerPending: (entry) => {
+        pendingOps.current.add(entry);
+        recount();
+        return () => {
+          if (!pendingOps.current.delete(entry)) return;
+          if (alive.current) recount();
+        };
+      },
+      pendingLabels,
+      isAlive: () => alive.current,
+      onUnauthorized: (error) => onUnauthorizedRef.current(error),
       dirtyEntries,
       confirmDiscard,
       confirmLeave: (fn) => {
+        const pending = pendingLabels();
+        if (pending.length > 0) {
+          announcePending(pending);
+          return;
+        }
         const dirty = dirtyEntries();
         if (dirty.length === 0) {
           fn();
@@ -167,22 +229,29 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   // caller's continuation runs later. Registered forms unregister
   // themselves (their own cleanup), so the registry is not touched here —
   // that also keeps StrictMode's effect replay from dropping live entries.
-  useEffect(
-    () => () => {
+  // Layout effect: the shell's unmount (sign-out, forced 401) ends every
+  // operation scope synchronously in the removing commit.
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
       pendingRef.current?.resolve(false);
       pendingRef.current = null;
-    },
-    [],
-  );
+    };
+  }, []);
 
   // Refresh / tab close / external navigation: the browser's own standard
-  // confirmation. Attached only while some guarded form is mounted; the
-  // handler re-reads the live getters, so it prompts only while something
-  // is dirty and a synchronous release() counts immediately.
+  // confirmation. Attached only while some guarded form is mounted or an
+  // operation is in flight; the handler re-reads the live getters, so it
+  // prompts only while something is dirty or pending (even a clean form's
+  // save), and a synchronous release() counts immediately. The browser may
+  // still skip the prompt (no prior user gesture) and a killed tab cannot
+  // be stopped: then the request's outcome is unknown to the client.
   useEffect(() => {
     if (registered === 0) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (api.dirtyEntries().length === 0) return;
+      if (api.dirtyEntries().length === 0 && api.pendingLabels().length === 0)
+        return;
       e.preventDefault();
       // Legacy browsers (and some current ones) need returnValue set.
       e.returnValue = '';
@@ -227,8 +296,10 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
 /** The app's single router blocker (react-router allows one). Blocks a
  *  PATHNAME change — push, replace, Back/forward, a same-screen move to
- *  another object id — while any registered form is dirty. Search-only
- *  changes (?seg=, filters) never unmount a form and are not blocked.
+ *  another object id — while any registered form is dirty or any operation
+ *  is in flight. Search-only changes (?seg=, filters) never unmount a form
+ *  and are not blocked. A pending operation refuses the move outright
+ *  (protected wait) — there is nothing to discard mid-save.
  *
  *  A confirmed discard must really discard. The navigation that follows runs
  *  in a React transition: while the target's lazy chunk (or a suspending
@@ -250,7 +321,7 @@ function RouteLeaveGuard({
     useCallback<BlockerFunction>(
       ({ currentLocation, nextLocation }) =>
         currentLocation.pathname !== nextLocation.pathname &&
-        api.dirtyEntries().length > 0,
+        (api.pendingLabels().length > 0 || api.dirtyEntries().length > 0),
       [api],
     ),
   );
@@ -271,6 +342,12 @@ function RouteLeaveGuard({
       if (ok) asked.proceed();
       else asked.reset();
     };
+    const pending = api.pendingLabels();
+    if (pending.length > 0) {
+      announcePending(pending);
+      answer(false);
+      return;
+    }
     const dirty = api.dirtyEntries();
     if (dirty.length === 0) {
       answer(true);
@@ -411,8 +488,8 @@ export function useUnsavedChanges<T>({
   );
 }
 
-/** Explicit leave actions outside the router (sign-out): ask first when any
- *  form is dirty. */
+/** Explicit leave actions outside the router (sign-out): refused while an
+ *  operation is in flight; ask first when any form is dirty. */
 export function useConfirmLeave(): (fn: () => void) => void {
   const api = useContext(UnsavedChangesContext);
   if (api === null) {
@@ -421,4 +498,16 @@ export function useConfirmLeave(): (fn: () => void) => void {
     );
   }
   return api.confirmLeave;
+}
+
+/** The provider API for lib/pendingOperation (same registry, same single
+ *  route blocker). Throws outside the provider — no silent fallback. */
+export function useLeaveGuardApi(): UnsavedChangesApi {
+  const api = useContext(UnsavedChangesContext);
+  if (api === null) {
+    throw new Error(
+      'usePendingOperation must be used inside <UnsavedChangesProvider>',
+    );
+  }
+  return api;
 }

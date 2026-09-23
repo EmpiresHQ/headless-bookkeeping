@@ -10,6 +10,7 @@ import {
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
 import { currencyMark, signedMoney } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -93,7 +94,8 @@ export function ExpenseScreen() {
   const correctSheet = useSheet();
   const editSheet = useSheet();
   const attachSheet = useSheet();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Expense');
+  const busy = op.pending;
 
   if (detailQ.isError && detailQ.data === undefined) {
     return (
@@ -126,41 +128,50 @@ export function ExpenseScreen() {
   const rate = vatRatePct(detail.gross_amount, detail.vat_amount);
   const rejection = rejectionQ.data ?? null;
 
-  const onSubmitForPosting = async () => {
-    setBusy(true);
-    try {
-      const res = await postExpense(detail.id);
-      await invalidateBooks(qc);
-      if (res.policy.action === 'hold-for-approval') {
-        toastOk(
-          `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
-        );
-      } else {
-        toastOk(
-          `Posted · ${signedMoney(-detail.gross_amount, detail.currency)}`,
-        );
-      }
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const onSubmitForPosting = () => {
+    const { id, gross_amount, currency } = detail;
+    op.run(
+      async (ctx) => {
+        const res = await postExpense(id);
+        ctx.check();
+        await invalidateBooks(qc);
+        return res;
+      },
+      {
+        onSuccess: (res) => {
+          if (res.policy.action === 'hold-for-approval') {
+            toastOk(
+              `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
+            );
+          } else {
+            toastOk(`Posted · ${signedMoney(-gross_amount, currency)}`);
+          }
+        },
+      },
+    );
   };
 
-  const onDelete = async () => {
-    setBusy(true);
-    try {
-      await deleteExpense(detail.id);
-      await invalidateBooks(qc);
-      toastOk('Draft expense deleted');
-      navigate('/books', { replace: true });
-    } catch (e) {
-      // 409 carries the server's own explanation (non-draft).
-      toastErr(e instanceof Error ? e.message : String(e));
-      setConfirmDelete(false);
-    } finally {
-      setBusy(false);
-    }
+  const onDelete = () => {
+    const { id } = detail;
+    op.run(
+      async (ctx) => {
+        await deleteExpense(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Draft expense deleted');
+          setConfirmDelete(false);
+          navigate('/books', { replace: true });
+        },
+        onError: (e) => {
+          // 409 carries the server's own explanation (non-draft).
+          toastErr(e instanceof Error ? e.message : String(e));
+          setConfirmDelete(false);
+        },
+      },
+    );
   };
 
   return (
@@ -259,11 +270,7 @@ export function ExpenseScreen() {
       <div className="space-y-2 px-5 pt-2">
         {detail.status === 'draft' && (
           <>
-            <Button
-              className="w-full"
-              busy={busy}
-              onClick={() => void onSubmitForPosting()}
-            >
+            <Button className="w-full" busy={busy} onClick={onSubmitForPosting}>
               Submit for posting
             </Button>
             <Button
@@ -324,7 +331,7 @@ export function ExpenseScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
 
       {/* Mount is reachable independent of `detail.status`: a successful

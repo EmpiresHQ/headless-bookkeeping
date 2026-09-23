@@ -24,6 +24,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { InboxScreen } from './InboxScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 // Fixed clock (not the real wall clock — see beforeEach/afterEach below):
 // picking Date.now() at import time made the Today/Earlier split flaky
@@ -47,7 +48,9 @@ function renderAt(path: string) {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;

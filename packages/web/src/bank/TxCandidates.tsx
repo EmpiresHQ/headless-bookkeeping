@@ -10,7 +10,9 @@ import { bookManualMatch, invalidateStatement } from '../queries/bank';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { GroupLabel } from '../ui/List';
+import { PendingFieldset } from '../ui/Form';
 import { toastErr } from '../ui/toast';
+import { rethrowIfEnded, type PendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
@@ -25,12 +27,16 @@ export function TxCandidates({
   tx,
   result,
   preselectVoucherIds,
+  op,
   onMatched,
 }: {
   statementId: number;
   tx: BankTransaction;
   result: MatchCandidatesResult;
   preselectVoucherIds: number[];
+  /** The LINE's operation, owned by TxScreen (stays mounted while the
+   *  statement refresh re-routes the line — issue #251). */
+  op: PendingOperation;
   onMatched: (matchIds: number[], totalCents: number) => void;
 }) {
   const qc = useQueryClient();
@@ -42,7 +48,7 @@ export function TxCandidates({
         ),
       ),
   );
-  const [busy, setBusy] = useState(false);
+  const busy = op.pending;
   // Seeded once from the high-confidence proposals (frozen alike).
   const [baseline] = useState(selected);
   const guard = useUnsavedChanges({
@@ -71,54 +77,81 @@ export function TxCandidates({
       return next;
     });
 
-  const onBook = async () => {
-    setBusy(true);
-    const matchIds: number[] = [];
-    try {
-      for (const { candidate, amount } of allocations) {
-        const matchType =
-          amount === candidate.voucherRemaining &&
-          amount === result.lineRemaining &&
-          allocations.length === 1
-            ? 'exact'
-            : 'partial';
-        matchIds.push(
-          await bookManualMatch(statementId, {
-            bankTransactionId: tx.id,
-            voucherId: candidate.voucherId,
-            amountMatched: amount,
-            matchType,
-          }),
-        );
-      }
-      guard.release();
-      onMatched(matchIds, allocated);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      // Partial success is real: report what actually landed.
-      if (matchIds.length > 0) {
-        const landed = allocations
-          .slice(0, matchIds.length)
-          .reduce((sum, a) => sum + a.amount, 0);
-        // What landed is on the server and onMatched leaves this line.
-        guard.release();
-        onMatched(matchIds, landed);
-      } else {
-        // The FIRST match threw after staging (BookingPartialError, zero
-        // landed): nothing to report via onMatched, but the line is now
-        // stranded stale — refetch so it routes to matched-with-staged and
-        // a Confirm primary (the recovery path already exists).
-        void invalidateStatement(qc, statementId);
-      }
-    } finally {
-      setBusy(false);
-    }
+  const onBook = () => {
+    if (allocated <= 0) return;
+    const plan = allocations.map(({ candidate, amount }) => ({
+      voucherId: candidate.voucherId,
+      amount,
+      matchType:
+        amount === candidate.voucherRemaining &&
+        amount === result.lineRemaining &&
+        allocations.length === 1
+          ? ('exact' as const)
+          : ('partial' as const),
+    }));
+    const txId = tx.id;
+    op.run(
+      async (ctx) => {
+        const matchIds: number[] = [];
+        try {
+          for (const p of plan) {
+            ctx.check();
+            matchIds.push(
+              await bookManualMatch(
+                statementId,
+                {
+                  bankTransactionId: txId,
+                  voucherId: p.voucherId,
+                  amountMatched: p.amount,
+                  matchType: p.matchType,
+                },
+                ctx.check,
+              ),
+            );
+          }
+        } catch (error) {
+          rethrowIfEnded(error);
+          if (matchIds.length === 0) throw error;
+          // Partial success is real: report what actually landed.
+          ctx.check();
+          await invalidateStatement(qc, statementId);
+          const landed = plan
+            .slice(0, matchIds.length)
+            .reduce((sum, p) => sum + p.amount, 0);
+          return { matchIds, total: landed, error };
+        }
+        ctx.check();
+        await invalidateStatement(qc, statementId);
+        return { matchIds, total: allocated, error: null as unknown };
+      },
+      {
+        onSuccess: ({ matchIds, total, error }) => {
+          if (error !== null) {
+            toastErr(error instanceof Error ? error.message : String(error));
+          }
+          // What landed is on the server and onMatched leaves this line.
+          guard.release();
+          onMatched(matchIds, total);
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e));
+          // Nothing landed — or the FIRST match threw after staging
+          // (BookingPartialError, zero activated): the line may be stranded
+          // stale — refetch so it routes to matched-with-staged and a
+          // Confirm primary (the recovery path already exists).
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
   };
 
   const counterparty = result.candidates[0]?.counterpartyName;
 
   return (
-    <>
+    <PendingFieldset
+      pending={busy}
+      status="Matching… the line is locked until the server answers."
+    >
       <GroupLabel>
         {counterparty ? `Open items · ${counterparty}` : 'Open items'}
       </GroupLabel>
@@ -177,7 +210,7 @@ export function TxCandidates({
           className="h-[46px] w-full"
           disabled={allocated <= 0}
           busy={busy}
-          onClick={() => void onBook()}
+          onClick={onBook}
         >
           Match {fmtCents(allocated)} €
         </Button>
@@ -185,6 +218,6 @@ export function TxCandidates({
       <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
         N:M — the remainder is never lost: it stays visible on the line
       </p>
-    </>
+    </PendingFieldset>
   );
 }

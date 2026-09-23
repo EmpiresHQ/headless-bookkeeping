@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { createNextPeriod } from '../api';
 import {
   invalidateReports,
@@ -7,9 +7,10 @@ import {
   usePeriodConfig,
 } from '../queries/reports';
 import { Button } from '../ui/Button';
-import { Field, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
@@ -40,24 +41,37 @@ export function NewPeriodSheet({
     baseline: { startDate: '', endDate: '', name: '' },
   });
 
-  const create = useMutation({
-    mutationFn: () => {
+  const op = usePendingOperation('New period');
+  const busy = op.pending;
+  const create = () => {
+    const perform = () => {
       const input: { start_date?: string; end_date?: string; name?: string } =
         {};
       if (startDate) input.start_date = startDate;
       if (endDate) input.end_date = endDate;
       if (name) input.name = name;
       return createNextPeriod(input);
-    },
-    onSuccess: async (p) => {
-      await invalidateReports(qc);
-      toastOk(`Period ${periodTitle(p.name)} opened`);
-      guard.release();
-      onOpenChange(false);
-    },
-    onError: (e) =>
-      toastErr(e instanceof Error ? e.message : 'Could not open the period'),
-  });
+    };
+    op.run(
+      async (ctx) => {
+        const result = await perform();
+        ctx.check();
+        await invalidateReports(qc);
+        return result;
+      },
+      {
+        onSuccess: (p) => {
+          toastOk(`Period ${periodTitle(p.name)} opened`);
+          guard.release();
+          onOpenChange(false);
+        },
+        onError: (e) =>
+          toastErr(
+            e instanceof Error ? e.message : 'Could not open the period',
+          ),
+      },
+    );
+  };
 
   const frequency = configQ.data?.default_frequency;
 
@@ -65,7 +79,7 @@ export function NewPeriodSheet({
   // backdrop/swipe dismissal mid-mutation would unmount this component and
   // lose the onSuccess invalidate + receipt toast.
   const guardedOnOpenChange = (o: boolean) => {
-    if (create.isPending && !o) return;
+    if (busy && !o) return;
     onOpenChange(o);
   };
 
@@ -75,9 +89,9 @@ export function NewPeriodSheet({
       onOpenChange={guardedOnOpenChange}
       title="New period"
       guard={guard}
-      busy={create.isPending}
+      busy={busy}
     >
-      <div className="space-y-3 px-6">
+      <PendingFieldset pending={busy} className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">
           The next period is computed from your
           {frequency ? ` ${frequency} ` : ' '}filing frequency — normally you
@@ -125,14 +139,10 @@ export function NewPeriodSheet({
             </Field>
           </div>
         )}
-        <Button
-          className="w-full"
-          busy={create.isPending}
-          onClick={() => create.mutate()}
-        >
+        <Button className="w-full" busy={busy} onClick={create}>
           Open next period
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

@@ -13,14 +13,14 @@ import {
   signedEuros,
   vatFromGross,
 } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { useCustomers } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
-import { toastErr } from '../ui/toast';
 
 const CURRENCIES = ['EUR', 'DKK', 'USD', 'GBP', 'SEK', 'NOK'] as const;
 const VAT_MARKINGS = [
@@ -72,7 +72,8 @@ export function ClassifyInvoiceSheet({
   const [date, setDate] = useState('');
   const [vatMarking, setVatMarking] = useState('');
   const [prefilled, setPrefilled] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Record sales invoice');
+  const busy = op.pending;
   // What the prefill offered, committed with it (see ClassifyExpenseSheet).
   const [prefillBase, setPrefillBase] = useState(EMPTY_INVOICE);
 
@@ -157,26 +158,24 @@ export function ClassifyInvoiceSheet({
     vatCents !== null &&
     vatCents >= 0;
 
-  const submit = async () => {
+  const submit = () => {
     if (!valid || grossCents === null || vatCents === null) return;
-    setBusy(true);
-    try {
-      const outcome = await manualClassifyInvoice(documentId, {
-        target: 'sales_invoice',
-        customer_id: customer?.id ?? null,
-        invoice_number: invoiceNumber.trim(),
-        document_vat_marking: vatMarking !== '' ? vatMarking : null,
-        gross_amount: grossCents,
-        vat_amount: vatCents,
-        currency,
-        tax_point_date: date,
-      });
-      guard.release();
-      onDone(outcome);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+    const req = {
+      target: 'sales_invoice' as const,
+      customer_id: customer?.id ?? null,
+      invoice_number: invoiceNumber.trim(),
+      document_vat_marking: vatMarking !== '' ? vatMarking : null,
+      gross_amount: grossCents,
+      vat_amount: vatCents,
+      currency,
+      tax_point_date: date,
+    };
+    op.run(() => manualClassifyInvoice(documentId, req), {
+      onSuccess: (outcome) => {
+        guard.release();
+        onDone(outcome);
+      },
+    });
   };
 
   const matches = (customersQ.data ?? [])
@@ -191,7 +190,7 @@ export function ClassifyInvoiceSheet({
       guard={guard}
       busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         {reclassifyQ.isPending && (
           <p className="text-[13px] text-ink-2">
             Re-reading the document (OCR + AI)… this can take a minute
@@ -324,13 +323,13 @@ export function ClassifyInvoiceSheet({
           className="w-full"
           busy={busy}
           disabled={!valid}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {grossCents !== null && grossCents > 0
             ? `Record invoice · ${signedEuros(grossCents)}`
             : 'Record invoice'}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

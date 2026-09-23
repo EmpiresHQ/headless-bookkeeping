@@ -7,9 +7,10 @@ import {
 } from '../api';
 import { invalidateMailbox } from '../queries/settings';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /** App-password IMAP connector (Reality #9). Credentials are encrypted at
@@ -22,7 +23,8 @@ export function AddImapSheet({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Add mailbox');
+  const busy = op.pending;
   const [channel, setChannel] = useState<MailboxChannel>('email_sync');
   const [provider, setProvider] = useState<MailboxProvider>('imap');
   const [host, setHost] = useState('');
@@ -42,27 +44,31 @@ export function AddImapSheet({
   const valid =
     host.trim() !== '' && username.trim() !== '' && secret.length > 0;
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      await createMailboxConnector({
-        channel,
-        provider,
-        host: host.trim(),
-        port: Number(port),
-        username: username.trim(),
-        secret,
-        folder: folder.trim() || undefined,
-      });
-      toastOk(`Mailbox added — ${username.trim()}`);
-      guard.release();
-      onClose();
-      void invalidateMailbox(qc);
-    } catch (e) {
-      // Includes the server's MAILBOX_SECRET_KEY guidance verbatim.
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const submit = () => {
+    op.run(
+      () =>
+        createMailboxConnector({
+          channel,
+          provider,
+          host: host.trim(),
+          port: Number(port),
+          username: username.trim(),
+          secret,
+          folder: folder.trim() || undefined,
+        }),
+      {
+        onSuccess: () => {
+          toastOk(`Mailbox added — ${username.trim()}`);
+          guard.release();
+          onClose();
+          void invalidateMailbox(qc);
+        },
+        onError: (e) => {
+          // Includes the server's MAILBOX_SECRET_KEY guidance verbatim.
+          toastErr(e instanceof Error ? e.message : String(e));
+        },
+      },
+    );
   };
 
   return (
@@ -73,7 +79,7 @@ export function AddImapSheet({
       busy={busy}
       title="Add IMAP mailbox"
     >
-      <div className="space-y-4 px-6 pb-2">
+      <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
         <Field
           label="Mode"
           hint="email_sync polls your own inbox (read-only firehose); email_push is a single dedicated accounting mailbox"
@@ -141,11 +147,11 @@ export function AddImapSheet({
           className="w-full"
           busy={busy}
           disabled={!valid || busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           Add mailbox
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

@@ -1,6 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { updateOrganization, type Organization } from '../api';
+import {
+  updateOrganization,
+  type Organization,
+  type UpdateOrganizationDto,
+} from '../api';
 import { sameValues, useUnsavedChanges } from '../lib/unsavedChanges';
 import { sharedKeys } from '../queries/keys';
 import { invalidateOrganization, useOrganization } from '../queries/settings';
@@ -9,7 +13,8 @@ import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
 import { Field, INPUT_CLS, SelectInput, TextInput } from '../ui/Form';
 import { LoadError } from '../ui/LoadError';
-import { toastErr, toastOk } from '../ui/toast';
+import { toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 const COUNTRY_RE = /^[A-Z]{2}$/;
 const CURRENCY_RE = /^[A-Z]{3}$/;
@@ -84,7 +89,10 @@ function fromServer(data: Organization) {
 
 function OrgForm({ data }: { data: Organization }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  // Stays editable while saving (inline form): a save adopts the server's
+  // values only if nothing was typed meanwhile — newer edits stay unsaved.
+  const op = usePendingOperation('Organization');
+  const busy = op.pending;
   const [initial] = useState(() => fromServer(data));
   const [country, setCountry] = useState(initial.country);
   const [orgType, setOrgType] = useState(initial.orgType);
@@ -173,41 +181,38 @@ function OrgForm({ data }: { data: Organization }) {
   const valid =
     countryErr === null && currencyErr === null && permilleErr === null;
 
-  const save = async () => {
-    setBusy(true);
+  const save = () => {
     const sent = values;
-    try {
-      const saved = await updateOrganization({
-        country: country.trim().toUpperCase(),
-        org_type: orgType === 'sole_proprietor' ? 'sole_proprietor' : 'company',
-        vat_registered: vatRegistered,
-        vat_registration_kind: vatKind,
-        // Deregistering carries the entitlement to 'none' with it — the API
-        // refuses any other combination, and so does the form.
-        input_vat_entitlement: effectiveEntitlement,
-        input_vat_deduction_permille:
-          effectiveEntitlement === 'partial' ? permilleNum : null,
-        // Empty string → null: inherit the country plugin's base currency
-        // (ADR-0004; legacy organization-tab semantics preserved).
-        base_currency: currency.trim() ? currency.trim().toUpperCase() : null,
-        name: name.trim() ? name.trim() : null,
-        vat_registration_number: vatNumber.trim() ? vatNumber.trim() : null,
-        registry_code: registryCode.trim() || null,
-        iban: iban.trim() ? iban.trim() : null,
-      });
-      // The saved (server-normalized) snapshot is the new baseline; adopt it
-      // into the fields unless the operator kept typing during the save —
-      // their newer edits stay, and stay unsaved.
-      if (sameValues(latest.current, sent)) adopt(fromServer(saved));
-      syncedData.current = saved;
-      qc.setQueryData(sharedKeys.organization, saved);
-      await invalidateOrganization(qc);
-      toastOk('Organization saved');
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    const req: UpdateOrganizationDto = {
+      country: country.trim().toUpperCase(),
+      org_type: orgType === 'sole_proprietor' ? 'sole_proprietor' : 'company',
+      vat_registered: vatRegistered,
+      vat_registration_kind: vatKind,
+      // Deregistering carries the entitlement to 'none' with it — the API
+      // refuses any other combination, and so does the form.
+      input_vat_entitlement: effectiveEntitlement,
+      input_vat_deduction_permille:
+        effectiveEntitlement === 'partial' ? permilleNum : null,
+      // Empty string → null: inherit the country plugin's base currency
+      // (ADR-0004; legacy organization-tab semantics preserved).
+      base_currency: currency.trim() ? currency.trim().toUpperCase() : null,
+      name: name.trim() ? name.trim() : null,
+      vat_registration_number: vatNumber.trim() ? vatNumber.trim() : null,
+      registry_code: registryCode.trim() || null,
+      iban: iban.trim() ? iban.trim() : null,
+    };
+    op.run(() => updateOrganization(req), {
+      onSuccess: (saved) => {
+        // The saved (server-normalized) snapshot is the new baseline; adopt
+        // it into the fields unless the operator kept typing during the save
+        // — their newer edits stay, and stay unsaved.
+        if (sameValues(latest.current, sent)) adopt(fromServer(saved));
+        syncedData.current = saved;
+        qc.setQueryData(sharedKeys.organization, saved);
+        void invalidateOrganization(qc);
+        toastOk('Organization saved');
+      },
+    });
   };
 
   return (
@@ -377,7 +382,7 @@ function OrgForm({ data }: { data: Organization }) {
         className="w-full"
         busy={busy}
         disabled={!valid || busy}
-        onClick={() => void save()}
+        onClick={save}
       >
         Save organization
       </Button>

@@ -23,6 +23,7 @@ import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { AddImapSheet } from './AddImapSheet';
 import { SettingField } from './SettingField';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 const STATUS_TONE: Record<MailboxConnector['status'], 'ok' | 'warn' | 'err'> = {
   connected: 'ok',
@@ -63,8 +64,14 @@ export function MailboxScreen() {
   const [removeTarget, setRemoveTarget] = useState<MailboxConnector | null>(
     null,
   );
-  const [removing, setRemoving] = useState(false);
-  const [syncing, setSyncing] = useState<number | null>(null);
+  // One mailbox operation at a time (issue #251); `running` says which
+  // control shows the progress.
+  const op = usePendingOperation('Mail intake');
+  const [running, setRunning] = useState<number | 'remove' | 'connect'>(
+    'connect',
+  );
+  const removing = op.pending && running === 'remove';
+  const syncing = op.pending && typeof running === 'number' ? running : null;
 
   // OAuth round-trip result (server callback → /?mailbox=… → Task 12 redirect
   // → here). Surface once, then strip so refresh doesn't replay the banner.
@@ -89,44 +96,45 @@ export function MailboxScreen() {
     return () => clearTimeout(t);
   }, []);
 
-  const sync = async (id: number) => {
-    setSyncing(id);
-    try {
-      await syncMailboxConnector(id);
-      toastOk('Sync finished');
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSyncing(null);
-      void invalidateMailbox(qc);
-    }
+  const sync = (id: number) => {
+    const started = op.run(() => syncMailboxConnector(id), {
+      onSuccess: () => {
+        toastOk('Sync finished');
+        void invalidateMailbox(qc);
+      },
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+        void invalidateMailbox(qc);
+      },
+    });
+    if (started) setRunning(id);
   };
 
-  const remove = async () => {
+  const remove = () => {
     if (removeTarget === null) return;
-    setRemoving(true);
-    try {
-      await deleteMailboxConnector(removeTarget.id);
-      toastOk(`Removed — ${removeTarget.username}`);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRemoving(false);
-      setRemoveTarget(null);
-      void invalidateMailbox(qc);
-    }
+    const target = removeTarget;
+    const started = op.run(() => deleteMailboxConnector(target.id), {
+      onSuccess: () => {
+        toastOk(`Removed — ${target.username}`);
+        setRemoveTarget(null);
+        void invalidateMailbox(qc);
+      },
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+        setRemoveTarget(null);
+        void invalidateMailbox(qc);
+      },
+    });
+    if (started) setRunning('remove');
   };
 
-  const connect = async (provider: 'gmail' | 'outlook') => {
-    try {
-      const { url } = await startMailboxOAuth({
-        provider,
-        channel: 'email_sync',
-      });
-      window.location.assign(url);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    }
+  const connect = (provider: 'gmail' | 'outlook') => {
+    const started = op.run(
+      () => startMailboxOAuth({ provider, channel: 'email_sync' }),
+      // A full-page redirect — only while this screen and session are live.
+      { onSuccess: ({ url }) => window.location.assign(url) },
+    );
+    if (started) setRunning('connect');
   };
 
   return (
@@ -181,8 +189,8 @@ export function MailboxScreen() {
                   <Button
                     variant="ghost"
                     busy={syncing === c.id}
-                    disabled={syncing !== null}
-                    onClick={() => void sync(c.id)}
+                    disabled={op.pending}
+                    onClick={() => sync(c.id)}
                     aria-label={`Sync ${c.username}`}
                   >
                     Sync
@@ -207,8 +215,12 @@ export function MailboxScreen() {
       </p>
 
       <div className="mx-3.5 mb-3.5 flex flex-wrap gap-2">
-        <Button onClick={() => void connect('gmail')}>Connect Gmail</Button>
-        <Button onClick={() => void connect('outlook')}>Connect Outlook</Button>
+        <Button disabled={op.pending} onClick={() => connect('gmail')}>
+          Connect Gmail
+        </Button>
+        <Button disabled={op.pending} onClick={() => connect('outlook')}>
+          Connect Outlook
+        </Button>
         <Button variant="secondary" onClick={() => imap.open()}>
           Add IMAP mailbox…
         </Button>
@@ -252,7 +264,7 @@ export function MailboxScreen() {
         confirmLabel="Remove mailbox"
         destructive
         busy={removing}
-        onConfirm={() => void remove()}
+        onConfirm={remove}
       />
     </div>
   );

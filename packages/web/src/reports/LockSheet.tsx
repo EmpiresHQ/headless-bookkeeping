@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   fmtCents,
   lockPeriod,
@@ -16,9 +16,10 @@ import {
 } from '../queries/reports';
 import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
@@ -78,17 +79,30 @@ export function LockSheet({
     return `Invoice — ${suffix}`;
   };
 
-  const lock = useMutation({
-    mutationFn: () => lockPeriod(period.id),
-    onSuccess: async () => {
-      await invalidateReports(qc);
-      toastOk(`${periodTitle(period.name)} closed — declaration frozen`);
-      guard.release();
-      onOpenChange(false);
-    },
-    onError: (e) =>
-      toastErr(e instanceof Error ? e.message : 'Could not close the period'),
-  });
+  const op = usePendingOperation('Close period');
+  const busy = op.pending;
+  const lock = () => {
+    const perform = () => lockPeriod(period.id);
+    op.run(
+      async (ctx) => {
+        const result = await perform();
+        ctx.check();
+        await invalidateReports(qc);
+        return result;
+      },
+      {
+        onSuccess: () => {
+          toastOk(`${periodTitle(period.name)} closed — declaration frozen`);
+          guard.release();
+          onOpenChange(false);
+        },
+        onError: (e) =>
+          toastErr(
+            e instanceof Error ? e.message : 'Could not close the period',
+          ),
+      },
+    );
+  };
 
   const confirmLabel =
     netVatDueCents !== null
@@ -101,7 +115,7 @@ export function LockSheet({
   // where the server has just locked the period and the UI would silently
   // keep showing it open.
   const guardedOnOpenChange = (o: boolean) => {
-    if (lock.isPending && !o) return;
+    if (busy && !o) return;
     onOpenChange(o);
   };
 
@@ -111,9 +125,9 @@ export function LockSheet({
       onOpenChange={guardedOnOpenChange}
       title={`Close ${periodTitle(period.name)}`}
       guard={guard}
-      busy={lock.isPending}
+      busy={busy}
     >
-      <div className="space-y-3 px-6">
+      <PendingFieldset pending={busy} className="space-y-3 px-6">
         <ul className="list-disc space-y-1 pl-5 text-[13.5px] text-ink-2">
           <li>The declaration is frozen exactly as shown and filed as-is.</li>
           <li>
@@ -155,12 +169,12 @@ export function LockSheet({
         <Button
           className="w-full"
           disabled={typed.trim() !== period.name}
-          busy={lock.isPending}
-          onClick={() => lock.mutate()}
+          busy={busy}
+          onClick={lock}
         >
           {confirmLabel}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

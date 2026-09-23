@@ -26,7 +26,7 @@ function mount(url = '/books') {
   );
   const view = render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <RouterProvider router={router} />
       </UnsavedChangesProvider>
     </QueryClientProvider>,

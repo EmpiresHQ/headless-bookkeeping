@@ -88,7 +88,12 @@ export function OtherSheet({
     });
   }
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Other actions">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Other actions"
+      busy={busy}
+    >
       <div className="px-4 pb-4">
         <div className="overflow-hidden rounded-2xl bg-surface">
           {options.map((o) => (
@@ -143,7 +148,12 @@ export function PersonalSheet({
   onConfirm: () => void;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Personal spend">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Personal spend"
+      busy={busy}
+    >
       <p className="px-7 pb-2.5 text-center text-[12px] text-ink-2">
         {tx.description ?? 'Bank line'} · {fmtCents(tx.amount)} €
       </p>

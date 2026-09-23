@@ -62,7 +62,7 @@ function mountSheet(warnings: unknown[] = []) {
   const onOpenChange = vi.fn();
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter>
           <AppToaster />
           <LockSheet

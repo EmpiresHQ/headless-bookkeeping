@@ -27,7 +27,7 @@ function mount(props: Partial<Parameters<typeof CorrectSheet>[0]> = {}) {
   const onDone = vi.fn();
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={['/books/expenses/12']}>
           <AppToaster />
           <Routes>

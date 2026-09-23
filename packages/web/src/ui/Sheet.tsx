@@ -22,9 +22,9 @@ export function Sheet({
   /** Unsaved-input guard of the form inside (lib/unsavedChanges): a dismiss
    *  (Escape, backdrop, swipe) while it is dirty asks before closing. */
   guard?: DismissGuard;
-  /** A save is in flight: every dismiss is refused (drawer put back), and
-   *  no discard question is asked for a form that is mid-save. Issue #251
-   *  owns the pending-operation contract beyond this. */
+  /** A save is in flight (lib/pendingOperation, issue #251): every dismiss
+   *  is refused (drawer put back), and no discard question is asked for a
+   *  form that is mid-save. */
   busy?: boolean;
   children: ReactNode;
 }) {

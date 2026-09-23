@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   getPendingDraft,
@@ -7,11 +7,12 @@ import {
   type TriageOutcome,
 } from '../api';
 import { signedEuros } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
 import { toastErr } from '../ui/toast';
@@ -41,7 +42,17 @@ export function ResolveSupplierSheet({
   });
   const suppliersQ = useSuppliers();
   const [q, setQ] = useState('');
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Resolve supplier');
+  const busy = op.pending;
+  // Partial success (issue #251): the supplier was created but resolving
+  // the document failed. Bound to the exact identity it was created from —
+  // a retry of the SAME input only resolves (never a second supplier).
+  const created = useRef<{
+    key: string;
+    entityId: number;
+    name: string;
+  } | null>(null);
+  const [createdShown, setCreatedShown] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');
@@ -91,35 +102,66 @@ export function ResolveSupplierSheet({
   const draft = draftQ.data?.draft;
   const amount = draft !== undefined ? signedEuros(-draft.gross_amount) : null;
 
-  const finish = async (supplierEntityId: number) => {
-    setBusy(true);
-    try {
-      const outcome = await resolveSupplier(documentId, supplierEntityId);
-      guard.release();
-      onDone(outcome);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const finish = (supplierEntityId: number) => {
+    op.run(() => resolveSupplier(documentId, supplierEntityId), {
+      onSuccess: (outcome) => {
+        guard.release();
+        onDone(outcome);
+      },
+    });
   };
 
-  const onCreate = async () => {
-    setBusy(true);
-    try {
-      const entity = await onboardEntity({
-        role: 'supplier',
-        name: name.trim(),
-        country: country.trim(),
-        registrationKey: regKey.trim(),
-      });
-      const outcome = await resolveSupplier(documentId, entity.id);
-      guard.release();
-      onDone(outcome);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const createKey = JSON.stringify([
+    name.trim(),
+    country.trim(),
+    regKey.trim(),
+  ]);
+  const landed =
+    created.current !== null && created.current.key === createKey
+      ? created.current
+      : null;
+
+  const onCreate = () => {
+    const key = createKey;
+    const req = {
+      role: 'supplier' as const,
+      name: name.trim(),
+      country: country.trim(),
+      registrationKey: regKey.trim(),
+    };
+    const resume = landed;
+    op.run(
+      async (ctx) => {
+        let entityId: number;
+        if (resume !== null) {
+          entityId = resume.entityId;
+        } else {
+          const entity = await onboardEntity(req);
+          entityId = entity.id;
+          created.current = { key, entityId, name: entity.name };
+        }
+        ctx.check();
+        return resolveSupplier(documentId, entityId);
+      },
+      {
+        onSuccess: (outcome) => {
+          guard.release();
+          onDone(outcome);
+        },
+        onError: (e) => {
+          const c = created.current;
+          const message = e instanceof Error ? e.message : String(e);
+          if (c !== null && c.key === key) {
+            setCreatedShown(c.entityId);
+            toastErr(
+              `Supplier “${c.name}” was created, but booking the document failed: ${message}`,
+            );
+          } else {
+            toastErr(message);
+          }
+        },
+      },
+    );
   };
 
   const createValid =
@@ -136,7 +178,7 @@ export function ResolveSupplierSheet({
       guard={guard}
       busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         {draftQ.isPending && (
           <p className="text-[13px] text-ink-2">Loading the AI proposal…</p>
         )}
@@ -178,12 +220,21 @@ export function ResolveSupplierSheet({
           className="w-full"
           busy={busy}
           disabled={!createValid || draft === undefined}
-          onClick={() => void onCreate()}
+          onClick={onCreate}
         >
-          {amount !== null
-            ? `Create supplier & book · ${amount}`
-            : 'Create supplier & book'}
+          {landed !== null
+            ? 'Retry booking with the created supplier'
+            : amount !== null
+              ? `Create supplier & book · ${amount}`
+              : 'Create supplier & book'}
         </Button>
+        {landed !== null && createdShown === landed.entityId && (
+          <p className="rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
+            Supplier “{landed.name}” already exists on the server — only booking
+            the document failed. Retrying books it with that supplier; it does
+            not create another one.
+          </p>
+        )}
         <p className="pt-1 text-center text-[11px] font-bold uppercase tracking-wide text-ink-2">
           or pick an existing supplier
         </p>
@@ -198,7 +249,7 @@ export function ResolveSupplierSheet({
               key={s.id}
               type="button"
               disabled={busy}
-              onClick={() => void finish(s.id)}
+              onClick={() => finish(s.id)}
               className="flex w-full items-center justify-between border-b border-line px-3.5 py-3 text-left text-[14px] font-semibold last:border-b-0 disabled:opacity-50"
             >
               {s.name}
@@ -211,7 +262,7 @@ export function ResolveSupplierSheet({
             <p className="px-3.5 py-3 text-[12.5px] text-ink-2">No matches</p>
           )}
         </div>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

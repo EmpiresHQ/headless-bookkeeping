@@ -58,7 +58,7 @@ function renderAt(path: string) {
   );
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <RouterProvider router={router} />
       </UnsavedChangesProvider>
     </QueryClientProvider>,
