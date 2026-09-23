@@ -2,10 +2,12 @@ import { useSearchParams } from 'react-router-dom';
 import { useSeg } from '../lib/useSeg';
 import { useSheet } from '../lib/useSheet';
 import {
+  ALL_SEGMENT_ROLE_HINT,
   ENTITY_SEGMENTS,
   entityMatchesQuery,
   ROLE_LABEL,
   ROLE_TONE,
+  SEGMENT_DEFAULT_ROLE,
   segmentEntities,
   type EntitySegment,
 } from '../queries/settings';
@@ -26,7 +28,12 @@ export function EntitiesScreen() {
   const [seg, setSeg] = useSeg<EntitySegment>(ENTITY_SEGMENTS, 'all');
   const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '';
-  const create = useSheet();
+  // The segment is captured as the sheet payload AT OPEN TIME (issue #264):
+  // each open (epoch-keyed remount) starts from the role of the segment it
+  // was opened on, never from a live/previous segment.
+  const create = useSheet<EntitySegment>();
+  const openCreate = () => create.open(seg);
+  const openedFrom = create.payload ?? 'all';
   const entitiesQ = useEntities();
 
   const setQ = (next: string) => {
@@ -45,7 +52,7 @@ export function EntitiesScreen() {
       <LargeTitleHeader
         title="Entities"
         trailing={
-          <Button variant="secondary" onClick={() => create.open()}>
+          <Button variant="secondary" onClick={openCreate}>
             ＋ Add
           </Button>
         }
@@ -80,7 +87,7 @@ export function EntitiesScreen() {
             icon="👥"
             title="No team members yet"
             hint="Add an employee or director so they appear in the claimant dropdown when a receipt is uploaded for reimbursement (who paid — reimburse them)."
-            action={<Button onClick={() => create.open()}>Add employee</Button>}
+            action={<Button onClick={openCreate}>Add employee</Button>}
           />
         ) : (
           <EmptyState
@@ -93,7 +100,7 @@ export function EntitiesScreen() {
                 ? 'Try another segment or search term.'
                 : 'Suppliers and customers are created automatically when documents and bank lines are booked; employees and directors (reimbursement claimants) are added here.'
             }
-            action={<Button onClick={() => create.open()}>Add entity</Button>}
+            action={<Button onClick={openCreate}>Add entity</Button>}
           />
         )
       ) : (
@@ -114,7 +121,8 @@ export function EntitiesScreen() {
           key={create.epoch}
           open={create.isOpen}
           onClose={create.close}
-          defaultRole={seg === 'team' ? 'employee' : 'supplier'}
+          defaultRole={SEGMENT_DEFAULT_ROLE[openedFrom]}
+          roleHint={openedFrom === 'all' ? ALL_SEGMENT_ROLE_HINT : undefined}
         />
       )}
     </div>

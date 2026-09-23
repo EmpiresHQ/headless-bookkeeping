@@ -6,8 +6,9 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
   getEntities: vi.fn(),
+  onboardEntity: vi.fn(),
 }));
-import { getEntities, type Entity } from '../api';
+import { getEntities, onboardEntity, type Entity } from '../api';
 import { EntitiesScreen } from './EntitiesScreen';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
@@ -40,7 +41,10 @@ const ROWS: Entity[] = [
 function mount(initial = '/settings/entities') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createMemoryRouter(
-    [{ path: '/settings/entities', element: <EntitiesScreen /> }],
+    [
+      { path: '/settings/entities', element: <EntitiesScreen /> },
+      { path: '/settings/entities/:id', element: <div>DETAIL</div> },
+    ],
     { initialEntries: [initial] },
   );
   render(
@@ -136,5 +140,110 @@ describe('EntitiesScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
     expect(await screen.findByLabelText('Name')).toHaveValue('');
     expect(screen.getByLabelText('Role')).toHaveValue('supplier');
+  });
+
+  describe('Add starts from the segment role (issue #264)', () => {
+    const ALL_HINT =
+      'Defaults to Supplier — change it for a customer, employee or director.';
+
+    it('Customers → Add opens a customer form and posts role customer', async () => {
+      vi.mocked(onboardEntity).mockResolvedValue({
+        id: 41,
+        role: 'customer',
+        country: 'FI',
+        name: 'Suomi Oy',
+        goods_vs_services: null,
+        tax_status: null,
+      } as Entity);
+      const router = mount('/settings/entities?seg=customers');
+      await screen.findByText('Acme Oy');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('customer');
+      // Scoped segment: default matches the segment, no All-default note.
+      expect(screen.queryByText(ALL_HINT)).toBeNull();
+      fireEvent.change(screen.getByLabelText('Name'), {
+        target: { value: 'Suomi Oy' },
+      });
+      fireEvent.change(screen.getByLabelText('Country'), {
+        target: { value: 'FI' },
+      });
+      fireEvent.change(screen.getByLabelText('Registration key'), {
+        target: { value: 'FI12345678' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Add customer' }));
+      await waitFor(() =>
+        expect(onboardEntity).toHaveBeenCalledWith({
+          role: 'customer',
+          name: 'Suomi Oy',
+          country: 'FI',
+          registrationKey: 'FI12345678',
+          goodsVsServices: 'unknown',
+          taxStatus: 'unknown',
+        }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/settings/entities/41'),
+      );
+    });
+
+    it('Suppliers → supplier; Team → employee; neither shows the All note', async () => {
+      mount('/settings/entities?seg=suppliers');
+      await screen.findByText('Circle K Eesti AS');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('supplier');
+      expect(screen.queryByText(ALL_HINT)).toBeNull();
+      // Untouched form closes without an unsaved-changes prompt: the guard
+      // baseline is the segment role, not a hard-coded supplier.
+      fireEvent.keyDown(document, { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByLabelText('Role')).toBeNull());
+      fireEvent.click(screen.getByRole('tab', { name: 'Team' }));
+      await screen.findByText('Mari Maasikas');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('employee');
+      expect(screen.getByLabelText('Email')).toBeInTheDocument();
+      expect(screen.queryByText(ALL_HINT)).toBeNull();
+    });
+
+    it('All keeps the documented supplier default, visibly stated', async () => {
+      mount();
+      await screen.findByText('Circle K Eesti AS');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('supplier');
+      expect(screen.getByText(ALL_HINT)).toBeInTheDocument();
+    });
+
+    it('empty-state Add in Customers also starts as customer', async () => {
+      mount('/settings/entities?seg=customers&q=zzz');
+      expect(await screen.findByText('Nothing matches')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Add entity' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('customer');
+    });
+
+    it('no stale default across close → switch segment → reopen', async () => {
+      mount('/settings/entities?seg=customers');
+      await screen.findByText('Acme Oy');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('customer');
+      // Manual role switch stays allowed (Settings is general-purpose)…
+      fireEvent.change(screen.getByLabelText('Role'), {
+        target: { value: 'director' },
+      });
+      expect(screen.getByLabelText('Email')).toBeInTheDocument();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      await waitFor(() => expect(screen.queryByLabelText('Role')).toBeNull());
+      // …and never outlives the sheet: reopening from Suppliers is supplier.
+      fireEvent.click(screen.getByRole('tab', { name: 'Suppliers' }));
+      await screen.findByText('Circle K Eesti AS');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('supplier');
+      expect(screen.getByLabelText('Registration key')).toHaveValue('');
+      fireEvent.keyDown(document, { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByLabelText('Role')).toBeNull());
+      fireEvent.click(screen.getByRole('tab', { name: 'Customers' }));
+      await screen.findByText('Acme Oy');
+      fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
+      expect(await screen.findByLabelText('Role')).toHaveValue('customer');
+    });
   });
 });
