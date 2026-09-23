@@ -63,7 +63,16 @@ source files. Use Lucide icons when an icon has a familiar meaning.
 
 ## 6. Motion & Interaction
 
-Use the existing 90-180ms route transitions. Respect `prefers-reduced-motion`.
+Route navigation is instant by design (issue #282). Entering a task, header
+Back, section switches and queue completion never start a View Transition or
+animate the route outlet, and the shell (tab bar, sidebar, headers) never moves
+with the content. So navigation looks the same with or without the View
+Transitions API and under `prefers-reduced-motion`. Never opt a `Link` or
+`navigate` into `viewTransition`: react-router's pending transition state can
+leave a stale screen under a newer URL (issue #252).
+`src/shell/routeMotion.test.ts` rejects such opt-ins. Local feedback motion,
+such as busy buttons and sheets, is separate from route motion and must respect
+`prefers-reduced-motion`.
 Loading must not resize fixed controls. Successful actions advance to the next
 queue item; recoverable failures keep the current document and its context.
 
