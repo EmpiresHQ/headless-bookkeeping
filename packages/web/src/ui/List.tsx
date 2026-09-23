@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { POSITION_ROW } from '../lib/listPosition';
 
 export function GroupLabel({ children }: { children: ReactNode }) {
   return (
@@ -56,10 +57,14 @@ export function ListRow({
   subtitle,
   trailing,
   chip,
+  positionRow = false,
 }: {
   to?: string;
   /** History state for the push (e.g. the origin record, issue #252). */
   state?: unknown;
+  /** The link is a row of a list that returns to it (`useReturnPosition`,
+   *  identified by its href). */
+  positionRow?: boolean;
   onClick?: () => void;
   leading?: ReactNode;
   title: ReactNode;
@@ -104,6 +109,7 @@ export function ListRow({
         <Link
           to={to}
           state={state}
+          {...(positionRow && { [POSITION_ROW]: '' })}
           className="flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0"
         >
           {content}

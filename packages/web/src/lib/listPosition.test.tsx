@@ -4,12 +4,14 @@ import {
   Link,
   RouterProvider,
   createBrowserRouter,
+  useNavigate,
   useSearchParams,
 } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setToken } from '../auth';
 import { LoadError } from '../ui/LoadError';
 import {
+  POSITION_GROUP,
   POSITION_ROW,
   resetListPositions,
   useReturnPosition,
@@ -93,6 +95,74 @@ function List() {
   );
 }
 
+/* A statement-like list (issue #355): each line has a selection checkbox,
+ * two navigation buttons (proposals A and B, laid out as rows 2L and 2L+1)
+ * and a Confirm button — only the navigation buttons are position rows. */
+/* The line's second control: proposal B, a same-height replacement C, or
+ * none. */
+let second: 'b' | 'c' | null = 'b';
+const setSecond = async (v: typeof second) => {
+  second = v;
+  // Async: the committed row change is observed in a microtask.
+  await act(async () => listeners.forEach((l) => l()));
+};
+function Lines() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isReady = useReady();
+  const kind = useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => second,
+  );
+  const navigate = useNavigate();
+  useReturnPosition(rootRef, isReady);
+  const nav = (l: number, p: string) => ({
+    [POSITION_ROW]: `tx:${l}:${p}`,
+    [POSITION_GROUP]: `tx:${l}`,
+  });
+  return (
+    <div ref={rootRef}>
+      <Link to="/item/elsewhere">Elsewhere</Link>
+      {isReady &&
+        Array.from({ length: ROWS / 2 }, (_, l) => (
+          <div key={l}>
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={false}
+              data-i={2 * l}
+            >
+              select {l}
+            </button>
+            <button
+              type="button"
+              data-i={2 * l}
+              onClick={() => navigate(`/item/${l}`)}
+              {...nav(l, 'a')}
+            >
+              line {l} A
+            </button>
+            {kind !== null && (
+              <button
+                type="button"
+                data-i={2 * l + 1}
+                onClick={() => navigate(`/item/${l}`)}
+                {...nav(l, kind)}
+              >
+                line {l} {kind.toUpperCase()}
+              </button>
+            )}
+            <button type="button" data-i={2 * l + 1}>
+              confirm {l}
+            </button>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 function Detail() {
   return <Link to="/list">Fresh list</Link>;
 }
@@ -104,6 +174,7 @@ let router: ReturnType<typeof createBrowserRouter>;
 function mount() {
   router = createBrowserRouter([
     { path: '/list', element: <List /> },
+    { path: '/lines', element: <Lines /> },
     { path: '/item/:id', element: <Detail /> },
   ]);
   return render(<RouterProvider router={router} />);
@@ -165,6 +236,7 @@ beforeEach(() => {
   growth = 0;
   observers.clear();
   savedOffsets.clear();
+  second = 'b';
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   window.history.replaceState(null, '', '/list');
   Object.defineProperty(window, 'scrollY', {
@@ -513,5 +585,151 @@ describe('repeated returns over the same history entry (issue #356)', () => {
     expect(window.location.pathname).toBe('/list');
     expect(window.scrollY).toBe(0);
     expect(document.activeElement).not.toBe(row(40));
+  });
+});
+
+describe('navigation-button rows (issue #355)', () => {
+  const ctl = (name: string) => screen.getByRole('button', { name });
+  async function click(el: HTMLElement, init: MouseEventInit = {}) {
+    await act(async () => {
+      fireEvent.click(el, { button: 0, ...init });
+    });
+  }
+  function mountLines() {
+    window.history.replaceState(null, '', '/lines');
+    return mount();
+  }
+
+  it('returns to the exact control opened — the second of its line — and focuses it', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300); // line 10's B at 300px
+    await click(ctl('line 10 B'));
+    expect(window.location.pathname).toBe('/item/10');
+    scrollTo(0);
+    await back();
+    expect(window.location.pathname).toBe('/lines');
+    expect(ctl('line 10 B').getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(ctl('line 10 B'));
+  });
+
+  it('a keyboard or modified activation of a button still opens it here', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'), { detail: 0, ctrlKey: true });
+    expect(window.location.pathname).toBe('/item/10');
+    scrollTo(0);
+    await back();
+    expect(ctl('line 10 B').getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(ctl('line 10 B'));
+  });
+
+  it('a gone control hands the return to its line’s other control', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    second = null; // the proposal was booked elsewhere meanwhile
+    scrollTo(0);
+    await back();
+    expect(ctl('line 10 A').getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(ctl('line 10 A'));
+    expect(screen.getByRole('checkbox', { name: 'select 10' })).not.toBe(
+      document.activeElement,
+    );
+  });
+
+  it('the exact control showing up later takes focus from its stand-in', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    second = null;
+    scrollTo(0);
+    await back();
+    expect(document.activeElement).toBe(ctl('line 10 A'));
+    // A refetch brings B back; A, the stand-in, stays in the list.
+    await setSecond('b');
+    expect(ctl('line 10 A')).toBeInTheDocument();
+    expect(ctl('line 10 B').getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(ctl('line 10 B'));
+  });
+
+  it('focus the user moved elsewhere stays there when the exact control shows up', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    second = null;
+    scrollTo(0);
+    await back();
+    // Focus moved without scroll intent (e.g. a programmatic or AT move).
+    act(() => ctl('confirm 3').focus());
+    await setSecond('b');
+    expect(ctl('line 10 B').getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(ctl('confirm 3'));
+  });
+
+  it('a same-height swap of the focused control re-resolves to its line — no resize needed', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    scrollTo(0);
+    await back();
+    expect(document.activeElement).toBe(ctl('line 10 B'));
+    // A refetch replaces B with C in the same slot: the list keeps its
+    // height, so no ResizeObserver fires (none is fired here at all).
+    await setSecond('c');
+    expect(document.activeElement).toBe(ctl('line 10 A'));
+    expect(ctl('line 10 A').getBoundingClientRect().top).toBe(300);
+  });
+
+  it('after scroll intent a row-set change neither scrolls nor moves focus', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    second = null;
+    scrollTo(0);
+    await back();
+    fireEvent.wheel(window);
+    scrollTo(1234);
+    await setSecond('b');
+    expect(window.scrollY).toBe(1234);
+    expect(document.activeElement).toBe(ctl('line 10 A'));
+  });
+
+  it('Back, Forward, Back again still lands on the second control', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    scrollTo(0);
+    await back();
+    await forward();
+    scrollTo(0);
+    await back();
+    expect(ctl('line 10 B').getBoundingClientRect().top).toBe(300);
+    expect(document.activeElement).toBe(ctl('line 10 B'));
+  });
+
+  it('a checkbox or Confirm press is never an opener, nor gets focus back', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(screen.getByRole('checkbox', { name: 'select 10' }));
+    await click(ctl('confirm 10'));
+    await click(screen.getByText('Elsewhere'));
+    scrollTo(0);
+    await back();
+    // The topmost visible control anchors the list; nothing is refocused.
+    expect(window.scrollY).toBe(pageTop(21) - 300);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('a new entry for the lines does not inherit the position', async () => {
+    mountLines();
+    scrollTo(pageTop(21) - 300);
+    await click(ctl('line 10 B'));
+    scrollTo(0);
+    await act(async () => {
+      await router.navigate('/lines');
+    });
+    expect(window.location.pathname).toBe('/lines');
+    expect(window.scrollY).toBe(0);
+    expect(document.activeElement).not.toBe(ctl('line 10 B'));
   });
 });

@@ -11,9 +11,10 @@ import { isSameSession, sessionStamp, type SessionStamp } from '../auth';
  * with header Back or browser Back, and the list is where it was — the
  * opened row at the same height on screen, and focused.
  *
- * - Scope: only lists that call this hook (Books segments), no global
- *   scroll effect. Nothing is written into history: the record lives in
- *   this module, is bounded (`MAX`) and dies with the page.
+ * - Scope: only lists that call this hook (Books segments, the Inbox, a
+ *   bank statement — issue #355), no global scroll effect. Nothing is
+ *   written into history: the record lives in this module, is bounded
+ *   (`MAX`) and dies with the page.
  * - Identity: the exact history entry the list was LEFT from — its index
  *   and react-router key (a query REPLACE, e.g. each search keystroke,
  *   re-keys the entry: the key taken is the last one, at leave time), plus
@@ -30,19 +31,26 @@ import { isSameSession, sessionStamp, type SessionStamp } from '../auth';
  *   list's. A PUSH scrolls nothing: the list is read at unmount.
  * - Anchor: the row the user opened (else the topmost visible row) and its
  *   offset in the viewport, so a changed row set or a resize (desktop
- *   columns vs mobile cards) still lands on the same row; the raw scroll
- *   offset is the fallback when that row is gone.
+ *   columns vs mobile cards) still lands on the same row. A row is a link
+ *   or a navigation button marked `POSITION_ROW` (its value, else its
+ *   href, identifies it); a row of the same `POSITION_GROUP` stands in
+ *   when that exact one is gone, else the raw scroll offset is the
+ *   fallback.
  * - Timing: once the list's rows are READY (the caller's data), before
  *   paint, and again whenever they become ready anew (Retry after a failed
- *   refetch); re-anchored on every later layout change (late names,
- *   markers, a resize) until the user shows scroll intent (wheel, touch,
- *   key, pointer — activating a recovery control excepted) or navigates,
- *   and never after that intent, including intent before the rows
- *   arrived.
+ *   refetch); re-anchored on every later layout or row-set change (late
+ *   names, markers, a resize, a refetch swapping rows) until the user
+ *   shows scroll intent (wheel, touch, key, pointer — activating a
+ *   recovery control excepted) or navigates, and never after that intent,
+ *   including intent before the rows arrived.
  */
 
 interface Anchor {
-  href: string;
+  /** The row's identity (`POSITION_ROW`'s value, else its href). */
+  id: string;
+  /** Its group (`POSITION_GROUP`): any row of it stands in when this exact
+   *  row is gone. */
+  group: string | null;
   top: number;
   /** The user opened this row (focus goes back to it). */
   opened: boolean;
@@ -66,8 +74,15 @@ let records: PositionRecord[] = [];
  *  pending return position armed instead of counting as user intent. */
 export const KEEPS_POSITION = 'data-keeps-position';
 
-/** Rows this hook anchors to: the row links of the list. */
+/** Rows this hook anchors to: the list's navigation controls — row links,
+ *  or buttons that navigate (never a selection or action control). An empty
+ *  value identifies a link by its href; a button names itself. */
 export const POSITION_ROW = 'data-position-row';
+
+/** Optional: the item a row belongs to (e.g. a bank line with several
+ *  proposal rows) — a return lands on a sibling when the exact row is
+ *  gone. */
+export const POSITION_GROUP = 'data-position-group';
 
 function historyIdx(): number | null {
   const idx: unknown = (window.history.state as { idx?: unknown } | null)?.idx;
@@ -97,13 +112,27 @@ function entryOf(location: Location): Entry {
   };
 }
 
-function rowsOf(root: HTMLElement): HTMLAnchorElement[] {
-  return [...root.querySelectorAll<HTMLAnchorElement>(`a[${POSITION_ROW}]`)];
+function rowsOf(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(`[${POSITION_ROW}]`)];
+}
+
+function rowId(row: Element): string {
+  return row.getAttribute(POSITION_ROW) || (row.getAttribute('href') ?? '');
+}
+
+function anchorOf(row: HTMLElement, opened: boolean): Anchor {
+  return {
+    id: rowId(row),
+    group: row.getAttribute(POSITION_GROUP),
+    top: row.getBoundingClientRect().top,
+    opened,
+    y: window.scrollY,
+  };
 }
 
 /** The first row whose bottom is below the viewport top (binary search —
  *  rows are in document order). */
-function topmostRow(root: HTMLElement): HTMLAnchorElement | null {
+function topmostRow(root: HTMLElement): HTMLElement | null {
   const rows = rowsOf(root);
   let lo = 0;
   let hi = rows.length;
@@ -115,8 +144,16 @@ function topmostRow(root: HTMLElement): HTMLAnchorElement | null {
   return rows[lo] ?? null;
 }
 
-function findRow(root: HTMLElement, href: string): HTMLAnchorElement | null {
-  return rowsOf(root).find((a) => a.getAttribute('href') === href) ?? null;
+/** The anchor's own row, else (it is gone) the first row of its group. */
+function findRow(root: HTMLElement, anchor: Anchor): HTMLElement | null {
+  const rows = rowsOf(root);
+  return (
+    rows.find((r) => rowId(r) === anchor.id) ??
+    (anchor.group === null
+      ? undefined
+      : rows.find((r) => r.getAttribute(POSITION_GROUP) === anchor.group)) ??
+    null
+  );
 }
 
 /** The on-screen band a restored row must sit in: below the top edge and
@@ -179,6 +216,8 @@ export function useReturnPosition(
     records = records.filter((r) => r.idx !== initial.idx);
   }, [initial]);
   const intent = useRef(false);
+  // The row this hook last focused on a return (maybe a group stand-in).
+  const autoFocused = useRef<HTMLElement | null>(null);
   // The rows are shown (as last committed).
   const shown = useRef(ready);
   useLayoutEffect(() => {
@@ -204,17 +243,11 @@ export function useReturnPosition(
     if (opened.current !== null && Math.abs(opened.current.y - y) < 1)
       return { y, anchor: opened.current };
     const row = root?.isConnected ? topmostRow(root) : null;
-    const rect = row?.getBoundingClientRect();
     return {
       y,
       anchor:
-        row && rect && rect.height > 0
-          ? {
-              href: row.getAttribute('href') ?? '',
-              top: rect.top,
-              opened: false,
-              y,
-            }
+        row && row.getBoundingClientRect().height > 0
+          ? anchorOf(row, false)
           : null,
     };
   };
@@ -238,28 +271,25 @@ export function useReturnPosition(
       left.current =
         to === entry.current.key ? null : { to, ...snapshotRef.current() };
     };
-    // Capture: the row link's own click navigates in the same task. Only
-    // a same-tab, unmodified primary click opens the row HERE (react-router
+    // Capture: the row's own click navigates in the same task. A row link
+    // opens HERE only on a same-tab, unmodified primary click (react-router
     // Link's own rule); a Ctrl/Meta/Shift/Alt or middle click leaves this
-    // page where it is and records nothing.
+    // page where it is and records nothing. A row button navigates on any
+    // click (Enter and Space included), so any click opens it.
     const onOpen = (e: MouseEvent) => {
-      const a = (e.target as Element | null)?.closest?.(`a[${POSITION_ROW}]`);
-      if (!(a instanceof HTMLAnchorElement) || !root?.contains(a)) return;
+      const row = (e.target as Element | null)?.closest?.(`[${POSITION_ROW}]`);
+      if (!(row instanceof HTMLElement) || !root?.contains(row)) return;
       if (
-        e.button !== 0 ||
-        e.metaKey ||
-        e.ctrlKey ||
-        e.shiftKey ||
-        e.altKey ||
-        (a.target !== '' && a.target !== '_self')
+        row instanceof HTMLAnchorElement &&
+        (e.button !== 0 ||
+          e.metaKey ||
+          e.ctrlKey ||
+          e.shiftKey ||
+          e.altKey ||
+          (row.target !== '' && row.target !== '_self'))
       )
         return;
-      opened.current = {
-        href: a.getAttribute('href') ?? '',
-        top: a.getBoundingClientRect().top,
-        opened: true,
-        y: window.scrollY,
-      };
+      opened.current = anchorOf(row, true);
     };
     // A recovery control (LoadError's Retry, `KEEPS_POSITION`) restores
     // what failed: ACTIVATING it (primary press, the start of a tap,
@@ -340,8 +370,7 @@ export function useReturnPosition(
     if (!ready || record === null || root === null) return;
     if (intent.current || moved) return;
     const place = () => {
-      const row =
-        record.anchor !== null ? findRow(root, record.anchor.href) : null;
+      const row = record.anchor !== null ? findRow(root, record.anchor) : null;
       if (row !== null && record.anchor !== null) {
         const rect = row.getBoundingClientRect();
         // The opened row must end up visible (a desktop → phone return may
@@ -353,47 +382,71 @@ export function useReturnPosition(
         const delta = rect.top - top;
         window.scrollTo(0, window.scrollY + delta);
         // The returned row stays the opened one while the list rests
-        // here: leaving again (Forward, then Back) returns to it again.
-        if (record.anchor.opened)
+        // here: leaving again (Forward, then Back) returns to it again —
+        // to the exact row the user opened, even while a group sibling
+        // stands in for it.
+        if (record.anchor.opened) {
           opened.current = {
-            href: record.anchor.href,
-            top: row.getBoundingClientRect().top,
-            opened: true,
-            y: window.scrollY,
+            ...anchorOf(row, true),
+            id: record.anchor.id,
+            group: record.anchor.group,
           };
+          // The opened row (or its stand-in) regains focus — without a
+          // second scroll — unless the user already put focus somewhere. A
+          // Retry that unmounted with the error leaves it on the body: the
+          // row takes it back. A stand-in this hook focused hands it on to
+          // the exact row once that shows up (whether or not the stand-in
+          // is still in the list); focus the user moved stays put.
+          const active = document.activeElement;
+          if (
+            active !== row &&
+            (active === null ||
+              active === document.body ||
+              active === autoFocused.current)
+          ) {
+            row.focus({ preventScroll: true });
+            autoFocused.current = row;
+          }
+        }
       } else {
         window.scrollTo(0, record.y);
       }
-      return row;
     };
-    const row = place();
-    // The opened row regains focus — without a second scroll — unless the
-    // user already put focus somewhere (a Retry that unmounted with the
-    // error leaves it on the body: the row takes it back).
-    const active = document.activeElement;
-    if (
-      row !== null &&
-      record.anchor?.opened &&
-      (active === null || active === document.body)
-    )
-      row.focus({ preventScroll: true });
+    place();
     // Late layout (names or markers arriving, fonts, a resize) re-anchors
     // for as long as the user has not acted: no settle timeout — a slow
-    // lookup must not push the row off screen. Ends with intent, a
-    // navigation (`moved` re-runs this effect) or unmount; paused while
-    // history already stands on another entry (a traversal away whose
-    // screen is still loading: the browser has restored THAT entry's
-    // offset, which is not to be fought).
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => {
+    // lookup must not push the row off screen. So does a changed row set
+    // (a refetch swapping the opened control for a sibling of its group, or
+    // bringing it back) even when the list keeps its height, which no
+    // resize reports. Ends with intent, a navigation (`moved` re-runs this
+    // effect) or unmount; paused while history already stands on another
+    // entry (a traversal away whose screen is still loading: the browser
+    // has restored THAT entry's offset, which is not to be fought).
+    const observers: { disconnect(): void }[] = [];
+    const disconnect = () => observers.forEach((o) => o.disconnect());
+    const onChange = () => {
       if (intent.current) {
-        observer.disconnect();
+        disconnect();
         return;
       }
       if (entryKey() !== entry.current.key) return;
       place();
-    });
-    observer.observe(root);
-    return () => observer.disconnect();
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+      const resized = new ResizeObserver(onChange);
+      resized.observe(root);
+      observers.push(resized);
+    }
+    if (typeof MutationObserver !== 'undefined') {
+      const rowsChanged = new MutationObserver(onChange);
+      // Rows added or removed, or a reused row node re-identified.
+      rowsChanged.observe(root, {
+        childList: true,
+        subtree: true,
+        attributeFilter: [POSITION_ROW],
+      });
+      observers.push(rowsChanged);
+    }
+    return disconnect;
   }, [arrival, ready, moved, rootRef]);
 }

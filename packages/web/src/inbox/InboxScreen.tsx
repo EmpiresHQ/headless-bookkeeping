@@ -1,9 +1,10 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { ActiveFilters } from '../books/chips';
 import { useSetFilterParam } from '../books/filters';
 import { DocThumbLightbox } from './DocThumbLightbox';
 import { signedEuros } from '../lib/money';
+import { useReturnPosition } from '../lib/listPosition';
 import { searchNeedle } from '../lib/searchText';
 import { useOriginState } from '../lib/returnNavigation';
 import { useSeg } from '../lib/useSeg';
@@ -77,6 +78,7 @@ function QueueRow({
       <ListRow
         to={entry.route}
         state={origin}
+        positionRow
         leading={
           <DocThumbLightbox
             id={entry.item.id}
@@ -102,6 +104,7 @@ function QueueRow({
     <ListRow
       to={entry.route}
       state={origin}
+      positionRow
       leading={<ReasonGlyph entry={entry} />}
       title={d.title}
       subtitle={humanizePolicyReason(entry.approval.policy_reason)}
@@ -199,6 +202,13 @@ export function InboxScreen() {
     { poll: true },
   );
   const hero = useInboxHero();
+  // Back from an opened item lands on its row again (issue #355): once
+  // BOTH queue lists are loaded. While either has failed (LoadError above
+  // any cached rows) the return waits; its Retry places the row again. The
+  // approval names and amounts, the hero and thumbnails only re-anchor as
+  // they arrive.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useReturnPosition(rootRef, triageQ.isSuccess && approvalsQ.isSuccess);
   // The same upload flow as Books (issue #258).
   const uploadSheet = useSheet();
   const expensesQ = useExpenses();
@@ -250,7 +260,7 @@ export function InboxScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl pb-6">
+    <div ref={rootRef} className="mx-auto max-w-3xl pb-6">
       <LargeTitleHeader
         title="Inbox"
         trailing={

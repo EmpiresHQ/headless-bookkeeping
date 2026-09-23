@@ -37,6 +37,12 @@ import {
 } from '../queries/bank';
 import { ActiveFilters } from '../books/chips';
 import { useSetFilterParam } from '../books/filters';
+import {
+  KEEPS_POSITION,
+  POSITION_GROUP,
+  POSITION_ROW,
+  useReturnPosition,
+} from '../lib/listPosition';
 import { searchNeedle } from '../lib/searchText';
 import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
@@ -70,6 +76,18 @@ const DISPOSITION_LABEL: Record<string, string> = {
   dividend: 'dividend',
 };
 
+/** A line's navigation control for the list return (issue #355): `id` names
+ *  this exact opener (a line can show several — one per proposal or staged
+ *  match); the line groups them, so a return whose exact control is gone
+ *  lands on another of the line's. Never on a checkbox or Confirm. */
+function opener(line: LineView, id?: string) {
+  const group = `tx:${line.tx.id}`;
+  return {
+    [POSITION_ROW]: id === undefined ? group : `${group}:${id}`,
+    [POSITION_GROUP]: group,
+  };
+}
+
 /** Line amount + date, right-aligned, never wrapping. */
 function LineTrailing({ line, muted }: { line: LineView; muted?: boolean }) {
   return (
@@ -94,6 +112,7 @@ function DecideRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
+      {...opener(line)}
       className="flex w-full items-center gap-3 border-b border-line px-3.5 py-3 text-left last:border-b-0"
     >
       <div className={ROW_BODY}>
@@ -162,6 +181,7 @@ function ProposalRow({
             <button
               type="button"
               onClick={onOpen}
+              {...opener(line, `proposal:${key}`)}
               className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
             >
               <div className={ROW_BODY}>
@@ -184,6 +204,7 @@ function ProposalRow({
           <button
             type="button"
             onClick={onOpen}
+            {...opener(line, `staged:${m.id}`)}
             className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
           >
             <div className={ROW_BODY}>
@@ -219,6 +240,7 @@ function DoneRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
+      {...opener(line)}
       className={`flex w-full items-center gap-3 border-b border-line px-3.5 py-3 text-left last:border-b-0 ${
         disposed
           ? ''
@@ -350,6 +372,19 @@ export function StatementScreen() {
         ? matchesQ
         : null;
   const hasBlockingError = failingQuery !== null;
+  // Back from an opened line lands on its control again (issue #355): once
+  // the lines, their reconciliation and matches are loaded (a failure shows
+  // LoadError; its Retry restores the line again) and the AI proposals have
+  // answered — they decide which bucket and row a line shows in. A failed
+  // proposals read still shows every line; its Retry re-anchors.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useReturnPosition(
+    rootRef,
+    txQ.isSuccess &&
+      reconQ.isSuccess &&
+      matchesQ.isSuccess &&
+      !proposalsQ.isPending,
+  );
 
   const toggleProposal = (p: MatchProposalView) =>
     setSelected((prev) => {
@@ -637,7 +672,7 @@ export function StatementScreen() {
     );
 
   return (
-    <div className="mx-auto max-w-3xl pb-28">
+    <div ref={rootRef} className="mx-auto max-w-3xl pb-28">
       <ScreenHeader
         title={
           statement
@@ -727,6 +762,7 @@ export function StatementScreen() {
               <button
                 type="button"
                 onClick={() => void proposalsQ.refetch()}
+                {...{ [KEEPS_POSITION]: '' }}
                 className="flex-none font-semibold underline"
               >
                 Retry
