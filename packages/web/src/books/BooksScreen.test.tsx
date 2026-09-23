@@ -51,7 +51,7 @@ describe('BooksScreen', () => {
       'true',
     );
     await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    expect(await screen.findByText('No documents match')).toBeInTheDocument();
+    expect(await screen.findByText('No documents yet')).toBeInTheDocument();
   });
 
   it('accepts the legacy ?tab= alias', async () => {
@@ -67,7 +67,8 @@ describe('BooksScreen', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Invoices' }));
     // q survives in the search box; status chip resets to All:
     expect(screen.getByDisplayValue('acme')).toBeInTheDocument();
-    expect(await screen.findByText('No invoices match')).toBeInTheDocument();
+    // Nothing loaded at all: the initial empty, not a failed search (#280).
+    expect(await screen.findByText('No invoices yet')).toBeInTheDocument();
     // useSeg round-trip (P06 Task 3): ?seg= updated, ?q= PRESERVED, the
     // segment-scoped params (status/nodoc/dstatus) and any ?tab= dropped.
     const search = new URLSearchParams(router.state.location.search);

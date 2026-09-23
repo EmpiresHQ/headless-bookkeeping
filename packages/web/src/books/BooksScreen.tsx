@@ -6,6 +6,7 @@ import { LargeTitleHeader } from '../shell/Headers';
 import { SearchInput } from '../ui/SearchInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { UploadDocumentSheet } from '../upload/UploadDocumentSheet';
+import { BooksCreate } from './BooksEmpty';
 import { DateOrderControls } from './DateOrderControls';
 import { CreateMenu, NewExpenseSheet, NewInvoiceSheet } from './create';
 import { CreditNotesSegment } from './CreditNotesSegment';
@@ -110,10 +111,14 @@ export function BooksScreen() {
             resets={resets}
           />
         </div>
-        {seg === 'expenses' && <ExpensesSegment q={q} order={order} />}
-        {seg === 'invoices' && <InvoicesSegment q={q} order={order} />}
-        {seg === 'documents' && <DocumentsSegment q={q} order={order} />}
-        {seg === 'credit-notes' && <CreditNotesSegment q={q} order={order} />}
+        {/* An empty segment's create action opens the same sheet as the +
+          menu (#280). */}
+        <BooksCreate.Provider value={(kind) => sheetOf[kind].open()}>
+          {seg === 'expenses' && <ExpensesSegment q={q} order={order} />}
+          {seg === 'invoices' && <InvoicesSegment q={q} order={order} />}
+          {seg === 'documents' && <DocumentsSegment q={q} order={order} />}
+          {seg === 'credit-notes' && <CreditNotesSegment q={q} order={order} />}
+        </BooksCreate.Provider>
 
         <CreateMenu
           open={createOpen}

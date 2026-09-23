@@ -1,3 +1,4 @@
+import { useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { type SalesInvoice } from '../api';
 import {
@@ -10,10 +11,12 @@ import {
 } from '../queries/books';
 import { useEntities, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
-import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { Button } from '../ui/Button';
+import { SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
+import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
 import { ActiveFilters, LABELS, statusChip, StatusChipRow } from './chips';
 import {
   BOOKS_RESET_NAME,
@@ -89,6 +92,7 @@ export function InvoicesSegment({
 
   const setParam = useSetFilterParam();
   const { rootRef, onReset } = useResetWithFocus('invoices');
+  const create = useContext(BooksCreate);
 
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
@@ -176,10 +180,27 @@ export function InvoicesSegment({
           filtered.length > 0 ? `total ${invoiceTotals(filtered)}` : undefined,
       })}
       {sections.length === 0 && (
-        <EmptyState
+        <BooksEmpty
           icon="📨"
-          title="No invoices match"
-          hint="Adjust the filter or create one with +"
+          noun="invoices"
+          total={total}
+          q={q}
+          scope={BOOKS_SEARCH.invoices.scope}
+          filters={[
+            ...(status === 'all' ? [] : [LABELS[status]]),
+            ...effectiveDateFilter(order, order.labels[0]),
+          ]}
+          lookups={[{ label: 'customer names', query: entitiesQ }]}
+          onReset={onReset}
+          restricted={applied.length > 0 || q.trim() !== ''}
+          initialHint="Create your first sales invoice."
+          initialAction={
+            create && (
+              <Button className="min-h-11" onClick={() => create('invoice')}>
+                Create invoice
+              </Button>
+            )
+          }
         />
       )}
       {sections.map((g) => (

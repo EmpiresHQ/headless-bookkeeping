@@ -7,10 +7,11 @@ import {
 import { entityName, shortDate, useCreditNotes } from '../queries/books';
 import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
-import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
+import { BooksEmpty, effectiveDateFilter } from './BooksEmpty';
 import { ActiveFilters, statusChip } from './chips';
 import { BOOKS_RESET_NAME, BOOKS_SEARCH, useResetWithFocus } from './filters';
 import {
@@ -162,20 +163,46 @@ export function CreditNotesSegment({
               )}`
             : undefined,
       })}
-      <div className="px-4 pb-3">
-        <LinkButton
-          to="/books/credit-notes/new"
-          variant="secondary"
-          className="w-full"
-        >
-          New credit note
-        </LinkButton>
-      </div>
+      {/* With nothing issued yet the link is the empty state's action
+        (#280) — shown once, not twice. */}
+      {total > 0 && (
+        <div className="px-4 pb-3">
+          <LinkButton
+            to="/books/credit-notes/new"
+            variant="secondary"
+            className="w-full"
+          >
+            New credit note
+          </LinkButton>
+        </div>
+      )}
       {sections.length === 0 && (
-        <EmptyState
+        <BooksEmpty
           icon="🧾"
-          title="No credit notes"
-          hint="Issue one from a posted invoice or expense detail"
+          noun="credit notes"
+          total={total}
+          q={q}
+          scope={BOOKS_SEARCH['credit-notes'].scope}
+          filters={effectiveDateFilter(order, order.labels[0])}
+          // The note's own number is on the row; the credited invoice or
+          // expense and its counterparty come from these reads.
+          lookups={[
+            { label: 'invoices', query: invoicesQ },
+            { label: 'expenses', query: expensesQ },
+            { label: 'counterparty names', query: entitiesQ },
+          ]}
+          onReset={onReset}
+          restricted={order.labels.length > 0 || q.trim() !== ''}
+          initialHint="Issue one here, or from a posted invoice or expense."
+          initialAction={
+            <LinkButton
+              to="/books/credit-notes/new"
+              variant="secondary"
+              className="min-h-11"
+            >
+              New credit note
+            </LinkButton>
+          }
         />
       )}
       {sections.map((g) => (
