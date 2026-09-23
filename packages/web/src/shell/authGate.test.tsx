@@ -219,6 +219,21 @@ describe('first entry and a rejected token (#285)', () => {
     },
   );
 
+  it('an unknown address asks to sign in, then says not found at the same address (#291)', async () => {
+    const unknown = '/bookz?q=fixture#part';
+    const router = renderAt(unknown);
+    expect(gateTitle()).toHaveTextContent('Sign in');
+    type('alpha');
+    submit();
+    expect(
+      await screen.findByRole('heading', {
+        name: 'This address does not open a screen',
+      }),
+    ).toBeInTheDocument();
+    expect(getToken()).toBe('alpha');
+    expect(where(router)).toBe(unknown);
+  });
+
   it('while checking: one request for a double submit, the value cannot change, Cancel unlocks and a late answer is ignored', async () => {
     renderAt(DEEP);
     probe = 'hold';
