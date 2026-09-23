@@ -33,19 +33,31 @@ export const reportsKeys = {
 /** Derived on every read — live preview for open periods (Reality #5).
  *  Optional `enabled` (default true) lets PeriodScreen gate the fetch when
  *  the route's `:id` param is not a finite number — Task 5 adjudication. */
-export const useKmd = (periodId: number, enabled = true) =>
+export const useKmd = (
+  periodId: number,
+  enabled = true,
+  opts: { refetchOnMount?: 'always' } = {},
+) =>
   useQuery({
     queryKey: reportsKeys.kmd(periodId),
     queryFn: () => getKmd(periodId),
     enabled,
+    ...opts,
   });
 
-/** Advisory ADR-0015 stragglers — enabled only where shown (open periods). */
-export const usePeriodWarnings = (periodId: number, enabled: boolean) =>
+/** Advisory ADR-0015 stragglers — enabled only where shown (open periods).
+ *  The Close sheet passes `refetchOnMount: 'always'` so every open re-checks
+ *  instead of trusting a cached result (issue #255). */
+export const usePeriodWarnings = (
+  periodId: number,
+  enabled: boolean,
+  opts: { refetchOnMount?: 'always' } = {},
+) =>
   useQuery({
     queryKey: reportsKeys.warnings(periodId),
     queryFn: () => getPeriodWarnings(periodId),
     enabled,
+    ...opts,
   });
 
 export const useSubmissionState = (periodId: number, enabled: boolean) =>

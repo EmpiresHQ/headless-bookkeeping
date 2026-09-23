@@ -73,6 +73,7 @@ function mountAt(
   periodId: number,
   periods = [OPEN_PERIOD, LOCKED_PERIOD],
   kmd = KMD,
+  before?: () => void,
 ) {
   vi.mocked(getReportingPeriods).mockResolvedValue(periods as never);
   vi.mocked(getKmd).mockResolvedValue({
@@ -89,6 +90,7 @@ function mountAt(
   vi.mocked(getInvoices).mockResolvedValue([] as never);
   vi.mocked(getEntities).mockResolvedValue([] as never);
   vi.mocked(getPeriodWarnings).mockResolvedValue([] as never);
+  before?.();
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -280,5 +282,88 @@ describe('PeriodScreen', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Close period…' }));
     expect(await screen.findByLabelText(/to confirm/)).toHaveValue('');
+  });
+
+  it('issue #255: failed checks on detail are stated per section; Close states them and needs an explicit ack; reopen resets it', async () => {
+    mountAt(7, [OPEN_PERIOD], KMD, () => {
+      const down = new Error('Service Unavailable');
+      vi.mocked(getPeriodWarnings).mockRejectedValue(down);
+      vi.mocked(getExpenses).mockRejectedValue(down);
+      vi.mocked(getInvoices).mockRejectedValue(down);
+    });
+    expect(
+      await screen.findByText(
+        "Couldn't check undecided items — Service Unavailable",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Couldn't check INF invoice numbers — Service Unavailable",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Couldn't check documents dated in this period — Service Unavailable",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close period…' }));
+    expect(
+      await screen.findByText(/could not check — Service Unavailable/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Type 2026-07 to confirm'), {
+      target: { value: '2026-07' },
+    });
+    const confirm = await screen.findByRole('button', {
+      name: 'Close & freeze · VAT to pay 624.07 €',
+    });
+    expect(confirm).toBeDisabled();
+    const ack = screen.getByRole('checkbox', {
+      name: /Close anyway without complete checks/,
+    });
+    fireEvent.click(ack);
+    expect(confirm).toBeEnabled();
+
+    // Close (dirty name → discard), reopen: neither name nor ack carries.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/to confirm/)).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close period…' }));
+    expect(await screen.findByLabelText(/to confirm/)).toHaveValue('');
+    expect(
+      await screen.findByRole('checkbox', {
+        name: /Close anyway without complete checks/,
+      }),
+    ).not.toBeChecked();
+  });
+
+  it('issue #255: a failed declaration refresh keeps the cached boxes with a refresh error; names failure is labeled, not a failed check', async () => {
+    mountAt(7, [OPEN_PERIOD], KMD, () => {
+      vi.mocked(getEntities).mockRejectedValue(new Error('names down'));
+    });
+    expect(await screen.findByText('KMD declaration')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /Supplier and customer names could not be loaded/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Retry names' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't check/)).toBeNull();
+
+    // The Close sheet re-checks the declaration on open; that refresh fails.
+    vi.mocked(getKmd).mockRejectedValue(new Error('KMD down'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close period…' }));
+    expect(
+      await screen.findByText('Could not refresh — KMD down'),
+    ).toBeInTheDocument();
+    // Cached boxes stay; the sheet claims no amount.
+    expect(screen.getByText('KMD declaration')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Close & freeze the declaration' }),
+    ).toBeDisabled();
   });
 });

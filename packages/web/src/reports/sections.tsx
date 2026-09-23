@@ -18,6 +18,7 @@ import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
 import { GroupHeader } from '../ui/GroupHeader';
 import { GroupLabel, ListGroup, ListRow } from '../ui/List';
+import { CheckNotice, checkState } from './checkStatus';
 import { FixInvoiceNumberSheet } from './FixInvoiceNumberSheet';
 
 type PeriodProp = Pick<
@@ -37,7 +38,13 @@ export function InfGapsSection({ period }: { period: PeriodProp }) {
   const fix = useSheet<Expense>();
 
   const entities = entitiesQ.data ?? [];
-  const gaps = infGapCandidates(expensesQ.data ?? [], period);
+  // A failed/pending expenses read is NOT "no gaps" (issue #255): gaps are
+  // derived only from a list that actually loaded; the status is explicit.
+  const gaps =
+    expensesQ.data !== undefined
+      ? infGapCandidates(expensesQ.data, period)
+      : [];
+  const state = checkState([expensesQ]);
   const locked = period.status === 'locked';
 
   // Note: an early `if (gaps.length === 0) return null` here would unmount
@@ -48,6 +55,14 @@ export function InfGapsSection({ period }: { period: PeriodProp }) {
   // keep the sheet mount reachable regardless.
   return (
     <>
+      <CheckNotice what="INF invoice numbers" queries={[expensesQ]} />
+      {gaps.length === 0 && expensesQ.data !== undefined && (
+        <p className="mx-6 mb-3.5 text-[12.5px] text-ink-2">
+          {state === 'checked'
+            ? 'INF annex — no supplier invoice numbers missing in this period.'
+            : 'INF annex — none missing in the last loaded result; not confirmed current.'}
+        </p>
+      )}
       {gaps.length > 0 && (
         <>
           <GroupLabel>INF annex — invoice numbers to add</GroupLabel>
@@ -126,9 +141,29 @@ function stragglerRows(warnings: PeriodWarning[]) {
       to: '/books?seg=invoices&status=draft',
     },
   ];
-  return buckets
-    .map((b) => ({ ...b, count: warnings.filter(b.match).length }))
-    .filter((b) => b.count > 0);
+  const rows: {
+    key: string;
+    label: (n: number) => string;
+    subtitle: string;
+    to?: string;
+    count: number;
+  }[] = buckets.map((b) => ({
+    key: b.to,
+    label: b.label,
+    subtitle: b.subtitle,
+    to: b.to,
+    count: warnings.filter(b.match).length,
+  }));
+  // Defensive: a warning shape this client does not know must never make
+  // the check read "none" (issue #255).
+  const other = warnings.filter((w) => !buckets.some((b) => b.match(w)));
+  rows.push({
+    key: 'other',
+    label: (n) => `${n} other ${n === 1 ? 'item' : 'items'} flagged`,
+    subtitle: 'review before closing',
+    count: other.length,
+  });
+  return rows.filter((b) => b.count > 0);
 }
 
 /**
@@ -139,23 +174,36 @@ function stragglerRows(warnings: PeriodWarning[]) {
  */
 export function StragglersSection({ period }: { period: PeriodProp }) {
   const warningsQ = usePeriodWarnings(period.id, period.status === 'open');
-  const warnings = warningsQ.data ?? [];
-  const rows = stragglerRows(warnings);
-  if (period.status !== 'open' || rows.length === 0) return null;
+  if (period.status !== 'open') return null;
+  const rows =
+    warningsQ.data !== undefined ? stragglerRows(warningsQ.data) : [];
+  const state = checkState([warningsQ]);
 
+  // Checking / unavailable / stale are stated, never collapsed into "none"
+  // (issue #255); rows cached from an earlier load stay visible.
   return (
     <>
       <GroupLabel>Not decided in this period</GroupLabel>
-      <ListGroup>
-        {rows.map((r) => (
-          <ListRow
-            key={r.to}
-            to={r.to}
-            title={r.label(r.count)}
-            subtitle={r.subtitle}
-          />
-        ))}
-      </ListGroup>
+      <CheckNotice what="undecided items" queries={[warningsQ]} />
+      {rows.length > 0 && (
+        <ListGroup>
+          {rows.map((r) => (
+            <ListRow
+              key={r.key}
+              to={r.to}
+              title={r.label(r.count)}
+              subtitle={r.subtitle}
+            />
+          ))}
+        </ListGroup>
+      )}
+      {rows.length === 0 && warningsQ.data !== undefined && (
+        <p className="mx-6 mb-3.5 text-[12.5px] text-ink-2">
+          {state === 'checked'
+            ? 'None — no pending approvals or unposted drafts dated in this period.'
+            : 'None in the last loaded result — not confirmed current.'}
+        </p>
+      )}
     </>
   );
 }
@@ -172,20 +220,46 @@ export function InPeriodSection({ period }: { period: PeriodProp }) {
   const entitiesQ = useEntities();
   const entities = entitiesQ.data ?? [];
 
-  // BOTH sources or nothing: rendering after only one list resolves showed a
-  // half-total for a moment (P05 final-review transient). The section is
-  // supplementary — skeletonless null is the honest loading state.
-  if (!expensesQ.isSuccess || !invoicesQ.isSuccess) return null;
+  // BOTH sources or no rows: rendering after only one list resolves showed a
+  // half-total for a moment (P05 final-review transient). Loading/failure is
+  // stated for the section as a whole (issue #255), never an empty section.
+  const notice = (
+    <CheckNotice
+      what="documents dated in this period"
+      queries={[expensesQ, invoicesQ]}
+    />
+  );
+  if (expensesQ.data === undefined || invoicesQ.data === undefined) {
+    return (
+      <>
+        <GroupLabel>Documents in this period</GroupLabel>
+        {notice}
+      </>
+    );
+  }
 
-  const purchases = periodExpenses(expensesQ.data ?? [], period);
-  const sales = periodInvoices(invoicesQ.data ?? [], period);
-  if (purchases.length === 0 && sales.length === 0) return null;
+  const purchases = periodExpenses(expensesQ.data, period);
+  const sales = periodInvoices(invoicesQ.data, period);
+  if (purchases.length === 0 && sales.length === 0) {
+    return (
+      <>
+        <GroupLabel>Documents in this period</GroupLabel>
+        {notice}
+        <p className="mx-6 mb-3.5 text-[12.5px] text-ink-2">
+          {checkState([expensesQ, invoicesQ]) === 'checked'
+            ? 'No documents dated in this period.'
+            : 'No documents dated in this period in the last loaded result — not confirmed current.'}
+        </p>
+      </>
+    );
+  }
 
   const purchasesTotal = purchases.reduce((s, e) => s + e.gross_amount, 0);
   const salesTotal = sales.reduce((s, i) => s + i.gross_amount, 0);
 
   return (
     <>
+      {notice}
       {sales.length > 0 && (
         <ListGroup
           label={
