@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import type { UnauthorizedError } from '../auth';
 import {
   UnsavedChangesProvider,
@@ -10,6 +10,7 @@ import { ResultLogProvider } from '../lib/resultLog';
 import { useInboxCount } from '../queries/inbox';
 import { SkeletonRows } from '../ui/Feedback';
 import { RecentResults } from './RecentResults';
+import { ScreenBoundary } from './ScreenFailure';
 import { Sidebar } from './Sidebar';
 import { TabBar } from './TabBar';
 
@@ -51,6 +52,7 @@ function Shell({ onSignOut: signOutNow }: { onSignOut: () => void }) {
   // Live decision-queue badge. NO polling here — the hook shares the Inbox
   // queue's cache keys and refreshes via staleTime/focus + Inbox refetches.
   const inboxCount = useInboxCount();
+  const { key: locationKey } = useLocation();
   return (
     <div className="min-h-screen bg-bg text-ink">
       <Sidebar onSignOut={onSignOut} inboxCount={inboxCount} />
@@ -58,18 +60,22 @@ function Shell({ onSignOut: signOutNow }: { onSignOut: () => void }) {
         {/* Recorded operation results (#259) — outside the Outlet, so a
             route change or a route discard never drops them. */}
         <RecentResults />
-        <Suspense
-          fallback={
-            <div className="mx-auto max-w-3xl pt-6">
-              <SkeletonRows count={4} />
-            </div>
-          }
-        >
-          <Outlet
-            key={discardEpoch}
-            context={{ onSignOut } satisfies ShellOutletContext}
-          />
-        </Suspense>
+        {/* A screen that fails to load or render (#292) fails in place:
+            the shell, its guards and the results above stay. */}
+        <ScreenBoundary resetKey={locationKey}>
+          <Suspense
+            fallback={
+              <div className="mx-auto max-w-3xl pt-6">
+                <SkeletonRows count={4} />
+              </div>
+            }
+          >
+            <Outlet
+              key={discardEpoch}
+              context={{ onSignOut } satisfies ShellOutletContext}
+            />
+          </Suspense>
+        </ScreenBoundary>
       </div>
       <TabBar inboxCount={inboxCount} />
     </div>

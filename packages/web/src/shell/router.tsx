@@ -1,4 +1,3 @@
-import { lazy } from 'react';
 import {
   Navigate,
   createBrowserRouter,
@@ -7,124 +6,126 @@ import {
 } from 'react-router-dom';
 import { NotFoundScreen } from './NotFoundScreen';
 import { Root } from './Root';
+import { lazyScreen } from './ScreenFailure';
 
 /* Route-level code-split (Plan 07 Task 8): every screen is its own chunk;
  * the shell (Root/TokenGate/AppLayout) stays eager so first paint and the
  * sign-in surface never wait on a screen chunk. The Suspense boundary
- * lives in AppLayout around the Outlet. The explicit
- * `.then((m) => ({ default: m.X }))` shape is deliberate — named exports
- * stay named, and tsc verifies each screen still exports its name. */
-const InboxScreen = lazy(() =>
+ * lives in AppLayout around the Outlet, inside the ScreenBoundary that
+ * turns a chunk that fails to load into a failed screen (issue #292). The
+ * explicit `.then((m) => ({ default: m.X }))` shape is deliberate — named
+ * exports stay named, and tsc verifies each screen still exports its name. */
+const InboxScreen = lazyScreen(() =>
   import('../inbox/InboxScreen').then((m) => ({ default: m.InboxScreen })),
 );
-const TriageDocScreen = lazy(() =>
+const TriageDocScreen = lazyScreen(() =>
   import('../inbox/TriageDocScreen').then((m) => ({
     default: m.TriageDocScreen,
   })),
 );
-const ApprovalScreen = lazy(() =>
+const ApprovalScreen = lazyScreen(() =>
   import('../inbox/ApprovalScreen').then((m) => ({
     default: m.ApprovalScreen,
   })),
 );
-const BooksScreen = lazy(() =>
+const BooksScreen = lazyScreen(() =>
   import('../books/BooksScreen').then((m) => ({ default: m.BooksScreen })),
 );
-const ExpenseScreen = lazy(() =>
+const ExpenseScreen = lazyScreen(() =>
   import('../books/ExpenseScreen').then((m) => ({ default: m.ExpenseScreen })),
 );
-const InvoiceScreen = lazy(() =>
+const InvoiceScreen = lazyScreen(() =>
   import('../books/InvoiceScreen').then((m) => ({ default: m.InvoiceScreen })),
 );
-const DocumentScreen = lazy(() =>
+const DocumentScreen = lazyScreen(() =>
   import('../books/DocumentScreen').then((m) => ({
     default: m.DocumentScreen,
   })),
 );
-const CreditNoteCreateScreen = lazy(() =>
+const CreditNoteCreateScreen = lazyScreen(() =>
   import('../books/CreditNoteCreateScreen').then((m) => ({
     default: m.CreditNoteCreateScreen,
   })),
 );
-const CreditNoteScreen = lazy(() =>
+const CreditNoteScreen = lazyScreen(() =>
   import('../books/CreditNoteScreen').then((m) => ({
     default: m.CreditNoteScreen,
   })),
 );
-const StatementsScreen = lazy(() =>
+const StatementsScreen = lazyScreen(() =>
   import('../bank/StatementsScreen').then((m) => ({
     default: m.StatementsScreen,
   })),
 );
-const ImportScreen = lazy(() =>
+const ImportScreen = lazyScreen(() =>
   import('../bank/ImportScreen').then((m) => ({ default: m.ImportScreen })),
 );
-const StatementScreen = lazy(() =>
+const StatementScreen = lazyScreen(() =>
   import('../bank/StatementScreen').then((m) => ({
     default: m.StatementScreen,
   })),
 );
-const TxScreen = lazy(() =>
+const TxScreen = lazyScreen(() =>
   import('../bank/TxScreen').then((m) => ({ default: m.TxScreen })),
 );
-const ReportsScreen = lazy(() =>
+const ReportsScreen = lazyScreen(() =>
   import('../reports/ReportsScreen').then((m) => ({
     default: m.ReportsScreen,
   })),
 );
-const PeriodScreen = lazy(() =>
+const PeriodScreen = lazyScreen(() =>
   import('../reports/PeriodScreen').then((m) => ({ default: m.PeriodScreen })),
 );
-const PeriodItemsScreen = lazy(() =>
+const PeriodItemsScreen = lazyScreen(() =>
   import('../reports/PeriodItemsScreen').then((m) => ({
     default: m.PeriodItemsScreen,
   })),
 );
-const SubmissionsScreen = lazy(() =>
+const SubmissionsScreen = lazyScreen(() =>
   import('../reports/SubmissionsScreen').then((m) => ({
     default: m.SubmissionsScreen,
   })),
 );
-const SettingsScreen = lazy(() =>
+const SettingsScreen = lazyScreen(() =>
   import('../settings/SettingsScreen').then((m) => ({
     default: m.SettingsScreen,
   })),
 );
-const OrganizationScreen = lazy(() =>
+const OrganizationScreen = lazyScreen(() =>
   import('../settings/OrganizationScreen').then((m) => ({
     default: m.OrganizationScreen,
   })),
 );
-const EntitiesScreen = lazy(() =>
+const EntitiesScreen = lazyScreen(() =>
   import('../settings/EntitiesScreen').then((m) => ({
     default: m.EntitiesScreen,
   })),
 );
-const EntityScreen = lazy(() =>
+const EntityScreen = lazyScreen(() =>
   import('../settings/EntityScreen').then((m) => ({ default: m.EntityScreen })),
 );
-const CategoriesScreen = lazy(() =>
+const CategoriesScreen = lazyScreen(() =>
   import('../settings/CategoriesScreen').then((m) => ({
     default: m.CategoriesScreen,
   })),
 );
-const EnrollScreen = lazy(() =>
+const EnrollScreen = lazyScreen(() =>
   import('../settings/EnrollScreen').then((m) => ({ default: m.EnrollScreen })),
 );
-const MailboxScreen = lazy(() =>
+const MailboxScreen = lazyScreen(() =>
   import('../settings/MailboxScreen').then((m) => ({
     default: m.MailboxScreen,
   })),
 );
-const TelegramScreen = lazy(() =>
+const TelegramScreen = lazyScreen(() =>
   import('../settings/TelegramScreen').then((m) => ({
     default: m.TelegramScreen,
   })),
 );
-const LlmScreen = lazy(() =>
+const LlmScreen = lazyScreen(() =>
   import('../settings/LlmScreen').then((m) => ({ default: m.LlmScreen })),
 );
-const PolicyScreen = lazy(() =>
+const PolicyScreen = lazyScreen(() =>
   import('../settings/PolicyScreen').then((m) => ({ default: m.PolicyScreen })),
 );
 
