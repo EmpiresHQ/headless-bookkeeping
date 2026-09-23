@@ -168,6 +168,12 @@ export function TokenGate({
             Cancel
           </Button>
         )}
+        {/* Who issues access (issue #286): tokens are created by whoever
+            administers this installation — there is no self-service signup. */}
+        <p className="border-t border-line pt-4 text-sm text-ink-2">
+          No token? Ask the person who runs this bookkeeping system. They create
+          access tokens and can give you one.
+        </p>
       </form>
     </div>
   );
