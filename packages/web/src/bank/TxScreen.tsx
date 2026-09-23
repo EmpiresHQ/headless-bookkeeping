@@ -18,7 +18,23 @@ import {
   useStatementMatches,
   type CreateFromLineResult,
 } from '../queries/bank';
-import { usePendingOperation, useSessionTask } from '../lib/pendingOperation';
+import {
+  errorMessage,
+  usePendingOperation,
+  useSessionTask,
+} from '../lib/pendingOperation';
+import {
+  interruptedText,
+  recordedAt,
+  useReceipt,
+  useRecordedFor,
+  useResultLog,
+  writeChain,
+  type ChainSlot,
+  type ResultHandle,
+  type ResultInit,
+  type ResultTone,
+} from '../lib/resultLog';
 import { useSheet } from '../lib/useSheet';
 import { AmountText } from '../ui/AmountText';
 import { Chip } from '../ui/Chip';
@@ -28,6 +44,12 @@ import { ScreenHeader } from '../shell/Headers';
 import { useCompletionNavigation } from '../lib/returnNavigation';
 import { formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
+import {
+  fromLineRecord,
+  lineLinks,
+  lineSubject,
+  undoIncomplete,
+} from './lineResults';
 import { routeTxState } from './txState';
 import { TxCandidates } from './TxCandidates';
 import { TxCreateExpense } from './TxCreateExpense';
@@ -84,6 +106,10 @@ function TxScreenFor({
   // to this screen and back — dropping it silently resets the operator's
   // "All" view to "Unmatched" on every tap into a line.
   const seg = searchParams.get('seg');
+  // Links of a repeated record that lead somewhere else than here.
+  const elsewhere = (to: string) =>
+    to !== `/bank/statements/${statementId}` &&
+    to !== `/bank/statements/${statementId}/tx/${txId}`;
   const statementPath = `/bank/statements/${statementId}${seg === 'all' ? '?seg=all' : ''}`;
 
   const txQ = useBankTransactions(statementId);
@@ -128,6 +154,45 @@ function TxScreenFor({
   // Stages of the bank-fee chain the server already accepted (issue #251):
   // choosing "Bank fee" again resumes, never creates a second expense.
   const feeProgress = useRef(newFromLineProgress());
+  // Durable records (#259): the fee chain's, superseded by every stage and
+  // retry; and this line's newest record, shown again after a reload.
+  const log = useResultLog();
+  const feeRecord = useRef<ChainSlot['current']>(null);
+  const feeFinished = useRef<CreateFromLineResult | null>(null);
+  const recorded = useRecordedFor(lineSubject(statementId, txId));
+  // Only a record from BEFORE this screen opened (a reload, a return) is
+  // repeated here — this screen's own failures show their own notice.
+  const [openedAt] = useState(() => Date.now());
+  const earlier =
+    recorded !== null &&
+    recorded.at < openedAt &&
+    (recorded.interrupted === true || recorded.tone !== 'ok')
+      ? recorded
+      : null;
+  // Single-request line actions: a retry supersedes its failed receipt.
+  const writeReceipt = useReceipt();
+  const simpleRecord = (
+    action: string,
+    outcome: string,
+    tone: ResultTone = 'ok',
+    live?: () => boolean,
+  ) => {
+    if (tx === undefined) return;
+    writeReceipt(
+      `line:${action}`,
+      {
+        action,
+        title: `${txTitle(tx)} · ${fmtCents(tx.amount)} €`,
+        subject: lineSubject(statementId, txId),
+        outcome,
+        tone,
+        links: lineLinks(statementId, txId),
+      },
+      live,
+    );
+  };
+  const notConfirmed = (what: string, e: unknown) =>
+    `${what} was not confirmed (${errorMessage(e)}). Open the line for its current state before trying again.`;
   // Belt to the line operation's own duplicate lock (issue #251 — held
   // until onCreateDone returns): once a create has succeeded, the create
   // form is gone for good on this line, whatever the refetch routes to
@@ -159,22 +224,47 @@ function TxScreenFor({
       acceptOrigin: (p) => p === `/bank/statements/${statementId}`,
     });
 
-  const onMatched = (matchIds: number[], totalCents: number) => {
+  const onMatched = (
+    matchIds: number[],
+    totalCents: number,
+    record: ResultHandle | null,
+  ) => {
     const total = fmtCents(totalCents);
     // Undo belongs to the session that booked the matches.
     const undo = sessionTask();
+    let removed = 0;
     leaveToStatement();
     toastUndo(`Matched · ${total} €`, () =>
       undo(
         (stage) =>
-          undoMatches(statementId, matchIds, stage).then(() => {
+          undoMatches(statementId, matchIds, stage, (n) => {
+            removed = n;
+            if (n < matchIds.length)
+              record?.update({
+                action: 'Match · undoing',
+                outcome: `Undo in progress: ${n} of ${matchIds.length} matches removed so far.`,
+                tone: 'running',
+              });
+          }).then(() => {
             stage();
+            // The booking's record now says what is true (#259).
+            record?.update({
+              action: 'Match · undone',
+              outcome: `Match undone (${total} €) — the line is unmatched again.`,
+              tone: 'ok',
+            });
             return invalidateStatement(qc, statementId);
           }),
         {
           onSuccess: () => undefined,
           onError: (e) => {
             toastErr(e instanceof Error ? e.message : String(e));
+            // The receipt must not keep saying "booked" (#259).
+            record?.update({
+              action: 'Match · undo incomplete',
+              outcome: undoIncomplete(removed, matchIds.length, e),
+              tone: 'partial',
+            });
             void invalidateStatement(qc, statementId);
           },
         },
@@ -196,10 +286,13 @@ function TxScreenFor({
   };
 
   const onPersonal = () => {
+    let accepted = false;
     op.run(
       async (ctx) => {
         await markPersonal(txId);
+        accepted = true;
         ctx.check();
+        simpleRecord('Personal', 'Recorded as personal', 'ok', ctx.live);
         await invalidateStatement(qc, statementId);
       },
       {
@@ -210,6 +303,12 @@ function TxScreenFor({
         },
         onError: (e) => {
           toastErr(e instanceof Error ? e.message : String(e));
+          if (!accepted)
+            simpleRecord(
+              'Personal',
+              notConfirmed('Recording as personal', e),
+              'error',
+            );
           setPersonalOpen(false);
           void invalidateStatement(qc, statementId);
         },
@@ -232,10 +331,13 @@ function TxScreenFor({
         : tax.tax_treatment === 'taxable_supply'
           ? 'Recorded as a taxable advance — VAT declared on the payment date'
           : 'Recorded as a deposit';
+    let accepted = false;
     op.run(
       async (ctx) => {
         await createPrepayment(txId, tax);
+        accepted = true;
         ctx.check();
+        simpleRecord('Prepayment', receipt, 'ok', ctx.live);
         await invalidateStatement(qc, statementId);
       },
       {
@@ -248,6 +350,12 @@ function TxScreenFor({
         onError: (e) => {
           // Keep the sheet and what was typed: a failed record is retryable.
           toastErr(e instanceof Error ? e.message : String(e));
+          if (!accepted)
+            simpleRecord(
+              'Prepayment',
+              notConfirmed('Recording the prepayment', e),
+              'error',
+            );
           void invalidateStatement(qc, statementId);
         },
       },
@@ -267,13 +375,35 @@ function TxScreenFor({
       supplierId: null,
     };
     const amount = tx.amount;
+    const describe = (
+      extra: Pick<
+        Parameters<typeof fromLineRecord>[0],
+        'result' | 'error' | 'matchStaged'
+      >,
+    ) =>
+      fromLineRecord({
+        action: 'Bank fee',
+        lineTitle: txTitle(tx),
+        statementId,
+        txId,
+        amount: `${fmtCents(amount)} €`,
+        progress: feeProgress.current,
+        ...extra,
+      });
+    const write = (rec: ResultInit | null, live?: () => boolean) => {
+      if (rec === null) return;
+      writeChain(feeRecord, log.record, rec, live);
+    };
     op.run(
       async (ctx) => {
         const r = await createExpenseFromLine(
           input,
           feeProgress.current,
           ctx.check,
+          (_p, matchStaged) => write(describe({ matchStaged }), ctx.live),
         );
+        feeFinished.current = r;
+        write(describe({ result: r }), ctx.live);
         ctx.check();
         await invalidateStatement(qc, statementId);
         return r;
@@ -292,6 +422,9 @@ function TxScreenFor({
           // The chain can land its first stages then fail: say what is
           // already on the books, and refetch so the line reflects it.
           const p = feeProgress.current;
+          write(
+            describe({ result: feeFinished.current ?? undefined, error: e }),
+          );
           const message = e instanceof Error ? e.message : String(e);
           toastErr(
             p.expenseId === null
@@ -424,6 +557,37 @@ function TxScreenFor({
               </div>
             )}
           </div>
+
+          {earlier !== null && (
+            <div
+              role="status"
+              className="mx-3.5 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-warn [overflow-wrap:anywhere]"
+            >
+              <b className="mb-0.5 block text-[10.5px] uppercase tracking-wide">
+                Recorded earlier in this session · {recordedAt(earlier.at)}
+              </b>
+              {earlier.interrupted
+                ? interruptedText(earlier.outcome)
+                : earlier.outcome}{' '}
+              This is what was recorded then — the line below shows its current
+              state.
+              {earlier.links.some((l) => elsewhere(l.to)) && (
+                <span className="mt-1 flex flex-wrap gap-x-3">
+                  {earlier.links
+                    .filter((l) => elsewhere(l.to))
+                    .map((l) => (
+                      <Link
+                        key={l.to}
+                        to={l.to}
+                        className="font-semibold underline"
+                      >
+                        {l.label}
+                      </Link>
+                    ))}
+                </span>
+              )}
+            </div>
+          )}
 
           {renderState(tx)}
 

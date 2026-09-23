@@ -36,6 +36,8 @@ import { invalidateInbox } from '../queries/inbox';
 import { AppToaster } from '../ui/toast';
 import { ApprovalScreen } from './ApprovalScreen';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import { RESULT_LOG_KEY, ResultLogProvider } from '../lib/resultLog';
+import { setToken } from '../auth';
 import type { QueueRun } from './queueRun';
 
 const APPROVAL = (over: Partial<Approval> = {}): Approval => ({
@@ -135,7 +137,9 @@ function renderAt(path: string, run: QueueRun | null = QUEUE) {
   render(
     <QueryClientProvider client={client}>
       <UnsavedChangesProvider onUnauthorized={() => undefined}>
-        <RouterProvider router={router} />
+        <ResultLogProvider>
+          <RouterProvider router={router} />
+        </ResultLogProvider>
       </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
@@ -878,6 +882,80 @@ describe('ApprovalScreen', () => {
       await waitFor(() =>
         expect(router.state.location.pathname).toBe('/inbox/approval/7'),
       );
+    });
+  });
+
+  describe('durable receipts (issue #259)', () => {
+    type Stored = {
+      entries: {
+        action: string;
+        title: string;
+        outcome: string;
+        tone: string;
+        links: { to: string }[];
+      }[];
+    };
+    const stored = (): Stored =>
+      JSON.parse(sessionStorage.getItem(RESULT_LOG_KEY) ?? '{"entries":[]}');
+    beforeEach(() => {
+      sessionStorage.clear();
+      setToken('t');
+    });
+
+    it('a failed approve is recorded as NOT confirmed (never as posted); rejecting then supersedes it', async () => {
+      vi.mocked(api.approveApproval).mockRejectedValue(
+        new Error('503 Service Unavailable'),
+      );
+      vi.mocked(api.rejectApproval).mockResolvedValue({} as never);
+      renderAt('/inbox/approval/7');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
+      );
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('error'));
+      const [failed] = stored().entries;
+      expect(failed).toMatchObject({
+        action: 'Approve',
+        title: 'Expense #214',
+      });
+      expect(failed.outcome).toMatch(/Approving was not confirmed/);
+      expect(failed.outcome).not.toMatch(/posted ·|Approved & posted/);
+      expect(failed.links.map((l) => l.to)).toEqual([
+        '/inbox/approval/7',
+        '/books/expenses/214',
+      ]);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reject…' }));
+      fireEvent.change(
+        await screen.findByPlaceholderText('Why this should not be posted…'),
+        { target: { value: 'wrong supplier' } },
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reject & return to draft' }),
+      );
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('ok'));
+      expect(stored().entries).toHaveLength(1);
+      expect(stored().entries[0]).toMatchObject({
+        action: 'Reject',
+        title: 'Expense #214',
+      });
+      expect(stored().entries[0].outcome).toMatch(
+        /Rejected — returned to draft — nothing was posted\. Reason: wrong supplier/,
+      );
+    });
+
+    it('a successful approve records the object and its outcome', async () => {
+      vi.mocked(api.approveApproval).mockResolvedValue({} as never);
+      renderAt('/inbox/approval/7');
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Approve · −89.00 €' }),
+      );
+      await waitFor(() => expect(stored().entries).toHaveLength(1));
+      expect(stored().entries[0]).toMatchObject({
+        action: 'Approve',
+        title: 'Expense #214',
+        outcome: 'Approved & posted · −89.00 €',
+        tone: 'ok',
+      });
     });
   });
 });

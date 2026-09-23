@@ -27,6 +27,8 @@ import { TriageDecisionPanel } from './TriageDecisionPanel';
 import { TriageDocumentContext } from './TriageDocumentContext';
 import { useInboxCompletion } from './useInboxCompletion';
 import { usePendingOperation } from '../lib/pendingOperation';
+import { useResultLog } from '../lib/resultLog';
+import { outcomeLinks } from '../upload/uploadFlow';
 
 type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
 
@@ -66,6 +68,7 @@ export function TriageDocScreen() {
   }
   const [confirm, setConfirm] = useState<'dismiss' | 'delete' | null>(null);
   const op = usePendingOperation('Document triage');
+  const log = useResultLog();
   const busy = op.pending;
   // Remount nonce for the sheets: bumped when an unknown outcome keeps the
   // operator on the SAME document (same docId → same key otherwise), so
@@ -85,6 +88,15 @@ export function TriageDocScreen() {
       return;
     }
     toastOk(outcomeText(o));
+    // Durable (#259): which object the document became, after the screen
+    // has moved on to the next item.
+    log.record({
+      action: 'Triage',
+      title: `Document #${o.document_id}`,
+      outcome: outcomeText(o),
+      tone: 'ok',
+      links: outcomeLinks(o),
+    });
     leave(next);
     void invalidateInbox(qc);
   };

@@ -217,6 +217,17 @@ export class BookingPartialError extends Error {
 }
 
 /**
+ * Observation of a booking's accepted stages (issue #259) — told after the
+ * stage guard and BEFORE the next request, so a caller can record that
+ * matches are staged (approval outcome not yet known) or how many are
+ * active. Observing never changes what is sent.
+ */
+export interface BookingObserver {
+  staged?: (stagedMatchIds: number[]) => void;
+  approved?: (approvedMatchIds: number[], stagedMatchIds: number[]) => void;
+}
+
+/**
  * Approve every staged approval in order, tracking progress. On a mid-loop
  * failure, throws BookingPartialError carrying the full staged set and the
  * already-activated subset. Returns the activated match ids on full success.
@@ -224,9 +235,14 @@ export class BookingPartialError extends Error {
 async function approveStaged(
   res: ExecuteMatchesResult,
   stage: StageGuard,
+  observe?: BookingObserver,
 ): Promise<number[]> {
   const stagedMatchIds = res.records.map((r) => r.id);
   const approvedMatchIds: number[] = [];
+  if (observe?.staged) {
+    stage();
+    observe.staged([...stagedMatchIds]);
+  }
   for (const a of res.approvals) {
     try {
       stage();
@@ -243,6 +259,10 @@ async function approveStaged(
       });
     }
     approvedMatchIds.push(a.matchId);
+    if (observe?.approved) {
+      stage();
+      observe.approved([...approvedMatchIds], [...stagedMatchIds]);
+    }
   }
   return approvedMatchIds;
 }
@@ -259,9 +279,10 @@ export async function bookProposals(
   statementId: number,
   proposals: MatchProposalView[],
   stage: StageGuard,
+  observe?: BookingObserver,
 ): Promise<number[]> {
   const res = await executeMatches(statementId, proposals);
-  return approveStaged(res, stage);
+  return approveStaged(res, stage, observe);
 }
 
 /** Stage + approve a single manual match. Returns the match id (for Undo). */
@@ -274,6 +295,7 @@ export async function bookManualMatch(
     matchType: 'exact' | 'partial';
   },
   stage: StageGuard,
+  observe?: BookingObserver,
 ): Promise<number> {
   const res = await manualMatch(statementId, m);
   if (res.approvals.length === 0 || res.records.length === 0) {
@@ -283,7 +305,7 @@ export async function bookManualMatch(
       'manual match staged but no approval returned — server contract breach',
     );
   }
-  const [matchId] = await approveStaged(res, stage);
+  const [matchId] = await approveStaged(res, stage, observe);
   return matchId;
 }
 
@@ -311,10 +333,15 @@ export async function undoMatches(
   statementId: number,
   matchIds: number[],
   stage: StageGuard,
+  /** Told the count removed so far after each accepted removal (#259). */
+  onRemoved?: (removed: number) => void,
 ): Promise<void> {
+  let removed = 0;
   for (const id of matchIds) {
     stage();
     await unmatchMatch(statementId, id);
+    removed += 1;
+    onRemoved?.(removed);
   }
 }
 
@@ -365,7 +392,18 @@ export async function createExpenseFromLine(
   input: CreateFromLineInput,
   progress: FromLineProgress,
   stage: StageGuard,
+  /** Told after every stage the server accepted (#259) — after the stage
+   *  guard, before any further await — so the caller can record it. */
+  onLanded?: (
+    progress: FromLineProgress,
+    /** The match is staged; its approval has not answered yet. */
+    matchStaged?: boolean,
+  ) => void,
 ): Promise<CreateFromLineResult> {
+  const landed = () => {
+    stage();
+    onLanded?.(progress);
+  };
   if (progress.stagedMatchIds !== null) {
     throw new Error(
       'The match is already staged — confirm it from the statement.',
@@ -381,6 +419,7 @@ export async function createExpenseFromLine(
       supplier_id: input.supplierId,
     });
     progress.expenseId = expense.id;
+    landed();
   }
   const expenseId = progress.expenseId;
   if (progress.posted === null) {
@@ -390,6 +429,7 @@ export async function createExpenseFromLine(
       posted.policy.action === 'hold-for-approval'
         ? { held: true, reason: posted.policy.reason }
         : { held: false };
+    landed();
   }
   if (progress.posted.held) {
     return { outcome: 'held', expenseId, reason: progress.posted.reason };
@@ -424,10 +464,17 @@ export async function createExpenseFromLine(
         matchType,
       },
       stage,
+      onLanded && { staged: () => onLanded(progress, true) },
     );
   } catch (e) {
     if (e instanceof BookingPartialError) {
       progress.stagedMatchIds = e.stagedMatchIds;
+      // An ended scope records nothing; the chain's own error still ends it.
+      try {
+        landed();
+      } catch {
+        // stale: fall through to the original error
+      }
     }
     throw e;
   }

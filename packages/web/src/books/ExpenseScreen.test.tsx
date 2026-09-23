@@ -38,6 +38,8 @@ import {
   postExpense,
 } from '../api';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import { RESULT_LOG_KEY, ResultLogProvider } from '../lib/resultLog';
+import { setToken } from '../auth';
 
 const DETAIL = {
   id: 12,
@@ -94,13 +96,15 @@ function mountAt(
   const utils = render(
     <QueryClientProvider client={qc}>
       <UnsavedChangesProvider onUnauthorized={() => undefined}>
-        <MemoryRouter initialEntries={['/books/expenses/12']}>
-          <AppToaster />
-          <Routes>
-            <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
-            <Route path="/books" element={<div>BOOKS LIST</div>} />
-          </Routes>
-        </MemoryRouter>
+        <ResultLogProvider>
+          <MemoryRouter initialEntries={['/books/expenses/12']}>
+            <AppToaster />
+            <Routes>
+              <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+              <Route path="/books" element={<div>BOOKS LIST</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ResultLogProvider>
       </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
@@ -356,5 +360,63 @@ describe('ExpenseScreen', () => {
     );
     await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  describe('durable receipts (issue #259)', () => {
+    const stored = (): {
+      entries: { outcome: string; tone: string; links: { to: string }[] }[];
+    } => JSON.parse(sessionStorage.getItem(RESULT_LOG_KEY) ?? '{"entries":[]}');
+    beforeEach(() => {
+      sessionStorage.clear();
+      setToken('t');
+    });
+
+    it('a held post is recorded as waiting for approval, with the expense and the approvals queue', async () => {
+      vi.mocked(postExpense).mockResolvedValue({
+        expense: { id: 12, status: 'pending' },
+        policy: {
+          action: 'hold-for-approval',
+          reason: 'Voucher amount 65000 exceeds ceiling 5000',
+        },
+      } as never);
+      mountAt({ status: 'draft' }, 'draft');
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Submit for posting' }),
+      );
+      await waitFor(() => expect(stored().entries).toHaveLength(1));
+      const [rec] = stored().entries;
+      expect(rec.tone).toBe('pending');
+      expect(rec.outcome).toMatch(
+        /^Held for approval — .*Not posted until approved\.$/,
+      );
+      expect(rec.links.map((l) => l.to)).toEqual([
+        '/books/expenses/12',
+        '/inbox?seg=approvals',
+      ]);
+    });
+
+    it('an unconfirmed post is recorded as such; the retry supersedes it', async () => {
+      vi.mocked(postExpense)
+        .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+        .mockResolvedValueOnce({
+          expense: { id: 12, status: 'posted' },
+          policy: { action: 'auto-post', reason: 'ok' },
+        } as never);
+      mountAt({ status: 'draft' }, 'draft');
+      const submit = await screen.findByRole('button', {
+        name: 'Submit for posting',
+      });
+      await userEvent.click(submit);
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('error'));
+      expect(stored().entries[0].outcome).toMatch(
+        /Submitting for posting was not confirmed \(503 Service Unavailable\)/,
+      );
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Submit for posting' }),
+      );
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('ok'));
+      expect(stored().entries).toHaveLength(1);
+      expect(stored().entries[0].outcome).toMatch(/^Posted · /);
+    });
   });
 });

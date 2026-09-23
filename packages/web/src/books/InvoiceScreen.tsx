@@ -5,7 +5,8 @@ import { deleteInvoice, fmtCents, postInvoice } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
 import { signedEuros } from '../lib/money';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
+import { useReceipt } from '../lib/resultLog';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -52,6 +53,7 @@ export function InvoiceScreen() {
   const editSheet = useSheet();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const op = usePendingOperation('Invoice');
+  const receipt = useReceipt();
   const busy = op.pending;
 
   if (invoicesQ.isError && invoicesQ.data === undefined) {
@@ -96,10 +98,37 @@ export function InvoiceScreen() {
 
   const onSubmitForPosting = () => {
     const { id, gross_amount } = inv;
+    // Only the post's own failure is "not confirmed" — a failed refresh
+    // after an accepted post keeps its recorded outcome.
+    let accepted = false;
     op.run(
       async (ctx) => {
         const res = await postInvoice(id);
+        accepted = true;
         ctx.check();
+        // Recorded before the cache refresh: the post is accepted (#259).
+        const held = res.policy.action === 'hold-for-approval';
+        receipt(
+          `post:${id}`,
+          {
+            action: 'Submit for posting',
+            title: `Invoice ${inv.invoice_number}`,
+            outcome: held
+              ? `Held for approval — ${humanizePolicyReason(res.policy.reason)}. Not posted until approved.`
+              : `Posted · ${signedEuros(gross_amount)}`,
+            tone: held ? 'pending' : 'ok',
+            links: [
+              {
+                label: `Invoice ${inv.invoice_number}`,
+                to: `/books/invoices/${id}`,
+              },
+              ...(held
+                ? [{ label: 'Inbox approvals', to: '/inbox?seg=approvals' }]
+                : []),
+            ],
+          },
+          ctx.live,
+        );
         await invalidateBooks(qc);
         return res;
       },
@@ -112,6 +141,22 @@ export function InvoiceScreen() {
           } else {
             toastOk(`Posted · ${signedEuros(gross_amount)}`);
           }
+        },
+        onError: (e) => {
+          toastErr(errorMessage(e));
+          if (accepted) return;
+          receipt(`post:${id}`, {
+            action: 'Submit for posting',
+            title: `Invoice ${inv.invoice_number}`,
+            outcome: `Submitting for posting was not confirmed (${errorMessage(e)}). Open it for its current state before trying again.`,
+            tone: 'error',
+            links: [
+              {
+                label: `Invoice ${inv.invoice_number}`,
+                to: `/books/invoices/${id}`,
+              },
+            ],
+          });
         },
       },
     );

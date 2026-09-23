@@ -1,9 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { approveApproval, fmtCents, rejectApproval } from '../api';
+import {
+  approveApproval,
+  fmtCents,
+  rejectApproval,
+  type Approval,
+} from '../api';
 import { ScreenHeader } from '../shell/Headers';
 import { signedEuros } from '../lib/money';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
+import { useReceipt, type ResultLink } from '../lib/resultLog';
 import {
   invalidateInbox,
   useExpenseDetail,
@@ -18,7 +24,7 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { KeyValue, ListGroup } from '../ui/List';
 import { LinkButton } from '../ui/LinkButton';
 import { LoadError, RefetchError } from '../ui/LoadError';
-import { toastOk } from '../ui/toast';
+import { toastErr, toastOk } from '../ui/toast';
 import { DocPreviewRow } from './DocPreviewRow';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 import { humanizePolicyReason } from './reason';
@@ -32,6 +38,44 @@ import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
 import { useInboxCompletion } from './useInboxCompletion';
 import { useState } from 'react';
+
+/** The decided object by its real name, and where it lives (#259). */
+function decidedObject(
+  approval: Approval,
+  invoiceNumber: string | null,
+  lineHref: string | null,
+): { title: string; links: ResultLink[] } {
+  const id = approval.object_id;
+  switch (approval.object_type) {
+    case 'expense':
+      return {
+        title: `Expense #${id}`,
+        links: [{ label: `Expense #${id}`, to: `/books/expenses/${id}` }],
+      };
+    case 'sales_invoice': {
+      const title =
+        invoiceNumber !== null
+          ? `Invoice ${invoiceNumber}`
+          : `Sales invoice #${id}`;
+      return { title, links: [{ label: title, to: `/books/invoices/${id}` }] };
+    }
+    case 'reconciliation_match':
+      return {
+        title: `Bank match #${id}`,
+        // Without validated facts no line id is invented: Bank is the
+        // context where a discarded or active match is found.
+        links:
+          lineHref !== null
+            ? [{ label: 'Bank line', to: lineHref }]
+            : [{ label: 'Bank statements', to: '/bank' }],
+      };
+    default:
+      return {
+        title: `${approval.object_type} #${id}`,
+        links: [{ label: 'Inbox approvals', to: '/inbox?seg=approvals' }],
+      };
+  }
+}
 
 function WhyHeldBox({ reason }: { reason: string | null }) {
   return (
@@ -122,6 +166,42 @@ export function ApprovalScreen() {
   const rejectSheet = useSheet();
 
   const op = usePendingOperation('Approval');
+  // One receipt per approval: a retry, or rejecting after a failed
+  // approve, supersedes the earlier outcome (#259).
+  const writeReceipt = useReceipt();
+  const failed = (
+    verb: 'Approve' | 'Reject',
+    object: ReturnType<typeof decided>,
+    e: unknown,
+  ) => {
+    toastErr(errorMessage(e));
+    if (object === null) return;
+    writeReceipt(`approval:${approvalId}`, {
+      action: verb,
+      title: object.title,
+      outcome: `${verb === 'Approve' ? 'Approving' : 'Rejecting'} was not confirmed (${errorMessage(e)}). Open the approval or the item for its current state before deciding again.`,
+      tone: 'error',
+      links: [
+        { label: 'Approval', to: `/inbox/approval/${approvalId}` },
+        ...object.links,
+      ].slice(0, 3),
+    });
+  };
+  const decided = () => {
+    if (approval === undefined) return null;
+    const bt =
+      matchCheck?.ok === true ? matchCheck.facts.bankTransaction : undefined;
+    return decidedObject(
+      approval,
+      approval.object_type === 'sales_invoice'
+        ? (invoicesQ.data?.find((x) => x.id === approval.object_id)
+            ?.invoice_number ?? null)
+        : null,
+      bt !== undefined
+        ? `/bank/statements/${bt.statementId}/tx/${bt.id}`
+        : null,
+    );
+  };
   const [running, setRunning] = useState<'approve' | 'reject'>('approve');
   const approving = op.pending && running === 'approve';
   const rejecting = op.pending && running === 'reject';
@@ -145,17 +225,43 @@ export function ApprovalScreen() {
         : heroAmount !== null
           ? `Approved & posted · ${heroAmount}`
           : 'Approved & posted';
-    const started = op.run(() => approveApproval(approvalId, 'operator'), {
-      onSuccess: () => {
-        // NO Undo: approve posts in the same transaction (Reality #1) — the
-        // object's voucher, or a bank match's settlement (an already-active
-        // match only closes the request). Recovery is the correction flow,
-        // or Unmatch in Bank for a match.
-        toastOk(receipt);
-        leave(to);
-        void invalidateInbox(qc);
+    const object = decided();
+    let accepted = false;
+    const started = op.run(
+      async (ctx) => {
+        await approveApproval(approvalId, 'operator');
+        accepted = true;
+        // Recorded as soon as the decision is accepted (#259) — only a
+        // SUCCESSFUL approve is ever recorded as posted/matched.
+        if (object !== null)
+          writeReceipt(
+            `approval:${approvalId}`,
+            {
+              action: 'Approve',
+              title: object.title,
+              outcome: receipt,
+              tone: 'ok',
+              links: object.links,
+            },
+            ctx.live,
+          );
       },
-    });
+      {
+        onSuccess: () => {
+          // NO Undo: approve posts in the same transaction (Reality #1) — the
+          // object's voucher, or a bank match's settlement (an already-active
+          // match only closes the request). Recovery is the correction flow,
+          // or Unmatch in Bank for a match.
+          toastOk(receipt);
+          leave(to);
+          void invalidateInbox(qc);
+        },
+        onError: (e) => {
+          if (accepted) toastErr(errorMessage(e));
+          else failed('Approve', object, e);
+        },
+      },
+    );
     if (started) setRunning('approve');
   };
 
@@ -170,16 +276,40 @@ export function ApprovalScreen() {
       approval?.object_type === 'reconciliation_match'
         ? 'Rejected — the staged match was discarded'
         : 'Rejected — returned to draft';
-    const started = op.run(() => rejectApproval(approvalId, reason), {
-      onSuccess: () => {
-        // `release` must run before leave(to).
-        release();
-        rejectSheet.close();
-        toastOk(receipt);
-        leave(to);
-        void invalidateInbox(qc);
+    const object = decided();
+    let accepted = false;
+    const started = op.run(
+      async (ctx) => {
+        await rejectApproval(approvalId, reason);
+        accepted = true;
+        if (object !== null)
+          writeReceipt(
+            `approval:${approvalId}`,
+            {
+              action: 'Reject',
+              title: object.title,
+              outcome: `${receipt} — nothing was posted. Reason: ${reason}`,
+              tone: 'ok',
+              links: object.links,
+            },
+            ctx.live,
+          );
       },
-    });
+      {
+        onSuccess: () => {
+          // `release` must run before leave(to).
+          release();
+          rejectSheet.close();
+          toastOk(receipt);
+          leave(to);
+          void invalidateInbox(qc);
+        },
+        onError: (e) => {
+          if (accepted) toastErr(errorMessage(e));
+          else failed('Reject', object, e);
+        },
+      },
+    );
     if (started) setRunning('reject');
   };
 

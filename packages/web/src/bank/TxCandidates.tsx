@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   fmtCents,
@@ -6,13 +6,32 @@ import {
   type MatchCandidateView,
   type MatchCandidatesResult,
 } from '../api';
-import { bookManualMatch, invalidateStatement } from '../queries/bank';
+import {
+  BookingPartialError,
+  bookManualMatch,
+  invalidateStatement,
+} from '../queries/bank';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { GroupLabel } from '../ui/List';
 import { PendingFieldset } from '../ui/Form';
 import { toastErr } from '../ui/toast';
-import { rethrowIfEnded, type PendingOperation } from '../lib/pendingOperation';
+import {
+  errorMessage,
+  rethrowIfEnded,
+  type PendingOperation,
+} from '../lib/pendingOperation';
+import {
+  useResultLog,
+  slotHandle,
+  writeChain,
+  type ChainSlot,
+  type ResultHandle,
+  type ResultLink,
+  type ResultTone,
+} from '../lib/resultLog';
+import { txTitle } from './format';
+import { lineLinks, lineSubject } from './lineResults';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /**
@@ -37,9 +56,16 @@ export function TxCandidates({
   /** The LINE's operation, owned by TxScreen (stays mounted while the
    *  statement refresh re-routes the line — issue #251). */
   op: PendingOperation;
-  onMatched: (matchIds: number[], totalCents: number) => void;
+  /** `record`: the booking's durable result (#259), for Undo to update. */
+  onMatched: (
+    matchIds: number[],
+    totalCents: number,
+    record: ResultHandle | null,
+  ) => void;
 }) {
   const qc = useQueryClient();
+  const log = useResultLog();
+  const matchRecord = useRef<ChainSlot['current']>(null);
   const [selected, setSelected] = useState<Set<number>>(
     () =>
       new Set(
@@ -90,9 +116,45 @@ export function TxCandidates({
           : ('partial' as const),
     }));
     const txId = tx.id;
+    const objectLinks: ResultLink[] = allocations.flatMap(({ candidate: c }) =>
+      c.objectId === null || c.objectType === 'prepayment'
+        ? []
+        : [
+            {
+              label: c.objectLabel,
+              to:
+                c.objectType === 'expense'
+                  ? `/books/expenses/${c.objectId}`
+                  : `/books/invoices/${c.objectId}`,
+            },
+          ],
+    );
+    const names = allocations.map((a) => a.candidate.objectLabel).join(', ');
+    const [lineLink, statementLink] = lineLinks(statementId, txId);
+    const sumOf = (n: number) =>
+      `${fmtCents(plan.slice(0, n).reduce((sum, p) => sum + p.amount, 0))} €`;
     op.run(
       async (ctx) => {
         const matchIds: number[] = [];
+        // The booking's durable record (#259): written after every match
+        // the server accepted, before the next request.
+        // One record per booking attempt series: a retry supersedes.
+        const note = (tone: ResultTone, outcome: string) => {
+          const init = {
+            action: 'Match',
+            title: `${txTitle(tx)} · ${fmtCents(tx.amount)} €`,
+            subject: lineSubject(statementId, txId),
+            links: [lineLink, ...objectLinks.slice(0, 2), statementLink],
+            outcome,
+            tone,
+          };
+          writeChain(matchRecord, log.record, init, ctx.live);
+        };
+        const stagedNote = (error: unknown) =>
+          error instanceof BookingPartialError &&
+          error.stagedMatchIds.length > error.approvedMatchIds.length
+            ? ' A further match was staged; its approval was not confirmed — confirm it on the line if it is still staged.'
+            : '';
         try {
           for (const p of plan) {
             ctx.check();
@@ -106,32 +168,78 @@ export function TxCandidates({
                   matchType: p.matchType,
                 },
                 ctx.check,
+                {
+                  staged: () =>
+                    note(
+                      'running',
+                      `${matchIds.length > 0 ? `${matchIds.length} of ${plan.length} matches booked (${sumOf(matchIds.length)}); ` : ''}the match to ${allocations[matchIds.length]?.candidate.objectLabel ?? 'the item'} is staged — the approval's outcome is not known yet.`,
+                    ),
+                },
               ),
             );
+            ctx.check();
+            if (plan.length > 1 && matchIds.length < plan.length)
+              note(
+                'running',
+                `${matchIds.length} of ${plan.length} matches booked (${sumOf(matchIds.length)}) — booking the rest…`,
+              );
           }
         } catch (error) {
           rethrowIfEnded(error);
-          if (matchIds.length === 0) throw error;
+          if (matchIds.length === 0) {
+            // Nothing booked — but the first match may be STAGED (its
+            // approval failed): that is a partial outcome, not "nothing".
+            if (stagedNote(error) !== '') {
+              ctx.check();
+              note(
+                'partial',
+                `The match to ${allocations[0]?.candidate.objectLabel ?? 'the item'} was staged; its approval was not confirmed (${errorMessage(error)}). Open the line — confirm the staged match there if it is still staged.`,
+              );
+            } else {
+              ctx.check();
+              note(
+                'error',
+                `Matching was not confirmed (${errorMessage(error)}). Open the line for its current state before matching again.`,
+              );
+            }
+            throw error;
+          }
+          ctx.check();
+          note(
+            'partial',
+            `${matchIds.length} of ${plan.length} matches booked (${sumOf(matchIds.length)}); the rest were not confirmed: ${errorMessage(error)}.${stagedNote(error)} Open the line for its current state.`,
+          );
           // Partial success is real: report what actually landed.
           ctx.check();
           await invalidateStatement(qc, statementId);
           const landed = plan
             .slice(0, matchIds.length)
             .reduce((sum, p) => sum + p.amount, 0);
-          return { matchIds, total: landed, error };
+          return {
+            matchIds,
+            total: landed,
+            error,
+            record: slotHandle(matchRecord),
+          };
         }
         ctx.check();
+        note('ok', `Matched to ${names} · ${fmtCents(allocated)} €`);
         await invalidateStatement(qc, statementId);
-        return { matchIds, total: allocated, error: null as unknown };
+        return {
+          matchIds,
+          total: allocated,
+          error: null as unknown,
+          record: slotHandle(matchRecord),
+        };
       },
       {
-        onSuccess: ({ matchIds, total, error }) => {
+        onSuccess: ({ matchIds, total, error, record }) => {
           if (error !== null) {
             toastErr(error instanceof Error ? error.message : String(error));
           }
           // What landed is on the server and onMatched leaves this line.
           guard.release();
-          onMatched(matchIds, total);
+          onMatched(matchIds, total, record);
         },
         onError: (e) => {
           toastErr(e instanceof Error ? e.message : String(e));

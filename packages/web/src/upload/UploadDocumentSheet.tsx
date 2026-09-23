@@ -4,6 +4,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { uploadDocument } from '../api';
 import { writeImportPointer } from '../bank/importResume';
 import { usePendingOperation } from '../lib/pendingOperation';
+import {
+  useResultLog,
+  writeChain,
+  type ChainSlot,
+  type ResultInit,
+} from '../lib/resultLog';
 import { useOriginState } from '../lib/returnNavigation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useEntities } from '../queries/shared';
@@ -16,7 +22,10 @@ import {
   continuation,
   continueUpload,
   failedStage,
+  needsProcessing,
+  outcomeLinks,
   payerMismatch,
+  resultLinks,
   storedPayerLabel,
   type StagedUpload,
   type UploadResult,
@@ -50,6 +59,31 @@ export function UploadDocumentSheet({
   // as: the same File never uploads again, and its payer is fixed with it.
   const staged = useRef<StagedUpload | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
+  // The durable record of the staged upload (#259): one entry per staged
+  // document, updated by every later stage and retry.
+  const log = useResultLog();
+  // Bound to the File: a failed upload request's receipt, then the staged
+  // document's stages — a retry of the same File supersedes, never adds.
+  // Written through writeChain, so a handle of an ended log generation is
+  // never reused (a retry after a sign-in elsewhere records anew).
+  const chain = useRef<{
+    file: File;
+    slot: ChainSlot;
+    last: ResultInit | null;
+  } | null>(null);
+  /** Write this File's record: a full entry, or a patch over its last. */
+  const writeFile = (
+    f: File,
+    next: ResultInit | Partial<ResultInit>,
+    live?: () => boolean,
+  ) => {
+    if (chain.current?.file !== f)
+      chain.current = { file: f, slot: { current: null }, last: null };
+    const c = chain.current;
+    if (c.last === null && !('action' in next)) return;
+    c.last = { ...c.last, ...next } as ResultInit;
+    writeChain(c.slot, log.record, c.last, live);
+  };
   const partial =
     staged.current !== null && staged.current.file === file
       ? staged.current
@@ -110,13 +144,64 @@ export function UploadDocumentSheet({
           };
           staged.current = current;
           ctx.check();
+          // Recorded the moment the server accepted it: a later failure or
+          // a reload never loses which document now exists.
+          const docId = up.document.id;
+          const accepted: ResultInit = {
+            action: 'Upload',
+            title: chosen.file.name,
+            outcome: up.deduplicated
+              ? `Already uploaded as document #${docId} — nothing new was stored.`
+              : `Stored as document #${docId} — processing…`,
+            tone: 'running',
+            links: [
+              {
+                label: `Document #${docId}`,
+                to: `/books/documents/${docId}`,
+              },
+            ],
+          };
+          writeFile(chosen.file, accepted, ctx.live);
           // A known file keeps its stored payer: stop and say so before
           // anything continues — never as if the new choice was saved.
-          if (payerMismatch(current)) return { stop: 'payer' };
+          if (payerMismatch(current)) {
+            writeFile(
+              current.file,
+              {
+                outcome: `Already uploaded as document #${docId}, stored as ${storedPayerLabel(current.document, entities)} — your payer choice was not applied and nothing was processed yet.`,
+                tone: 'warn',
+              },
+              ctx.live,
+            );
+            return { stop: 'payer' };
+          }
         }
         // Stage boundary: never start processing under another session.
         ctx.check();
-        const result = await continueUpload(qc, current, ctx.check);
+        // Honest stage copy: only a document that still needs a processing
+        // call is "processing"; a handled duplicate or a result-only retry
+        // just reads what is stored.
+        writeFile(
+          current.file,
+          {
+            outcome: needsProcessing(current)
+              ? `Document #${current.document.id} — processing…`
+              : `Document #${current.document.id} — reading its stored result…`,
+            tone: 'running',
+          },
+          ctx.live,
+        );
+        const result = await continueUpload(qc, current, ctx.check, (o) =>
+          writeFile(
+            current.file,
+            {
+              outcome: `Document #${o.document_id} was processed — loading the result…`,
+              tone: 'running',
+              links: outcomeLinks(o),
+            },
+            ctx.live,
+          ),
+        );
         return { stop: null, result, dup: current.deduplicated };
       },
       {
@@ -128,6 +213,14 @@ export function UploadDocumentSheet({
           const c = continuation(r.result, r.dup);
           if (c.tone === 'ok') toastOk(c.message);
           else toastErr(c.message);
+          // Stored and processed, but not routed to a result is PARTIAL —
+          // never a failure, never a finished success.
+          if (staged.current !== null)
+            writeFile(staged.current.file, {
+              outcome: c.message,
+              tone: c.tone === 'ok' ? 'ok' : 'partial',
+              links: resultLinks(r.result),
+            });
           // A statement import this operation just started is the tab's
           // import (#254): a plain return to /bank/import resumes IT, not an
           // older job. (Never for a known duplicate — nothing started.)
@@ -151,9 +244,34 @@ export function UploadDocumentSheet({
           const stage = failedStage(up);
           if (up === null || stage === 'upload') {
             toastErr(`Upload failed: ${message}`);
+            // No document id came back — whether the server stored the
+            // file is not known here, so nothing is claimed either way.
+            const failed: ResultInit = {
+              action: 'Upload',
+              title: chosen.file.name,
+              outcome: `The upload was not confirmed — no document ID was received (${message}). The file may or may not be stored: retry from this sheet while it is open (it keeps your file; an identical stored file is recognized, not stored twice), or check Documents.`,
+              tone: 'error',
+              links: [{ label: 'Documents', to: '/books?seg=documents' }],
+            };
+            writeFile(chosen.file, failed);
             return;
           }
           setFailure({ documentId: up.document.id, stage });
+          writeFile(
+            up.file,
+            stage === 'processing'
+              ? {
+                  outcome: `Stored as document #${up.document.id}, but processing was not confirmed: ${message}. Retry processing while this upload sheet is still open; after it is closed or the page reloads, open the document for its current state — uploading the same file again does not re-process it.`,
+                  tone: 'partial',
+                }
+              : {
+                  outcome: `Document #${up.document.id} is stored${up.outcome !== null ? ' and was processed' : ''}, but its result could not be loaded: ${message}.`,
+                  tone: 'partial',
+                  ...(up.outcome !== null
+                    ? { links: outcomeLinks(up.outcome) }
+                    : {}),
+                },
+          );
           toastErr(
             stage === 'processing'
               ? `Uploaded as document #${up.document.id}, but processing failed: ${message}`

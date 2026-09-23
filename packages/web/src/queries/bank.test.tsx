@@ -93,6 +93,38 @@ describe('bookProposals', () => {
     expect(api.approveApproval).toHaveBeenCalledWith(9, 'operator');
   });
 
+  it('an observer sees the staged stage before any approval and each activation, without changing a request (#259)', async () => {
+    const order: string[] = [];
+    vi.mocked(api.executeMatches).mockImplementation(async () => {
+      order.push('stage');
+      return {
+        records: [{ id: 41 }, { id: 42 }],
+        approvals: [
+          { id: 9, matchId: 41 },
+          { id: 10, matchId: 42 },
+        ],
+      };
+    });
+    vi.mocked(api.approveApproval).mockImplementation(async (id) => {
+      order.push(`approve-${id}`);
+      return { approval: { id } } as never;
+    });
+    const matchIds = await bookProposals(3, [PROPOSAL, PROPOSAL], noStage, {
+      staged: (ids) => order.push(`observed-staged:${ids.join(',')}`),
+      approved: (done, staged) =>
+        order.push(`observed-active:${done.length}/${staged.length}`),
+    });
+    expect(matchIds).toEqual([41, 42]);
+    expect(order).toEqual([
+      'stage',
+      'observed-staged:41,42',
+      'approve-9',
+      'observed-active:1/2',
+      'approve-10',
+      'observed-active:2/2',
+    ]);
+  });
+
   it('throws BookingPartialError with progress when an approval fails mid-loop', async () => {
     vi.mocked(api.executeMatches).mockResolvedValue({
       records: [{ id: 41 }, { id: 42 }],
@@ -205,6 +237,17 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
     expect(partial.approvedMatchIds).toEqual([]);
     expect(partial.failedApprovalId).toBe(12);
     expect(partial.message).toMatch(/approval already superseded/);
+  });
+
+  it('undoMatches reports each accepted removal, so a later failure knows the count (#259)', async () => {
+    vi.mocked(api.unmatchMatch)
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('409 Conflict'));
+    const removed: number[] = [];
+    await expect(
+      undoMatches(3, [41, 42], noStage, (n) => removed.push(n)),
+    ).rejects.toThrow('409 Conflict');
+    expect(removed).toEqual([1]);
   });
 
   it('undoMatches unmatches every id against the statement', async () => {

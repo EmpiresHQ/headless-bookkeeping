@@ -154,6 +154,9 @@ export async function continueUpload(
   qc: QueryClient,
   staged: StagedUpload,
   check: () => void,
+  /** Told the moment a processing call returned (#259), before any
+   *  further await — so its outcome is recorded even if a read fails. */
+  onProcessed?: (outcome: TriageOutcome) => void,
 ): Promise<UploadResult> {
   // Ownership before the first stage, whatever the caller checked.
   check();
@@ -165,6 +168,7 @@ export async function continueUpload(
     // re-reads, it never processes the document again.
     staged.outcome = outcome;
     check();
+    onProcessed?.(outcome);
   }
   if (staged.outcome !== null) {
     result = await resolveOutcome(qc, staged.outcome, check);
@@ -242,5 +246,84 @@ export function continuation(
         message: `Already uploaded as document #${r.documentId} — nothing was processed again`,
         tone: 'ok',
       };
+  }
+}
+
+type Link = { label: string; to: string };
+
+const docLinkOf = (documentId: number): Link => ({
+  label: `Document #${documentId}`,
+  to: `/books/documents/${documentId}`,
+});
+
+/** Where a processing outcome lives (#259) — known before its result is
+ *  read, so a failed read still leaves the created object reachable. */
+export function outcomeLinks(o: TriageOutcome): Link[] {
+  const doc = docLinkOf(o.document_id);
+  switch (o.kind) {
+    case 'expense':
+      return [
+        {
+          label: `Expense #${o.expense_id}`,
+          to: `/books/expenses/${o.expense_id}`,
+        },
+        doc,
+      ];
+    case 'invoice':
+      return [
+        {
+          label: `Invoice #${o.invoice_id}`,
+          to: `/books/invoices/${o.invoice_id}`,
+        },
+        doc,
+      ];
+    case 'bank_statement':
+      return [
+        {
+          label: `Import job #${o.job_id}`,
+          to: `/bank/import?job=${o.job_id}`,
+        },
+        doc,
+      ];
+    default:
+      return [doc];
+  }
+}
+
+/** The recorded result's links: the continuation first, then the document. */
+export function resultLinks(r: UploadResult): Link[] {
+  const doc = docLinkOf(r.documentId);
+  switch (r.kind) {
+    case 'expense':
+      return [
+        {
+          label: `Expense #${r.expenseId}`,
+          to: `/books/expenses/${r.expenseId}`,
+        },
+        doc,
+      ];
+    case 'invoice':
+      return [
+        {
+          label: `Invoice #${r.invoiceId}`,
+          to: `/books/invoices/${r.invoiceId}`,
+        },
+        doc,
+      ];
+    case 'bank_statement':
+      return [
+        { label: `Import job #${r.jobId}`, to: `/bank/import?job=${r.jobId}` },
+        doc,
+      ];
+    case 'needs_triage':
+      return [
+        {
+          label: `Review document #${r.documentId}`,
+          to: `/inbox/doc/${r.documentId}`,
+        },
+        doc,
+      ];
+    default:
+      return [doc];
   }
 }

@@ -10,6 +10,7 @@ import {
   clearImportPointer,
   watchImportPointerSession,
 } from '../bank/importResume';
+import { clearResultLog } from '../lib/resultLog';
 import { TokenGate } from '../components/TokenGate';
 import { createQueryClient } from '../lib/queryClient';
 import { AppToaster } from '../ui/toast';
@@ -40,6 +41,8 @@ export function Root() {
     clearToken();
     // An ended session's import is not resumed by the next sign-in (#254).
     clearImportPointer();
+    // …nor sees its recorded operation results (#259).
+    clearResultLog();
     if (live.current !== null) retired.current = live.current;
     live.current = null;
     setClient(null);

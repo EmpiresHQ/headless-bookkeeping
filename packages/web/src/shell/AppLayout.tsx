@@ -6,8 +6,10 @@ import {
   useConfirmLeave,
   useRouteDiscardEpoch,
 } from '../lib/unsavedChanges';
+import { ResultLogProvider } from '../lib/resultLog';
 import { useInboxCount } from '../queries/inbox';
 import { SkeletonRows } from '../ui/Feedback';
+import { RecentResults } from './RecentResults';
 import { Sidebar } from './Sidebar';
 import { TabBar } from './TabBar';
 
@@ -33,7 +35,9 @@ export function AppLayout({
 }) {
   return (
     <UnsavedChangesProvider onUnauthorized={onUnauthorized}>
-      <Shell onSignOut={onSignOut} />
+      <ResultLogProvider>
+        <Shell onSignOut={onSignOut} />
+      </ResultLogProvider>
     </UnsavedChangesProvider>
   );
 }
@@ -51,6 +55,9 @@ function Shell({ onSignOut: signOutNow }: { onSignOut: () => void }) {
     <div className="min-h-screen bg-bg text-ink">
       <Sidebar onSignOut={onSignOut} inboxCount={inboxCount} />
       <div className="pb-[calc(var(--tabbar-h)+2.5rem)] lg:pb-6 lg:pl-56">
+        {/* Recorded operation results (#259) — outside the Outlet, so a
+            route change or a route discard never drops them. */}
+        <RecentResults />
         <Suspense
           fallback={
             <div className="mx-auto max-w-3xl pt-6">
