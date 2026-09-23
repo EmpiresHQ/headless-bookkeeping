@@ -1,3 +1,4 @@
+import { useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { type Expense } from '../api';
 import {
@@ -12,10 +13,12 @@ import {
 } from '../queries/books';
 import { useEntities, useExpenses } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
-import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { Button } from '../ui/Button';
+import { SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
+import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
 import {
   ActiveFilters,
   FilterChip,
@@ -103,6 +106,7 @@ export function ExpensesSegment({
   const noDocOnly = params.get('nodoc') === '1';
   const setParam = useSetFilterParam();
   const { rootRef, onReset } = useResetWithFocus('expenses');
+  const create = useContext(BooksCreate);
 
   const expensesQ = useExpenses();
   const entitiesQ = useEntities();
@@ -221,10 +225,30 @@ export function ExpensesSegment({
           filtered.length > 0 ? `total ${expenseTotals(filtered)}` : undefined,
       })}
       {sections.length === 0 && (
-        <EmptyState
+        <BooksEmpty
           icon="🧾"
-          title="No expenses match"
-          hint="Adjust the filter or create one with +"
+          noun="expenses"
+          total={total}
+          q={q}
+          scope={BOOKS_SEARCH.expenses.scope}
+          // Only what removed rows: No document counts once the archive is
+          // loaded (before that it filters nothing).
+          filters={[
+            ...(status === 'all' ? [] : [LABELS[status]]),
+            ...(noDocOnly && docsReady ? ['No document'] : []),
+            ...effectiveDateFilter(order, order.labels[0]),
+          ]}
+          lookups={[{ label: 'supplier names', query: entitiesQ }]}
+          onReset={onReset}
+          restricted={applied.length > 0 || q.trim() !== ''}
+          initialHint="Create one, or upload a receipt with +."
+          initialAction={
+            create && (
+              <Button className="min-h-11" onClick={() => create('expense')}>
+                Create expense
+              </Button>
+            )
+          }
         />
       )}
       {sections.map((g) => (

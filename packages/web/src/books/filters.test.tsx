@@ -159,13 +159,13 @@ describe('Books active restrictions + Reset (issue #274)', () => {
 
   it('never advertises an unknown or inapplicable filter as applied', async () => {
     mount('?seg=invoices&status=bogus&nodoc=1');
-    await screen.findByText('No invoices match');
+    await screen.findByText('No invoices yet');
     expect(screen.queryByRole('group', { name: 'Active filters' })).toBeNull();
   });
 
   it('Invoices: the shared status filter is summarized', async () => {
     mount('?seg=invoices&status=corrected');
-    await screen.findByText('No invoices match');
+    await screen.findByText('No invoices yet');
     expect(bar()).toHaveTextContent('Showing 0 of 0 invoices · Corrected');
   });
 
@@ -202,7 +202,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
   it('a very long search shows a bounded excerpt, full value in the field', async () => {
     const long = 'fixture'.repeat(30);
     mount(`?q=${long}`);
-    await screen.findByText('No expenses match');
+    await screen.findByText(/^No expenses match “/);
     const excerpt = within(bar()).getByTitle(long);
     expect(excerpt.textContent!.length).toBeLessThan(45);
     expect(screen.getByRole('searchbox')).toHaveValue(long);
@@ -210,7 +210,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
 
   it('Credit notes: search is the only restriction; Clear search', async () => {
     const router = mount('?seg=credit-notes&q=zzz');
-    await screen.findByText('No credit notes');
+    await screen.findByText('No credit notes yet');
     expect(bar()).toHaveTextContent(
       'Showing 0 of 0 credit notes · Search “zzz”',
     );

@@ -1,12 +1,15 @@
+import { useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { DocumentArchiveRow } from '../api';
 import { triageChipLabel } from '../inbox/reason';
 import { useDocumentsArchive } from '../queries/books';
 import { relativeTime } from '../relativeTime';
 import { Chip } from '../ui/Chip';
-import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { Button } from '../ui/Button';
+import { SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
+import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
 import { DocThumb } from './DocThumb';
 import { ActiveFilters, FilterChip, FilterStrip } from './chips';
 import {
@@ -91,6 +94,7 @@ export function DocumentsSegment({
     : 'all';
   const setParam = useSetFilterParam();
   const { rootRef, onReset } = useResetWithFocus('documents');
+  const create = useContext(BooksCreate);
   const docsQ = useDocumentsArchive();
 
   // Applied restrictions from PARSED state (an unknown ?dstatus= is All).
@@ -180,10 +184,32 @@ export function DocumentsSegment({
       </FilterStrip>
       {activeFilters({ shown: rows.length, total, noun: 'documents' })}
       {rows.length === 0 && (
-        <EmptyState
+        <BooksEmpty
           icon="🗂"
-          title="No documents match"
-          hint="Upload one with + or adjust the filter"
+          noun="documents"
+          total={total}
+          q={q}
+          scope={BOOKS_SEARCH.documents.scope}
+          // The search reads the archive row itself (file name, supplier
+          // name): no auxiliary lookup takes part.
+          filters={[
+            ...(filter === 'all'
+              ? []
+              : DOC_FILTERS.filter((f) => f.key === filter).map(
+                  (f) => f.label,
+                )),
+            ...effectiveDateFilter(order, order.labels[0]),
+          ]}
+          onReset={onReset}
+          restricted={applied.length > 0 || q.trim() !== ''}
+          initialHint="Upload a receipt or invoice to start."
+          initialAction={
+            create && (
+              <Button className="min-h-11" onClick={() => create('upload')}>
+                Upload document
+              </Button>
+            )
+          }
         />
       )}
       {rows.length > 0 && (
