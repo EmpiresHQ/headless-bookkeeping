@@ -18,7 +18,14 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
-import { FilterChip, statusChip, StatusChipRow } from './chips';
+import {
+  ActiveFilters,
+  FilterChip,
+  LABELS,
+  statusChip,
+  StatusChipRow,
+} from './chips';
+import { useResetWithFocus, useSetFilterParam } from './filters';
 
 function ExpenseRow({
   e,
@@ -51,7 +58,7 @@ function ExpenseRow({
  *  recomputed under the active filter+search (asset §4). Filters live in
  *  query params (?status=, ?nodoc=1) — shareable, F5-proof. */
 export function ExpensesSegment({ q }: { q: string }) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const rawStatus = params.get('status');
   const status: StatusFilter = STATUS_FILTERS.includes(
     rawStatus as StatusFilter,
@@ -59,6 +66,8 @@ export function ExpensesSegment({ q }: { q: string }) {
     ? (rawStatus as StatusFilter)
     : 'all';
   const noDocOnly = params.get('nodoc') === '1';
+  const setParam = useSetFilterParam();
+  const { rootRef, onReset } = useResetWithFocus('expenses');
 
   const expensesQ = useExpenses();
   const entitiesQ = useEntities();
@@ -70,24 +79,51 @@ export function ExpensesSegment({ q }: { q: string }) {
   const docsReady = docsQ.data !== undefined;
   const documented = documentedExpenseIds(docsQ.data ?? []);
 
-  const setParam = (key: string, value: string | null) => {
-    const next = new URLSearchParams(params);
-    if (value === null) next.delete(key);
-    else next.set(key, value);
-    setParams(next, { replace: true });
-  };
+  // Applied restrictions, from PARSED state (an unknown ?status= is All).
+  // The No-document predicate needs the archive: say so while it cannot
+  // apply, and when it applies from a cached archive that failed to refresh.
+  const applied: string[] = [];
+  if (status !== 'all') applied.push(LABELS[status]);
+  if (noDocOnly) {
+    applied.push(
+      docsReady
+        ? docsQ.isError
+          ? 'No document (last loaded documents)'
+          : 'No document'
+        : docsQ.isError
+          ? 'No document (not applied: documents failed to load)'
+          : 'No document (checking documents…)',
+    );
+  }
+  const activeFilters = (result?: {
+    shown: number;
+    total: number;
+    noun: string;
+  }) => (
+    <ActiveFilters filters={applied} q={q} result={result} onReset={onReset} />
+  );
 
-  if (expensesQ.isPending) return <SkeletonRows count={5} />;
+  if (expensesQ.isPending) {
+    return (
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <SkeletonRows count={5} />
+      </div>
+    );
+  }
   if (expensesQ.isError) {
     return (
-      <LoadError
-        message={
-          expensesQ.error instanceof Error
-            ? expensesQ.error.message
-            : 'Failed to load expenses'
-        }
-        onRetry={() => void expensesQ.refetch()}
-      />
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <LoadError
+          message={
+            expensesQ.error instanceof Error
+              ? expensesQ.error.message
+              : 'Failed to load expenses'
+          }
+          onRetry={() => void expensesQ.refetch()}
+        />
+      </div>
     );
   }
 
@@ -108,8 +144,10 @@ export function ExpensesSegment({ q }: { q: string }) {
     .filter((e) => !noDocOnly || !documented.has(e.id));
   const groups = groupByMonth(filtered);
 
+  const total = (expensesQ.data ?? []).length;
+
   return (
-    <div>
+    <div ref={rootRef} tabIndex={-1} className="outline-none">
       <StatusChipRow
         counts={counts}
         active={status}
@@ -123,6 +161,7 @@ export function ExpensesSegment({ q }: { q: string }) {
           </FilterChip>
         }
       />
+      {activeFilters({ shown: filtered.length, total, noun: 'expenses' })}
       {groups.length === 0 && (
         <EmptyState
           icon="🧾"

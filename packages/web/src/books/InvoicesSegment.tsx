@@ -16,7 +16,8 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
-import { statusChip, StatusChipRow } from './chips';
+import { ActiveFilters, LABELS, statusChip, StatusChipRow } from './chips';
+import { useResetWithFocus, useSetFilterParam } from './filters';
 
 function InvoiceRow({
   inv,
@@ -50,7 +51,7 @@ function InvoiceRow({
 /** Books › Invoices — the §4 mirror: customer/number rows, inflow amounts,
  *  month totals under the active filter. */
 export function InvoicesSegment({ q }: { q: string }) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const rawStatus = params.get('status');
   const status: StatusFilter = STATUS_FILTERS.includes(
     rawStatus as StatusFilter,
@@ -58,21 +59,44 @@ export function InvoicesSegment({ q }: { q: string }) {
     ? (rawStatus as StatusFilter)
     : 'all';
 
+  const setParam = useSetFilterParam();
+  const { rootRef, onReset } = useResetWithFocus('invoices');
+
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
   const entities = entitiesQ.data ?? [];
 
-  if (invoicesQ.isPending) return <SkeletonRows count={5} />;
+  // Applied restrictions from PARSED state (an unknown ?status= is All).
+  const applied = status === 'all' ? [] : [LABELS[status]];
+  const activeFilters = (result?: {
+    shown: number;
+    total: number;
+    noun: string;
+  }) => (
+    <ActiveFilters filters={applied} q={q} result={result} onReset={onReset} />
+  );
+
+  if (invoicesQ.isPending) {
+    return (
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <SkeletonRows count={5} />
+      </div>
+    );
+  }
   if (invoicesQ.isError) {
     return (
-      <LoadError
-        message={
-          invoicesQ.error instanceof Error
-            ? invoicesQ.error.message
-            : 'Failed to load invoices'
-        }
-        onRetry={() => void invoicesQ.refetch()}
-      />
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <LoadError
+          message={
+            invoicesQ.error instanceof Error
+              ? invoicesQ.error.message
+              : 'Failed to load invoices'
+          }
+          onRetry={() => void invoicesQ.refetch()}
+        />
+      </div>
     );
   }
 
@@ -88,18 +112,16 @@ export function InvoicesSegment({ q }: { q: string }) {
   const filtered = searched.filter((i) => matchesStatus(i, status));
   const groups = groupByMonth(filtered);
 
+  const total = (invoicesQ.data ?? []).length;
+
   return (
-    <div>
+    <div ref={rootRef} tabIndex={-1} className="outline-none">
       <StatusChipRow
         counts={counts}
         active={status}
-        onChange={(f) => {
-          const next = new URLSearchParams(params);
-          if (f === 'all') next.delete('status');
-          else next.set('status', f);
-          setParams(next, { replace: true });
-        }}
+        onChange={(f) => setParam('status', f === 'all' ? null : f)}
       />
+      {activeFilters({ shown: filtered.length, total, noun: 'invoices' })}
       {groups.length === 0 && (
         <EmptyState
           icon="📨"

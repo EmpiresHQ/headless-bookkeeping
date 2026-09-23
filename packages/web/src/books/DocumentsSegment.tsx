@@ -8,7 +8,8 @@ import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { DocThumb } from './DocThumb';
-import { FilterChip } from './chips';
+import { ActiveFilters, FilterChip, FilterStrip } from './chips';
+import { useResetWithFocus, useSetFilterParam } from './filters';
 
 export function channelLabel(channel: string | null): string {
   switch (channel) {
@@ -66,24 +67,49 @@ function docStatusChip(d: DocumentArchiveRow) {
 }
 
 export function DocumentsSegment({ q }: { q: string }) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const raw = params.get('dstatus');
   const filter: DocFilter = DOC_FILTERS.some((f) => f.key === raw)
     ? (raw as DocFilter)
     : 'all';
+  const setParam = useSetFilterParam();
+  const { rootRef, onReset } = useResetWithFocus('documents');
   const docsQ = useDocumentsArchive();
 
-  if (docsQ.isPending) return <SkeletonRows count={5} />;
+  // Applied restrictions from PARSED state (an unknown ?dstatus= is All).
+  const applied =
+    filter === 'all'
+      ? []
+      : DOC_FILTERS.filter((f) => f.key === filter).map((f) => f.label);
+  const activeFilters = (result?: {
+    shown: number;
+    total: number;
+    noun: string;
+  }) => (
+    <ActiveFilters filters={applied} q={q} result={result} onReset={onReset} />
+  );
+
+  if (docsQ.isPending) {
+    return (
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <SkeletonRows count={5} />
+      </div>
+    );
+  }
   if (docsQ.isError) {
     return (
-      <LoadError
-        message={
-          docsQ.error instanceof Error
-            ? docsQ.error.message
-            : 'Failed to load documents'
-        }
-        onRetry={() => void docsQ.refetch()}
-      />
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <LoadError
+          message={
+            docsQ.error instanceof Error
+              ? docsQ.error.message
+              : 'Failed to load documents'
+          }
+          onRetry={() => void docsQ.refetch()}
+        />
+      </div>
     );
   }
 
@@ -98,9 +124,11 @@ export function DocumentsSegment({ q }: { q: string }) {
     .filter((d) => matchesDocFilter(d, filter))
     .sort((a, b) => b.created_at - a.created_at);
 
+  const total = (docsQ.data ?? []).length;
+
   return (
-    <div>
-      <div className="flex gap-1.5 overflow-x-auto px-4 pb-1">
+    <div ref={rootRef} tabIndex={-1} className="outline-none">
+      <FilterStrip>
         {DOC_FILTERS.map((f) => {
           const count = searched.filter((d) =>
             matchesDocFilter(d, f.key),
@@ -109,18 +137,16 @@ export function DocumentsSegment({ q }: { q: string }) {
             <FilterChip
               key={f.key}
               active={f.key === filter}
-              onClick={() => {
-                const next = new URLSearchParams(params);
-                if (f.key === 'all') next.delete('dstatus');
-                else next.set('dstatus', f.key);
-                setParams(next, { replace: true });
-              }}
+              onClick={() =>
+                setParam('dstatus', f.key === 'all' ? null : f.key)
+              }
             >
               {f.key === 'all' ? f.label : `${f.label} ${count}`}
             </FilterChip>
           );
         })}
-      </div>
+      </FilterStrip>
+      {activeFilters({ shown: rows.length, total, noun: 'documents' })}
       {rows.length === 0 && (
         <EmptyState
           icon="🗂"

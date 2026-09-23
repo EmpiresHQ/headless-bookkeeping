@@ -10,14 +10,11 @@ import { CreateMenu, NewExpenseSheet, NewInvoiceSheet } from './create';
 import { CreditNotesSegment } from './CreditNotesSegment';
 import { DocumentsSegment } from './DocumentsSegment';
 import { ExpensesSegment } from './ExpensesSegment';
+import { SEGMENT_PARAMS } from './filters';
 import { InvoicesSegment } from './InvoicesSegment';
 
 const SEGMENTS = ['expenses', 'invoices', 'documents', 'credit-notes'] as const;
 type Segment = (typeof SEGMENTS)[number];
-
-/** Params owned by individual segments — dropped on segment switch (a Draft
- *  filter has no meaning on Documents); ?q= survives. */
-const SEGMENT_PARAMS = ['status', 'nodoc', 'dstatus'] as const;
 
 export function BooksScreen() {
   const [params, setParams] = useSearchParams();
