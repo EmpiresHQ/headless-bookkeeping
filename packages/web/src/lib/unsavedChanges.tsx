@@ -23,6 +23,7 @@ import {
   type ModalLayer,
   type ModalLayerRegistry,
 } from './modalLayers';
+import { popRestoration } from './popRestoration';
 import { toastWait } from '../ui/toast';
 
 /**
@@ -356,7 +357,15 @@ export function UnsavedChangesProvider({
  *  write history, so there is nothing to undo after a close and a Forward is
  *  consumed the same way (a sheet never reopens from history). PUSH/REPLACE
  *  (links, a success's close+navigate, completion chains) are not affected
- *  by layers. */
+ *  by layers.
+ *
+ *  A refused POP is put back by the router (lib/popRestoration, issue #370):
+ *  further traversals that arrive before that restoration has landed — a
+ *  burst of Backs — are spent with this attempt, and the browser is brought
+ *  back to the router's own entry, so address, history state and route
+ *  never disagree. A PUSH/REPLACE the guard lets through is held back
+ *  meanwhile (it would be written wherever the browser is passing through)
+ *  and proceeds, unchanged, once the entry is restored. */
 function RouteLeaveGuard({
   api,
   layers,
@@ -373,20 +382,39 @@ function RouteLeaveGuard({
   const layerBlock = useRef<{ key: string; layer: ModalLayer | null } | null>(
     null,
   );
+  const restoration = useMemo(
+    () => (dataRouter === null ? null : popRestoration(dataRouter.router)),
+    [dataRouter],
+  );
+  // A PUSH/REPLACE held back while a refused POP is being restored: its
+  // target entry. The router proceeds with it once the browser stands on
+  // the router's entry again.
+  const deferred = useRef<string | null>(null);
   const blocker = useBlocker(
     useCallback<BlockerFunction>(
       ({ currentLocation, nextLocation, historyAction }) => {
         if (historyAction === 'POP' && layers.count() > 0) {
           layerBlock.current = { key: nextLocation.key, layer: layers.top() };
+          deferred.current = null;
+          restoration?.blocked(nextLocation.key);
           return true;
         }
         const leave =
           currentLocation.pathname !== nextLocation.pathname &&
           (api.pendingLabels().length > 0 || api.dirtyEntries().length > 0);
-        if (leave) layerBlock.current = null;
-        return leave;
+        if (leave) {
+          layerBlock.current = null;
+          deferred.current = null;
+          if (historyAction === 'POP') restoration?.blocked(nextLocation.key);
+          return true;
+        }
+        if (historyAction !== 'POP' && restoration?.busy() === true) {
+          deferred.current = nextLocation.key;
+          return true;
+        }
+        return false;
       },
-      [api, layers],
+      [api, layers, restoration],
     ),
   );
 
@@ -401,11 +429,6 @@ function RouteLeaveGuard({
     const stillAsked = () =>
       dataRouter !== null &&
       [...dataRouter.router.state.blockers.values()].includes(asked);
-    const answer = (ok: boolean) => {
-      if (!stillAsked()) return;
-      if (ok) asked.proceed();
-      else asked.reset();
-    };
     const attempt = layerBlock.current;
     if (attempt !== null && attempt.key === asked.location.key) {
       layerBlock.current = null;
@@ -422,33 +445,82 @@ function RouteLeaveGuard({
       }
       return;
     }
-    const pending = api.pendingLabels();
-    if (pending.length > 0) {
-      announcePending(pending);
-      answer(false);
-      return;
-    }
-    const dirty = api.dirtyEntries();
-    if (dirty.length === 0) {
-      answer(true);
-      return;
-    }
     let live = true;
-    void api.confirmDiscard(uniqueLabels(dirty)).then((ok) => {
-      if (!live) return;
-      if (ok) {
-        // The discard itself stands even if the navigation it was for has
-        // been superseded: release, and remount the screen from baseline.
-        dirty.forEach((e) => e.release());
-        flushSync(onDiscarded);
+    let off = () => {};
+    // Nothing is written to history while a refused POP is still being
+    // restored (lib/popRestoration): an accepted navigation — however fast
+    // the answer — goes ahead only once the browser stands on the router's
+    // entry again.
+    const whenRestored = (fn: (restored: boolean) => void) => {
+      off();
+      off = () => {};
+      if (restoration === null) fn(true);
+      else off = restoration.onEnd(fn);
+    };
+    const answer = (ok: boolean) => {
+      if (!live || !stillAsked()) return;
+      if (!ok) {
+        asked.reset();
+        return;
       }
-      answer(ok);
-    });
+      // Never restored (stranded): cancelled — it would write at a wrong
+      // entry. Whatever was discarded stays discarded.
+      whenRestored((restored) => {
+        if (!live || !stillAsked()) return;
+        if (restored) asked.proceed();
+        else asked.reset();
+      });
+    };
+    // The guard's decision on this attempt, taken against the state NOW.
+    const decide = () => {
+      const leaving =
+        dataRouter !== null &&
+        dataRouter.router.state.location.pathname !== asked.location.pathname;
+      if (!leaving) {
+        answer(true);
+        return;
+      }
+      const pending = api.pendingLabels();
+      if (pending.length > 0) {
+        announcePending(pending);
+        answer(false);
+        return;
+      }
+      const dirty = api.dirtyEntries();
+      if (dirty.length === 0) {
+        answer(true);
+        return;
+      }
+      void api.confirmDiscard(uniqueLabels(dirty)).then((ok) => {
+        if (!live) return;
+        if (ok) {
+          // The discard itself stands even if the navigation it was for has
+          // been superseded: release, and remount the screen from baseline.
+          dirty.forEach((e) => e.release());
+          flushSync(onDiscarded);
+        }
+        answer(ok);
+      });
+    };
+    if (deferred.current === asked.location.key) {
+      // Held back during a restoration, not refused: decided when it ends,
+      // against whatever is pending or dirty by then — a form opened, edited
+      // or saving meanwhile is guarded as for any other navigation.
+      deferred.current = null;
+      whenRestored((restored) => {
+        if (!live || !stillAsked()) return;
+        if (restored) decide();
+        else asked.reset();
+      });
+    } else {
+      decide();
+    }
     return () => {
       live = false;
+      off();
     };
     // `blocker` changes identity exactly when its state does.
-  }, [blocker, api, layers, onDiscarded, dataRouter]);
+  }, [blocker, api, layers, onDiscarded, dataRouter, restoration]);
 
   return null;
 }
