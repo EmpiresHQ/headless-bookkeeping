@@ -277,7 +277,7 @@ export function CreditNoteCreateScreen() {
             </Field>
             <Field
               label="Tax point date"
-              hint="Defaults to the credited document's date; a locked-period date is redirected server-side (ADR-0009)"
+              hint="Defaults to the credited document's date. If the date you enter falls in a locked period, the credit note is dated into the current open period instead."
             >
               <TextInput
                 type="date"

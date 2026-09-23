@@ -312,9 +312,8 @@ export function TxCandidates({
           <b className="mb-0.5 block text-[10.5px] uppercase tracking-wide">
             Line remainder · {fmtCents(left)} €
           </b>
-          Stays open on this line — match more items now or later. (Recording a
-          remainder as a prepayment needs server support; a matchless line can
-          be recorded as a whole-line prepayment from the "Or" sheet.)
+          Stays open on this line — match more items now or later. A prepayment
+          can be recorded only for a whole line with no matches.
         </div>
       )}
       <ActionBar>
@@ -328,7 +327,8 @@ export function TxCandidates({
         </Button>
       </ActionBar>
       <p className="px-6 pb-2 text-center text-[10.5px] leading-[1.4] text-ink-3">
-        N:M — the remainder is never lost: it stays visible on the line
+        One payment can cover several items, and an item can be paid in parts.
+        Anything left unmatched stays open on the line.
       </p>
     </PendingFieldset>
   );

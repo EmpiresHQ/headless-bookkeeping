@@ -98,7 +98,7 @@ export function InvoiceScreen() {
         <EmptyState
           icon="🤷"
           title="This invoice is not in the books"
-          hint="It may have been deleted. (The API has no single-invoice lookup.)"
+          hint="It may have been deleted."
         />
       </div>
     );
@@ -263,7 +263,7 @@ export function InvoiceScreen() {
           {inv.status === 'reversed' && (
             <ListRow
               title="Corrected"
-              subtitle="A reversal + corrected entry replaced the original (ADR-0009)"
+              subtitle="The original entry was reversed and replaced; the figures above are the corrected ones"
             />
           )}
           {inv.status === 'draft' && rejection != null && (
@@ -328,7 +328,8 @@ export function InvoiceScreen() {
               Issue credit note…
             </LinkButton>
             <p className="text-center text-[12.5px] text-ink-2">
-              Posted entries change only through a correction (ADR-0009).
+              A posted invoice can’t be edited — change it with a correction or
+              a credit note.
             </p>
           </>
         )}
@@ -338,7 +339,7 @@ export function InvoiceScreen() {
             tabIndex={-1}
             className="text-center text-[12.5px] text-ink-2"
           >
-            Already corrected — corrections are one-shot (ADR-0009).
+            Already corrected — a posted invoice can be corrected only once.
           </p>
         )}
       </div>

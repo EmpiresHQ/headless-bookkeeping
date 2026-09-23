@@ -130,7 +130,9 @@ describe('ExpenseScreen', () => {
     expect(screen.getByText('🏦 Reconciled')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Reconciled/ })).toBeNull();
     // Posted state: read-only ADR-0009 hint, no Delete.
-    expect(screen.getByText(/only through a correction/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/change it with a correction/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull();
   });
 
@@ -184,11 +186,13 @@ describe('ExpenseScreen', () => {
     expect(await screen.findByText('BOOKS LIST')).toBeInTheDocument();
   });
 
-  it('a corrected (reversed) expense explains one-shot corrections and shows the corrected marker', async () => {
+  it('a corrected (reversed) expense explains it can be corrected only once and shows the corrected marker', async () => {
     mountAt({ status: 'reversed' }, 'reversed');
     expect(await screen.findByText('corrected')).toBeInTheDocument();
     expect(
-      screen.getByText(/Already corrected — corrections are one-shot/),
+      screen.getByText(
+        /Already corrected — a posted expense can be corrected only once/,
+      ),
     ).toBeInTheDocument();
   });
 

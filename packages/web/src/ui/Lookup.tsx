@@ -42,7 +42,7 @@ export function lookupBlocker(
 /** A usable but EMPTY category list (fresh, or the list loaded earlier) is
  *  a known state of its own — an expense needs a category, so it blocks. */
 export const NO_CATEGORIES =
-  'No expense categories are defined — the country plugin offers none; check the organization country in Settings.';
+  'No expense categories are defined for this country — check the organization country in Settings.';
 
 /** The first reason a submit is blocked, stated under the button. */
 export function BlockedReason({ reason }: { reason: string | null }) {

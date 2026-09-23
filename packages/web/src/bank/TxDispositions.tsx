@@ -117,7 +117,9 @@ export function OtherSheet({
           ))}
           {options.length === 0 && (
             <p className="px-3.5 py-3 text-[13px] text-ink-2">
-              No dispositions apply — the line has matches or is incoming-only.
+              {hasMatches
+                ? 'Nothing else applies — this line already has matches.'
+                : 'Nothing else applies to this line.'}
             </p>
           )}
         </div>
@@ -347,7 +349,7 @@ export function PrepaymentSheet({
           What happens
         </b>
         {!incoming &&
-          `Records the whole ${abs} € as a supplier prepayment (money paid on account). It can settle bills later — future lines will offer it as a match candidate.`}
+          `Records the whole ${abs} € as a supplier prepayment (money paid on account). Applying it to the supplier’s bill isn’t available in this app — once the bill is booked, ask your bookkeeper to apply it.`}
         {incoming && treatment === 'taxable_supply' && (
           <>
             Records {abs} € received as an advance on that supply.{' '}
@@ -357,24 +359,27 @@ export function PrepaymentSheet({
             {vatCents === null
               ? ''
               : `, and ${fmtCents(Math.abs(tx.amount) - vatCents)} € is owed to the customer until the invoice.`}{' '}
-            The final invoice releases that VAT once, so it is never declared
-            twice.
+            When the advance is applied to the final invoice, that VAT is
+            released so it isn’t declared twice. Applying it isn’t available in
+            this app — ask your bookkeeper to apply it when you issue the final
+            invoice.
           </>
         )}
         {incoming && treatment === 'non_taxable_deposit' && (
           <>
             Records the whole {abs} € as a deposit held for the customer. No VAT
-            is declared, because no supply is being paid for. It can settle
-            invoices later — future lines will offer it as a match candidate.
+            is declared, because no supply is being paid for. Applying it to an
+            invoice isn’t available in this app — ask your bookkeeper to apply
+            it when you issue the invoice.
           </>
         )}
         {incoming && treatment === 'unresolved' && (
           <>
             Records the {abs} € received, but HOLDS it: until somebody says
             whether it pays for a supply, it cannot settle an invoice and the
-            VAT return for this period cannot be filed. Choose one of the
-            options above to settle it now — afterwards it takes a bookkeeper
-            (API: POST /api/prepayments/&#123;id&#125;/tax-treatment).
+            VAT return for this period cannot be filed. If you know what it is,
+            choose one of the options above now — afterwards, ask your
+            bookkeeper to classify it; that isn’t available in this app.
           </>
         )}
       </div>

@@ -23,9 +23,9 @@ type Kind = 'financial' | 'cosmetic' | 'credit_note';
 
 const EXPLAIN: Record<Kind, string> = {
   financial:
-    'Posts a reversal + a corrected entry; this document becomes “corrected” and the new figures go live. If the original period is locked, both land in the current open period (ADR-0009).',
+    'Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.',
   cosmetic:
-    'Fixes presentation only — nothing changes in the books. (The server records no changes for this yet; use it to leave a reasoned note.)',
+    'For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.',
   credit_note:
     'Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected.',
 };
@@ -124,16 +124,14 @@ export function CorrectSheet({
             // meantime — corrections are one-shot (ADR-0009), so this request
             // did nothing. Show reality, not a false success receipt.
             toastErr(
-              'Nothing changed — this document was already corrected (corrections are one-shot)',
+              'Nothing changed — this document was already corrected, and a correction can be made only once',
             );
           } else if (res.redirected === true) {
             toastOk(
               'Correction landed in the current open period — the original period is locked',
             );
           } else if (submittedKind === 'cosmetic') {
-            toastOk(
-              'Cosmetic note sent — not stored, nothing changed in the books',
-            );
+            toastOk('Nothing saved — the books are unchanged');
           } else {
             toastOk(
               `Correction posted · ${sign}${centsToEuroInput(submittedGross as number)} €`,
@@ -161,7 +159,7 @@ export function CorrectSheet({
           {(
             [
               ['financial', 'Financial — amounts or category are wrong'],
-              ['cosmetic', 'Cosmetic — presentation only'],
+              ['cosmetic', 'Cosmetic — the figures are right'],
               ['credit_note', 'Credit note — credit part or all of it'],
             ] as const
           ).map(([k, label]) => (
@@ -242,7 +240,7 @@ export function CorrectSheet({
               label="Reason"
               hint={
                 kind === 'cosmetic'
-                  ? 'Required — not stored; write it for your own reference'
+                  ? 'Required, but not saved anywhere'
                   : 'Required — it lands in the audit trail'
               }
             >
@@ -261,7 +259,7 @@ export function CorrectSheet({
               onClick={submit}
             >
               {kind === 'cosmetic'
-                ? 'Record cosmetic correction'
+                ? 'Confirm — nothing will be saved'
                 : `Post correction · ${sign}${
                     grossParsed !== null ? centsToEuroInput(grossParsed) : gross
                   } €`}
