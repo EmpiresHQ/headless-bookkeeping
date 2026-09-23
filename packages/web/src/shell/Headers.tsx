@@ -17,7 +17,9 @@ export function LargeTitleHeader({
 }
 
 /** Stack header with an honest back button: history.back() when we navigated
- *  here in-app; falls back to `backTo` on deep-link entry. */
+ *  here in-app; falls back to `backTo` on deep-link entry — by REPLACE
+ *  (issue #252): the parent takes the deep-linked entry's place, so its own
+ *  Back never bounces into the screen just left. */
 export function ScreenHeader({
   title,
   backTo,
@@ -42,7 +44,7 @@ export function ScreenHeader({
       ) : (
         <Link
           to={backTo}
-          viewTransition
+          replace
           className="text-[15px] font-semibold text-accent"
         >
           ‹ Back

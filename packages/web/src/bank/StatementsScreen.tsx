@@ -8,10 +8,13 @@ import { ListGroup, ListRow } from '../ui/List';
 import { LargeTitleHeader } from '../shell/Headers';
 import { formatStatementPeriod } from './format';
 import { LoadError } from './LoadError';
+import { useOriginState } from '../lib/returnNavigation';
 
 /** /bank — statements list. The row answers "which period, is there work
  *  left": period title + unmatched badge (IDs are not data). */
 export function StatementsScreen() {
+  // Opening a statement records /bank as its origin (issue #252).
+  const origin = useOriginState();
   const statementsQ = useBankStatements();
   const statements = statementsQ.data ?? [];
   // Newest period first.
@@ -27,7 +30,6 @@ export function StatementsScreen() {
         trailing={
           <Link
             to="/bank/import"
-            viewTransition
             className="text-[15px] font-semibold text-accent"
           >
             Import
@@ -61,6 +63,7 @@ export function StatementsScreen() {
               <ListRow
                 key={s.id}
                 to={`/bank/statements/${s.id}`}
+                state={origin}
                 title={formatStatementPeriod(s.start_date, s.end_date)}
                 subtitle={`Uploaded ${relativeTime(s.uploaded_at)}`}
                 trailing={

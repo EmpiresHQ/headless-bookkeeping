@@ -35,6 +35,7 @@ const ROW_CLS =
 
 export function ListRow({
   to,
+  state,
   onClick,
   leading,
   title,
@@ -43,6 +44,8 @@ export function ListRow({
   chip,
 }: {
   to?: string;
+  /** History state for the push (e.g. the origin record, issue #252). */
+  state?: unknown;
   onClick?: () => void;
   leading?: ReactNode;
   title: ReactNode;
@@ -86,7 +89,7 @@ export function ListRow({
         {leadingSlot}
         <Link
           to={to}
-          viewTransition
+          state={state}
           className="flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0"
         >
           {content}

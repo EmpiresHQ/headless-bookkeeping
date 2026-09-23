@@ -27,6 +27,7 @@ import { toastErr, toastOk } from '../ui/toast';
 import { channelLabel } from './DocumentsSegment';
 import { statusChip } from './chips';
 import { usePendingOperation } from '../lib/pendingOperation';
+import { useOriginState } from '../lib/returnNavigation';
 
 function ClassificationFacts({ details }: { details: DocumentDetails }) {
   if (details.classification === null) {
@@ -69,6 +70,8 @@ export function DocumentScreen() {
   const id = Number(idParam);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  // "Resolve in Inbox" records this page as the task's origin (issue #252).
+  const origin = useOriginState();
   const docsQ = useDocumentsArchive();
   const detailsQ = useDocDetails(id);
 
@@ -197,7 +200,11 @@ export function DocumentScreen() {
               reason_type: doc.reason_type ?? 'unknown',
             })}
           </p>
-          <LinkButton to={`/inbox/doc/${doc.id}`} className="mt-2 w-full">
+          <LinkButton
+            to={`/inbox/doc/${doc.id}`}
+            state={origin}
+            className="mt-2 w-full"
+          >
             Resolve in Inbox
           </LinkButton>
         </div>

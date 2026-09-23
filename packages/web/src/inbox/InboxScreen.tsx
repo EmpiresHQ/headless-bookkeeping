@@ -4,6 +4,7 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { triageDocument, uploadDocument } from '../api';
 import { DocThumbLightbox } from './DocThumbLightbox';
 import { signedEuros } from '../lib/money';
+import { useOriginState } from '../lib/returnNavigation';
 import { useSeg } from '../lib/useSeg';
 import { relativeTime } from '../relativeTime';
 import { LargeTitleHeader } from '../shell/Headers';
@@ -62,10 +63,13 @@ function QueueRow({
   entry: InboxEntry;
   facts: Parameters<typeof approvalDisplay>[1];
 }) {
+  // Opening an item records this Inbox entry as its origin (issue #252).
+  const origin = useOriginState();
   if (entry.kind === 'triage') {
     return (
       <ListRow
         to={entry.route}
+        state={origin}
         leading={
           <DocThumbLightbox
             id={entry.item.id}
@@ -90,6 +94,7 @@ function QueueRow({
   return (
     <ListRow
       to={entry.route}
+      state={origin}
       leading={<ReasonGlyph entry={entry} />}
       title={d.title}
       subtitle={humanizePolicyReason(entry.approval.policy_reason)}
@@ -123,6 +128,7 @@ function InboxHero({
   taskCount: number;
   firstRoute: string | null;
 }) {
+  const origin = useOriginState();
   return (
     <div className="mx-3.5 mb-3.5 rounded-2xl bg-accent-deep px-5 py-4 text-white">
       <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">
@@ -137,7 +143,7 @@ function InboxHero({
         // `signal` token is hero-CTA-only).
         <Link
           to={firstRoute}
-          viewTransition
+          state={origin}
           className="mt-3 block rounded-xl bg-signal px-4 py-2.5 text-center text-[15px] font-bold text-accent-deep"
         >
           Start clearing · {taskCount}

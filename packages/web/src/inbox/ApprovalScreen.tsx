@@ -1,15 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { approveApproval, fmtCents, rejectApproval } from '../api';
 import { ScreenHeader } from '../shell/Headers';
 import { signedEuros } from '../lib/money';
 import { usePendingOperation } from '../lib/pendingOperation';
 import {
   invalidateInbox,
-  nextRouteAfter,
-  queuePosition,
   useExpenseDetail,
-  useInboxQueue,
   usePendingApprovals,
 } from '../queries/inbox';
 import { useEntities, useInvoices } from '../queries/shared';
@@ -25,6 +22,7 @@ import { absoluteDate, absoluteDateFromIso, vatRatePct } from './format';
 import { humanizePolicyReason } from './reason';
 import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
+import { useInboxCompletion } from './useInboxCompletion';
 import { useState } from 'react';
 
 function WhyHeldBox({ reason }: { reason: string | null }) {
@@ -61,8 +59,7 @@ export function ApprovalScreen() {
 
   const approvalsQ = usePendingApprovals();
   const approval = approvalsQ.data?.find((a) => a.id === approvalId);
-  const { entries } = useInboxQueue('all');
-  const position = queuePosition(entries, route);
+  const { position, next, leave } = useInboxCompletion(route);
 
   const expenseQ = useExpenseDetail(
     approval?.object_type === 'expense' ? approval.object_id : null,
@@ -97,12 +94,8 @@ export function ApprovalScreen() {
         ? invoicesQ.data?.find((x) => x.id === approval.object_id) === undefined
         : false;
 
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const rejectSheet = useSheet();
-  // Computed from the CURRENT queue before the mutation lands (the refetch
-  // will drop this entry).
-  const next = nextRouteAfter(entries, route);
 
   const op = usePendingOperation('Approval');
   const [running, setRunning] = useState<'approve' | 'reject'>('approve');
@@ -123,7 +116,7 @@ export function ApprovalScreen() {
         // NO Undo: approve posts the voucher in the same transaction
         // (Reality #1); recovery is the correction flow.
         toastOk(receipt);
-        navigate(to);
+        leave(to);
         void invalidateInbox(qc);
       },
     });
@@ -134,11 +127,11 @@ export function ApprovalScreen() {
     const to = next;
     const started = op.run(() => rejectApproval(approvalId, reason), {
       onSuccess: () => {
-        // `release` must run before navigate(to).
+        // `release` must run before leave(to).
         release();
         rejectSheet.close();
         toastOk('Rejected — returned to draft');
-        navigate(to);
+        leave(to);
         void invalidateInbox(qc);
       },
     });
