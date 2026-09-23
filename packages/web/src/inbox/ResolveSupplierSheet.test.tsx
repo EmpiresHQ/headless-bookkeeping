@@ -156,9 +156,14 @@ describe('ResolveSupplierSheet', () => {
 
   it('picks an existing supplier via search', async () => {
     const onDone = renderSheet();
-    fireEvent.change(await screen.findByPlaceholderText(/search suppliers/i), {
-      target: { value: 'wolt' },
-    });
+    fireEvent.change(
+      await screen.findByRole('searchbox', {
+        name: 'Search existing suppliers',
+      }),
+      {
+        target: { value: 'wolt' },
+      },
+    );
     fireEvent.click(screen.getByRole('button', { name: /Wolt Eesti OÜ/ }));
     await waitFor(() =>
       expect(api.resolveSupplier).toHaveBeenCalledWith(12, 3),

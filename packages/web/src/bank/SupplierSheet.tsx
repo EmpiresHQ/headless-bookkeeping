@@ -136,6 +136,7 @@ export function SupplierSheet({
               value={q}
               onChange={setQ}
               placeholder="Search suppliers…"
+              aria-label="Search suppliers"
             />
             <div className="overflow-hidden rounded-2xl bg-surface">
               {filtered.map((e) => (

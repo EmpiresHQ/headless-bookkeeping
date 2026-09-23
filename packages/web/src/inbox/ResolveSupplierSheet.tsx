@@ -249,6 +249,7 @@ export function ResolveSupplierSheet({
           value={q}
           onChange={setQ}
           placeholder="Search suppliers…"
+          aria-label="Search existing suppliers"
         />
         <div className="overflow-hidden rounded-2xl bg-surface">
           {matches.map((s) => (

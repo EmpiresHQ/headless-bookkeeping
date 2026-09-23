@@ -68,7 +68,12 @@ export function EntitiesScreen() {
           value={seg}
           onChange={setSeg}
         />
-        <SearchInput value={q} onChange={setQ} placeholder="Search entities" />
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          placeholder="Search entities"
+          aria-label="Search entities"
+        />
       </div>
       {entitiesQ.isPending ? (
         <SkeletonRows count={4} />

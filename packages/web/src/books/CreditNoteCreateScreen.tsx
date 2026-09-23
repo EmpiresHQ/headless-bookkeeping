@@ -210,6 +210,7 @@ export function CreditNoteCreateScreen() {
                 value={search}
                 onChange={setSearch}
                 placeholder="Number, counterparty, category…"
+                aria-label="Search invoices and expenses to credit"
               />
             </div>
           )}

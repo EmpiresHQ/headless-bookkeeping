@@ -102,6 +102,13 @@ describe('SupplierSheet', () => {
     const onPick = renderSheet();
     expect(await screen.findByText('Wolt Eesti OÜ')).toBeInTheDocument();
     expect(screen.queryByText('Nordic Consulting OÜ')).toBeNull();
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search suppliers' }),
+      { target: { value: 'wolt' } },
+    );
+    expect(
+      screen.getByRole('searchbox', { name: 'Search suppliers' }),
+    ).toHaveValue('wolt');
     fireEvent.click(screen.getByText('Wolt Eesti OÜ'));
     expect(onPick).toHaveBeenCalledWith(
       expect.objectContaining({ id: 12, name: 'Wolt Eesti OÜ' }),
