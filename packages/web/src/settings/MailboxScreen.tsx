@@ -8,11 +8,7 @@ import {
   type MailboxConnector,
 } from '../api';
 import { useSheet } from '../lib/useSheet';
-import {
-  invalidateMailbox,
-  useAdminSettings,
-  useMailboxConnectors,
-} from '../queries/settings';
+import { invalidateMailbox, useMailboxConnectors } from '../queries/settings';
 import { ScreenHeader } from '../shell/Headers';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
@@ -22,7 +18,11 @@ import { GroupLabel, ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { AddImapSheet } from './AddImapSheet';
-import { SettingField } from './SettingField';
+import {
+  IndependentSaveNote,
+  SettingField,
+  type SettingDef,
+} from './SettingField';
 import { usePendingOperation } from '../lib/pendingOperation';
 
 const STATUS_TONE: Record<MailboxConnector['status'], 'ok' | 'warn' | 'err'> = {
@@ -33,19 +33,29 @@ const STATUS_TONE: Record<MailboxConnector['status'], 'ok' | 'warn' | 'err'> = {
 };
 
 const OAUTH_DEFS = [
-  { key: 'google_oauth_client_id', label: 'Google client id' },
+  {
+    key: 'google_oauth_client_id',
+    label: 'Google client id',
+    unset: 'Gmail cannot be connected until a client id is stored.',
+  },
   {
     key: 'google_oauth_client_secret',
     label: 'Google client secret',
     secret: true,
+    unset: 'Gmail connections cannot complete without it.',
   },
-  { key: 'microsoft_oauth_client_id', label: 'Microsoft client id' },
+  {
+    key: 'microsoft_oauth_client_id',
+    label: 'Microsoft client id',
+    unset: 'Outlook cannot be connected until a client id is stored.',
+  },
   {
     key: 'microsoft_oauth_client_secret',
     label: 'Microsoft client secret',
     secret: true,
+    unset: 'Outlook connections cannot complete without it.',
   },
-];
+] satisfies SettingDef[];
 
 const lastSynced = (ts: number | null): string =>
   ts === null
@@ -59,7 +69,6 @@ export function MailboxScreen() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const connectorsQ = useMailboxConnectors();
-  const settingsQ = useAdminSettings();
   const imap = useSheet();
   const [removeTarget, setRemoveTarget] = useState<MailboxConnector | null>(
     null,
@@ -236,12 +245,9 @@ export function MailboxScreen() {
           </code>{' '}
           in the provider console, then paste the client id/secret here.
         </p>
+        <IndependentSaveNote className="" />
         {OAUTH_DEFS.map((def) => (
-          <SettingField
-            key={def.key}
-            def={def}
-            current={settingsQ.data?.[def.key] ?? ''}
-          />
+          <SettingField key={def.key} def={def} />
         ))}
       </div>
 

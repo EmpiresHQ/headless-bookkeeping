@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { createDeviceEnrollment, type DeviceEnrollment } from '../api';
-import { useAdminSettings } from '../queries/settings';
 import { ScreenHeader } from '../shell/Headers';
 import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
@@ -23,7 +22,6 @@ export function EnrollScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const settingsQ = useAdminSettings();
 
   useEffect(() => {
     let cancelled = false;
@@ -107,8 +105,9 @@ export function EnrollScreen() {
             label: 'Public API URL',
             placeholder: 'https://api.example.com',
             hint: 'Embedded in the QR — the address the phone will call. https:// required (http://localhost allowed for dev).',
+            unset:
+              'The server uses its PUBLIC_API_URL environment variable if one is set; otherwise the QR cannot be generated.',
           }}
-          current={settingsQ.data?.['public_api_url'] ?? ''}
         />
       </div>
     </div>
