@@ -1,11 +1,9 @@
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
-import { useLocation, useNavigationType } from 'react-router-dom';
+  useLocation,
+  useNavigationType,
+  type Location,
+} from 'react-router-dom';
 import { isSameSession, sessionStamp, type SessionStamp } from '../auth';
 
 /**
@@ -22,7 +20,14 @@ import { isSameSession, sessionStamp, type SessionStamp } from '../auth';
  *   its href and the signed-in session. A restore happens only on a POP
  *   arrival onto that same entry; a new entry with the same pathname
  *   (PUSH, a sidebar link, a reload) never inherits it, nor does another
- *   session. A record is used once.
+ *   session. A record is spent on arrival; leaving the returned list
+ *   records it again (the same row, while the list has not moved), so
+ *   every Back → Forward → Back lands there again.
+ * - Leave time: a history traversal (browser Back/Forward, header Back)
+ *   snapshots the list at its `popstate` — the browser then restores the
+ *   TARGET entry's offset while this list is still mounted (the route
+ *   renders later, in a transition), so the offset at unmount is not the
+ *   list's. A PUSH scrolls nothing: the list is read at unmount.
  * - Anchor: the row the user opened (else the topmost visible row) and its
  *   offset in the viewport, so a changed row set or a resize (desktop
  *   columns vs mobile cards) still lands on the same row; the raw scroll
@@ -67,6 +72,29 @@ export const POSITION_ROW = 'data-position-row';
 function historyIdx(): number | null {
   const idx: unknown = (window.history.state as { idx?: unknown } | null)?.idx;
   return typeof idx === 'number' ? idx : null;
+}
+
+/** The entry history stands on: react-router's key in its state (the
+ *  first entry has none — react-router calls it "default"). */
+function entryKey(): string {
+  const key: unknown = (window.history.state as { key?: unknown } | null)?.key;
+  return typeof key === 'string' ? key : 'default';
+}
+
+interface Entry {
+  idx: number | null;
+  key: string;
+  href: string;
+}
+
+/** A location's history entry. Its index is read only while history
+ *  stands on it — a render after a popstate already sees the next entry. */
+function entryOf(location: Location): Entry {
+  return {
+    idx: entryKey() === location.key ? historyIdx() : null,
+    key: location.key,
+    href: location.pathname + location.search,
+  };
 }
 
 function rowsOf(root: HTMLElement): HTMLAnchorElement[] {
@@ -116,18 +144,15 @@ export function useReturnPosition(
 ) {
   const location = useLocation();
   const navigationType = useNavigationType();
-  // This entry, as of the last render (a query REPLACE re-keys it).
-  const entry = useRef({
-    idx: historyIdx(),
-    key: location.key,
-    href: location.pathname + location.search,
-  });
-  entry.current = {
-    idx: historyIdx(),
-    key: location.key,
-    href: location.pathname + location.search,
-  };
-  const scrollY = useRef(window.scrollY);
+  // This entry, as committed (a query REPLACE re-keys it) — updated after
+  // commit, never during render: a discarded or late render must not
+  // re-point it, and history may already stand on the next entry.
+  const [initial] = useState(() => entryOf(location));
+  const entry = useRef(initial);
+  useLayoutEffect(() => {
+    if (entry.current.key === location.key) return;
+    entry.current = entryOf(location);
+  }, [location]);
   const opened = useRef<Anchor | null>(null);
   // The session this list was shown in — taken at mount, never at leave: a
   // sign-in change landing with the navigation must not hand this list's
@@ -137,7 +162,7 @@ export function useReturnPosition(
   // What to restore: looked up once, at mount, from the arrival (pure —
   // StrictMode may call this twice); spent in the layout effect below.
   const [arrival] = useState<PositionRecord | null>(() => {
-    const { idx, key, href } = entry.current;
+    const { idx, key, href } = initial;
     if (navigationType !== 'POP' || idx === null) return null;
     return (
       records.find(
@@ -149,18 +174,69 @@ export function useReturnPosition(
       ) ?? null
     );
   });
-  const arrivedAt = useRef(entry.current.idx);
   useLayoutEffect(() => {
     // Arrived at this index: every record for it is spent or stale.
-    records = records.filter((r) => r.idx !== arrivedAt.current);
-  }, []);
+    records = records.filter((r) => r.idx !== initial.idx);
+  }, [initial]);
   const intent = useRef(false);
+  // The rows are shown (as last committed).
+  const shown = useRef(ready);
+  useLayoutEffect(() => {
+    shown.current = ready;
+  }, [ready]);
 
-  // Scroll offset + the row being opened, tracked while on screen.
-  useEffect(() => {
+  // Where the list stands NOW, for the record its entry keeps when left.
+  const snapshot = (): { y: number; anchor: Anchor | null } => {
+    // A return still armed but without its rows (loading, or a failed
+    // refetch awaiting Retry): the entry's position is still the one being
+    // returned to, not the collapsed page.
+    if (
+      arrival !== null &&
+      !shown.current &&
+      !intent.current &&
+      entry.current.key === initial.key
+    )
+      return { y: arrival.y, anchor: arrival.anchor };
     const root = rootRef.current;
-    const onScroll = () => {
-      scrollY.current = window.scrollY;
+    const y = window.scrollY;
+    // An opened row counts only if the list has not moved since (a click
+    // whose navigation was refused, then a scroll, is not this leave).
+    if (opened.current !== null && Math.abs(opened.current.y - y) < 1)
+      return { y, anchor: opened.current };
+    const row = root?.isConnected ? topmostRow(root) : null;
+    const rect = row?.getBoundingClientRect();
+    return {
+      y,
+      anchor:
+        row && rect && rect.height > 0
+          ? {
+              href: row.getAttribute('href') ?? '',
+              top: rect.top,
+              opened: false,
+              y,
+            }
+          : null,
+    };
+  };
+  // Taken when a history traversal leaves this entry. The browser restores
+  // the TARGET entry's scroll offset right after `popstate` — before React
+  // unmounts this list — so by cleanup time the page offset is no longer
+  // the list's.
+  const left = useRef<{ to: string; y: number; anchor: Anchor | null } | null>(
+    null,
+  );
+  const snapshotRef = useRef(snapshot);
+  useLayoutEffect(() => {
+    snapshotRef.current = snapshot;
+  });
+
+  // The row being opened, and a traversal away, tracked while on screen.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const onPop = () => {
+      const to = entryKey();
+      left.current =
+        to === entry.current.key ? null : { to, ...snapshotRef.current() };
     };
     // Capture: the row link's own click navigates in the same task. Only
     // a same-tab, unmodified primary click opens the row HERE (react-router
@@ -178,7 +254,6 @@ export function useReturnPosition(
         (a.target !== '' && a.target !== '_self')
       )
         return;
-      scrollY.current = window.scrollY;
       opened.current = {
         href: a.getAttribute('href') ?? '',
         top: a.getBoundingClientRect().top,
@@ -205,7 +280,7 @@ export function useReturnPosition(
       }
       intent.current = true;
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('popstate', onPop);
     root?.addEventListener('click', onOpen, true);
     const intents = [
       'wheel',
@@ -217,7 +292,7 @@ export function useReturnPosition(
     for (const t of intents)
       window.addEventListener(t, onIntent, { passive: true, capture: true });
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('popstate', onPop);
       root?.removeEventListener('click', onOpen, true);
       for (const t of intents)
         window.removeEventListener(t, onIntent, { capture: true });
@@ -225,11 +300,11 @@ export function useReturnPosition(
   }, [rootRef]);
 
   // Leaving THIS entry (another history index or pathname — not a segment
-  // switch, query edit or discard remount): record where the list stands.
-  // A layout cleanup: the rows are still in the document.
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    return () => {
+  // switch, query edit or discard remount): record where the list stands —
+  // as taken at the traversal away, else (a PUSH, which scrolls nothing)
+  // now. A layout cleanup: the rows are still in the document.
+  useLayoutEffect(
+    () => () => {
       const { idx, key, href } = entry.current;
       if (idx === null || !isSameSession(stamp)) return;
       if (
@@ -237,35 +312,21 @@ export function useReturnPosition(
         window.location.pathname === href.split('?')[0]
       )
         return;
-      // An opened row counts only if the list has not moved since (a click
-      // whose navigation was refused, then a scroll, is not this leave).
-      let anchor =
-        opened.current !== null &&
-        Math.abs(opened.current.y - scrollY.current) < 1
-          ? opened.current
-          : null;
-      if (anchor === null && root?.isConnected) {
-        const row = topmostRow(root);
-        const rect = row?.getBoundingClientRect();
-        if (row && rect && rect.height > 0)
-          anchor = {
-            href: row.getAttribute('href') ?? '',
-            top: rect.top,
-            opened: false,
-            y: scrollY.current,
-          };
-      }
+      const at =
+        left.current !== null && left.current.to === entryKey()
+          ? left.current
+          : snapshotRef.current();
       records = [
         ...records.filter((r) => r.idx !== idx),
-        { stamp, idx, key, href, y: scrollY.current, anchor },
+        { stamp, idx, key, href, y: at.y, anchor: at.anchor },
       ].slice(-MAX);
-    };
-  }, [rootRef, stamp]);
+    },
+    [stamp],
+  );
 
   // Any navigation on this screen (query edit, segment switch) ends a
   // pending or settling restore.
-  const arrivalKey = useRef(location.key);
-  const moved = location.key !== arrivalKey.current;
+  const moved = location.key !== initial.key;
 
   // Placed each time the rows become READY while still armed: a stale
   // refetch that fails after the first placement replaces the rows with
@@ -291,6 +352,15 @@ export function useReturnPosition(
           : record.anchor.top;
         const delta = rect.top - top;
         window.scrollTo(0, window.scrollY + delta);
+        // The returned row stays the opened one while the list rests
+        // here: leaving again (Forward, then Back) returns to it again.
+        if (record.anchor.opened)
+          opened.current = {
+            href: record.anchor.href,
+            top: row.getBoundingClientRect().top,
+            opened: true,
+            y: window.scrollY,
+          };
       } else {
         window.scrollTo(0, record.y);
       }
@@ -310,13 +380,17 @@ export function useReturnPosition(
     // Late layout (names or markers arriving, fonts, a resize) re-anchors
     // for as long as the user has not acted: no settle timeout — a slow
     // lookup must not push the row off screen. Ends with intent, a
-    // navigation (`moved` re-runs this effect) or unmount.
+    // navigation (`moved` re-runs this effect) or unmount; paused while
+    // history already stands on another entry (a traversal away whose
+    // screen is still loading: the browser has restored THAT entry's
+    // offset, which is not to be fought).
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
       if (intent.current) {
         observer.disconnect();
         return;
       }
+      if (entryKey() !== entry.current.key) return;
       place();
     });
     observer.observe(root);
