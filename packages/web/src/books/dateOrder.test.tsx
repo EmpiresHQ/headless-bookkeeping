@@ -273,7 +273,7 @@ describe('Books date range + order (issue #279)', () => {
       '?status=posted&from=2026-07-01&to=2026-07-31&sort=largest',
     );
     await screen.findByText(rowTitle('cat-1'));
-    await userEvent.click(screen.getByRole('tab', { name: 'Credit notes' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Credit notes' }));
     await screen.findByText(rowTitle('CN-1'));
     expect(params(router).get('status')).toBeNull();
     expect(params(router).get('sort')).toBe('largest');
@@ -283,7 +283,7 @@ describe('Books date range + order (issue #279)', () => {
       'Showing 2 of 3 credit notes · net −20.00 € · Tax point 1 Jul 2026 – 31 Jul 2026 · Largest amount first',
     );
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Documents' }));
     await screen.findByText(rowTitle('july.pdf'));
     expect(screen.queryByText('august.pdf')).toBeNull();
     expect(bar()).toHaveTextContent(

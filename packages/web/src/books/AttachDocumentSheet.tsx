@@ -224,11 +224,15 @@ export function AttachDocumentSheet({
     >
       <div className="space-y-3 px-5 pb-2">
         <SegmentedControl<Mode>
+          label="Document source"
           options={[
             { value: 'upload', label: 'Upload file' },
             { value: 'existing', label: 'From Documents' },
           ]}
           value={mode}
+          // The switch cannot change now: say so to keyboard and AT users
+          // too, not only by ignoring the change (issue #288).
+          disabled={busy || phase.kind === 'unverified'}
           onChange={(m) => {
             if (busy || phase.kind === 'unverified') return;
             setMode(m);

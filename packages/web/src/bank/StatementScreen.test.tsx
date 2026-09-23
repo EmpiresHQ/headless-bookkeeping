@@ -200,9 +200,9 @@ describe('StatementScreen', () => {
     expect(await screen.findByText('AI proposals')).toBeInTheDocument();
     expect(screen.getByText('Decide yourself')).toBeInTheDocument();
     expect(
-      screen.getByRole('tab', { name: 'Unmatched 2' }),
+      screen.getByRole('radio', { name: 'Unmatched 2' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'All 4' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All 4' })).toBeInTheDocument();
     // The proposal-backed line sits in the AI-proposals tier (Task 7 upgrades
     // its row to the selectable ProposalRow with object label + confidence).
     expect(screen.getByText('NORDIC CONSULT')).toBeInTheDocument();

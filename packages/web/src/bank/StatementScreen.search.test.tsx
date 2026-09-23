@@ -210,9 +210,9 @@ describe('StatementScreen search (issue #278)', () => {
     await screen.findByText(/Showing 1 of 2 lines/);
     expect(screen.queryByText('NORDIC CONSULT')).toBeNull();
     expect(
-      screen.getByRole('tab', { name: 'Unmatched 2' }),
+      screen.getByRole('radio', { name: 'Unmatched 2' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'All 4' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All 4' })).toBeInTheDocument();
     fireEvent.change(searchBox(), { target: { value: '1200' } });
     expect(await screen.findByText('NORDIC CONSULT')).toBeInTheDocument();
     expect(screen.queryByText('WOLT 220627')).toBeNull();
@@ -229,7 +229,7 @@ describe('StatementScreen search (issue #278)', () => {
     expect(await screen.findByText('No lines match')).toBeInTheDocument();
     expect(screen.getByText(/Matched lines are under All/)).toBeInTheDocument();
     expect(screen.queryByText('All lines reconciled')).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: 'All 4' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'All 4' }));
     expect(await screen.findByText('ELISA arve 6/2026')).toBeInTheDocument();
     expect(paramsOf(router).get('q')).toBe('elisa eesti');
     expect(paramsOf(router).get('seg')).toBe('all');
@@ -246,13 +246,13 @@ describe('StatementScreen search (issue #278)', () => {
         state: origin,
       }),
     );
-    fireEvent.click(await screen.findByRole('tab', { name: 'All 4' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'All 4' }));
     await waitFor(() => expect(paramsOf(router).get('seg')).toBe('all'));
     expect(paramsOf(router).get('q')).toBe('wolt');
     expect(paramsOf(router).get('keep')).toBe('1');
     expect(router.state.historyAction).toBe('REPLACE');
     expect(router.state.location.state).toEqual(origin);
-    fireEvent.click(screen.getByRole('tab', { name: 'Unmatched 2' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Unmatched 2' }));
     await waitFor(() => expect(paramsOf(router).get('seg')).toBeNull());
     expect(paramsOf(router).get('q')).toBe('wolt');
     expect(paramsOf(router).get('keep')).toBe('1');
@@ -395,8 +395,8 @@ describe('StatementScreen search (issue #278)', () => {
     expect(sent).toHaveLength(2);
     expect(searchBox()).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Clear search' })).toBeDisabled();
-    expect(screen.getByRole('tab', { name: 'All 4' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('tab', { name: 'All 4' }));
+    expect(screen.getByRole('radio', { name: 'All 4' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: 'All 4' }));
     expect(paramsOf(router).get('seg')).toBeNull();
     // Deselecting a row mid-flight does not rewrite the pending button.
     fireEvent.click(

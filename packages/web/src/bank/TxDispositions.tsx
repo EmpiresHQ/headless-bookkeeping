@@ -287,6 +287,7 @@ export function PrepaymentSheet({
             hint="A payment for an identified supply is taxed on the day it arrives — a deposit is not."
           >
             <SegmentedControl<AdvanceTaxTreatment>
+              label="Tax treatment"
               options={[
                 { value: 'taxable_supply', label: 'Advance for a supply' },
                 { value: 'non_taxable_deposit', label: 'Deposit' },

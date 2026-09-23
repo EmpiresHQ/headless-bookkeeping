@@ -657,6 +657,7 @@ export function StatementScreen() {
       />
       <div className="space-y-2.5 px-4 pb-3">
         <SegmentedControl
+          label="Bank lines"
           options={[
             { value: 'unmatched', label: `Unmatched ${unmatchedCount}` },
             { value: 'all', label: `All ${lines.length}` },

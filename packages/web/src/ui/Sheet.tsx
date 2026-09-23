@@ -215,6 +215,7 @@ export function Sheet({
             <>
               <div className="mb-2 flex-none px-5 lg:hidden">
                 <SegmentedControl
+                  label="Sheet view"
                   options={[
                     { value: 'form', label: 'Form' },
                     { value: 'source', label: 'Source document' },

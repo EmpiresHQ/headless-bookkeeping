@@ -690,9 +690,9 @@ describe('ClassifyExpenseSheet', () => {
     expect(await within(source).findByAltText('Source document')).toBeVisible();
     expect(api.fetchDocumentFile).toHaveBeenCalledWith(12);
     for (let i = 0; i < 2; i++) {
-      fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
       fireEvent.click(within(source).getByRole('button', { name: 'Zoom in' }));
-      fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Form' }));
     }
     expect(screen.getByLabelText('VAT (EUR)')).toBe(vat);
     expect(vat).toHaveValue('10.00');

@@ -208,11 +208,44 @@ describe('Attach a late receipt (issue #248)', () => {
     ).toBeInTheDocument();
   });
 
+  it('the source switch is disabled while an attach is in flight (issue #288)', async () => {
+    mount();
+    const sheet = await openSheet();
+    pick(sheet);
+    let fail!: (e: Error) => void;
+    vi.mocked(attachExpenseDocument).mockImplementationOnce(
+      () => new Promise((_, reject) => (fail = reject)),
+    );
+    fireEvent.click(
+      within(sheet).getByRole('button', { name: 'Upload & attach' }),
+    );
+    const source = within(sheet).getByRole('radiogroup', {
+      name: 'Document source',
+    });
+    const existing = within(source).getByRole('radio', {
+      name: 'From Documents',
+    });
+    await waitFor(() => expect(existing).toBeDisabled());
+    fireEvent.click(existing);
+    expect(
+      within(source).getByRole('radio', { name: 'Upload file' }),
+    ).toBeChecked();
+
+    fail(new Error('503 Service Unavailable: storage down'));
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent(
+      'Not attached',
+    );
+    expect(existing).toBeEnabled();
+    expect(within(sheet).getByText('late-receipt.pdf')).toBeInTheDocument();
+  });
+
   it('picks a server-listed document; a 409 keeps the selection and the reason', async () => {
     mount();
     vi.mocked(listAttachableDocuments).mockResolvedValue([CANDIDATE]);
     const sheet = await openSheet();
-    fireEvent.click(within(sheet).getByRole('tab', { name: 'From Documents' }));
+    fireEvent.click(
+      within(sheet).getByRole('radio', { name: 'From Documents' }),
+    );
     const option = await within(sheet).findByRole('radio', {
       name: /telegram-photo\.jpg/,
     });
@@ -254,7 +287,9 @@ describe('Attach a late receipt (issue #248)', () => {
       .mockResolvedValueOnce([CANDIDATE])
       .mockResolvedValueOnce([]);
     const sheet = await openSheet();
-    fireEvent.click(within(sheet).getByRole('tab', { name: 'From Documents' }));
+    fireEvent.click(
+      within(sheet).getByRole('radio', { name: 'From Documents' }),
+    );
     fireEvent.click(
       await within(sheet).findByRole('radio', { name: /telegram-photo/ }),
     );
@@ -288,7 +323,9 @@ describe('Attach a late receipt (issue #248)', () => {
       .mockRejectedValueOnce(new Error('500 Internal Server Error: boom'))
       .mockResolvedValueOnce([]);
     const sheet = await openSheet();
-    fireEvent.click(within(sheet).getByRole('tab', { name: 'From Documents' }));
+    fireEvent.click(
+      within(sheet).getByRole('radio', { name: 'From Documents' }),
+    );
     expect(
       await within(sheet).findByText(/Could not load documents/),
     ).toBeInTheDocument();
@@ -325,6 +362,24 @@ describe('Attach a late receipt (issue #248)', () => {
       within(sheet).queryByRole('button', { name: 'Upload & attach' }),
     ).toBeNull();
     expect(screen.queryByText(/Attached ·/)).toBeNull();
+    // The source switch is disabled while unconfirmed (issue #288): it
+    // stays on the caller's value and the outcome stays shown.
+    const source = within(sheet).getByRole('radiogroup', {
+      name: 'Document source',
+    });
+    for (const r of within(source).getAllByRole('radio'))
+      expect(r).toBeDisabled();
+    fireEvent.click(
+      within(source).getByRole('radio', { name: 'From Documents' }),
+    );
+    expect(
+      within(source).getByRole('radio', { name: 'Upload file' }),
+    ).toBeChecked();
+    expect(
+      within(source).getByRole('radio', { name: 'From Documents' }),
+    ).not.toBeChecked();
+    expect(status).toHaveTextContent('Attached — not yet confirmed');
+    expect(listAttachableDocuments).not.toHaveBeenCalled();
 
     fireEvent.click(
       within(sheet).getByRole('button', { name: 'Check the expense again' }),

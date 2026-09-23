@@ -270,6 +270,7 @@ export function InboxScreen() {
       />
       <div className="space-y-2.5 px-4 pb-3">
         <SegmentedControl
+          label="Inbox filter"
           options={[
             { value: 'all' as const, label: 'All' },
             { value: 'triage' as const, label: `Triage ${counts.triage}` },

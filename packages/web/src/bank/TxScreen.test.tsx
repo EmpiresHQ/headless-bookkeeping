@@ -434,7 +434,7 @@ describe('TxScreen state composition', () => {
       }),
     );
     fireEvent.click(
-      await screen.findByRole('tab', { name: 'Advance for a supply' }),
+      await screen.findByRole('radio', { name: 'Advance for a supply' }),
     );
 
     // Until the supply is named, the confirm is not available: what the

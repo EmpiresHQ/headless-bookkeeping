@@ -35,9 +35,9 @@ describe('Sheet', () => {
   });
 
   describe('with a source pane (issue #257)', () => {
-    const tabs = () => ({
-      form: screen.getByRole('tab', { name: 'Form' }),
-      source: screen.getByRole('tab', { name: 'Source document' }),
+    const views = () => ({
+      form: screen.getByRole('radio', { name: 'Form' }),
+      source: screen.getByRole('radio', { name: 'Source document' }),
     });
     const pane = (name: 'form' | 'source') =>
       document.querySelector(`[data-sheet-pane="${name}"]`) as HTMLElement;
@@ -71,11 +71,11 @@ describe('Sheet', () => {
       expect(pane('form')).not.toHaveClass('invisible');
       expect(pane('source')).toHaveClass('invisible');
       for (let i = 0; i < 3; i++) {
-        fireEvent.click(tabs().source);
-        expect(tabs().source).toHaveAttribute('aria-selected', 'true');
+        fireEvent.click(views().source);
+        expect(views().source).toBeChecked();
         expect(pane('source')).not.toHaveClass('invisible');
         expect(pane('form')).toHaveClass('invisible');
-        fireEvent.click(tabs().form);
+        fireEvent.click(views().form);
         expect(pane('form')).not.toHaveClass('invisible');
       }
       // Same nodes, same value, same scroll: nothing was remounted.
@@ -90,7 +90,7 @@ describe('Sheet', () => {
 
     it('switching stays available while a save is in flight; dismiss is still refused', () => {
       const onOpenChange = renderWithSource({ busy: true });
-      fireEvent.click(tabs().source);
+      fireEvent.click(views().source);
       expect(pane('source')).not.toHaveClass('invisible');
       fireEvent.keyDown(document.activeElement ?? document.body, {
         key: 'Escape',
@@ -104,8 +104,8 @@ describe('Sheet', () => {
         confirmDiscard: vi.fn(async () => false),
       };
       const onOpenChange = renderWithSource({ guard });
-      fireEvent.click(tabs().source);
-      fireEvent.click(tabs().form);
+      fireEvent.click(views().source);
+      fireEvent.click(views().form);
       fireEvent.keyDown(screen.getByLabelText('Amount'), { key: 'Escape' });
       await Promise.resolve();
       expect(guard.confirmDiscard).toHaveBeenCalledTimes(1);
@@ -124,7 +124,7 @@ describe('Sheet', () => {
           <p>Body</p>
         </Sheet>,
       );
-      expect(screen.queryByRole('tablist')).toBeNull();
+      expect(screen.queryByRole('radiogroup')).toBeNull();
       expect(document.querySelector('[data-sheet-pane]')).toBeNull();
     });
   });
@@ -240,7 +240,7 @@ describe('Sheet', () => {
           <p>Body</p>
         </Sheet>,
       );
-      fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
       expect(closeButton()).toBeVisible();
       expect(closeButton().closest('[data-sheet-pane]')).toBeNull();
     });
