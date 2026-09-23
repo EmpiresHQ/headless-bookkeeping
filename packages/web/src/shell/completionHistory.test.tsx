@@ -396,13 +396,37 @@ describe('Inbox completion history (#252)', () => {
     ]);
   });
 
-  it('deep link: advance replaces, the last item replaces with /inbox — no pop out of the app', async () => {
+  it('deep link is a single item (#253): the decision replaces it with /inbox — no queue tour, no pop out of the app', async () => {
     triage = [TRIAGE(12), TRIAGE(13)];
     renderApp('/inbox/doc/12');
+    await expectScreen('Single item · returns to Inbox');
+    expect(screen.queryByText(/\d+ of \d+/)).toBeNull();
     await archiveOpenDoc('doc_12.pdf');
-    await expectAt('/inbox/doc/13', 0);
-    await archiveOpenDoc('doc_13.pdf');
     await expectAt('/inbox', 0);
+    await expectScreen('doc_13.pdf');
+    expect(vi.mocked(api.completeDocument).mock.calls).toEqual([[12]]);
+  });
+
+  it('the run survives Back/Forward (#253): Forward to the advanced item keeps its run context and count', async () => {
+    triage = [TRIAGE(12), TRIAGE(13), TRIAGE(14)];
+    approvals = [APPROVAL(7)];
+    const router = renderApp('/start');
+    await act(() => router.navigate('/inbox?seg=triage'));
+    // Rendered newest first: 14, 13, 12 — open the middle row.
+    await openRow('doc_13.pdf');
+    await expectScreen('2 of 3');
+    await archiveOpenDoc('doc_13.pdf');
+    await expectAt('/inbox/doc/12', 2);
+    await expectScreen('2 of 2');
+    await browserBack('/inbox?seg=triage', 1);
+    // A task arriving meanwhile is on the list, not in the run.
+    triage = [...triage, TRIAGE(90)];
+    await browserForward('/inbox/doc/12', 2);
+    await expectScreen('Triage queue · next item follows');
+    await expectScreen('2 of 2');
+    await archiveOpenDoc('doc_12.pdf');
+    // Back to the run's first remaining member (14), never doc 90 or approval 7.
+    await expectAt('/inbox/doc/14', 2);
   });
 
   it('ordinary browsing keeps plain history: open A, Back, open B, Back/Forward', async () => {
@@ -433,6 +457,9 @@ describe('cross-section entry: Books document → Resolve in Inbox (#252)', () =
 
   it('a decision returns to the Books document, not into the Inbox queue', async () => {
     await openFromBooks('low_confidence');
+    // Single-item context (#253): no position in any queue.
+    await expectScreen('Single item · returns to Books');
+    expect(screen.queryByText(/\d+ of \d+/)).toBeNull();
     await archiveOpenDoc('doc_12.pdf');
     await expectAt('/books/documents/12', 2);
     await browserForward('/books/documents/12', 3);

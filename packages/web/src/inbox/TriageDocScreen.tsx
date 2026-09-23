@@ -42,7 +42,8 @@ export function TriageDocScreen() {
 
   const triageQ = useNeedsTriage();
   const item = triageQ.data?.find((i) => i.id === docId);
-  const { position, next, leave } = useInboxCompletion(route);
+  const { position, next, leave, context, backHref } =
+    useInboxCompletion(route);
   const detailsQ = useQuery({
     queryKey: inboxKeys.docDetails(docId),
     queryFn: () => getDocumentDetails(docId),
@@ -131,7 +132,7 @@ export function TriageDocScreen() {
   if (triageQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Document" backTo="/inbox" />
+        <ScreenHeader title="Document" backTo={backHref} />
         <SkeletonRows count={3} />
       </div>
     );
@@ -139,7 +140,7 @@ export function TriageDocScreen() {
   if (triageQ.isError && triageQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Document" backTo="/inbox" />
+        <ScreenHeader title="Document" backTo={backHref} />
         <LoadError
           message={
             triageQ.error instanceof Error
@@ -154,12 +155,12 @@ export function TriageDocScreen() {
   if (item === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
-        <ScreenHeader title="Document" backTo="/inbox" />
+        <ScreenHeader title="Document" backTo={backHref} />
         <EmptyState
           icon="✓"
           title="Already handled"
           hint="This document is no longer waiting for triage."
-          action={<LinkButton to="/inbox">Back to Inbox</LinkButton>}
+          action={<LinkButton to={backHref}>Back to Inbox</LinkButton>}
         />
       </div>
     );
@@ -167,7 +168,10 @@ export function TriageDocScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title={title} backTo="/inbox" />
+      <ScreenHeader title={title} backTo={backHref} />
+      <p className="-mt-1 px-5 pb-1 text-center text-[11.5px] text-ink-2">
+        {context}
+      </p>
       <RefetchError query={triageQ} />
       <div className="px-5 pb-2 pt-1 text-center">
         <p className="truncate text-[17px] font-extrabold">{item.filename}</p>
