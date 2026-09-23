@@ -1,5 +1,6 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { useModalLayer } from '../lib/modalLayers';
 import { Button } from './Button';
 
 /** Explicit confirm for irreversible actions (period lock, delete).
@@ -28,6 +29,17 @@ export function ConfirmDialog({
   busy?: boolean;
   onConfirm: () => void;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  // Back/Forward while this is the top layer (issue #267): same as Cancel.
+  useModalLayer(
+    open,
+    () => {
+      if (busy) return false;
+      onOpenChange(false);
+      return true;
+    },
+    contentRef,
+  );
   return (
     <AlertDialog.Root
       open={open}
@@ -38,7 +50,10 @@ export function ConfirmDialog({
     >
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
-        <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-48px)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-surface p-5">
+        <AlertDialog.Content
+          ref={contentRef}
+          className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-48px)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-surface p-5"
+        >
           <AlertDialog.Title className="text-[17px] font-extrabold">
             {title}
           </AlertDialog.Title>

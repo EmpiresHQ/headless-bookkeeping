@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, FileImage, X } from 'lucide-react';
 import { fetchDocumentPreviewObjectUrl } from '../api';
+import { useModalLayer } from '../lib/modalLayers';
 
 /**
  * Fetch a /preview blob URL for a document into an object URL, revoked on
@@ -61,6 +62,17 @@ export function DocumentPreviewLightbox({
   onClose: () => void;
   onOpenOriginal: () => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // A modal layer while mounted (issue #267): Back closes the preview, not
+  // the sheet or route underneath.
+  useModalLayer(
+    true,
+    () => {
+      onClose();
+      return true;
+    },
+    ref,
+  );
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -71,6 +83,7 @@ export function DocumentPreviewLightbox({
 
   return (
     <div
+      ref={ref}
       role="dialog"
       aria-modal="true"
       aria-label="Document preview"

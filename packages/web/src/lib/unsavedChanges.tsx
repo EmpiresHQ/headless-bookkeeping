@@ -17,6 +17,12 @@ import {
 } from 'react-router-dom';
 import type { UnauthorizedError } from '../auth';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import {
+  createModalLayerRegistry,
+  ModalLayerContext,
+  type ModalLayer,
+  type ModalLayerRegistry,
+} from './modalLayers';
 import { toastWait } from '../ui/toast';
 
 /**
@@ -52,6 +58,10 @@ import { toastWait } from '../ui/toast';
  * and sign-out with a protected-wait status, refresh/close with the
  * browser's prompt even when the form is clean — so its completion can
  * never act on a screen the operator has moved on to.
+ *
+ * Modal layers (issue #267, lib/modalLayers) register here too: while one is
+ * open, Back/Forward closes the top layer (through its own guards) and the
+ * route stays — see RouteLeaveGuard.
  */
 
 export interface UnsavedEntry {
@@ -70,6 +80,11 @@ interface UnsavedChangesApi {
   /** Register an in-flight operation; the returned release is idempotent. */
   registerPending: (entry: PendingEntry) => () => void;
   pendingLabels: () => string[];
+  /** Open modal layers (Sheet, ConfirmDialog, preview lightbox). */
+  openLayers: () => number;
+  /** A completion chain's start: the finished task's still-open layers stop
+   *  counting (lib/modalLayers retireOpen); returns the undo. */
+  retireOpenLayers: () => () => void;
   /** False once the authenticated shell (this provider) has unmounted. */
   isAlive: () => boolean;
   /** Run `fn` when the shell unmounts (issue #252: a return-navigation
@@ -166,6 +181,8 @@ export function UnsavedChangesProvider({
   const [routeEpoch, setRouteEpoch] = useState(0);
   const bumpRouteEpoch = useCallback(() => setRouteEpoch((n) => n + 1), []);
 
+  const layers = useMemo(createModalLayerRegistry, []);
+
   const settle = useCallback((ok: boolean) => {
     const p = pendingRef.current;
     pendingRef.current = null;
@@ -205,6 +222,8 @@ export function UnsavedChangesProvider({
         };
       },
       pendingLabels,
+      openLayers: () => layers.count(),
+      retireOpenLayers: () => layers.retireOpen(),
       isAlive: () => alive.current,
       onShellEnd: (fn) => {
         shellEndListeners.current.add(fn);
@@ -233,7 +252,7 @@ export function UnsavedChangesProvider({
         });
       },
     };
-  }, []);
+  }, [layers]);
 
   // Unmount (sign-out, forced 401): answer any open question "keep" so no
   // caller's continuation runs later. Registered forms unregister
@@ -277,32 +296,38 @@ export function UnsavedChangesProvider({
 
   return (
     <UnsavedChangesContext.Provider value={api}>
-      <RouteDiscardEpochContext.Provider value={routeEpoch}>
-        {children}
-      </RouteDiscardEpochContext.Provider>
-      {dataRouter !== null && (
-        <RouteLeaveGuard api={api} onDiscarded={bumpRouteEpoch} />
-      )}
-      <ConfirmDialog
-        open={pending !== null}
-        onOpenChange={(o) => {
-          if (!o) settle(false);
-        }}
-        title="Discard unsaved changes?"
-        body={
-          <>
-            Your changes in{' '}
-            <span className="font-semibold text-ink">
-              {(pending ?? []).join(', ')}
-            </span>{' '}
-            have not been saved and will be lost.
-          </>
-        }
-        cancelLabel="Keep editing"
-        confirmLabel="Discard"
-        destructive
-        onConfirm={() => settle(true)}
-      />
+      <ModalLayerContext.Provider value={layers}>
+        <RouteDiscardEpochContext.Provider value={routeEpoch}>
+          {children}
+        </RouteDiscardEpochContext.Provider>
+        {dataRouter !== null && (
+          <RouteLeaveGuard
+            api={api}
+            layers={layers}
+            onDiscarded={bumpRouteEpoch}
+          />
+        )}
+        <ConfirmDialog
+          open={pending !== null}
+          onOpenChange={(o) => {
+            if (!o) settle(false);
+          }}
+          title="Discard unsaved changes?"
+          body={
+            <>
+              Your changes in{' '}
+              <span className="font-semibold text-ink">
+                {(pending ?? []).join(', ')}
+              </span>{' '}
+              have not been saved and will be lost.
+            </>
+          }
+          cancelLabel="Keep editing"
+          confirmLabel="Discard"
+          destructive
+          onConfirm={() => settle(true)}
+        />
+      </ModalLayerContext.Provider>
     </UnsavedChangesContext.Provider>
   );
 }
@@ -321,21 +346,47 @@ export function UnsavedChangesProvider({
  *  with its values intact but released as clean. So a discard first bumps
  *  the routed subtree's epoch (`onDiscarded`): an URGENT update that commits
  *  at once on the still-current location and remounts the screen from its
- *  baseline, before the transition to the next route is even started. */
+ *  baseline, before the transition to the next route is even started.
+ *
+ *  Modal layers first (issue #267): a history traversal (POP — browser Back
+ *  or Forward, any pathname or query) while a layer is open is blocked too.
+ *  The router has already put the URL back; the traversal is SPENT on one
+ *  dismiss request to the top layer — the same as its Escape/Close, so its
+ *  busy refusal and dirty question apply — and the route stays. Layers never
+ *  write history, so there is nothing to undo after a close and a Forward is
+ *  consumed the same way (a sheet never reopens from history). PUSH/REPLACE
+ *  (links, a success's close+navigate, completion chains) are not affected
+ *  by layers. */
 function RouteLeaveGuard({
   api,
+  layers,
   onDiscarded,
 }: {
   api: UnsavedChangesApi;
+  layers: ModalLayerRegistry;
   onDiscarded: () => void;
 }) {
   const dataRouter = useContext(UNSAFE_DataRouterContext);
+  // Why the latest attempt was blocked, keyed by its target entry.
+  // A layer-blocked attempt: its target entry and the layer that was on top
+  // WHEN it was blocked — the only layer that attempt may dismiss.
+  const layerBlock = useRef<{ key: string; layer: ModalLayer | null } | null>(
+    null,
+  );
   const blocker = useBlocker(
     useCallback<BlockerFunction>(
-      ({ currentLocation, nextLocation }) =>
-        currentLocation.pathname !== nextLocation.pathname &&
-        (api.pendingLabels().length > 0 || api.dirtyEntries().length > 0),
-      [api],
+      ({ currentLocation, nextLocation, historyAction }) => {
+        if (historyAction === 'POP' && layers.count() > 0) {
+          layerBlock.current = { key: nextLocation.key, layer: layers.top() };
+          return true;
+        }
+        const leave =
+          currentLocation.pathname !== nextLocation.pathname &&
+          (api.pendingLabels().length > 0 || api.dirtyEntries().length > 0);
+        if (leave) layerBlock.current = null;
+        return leave;
+      },
+      [api, layers],
     ),
   );
 
@@ -355,6 +406,22 @@ function RouteLeaveGuard({
       if (ok) asked.proceed();
       else asked.reset();
     };
+    const attempt = layerBlock.current;
+    if (attempt !== null && attempt.key === asked.location.key) {
+      layerBlock.current = null;
+      // Superseded by a newer attempt: that one owns the answer.
+      if (!stillAsked()) return;
+      asked.reset();
+      // Only the layer this attempt was blocked for. Gone meanwhile (closed,
+      // or a menu handed off to a new sheet): the traversal is simply spent
+      // — a newer layer is never dismissed by an older Back.
+      const layer = attempt.layer;
+      if (layer !== null && layers.has(layer) && !layer.dismiss()) {
+        const busy = api.pendingLabels();
+        if (busy.length > 0) announcePending(busy);
+      }
+      return;
+    }
     const pending = api.pendingLabels();
     if (pending.length > 0) {
       announcePending(pending);
@@ -381,7 +448,7 @@ function RouteLeaveGuard({
       live = false;
     };
     // `blocker` changes identity exactly when its state does.
-  }, [blocker, api, onDiscarded, dataRouter]);
+  }, [blocker, api, layers, onDiscarded, dataRouter]);
 
   return null;
 }
