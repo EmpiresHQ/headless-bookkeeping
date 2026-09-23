@@ -112,12 +112,19 @@ describe('DocPreviewRow', () => {
       }),
     );
 
-    // The rejection is swallowed — the lightbox never leaves the thumb blob.
+    // The thumb stays as a placeholder, honestly qualified, with Retry
+    // (issue #270) — never presented as the full preview.
     await waitFor(() =>
-      expect(within(dialog).getByAltText('Document preview')).toHaveAttribute(
-        'src',
-        'blob:thumb',
+      expect(within(dialog).getByRole('status')).toHaveTextContent(
+        'The full-size preview couldn’t be loaded — showing a smaller one.',
       ),
     );
+    expect(within(dialog).getByAltText('Document preview')).toHaveAttribute(
+      'src',
+      'blob:thumb',
+    );
+    expect(
+      within(dialog).getByRole('button', { name: 'Retry' }),
+    ).toBeInTheDocument();
   });
 });
