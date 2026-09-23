@@ -6,6 +6,10 @@ import {
   isCurrentUnauthorized,
   type UnauthorizedError,
 } from '../auth';
+import {
+  clearImportPointer,
+  watchImportPointerSession,
+} from '../bank/importResume';
 import { TokenGate } from '../components/TokenGate';
 import { createQueryClient } from '../lib/queryClient';
 import { AppToaster } from '../ui/toast';
@@ -28,10 +32,14 @@ export function Root() {
     getToken() !== null ? createQueryClient(onUnauthorized) : null,
   );
   const live = useRef(client);
+  // Another tab's sign-in/sign-out voids this tab's import pointer (#254).
+  useEffect(() => watchImportPointerSession(), []);
   const retired = useRef<QueryClient | null>(null);
 
   const signOut = useCallback(() => {
     clearToken();
+    // An ended session's import is not resumed by the next sign-in (#254).
+    clearImportPointer();
     if (live.current !== null) retired.current = live.current;
     live.current = null;
     setClient(null);

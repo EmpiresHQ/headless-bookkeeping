@@ -21,6 +21,7 @@ export function LinkButton({
   state,
   variant = 'primary',
   className = '',
+  onClick,
   children,
 }: {
   to: string;
@@ -28,12 +29,15 @@ export function LinkButton({
   state?: unknown;
   variant?: Variant;
   className?: string;
+  /** Side effect of following the link (not a navigation replacement). */
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
     <Link
       to={to}
       state={state}
+      onClick={onClick}
       className={`inline-block rounded-xl px-4 py-2.5 text-center text-[15px] font-bold ${VARIANTS[variant]} ${className}`}
     >
       {children}

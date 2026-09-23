@@ -7,6 +7,9 @@ import {
   isCurrentUnauthorized,
   SessionChangedError,
   TOKEN_KEY,
+  SESSION_ID_KEY,
+  HttpError,
+  currentSessionId,
   UnauthorizedError,
 } from './auth';
 
@@ -20,6 +23,31 @@ describe('auth token store', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBe('abc123');
     clearToken();
     expect(getToken()).toBeNull();
+  });
+});
+
+describe('session id (#254)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('every sign-in mints a new random id; sign-out removes it', () => {
+    expect(currentSessionId()).toBeNull();
+    setToken('a');
+    const first = currentSessionId();
+    expect(first).toEqual(expect.any(String));
+    expect(currentSessionId()).toBe(first);
+    setToken('a'); // even the same token is a new sign-in
+    expect(currentSessionId()).not.toBe(first);
+    clearToken();
+    expect(localStorage.getItem(SESSION_ID_KEY)).toBeNull();
+    expect(currentSessionId()).toBeNull();
+  });
+
+  it('a token stored before session ids existed gets one lazily', () => {
+    localStorage.setItem(TOKEN_KEY, 'legacy');
+    const id = currentSessionId();
+    expect(id).toEqual(expect.any(String));
+    expect(id).not.toContain('legacy');
+    expect(currentSessionId()).toBe(id);
   });
 });
 
@@ -85,6 +113,35 @@ describe('apiFetch', () => {
     await expect(
       apiFetch('/api/expenses/7', { method: 'DELETE' }),
     ).rejects.toThrow(/only a draft can be deleted/);
+  });
+
+  it('a non-OK answer is an HttpError carrying its status and the same message', async () => {
+    setToken('tok');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"message":"Import job 41 not found"}', {
+        status: 404,
+        statusText: 'Not Found',
+      }),
+    );
+    const err = await apiFetch('/api/bank-statements/import/41').catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(404);
+    expect((err as Error).message).toBe(
+      '404 Not Found: Import job 41 not found',
+    );
+  });
+
+  it('a 404 whose session ended in flight is still SessionChangedError, not HttpError', async () => {
+    setToken('a');
+    const { res, release } = heldBody(404, '{"message":"gone"}');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(res);
+    const p = apiFetch('/api/bank-statements/import/41');
+    await new Promise((r) => setTimeout(r, 0));
+    setToken('b');
+    release();
+    await expect(p).rejects.toBeInstanceOf(SessionChangedError);
   });
 
   it('renders the Zod pipe field-error body as "field: message"', async () => {
