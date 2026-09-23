@@ -13,6 +13,7 @@ import {
 } from '../queries/bank';
 import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
 import type { PendingOperation } from '../lib/pendingOperation';
+import { useResultLog, writeChain, type ChainSlot } from '../lib/resultLog';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useSheet } from '../lib/useSheet';
 import { ActionBar } from '../ui/ActionBar';
@@ -20,7 +21,8 @@ import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { GroupLabel, KeyValue } from '../ui/List';
 import { toastErr } from '../ui/toast';
-import { STANDARD_VAT_RATE_PCT } from './format';
+import { STANDARD_VAT_RATE_PCT, txTitle } from './format';
+import { fromLineRecord } from './lineResults';
 import { SupplierSheet } from './SupplierSheet';
 
 function fmtDate(iso: string): string {
@@ -66,6 +68,11 @@ export function TxCreateExpense({
   // snapshot taken when an attempt fails.
   const progress = useRef<FromLineProgress>(newFromLineProgress());
   const [landed, setLanded] = useState<FromLineProgress | null>(null);
+  // The chain's durable record (#259): created with its first accepted
+  // stage, superseded by every later stage and by a retry's outcome.
+  const log = useResultLog();
+  const record = useRef<ChainSlot['current']>(null);
+  const finished = useRef<CreateFromLineResult | null>(null);
   // Once the expense exists its facts are the server's: the form locks,
   // and there is no unsaved input left to lose.
   const locked = landed !== null && landed.expenseId !== null;
@@ -98,13 +105,38 @@ export function TxCreateExpense({
       taxPointDate: tx.transaction_date,
       supplierId: supplier?.id ?? null,
     };
+    const describe = (
+      extra: Pick<
+        Parameters<typeof fromLineRecord>[0],
+        'result' | 'error' | 'matchStaged'
+      >,
+    ) =>
+      fromLineRecord({
+        action: 'Create & match',
+        lineTitle: txTitle(tx),
+        statementId,
+        txId: tx.id,
+        amount: `${fmtCents(tx.amount)} €`,
+        progress: progress.current,
+        ...extra,
+      });
+    const write = (
+      rec: ReturnType<typeof fromLineRecord>,
+      live?: () => boolean,
+    ) => {
+      if (rec === null) return;
+      writeChain(record, log.record, rec, live);
+    };
     op.run(
       async (ctx) => {
         const result = await createExpenseFromLine(
           input,
           progress.current,
           ctx.check,
+          (_p, matchStaged) => write(describe({ matchStaged }), ctx.live),
         );
+        finished.current = result;
+        write(describe({ result }), ctx.live);
         ctx.check();
         await invalidateStatement(qc, statementId);
         return result;
@@ -115,6 +147,8 @@ export function TxCreateExpense({
           onDone(result);
         },
         onError: (e) => {
+          // A failed refresh AFTER the chain finished keeps its outcome.
+          write(describe({ result: finished.current ?? undefined, error: e }));
           const p = { ...progress.current };
           setLanded(p);
           toastErr(e instanceof Error ? e.message : String(e));

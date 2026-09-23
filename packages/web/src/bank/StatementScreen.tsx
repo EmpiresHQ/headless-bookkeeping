@@ -7,9 +7,23 @@ import {
 } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { deleteBankStatement, fmtCents } from '../api';
-import { usePendingOperation, useSessionTask } from '../lib/pendingOperation';
+import {
+  errorMessage,
+  usePendingOperation,
+  useSessionTask,
+} from '../lib/pendingOperation';
+import {
+  useResultLog,
+  slotHandle,
+  useReceipt,
+  writeChain,
+  type ChainSlot,
+  type ResultHandle,
+  type ResultInit,
+} from '../lib/resultLog';
 import type { MatchProposalView, MatchRowView } from '../api';
 import {
+  BookingPartialError,
   bankKeys,
   bookProposals,
   confirmStagedMatch,
@@ -36,6 +50,7 @@ import {
 } from '../lib/returnNavigation';
 import { formatStatementPeriod, formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
+import { undoIncomplete } from './lineResults';
 import {
   bucketOf,
   buildLines,
@@ -312,20 +327,55 @@ export function StatementScreen() {
     return sum + (tx && tx.amount < 0 ? -p.amountMatched : p.amountMatched);
   }, 0);
 
+  // Durable receipts of bookings on this statement (#259).
+  const log = useResultLog();
+  const bookRecord = useRef<ChainSlot['current']>(null);
+  const writeReceipt = useReceipt();
+  const statementTitle = statement
+    ? `Statement ${formatStatementPeriod(statement.start_date, statement.end_date)}`
+    : `Statement #${statementId}`;
+  const statementLinks = [
+    { label: 'Statement', to: `/bank/statements/${statementId}` },
+  ];
+
   /** Undo toast for matches booked in THIS session only. */
-  const offerUndo = (label: string, matchIds: number[]) => {
+  const offerUndo = (
+    label: string,
+    matchIds: number[],
+    record: ResultHandle | null,
+  ) => {
     const undo = sessionTask();
+    let removed = 0;
     toastUndo(label, () =>
       undo(
         (stage) =>
-          undoMatches(statementId, matchIds, stage).then(() => {
+          undoMatches(statementId, matchIds, stage, (n) => {
+            removed = n;
+            if (n < matchIds.length)
+              record?.update({
+                action: 'Match · undoing',
+                outcome: `Undo in progress: ${n} of ${matchIds.length} matches removed so far.`,
+                tone: 'running',
+              });
+          }).then(() => {
             stage();
+            record?.update({
+              action: 'Match · undone',
+              outcome: `${label} — undone; ${matchIds.length === 1 ? 'the match was' : 'those matches were'} removed.`,
+              tone: 'ok',
+            });
             return invalidateStatement(qc, statementId);
           }),
         {
           onSuccess: () => undefined,
           onError: (e) => {
             toastErr(e instanceof Error ? e.message : String(e));
+            // The receipt must not keep saying "booked" (#259).
+            record?.update({
+              action: 'Match · undo incomplete',
+              outcome: undoIncomplete(removed, matchIds.length, e),
+              tone: 'partial',
+            });
             void invalidateStatement(qc, statementId);
           },
         },
@@ -335,20 +385,74 @@ export function StatementScreen() {
 
   const onBook = () => {
     const proposals = chosen;
+    // One record per booking series: staged → each activation → outcome;
+    // a retry after a failure supersedes it.
+    const note = (
+      tone: ResultInit['tone'],
+      outcome: string,
+      live?: () => boolean,
+    ) => {
+      const init = {
+        action: 'Book matches',
+        title: statementTitle,
+        outcome,
+        tone,
+        links: statementLinks,
+      };
+      writeChain(bookRecord, log.record, init, live);
+    };
+    const plural = (n: number) => `${n} ${n === 1 ? 'match' : 'matches'}`;
+    let accepted = false;
     const started = op.run(
       async (ctx) => {
-        const matchIds = await bookProposals(statementId, proposals, ctx.check);
+        const matchIds = await bookProposals(
+          statementId,
+          proposals,
+          ctx.check,
+          {
+            staged: (ids) => {
+              accepted = true;
+              note(
+                'running',
+                `${plural(ids.length)} staged — approving them; their approval is not confirmed yet.`,
+                ctx.live,
+              );
+            },
+            approved: (done, staged) =>
+              note(
+                'running',
+                `${done.length} of ${plural(staged.length)} approved and active — approving the rest…`,
+                ctx.live,
+              ),
+          },
+        );
         ctx.check();
+        note('ok', `Booked ${plural(matchIds.length)}.`, ctx.live);
         await invalidateStatement(qc, statementId);
         return matchIds;
       },
       {
-        onSuccess: (matchIds) =>
-          offerUndo(
-            `Booked ${matchIds.length} ${matchIds.length === 1 ? 'match' : 'matches'}`,
-            matchIds,
-          ),
+        onSuccess: (matchIds) => {
+          const record = slotHandle(bookRecord);
+          // A new booking is a new record.
+          bookRecord.current = null;
+          offerUndo(`Booked ${plural(matchIds.length)}`, matchIds, record);
+        },
         onError: (e) => {
+          if (!accepted) {
+            // No staging was confirmed: nothing is claimed either way.
+            note(
+              'error',
+              `Booking ${plural(proposals.length)} was not confirmed (${errorMessage(e)}). Open the statement for its current state before booking again.`,
+            );
+          } else if (e instanceof BookingPartialError) {
+            const active = e.approvedMatchIds.length;
+            const staged = e.stagedMatchIds.length;
+            note(
+              'partial',
+              `${active} of ${plural(staged)} approved and active; approval of the rest was not confirmed (${errorMessage(e.cause)}). Open the statement — confirm any match still staged.`,
+            );
+          }
           // Server-enforced cap / over-match — show the server's words, then
           // refresh so partially staged/active state is visible, never
           // hidden.
@@ -361,15 +465,45 @@ export function StatementScreen() {
   };
 
   const onConfirmStaged = (m: MatchRowView) => {
+    const links = [
+      {
+        label: 'Bank line',
+        to: `/bank/statements/${statementId}/tx/${m.bankTransactionId}`,
+      },
+      ...statementLinks,
+    ];
+    let accepted = false;
+    let confirmed: ResultHandle | null = null;
     const started = op.run(
       async (ctx) => {
         await confirmStagedMatch(m.id, ctx.check);
+        accepted = true;
         ctx.check();
+        confirmed = writeReceipt(
+          `confirm:${m.id}`,
+          {
+            action: 'Confirm match',
+            title: statementTitle,
+            outcome: `Staged match to ${m.objectLabel} confirmed · ${fmtCents(m.amountMatched)} €`,
+            tone: 'ok',
+            links,
+          },
+          ctx.live,
+        );
         await invalidateStatement(qc, statementId);
       },
       {
-        onSuccess: () => offerUndo(`Confirmed · ${m.objectLabel}`, [m.id]),
+        onSuccess: () =>
+          offerUndo(`Confirmed · ${m.objectLabel}`, [m.id], confirmed),
         onError: (e) => {
+          if (!accepted)
+            writeReceipt(`confirm:${m.id}`, {
+              action: 'Confirm match',
+              title: statementTitle,
+              outcome: `Confirming the staged match to ${m.objectLabel} was not confirmed (${errorMessage(e)}). Open the line for its current state.`,
+              tone: 'error',
+              links,
+            });
           // "No pending approval found" means the screen is stale — a
           // refetch self-heals (the draft may already be active or gone).
           toastErr(e instanceof Error ? e.message : String(e));

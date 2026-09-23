@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
@@ -314,9 +315,17 @@ describe('pending operations on the production routes (#251)', () => {
         },
       }),
     );
-    expect(await screen.findByText(/Posted ·/)).toBeInTheDocument();
+    // The toast AND the durable result (#259), which outlives the route.
+    await waitFor(() =>
+      expect(screen.getAllByText(/Posted ·/).length).toBeGreaterThanOrEqual(2),
+    );
     await act(() => router.navigate('/settings'));
     expect(path(router)).toBe('/settings');
+    expect(
+      within(screen.getByRole('region', { name: 'Recent results' })).getByText(
+        /Posted ·/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('a current 401 from a plain operation request signs out to the token gate', async () => {

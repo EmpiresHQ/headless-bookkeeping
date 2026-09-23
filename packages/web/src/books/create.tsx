@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createExpense, createInvoice } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
@@ -9,7 +9,8 @@ import {
   signedEuros,
   vatFromGross,
 } from '../lib/money';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
+import { useReceipt } from '../lib/resultLog';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import { useCategories, useCustomers, useSuppliers } from '../queries/shared';
@@ -17,7 +18,7 @@ import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { ListGroup, ListRow } from '../ui/List';
 import { Sheet } from '../ui/Sheet';
-import { toastOk } from '../ui/toast';
+import { toastErr, toastOk } from '../ui/toast';
 
 export type CreateKind = 'expense' | 'invoice' | 'upload';
 
@@ -106,6 +107,10 @@ export function NewExpenseSheet({
   const [date, setDate] = useState('');
   const m = useMoneyPair();
   const op = usePendingOperation('New expense');
+  const receipt = useReceipt();
+  // Attempts of ONE draft share a receipt (a retry supersedes a failure);
+  // a created draft closes the series.
+  const series = useRef(0);
   const busy = op.pending;
   const guard = useUnsavedChanges({
     label: 'New expense',
@@ -132,10 +137,30 @@ export function NewExpenseSheet({
       tax_point_date: date,
       supplier_id: supplierId === '' ? null : Number(supplierId),
     };
+    const key = `create:${series.current}`;
+    let accepted = false;
     op.run(
       async (ctx) => {
         const created = await createExpense(req);
+        accepted = true;
+        series.current += 1;
         ctx.check();
+        receipt(
+          key,
+          {
+            action: 'New expense',
+            title: `Expense #${created.id}`,
+            outcome: `Draft created · ${signedEuros(-req.gross_amount)} — not posted yet; submit it for posting from the expense.`,
+            tone: 'ok',
+            links: [
+              {
+                label: `Expense #${created.id}`,
+                to: `/books/expenses/${created.id}`,
+              },
+            ],
+          },
+          ctx.live,
+        );
         await invalidateBooks(qc);
         return created;
       },
@@ -145,6 +170,18 @@ export function NewExpenseSheet({
           guard.release();
           onOpenChange(false);
           navigate(`/books/expenses/${created.id}`);
+        },
+        onError: (e) => {
+          toastErr(errorMessage(e));
+          if (accepted) return;
+          // Input is kept; whether the server created it is unknown.
+          receipt(key, {
+            action: 'New expense',
+            title: 'Draft expense',
+            outcome: `Creating the draft was not confirmed (${errorMessage(e)}). Your input is still in the form — check Books before creating it again, in case it was stored.`,
+            tone: 'error',
+            links: [{ label: 'Books', to: '/books?seg=expenses' }],
+          });
         },
       },
     );
@@ -256,6 +293,10 @@ export function NewInvoiceSheet({
   const [dueDate, setDueDate] = useState('');
   const m = useMoneyPair();
   const op = usePendingOperation('New sales invoice');
+  const receipt = useReceipt();
+  // Attempts of ONE draft share a receipt (a retry supersedes a failure);
+  // a created draft closes the series.
+  const series = useRef(0);
   const busy = op.pending;
   const guard = useUnsavedChanges({
     label: 'New sales invoice',
@@ -289,10 +330,30 @@ export function NewInvoiceSheet({
       customer_id: customerId === '' ? null : Number(customerId),
       due_date: dueDate === '' ? null : dueDate,
     };
+    const key = `create:${series.current}`;
+    let accepted = false;
     op.run(
       async (ctx) => {
         const created = await createInvoice(req);
+        accepted = true;
+        series.current += 1;
         ctx.check();
+        receipt(
+          key,
+          {
+            action: 'New sales invoice',
+            title: `Invoice ${req.invoice_number}`,
+            outcome: `Draft created · ${signedEuros(req.gross_amount)} — not posted yet; submit it for posting from the invoice.`,
+            tone: 'ok',
+            links: [
+              {
+                label: `Invoice ${req.invoice_number}`,
+                to: `/books/invoices/${created.id}`,
+              },
+            ],
+          },
+          ctx.live,
+        );
         await invalidateBooks(qc);
         return created;
       },
@@ -302,6 +363,18 @@ export function NewInvoiceSheet({
           guard.release();
           onOpenChange(false);
           navigate(`/books/invoices/${created.id}`);
+        },
+        onError: (e) => {
+          toastErr(errorMessage(e));
+          if (accepted) return;
+          // Input is kept; whether the server created it is unknown.
+          receipt(key, {
+            action: 'New sales invoice',
+            title: 'Draft invoice',
+            outcome: `Creating the draft was not confirmed (${errorMessage(e)}). Your input is still in the form — check Books before creating it again, in case it was stored.`,
+            tone: 'error',
+            links: [{ label: 'Books', to: '/books?seg=invoices' }],
+          });
         },
       },
     );

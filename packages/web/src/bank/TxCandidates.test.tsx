@@ -164,7 +164,11 @@ describe('TxCandidates', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
     await waitFor(() =>
-      expect(onMatched).toHaveBeenCalledWith([91, 92], 50000),
+      expect(onMatched).toHaveBeenCalledWith(
+        [91, 92],
+        50000,
+        expect.anything(),
+      ),
     );
     expect(api.manualMatch).toHaveBeenNthCalledWith(1, 3, {
       bankTransactionId: 9,
@@ -213,7 +217,9 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
-    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 50000));
+    await waitFor(() =>
+      expect(onMatched).toHaveBeenCalledWith([91], 50000, expect.anything()),
+    );
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 80,
@@ -263,7 +269,9 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 300.00 €' }));
-    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 30000));
+    await waitFor(() =>
+      expect(onMatched).toHaveBeenCalledWith([91], 30000, expect.anything()),
+    );
     expect(api.manualMatch).toHaveBeenCalledTimes(1);
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
@@ -311,7 +319,9 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 250.00 €' }));
-    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([99], 25000));
+    await waitFor(() =>
+      expect(onMatched).toHaveBeenCalledWith([99], 25000, expect.anything()),
+    );
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 95,

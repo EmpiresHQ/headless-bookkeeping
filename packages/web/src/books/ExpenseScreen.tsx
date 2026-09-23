@@ -10,7 +10,8 @@ import {
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
 import { currencyMark, signedMoney } from '../lib/money';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
+import { useReceipt } from '../lib/resultLog';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -95,6 +96,7 @@ export function ExpenseScreen() {
   const editSheet = useSheet();
   const attachSheet = useSheet();
   const op = usePendingOperation('Expense');
+  const receipt = useReceipt();
   const busy = op.pending;
 
   if (detailQ.isError && detailQ.data === undefined) {
@@ -130,10 +132,34 @@ export function ExpenseScreen() {
 
   const onSubmitForPosting = () => {
     const { id, gross_amount, currency } = detail;
+    // Only the post's own failure is "not confirmed" — a failed refresh
+    // after an accepted post keeps its recorded outcome.
+    let accepted = false;
     op.run(
       async (ctx) => {
         const res = await postExpense(id);
+        accepted = true;
         ctx.check();
+        // Recorded before the cache refresh: the post is accepted (#259).
+        const held = res.policy.action === 'hold-for-approval';
+        receipt(
+          `post:${id}`,
+          {
+            action: 'Submit for posting',
+            title: `Expense #${id}`,
+            outcome: held
+              ? `Held for approval — ${humanizePolicyReason(res.policy.reason)}. Not posted until approved.`
+              : `Posted · ${signedMoney(-gross_amount, currency)}`,
+            tone: held ? 'pending' : 'ok',
+            links: [
+              { label: `Expense #${id}`, to: `/books/expenses/${id}` },
+              ...(held
+                ? [{ label: 'Inbox approvals', to: '/inbox?seg=approvals' }]
+                : []),
+            ],
+          },
+          ctx.live,
+        );
         await invalidateBooks(qc);
         return res;
       },
@@ -146,6 +172,17 @@ export function ExpenseScreen() {
           } else {
             toastOk(`Posted · ${signedMoney(-gross_amount, currency)}`);
           }
+        },
+        onError: (e) => {
+          toastErr(errorMessage(e));
+          if (accepted) return;
+          receipt(`post:${id}`, {
+            action: 'Submit for posting',
+            title: `Expense #${id}`,
+            outcome: `Submitting for posting was not confirmed (${errorMessage(e)}). Open it for its current state before trying again.`,
+            tone: 'error',
+            links: [{ label: `Expense #${id}`, to: `/books/expenses/${id}` }],
+          });
         },
       },
     );

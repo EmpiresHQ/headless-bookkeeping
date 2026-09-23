@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -30,6 +36,8 @@ import type { MatchProposalView } from '../api';
 import { StatementScreen } from './StatementScreen';
 import { AppToaster } from '../ui/toast';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import { RESULT_LOG_KEY, ResultLogProvider } from '../lib/resultLog';
+import { setToken } from '../auth';
 
 function renderAt(path = '/bank/statements/3') {
   const client = new QueryClient({
@@ -46,10 +54,10 @@ function renderAt(path = '/bank/statements/3') {
   render(
     <QueryClientProvider client={client}>
       <UnsavedChangesProvider onUnauthorized={() => undefined}>
-        <>
+        <ResultLogProvider>
           <RouterProvider router={router} />
           <AppToaster />
-        </>
+        </ResultLogProvider>
       </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
@@ -572,5 +580,79 @@ describe('StatementScreen booking', () => {
     expect(
       await screen.findByText('Confirmed · Expense #70'),
     ).toBeInTheDocument();
+  });
+
+  describe('durable receipts (issue #259)', () => {
+    const stored = (): {
+      entries: { action: string; outcome: string; tone: string }[];
+    } => JSON.parse(sessionStorage.getItem(RESULT_LOG_KEY) ?? '{"entries":[]}');
+    beforeEach(() => {
+      sessionStorage.clear();
+      setToken('t');
+    });
+
+    it('records the staged matches before approval, then the exact activated count when an approval fails', async () => {
+      vi.mocked(api.proposeMatches).mockResolvedValue([
+        HIGH_PROPOSAL,
+        MEDIUM_PROPOSAL,
+      ]);
+      vi.mocked(api.executeMatches).mockResolvedValue({
+        records: [{ id: 91 }, { id: 92 }],
+        approvals: [
+          { id: 12, matchId: 91 },
+          { id: 13, matchId: 92 },
+        ],
+      });
+      let fail!: (e: unknown) => void;
+      vi.mocked(api.approveApproval)
+        .mockResolvedValueOnce({ approval: { id: 12 } } as never)
+        .mockReturnValueOnce(
+          new Promise((_, r) => {
+            fail = r;
+          }) as never,
+        );
+      renderAt();
+      fireEvent.click(
+        await screen.findByRole('checkbox', {
+          name: /select match expense #77/i,
+        }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /book 2 matches/i }));
+      // The second approval is held: what is already active is on record.
+      await waitFor(() =>
+        expect(stored().entries[0]?.outcome).toBe(
+          '1 of 2 matches approved and active — approving the rest…',
+        ),
+      );
+      await act(async () => fail(new Error('409 Conflict')));
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('partial'));
+      expect(stored().entries).toHaveLength(1);
+      expect(stored().entries[0].outcome).toMatch(
+        /^1 of 2 matches approved and active; approval of the rest was not confirmed \(409 Conflict\)/,
+      );
+    });
+
+    it('a successful booking and its Undo update the same record', async () => {
+      vi.mocked(api.executeMatches).mockResolvedValue({
+        records: [{ id: 91 }],
+        approvals: [{ id: 12, matchId: 91 }],
+      });
+      vi.mocked(api.approveApproval).mockResolvedValue({
+        approval: { id: 12 },
+      } as never);
+      vi.mocked(api.unmatchMatch).mockResolvedValue({});
+      renderAt();
+      await screen.findByRole('checkbox', {
+        name: /select match invoice 2026-018/i,
+      });
+      fireEvent.click(screen.getByRole('button', { name: /book 1 match/i }));
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('ok'));
+      expect(stored().entries[0].outcome).toBe('Booked 1 match.');
+      fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+      await waitFor(() =>
+        expect(stored().entries[0]?.action).toBe('Match · undone'),
+      );
+      expect(stored().entries).toHaveLength(1);
+    });
   });
 });
