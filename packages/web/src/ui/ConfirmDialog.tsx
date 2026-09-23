@@ -46,6 +46,14 @@ export function ConfirmDialog({
   // for "Keep editing" — never into a closing sheet (its own return
   // applies), under a newer layer or after the route moved on.
   const focus = useFocusReturn({ open, contentRef });
+  // Long or enlarged text (issue #366): the dialog is bounded by the
+  // viewport and scrolls as ONE region — title, warning and both actions —
+  // so nothing is ever out of reach and no action is pinned over the text.
+  // It opens at the top (Radix focuses Cancel with preventScroll), so the
+  // question is read first. Focus that the trap MOVES with Tab/Shift+Tab
+  // also uses preventScroll when it wraps around; bring that into view —
+  // only focus moved by the Tab key being pressed now.
+  const tabbed = useRef(false);
   return (
     <AlertDialog.Root
       open={open}
@@ -58,9 +66,25 @@ export function ConfirmDialog({
         <AlertDialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
         <AlertDialog.Content
           ref={contentRef}
-          onOpenAutoFocus={focus.onOpenAutoFocus}
+          onOpenAutoFocus={(e) => {
+            // Never a Tab left over from before (one that moved nothing).
+            tabbed.current = false;
+            focus.onOpenAutoFocus(e);
+          }}
           onCloseAutoFocus={focus.onCloseAutoFocus}
-          className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-48px)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-surface p-5"
+          onKeyDown={(e) => {
+            if (e.key === 'Tab') tabbed.current = true;
+          }}
+          onKeyUp={() => {
+            tabbed.current = false;
+          }}
+          onFocus={(e) => {
+            if (!tabbed.current) return;
+            tabbed.current = false;
+            if (e.target !== e.currentTarget)
+              e.target.scrollIntoView?.({ block: 'nearest' });
+          }}
+          className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100vh-32px)] w-[calc(100vw-48px)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-2xl bg-surface p-5 [overflow-wrap:anywhere] supports-[height:100dvh]:max-h-[calc(100dvh-32px)]"
         >
           <AlertDialog.Title className="text-[17px] font-extrabold">
             {title}
@@ -68,15 +92,18 @@ export function ConfirmDialog({
           <AlertDialog.Description asChild>
             <div className="mt-2 text-[13.5px] text-ink-2">{body}</div>
           </AlertDialog.Description>
-          <div className="mt-4 flex gap-2.5">
+          {/* Two equal columns, as before; when both labels no longer fit
+              side by side (enlarged text) they stack full-width instead of
+              spilling out — the 6em threshold scales with the label size. */}
+          <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(100%,6em),1fr))] gap-2.5 text-[15px]">
             <AlertDialog.Cancel asChild>
-              <Button variant="secondary" className="flex-1" disabled={busy}>
+              <Button variant="secondary" className="min-w-0" disabled={busy}>
                 {cancelLabel}
               </Button>
             </AlertDialog.Cancel>
             <Button
               variant={destructive ? 'danger' : 'primary'}
-              className="flex-1"
+              className="min-w-0"
               busy={busy}
               onClick={onConfirm}
             >
