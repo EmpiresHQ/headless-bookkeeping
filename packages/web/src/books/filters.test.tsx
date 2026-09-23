@@ -96,7 +96,9 @@ function mount(url: string, state?: unknown) {
 
 const bar = () => screen.getByRole('group', { name: 'Active filters' });
 const reset = () =>
-  screen.getByRole('button', { name: 'Reset filters and search' });
+  screen.getByRole('button', {
+    name: 'Reset filters, search, dates and order',
+  });
 
 describe('resetFilterParams (issue #274)', () => {
   it('drops the segment filters and the search, keeps seg and unrelated params', () => {
@@ -121,7 +123,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
     mount('?status=corrected&nodoc=1&q=Fixture');
     await screen.findByText('fixture fuel');
     expect(bar()).toHaveTextContent(
-      'Showing 1 of 3 expenses · Corrected · No document · Search “Fixture”',
+      'Showing 1 of 3 expenses · total −20.00 € · Corrected · No document · Search “Fixture”',
     );
     expect(screen.queryByText('fixture travel')).toBeNull();
     expect(screen.getByRole('button', { name: /Corrected 2/ })).toHaveAttribute(

@@ -222,8 +222,9 @@ export function ActiveFilters({
    *  while a search is typed, and a search carried over from another segment
    *  must say why it finds nothing here. */
   searchScope?: string;
-  /** Rendered rows vs all loaded rows of the segment — only with data. */
-  result?: { shown: number; total: number; noun: string };
+  /** Rendered rows vs all loaded rows of the segment — only with data.
+   *  `totals`: the shown rows' amount, per currency (issue #279). */
+  result?: { shown: number; total: number; noun: string; totals?: string };
   onReset: () => void;
   resetLabel?: string;
   /** Accessible name; starts with the visible label. */
@@ -238,7 +239,9 @@ export function ActiveFilters({
       ? `${needle.slice(0, SEARCH_EXCERPT)}…`
       : needle;
   const lead = result
-    ? `Showing ${result.shown} of ${result.total} ${result.noun}`
+    ? `Showing ${result.shown} of ${result.total} ${result.noun}${
+        result.totals ? ` · ${result.totals}` : ''
+      }`
     : 'Filtered by';
   return (
     <div

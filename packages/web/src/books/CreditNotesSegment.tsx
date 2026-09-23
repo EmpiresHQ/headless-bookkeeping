@@ -4,12 +4,7 @@ import {
   type Expense,
   type SalesInvoice,
 } from '../api';
-import {
-  entityName,
-  groupByMonth,
-  shortDate,
-  useCreditNotes,
-} from '../queries/books';
+import { entityName, shortDate, useCreditNotes } from '../queries/books';
 import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
@@ -17,7 +12,15 @@ import { LinkButton } from '../ui/LinkButton';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { ActiveFilters, statusChip } from './chips';
-import { BOOKS_SEARCH, useResetWithFocus } from './filters';
+import { BOOKS_RESET_NAME, BOOKS_SEARCH, useResetWithFocus } from './filters';
+import {
+  formatTotals,
+  inRange,
+  orderSections,
+  totalsByCurrency,
+  DEFAULT_ORDER,
+  type BooksOrderState,
+} from './listOrder';
 
 export interface CreditedContext {
   expenses: Expense[];
@@ -62,8 +65,16 @@ export function creditNoteDisplay(
 export const creditNoteSign = (n: CreditNote): number =>
   n.credits_object_type === 'sales_invoice' ? -n.gross_amount : n.gross_amount;
 
-export function CreditNotesSegment({ q }: { q: string }) {
-  // Credit notes have no filters — the search is the only restriction.
+export function CreditNotesSegment({
+  q,
+  order = DEFAULT_ORDER,
+}: {
+  q: string;
+  order?: BooksOrderState;
+}) {
+  // No status filters here: the search, the date range and the order
+  // (#279) are the restrictions. With only a search applied, the button
+  // says what it does — Clear search; otherwise it is the Books Reset.
   const { rootRef, onReset } = useResetWithFocus('credit-notes');
   const notesQ = useCreditNotes();
   const expensesQ = useExpenses();
@@ -79,15 +90,17 @@ export function CreditNotesSegment({ q }: { q: string }) {
     shown: number;
     total: number;
     noun: string;
+    totals?: string;
   }) => (
     <ActiveFilters
-      filters={[]}
+      filters={order.labels}
       q={q}
       searchScope={BOOKS_SEARCH['credit-notes'].scope}
       result={result}
       onReset={onReset}
-      resetLabel="Clear search"
-      resetName="Clear search"
+      {...(order.labels.length === 0
+        ? { resetLabel: 'Clear search', resetName: 'Clear search' }
+        : { resetName: BOOKS_RESET_NAME })}
     />
   );
 
@@ -117,6 +130,7 @@ export function CreditNotesSegment({ q }: { q: string }) {
 
   const needle = q.trim().toLowerCase();
   const rows = (notesQ.data ?? []).filter((n) => {
+    if (!inRange(n.tax_point_date, order)) return false;
     if (needle === '') return true;
     const d = creditNoteDisplay(n, ctx);
     return (
@@ -124,13 +138,30 @@ export function CreditNotesSegment({ q }: { q: string }) {
       n.credit_note_number.toLowerCase().includes(needle)
     );
   });
-  const groups = groupByMonth(rows);
+  // Amount order ranks the note's face value (gross_amount), whichever side
+  // it credits, one ranking per currency; totals are the signed net.
+  const sections = orderSections(rows, order.order, (n) => ({
+    id: n.id,
+    day: n.tax_point_date,
+    amount: n.gross_amount,
+    currency: n.currency,
+  }));
 
   const total = (notesQ.data ?? []).length;
 
   return (
     <div ref={rootRef} tabIndex={-1} className="outline-none">
-      {activeFilters({ shown: rows.length, total, noun: 'credit notes' })}
+      {activeFilters({
+        shown: rows.length,
+        total,
+        noun: 'credit notes',
+        totals:
+          rows.length > 0
+            ? `net ${formatTotals(
+                totalsByCurrency(rows, creditNoteSign, (n) => n.currency),
+              )}`
+            : undefined,
+      })}
       <div className="px-4 pb-3">
         <LinkButton
           to="/books/credit-notes/new"
@@ -140,15 +171,15 @@ export function CreditNotesSegment({ q }: { q: string }) {
           New credit note
         </LinkButton>
       </div>
-      {groups.length === 0 && (
+      {sections.length === 0 && (
         <EmptyState
           icon="🧾"
           title="No credit notes"
           hint="Issue one from a posted invoice or expense detail"
         />
       )}
-      {groups.map((g) => (
-        <ListGroup key={g.month} label={g.label}>
+      {sections.map((g) => (
+        <ListGroup key={g.key} label={g.label}>
           {g.rows.map((n) => {
             const d = creditNoteDisplay(n, ctx);
             return (
@@ -161,6 +192,7 @@ export function CreditNotesSegment({ q }: { q: string }) {
                   <div className="flex-none">
                     <AmountText
                       cents={creditNoteSign(n)}
+                      currency={n.currency}
                       showSign
                       className="block text-[14px]"
                     />

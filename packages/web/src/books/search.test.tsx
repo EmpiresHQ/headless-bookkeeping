@@ -158,19 +158,26 @@ describe('Books search scope (issue #276)', () => {
     },
   );
 
+  // The line also carries the shown rows' total (issue #279): expenses as
+  // outflow, invoices as inflow, credit notes as the signed net (a sales
+  // note −, a purchase note +); documents have none.
   it.each([
     // An amount: matched where the hint promises it, nowhere else.
-    ['expenses', '123.45', 'Showing 1 of 2 expenses'],
-    ['invoices', '123.45', 'Showing 1 of 1 invoices'],
+    ['expenses', '123.45', 'Showing 1 of 2 expenses · total −123.45 €'],
+    ['invoices', '123.45', 'Showing 1 of 1 invoices · total +123.45 €'],
     ['documents', '123.45', 'Showing 1 of 2 documents'], // the file NAME
     ['documents', '246.90', 'Showing 0 of 2 documents'],
     ['credit-notes', '123.45', 'Showing 0 of 2 credit notes'],
     // What the credit-note hint promises is actually matched.
-    ['credit-notes', 'cn-1', 'Showing 1 of 2 credit notes'],
-    ['credit-notes', 'acme', 'Showing 1 of 2 credit notes'],
-    ['credit-notes', 'office depot', 'Showing 1 of 2 credit notes'],
-    ['credit-notes', 'inv-7', 'Showing 1 of 2 credit notes'],
-    ['credit-notes', 'software', 'Showing 1 of 2 credit notes'],
+    ['credit-notes', 'cn-1', 'Showing 1 of 2 credit notes · net −123.45 €'],
+    ['credit-notes', 'acme', 'Showing 1 of 2 credit notes · net −123.45 €'],
+    [
+      'credit-notes',
+      'office depot',
+      'Showing 1 of 2 credit notes · net +123.45 €',
+    ],
+    ['credit-notes', 'inv-7', 'Showing 1 of 2 credit notes · net −123.45 €'],
+    ['credit-notes', 'software', 'Showing 1 of 2 credit notes · net +123.45 €'],
   ])('%s ?q=%s → %s, with the scope shown', async (seg, q, shown) => {
     mount(`?seg=${seg}&q=${encodeURIComponent(q)}`);
     const scope = HINTS.find((h) => h.seg === seg)!.scope;
@@ -185,7 +192,7 @@ describe('Books search scope (issue #276)', () => {
     const router = mount('?seg=expenses&q=office&status=posted');
     await vi.waitFor(async () =>
       expect(await bar()).toHaveTextContent(
-        'Showing 2 of 2 expenses · Posted · Search “office” in supplier, invoice number, category or amount',
+        'Showing 2 of 2 expenses · total −370.35 € · Posted · Search “office” in supplier, invoice number, category or amount',
       ),
     );
     const transfers = [
@@ -195,7 +202,11 @@ describe('Books search scope (issue #276)', () => {
         'customer, invoice number or amount',
       ],
       ['Documents', 'Showing 1 of 2 documents', 'file name or supplier'],
-      ['Credit notes', 'Showing 1 of 2 credit notes', HINTS[3].scope],
+      [
+        'Credit notes',
+        'Showing 1 of 2 credit notes · net +123.45 €',
+        HINTS[3].scope,
+      ],
     ] as const;
     for (const [tab, shown, scope] of transfers) {
       await userEvent.click(screen.getByRole('tab', { name: tab }));
@@ -213,11 +224,15 @@ describe('Books search scope (issue #276)', () => {
   const LONG = 'EECTB-' + '1805772/'.repeat(12);
   it.each([
     // Copied from Facts with stray case and outer whitespace: that one row.
-    [`  ${LONG.toLowerCase()}alpha `, 'Showing 1 of 5 expenses', 3],
+    [
+      `  ${LONG.toLowerCase()}alpha `,
+      'Showing 1 of 5 expenses · total −370.35 €',
+      3,
+    ],
     // The shared prefix finds both same-prefix numbers.
-    [LONG, 'Showing 2 of 5 expenses', null],
+    [LONG, 'Showing 2 of 5 expenses · total −864.15 €', null],
     // Stored tab/NBSP/double space read as single spaces.
-    ['inv 2026 gamma', 'Showing 1 of 5 expenses', 5],
+    ['inv 2026 gamma', 'Showing 1 of 5 expenses · total −617.25 €', 5],
   ])(
     'expenses ?q=%j matches the supplier invoice number → %s (issue #277)',
     async (q, shown, id) => {

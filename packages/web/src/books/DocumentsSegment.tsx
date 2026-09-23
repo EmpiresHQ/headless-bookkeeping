@@ -9,7 +9,18 @@ import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { DocThumb } from './DocThumb';
 import { ActiveFilters, FilterChip, FilterStrip } from './chips';
-import { BOOKS_SEARCH, useResetWithFocus, useSetFilterParam } from './filters';
+import {
+  BOOKS_RESET_NAME,
+  BOOKS_SEARCH,
+  useResetWithFocus,
+  useSetFilterParam,
+} from './filters';
+import {
+  DEFAULT_ORDER,
+  inRange,
+  localDay,
+  type BooksOrderState,
+} from './listOrder';
 
 export function channelLabel(channel: string | null): string {
   switch (channel) {
@@ -66,7 +77,13 @@ function docStatusChip(d: DocumentArchiveRow) {
   }
 }
 
-export function DocumentsSegment({ q }: { q: string }) {
+export function DocumentsSegment({
+  q,
+  order = DEFAULT_ORDER,
+}: {
+  q: string;
+  order?: BooksOrderState;
+}) {
   const [params] = useSearchParams();
   const raw = params.get('dstatus');
   const filter: DocFilter = DOC_FILTERS.some((f) => f.key === raw)
@@ -77,10 +94,14 @@ export function DocumentsSegment({ q }: { q: string }) {
   const docsQ = useDocumentsArchive();
 
   // Applied restrictions from PARSED state (an unknown ?dstatus= is All).
-  const applied =
-    filter === 'all'
+  // Documents have no amount: an amount ?sort= arrives here as a
+  // not-applied note from parseBooksOrder, never as an order.
+  const applied = [
+    ...(filter === 'all'
       ? []
-      : DOC_FILTERS.filter((f) => f.key === filter).map((f) => f.label);
+      : DOC_FILTERS.filter((f) => f.key === filter).map((f) => f.label)),
+    ...order.labels,
+  ];
   const activeFilters = (result?: {
     shown: number;
     total: number;
@@ -92,6 +113,7 @@ export function DocumentsSegment({ q }: { q: string }) {
       searchScope={BOOKS_SEARCH.documents.scope}
       result={result}
       onReset={onReset}
+      resetName={BOOKS_RESET_NAME}
     />
   );
 
@@ -120,15 +142,19 @@ export function DocumentsSegment({ q }: { q: string }) {
   }
 
   const needle = q.trim().toLowerCase();
+  // The date range is on the day the document was added, in the viewer's
+  // local calendar (#279); chip counts honour it like the search.
   const searched = (docsQ.data ?? []).filter(
     (d) =>
-      needle === '' ||
-      d.filename.toLowerCase().includes(needle) ||
-      (d.supplier_name ?? '').toLowerCase().includes(needle),
+      inRange(localDay(d.created_at), order) &&
+      (needle === '' ||
+        d.filename.toLowerCase().includes(needle) ||
+        (d.supplier_name ?? '').toLowerCase().includes(needle)),
   );
+  const dir = order.order === 'oldest' ? -1 : 1;
   const rows = searched
     .filter((d) => matchesDocFilter(d, filter))
-    .sort((a, b) => b.created_at - a.created_at);
+    .sort((a, b) => dir * (b.created_at - a.created_at || b.id - a.id));
 
   const total = (docsQ.data ?? []).length;
 
