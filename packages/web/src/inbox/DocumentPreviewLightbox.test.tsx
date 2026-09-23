@@ -1,7 +1,6 @@
 import {
   act,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
@@ -17,6 +16,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { render } from './previewTestShell';
 import {
   createModalLayerRegistry,
   ModalLayerContext,
@@ -196,7 +196,8 @@ describe('DocumentPreviewLightbox modal behaviour (issue #269)', () => {
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'Open original' }),
     );
-    expect(api.openSignedDocument).toHaveBeenCalledWith(7);
+    expect(api.openSignedDocument).toHaveBeenCalledWith(7, expect.anything());
+    await settle(); // the (mocked) attempt settles
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 

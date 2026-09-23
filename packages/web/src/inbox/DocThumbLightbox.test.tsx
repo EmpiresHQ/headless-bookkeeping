@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -14,6 +8,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { render } from './previewTestShell';
 import { DocThumbLightbox } from './DocThumbLightbox';
 
 /** Distinguish the thumb fetch (no opts) from the lg fetch (`{ size: 'lg' }`),

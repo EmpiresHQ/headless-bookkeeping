@@ -5,6 +5,7 @@ import { fetchDocumentPreviewObjectUrl } from '../api';
 import { HttpError } from '../auth';
 import { useFocusReturn } from '../lib/focusReturn';
 import { useModalLayer } from '../lib/modalLayers';
+import type { OpenOriginalState } from './useOpenOriginal';
 
 /** Where one preview variant of one document stands (issue #270). A 404 is
  *  `unavailable` — this document has no preview, which says nothing about
@@ -164,13 +165,18 @@ function previewView(thumb: PreviewState, lg: PreviewState) {
  * failure offers Retry — of the preview reads only — and Open original is
  * there in every state. A polite status line says what is shown; nothing is
  * announced while closed (the content is unmounted).
+ *
+ * Open original (issue #272) reports in the modal too, apart from the
+ * preview's own note and Retry: while pending the button is busy (single
+ * flight); a failure or a blocked popup is an alert under the toolbar with
+ * its own "Try again", and the current document stays open.
  */
 export function DocumentPreviewLightbox({
   open,
   thumb,
   lg,
   onClose,
-  onOpenOriginal,
+  original,
 }: {
   open: boolean;
   /** The document's thumbnail — a placeholder while lg is not ready. */
@@ -178,7 +184,8 @@ export function DocumentPreviewLightbox({
   /** The sharp variant, active while the preview is (or was) open. */
   lg: PreviewState;
   onClose: () => void;
-  onOpenOriginal: () => void;
+  /** The document's Open original (useOpenOriginal). */
+  original: OpenOriginalState;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -203,6 +210,29 @@ export function DocumentPreviewLightbox({
       closeRef.current?.focus();
     }
   }, []);
+  // Same for Open original's own "Try again": it leaves once its attempt
+  // settles; if it held focus, focus goes back to Open original.
+  const openOriginalRef = useRef<HTMLButtonElement>(null);
+  const originalRetryNode = useRef<HTMLButtonElement | null>(null);
+  const originalRetryRef = useCallback((el: HTMLButtonElement | null) => {
+    const prev = originalRetryNode.current;
+    originalRetryNode.current = el;
+    if (
+      el === null &&
+      openRef.current &&
+      prev !== null &&
+      document.activeElement === prev
+    ) {
+      openOriginalRef.current?.focus();
+    }
+  }, []);
+  const originalPending = original.status === 'pending';
+  const originalProblem =
+    original.status === 'error' || original.status === 'blocked'
+      ? original.status
+      : original.status === 'pending' && original.retrying
+        ? 'retrying'
+        : null;
   // A modal layer while open (issue #267): Back closes the preview, not
   // the sheet or route underneath.
   useModalLayer(
@@ -252,11 +282,16 @@ export function DocumentPreviewLightbox({
           >
             <button
               type="button"
-              onClick={onOpenOriginal}
-              className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-[14px] font-semibold text-white hover:bg-white/20"
+              ref={openOriginalRef}
+              aria-disabled={originalPending || undefined}
+              onClick={() => {
+                // Synchronous: the new tab opens inside this click.
+                if (!originalPending) original.start();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-[14px] font-semibold text-white hover:bg-white/20 aria-disabled:opacity-60"
             >
               <ExternalLink className="h-4 w-4" aria-hidden />
-              Open original
+              {originalPending ? 'Opening original…' : 'Open original'}
             </button>
             <button
               type="button"
@@ -268,6 +303,33 @@ export function DocumentPreviewLightbox({
               <X className="h-5 w-5" aria-hidden />
             </button>
           </div>
+          {originalProblem !== null && (
+            <div
+              role="alert"
+              className="mx-3 flex flex-wrap items-center justify-end gap-2 text-right text-[13px] text-white"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p>
+                {originalProblem === 'blocked'
+                  ? 'Your browser blocked the new tab. Allow pop-ups for this site, then try again.'
+                  : 'The original couldn’t be opened.'}
+              </p>
+              <button
+                type="button"
+                ref={originalRetryRef}
+                aria-disabled={originalProblem === 'retrying' || undefined}
+                onClick={() => {
+                  if (originalPending) return;
+                  original.start({ retrying: true });
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-[14px] font-semibold text-white hover:bg-white/20 aria-disabled:opacity-60"
+              >
+                {originalProblem === 'retrying'
+                  ? 'Trying again…'
+                  : 'Try opening original again'}
+              </button>
+            </div>
+          )}
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
             {image !== null ? (
               // Keyed by URL: each <img> node shows one result, so an error

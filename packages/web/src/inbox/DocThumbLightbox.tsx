@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { FileImage } from 'lucide-react';
-import { openSignedDocument } from '../api';
 import {
   DocumentPreviewLightbox,
   usePreviewObjectUrl,
 } from './DocumentPreviewLightbox';
+import { useOpenOriginal } from './useOpenOriginal';
 
 /**
  * Clickable document thumbnail that opens the full-screen preview lightbox.
@@ -33,6 +33,8 @@ export function DocThumbLightbox({
   // The sharp lg variant is only fetched once the lightbox is opened (and
   // released on close); the thumb is the placeholder until it swaps in.
   const lg = usePreviewObjectUrl(id, { size: 'lg', active: open });
+  // Open original belongs to this document's open preview (issue #272).
+  const original = useOpenOriginal(id, open);
 
   // Always mounted, driven by `open` (portaled to <body>, so never in the
   // row's link): the close edge returns focus to the thumb (issue #269). It
@@ -44,7 +46,7 @@ export function DocThumbLightbox({
       thumb={thumb}
       lg={lg}
       onClose={() => setOpen(false)}
-      onOpenOriginal={() => void openSignedDocument(id)}
+      original={original}
     />
   );
 
