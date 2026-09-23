@@ -2,10 +2,13 @@ export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  disabled = false,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  /** While an operation on the listed rows is pending (issue #278). */
+  disabled?: boolean;
 }) {
   return (
     <div role="tablist" className="flex rounded-[10px] bg-track p-0.5">
@@ -15,11 +18,12 @@ export function SegmentedControl<T extends string>({
           role="tab"
           aria-selected={o.value === value}
           type="button"
+          disabled={disabled}
           onClick={() => onChange(o.value)}
           // Square 44px-min button so its whole box is the hit area (a
           // rounded button loses its corners to the track); the rounded
           // selected pill is the inner span filling it (#273).
-          className="flex min-h-11 flex-auto text-xs font-semibold leading-tight"
+          className="flex min-h-11 flex-auto text-xs font-semibold leading-tight disabled:opacity-60"
         >
           <span
             className={`flex min-w-11 flex-1 items-center justify-center rounded-lg px-1 py-1 text-center ${
