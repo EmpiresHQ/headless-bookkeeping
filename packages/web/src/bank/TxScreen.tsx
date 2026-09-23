@@ -1,10 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPrepayment, fmtCents, markPersonal } from '../api';
 import type { AdvanceTaxInput } from '../api';
@@ -30,6 +25,7 @@ import { Chip } from '../ui/Chip';
 import { SkeletonRows } from '../ui/Feedback';
 import { toastErr, toastOk, toastUndo } from '../ui/toast';
 import { ScreenHeader } from '../shell/Headers';
+import { useCompletionNavigation } from '../lib/returnNavigation';
 import { formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
 import { routeTxState } from './txState';
@@ -81,7 +77,7 @@ function TxScreenFor({
   statementId: number;
   txId: number;
 }) {
-  const navigate = useNavigate();
+  const { returnTo } = useCompletionNavigation();
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   // Carry the statement's segment filter (`?seg=all`) across the round trip
@@ -155,7 +151,13 @@ function TxScreenFor({
   // line and unmounts a child, so a genuine success is never dropped as
   // stale, and one line runs one operation at a time. The leave itself is
   // the synchronous continuation.
-  const leaveToStatement = () => navigate(statementPath);
+  // Issue #252: back to the statement entry this line was opened from (a
+  // copy of it replaces the finished line), else the statement by replace.
+  const leaveToStatement = () =>
+    returnTo({
+      fallback: statementPath,
+      acceptOrigin: (p) => p === `/bank/statements/${statementId}`,
+    });
 
   const onMatched = (matchIds: number[], totalCents: number) => {
     const total = fmtCents(totalCents);
@@ -395,11 +397,7 @@ function TxScreenFor({
           <div className="mx-3.5 mb-3 rounded-2xl bg-surface px-3.5 py-3 text-center text-[13px] text-ink-2">
             Line not found
             <div className="mt-2">
-              <Link
-                to={statementPath}
-                viewTransition
-                className="font-semibold text-accent"
-              >
+              <Link to={statementPath} className="font-semibold text-accent">
                 Back to statement
               </Link>
             </div>

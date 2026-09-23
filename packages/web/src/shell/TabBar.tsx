@@ -8,7 +8,6 @@ export function TabBar({ inboxCount = 0 }: { inboxCount?: number }) {
         <NavLink
           key={to}
           to={to}
-          viewTransition
           className={({ isActive }) =>
             `relative flex min-w-[46px] flex-col items-center gap-0.5 text-[9.5px] ${
               isActive ? 'font-bold text-accent' : 'text-ink-2'

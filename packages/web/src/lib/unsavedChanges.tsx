@@ -72,6 +72,9 @@ interface UnsavedChangesApi {
   pendingLabels: () => string[];
   /** False once the authenticated shell (this provider) has unmounted. */
   isAlive: () => boolean;
+  /** Run `fn` when the shell unmounts (issue #252: a return-navigation
+   *  chain ends with it); returns the unregister. */
+  onShellEnd: (fn: () => void) => () => void;
   /** Route a 401 from an operation to the shell's session handling. */
   onUnauthorized: (error: UnauthorizedError) => void;
   dirtyEntries: () => UnsavedEntry[];
@@ -151,6 +154,7 @@ export function UnsavedChangesProvider({
   const entries = useRef(new Set<UnsavedEntry>());
   const pendingOps = useRef(new Set<PendingEntry>());
   const alive = useRef(true);
+  const shellEndListeners = useRef(new Set<() => void>());
   const onUnauthorizedRef = useRef(onUnauthorized);
   onUnauthorizedRef.current = onUnauthorized;
   const [registered, setRegistered] = useState(0);
@@ -202,6 +206,12 @@ export function UnsavedChangesProvider({
       },
       pendingLabels,
       isAlive: () => alive.current,
+      onShellEnd: (fn) => {
+        shellEndListeners.current.add(fn);
+        return () => {
+          shellEndListeners.current.delete(fn);
+        };
+      },
       onUnauthorized: (error) => onUnauthorizedRef.current(error),
       dirtyEntries,
       confirmDiscard,
@@ -235,6 +245,9 @@ export function UnsavedChangesProvider({
     alive.current = true;
     return () => {
       alive.current = false;
+      const ended = [...shellEndListeners.current];
+      shellEndListeners.current.clear();
+      for (const fn of ended) fn();
       pendingRef.current?.resolve(false);
       pendingRef.current = null;
     };

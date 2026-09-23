@@ -20,7 +20,6 @@ export function Sidebar({
         <NavLink
           key={to}
           to={to}
-          viewTransition
           className={({ isActive }) =>
             `flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium ${
               isActive

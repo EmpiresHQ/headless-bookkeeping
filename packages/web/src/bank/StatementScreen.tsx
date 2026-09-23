@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { deleteBankStatement, fmtCents } from '../api';
 import { usePendingOperation, useSessionTask } from '../lib/pendingOperation';
@@ -25,6 +30,10 @@ import { GroupLabel } from '../ui/List';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { toastErr, toastUndo } from '../ui/toast';
 import { ScreenHeader } from '../shell/Headers';
+import {
+  useCompletionNavigation,
+  useOriginState,
+} from '../lib/returnNavigation';
 import { formatStatementPeriod, formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
 import {
@@ -218,7 +227,12 @@ export function StatementScreen() {
   const statementId = Number(params.id);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  // Issue #252: opening a line records this statement as its origin; a
+  // finished line / a deleted statement returns to its own origin entry.
+  const origin = useOriginState();
+  const { returnTo } = useCompletionNavigation();
   const seg = searchParams.get('seg') === 'all' ? 'all' : 'unmatched';
 
   const statementsQ = useBankStatements();
@@ -382,7 +396,7 @@ export function StatementScreen() {
       {
         onSuccess: () => {
           setDeleteOpen(false);
-          navigate('/bank');
+          returnTo({ fallback: '/bank', acceptOrigin: (p) => p === '/bank' });
         },
         onError: (e) => {
           toastErr(e instanceof Error ? e.message : String(e));
@@ -401,6 +415,7 @@ export function StatementScreen() {
   const openTx = (txId: number) =>
     navigate(
       `/bank/statements/${statementId}/tx/${txId}${seg === 'all' ? '?seg=all' : ''}`,
+      { state: origin },
     );
 
   return (
@@ -430,8 +445,10 @@ export function StatementScreen() {
           ]}
           value={seg}
           onChange={(v) =>
+            // In place: keep this entry's own origin record (issue #252).
             setSearchParams(v === 'all' ? { seg: 'all' } : {}, {
               replace: true,
+              state: location.state as unknown,
             })
           }
         />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -10,14 +10,7 @@ import {
   type TriageOutcome,
 } from '../api';
 import { ScreenHeader } from '../shell/Headers';
-import {
-  inboxKeys,
-  invalidateInbox,
-  nextRouteAfter,
-  queuePosition,
-  useInboxQueue,
-  useNeedsTriage,
-} from '../queries/inbox';
+import { inboxKeys, invalidateInbox, useNeedsTriage } from '../queries/inbox';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
@@ -32,6 +25,7 @@ import { outcomeText } from './reason';
 import { ResolveSupplierSheet } from './ResolveSupplierSheet';
 import { TriageDecisionPanel } from './TriageDecisionPanel';
 import { TriageDocumentContext } from './TriageDocumentContext';
+import { useInboxCompletion } from './useInboxCompletion';
 import { usePendingOperation } from '../lib/pendingOperation';
 
 type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
@@ -44,14 +38,11 @@ export function TriageDocScreen() {
   const { id } = useParams();
   const docId = Number(id);
   const route = `/inbox/doc/${docId}`;
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
   const triageQ = useNeedsTriage();
   const item = triageQ.data?.find((i) => i.id === docId);
-  const { entries } = useInboxQueue('all');
-  const position = queuePosition(entries, route);
-  const next = nextRouteAfter(entries, route);
+  const { position, next, leave } = useInboxCompletion(route);
   const detailsQ = useQuery({
     queryKey: inboxKeys.docDetails(docId),
     queryFn: () => getDocumentDetails(docId),
@@ -93,11 +84,11 @@ export function TriageDocScreen() {
       return;
     }
     toastOk(outcomeText(o));
-    navigate(next);
+    leave(next);
     void invalidateInbox(qc);
   };
 
-  const advance = (message: string) => {
+  const advance = (message: string, deleted = false) => {
     toastOk(message);
     // Auto-advance re-renders this SAME element for the next document
     // (only the :id param changes) — reset the screen-level action state
@@ -109,14 +100,24 @@ export function TriageDocScreen() {
     setConfirm(null);
     // Navigate BEFORE the invalidation settles: awaiting it first let the
     // refetch land, the item vanish, and the "Already handled" empty
-    // state flash for a frame (P03 Task 13 deferred item).
-    navigate(next);
+    // state flash for a frame (P03 Task 13 deferred item). A deleted file
+    // takes its Books page with it: an origin showing it is not returned to.
+    leave(
+      next,
+      deleted
+        ? { path: `/books/documents/${docId}`, to: '/books?seg=documents' }
+        : undefined,
+    );
     void invalidateInbox(qc);
   };
 
-  const runAction = (fn: () => Promise<unknown>, message: string) => {
+  const runAction = (
+    fn: () => Promise<unknown>,
+    message: string,
+    deleted = false,
+  ) => {
     op.run(fn, {
-      onSuccess: () => advance(message),
+      onSuccess: () => advance(message, deleted),
       onError: (e) => {
         toastErr(e instanceof Error ? e.message : String(e));
         setConfirm(null);
@@ -241,7 +242,9 @@ export function TriageDocScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() => runAction(() => deleteDocument(docId), 'File deleted')}
+        onConfirm={() =>
+          runAction(() => deleteDocument(docId), 'File deleted', true)
+        }
       />
 
       {/* kind-docId-attempt keys: these sheets do NOT self-reset internal
