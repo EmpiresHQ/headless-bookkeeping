@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Sheet } from './Sheet';
 
@@ -243,6 +244,258 @@ describe('Sheet', () => {
       fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
       expect(closeButton()).toBeVisible();
       expect(closeButton().closest('[data-sheet-pane]')).toBeNull();
+    });
+  });
+
+  describe('viewport restore (issue #362)', () => {
+    // jsdom has no layout or visualViewport: model the two viewports and
+    // the drawer's box as the browser computes it — its natural height, or
+    // vaul's inline height, capped by `max-h-[92vh]`.
+    const NATURAL = 668.5;
+    let vv: EventTarget & {
+      height: number;
+      scale: number;
+      offsetTop: number;
+      offsetLeft: number;
+    };
+    let restore: () => void;
+    const dialog = () => screen.getByRole('dialog');
+    // A source sheet is `h-[92vh]`: vaul's inline height replaces it.
+    const boxHeight = (el: HTMLElement) => {
+      const inline = parseFloat(el.style.height);
+      const cap = window.innerHeight * 0.92;
+      if (el.querySelector('[data-sheet-pane]')) {
+        return Number.isNaN(inline) ? cap : inline;
+      }
+      return Math.min(Number.isNaN(inline) ? NATURAL : inline, cap);
+    };
+    // A resize as the browser delivers it: window first (vaul re-registers
+    // its visualViewport listener on every window resize, landing it after
+    // the sheet's own), then the visual viewport, then a frame.
+    async function viewport(
+      innerHeight: number,
+      visual: Partial<{
+        height: number;
+        scale: number;
+        offsetTop: number;
+        offsetLeft: number;
+      }> = {},
+    ) {
+      await act(async () => {
+        const layoutChanged = window.innerHeight !== innerHeight;
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          value: innerHeight,
+        });
+        Object.assign(vv, {
+          height: innerHeight,
+          scale: 1,
+          offsetTop: 0,
+          offsetLeft: 0,
+          ...visual,
+        });
+        if (layoutChanged) window.dispatchEvent(new Event('resize'));
+        await new Promise((r) => setTimeout(r, 0));
+        vv.dispatchEvent(new Event('resize'));
+        await new Promise((r) => requestAnimationFrame(r));
+      });
+    }
+    function setup() {
+      const inner = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+      const rect = vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockImplementation(function (this: HTMLElement) {
+          if (this.getAttribute('role') !== 'dialog') return new DOMRect();
+          const h = boxHeight(this);
+          return new DOMRect(0, window.innerHeight - h, 390, h);
+        });
+      vv = Object.assign(new EventTarget(), {
+        height: 844,
+        scale: 1,
+        offsetTop: 0,
+        offsetLeft: 0,
+      });
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        value: vv,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 844,
+      });
+      restore = () => {
+        rect.mockRestore();
+        delete (window as { visualViewport?: unknown }).visualViewport;
+        if (inner) Object.defineProperty(window, 'innerHeight', inner);
+      };
+    }
+    function renderSheet(source?: ReactNode) {
+      render(
+        <Sheet open onOpenChange={vi.fn()} title="New expense" source={source}>
+          <input aria-label="Gross" />
+        </Sheet>,
+      );
+    }
+
+    it('a layout shrink then restore gives the sheet its full height back, keeping focus and value', async () => {
+      setup();
+      try {
+        renderSheet();
+        const gross = screen.getByLabelText('Gross') as HTMLInputElement;
+        fireEvent.change(gross, { target: { value: '123.45' } });
+        gross.focus();
+        expect(boxHeight(dialog())).toBe(NATURAL);
+        for (let i = 0; i < 3; i++) {
+          await viewport(430);
+          expect(boxHeight(dialog())).toBeCloseTo(430 * 0.92);
+          await viewport(844);
+          expect(boxHeight(dialog())).toBe(NATURAL);
+          expect(parseFloat(dialog().style.bottom || '0')).toBe(0);
+        }
+        expect(document.activeElement).toBe(gross);
+        expect(gross.value).toBe('123.45');
+      } finally {
+        restore();
+      }
+    });
+
+    it('keeps vaul lifting the sheet over a keyboard, then restores it when the keyboard goes', async () => {
+      setup();
+      try {
+        renderSheet();
+        screen.getByLabelText('Gross').focus();
+        await viewport(844, { height: 508 });
+        expect(dialog().style.bottom).toBe('336px');
+        expect(dialog().style.height).not.toBe('');
+        await viewport(844);
+        expect(boxHeight(dialog())).toBe(NATURAL);
+        expect(parseFloat(dialog().style.bottom || '0')).toBe(0);
+      } finally {
+        restore();
+      }
+    });
+
+    it('a source sheet gets its 92vh back after a layout shrink and restore', async () => {
+      setup();
+      try {
+        renderSheet(<p>SOURCE VIEW</p>);
+        screen.getByLabelText('Gross').focus();
+        const full = boxHeight(dialog());
+        await viewport(430);
+        await viewport(844);
+        expect(boxHeight(dialog())).toBeCloseTo(full);
+        expect(screen.getByText('SOURCE VIEW')).toBeInTheDocument();
+      } finally {
+        restore();
+      }
+    });
+
+    it('without a focused field a layout resize leaves the sheet to CSS', async () => {
+      setup();
+      try {
+        renderSheet();
+        await viewport(430);
+        await viewport(844);
+        expect(dialog().style.height).toBe('');
+        expect(boxHeight(dialog())).toBe(NATURAL);
+      } finally {
+        restore();
+      }
+    });
+
+    it('leaves vaul in charge while the visual viewport is panned', async () => {
+      setup();
+      try {
+        renderSheet();
+        screen.getByLabelText('Gross').focus();
+        await viewport(844, { height: 508 });
+        // Same size as the page again but still scrolled away from it:
+        // vaul's own write stands.
+        await viewport(844, { offsetTop: 40 });
+        expect(dialog().style.height).not.toBe('');
+        await viewport(844, { offsetLeft: 30 });
+        expect(dialog().style.height).not.toBe('');
+        await viewport(844);
+        expect(boxHeight(dialog())).toBe(NATURAL);
+      } finally {
+        restore();
+      }
+    });
+
+    // A resize whose re-check frame is still queued when the sheet closes
+    // (or closes and opens again): the keyboard went down meanwhile, so the
+    // frame would see an unobscured viewport.
+    function queueFrameUnderKeyboard(gross: HTMLElement) {
+      gross.focus();
+      act(() => {
+        vv.height = 508;
+        vv.dispatchEvent(new Event('resize'));
+      });
+      const old = dialog();
+      expect(old.style.bottom).toBe('336px');
+      vv.height = 844;
+      return old;
+    }
+    const frame = () =>
+      act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+
+    it('a queued frame never touches a panel that closed', async () => {
+      setup();
+      try {
+        const { rerender } = render(
+          <Sheet open onOpenChange={vi.fn()} title="New expense">
+            <input aria-label="Gross" />
+          </Sheet>,
+        );
+        const old = queueFrameUnderKeyboard(screen.getByLabelText('Gross'));
+        const written = old.getAttribute('style');
+        rerender(
+          <Sheet open={false} onOpenChange={vi.fn()} title="New expense">
+            <input aria-label="Gross" />
+          </Sheet>,
+        );
+        await frame();
+        expect(old.getAttribute('style')).toBe(written);
+      } finally {
+        restore();
+      }
+    });
+
+    it("a queued frame never targets the next open's panel", async () => {
+      setup();
+      try {
+        const sheet = (open: boolean) => (
+          <Sheet open={open} onOpenChange={vi.fn()} title="New expense">
+            <input aria-label="Gross" />
+          </Sheet>
+        );
+        const { rerender } = render(sheet(true));
+        const old = queueFrameUnderKeyboard(screen.getByLabelText('Gross'));
+        rerender(sheet(false));
+        rerender(sheet(true));
+        const next = dialog();
+        expect(next).not.toBe(old);
+        // Whatever vaul keeps on the new panel is its own business until an
+        // event for it arrives.
+        next.style.height = '500px';
+        await frame();
+        expect(next.style.height).toBe('500px');
+      } finally {
+        restore();
+      }
+    });
+
+    it('leaves vaul in charge while pinch-zoomed', async () => {
+      setup();
+      try {
+        renderSheet();
+        screen.getByLabelText('Gross').focus();
+        await viewport(844, { height: 422, scale: 2 });
+        expect(dialog().style.height).not.toBe('');
+        expect(dialog().style.bottom).toBe('422px');
+      } finally {
+        restore();
+      }
     });
   });
 });

@@ -16,6 +16,9 @@ import { SegmentedControl } from './SegmentedControl';
 // vaul's own reset transition (TRANSITIONS in vaul/dist) — used to put a
 // swiped-down drawer back when a close is vetoed.
 const VAUL_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+// Rounding slack between innerHeight (integer) and visualViewport.height
+// (fractional) when nothing covers the page.
+const VIEWPORT_SLACK = 1;
 
 /** Bottom sheet for actions attached to the current screen (spec: action =
  *  sheet; object with identity = route; irreversible = ConfirmDialog).
@@ -167,6 +170,47 @@ export function Sheet({
     },
     [],
   );
+  // Viewport restore (issue #362): vaul's repositionInputs sizes the panel
+  // for the keyboard with inline height/bottom, and when it judges the
+  // keyboard closed it writes back an `initialDrawerHeight` it captured once
+  // per mounted Root — a height already shrunk if that first event was a
+  // layout resize (smaller window, rotation). Whenever the visual viewport
+  // coincides with the layout viewport (same height within rounding, no
+  // zoom, not panned), those inline values only pin a stale size: drop them
+  // so the CSS height (max-h/h 92vh) rules again. While a keyboard, zoom or
+  // pan sets the visual viewport apart, vaul's handling stays untouched.
+  // vaul re-registers its listener on every window resize (its snap-point
+  // offsets depend on window size), so it may run after this one: check
+  // again in the next frame, before paint — for the panel the event was
+  // for, only while it is still this sheet's open panel and the viewport
+  // still coincides. No transform, focus or scroll is touched.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let frame: number | null = null;
+    const release = (el: HTMLDivElement | null) => {
+      if (!el || el !== contentRef.current || !el.isConnected) return;
+      if (el.getAttribute('data-state') !== 'open') return;
+      if (vv.scale !== 1 || vv.offsetTop !== 0 || vv.offsetLeft !== 0) return;
+      if (Math.abs(window.innerHeight - vv.height) > VIEWPORT_SLACK) return;
+      el.style.removeProperty('height');
+      el.style.removeProperty('bottom');
+    };
+    const onResize = () => {
+      const el = contentRef.current;
+      release(el);
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        release(el);
+      });
+    };
+    vv.addEventListener('resize', onResize);
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, []);
   return (
     <Drawer.Root open={open} onOpenChange={handleOpenChange}>
       <Drawer.Portal>
