@@ -4,9 +4,11 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { X } from 'lucide-react';
 import { Drawer } from 'vaul';
+import { useFocusReturn } from '../lib/focusReturn';
 import { useModalLayer } from '../lib/modalLayers';
 import type { DismissGuard } from '../lib/unsavedChanges';
 import { SegmentedControl } from './SegmentedControl';
@@ -29,6 +31,7 @@ export function Sheet({
   guard,
   busy = false,
   source,
+  returnFocusFallback,
   children,
 }: {
   open: boolean;
@@ -49,31 +52,36 @@ export function Sheet({
    *  never a dismissal, never consults or releases the guard, and stays
    *  available while busy. Absent, the sheet is unchanged. */
   source?: ReactNode;
+  /** Where focus goes on close when the opener can no longer take it — a
+   *  same-screen element that is meaningful after a success removed or
+   *  disabled the trigger (issue #268). Read at restore time. */
+  returnFocusFallback?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
   const [view, setView] = useState<'form' | 'source'>('form');
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const vetoFrame = useRef<number | null>(null);
-  // Radix marks the app root aria-hidden while the sheet animates out; if
-  // focus is still INSIDE the closing sheet the browser logs "Blocked
-  // aria-hidden on an element because its descendant retained focus".
-  // Release focus on both paths that can flip a close: closes ROUTED
-  // through Radix/vaul's own onOpenChange (Escape, backdrop, swipe) via
-  // handleOpenChange, and closes where a caller flips the `open` PROP
-  // directly from a click inside the sheet's own content without ever
-  // calling onOpenChange (e.g. CreateMenu's row onPick) via the layout
-  // effect below.
-  //
-  // RESIDUAL GAP CLOSED (Plan 07 Task 7, closed out at the ExpenseScreen/
-  // InvoiceScreen CorrectSheet sites): every sheet call site now keeps its
-  // sheet MOUNTED once first opened (open flag + remount-on-open epoch key,
-  // lib/useSheet) so Radix runs its graceful close lifecycle and focus
-  // restoration lands AFTER aria-hidden lifts — including sites whose
-  // TRIGGER is gated on business state (e.g. a 'posted' status) that can
-  // itself flip mid-close from the same action that closes the sheet; only
-  // the trigger stays gated, the mount does not. The blur belts below
-  // remain as defense-in-depth for direct open-prop flips.
+  // Focus (issue #268, lib/focusReturn): the opener is captured at the open
+  // edge, before the belts below release it; focus starts on the explicit
+  // Close button (never an editable field — no mobile keyboard pop), and
+  // returns from Radix's close-autofocus, after the exit animation lifted
+  // aria-hidden: to the opener, else `returnFocusFallback`, else nowhere —
+  // and never while someone else holds focus, a newer layer is on top, or
+  // the route moved on. The belts stay (useFocusReturn): the open edge
+  // blurs OUTSIDE focus before Radix aria-hides the app root around it, the
+  // close edge releases INSIDE focus before a layer opening in the same
+  // moment (CreateMenu's onPick handoff) aria-hides this one.
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const focus = useFocusReturn({
+    open,
+    contentRef,
+    fallback: returnFocusFallback,
+    initialFocus: () => {
+      const close = closeRef.current;
+      return close !== null && !close.disabled ? close : contentRef.current;
+    },
+  });
   // This open generation: bumped when `open` flips and on unmount, so a
   // discard answered late (question superseded, sheet closed another way
   // and reopened, or unmounted) can never close a newer generation.
@@ -125,6 +133,11 @@ export function Sheet({
   );
   const restoreAfterVeto = () => {
     const content = contentRef.current;
+    // A refused dismiss keeps focus in the sheet (issue #268) — e.g. the
+    // submit that held it was disabled by the save in flight.
+    if (content && !content.contains(document.activeElement)) {
+      content.focus({ preventScroll: true });
+    }
     if (content) {
       content.style.transition = `transform 0.5s ${VAUL_EASE}`;
       content.style.transform = 'translate3d(0, 0, 0)';
@@ -154,21 +167,6 @@ export function Sheet({
     },
     [],
   );
-  // OPEN edge (Plan 07 Task 9 smoke): the trigger button keeps focus after
-  // the click that opens the sheet, and vaul deliberately prevents Radix's
-  // open-autofocus (autoFocus=false — no mobile keyboard pop). Radix then
-  // marks the app root aria-hidden with the still-focused trigger inside it
-  // and the browser logs the same "Blocked aria-hidden" warning at OPEN that
-  // Task 7 closed at CLOSE. Blur the outside-focused element on the open
-  // edge too. Skipped when mounting closed (always-mounted sheets must not
-  // steal focus from the screen at initial render).
-  const everOpen = useRef(open);
-  if (open) everOpen.current = true;
-  useLayoutEffect(() => {
-    if (everOpen.current && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-  }, [open]);
   return (
     <Drawer.Root open={open} onOpenChange={handleOpenChange}>
       <Drawer.Portal>
@@ -178,7 +176,8 @@ export function Sheet({
         />
         <Drawer.Content
           ref={contentRef}
-          onCloseAutoFocus={(e) => e.preventDefault()}
+          onOpenAutoFocus={focus.onOpenAutoFocus}
+          onCloseAutoFocus={focus.onCloseAutoFocus}
           className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-bg outline-none ${
             source === undefined ? 'max-h-[92vh] pb-6' : 'h-[92vh] pb-3'
           }`}
@@ -188,6 +187,7 @@ export function Sheet({
               out. Outside any form and type=button — it never submits. */}
           <button
             type="button"
+            ref={closeRef}
             aria-label="Close"
             data-vaul-no-drag
             disabled={busy}

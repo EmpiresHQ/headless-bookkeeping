@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { deleteInvoice, fmtCents, postInvoice } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
@@ -52,6 +52,8 @@ export function InvoiceScreen() {
   );
 
   const correctSheet = useSheet();
+  // Return target once a correction removed "Correct…" (issue #268).
+  const correctedRef = useRef<HTMLParagraphElement>(null);
   const editSheet = useSheet();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const op = usePendingOperation('Invoice');
@@ -331,7 +333,11 @@ export function InvoiceScreen() {
           </>
         )}
         {inv.status === 'reversed' && (
-          <p className="text-center text-[12.5px] text-ink-2">
+          <p
+            ref={correctedRef}
+            tabIndex={-1}
+            className="text-center text-[12.5px] text-ink-2"
+          >
             Already corrected — corrections are one-shot (ADR-0009).
           </p>
         )}
@@ -368,6 +374,7 @@ export function InvoiceScreen() {
           objectId={inv.id}
           grossCents={inv.gross_amount}
           vatCents={inv.vat_amount}
+          returnFocusFallback={correctedRef}
           onDone={() => void invoicesQ.refetch()}
         />
       )}

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   deleteExpense,
@@ -94,6 +94,8 @@ export function ExpenseScreen() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const correctSheet = useSheet();
+  // Return target once a correction removed "Correct…" (issue #268).
+  const correctedRef = useRef<HTMLParagraphElement>(null);
   const editSheet = useSheet();
   const attachSheet = useSheet();
   const op = usePendingOperation('Expense');
@@ -356,7 +358,11 @@ export function ExpenseScreen() {
           </>
         )}
         {detail.status === 'reversed' && (
-          <p className="text-center text-[12.5px] text-ink-2">
+          <p
+            ref={correctedRef}
+            tabIndex={-1}
+            className="text-center text-[12.5px] text-ink-2"
+          >
             Already corrected — corrections are one-shot (ADR-0009). Issue a
             credit note or a new expense for further changes.
           </p>
@@ -418,6 +424,7 @@ export function ExpenseScreen() {
           grossCents={detail.gross_amount}
           vatCents={detail.vat_amount}
           category={detail.category}
+          returnFocusFallback={correctedRef}
           onDone={() => void detailQ.refetch()}
         />
       )}

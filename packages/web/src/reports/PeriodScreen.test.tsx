@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AppToaster } from '../ui/toast';
@@ -27,6 +33,7 @@ import {
   getPeriodWarnings,
   getReportingPeriods,
   getSubmissionState,
+  lockPeriod,
 } from '../api';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
@@ -365,5 +372,55 @@ describe('PeriodScreen', () => {
     expect(
       screen.getByRole('button', { name: 'Close & freeze the declaration' }),
     ).toBeDisabled();
+  });
+  it('issue #268: closing the period removes its trigger — focus lands on the same-screen status, not BODY', async () => {
+    mountAt(7, [OPEN_PERIOD]);
+    const trigger = await screen.findByRole('button', {
+      name: 'Close period…',
+    });
+    trigger.focus();
+    fireEvent.click(trigger);
+    // Initial focus: the explicit Close, never the typed-confirm field.
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Close July 2026',
+    });
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole('button', { name: 'Close' }),
+    );
+    const locked = {
+      ...OPEN_PERIOD,
+      status: 'locked' as const,
+      filed_at: 1786060800,
+    };
+    vi.mocked(lockPeriod).mockResolvedValue(locked as never);
+    vi.mocked(getReportingPeriods).mockResolvedValue([locked] as never);
+    fireEvent.change(screen.getByLabelText('Type 2026-07 to confirm'), {
+      target: { value: '2026-07' },
+    });
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Close & freeze · VAT to pay 624.07 €',
+      }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent(/Frozen — closed/),
+    );
+    expect(lockPeriod).toHaveBeenCalledWith(7);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Close period…' })).toBeNull();
+  });
+
+  it('issue #268: cancelling the close returns focus to "Close period…"', async () => {
+    mountAt(7, [OPEN_PERIOD]);
+    const trigger = await screen.findByRole('button', {
+      name: 'Close period…',
+    });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Close July 2026',
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });
