@@ -22,6 +22,7 @@ import {
   FormErrorSummary,
   PendingFieldset,
   SelectInput,
+  SubmitForm,
   TextInput,
   useFormErrors,
 } from '../ui/Form';
@@ -317,100 +318,102 @@ export function NewExpenseSheet({
       guard={guard}
       busy={busy}
     >
-      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
-        <div>
-          <Field
-            label="Category"
-            required
-            error={
-              categoryGone
-                ? 'This category is no longer available — choose again'
-                : categories?.length === 0
-                  ? NO_CATEGORIES
-                  : v.error('category')
-            }
-          >
-            <SelectInput
-              {...v.bind('category')}
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+      <SubmitForm onSubmit={submit}>
+        <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
+          <div>
+            <Field
+              label="Category"
+              required
+              error={
+                categoryGone
+                  ? 'This category is no longer available — choose again'
+                  : categories?.length === 0
+                    ? NO_CATEGORIES
+                    : v.error('category')
+              }
             >
-              <option value="">
-                {categories === undefined
-                  ? lookupState(categoriesQ) === 'loading'
-                    ? 'Loading categories…'
-                    : 'Categories unavailable'
-                  : categories.length === 0
-                    ? 'No categories defined'
-                    : '— select —'}
-              </option>
-              {categoryGone && (
-                <option value={category}>{category} (not available)</option>
-              )}
-              {(categories ?? []).map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
+              <SelectInput
+                {...v.bind('category')}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">
+                  {categories === undefined
+                    ? lookupState(categoriesQ) === 'loading'
+                      ? 'Loading categories…'
+                      : 'Categories unavailable'
+                    : categories.length === 0
+                      ? 'No categories defined'
+                      : '— select —'}
                 </option>
-              ))}
-            </SelectInput>
+                {categoryGone && (
+                  <option value={category}>{category} (not available)</option>
+                )}
+                {(categories ?? []).map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <LookupNotice query={categoriesQ} what="categories" />
+          </div>
+          <CounterpartyField
+            cp={supplier}
+            hint="Optional — leave it unpicked for none; unknown suppliers can be resolved later"
+            busy={op.pending && running === 'counterparty'}
+            focusId={v.idOf('supplier')}
+            error={v.error('supplier')}
+          />
+          <Field label="Gross (€)" required error={v.error('gross')}>
+            <TextInput
+              {...v.bind('gross')}
+              inputMode="decimal"
+              value={m.gross}
+              onChange={(e) => m.setGross(e.target.value)}
+            />
           </Field>
-          <LookupNotice query={categoriesQ} what="categories" />
-        </div>
-        <CounterpartyField
-          cp={supplier}
-          hint="Optional — leave it unpicked for none; unknown suppliers can be resolved later"
-          busy={op.pending && running === 'counterparty'}
-          focusId={v.idOf('supplier')}
-          error={v.error('supplier')}
-        />
-        <Field label="Gross (€)" required error={v.error('gross')}>
-          <TextInput
-            {...v.bind('gross')}
-            inputMode="decimal"
-            value={m.gross}
-            onChange={(e) => m.setGross(e.target.value)}
-          />
-        </Field>
-        <Field
-          label="VAT (€)"
-          required
-          error={v.error('vat')}
-          hint={vatHint(
-            m,
-            `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if the receipt says otherwise`,
-          )}
-        >
-          <TextInput
-            {...v.bind('vat')}
-            inputMode="decimal"
-            value={m.draft.vat}
-            onChange={(e) => {
-              m.setVatTouched(true);
-              m.setVat(e.target.value);
-            }}
-          />
-        </Field>
-        <Field label="Tax point date" required error={v.error('date')}>
-          <TextInput
-            {...v.bind('date')}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </Field>
-        <FormErrorSummary form={v} blocked={blocker !== null} />
-        <Button
-          className="w-full"
-          busy={busy && running === 'submit'}
-          disabled={blocker !== null}
-          onClick={submit}
-        >
-          {m.grossParsed !== null && m.grossParsed > 0
-            ? `Create expense · ${signedEuros(-m.grossParsed)}`
-            : 'Create expense'}
-        </Button>
-        <BlockedReason reason={blocker} />
-      </PendingFieldset>
+          <Field
+            label="VAT (€)"
+            required
+            error={v.error('vat')}
+            hint={vatHint(
+              m,
+              `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if the receipt says otherwise`,
+            )}
+          >
+            <TextInput
+              {...v.bind('vat')}
+              inputMode="decimal"
+              value={m.draft.vat}
+              onChange={(e) => {
+                m.setVatTouched(true);
+                m.setVat(e.target.value);
+              }}
+            />
+          </Field>
+          <Field label="Tax point date" required error={v.error('date')}>
+            <TextInput
+              {...v.bind('date')}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <FormErrorSummary form={v} blocked={blocker !== null} />
+          <Button
+            className="w-full"
+            busy={busy && running === 'submit'}
+            disabled={blocker !== null}
+            type="submit"
+          >
+            {m.grossParsed !== null && m.grossParsed > 0
+              ? `Create expense · ${signedEuros(-m.grossParsed)}`
+              : 'Create expense'}
+          </Button>
+          <BlockedReason reason={blocker} />
+        </PendingFieldset>
+      </SubmitForm>
     </Sheet>
   );
 }
@@ -575,77 +578,79 @@ export function NewInvoiceSheet({
       guard={guard}
       busy={busy}
     >
-      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
-        <Field label="Invoice number" required error={v.error('number')}>
-          <TextInput
-            {...v.bind('number')}
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
+      <SubmitForm onSubmit={submit}>
+        <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
+          <Field label="Invoice number" required error={v.error('number')}>
+            <TextInput
+              {...v.bind('number')}
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+            />
+          </Field>
+          <CounterpartyField
+            cp={customer}
+            hint="Optional — leave it unpicked for none"
+            busy={op.pending && running === 'counterparty'}
+            focusId={v.idOf('customer')}
+            error={v.error('customer')}
           />
-        </Field>
-        <CounterpartyField
-          cp={customer}
-          hint="Optional — leave it unpicked for none"
-          busy={op.pending && running === 'counterparty'}
-          focusId={v.idOf('customer')}
-          error={v.error('customer')}
-        />
-        <Field label="Gross (€)" required error={v.error('gross')}>
-          <TextInput
-            {...v.bind('gross')}
-            inputMode="decimal"
-            value={m.gross}
-            onChange={(e) => m.setGross(e.target.value)}
-          />
-        </Field>
-        <Field
-          label="VAT (€)"
-          required
-          error={v.error('vat')}
-          hint={vatHint(
-            m,
-            `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if needed`,
-          )}
-        >
-          <TextInput
-            {...v.bind('vat')}
-            inputMode="decimal"
-            value={m.draft.vat}
-            onChange={(e) => {
-              m.setVatTouched(true);
-              m.setVat(e.target.value);
-            }}
-          />
-        </Field>
-        <Field label="Tax point date" required error={v.error('date')}>
-          <TextInput
-            {...v.bind('date')}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </Field>
-        <Field label="Due date" hint="Optional" error={v.error('dueDate')}>
-          <TextInput
-            {...v.bind('dueDate')}
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-        </Field>
-        <FormErrorSummary form={v} blocked={blocker !== null} />
-        <Button
-          className="w-full"
-          busy={busy && running === 'submit'}
-          disabled={blocker !== null}
-          onClick={submit}
-        >
-          {m.grossParsed !== null && m.grossParsed > 0
-            ? `Create invoice · ${signedEuros(m.grossParsed)}`
-            : 'Create invoice'}
-        </Button>
-        <BlockedReason reason={blocker} />
-      </PendingFieldset>
+          <Field label="Gross (€)" required error={v.error('gross')}>
+            <TextInput
+              {...v.bind('gross')}
+              inputMode="decimal"
+              value={m.gross}
+              onChange={(e) => m.setGross(e.target.value)}
+            />
+          </Field>
+          <Field
+            label="VAT (€)"
+            required
+            error={v.error('vat')}
+            hint={vatHint(
+              m,
+              `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if needed`,
+            )}
+          >
+            <TextInput
+              {...v.bind('vat')}
+              inputMode="decimal"
+              value={m.draft.vat}
+              onChange={(e) => {
+                m.setVatTouched(true);
+                m.setVat(e.target.value);
+              }}
+            />
+          </Field>
+          <Field label="Tax point date" required error={v.error('date')}>
+            <TextInput
+              {...v.bind('date')}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field label="Due date" hint="Optional" error={v.error('dueDate')}>
+            <TextInput
+              {...v.bind('dueDate')}
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </Field>
+          <FormErrorSummary form={v} blocked={blocker !== null} />
+          <Button
+            className="w-full"
+            busy={busy && running === 'submit'}
+            disabled={blocker !== null}
+            type="submit"
+          >
+            {m.grossParsed !== null && m.grossParsed > 0
+              ? `Create invoice · ${signedEuros(m.grossParsed)}`
+              : 'Create invoice'}
+          </Button>
+          <BlockedReason reason={blocker} />
+        </PendingFieldset>
+      </SubmitForm>
     </Sheet>
   );
 }

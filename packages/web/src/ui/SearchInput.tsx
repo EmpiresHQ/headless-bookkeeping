@@ -1,3 +1,5 @@
+import type { KeyboardEvent } from 'react';
+
 export function SearchInput({
   value,
   onChange,
@@ -15,6 +17,7 @@ export function SearchInput({
   /** For focusing it from a form's error summary (issue #265). */
   id?: string;
   onBlur?: () => void;
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2">
