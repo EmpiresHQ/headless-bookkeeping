@@ -32,7 +32,7 @@ import { useLeaveGuardApi } from './unsavedChanges';
  * first is conditional — it runs only if the previous step committed the
  * navigation THIS chain started (an owned state nonce / the expected POP
  * index), in the same live shell and session, with no blocker, pending
- * operation or dirty form. Any interruption ends the chain for good; the
+ * operation, dirty form or open modal layer. Any interruption ends the chain for good; the
  * entry left behind is always a safe replacement, never a late surprise.
  */
 
@@ -271,9 +271,23 @@ export function useCompletionNavigation() {
       cancelled: false,
       abort: null,
       live: () => api.isAlive() && isSameSession(stamp),
+      // An open modal layer too (issue #267): the chain's own POP would be
+      // spent closing it — end at the safe copy instead. Only a layer opened
+      // AFTER the chain started counts: the finished task's own sheet or
+      // dialog was closed by the same handler that called returnTo, but that
+      // commit may land after the router settles step 1 (retired below).
       quiet: () =>
-        api.pendingLabels().length === 0 && api.dirtyEntries().length === 0,
+        api.pendingLabels().length === 0 &&
+        api.dirtyEntries().length === 0 &&
+        api.openLayers() === 0,
     };
+    // The finished task's layers (retired at the start, see quiet above).
+    // Once the chain's own replacement committed, the task has left: they
+    // stay retired until their own registrations end (a Back right after
+    // the POP is never spent on an outgoing layer). Only a chain that never
+    // replaced gives them back. Layers registered later are never touched.
+    const unretire = api.retireOpenLayers();
+    let left = false;
     const offShellEnd = api.onShellEnd(() => {
       scope.cancelled = true;
       scope.abort?.();
@@ -301,6 +315,7 @@ export function useCompletionNavigation() {
           historyIdx() === here,
       );
       if (replaced === null) return;
+      left = true;
       // 2. POP onto the origin entry. Proof: the entry at the origin's
       //    index with the origin's pathname. Not its key: an in-place query
       //    replace there (segment switch) legitimately re-keys it, and
@@ -332,7 +347,10 @@ export function useCompletionNavigation() {
         (loc) => hasNonce(loc, n3),
         (s) => hasNonce(s.location, n3) && historyIdx() === o.idx,
       );
-    })().finally(offShellEnd);
+    })().finally(() => {
+      offShellEnd();
+      if (!left) unretire();
+    });
   };
 
   return { origin, advance, returnTo };

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { Sheet } from './Sheet';
 
@@ -182,6 +182,123 @@ describe('Sheet', () => {
       );
       expect(screen.queryByRole('tablist')).toBeNull();
       expect(document.querySelector('[data-sheet-pane]')).toBeNull();
+    });
+  });
+  describe('explicit Close (issue #267)', () => {
+    const closeButton = () =>
+      within(screen.getByRole('dialog', { name: 'New expense' })).getByRole(
+        'button',
+        { name: 'Close' },
+      );
+
+    it('is a named type=button control that closes a clean sheet', () => {
+      const onOpenChange = vi.fn();
+      render(
+        <Sheet open onOpenChange={onOpenChange} title="New expense">
+          <p>Body</p>
+        </Sheet>,
+      );
+      expect(closeButton()).toHaveAttribute('type', 'button');
+      expect(closeButton()).toHaveAttribute('data-vaul-no-drag');
+      fireEvent.click(closeButton());
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('never submits a form in the sheet', () => {
+      const onSubmit = vi.fn((e: { preventDefault: () => void }) =>
+        e.preventDefault(),
+      );
+      render(
+        <Sheet open onOpenChange={vi.fn()} title="New expense">
+          <form onSubmit={onSubmit}>
+            <input aria-label="Amount" />
+          </form>
+        </Sheet>,
+      );
+      fireEvent.click(closeButton());
+      fireEvent.keyDown(screen.getByLabelText('Amount'), { key: 'Enter' });
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('is disabled while a save is in flight; the sheet stays', () => {
+      const onOpenChange = vi.fn();
+      render(
+        <Sheet open busy onOpenChange={onOpenChange} title="New expense">
+          <p>Body</p>
+        </Sheet>,
+      );
+      expect(closeButton()).toBeDisabled();
+      fireEvent.click(closeButton());
+      expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    it('asks a dirty form first: Keep stays, Discard closes', async () => {
+      let answer: (ok: boolean) => void = () => undefined;
+      const guard = {
+        isDirty: vi.fn(() => true),
+        confirmDiscard: vi.fn(() => new Promise<boolean>((r) => (answer = r))),
+      };
+      const onOpenChange = vi.fn();
+      render(
+        <Sheet
+          open
+          onOpenChange={onOpenChange}
+          title="New expense"
+          guard={guard}
+        >
+          <p>Body</p>
+        </Sheet>,
+      );
+      fireEvent.click(closeButton());
+      expect(guard.confirmDiscard).toHaveBeenCalledTimes(1);
+      await act(async () => answer(false));
+      expect(onOpenChange).not.toHaveBeenCalled();
+
+      fireEvent.click(closeButton());
+      await act(async () => answer(true));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('a late discard never closes a newer open generation', async () => {
+      let answer: (ok: boolean) => void = () => undefined;
+      const guard = {
+        isDirty: () => true,
+        confirmDiscard: () => new Promise<boolean>((r) => (answer = r)),
+      };
+      const onOpenChange = vi.fn();
+      const view = (open: boolean) => (
+        <Sheet
+          open={open}
+          onOpenChange={onOpenChange}
+          title="New expense"
+          guard={guard}
+        >
+          <p>Body</p>
+        </Sheet>
+      );
+      const { rerender } = render(view(true));
+      fireEvent.click(closeButton());
+      // Closed another way and reopened before the question is answered.
+      rerender(view(false));
+      rerender(view(true));
+      await act(async () => answer(true));
+      expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    it('stays reachable in both Form and Source views', () => {
+      render(
+        <Sheet
+          open
+          onOpenChange={vi.fn()}
+          title="New expense"
+          source={<p>SOURCE VIEW</p>}
+        >
+          <p>Body</p>
+        </Sheet>,
+      );
+      fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
+      expect(closeButton()).toBeVisible();
+      expect(closeButton().closest('[data-sheet-pane]')).toBeNull();
     });
   });
 });

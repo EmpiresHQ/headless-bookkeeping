@@ -5,7 +5,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { X } from 'lucide-react';
 import { Drawer } from 'vaul';
+import { useModalLayer } from '../lib/modalLayers';
 import type { DismissGuard } from '../lib/unsavedChanges';
 import { SegmentedControl } from './SegmentedControl';
 
@@ -14,7 +16,12 @@ import { SegmentedControl } from './SegmentedControl';
 const VAUL_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 /** Bottom sheet for actions attached to the current screen (spec: action =
- *  sheet; object with identity = route; irreversible = ConfirmDialog). */
+ *  sheet; object with identity = route; irreversible = ConfirmDialog).
+ *
+ *  Every way out is one path (issue #267): the explicit Close button,
+ *  Escape, backdrop, swipe and browser Back/Forward (lib/modalLayers — the
+ *  top layer closes, the route stays) all go through `handleOpenChange`, so
+ *  a save in flight refuses them all and a dirty form asks before any. */
 export function Sheet({
   open,
   onOpenChange,
@@ -28,7 +35,7 @@ export function Sheet({
   onOpenChange: (open: boolean) => void;
   title?: string;
   /** Unsaved-input guard of the form inside (lib/unsavedChanges): a dismiss
-   *  (Escape, backdrop, swipe) while it is dirty asks before closing. */
+   *  (Close, Escape, backdrop, swipe, Back) while it is dirty asks before closing. */
   guard?: DismissGuard;
   /** A save is in flight (lib/pendingOperation, issue #251): every dismiss
    *  is refused (drawer put back), and no discard question is asked for a
@@ -67,6 +74,18 @@ export function Sheet({
   // itself flip mid-close from the same action that closes the sheet; only
   // the trigger stays gated, the mount does not. The blur belts below
   // remain as defense-in-depth for direct open-prop flips.
+  // This open generation: bumped when `open` flips and on unmount, so a
+  // discard answered late (question superseded, sheet closed another way
+  // and reopened, or unmounted) can never close a newer generation.
+  const generation = useRef(0);
+  useLayoutEffect(
+    () => () => {
+      generation.current += 1;
+    },
+    [open],
+  );
+  const latestOnOpenChange = useRef(onOpenChange);
+  latestOnOpenChange.current = onOpenChange;
   const handleOpenChange = (o: boolean) => {
     if (!o && busy) {
       restoreAfterVeto();
@@ -79,12 +98,13 @@ export function Sheet({
       // vaul's resetDrawer); focus stays where it was, so Radix returns it
       // there when the discard dialog closes.
       restoreAfterVeto();
+      const asked = generation.current;
       void guard.confirmDiscard().then((ok) => {
-        if (!ok) return;
+        if (!ok || generation.current !== asked) return;
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
-        onOpenChange(false);
+        latestOnOpenChange.current(false);
       });
       return;
     }
@@ -93,6 +113,16 @@ export function Sheet({
     }
     onOpenChange(o);
   };
+  // Back/Forward while this is the top layer: the same dismiss request.
+  useModalLayer(
+    open,
+    () => {
+      if (busy) return false;
+      handleOpenChange(false);
+      return true;
+    },
+    contentRef,
+  );
   const restoreAfterVeto = () => {
     const content = contentRef.current;
     if (content) {
@@ -154,8 +184,20 @@ export function Sheet({
           }`}
         >
           <div className="mx-auto mb-3 mt-2.5 h-1 w-10 flex-none rounded-full bg-handle" />
+          {/* Explicit exit (issue #267): gestures are never the only way
+              out. Outside any form and type=button — it never submits. */}
+          <button
+            type="button"
+            aria-label="Close"
+            data-vaul-no-drag
+            disabled={busy}
+            onClick={() => handleOpenChange(false)}
+            className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-ink-2 hover:bg-line/60 disabled:opacity-40"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
           {title != null && (
-            <Drawer.Title className="mb-2 flex-none px-6 text-center text-lg font-extrabold">
+            <Drawer.Title className="mb-2 flex-none px-14 text-center text-lg font-extrabold">
               {title}
             </Drawer.Title>
           )}
