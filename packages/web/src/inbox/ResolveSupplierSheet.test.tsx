@@ -22,7 +22,7 @@ function renderSheet(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <ResolveSupplierSheet
           documentId={12}
           open
@@ -111,6 +111,38 @@ describe('ResolveSupplierSheet', () => {
       expect(api.resolveSupplier).toHaveBeenCalledWith(12, 9),
     );
     expect(onDone).toHaveBeenCalledWith(OUTCOME);
+  });
+
+  it('partial success: a created supplier is never created again — retry only resolves (#251)', async () => {
+    vi.mocked(api.onboardEntity).mockResolvedValue({
+      id: 9,
+      role: 'supplier',
+      country: 'EE',
+      name: 'Circle K Eesti AS',
+      goods_vs_services: null,
+      tax_status: null,
+    });
+    vi.mocked(api.resolveSupplier)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValueOnce(OUTCOME as never);
+    const onDone = renderSheet();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Create supplier & book · −48.20 €',
+      }),
+    );
+    const retry = await screen.findByRole('button', {
+      name: 'Retry booking with the created supplier',
+    });
+    expect(
+      screen.getByText(/already exists on the server/),
+    ).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(OUTCOME));
+    expect(api.onboardEntity).toHaveBeenCalledTimes(1);
+    expect(api.resolveSupplier).toHaveBeenCalledTimes(2);
+    expect(api.resolveSupplier).toHaveBeenLastCalledWith(12, 9);
   });
 
   it('requires the registration key for create', async () => {

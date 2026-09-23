@@ -20,6 +20,7 @@ import {
   type MatchProposalView,
 } from '../api';
 import { sharedKeys } from './keys';
+import { rethrowIfEnded, type StageGuard } from '../lib/pendingOperation';
 
 /**
  * Bank data layer. Reads are TanStack Query hooks; the multi-call server
@@ -208,13 +209,20 @@ export class BookingPartialError extends Error {
  * failure, throws BookingPartialError carrying the full staged set and the
  * already-activated subset. Returns the activated match ids on full success.
  */
-async function approveStaged(res: ExecuteMatchesResult): Promise<number[]> {
+async function approveStaged(
+  res: ExecuteMatchesResult,
+  stage: StageGuard,
+): Promise<number[]> {
   const stagedMatchIds = res.records.map((r) => r.id);
   const approvedMatchIds: number[] = [];
   for (const a of res.approvals) {
     try {
+      stage();
       await approveApproval(a.id, APPROVED_BY);
     } catch (cause) {
+      // An ended session/scope is not a booking failure: it propagates
+      // unwrapped (a current 401 must still sign the shell out).
+      rethrowIfEnded(cause);
       throw new BookingPartialError({
         stagedMatchIds,
         approvedMatchIds,
@@ -238,9 +246,10 @@ async function approveStaged(res: ExecuteMatchesResult): Promise<number[]> {
 export async function bookProposals(
   statementId: number,
   proposals: MatchProposalView[],
+  stage: StageGuard,
 ): Promise<number[]> {
   const res = await executeMatches(statementId, proposals);
-  return approveStaged(res);
+  return approveStaged(res, stage);
 }
 
 /** Stage + approve a single manual match. Returns the match id (for Undo). */
@@ -252,6 +261,7 @@ export async function bookManualMatch(
     amountMatched: number;
     matchType: 'exact' | 'partial';
   },
+  stage: StageGuard,
 ): Promise<number> {
   const res = await manualMatch(statementId, m);
   if (res.approvals.length === 0 || res.records.length === 0) {
@@ -261,7 +271,7 @@ export async function bookManualMatch(
       'manual match staged but no approval returned — server contract breach',
     );
   }
-  const [matchId] = await approveStaged(res);
+  const [matchId] = await approveStaged(res, stage);
   return matchId;
 }
 
@@ -269,7 +279,10 @@ export async function bookManualMatch(
  * Activate a match that is already staged as a draft (e.g. auto-staged by the
  * import workflow): find its pending approval and approve it.
  */
-export async function confirmStagedMatch(matchId: number): Promise<void> {
+export async function confirmStagedMatch(
+  matchId: number,
+  stage: StageGuard,
+): Promise<void> {
   const pending = await getPendingApprovals();
   const approval = pending.find(
     (a) => a.object_type === 'reconciliation_match' && a.object_id === matchId,
@@ -277,6 +290,7 @@ export async function confirmStagedMatch(matchId: number): Promise<void> {
   if (!approval) {
     throw new Error(`No pending approval found for match ${matchId}`);
   }
+  stage();
   await approveApproval(approval.id, APPROVED_BY);
 }
 
@@ -284,8 +298,10 @@ export async function confirmStagedMatch(matchId: number): Promise<void> {
 export async function undoMatches(
   statementId: number,
   matchIds: number[],
+  stage: StageGuard,
 ): Promise<void> {
   for (const id of matchIds) {
+    stage();
     await unmatchMatch(statementId, id);
   }
 }
@@ -306,6 +322,25 @@ export type CreateFromLineResult =
   | { outcome: 'held'; expenseId: number; reason: string };
 
 /**
+ * What of a createExpenseFromLine chain the server has ALREADY accepted
+ * (issue #251). The caller keeps it across attempts; a retry resumes after
+ * the last landed stage and never repeats one — no second expense, no
+ * second post. Once a match was staged (its approval then failed:
+ * BookingPartialError) the chain is finished from the client's side: the
+ * staged match is recovered by the statement's confirm-staged flow, never
+ * staged again.
+ */
+export interface FromLineProgress {
+  expenseId: number | null;
+  posted: { held: false } | { held: true; reason: string } | null;
+  stagedMatchIds: number[] | null;
+}
+
+export function newFromLineProgress(): FromLineProgress {
+  return { expenseId: null, posted: null, stagedMatchIds: null };
+}
+
+/**
  * The core inversion — "bank line → expense", composed client-side:
  * 1. createExpense (draft), 2. post via the pipeline (Rules → Policy),
  * 3. if held-for-approval: report honestly (a pending expense has no voucher
@@ -316,29 +351,44 @@ export type CreateFromLineResult =
  */
 export async function createExpenseFromLine(
   input: CreateFromLineInput,
+  progress: FromLineProgress,
+  stage: StageGuard,
 ): Promise<CreateFromLineResult> {
-  const expense = await createExpense({
-    category: input.category,
-    gross_amount: input.grossCents,
-    vat_amount: input.vatCents,
-    currency: input.currency,
-    tax_point_date: input.taxPointDate,
-    supplier_id: input.supplierId,
-  });
-  const posted = await postExpense(expense.id);
-  if (posted.policy.action === 'hold-for-approval') {
-    return {
-      outcome: 'held',
-      expenseId: expense.id,
-      reason: posted.policy.reason,
-    };
+  if (progress.stagedMatchIds !== null) {
+    throw new Error(
+      'The match is already staged — confirm it from the statement.',
+    );
   }
+  if (progress.expenseId === null) {
+    const expense = await createExpense({
+      category: input.category,
+      gross_amount: input.grossCents,
+      vat_amount: input.vatCents,
+      currency: input.currency,
+      tax_point_date: input.taxPointDate,
+      supplier_id: input.supplierId,
+    });
+    progress.expenseId = expense.id;
+  }
+  const expenseId = progress.expenseId;
+  if (progress.posted === null) {
+    stage();
+    const posted = await postExpense(expenseId);
+    progress.posted =
+      posted.policy.action === 'hold-for-approval'
+        ? { held: true, reason: posted.policy.reason }
+        : { held: false };
+  }
+  if (progress.posted.held) {
+    return { outcome: 'held', expenseId, reason: progress.posted.reason };
+  }
+  stage();
   const res = await getMatchCandidates(
     input.statementId,
     input.bankTransactionId,
   );
   const candidate = res.candidates.find(
-    (c) => c.objectType === 'expense' && c.objectId === expense.id,
+    (c) => c.objectType === 'expense' && c.objectId === expenseId,
   );
   if (!candidate) {
     throw new Error(
@@ -350,11 +400,24 @@ export async function createExpenseFromLine(
     amount === candidate.voucherRemaining && amount === res.lineRemaining
       ? 'exact'
       : 'partial';
-  const matchId = await bookManualMatch(input.statementId, {
-    bankTransactionId: input.bankTransactionId,
-    voucherId: candidate.voucherId,
-    amountMatched: amount,
-    matchType,
-  });
-  return { outcome: 'matched', expenseId: expense.id, matchId };
+  stage();
+  let matchId: number;
+  try {
+    matchId = await bookManualMatch(
+      input.statementId,
+      {
+        bankTransactionId: input.bankTransactionId,
+        voucherId: candidate.voucherId,
+        amountMatched: amount,
+        matchType,
+      },
+      stage,
+    );
+  } catch (e) {
+    if (e instanceof BookingPartialError) {
+      progress.stagedMatchIds = e.stagedMatchIds;
+    }
+    throw e;
+  }
+  return { outcome: 'matched', expenseId, matchId };
 }

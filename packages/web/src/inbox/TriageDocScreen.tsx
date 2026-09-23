@@ -32,6 +32,7 @@ import { outcomeText } from './reason';
 import { ResolveSupplierSheet } from './ResolveSupplierSheet';
 import { TriageDecisionPanel } from './TriageDecisionPanel';
 import { TriageDocumentContext } from './TriageDocumentContext';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
 
@@ -72,52 +73,55 @@ export function TriageDocScreen() {
     setSheetKind(null);
   }
   const [confirm, setConfirm] = useState<'dismiss' | 'delete' | null>(null);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Document triage');
+  const busy = op.pending;
   // Remount nonce for the sheets: bumped when an unknown outcome keeps the
   // operator on the SAME document (same docId → same key otherwise), so
   // reopening the sheet to retry gets a fresh instance instead of the one
   // whose success path deliberately left busy=true.
   const [attempt, setAttempt] = useState(0);
 
-  const finishTriage = async (o: TriageOutcome) => {
+  // Synchronous continuations (issue #251): they run from an operation's
+  // live-scope success; the queue refresh is started, not awaited.
+  const finishTriage = (o: TriageOutcome) => {
     setSheet(null);
     if (o.kind === 'unknown') {
       // Still unresolved — stay here, refresh the reason.
       setAttempt((a) => a + 1);
       toastErr(outcomeText(o));
-      await invalidateInbox(qc);
+      void invalidateInbox(qc);
       return;
     }
     toastOk(outcomeText(o));
     navigate(next);
-    await invalidateInbox(qc);
+    void invalidateInbox(qc);
   };
 
-  const runAction = async (fn: () => Promise<unknown>, message: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      toastOk(message);
-      // Auto-advance re-renders this SAME element for the next document
-      // (only the :id param changes) — reset the screen-level action state
-      // BEFORE navigating, or doc N+1 renders with every action disabled,
-      // the confirm dialog still open, or (OcrFailedSheet.onRetried, which
-      // calls runAction directly) a Fix-file sheet auto-opened over the
-      // WRONG document — its Upload replacement would then archive the
-      // next doc's original file.
-      setSheet(null);
-      setBusy(false);
-      setConfirm(null);
-      // Navigate BEFORE the invalidation settles: awaiting it first let the
-      // refetch land, the item vanish, and the "Already handled" empty
-      // state flash for a frame (P03 Task 13 deferred item).
-      navigate(next);
-      await invalidateInbox(qc);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-      setConfirm(null);
-    }
+  const advance = (message: string) => {
+    toastOk(message);
+    // Auto-advance re-renders this SAME element for the next document
+    // (only the :id param changes) — reset the screen-level action state
+    // BEFORE navigating, or doc N+1 renders with the confirm dialog still
+    // open, or (OcrFailedSheet.onRetried) a Fix-file sheet auto-opened over
+    // the WRONG document — its Upload replacement would then archive the
+    // next doc's original file.
+    setSheet(null);
+    setConfirm(null);
+    // Navigate BEFORE the invalidation settles: awaiting it first let the
+    // refetch land, the item vanish, and the "Already handled" empty
+    // state flash for a frame (P03 Task 13 deferred item).
+    navigate(next);
+    void invalidateInbox(qc);
+  };
+
+  const runAction = (fn: () => Promise<unknown>, message: string) => {
+    op.run(fn, {
+      onSuccess: () => advance(message),
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+        setConfirm(null);
+      },
+    });
   };
 
   const title =
@@ -170,7 +174,7 @@ export function TriageDocScreen() {
       <TriageDecisionPanel
         documentId={docId}
         item={item}
-        busy={busy}
+        op={op}
         onOpen={setSheet}
         onArchive={() => setConfirm('dismiss')}
         onResolved={finishTriage}
@@ -184,7 +188,7 @@ export function TriageDocScreen() {
           disabled={busy}
           className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
           onClick={() =>
-            void runAction(
+            runAction(
               () => retryDocument(docId),
               'Queued for a fresh AI run — the queue updates as it lands',
             )
@@ -224,10 +228,7 @@ export function TriageDocScreen() {
         confirmLabel="Archive document"
         busy={busy}
         onConfirm={() =>
-          void runAction(
-            () => completeDocument(docId),
-            'Archived without booking',
-          )
+          runAction(() => completeDocument(docId), 'Archived without booking')
         }
       />
       <ConfirmDialog
@@ -240,9 +241,7 @@ export function TriageDocScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() =>
-          void runAction(() => deleteDocument(docId), 'File deleted')
-        }
+        onConfirm={() => runAction(() => deleteDocument(docId), 'File deleted')}
       />
 
       {/* kind-docId-attempt keys: these sheets do NOT self-reset internal
@@ -259,7 +258,7 @@ export function TriageDocScreen() {
         documentId={docId}
         open={sheet === 'resolve'}
         onOpenChange={(o) => setSheet(o ? 'resolve' : null)}
-        onDone={(o) => void finishTriage(o)}
+        onDone={finishTriage}
       />
       <DuplicateReviewSheet
         key={`duplicate-${docId}-${attempt}-${sheetEpoch}`}
@@ -277,26 +276,23 @@ export function TriageDocScreen() {
         documentId={docId}
         open={sheet === 'classify'}
         onOpenChange={(o) => setSheet(o ? 'classify' : null)}
-        onDone={(o) => void finishTriage(o)}
+        onDone={finishTriage}
       />
       <ClassifyInvoiceSheet
         key={`invoice-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         open={sheet === 'invoice'}
         onOpenChange={(o) => setSheet(o ? 'invoice' : null)}
-        onDone={(o) => void finishTriage(o)}
+        onDone={finishTriage}
       />
       <OcrFailedSheet
         key={`ocr-${docId}-${attempt}-${sheetEpoch}`}
         documentId={docId}
         open={sheet === 'ocr'}
         onOpenChange={(o) => setSheet(o ? 'ocr' : null)}
-        onReplaced={(o) => void finishTriage(o)}
+        onReplaced={finishTriage}
         onRetried={() =>
-          void runAction(
-            () => Promise.resolve(),
-            'Queued for a fresh AI run — the queue updates as it lands',
-          )
+          advance('Queued for a fresh AI run — the queue updates as it lands')
         }
       />
     </div>

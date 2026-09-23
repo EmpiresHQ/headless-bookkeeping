@@ -19,7 +19,7 @@ function renderShell(path = '/inbox') {
   const router = createMemoryRouter(
     [
       {
-        element: <AppLayout onSignOut={vi.fn()} />,
+        element: <AppLayout onSignOut={vi.fn()} onUnauthorized={vi.fn()} />,
         children: [
           { path: '/inbox', element: <p>inbox body</p> },
           { path: '/books', element: <p>books body</p> },

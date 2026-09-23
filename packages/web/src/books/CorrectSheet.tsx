@@ -2,11 +2,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { correctExpense, correctInvoice, type CorrectionRequest } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import { useCategories } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, INPUT_CLS, SelectInput, TextInput } from '../ui/Form';
+import {
+  Field,
+  INPUT_CLS,
+  PendingFieldset,
+  SelectInput,
+  TextInput,
+} from '../ui/Form';
 import { LinkButton } from '../ui/LinkButton';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
@@ -55,7 +62,8 @@ export function CorrectSheet({
   const [vat, setVat] = useState(centsToEuroInput(vatCents));
   const [cat, setCat] = useState(category ?? '');
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Correct');
+  const busy = op.pending;
   // The fields were seeded from these props once; a later refetch of the
   // props does not reseed them, so the baseline is frozen the same way.
   const [baseline] = useState(() => ({ kind, gross, vat, cat, reason }));
@@ -77,56 +85,62 @@ export function CorrectSheet({
     reason.trim() !== '' && (kind === 'cosmetic' || financialValid);
   const sign = objectType === 'expense' ? '−' : '+';
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const req: CorrectionRequest =
-        kind === 'cosmetic'
-          ? { kind: 'cosmetic', reason: reason.trim() }
-          : {
-              kind: 'financial',
-              reason: reason.trim(),
-              patch: {
-                gross_amount: grossParsed as number,
-                vat_amount: vatParsed as number,
-                ...(objectType === 'expense' && cat !== ''
-                  ? { category: cat }
-                  : {}),
-              },
-            };
-      const res =
-        objectType === 'expense'
-          ? await correctExpense(objectId, req)
-          : await correctInvoice(objectId, req);
-      await invalidateBooks(qc);
-      if (res.outcome === 'unsupported_status') {
-        // The object was corrected by someone/something else in the
-        // meantime — corrections are one-shot (ADR-0009), so this request
-        // did nothing. Show reality, not a false success receipt.
-        toastErr(
-          'Nothing changed — this document was already corrected (corrections are one-shot)',
-        );
-      } else if (res.redirected === true) {
-        toastOk(
-          'Correction landed in the current open period — the original period is locked',
-        );
-      } else if (kind === 'cosmetic') {
-        toastOk(
-          'Cosmetic note sent — not stored, nothing changed in the books',
-        );
-      } else {
-        toastOk(
-          `Correction posted · ${sign}${centsToEuroInput(grossParsed as number)} €`,
-        );
-      }
-      guard.release();
-      onOpenChange(false);
-      onDone();
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const submit = () => {
+    if (!canSubmit) return;
+    const req: CorrectionRequest =
+      kind === 'cosmetic'
+        ? { kind: 'cosmetic', reason: reason.trim() }
+        : {
+            kind: 'financial',
+            reason: reason.trim(),
+            patch: {
+              gross_amount: grossParsed as number,
+              vat_amount: vatParsed as number,
+              ...(objectType === 'expense' && cat !== ''
+                ? { category: cat }
+                : {}),
+            },
+          };
+    const submittedKind = kind;
+    const submittedGross = grossParsed;
+    op.run(
+      async (ctx) => {
+        const res =
+          objectType === 'expense'
+            ? await correctExpense(objectId, req)
+            : await correctInvoice(objectId, req);
+        ctx.check();
+        await invalidateBooks(qc);
+        return res;
+      },
+      {
+        onSuccess: (res) => {
+          if (res.outcome === 'unsupported_status') {
+            // The object was corrected by someone/something else in the
+            // meantime — corrections are one-shot (ADR-0009), so this request
+            // did nothing. Show reality, not a false success receipt.
+            toastErr(
+              'Nothing changed — this document was already corrected (corrections are one-shot)',
+            );
+          } else if (res.redirected === true) {
+            toastOk(
+              'Correction landed in the current open period — the original period is locked',
+            );
+          } else if (submittedKind === 'cosmetic') {
+            toastOk(
+              'Cosmetic note sent — not stored, nothing changed in the books',
+            );
+          } else {
+            toastOk(
+              `Correction posted · ${sign}${centsToEuroInput(submittedGross as number)} €`,
+            );
+          }
+          guard.release();
+          onOpenChange(false);
+          onDone();
+        },
+      },
+    );
   };
 
   return (
@@ -135,8 +149,9 @@ export function CorrectSheet({
       onOpenChange={onOpenChange}
       title="Correct"
       guard={guard}
+      busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         <div className="space-y-2">
           {(
             [
@@ -235,7 +250,7 @@ export function CorrectSheet({
               className="w-full"
               busy={busy}
               disabled={!canSubmit}
-              onClick={() => void submit()}
+              onClick={submit}
             >
               {kind === 'cosmetic'
                 ? 'Record cosmetic correction'
@@ -245,7 +260,7 @@ export function CorrectSheet({
             </Button>
           </>
         )}
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

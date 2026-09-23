@@ -1,52 +1,139 @@
 export const TOKEN_KEY = 'bk_api_token';
 
+/**
+ * Session revision (issue #251). Bumped by every sign-in (setToken) and
+ * sign-out/401 (clearToken). A request belongs to the revision it STARTED
+ * under: if the revision moved while it was in flight — after the fetch, and
+ * after every body read — its outcome belongs to an ended session and is
+ * delivered as SessionChangedError instead (never data, never a 401 that
+ * clears the NEXT session's token). So an old multi-stage chain stops at its
+ * next boundary instead of sending a later stage with a newer token. What
+ * the server already accepted stays accepted; the client only stops
+ * acting on it.
+ */
+let revision = 0;
+
+/** Which session a request or operation belongs to: this tab's revision
+ *  AND the token itself — another tab can replace the stored token without
+ *  this module's revision moving. */
+export interface SessionStamp {
+  readonly revision: number;
+  readonly token: string | null;
+}
+
+export function sessionStamp(): SessionStamp {
+  return { revision, token: getToken() };
+}
+
+export function isSameSession(stamp: SessionStamp): boolean {
+  return stamp.revision === revision && stamp.token === getToken();
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
+  revision += 1;
   localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
+  revision += 1;
   localStorage.removeItem(TOKEN_KEY);
 }
 
-/** Raised on a 401 so the UI can drop back to the token gate. */
+/** Raised on a 401 of the CURRENT session so the UI can drop back to the
+ *  token gate. `endedRevision` is the revision this 401 ended (the one its
+ *  own clearToken produced): the shell signs out only while that is still
+ *  the live revision — a newer sign-in makes it history. */
 export class UnauthorizedError extends Error {
-  constructor() {
+  constructor(readonly endedRevision: number) {
     super('Unauthorized — token cleared');
     this.name = 'UnauthorizedError';
   }
 }
 
+/** The request's session ended while it was in flight (sign-out, a 401
+ *  elsewhere, a new sign-in). Its outcome must not be acted on. */
+export class SessionChangedError extends Error {
+  constructor() {
+    super('The session changed while the request was in flight');
+    this.name = 'SessionChangedError';
+  }
+}
+
+/** True for a 401 that ended the session that is still current — the only
+ *  kind that may sign the shell out (no sign-in since, here or in another
+ *  tab). */
+export function isCurrentUnauthorized(e: unknown): e is UnauthorizedError {
+  return (
+    e instanceof UnauthorizedError &&
+    e.endedRevision === revision &&
+    getToken() === null
+  );
+}
+
+/** The ownership check run after every await of a request. */
+function owned(startedAt: SessionStamp): void {
+  if (!isSameSession(startedAt)) throw new SessionChangedError();
+}
+
+/** Send with the stored Bearer token; resolve only with an OK response that
+ *  still belongs to the session the request started under. */
+async function send(path: string, init: RequestInit): Promise<Response> {
+  const startedAt = sessionStamp();
+  const headers = new Headers(init.headers);
+  const token = startedAt.token;
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers });
+  } catch (e) {
+    owned(startedAt);
+    throw e;
+  }
+  owned(startedAt);
+
+  if (res.status === 401) {
+    clearToken();
+    throw new UnauthorizedError(revision);
+  }
+  if (!res.ok) {
+    const detail = await errorDetail(res).catch((e: unknown) => {
+      owned(startedAt);
+      throw e;
+    });
+    owned(startedAt);
+    throw new Error(`${res.status} ${res.statusText}: ${detail}`);
+  }
+  return res;
+}
+
 /**
  * fetch wrapper that attaches the stored Bearer token, surfaces a 401 by
  * clearing the token and throwing UnauthorizedError, and returns parsed JSON.
+ * Session-owned: see `revision` above.
  */
 export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const headers = new Headers(init.headers);
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-
-  const res = await fetch(path, { ...init, headers });
-
-  if (res.status === 401) {
-    clearToken();
-    throw new UnauthorizedError();
-  }
-  if (!res.ok) {
-    throw new Error(
-      `${res.status} ${res.statusText}: ${await errorDetail(res)}`,
-    );
-  }
+  const startedAt = sessionStamp();
+  const res = await send(path, init);
   // P1 only calls JSON GET endpoints, so we always parse. When P2 adds
   // mutations that may return 204 No Content, this must grow an empty-body
   // guard (and a test) before such a call is made.
-  return (await res.json()) as T;
+  let body: T;
+  try {
+    body = (await res.json()) as T;
+  } catch (e) {
+    owned(startedAt);
+    throw e;
+  }
+  owned(startedAt);
+  return body;
 }
 
 /**
@@ -57,22 +144,9 @@ export async function apiFetchRaw(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const headers = new Headers(init.headers);
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-
-  const res = await fetch(path, { ...init, headers });
-
-  if (res.status === 401) {
-    clearToken();
-    throw new UnauthorizedError();
-  }
-  if (!res.ok) {
-    throw new Error(
-      `${res.status} ${res.statusText}: ${await errorDetail(res)}`,
-    );
-  }
-  return res;
+  // Session-owned up to the headers; the caller's own body read (a blob
+  // download) is not an operation continuation.
+  return send(path, init);
 }
 
 /**

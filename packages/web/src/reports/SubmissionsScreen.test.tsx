@@ -76,7 +76,7 @@ function mountAt(periodId: number, status = 'rejected', history = HISTORY) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter
           initialEntries={[`/reports/periods/${periodId}/submissions`]}
         >
@@ -170,7 +170,7 @@ describe('SubmissionsScreen', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <MemoryRouter initialEntries={['/reports/periods/6/submissions']}>
             <AppToaster />
             <Routes>

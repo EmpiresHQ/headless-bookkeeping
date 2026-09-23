@@ -14,15 +14,15 @@ import {
   signedMoney,
   vatFromGross,
 } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { sharedKeys } from '../queries/keys';
 import { useCategories, useExpenses, useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
-import { toastErr } from '../ui/toast';
 
 const CURRENCIES = ['EUR', 'DKK', 'USD', 'GBP', 'SEK', 'NOK'] as const;
 const VAT_MARKINGS = [
@@ -93,12 +93,16 @@ export function ClassifyExpenseSheet({
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [showAllCats, setShowAllCats] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // One operation for the sheet (issue #251): classifying and creating a
+  // supplier never overlap; `running` only says which control shows it.
+  const op = usePendingOperation('Classify');
+  const [running, setRunning] = useState<'submit' | 'supplier'>('submit');
+  const busy = op.pending && running === 'submit';
   const [creatingSupplier, setCreatingSupplier] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCountry, setNewCountry] = useState('');
   const [newRegKey, setNewRegKey] = useState('');
-  const [creating, setCreating] = useState(false);
+  const creating = op.pending && running === 'supplier';
   // What the prefill put in each field, committed in the SAME batch as the
   // prefill itself — so neither the empty pre-prefill form nor a prefilled
   // one reads as unsaved, while a field typed before or after the prefill
@@ -258,46 +262,50 @@ export function ClassifyExpenseSheet({
     vatCents !== null &&
     vatCents >= 0;
 
-  const submit = async () => {
+  const submit = () => {
     if (!valid || supplier === null || grossCents === null || vatCents === null)
       return;
-    setBusy(true);
-    try {
-      const outcome = await manualClassify(documentId, {
-        supplier_id: supplier.id,
-        category,
-        document_vat_marking: vatMarking !== '' ? vatMarking : null,
-        gross_amount: grossCents,
-        vat_amount: vatCents,
-        currency,
-        tax_point_date: date,
-        supplier_invoice_number: invoiceNumber !== '' ? invoiceNumber : null,
-      });
-      guard.release();
-      onDone(outcome);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+    const req = {
+      supplier_id: supplier.id,
+      category,
+      document_vat_marking: vatMarking !== '' ? vatMarking : null,
+      gross_amount: grossCents,
+      vat_amount: vatCents,
+      currency,
+      tax_point_date: date,
+      supplier_invoice_number: invoiceNumber !== '' ? invoiceNumber : null,
+    };
+    const started = op.run(() => manualClassify(documentId, req), {
+      onSuccess: (outcome) => {
+        guard.release();
+        onDone(outcome);
+      },
+    });
+    if (started) setRunning('submit');
   };
 
-  const onCreateSupplier = async () => {
-    setCreating(true);
-    try {
-      const entity = await onboardEntity({
-        role: 'supplier',
-        name: newName.trim(),
-        country: newCountry.trim(),
-        registrationKey: newRegKey.trim(),
-      });
-      setSupplier(entity);
-      setCreatingSupplier(false);
-      await qc.invalidateQueries({ queryKey: sharedKeys.entities });
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setCreating(false);
-    }
+  const onCreateSupplier = () => {
+    const req = {
+      role: 'supplier' as const,
+      name: newName.trim(),
+      country: newCountry.trim(),
+      registrationKey: newRegKey.trim(),
+    };
+    const started = op.run(
+      async (ctx) => {
+        const entity = await onboardEntity(req);
+        ctx.check();
+        await qc.invalidateQueries({ queryKey: sharedKeys.entities });
+        return entity;
+      },
+      {
+        onSuccess: (entity) => {
+          setSupplier(entity);
+          setCreatingSupplier(false);
+        },
+      },
+    );
+    if (started) setRunning('supplier');
   };
 
   const supplierMatches = (suppliersQ.data ?? [])
@@ -315,9 +323,9 @@ export function ClassifyExpenseSheet({
       onOpenChange={onOpenChange}
       title="Classify"
       guard={guard}
-      busy={busy || creating}
+      busy={op.pending}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={op.pending} className="space-y-3 px-5 pb-2">
         {detailsQ.isPending && (
           <p className="text-[13px] text-ink-2">Loading the saved facts…</p>
         )}
@@ -412,7 +420,7 @@ export function ClassifyExpenseSheet({
                 newCountry.trim() === '' ||
                 newRegKey.trim() === ''
               }
-              onClick={() => void onCreateSupplier()}
+              onClick={onCreateSupplier}
             >
               Add supplier
             </Button>
@@ -560,13 +568,13 @@ export function ClassifyExpenseSheet({
           className="w-full"
           busy={busy}
           disabled={!valid}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {grossCents !== null && grossCents > 0
             ? `Create expense · ${signedMoney(-grossCents, currency)}`
             : 'Create expense'}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

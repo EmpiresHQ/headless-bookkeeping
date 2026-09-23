@@ -18,7 +18,7 @@ describe('OcrFailedSheet', () => {
 
   function renderSheet(onReplaced = vi.fn(), onRetried = vi.fn()) {
     render(
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <OcrFailedSheet
           documentId={12}
           open

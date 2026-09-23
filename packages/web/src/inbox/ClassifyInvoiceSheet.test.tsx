@@ -19,7 +19,7 @@ function renderSheet(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <ClassifyInvoiceSheet
           documentId={12}
           open

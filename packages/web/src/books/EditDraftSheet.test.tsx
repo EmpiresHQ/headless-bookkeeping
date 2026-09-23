@@ -119,7 +119,7 @@ function mountExpense(detail: Partial<typeof EXPENSE> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={['/books/expenses/12']}>
           <AppToaster />
           <Routes>
@@ -157,7 +157,7 @@ function mountInvoice(inv: Partial<SalesInvoice> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={['/books/invoices/3']}>
           <AppToaster />
           <Routes>

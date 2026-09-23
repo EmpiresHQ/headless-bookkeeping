@@ -3,9 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { importBankStatement } from '../api';
 import { bankKeys, useImportJob } from '../queries/bank';
 import { Button } from '../ui/Button';
-import { Field, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { LinkButton } from '../ui/LinkButton';
 import { ScreenHeader } from '../shell/Headers';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 type StepState = 'done' | 'active' | 'failed' | 'idle';
@@ -52,7 +53,8 @@ export function ImportScreen() {
   const [file, setFile] = useState<File | null>(null);
   const [accountCode, setAccountCode] = useState('BANK_EUR');
   const [jobId, setJobId] = useState<number | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const op = usePendingOperation('Import statement');
+  const submitting = op.pending;
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Only the form is input to keep; once the server accepted the file
   // (a job exists) the import runs server-side and leaving loses nothing.
@@ -65,19 +67,17 @@ export function ImportScreen() {
   const jobQ = useImportJob(jobId);
   const job = jobQ.data;
 
-  const onSubmit = async () => {
+  const onSubmit = () => {
     if (!file) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const { jobId: id } = await importBankStatement(file, accountCode);
-      guard.release();
-      setJobId(id);
-    } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSubmitting(false);
-    }
+    const started = op.run(() => importBankStatement(file, accountCode), {
+      onSuccess: ({ jobId: id }) => {
+        guard.release();
+        setJobId(id);
+      },
+      onError: (e) =>
+        setSubmitError(e instanceof Error ? e.message : String(e)),
+    });
+    if (started) setSubmitError(null);
   };
 
   const reset = () => {
@@ -112,7 +112,11 @@ export function ImportScreen() {
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="Import statement" backTo="/bank" />
       {showForm ? (
-        <div className="mx-3.5 space-y-4 rounded-2xl bg-surface p-4">
+        <PendingFieldset
+          pending={submitting}
+          status="Uploading… the form is locked until the server answers."
+          className="mx-3.5 space-y-4 rounded-2xl bg-surface p-4"
+        >
           <Field
             label="Statement file"
             hint="CSV export from your bank — a fresh AI mapping runs on every upload."
@@ -137,11 +141,11 @@ export function ImportScreen() {
             className="h-[46px] w-full"
             disabled={file == null || accountCode.trim() === ''}
             busy={submitting}
-            onClick={() => void onSubmit()}
+            onClick={onSubmit}
           >
             Import statement
           </Button>
-        </div>
+        </PendingFieldset>
       ) : (
         <>
           <div className="mx-3.5 overflow-hidden rounded-2xl bg-surface">

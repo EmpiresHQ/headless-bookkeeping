@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   updateExpenseDraft,
   updateInvoiceDraft,
@@ -9,6 +9,7 @@ import {
   type ServicePlaceRule,
 } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges, type DismissGuard } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import { useCategories, useEntities } from '../queries/shared';
@@ -243,8 +244,9 @@ export function ExpenseEditSheet({
   // collision with a DIFFERENT purchase.
   const [refusedKey, setRefusedKey] = useState<string | null>(null);
   const [consentKey, setConsentKey] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
+  // The operation's own ref lock: two clicks in one frame send one save.
+  const op = usePendingOperation('Edit draft expense');
+  const busy = op.pending;
   const [saveError, setSaveError] = useState<string | null>(null);
   const values = {
     ...f.draft,
@@ -283,41 +285,44 @@ export function ExpenseEditSheet({
   // A duplicate refusal for values that have since changed is stale.
   const shownError = refusedKey !== null && !duplicate ? null : saveError;
 
-  const save = async () => {
-    // A ref, not the `busy` state: two clicks in one frame both see the
-    // stale state, but only one can take the ref.
-    if (!valid || inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    setSaveError(null);
+  const save = () => {
+    if (!valid) return;
     const keyAtSave = dupKey;
-    try {
-      await updateExpenseDraft(detail.id, {
-        category,
-        supplier_id: supplierId === '' ? null : Number(supplierId),
-        gross_amount: f.grossC as number,
-        vat_amount: f.vatC as number,
-        currency: f.cur,
-        tax_point_date: f.date,
-        supplier_invoice_number: invoiceNo.trim() === '' ? null : invoiceNo,
-        claimant_id: claimantId === '' ? null : Number(claimantId),
-        company_addressed_receipt:
-          receipt === '' ? null : receipt === 'yes' ? true : false,
-        ...(allowDuplicate ? { allow_duplicate: true } : {}),
-      });
-      await invalidateBooks(qc);
-      toastOk('Draft saved — submit it for posting when ready');
-      guard.release();
-      onSaved?.();
-      onOpenChange(false);
-    } catch (e) {
-      const message = errText(e);
-      setSaveError(message);
-      setRefusedKey(/possible duplicate/i.test(message) ? keyAtSave : null);
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
+    const id = detail.id;
+    const req = {
+      category,
+      supplier_id: supplierId === '' ? null : Number(supplierId),
+      gross_amount: f.grossC as number,
+      vat_amount: f.vatC as number,
+      currency: f.cur,
+      tax_point_date: f.date,
+      supplier_invoice_number: invoiceNo.trim() === '' ? null : invoiceNo,
+      claimant_id: claimantId === '' ? null : Number(claimantId),
+      company_addressed_receipt:
+        receipt === '' ? null : receipt === 'yes' ? true : false,
+      ...(allowDuplicate ? { allow_duplicate: true } : {}),
+    };
+    const started = op.run(
+      async (ctx) => {
+        await updateExpenseDraft(id, req);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Draft saved — submit it for posting when ready');
+          guard.release();
+          onSaved?.();
+          onOpenChange(false);
+        },
+        onError: (e) => {
+          const message = errText(e);
+          setSaveError(message);
+          setRefusedKey(/possible duplicate/i.test(message) ? keyAtSave : null);
+        },
+      },
+    );
+    if (started) setSaveError(null);
   };
 
   return (
@@ -442,7 +447,7 @@ export function ExpenseEditSheet({
         className="w-full"
         busy={busy}
         disabled={!valid || (duplicate && !allowDuplicate)}
-        onClick={() => void save()}
+        onClick={save}
       >
         Save draft
       </Button>
@@ -484,8 +489,8 @@ export function InvoiceEditSheet({
   const [placeRule, setPlaceRule] = useState<ServicePlaceRule>(
     invoice.service_place_rule,
   );
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
+  const op = usePendingOperation('Edit draft invoice');
+  const busy = op.pending;
   const [saveError, setSaveError] = useState<string | null>(null);
   const values = {
     ...f.draft,
@@ -511,41 +516,42 @@ export function InvoiceEditSheet({
     dueDate !== '' && !isRealDate(dueDate) ? 'Pick a valid date' : null;
   const valid = f.valid && numberError === null && dueError === null;
 
-  const save = async () => {
-    // A ref, not the `busy` state: two clicks in one frame both see the
-    // stale state, but only one can take the ref.
-    if (!valid || inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    setSaveError(null);
-    try {
-      await updateInvoiceDraft(invoice.id, {
-        ...(identityLocked
-          ? {}
-          : {
-              invoice_number: number.trim(),
-              customer_id: customerId === '' ? null : Number(customerId),
-            }),
-        gross_amount: f.grossC as number,
-        vat_amount: f.vatC as number,
-        currency: f.cur,
-        tax_point_date: f.date,
-        due_date: dueDate === '' ? null : dueDate,
-        supply_type:
-          supplyType === '' ? null : (supplyType as 'goods' | 'services'),
-        service_place_rule: placeRule,
-      });
-      await invalidateBooks(qc);
-      toastOk('Draft saved — submit it for posting when ready');
-      guard.release();
-      onSaved?.();
-      onOpenChange(false);
-    } catch (e) {
-      setSaveError(errText(e));
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
+  const save = () => {
+    if (!valid) return;
+    const id = invoice.id;
+    const req = {
+      ...(identityLocked
+        ? {}
+        : {
+            invoice_number: number.trim(),
+            customer_id: customerId === '' ? null : Number(customerId),
+          }),
+      gross_amount: f.grossC as number,
+      vat_amount: f.vatC as number,
+      currency: f.cur,
+      tax_point_date: f.date,
+      due_date: dueDate === '' ? null : dueDate,
+      supply_type:
+        supplyType === '' ? null : (supplyType as 'goods' | 'services'),
+      service_place_rule: placeRule,
+    };
+    const started = op.run(
+      async (ctx) => {
+        await updateInvoiceDraft(id, req);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Draft saved — submit it for posting when ready');
+          guard.release();
+          onSaved?.();
+          onOpenChange(false);
+        },
+        onError: (e) => setSaveError(errText(e)),
+      },
+    );
+    if (started) setSaveError(null);
   };
 
   return (
@@ -660,12 +666,7 @@ export function InvoiceEditSheet({
 
       <SaveError message={saveError} />
 
-      <Button
-        className="w-full"
-        busy={busy}
-        disabled={!valid}
-        onClick={() => void save()}
-      >
+      <Button className="w-full" busy={busy} disabled={!valid} onClick={save}>
         Save draft
       </Button>
     </EditShell>

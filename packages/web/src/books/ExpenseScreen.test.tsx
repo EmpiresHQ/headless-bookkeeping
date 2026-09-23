@@ -93,7 +93,7 @@ function mountAt(
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={['/books/expenses/12']}>
           <AppToaster />
           <Routes>
@@ -319,7 +319,7 @@ describe('ExpenseScreen', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <MemoryRouter initialEntries={['/books/expenses/12']}>
             <Routes>
               <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
@@ -345,7 +345,7 @@ describe('ExpenseScreen', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <MemoryRouter initialEntries={['/books/expenses/12']}>
             <Routes>
               <Route path="/books/expenses/:id" element={<ExpenseScreen />} />

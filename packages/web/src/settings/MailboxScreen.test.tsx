@@ -47,7 +47,7 @@ function mount(initial = '/settings/mailbox') {
   );
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <RouterProvider router={router} />
         <AppToaster />
       </UnsavedChangesProvider>

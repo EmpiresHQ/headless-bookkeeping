@@ -44,7 +44,7 @@ function mount() {
   );
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <RouterProvider router={router} />
         <AppToaster />
       </UnsavedChangesProvider>

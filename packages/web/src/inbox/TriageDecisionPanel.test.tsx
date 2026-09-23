@@ -11,6 +11,16 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import type { NeedsTriageItem, PendingDraft } from '../api';
 import { TriageDecisionPanel } from './TriageDecisionPanel';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+
+/** The screen owns the document's operation; the panel borrows it. */
+function PanelWithOp(
+  props: Omit<React.ComponentProps<typeof TriageDecisionPanel>, 'op'>,
+) {
+  const op = usePendingOperation('Document triage');
+  return <TriageDecisionPanel {...props} op={op} />;
+}
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
   id: 12,
@@ -40,27 +50,28 @@ const DRAFT = (
 });
 
 function renderPanel(
-  props: Partial<React.ComponentProps<typeof TriageDecisionPanel>> = {},
+  props: Partial<
+    Omit<React.ComponentProps<typeof TriageDecisionPanel>, 'op'>
+  > = {},
 ) {
   const onOpen = vi.fn();
   const onArchive = vi.fn();
-  const onResolved = vi
-    .fn<(outcome: import('../api').TriageOutcome) => Promise<void>>()
-    .mockResolvedValue(undefined);
+  const onResolved = vi.fn<(outcome: import('../api').TriageOutcome) => void>();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <TriageDecisionPanel
-        documentId={12}
-        item={ITEM()}
-        busy={false}
-        onOpen={onOpen}
-        onArchive={onArchive}
-        onResolved={onResolved}
-        {...props}
-      />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <PanelWithOp
+          documentId={12}
+          item={ITEM()}
+          onOpen={onOpen}
+          onArchive={onArchive}
+          onResolved={onResolved}
+          {...props}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { onOpen, onArchive, onResolved };

@@ -16,10 +16,11 @@ import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { ScreenHeader } from '../shell/Headers';
 import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
-import { Field, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { ListGroup, ListRow } from '../ui/List';
 import { SearchInput } from '../ui/SearchInput';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 interface Candidate {
   type: 'sales_invoice' | 'expense';
@@ -60,7 +61,8 @@ export function CreditNoteCreateScreen() {
   const [vat, setVat] = useState('');
   const [vatTouched, setVatTouched] = useState(false);
   const [date, setDate] = useState('');
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('New credit note');
+  const busy = op.pending;
   // The search box is a filter, not input to keep. `picked` starts from the
   // ?type&id deep link (the correction sheet's hand-off) — frozen alike.
   // Compared as displayed: an untouched VAT shows the auto amount.
@@ -157,136 +159,145 @@ export function CreditNoteCreateScreen() {
     vatEffective >= 0;
   const sign = selected?.type === 'expense' ? '+' : '−';
 
-  const submit = async () => {
+  const submit = () => {
     if (!valid || selected === null) return;
-    setBusy(true);
-    try {
-      const created = await createCreditNote({
-        credits_object_type: selected.type,
-        credits_object_id: selected.id,
-        credit_note_number: number.trim(),
-        gross_amount: grossParsed as number,
-        vat_amount: vatEffective as number,
-        tax_point_date: date !== '' ? date : selected.taxPointDate,
-      });
-      await invalidateBooks(qc);
-      toastOk(
-        `Credit note issued · ${sign}${centsToEuroInput(grossParsed as number)} €`,
-      );
-      guard.release();
-      navigate(`/books/credit-notes/${created.id}`, { replace: true });
-    } catch (e) {
-      // Server cap/state errors carry the remaining amount — show verbatim.
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    const req = {
+      credits_object_type: selected.type,
+      credits_object_id: selected.id,
+      credit_note_number: number.trim(),
+      gross_amount: grossParsed as number,
+      vat_amount: vatEffective as number,
+      tax_point_date: date !== '' ? date : selected.taxPointDate,
+    };
+    const receipt = `Credit note issued · ${sign}${centsToEuroInput(grossParsed as number)} €`;
+    op.run(
+      async (ctx) => {
+        const created = await createCreditNote(req);
+        ctx.check();
+        await invalidateBooks(qc);
+        return created;
+      },
+      {
+        onSuccess: (created) => {
+          toastOk(receipt);
+          guard.release();
+          navigate(`/books/credit-notes/${created.id}`, { replace: true });
+        },
+        onError: (e) =>
+          // Server cap/state errors carry the remaining amount — verbatim.
+          toastErr(e instanceof Error ? e.message : String(e)),
+      },
+    );
   };
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="New credit note" backTo="/books?seg=credit-notes" />
-
-      <ListGroup label={selected === null ? 'Credit what?' : 'Crediting'}>
-        {selected !== null ? (
-          <ListRow
-            onClick={() => setPicked(null)}
-            title={selected.label}
-            subtitle={`${centsToEuroInput(selected.grossCents)} € · ${centsToEuroInput(selected.outstandingCents)} € outstanding · tap to change`}
-          />
-        ) : (
-          <div className="px-3.5 py-2.5">
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Number, counterparty, category…"
+      <PendingFieldset
+        pending={busy}
+        status="Issuing… the form is locked until the server answers."
+      >
+        <ListGroup label={selected === null ? 'Credit what?' : 'Crediting'}>
+          {selected !== null ? (
+            <ListRow
+              onClick={() => setPicked(null)}
+              title={selected.label}
+              subtitle={`${centsToEuroInput(selected.grossCents)} € · ${centsToEuroInput(selected.outstandingCents)} € outstanding · tap to change`}
             />
+          ) : (
+            <div className="px-3.5 py-2.5">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Number, counterparty, category…"
+              />
+            </div>
+          )}
+          {selected === null &&
+            visible.map((c) => (
+              <ListRow
+                key={`${c.type}-${c.id}`}
+                onClick={() => setPicked({ type: c.type, id: c.id })}
+                title={c.label}
+                subtitle={`${shortDate(c.taxPointDate)} · ${centsToEuroInput(c.grossCents)} € · ${centsToEuroInput(c.outstandingCents)} € outstanding`}
+              />
+            ))}
+          {selected === null && visible.length === 0 && (
+            <ListRow
+              title="Nothing creditable"
+              subtitle="Only posted invoices and expenses can be credited"
+            />
+          )}
+        </ListGroup>
+
+        {selected !== null && (
+          <div className="space-y-3 px-5">
+            <Field label="Credit note number">
+              <TextInput
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Gross (€)"
+              error={
+                overCap && selected !== null
+                  ? `Only ${centsToEuroInput(selected.outstandingCents)} € remains creditable on this document`
+                  : null
+              }
+            >
+              <TextInput
+                inputMode="decimal"
+                value={gross}
+                onChange={(e) => setGross(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="VAT (€)"
+              hint={
+                vatTouched
+                  ? undefined
+                  : `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if the document says otherwise`
+              }
+            >
+              <TextInput
+                inputMode="decimal"
+                value={
+                  vatTouched
+                    ? vat
+                    : vatAuto !== null
+                      ? centsToEuroInput(vatAuto)
+                      : ''
+                }
+                onChange={(e) => {
+                  setVatTouched(true);
+                  setVat(e.target.value);
+                }}
+              />
+            </Field>
+            <Field
+              label="Tax point date"
+              hint="Defaults to the credited document's date; a locked-period date is redirected server-side (ADR-0009)"
+            >
+              <TextInput
+                type="date"
+                value={date !== '' ? date : selected.taxPointDate}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </Field>
+            <Button
+              className="w-full"
+              busy={busy}
+              disabled={!valid}
+              onClick={submit}
+            >
+              {grossParsed !== null && grossParsed > 0
+                ? `Issue credit note · ${sign}${centsToEuroInput(grossParsed)} €`
+                : 'Issue credit note'}
+            </Button>
           </div>
         )}
-        {selected === null &&
-          visible.map((c) => (
-            <ListRow
-              key={`${c.type}-${c.id}`}
-              onClick={() => setPicked({ type: c.type, id: c.id })}
-              title={c.label}
-              subtitle={`${shortDate(c.taxPointDate)} · ${centsToEuroInput(c.grossCents)} € · ${centsToEuroInput(c.outstandingCents)} € outstanding`}
-            />
-          ))}
-        {selected === null && visible.length === 0 && (
-          <ListRow
-            title="Nothing creditable"
-            subtitle="Only posted invoices and expenses can be credited"
-          />
-        )}
-      </ListGroup>
-
-      {selected !== null && (
-        <div className="space-y-3 px-5">
-          <Field label="Credit note number">
-            <TextInput
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Gross (€)"
-            error={
-              overCap && selected !== null
-                ? `Only ${centsToEuroInput(selected.outstandingCents)} € remains creditable on this document`
-                : null
-            }
-          >
-            <TextInput
-              inputMode="decimal"
-              value={gross}
-              onChange={(e) => setGross(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="VAT (€)"
-            hint={
-              vatTouched
-                ? undefined
-                : `Auto at ${STANDARD_VAT_RATE_PCT}% — edit if the document says otherwise`
-            }
-          >
-            <TextInput
-              inputMode="decimal"
-              value={
-                vatTouched
-                  ? vat
-                  : vatAuto !== null
-                    ? centsToEuroInput(vatAuto)
-                    : ''
-              }
-              onChange={(e) => {
-                setVatTouched(true);
-                setVat(e.target.value);
-              }}
-            />
-          </Field>
-          <Field
-            label="Tax point date"
-            hint="Defaults to the credited document's date; a locked-period date is redirected server-side (ADR-0009)"
-          >
-            <TextInput
-              type="date"
-              value={date !== '' ? date : selected.taxPointDate}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </Field>
-          <Button
-            className="w-full"
-            busy={busy}
-            disabled={!valid}
-            onClick={() => void submit()}
-          >
-            {grossParsed !== null && grossParsed > 0
-              ? `Issue credit note · ${sign}${centsToEuroInput(grossParsed)} €`
-              : 'Issue credit note'}
-          </Button>
-        </div>
-      )}
+      </PendingFieldset>
     </div>
   );
 }

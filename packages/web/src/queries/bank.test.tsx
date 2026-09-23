@@ -24,6 +24,7 @@ vi.mock('../api', () => ({
 }));
 
 import * as api from '../api';
+import { SessionChangedError, UnauthorizedError } from '../auth';
 import {
   bankKeys,
   BookingPartialError,
@@ -31,12 +32,16 @@ import {
   bookProposals,
   confirmStagedMatch,
   createExpenseFromLine,
+  newFromLineProgress,
   importJobRefetchInterval,
   invalidateStatement,
   undoMatches,
   useImportJob,
 } from './bank';
 import { sharedKeys } from './keys';
+
+/** Stage guard of a live scope: every stage may proceed. */
+const noStage = () => undefined;
 
 const PROPOSAL = {
   bankTransactionId: 9,
@@ -82,7 +87,7 @@ describe('bookProposals', () => {
       order.push(`approve-${id}`);
       return { approval: { id } } as never;
     });
-    const matchIds = await bookProposals(3, [PROPOSAL, PROPOSAL]);
+    const matchIds = await bookProposals(3, [PROPOSAL, PROPOSAL], noStage);
     expect(matchIds).toEqual([41, 42]);
     expect(order).toEqual(['stage', 'approve-9', 'approve-10']);
     expect(api.approveApproval).toHaveBeenCalledWith(9, 'operator');
@@ -100,7 +105,11 @@ describe('bookProposals', () => {
       .mockResolvedValueOnce({ approval: { id: 9 } } as never)
       .mockRejectedValueOnce(new Error('over-allocation: cap exceeded (409)'));
 
-    const err: unknown = await bookProposals(3, [PROPOSAL, PROPOSAL]).then(
+    const err: unknown = await bookProposals(
+      3,
+      [PROPOSAL, PROPOSAL],
+      noStage,
+    ).then(
       () => {
         throw new Error('expected bookProposals to reject');
       },
@@ -117,7 +126,7 @@ describe('bookProposals', () => {
   it('rethrows a staging failure as-is (not BookingPartialError)', async () => {
     const boom = new Error('statement is locked');
     vi.mocked(api.executeMatches).mockRejectedValue(boom);
-    await expect(bookProposals(3, [PROPOSAL])).rejects.toBe(boom);
+    await expect(bookProposals(3, [PROPOSAL], noStage)).rejects.toBe(boom);
     expect(api.approveApproval).not.toHaveBeenCalled();
   });
 });
@@ -133,12 +142,16 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
     vi.mocked(api.approveApproval).mockResolvedValue({
       approval: { id: 12 },
     } as never);
-    const matchId = await bookManualMatch(3, {
-      bankTransactionId: 9,
-      voucherId: 70,
-      amountMatched: 1860,
-      matchType: 'exact',
-    });
+    const matchId = await bookManualMatch(
+      3,
+      {
+        bankTransactionId: 9,
+        voucherId: 70,
+        amountMatched: 1860,
+        matchType: 'exact',
+      },
+      noStage,
+    );
     expect(matchId).toBe(88);
     expect(api.approveApproval).toHaveBeenCalledWith(12, 'operator');
   });
@@ -149,12 +162,16 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
       approvals: [],
     });
     await expect(
-      bookManualMatch(3, {
-        bankTransactionId: 9,
-        voucherId: 70,
-        amountMatched: 1860,
-        matchType: 'exact',
-      }),
+      bookManualMatch(
+        3,
+        {
+          bankTransactionId: 9,
+          voucherId: 70,
+          amountMatched: 1860,
+          matchType: 'exact',
+        },
+        noStage,
+      ),
     ).rejects.toThrow(/contract breach/i);
     expect(api.approveApproval).not.toHaveBeenCalled();
   });
@@ -167,12 +184,16 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
     vi.mocked(api.approveApproval).mockRejectedValue(
       new Error('approval already superseded'),
     );
-    const err: unknown = await bookManualMatch(3, {
-      bankTransactionId: 9,
-      voucherId: 70,
-      amountMatched: 1860,
-      matchType: 'exact',
-    }).then(
+    const err: unknown = await bookManualMatch(
+      3,
+      {
+        bankTransactionId: 9,
+        voucherId: 70,
+        amountMatched: 1860,
+        matchType: 'exact',
+      },
+      noStage,
+    ).then(
       () => {
         throw new Error('expected bookManualMatch to reject');
       },
@@ -188,7 +209,7 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
 
   it('undoMatches unmatches every id against the statement', async () => {
     vi.mocked(api.unmatchMatch).mockResolvedValue({});
-    await undoMatches(3, [41, 42]);
+    await undoMatches(3, [41, 42], noStage);
     expect(api.unmatchMatch).toHaveBeenNthCalledWith(1, 3, 41);
     expect(api.unmatchMatch).toHaveBeenNthCalledWith(2, 3, 42);
   });
@@ -212,13 +233,13 @@ describe('bookManualMatch / undoMatches / confirmStagedMatch', () => {
     vi.mocked(api.approveApproval).mockResolvedValue({
       approval: { id: 77 },
     } as never);
-    await confirmStagedMatch(41);
+    await confirmStagedMatch(41, noStage);
     expect(api.approveApproval).toHaveBeenCalledWith(77, 'operator');
   });
 
   it('confirmStagedMatch throws when no approval is pending for the match', async () => {
     vi.mocked(api.getPendingApprovals).mockResolvedValue([]);
-    await expect(confirmStagedMatch(41)).rejects.toThrow(
+    await expect(confirmStagedMatch(41, noStage)).rejects.toThrow(
       /no pending approval/i,
     );
   });
@@ -237,6 +258,102 @@ describe('createExpenseFromLine', () => {
     taxPointDate: '2026-06-27',
     supplierId: 12,
   };
+
+  function happyPath() {
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 55 } as never);
+    vi.mocked(api.postExpense).mockResolvedValue({
+      expense: { id: 55, status: 'posted' },
+      policy: { action: 'auto-post', reason: 'ok' },
+    } as never);
+    vi.mocked(api.getMatchCandidates).mockResolvedValue({
+      bankTransactionId: 9,
+      lineRemaining: 1860,
+      candidates: [
+        {
+          voucherId: 70,
+          objectType: 'expense',
+          objectId: 55,
+          objectLabel: 'Expense #55',
+          counterpartyName: null,
+          voucherRemaining: 1860,
+        },
+      ],
+    } as never);
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 88 }],
+      approvals: [{ id: 12, matchId: 88 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: { id: 12 },
+    } as never);
+  }
+
+  it('a failed POST stage resumes on retry: the SAME expense is posted, never a second create (#251)', async () => {
+    happyPath();
+    vi.mocked(api.postExpense).mockRejectedValueOnce(new Error('503'));
+    const progress = newFromLineProgress();
+    await expect(
+      createExpenseFromLine(INPUT, progress, noStage),
+    ).rejects.toThrow('503');
+    expect(progress).toEqual({
+      expenseId: 55,
+      posted: null,
+      stagedMatchIds: null,
+    });
+    const res = await createExpenseFromLine(INPUT, progress, noStage);
+    expect(res).toEqual({ outcome: 'matched', expenseId: 55, matchId: 88 });
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(2);
+    expect(api.postExpense).toHaveBeenLastCalledWith(55);
+    expect(api.manualMatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed approval leaves the match staged: retry never stages it again (#251)', async () => {
+    happyPath();
+    vi.mocked(api.approveApproval).mockRejectedValueOnce(new Error('409'));
+    const progress = newFromLineProgress();
+    await expect(
+      createExpenseFromLine(INPUT, progress, noStage),
+    ).rejects.toBeInstanceOf(BookingPartialError);
+    expect(progress.stagedMatchIds).toEqual([88]);
+    await expect(
+      createExpenseFromLine(INPUT, progress, noStage),
+    ).rejects.toThrow(/already staged/);
+    expect(api.manualMatch).toHaveBeenCalledTimes(1);
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+  });
+
+  it('the stage guard stops the chain before its next stage (session ended) (#251)', async () => {
+    happyPath();
+    const ended = new Error('stage refused');
+    let calls = 0;
+    const stage = () => {
+      calls += 1;
+      throw ended;
+    };
+    await expect(
+      createExpenseFromLine(INPUT, newFromLineProgress(), stage),
+    ).rejects.toBe(ended);
+    expect(calls).toBe(1);
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).not.toHaveBeenCalled();
+    expect(api.manualMatch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['UnauthorizedError', () => new UnauthorizedError(0)],
+    ['SessionChangedError', () => new SessionChangedError()],
+  ])(
+    'an approval failing with %s propagates UNWRAPPED (not BookingPartialError) (#251)',
+    async (_name, make) => {
+      happyPath();
+      const cause = make();
+      vi.mocked(api.approveApproval).mockRejectedValueOnce(cause);
+      await expect(
+        createExpenseFromLine(INPUT, newFromLineProgress(), noStage),
+      ).rejects.toBe(cause);
+    },
+  );
 
   it('creates, posts, finds its own candidate, matches exact, approves', async () => {
     vi.mocked(api.createExpense).mockResolvedValue({ id: 55 } as never);
@@ -266,7 +383,11 @@ describe('createExpenseFromLine', () => {
       approval: { id: 12 },
     } as never);
 
-    const res = await createExpenseFromLine(INPUT);
+    const res = await createExpenseFromLine(
+      INPUT,
+      newFromLineProgress(),
+      noStage,
+    );
     expect(res).toEqual({ outcome: 'matched', expenseId: 55, matchId: 88 });
     expect(api.createExpense).toHaveBeenCalledWith({
       category: 'meals',
@@ -293,7 +414,11 @@ describe('createExpenseFromLine', () => {
         reason: 'amount 240.00 above ceiling 50.00',
       },
     } as never);
-    const res = await createExpenseFromLine(INPUT);
+    const res = await createExpenseFromLine(
+      INPUT,
+      newFromLineProgress(),
+      noStage,
+    );
     expect(res).toEqual({
       outcome: 'held',
       expenseId: 56,

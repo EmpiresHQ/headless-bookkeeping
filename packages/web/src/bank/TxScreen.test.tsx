@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -114,7 +120,7 @@ function renderTx(path = '/bank/statements/3/tx/9') {
   );
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <RouterProvider router={router} />
         <AppToaster />
       </UnsavedChangesProvider>
@@ -294,12 +300,14 @@ describe('TxScreen state composition', () => {
     );
   });
 
-  it('unmounts the create form on done — a second click cannot post a duplicate', async () => {
+  it('keeps the line protected until the awaited refresh settles — no duplicate, then one success (#251)', async () => {
     mockLine();
-    // Pin the createDone guard, not navigation: the tx refetch triggered by
-    // onDone's invalidateStatement hangs, so `navigate` never fires. The ONLY
-    // thing that can remove the submit button is the guard's own unmount —
-    // without it, the button re-enables in the done-window and stays.
+    // The statement refresh is part of the operation (issue #251): while
+    // the tx-list refetch it triggers is held, the operation is still in
+    // flight — the form stays locked and a second submit cannot start. Its
+    // release then runs the success continuation exactly once, from
+    // TxScreen (which owns the operation and stays mounted even though the
+    // refresh re-routes the line).
     // Phase-encoded mocks: the tx list resolves once (mount) and then hangs
     // (the invalidation refetch that must NOT be the thing that removes the
     // button); candidates flip on the mutations that cause them — fresh
@@ -325,6 +333,7 @@ describe('TxScreen state composition', () => {
       ],
     };
     let txListServed = false;
+    let releaseRefetch: () => void = () => undefined;
     vi.mocked(api.listBankTransactions)
       .mockReset()
       .mockImplementation(() => {
@@ -332,7 +341,9 @@ describe('TxScreen state composition', () => {
           txListServed = true;
           return Promise.resolve([BASE_TX] as never);
         }
-        return new Promise(() => {});
+        return new Promise((resolve) => {
+          releaseRefetch = () => resolve([BASE_TX] as never);
+        });
       });
     let candidates: typeof freshExpense = noCandidates;
     vi.mocked(api.getMatchCandidates).mockImplementation(() =>
@@ -359,20 +370,25 @@ describe('TxScreen state composition', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
-    // The success toast renders in the same batched flush as the form's own
-    // setBusy(false) — the exact moment the done-window would open. (Waiting
-    // on the button's name alone is not a sync point: while busy it renders
-    // '…', so its accessible name never matches mid-flight.)
-    await screen.findByText('Expense created & matched · −18.60 €');
-    // Guard: the form unmounted in that same flush. Without the guard the
-    // button would be back — enabled — and a second tap would post a
-    // duplicate expense.
+    // Every API stage landed; only the refresh is outstanding.
+    await waitFor(() => expect(api.approveApproval).toHaveBeenCalledTimes(1));
     expect(
       screen.queryByRole('button', { name: 'Create & match · −18.60 €' }),
+    ).toBeNull(); // busy: the primary reads '…' and is disabled
+    expect(screen.getByRole('status')).toHaveTextContent(/locked/);
+    expect(
+      screen.queryByText('Expense created & matched · −18.60 €'),
     ).toBeNull();
-    // ...and it vanished BEFORE navigation — the guard, not the redirect.
     expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');
+
+    await act(async () => releaseRefetch());
+    await screen.findByText('Expense created & matched · −18.60 €');
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/bank/statements/3'),
+    );
     expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(1);
+    expect(api.manualMatch).toHaveBeenCalledTimes(1);
   });
 
   it('holds an incoming prepayment nobody classified, and says so (#213)', async () => {

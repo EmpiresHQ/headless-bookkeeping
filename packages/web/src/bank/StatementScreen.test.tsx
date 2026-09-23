@@ -29,6 +29,7 @@ import * as api from '../api';
 import type { MatchProposalView } from '../api';
 import { StatementScreen } from './StatementScreen';
 import { AppToaster } from '../ui/toast';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function renderAt(path = '/bank/statements/3') {
   const client = new QueryClient({
@@ -44,10 +45,12 @@ function renderAt(path = '/bank/statements/3') {
   );
   render(
     <QueryClientProvider client={client}>
-      <>
-        <RouterProvider router={router} />
-        <AppToaster />
-      </>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <>
+          <RouterProvider router={router} />
+          <AppToaster />
+        </>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
@@ -290,10 +293,12 @@ describe('StatementScreen', () => {
     );
     render(
       <QueryClientProvider client={client}>
-        <>
-          <RouterProvider router={router} />
-          <AppToaster />
-        </>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
+          <>
+            <RouterProvider router={router} />
+            <AppToaster />
+          </>
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));

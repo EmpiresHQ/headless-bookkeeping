@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { updateEntity, type Entity, type TaxStatus } from '../api';
 import { invalidateEntities } from '../queries/settings';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /** Edit sheet — EXACTLY the server's PATCH surface: name, country,
@@ -20,7 +21,8 @@ export function EditEntitySheet({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Edit entity');
+  const busy = op.pending;
   const [name, setName] = useState(entity.name);
   const [country, setCountry] = useState(entity.country);
   const [goods, setGoods] = useState<'goods' | 'services' | 'unknown'>(
@@ -46,23 +48,27 @@ export function EditEntitySheet({
   });
   const valid = name.trim() !== '' && country.trim() !== '';
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      await updateEntity(entity.id, {
-        name: name.trim(),
-        country: country.trim().toUpperCase(),
-        goodsVsServices: goods,
-        taxStatus,
-      });
-      toastOk('Entity updated');
-      guard.release();
-      onClose();
-      void invalidateEntities(qc);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const submit = () => {
+    op.run(
+      () =>
+        updateEntity(entity.id, {
+          name: name.trim(),
+          country: country.trim().toUpperCase(),
+          goodsVsServices: goods,
+          taxStatus,
+        }),
+      {
+        onSuccess: () => {
+          toastOk('Entity updated');
+          guard.release();
+          onClose();
+          void invalidateEntities(qc);
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e));
+        },
+      },
+    );
   };
 
   return (
@@ -73,7 +79,7 @@ export function EditEntitySheet({
       busy={busy}
       title="Edit entity"
     >
-      <div className="space-y-4 px-6 pb-2">
+      <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
         <Field label="Name">
           <TextInput
             aria-label="Name"
@@ -120,11 +126,11 @@ export function EditEntitySheet({
           className="w-full"
           busy={busy}
           disabled={!valid || busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           Save changes
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

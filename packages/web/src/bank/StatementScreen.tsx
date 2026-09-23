@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { deleteBankStatement, fmtCents } from '../api';
+import { usePendingOperation, useSessionTask } from '../lib/pendingOperation';
 import type { MatchProposalView, MatchRowView } from '../api';
 import {
   bankKeys,
@@ -227,10 +228,15 @@ export function StatementScreen() {
   const proposalsQ = useMatchProposals(statementId);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [booking, setBooking] = useState(false);
-  const [confirmBusy, setConfirmBusy] = useState(false);
+  // One operation at a time on this screen (issue #251); `running` only
+  // says which control shows the progress.
+  const op = usePendingOperation('Bank statement');
+  const sessionTask = useSessionTask();
+  const [running, setRunning] = useState<'book' | 'confirm' | 'delete'>('book');
+  const deleting = op.pending && running === 'delete';
+  const booking = op.pending;
+  const confirmBusy = op.pending;
 
   // Pre-select high-confidence proposals on the FIRST proposals load per
   // statement only. Refetches (every invalidateStatement) must NOT resurrect
@@ -292,51 +298,99 @@ export function StatementScreen() {
     return sum + (tx && tx.amount < 0 ? -p.amountMatched : p.amountMatched);
   }, 0);
 
-  const onBook = async () => {
-    setBooking(true);
-    try {
-      const matchIds = await bookProposals(statementId, chosen);
-      await invalidateStatement(qc, statementId);
-      const label = `Booked ${matchIds.length} ${matchIds.length === 1 ? 'match' : 'matches'}`;
-      toastUndo(label, () => {
-        void undoMatches(statementId, matchIds)
-          .then(() => invalidateStatement(qc, statementId))
-          .catch((e) => {
+  /** Undo toast for matches booked in THIS session only. */
+  const offerUndo = (label: string, matchIds: number[]) => {
+    const undo = sessionTask();
+    toastUndo(label, () =>
+      undo(
+        (stage) =>
+          undoMatches(statementId, matchIds, stage).then(() => {
+            stage();
+            return invalidateStatement(qc, statementId);
+          }),
+        {
+          onSuccess: () => undefined,
+          onError: (e) => {
             toastErr(e instanceof Error ? e.message : String(e));
             void invalidateStatement(qc, statementId);
-          });
-      });
-    } catch (e) {
-      // Server-enforced cap / over-match — show the server's words, then
-      // refresh so partially staged/active state is visible, never hidden.
-      toastErr(e instanceof Error ? e.message : String(e));
-      await invalidateStatement(qc, statementId);
-    } finally {
-      setBooking(false);
-    }
+          },
+        },
+      ),
+    );
   };
 
-  const onConfirmStaged = async (m: MatchRowView) => {
-    setConfirmBusy(true);
-    try {
-      await confirmStagedMatch(m.id);
-      await invalidateStatement(qc, statementId);
-      toastUndo(`Confirmed · ${m.objectLabel}`, () => {
-        void undoMatches(statementId, [m.id])
-          .then(() => invalidateStatement(qc, statementId))
-          .catch((e) => {
-            toastErr(e instanceof Error ? e.message : String(e));
-            void invalidateStatement(qc, statementId);
-          });
-      });
-    } catch (e) {
-      // "No pending approval found" means the screen is stale — a refetch
-      // self-heals (the draft may already be active or gone).
-      toastErr(e instanceof Error ? e.message : String(e));
-      await invalidateStatement(qc, statementId);
-    } finally {
-      setConfirmBusy(false);
-    }
+  const onBook = () => {
+    const proposals = chosen;
+    const started = op.run(
+      async (ctx) => {
+        const matchIds = await bookProposals(statementId, proposals, ctx.check);
+        ctx.check();
+        await invalidateStatement(qc, statementId);
+        return matchIds;
+      },
+      {
+        onSuccess: (matchIds) =>
+          offerUndo(
+            `Booked ${matchIds.length} ${matchIds.length === 1 ? 'match' : 'matches'}`,
+            matchIds,
+          ),
+        onError: (e) => {
+          // Server-enforced cap / over-match — show the server's words, then
+          // refresh so partially staged/active state is visible, never
+          // hidden.
+          toastErr(e instanceof Error ? e.message : String(e));
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
+    if (started) setRunning('book');
+  };
+
+  const onConfirmStaged = (m: MatchRowView) => {
+    const started = op.run(
+      async (ctx) => {
+        await confirmStagedMatch(m.id, ctx.check);
+        ctx.check();
+        await invalidateStatement(qc, statementId);
+      },
+      {
+        onSuccess: () => offerUndo(`Confirmed · ${m.objectLabel}`, [m.id]),
+        onError: (e) => {
+          // "No pending approval found" means the screen is stale — a
+          // refetch self-heals (the draft may already be active or gone).
+          toastErr(e instanceof Error ? e.message : String(e));
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
+    if (started) setRunning('confirm');
+  };
+
+  const onDelete = () => {
+    const started = op.run(
+      async (ctx) => {
+        await deleteBankStatement(statementId);
+        ctx.check();
+        // Deleting a statement unlinks matches / un-reconciles expenses —
+        // the same cross-domain staleness class P04 fixed for line-level
+        // actions: fan out via invalidateStatement PLUS the list key.
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: bankKeys.statements }),
+          invalidateStatement(qc, statementId),
+        ]);
+      },
+      {
+        onSuccess: () => {
+          setDeleteOpen(false);
+          navigate('/bank');
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e));
+          setDeleteOpen(false);
+        },
+      },
+    );
+    if (started) setRunning('delete');
   };
 
   const proposalLines = lines.filter((l) => bucketOf(l) === 'proposals');
@@ -348,25 +402,6 @@ export function StatementScreen() {
     navigate(
       `/bank/statements/${statementId}/tx/${txId}${seg === 'all' ? '?seg=all' : ''}`,
     );
-
-  const onDelete = async () => {
-    setDeleting(true);
-    try {
-      await deleteBankStatement(statementId);
-      // Deleting a statement unlinks matches / un-reconciles expenses —
-      // the same cross-domain staleness class P04 fixed for line-level
-      // actions: fan out via invalidateStatement PLUS the list key.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: bankKeys.statements }),
-        invalidateStatement(qc, statementId),
-      ]);
-      navigate('/bank');
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setDeleting(false);
-      setDeleteOpen(false);
-    }
-  };
 
   return (
     <div className="mx-auto max-w-3xl pb-28">
@@ -439,7 +474,7 @@ export function StatementScreen() {
                     selected={selected}
                     onToggle={toggleProposal}
                     onOpen={() => openTx(line.tx.id)}
-                    onConfirmStaged={(m) => void onConfirmStaged(m)}
+                    onConfirmStaged={onConfirmStaged}
                     confirmBusy={confirmBusy}
                   />
                 ))}
@@ -449,7 +484,7 @@ export function StatementScreen() {
                   <button
                     type="button"
                     disabled={booking}
-                    onClick={() => void onBook()}
+                    onClick={onBook}
                     className="flex h-[46px] w-full items-center justify-between rounded-[13px] bg-accent-deep px-4 text-[13.5px] font-bold text-white disabled:opacity-60"
                   >
                     <span>
@@ -511,7 +546,7 @@ export function StatementScreen() {
         confirmLabel="Delete statement"
         destructive
         busy={deleting}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
     </div>
   );

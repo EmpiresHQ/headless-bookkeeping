@@ -93,3 +93,36 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 export function SelectInput(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={INPUT_CLS} {...props} />;
 }
+
+/**
+ * Locks a form while its operation is in flight (issue #251): every native
+ * control inside is disabled, so what was submitted is what the success
+ * continuation releases — nothing typed mid-request is silently dropped.
+ * The status line is a live region that exists before it has text, so the
+ * progress is announced as well as shown. Deliberately NO aria-busy on the
+ * fieldset: assistive tech may defer a busy subtree's live announcements
+ * until busy clears — exactly when this text disappears.
+ */
+export function PendingFieldset({
+  pending,
+  status = 'Saving… the form is locked until the server answers.',
+  className = '',
+  children,
+}: {
+  pending: boolean;
+  status?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset
+      disabled={pending}
+      className={`m-0 min-w-0 border-0 p-0 ${className}`}
+    >
+      {children}
+      <p role="status" className="text-center text-[12.5px] text-ink-2">
+        {pending ? status : ''}
+      </p>
+    </fieldset>
+  );
+}

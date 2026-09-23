@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import {
   recordSubmissionEvent,
@@ -21,10 +21,11 @@ import { ScreenHeader } from '../shell/Headers';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { LoadError, RefetchError } from '../ui/LoadError';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 /** Human timeline labels per event kind (ADR-0037 lifecycle). */
@@ -90,8 +91,10 @@ function AddEventSheet({
     baseline: { kind: 'submitted', ref: '', note: '' },
   });
 
-  const record = useMutation({
-    mutationFn: () => {
+  const op = usePendingOperation('Record filing event');
+  const busy = op.pending;
+  const record = () => {
+    const perform = () => {
       const input: {
         event_kind: RecordableSubmissionKind;
         external_ref?: string;
@@ -100,16 +103,27 @@ function AddEventSheet({
       if (ref.trim() !== '') input.external_ref = ref.trim();
       if (note.trim() !== '') input.note = note.trim();
       return recordSubmissionEvent(periodId, input);
-    },
-    onSuccess: async (ev) => {
-      await invalidateReports(qc);
-      toastOk(`Recorded — ${EVENT_LABELS[ev.event_kind]}`);
-      guard.release();
-      onOpenChange(false);
-    },
-    onError: (e) =>
-      toastErr(e instanceof Error ? e.message : 'Could not record the event'),
-  });
+    };
+    op.run(
+      async (ctx) => {
+        const result = await perform();
+        ctx.check();
+        await invalidateReports(qc);
+        return result;
+      },
+      {
+        onSuccess: (ev) => {
+          toastOk(`Recorded — ${EVENT_LABELS[ev.event_kind]}`);
+          guard.release();
+          onOpenChange(false);
+        },
+        onError: (e) =>
+          toastErr(
+            e instanceof Error ? e.message : 'Could not record the event',
+          ),
+      },
+    );
+  };
 
   const label = RECORDABLE.find((r) => r.value === kind)?.label ?? kind;
 
@@ -117,7 +131,7 @@ function AddEventSheet({
   // backdrop/swipe dismissal mid-mutation would unmount this component and
   // lose the onSuccess invalidate + receipt toast.
   const guardedOnOpenChange = (o: boolean) => {
-    if (record.isPending && !o) return;
+    if (busy && !o) return;
     onOpenChange(o);
   };
 
@@ -127,9 +141,9 @@ function AddEventSheet({
       onOpenChange={guardedOnOpenChange}
       title="Record what happened"
       guard={guard}
-      busy={record.isPending}
+      busy={busy}
     >
-      <div className="space-y-3 px-6">
+      <PendingFieldset pending={busy} className="space-y-3 px-6">
         <p className="text-[13.5px] text-ink-2">
           The system never talks to e-MTA — you report back what happened there
           and it goes on the permanent record.
@@ -163,14 +177,10 @@ function AddEventSheet({
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
-        <Button
-          className="w-full"
-          busy={record.isPending}
-          onClick={() => record.mutate()}
-        >
+        <Button className="w-full" busy={busy} onClick={record}>
           Record: {label}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

@@ -92,7 +92,7 @@ function mountAt(
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={[`/reports/periods/${periodId}`]}>
           <AppToaster />
           <Routes>

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   createExpense,
   createInvoice,
@@ -15,6 +15,7 @@ import {
   signedEuros,
   vatFromGross,
 } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import {
@@ -24,7 +25,7 @@ import {
   useSuppliers,
 } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { ListGroup, ListRow } from '../ui/List';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
@@ -115,7 +116,8 @@ export function NewExpenseSheet({
   const [supplierId, setSupplierId] = useState('');
   const [date, setDate] = useState('');
   const m = useMoneyPair();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('New expense');
+  const busy = op.pending;
   const guard = useUnsavedChanges({
     label: 'New expense',
     active: open,
@@ -131,28 +133,32 @@ export function NewExpenseSheet({
     m.vatEffective !== null &&
     m.vatEffective >= 0;
 
-  const submit = async () => {
-    if (!valid || busy) return;
-    setBusy(true);
-    try {
-      const created = await createExpense({
-        category,
-        gross_amount: m.grossParsed as number,
-        vat_amount: m.vatEffective as number,
-        currency: 'EUR',
-        tax_point_date: date,
-        supplier_id: supplierId === '' ? null : Number(supplierId),
-      });
-      await invalidateBooks(qc);
-      toastOk('Draft created — submit it for posting from the detail');
-      guard.release();
-      onOpenChange(false);
-      navigate(`/books/expenses/${created.id}`);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const submit = () => {
+    if (!valid) return;
+    const req = {
+      category,
+      gross_amount: m.grossParsed as number,
+      vat_amount: m.vatEffective as number,
+      currency: 'EUR',
+      tax_point_date: date,
+      supplier_id: supplierId === '' ? null : Number(supplierId),
+    };
+    op.run(
+      async (ctx) => {
+        const created = await createExpense(req);
+        ctx.check();
+        await invalidateBooks(qc);
+        return created;
+      },
+      {
+        onSuccess: (created) => {
+          toastOk('Draft created — submit it for posting from the detail');
+          guard.release();
+          onOpenChange(false);
+          navigate(`/books/expenses/${created.id}`);
+        },
+      },
+    );
   };
 
   return (
@@ -161,8 +167,9 @@ export function NewExpenseSheet({
       onOpenChange={onOpenChange}
       title="New expense"
       guard={guard}
+      busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         <Field label="Category">
           <SelectInput
             value={category}
@@ -233,13 +240,13 @@ export function NewExpenseSheet({
           className="w-full"
           busy={busy}
           disabled={!valid}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {m.grossParsed !== null && m.grossParsed > 0
             ? `Create expense · ${signedEuros(-m.grossParsed)}`
             : 'Create expense'}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }
@@ -259,7 +266,8 @@ export function NewInvoiceSheet({
   const [date, setDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const m = useMoneyPair();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('New sales invoice');
+  const busy = op.pending;
   const guard = useUnsavedChanges({
     label: 'New sales invoice',
     active: open,
@@ -281,29 +289,33 @@ export function NewInvoiceSheet({
     m.vatEffective !== null &&
     m.vatEffective >= 0;
 
-  const submit = async () => {
-    if (!valid || busy) return;
-    setBusy(true);
-    try {
-      const created = await createInvoice({
-        invoice_number: number.trim(),
-        gross_amount: m.grossParsed as number,
-        vat_amount: m.vatEffective as number,
-        currency: 'EUR',
-        tax_point_date: date,
-        customer_id: customerId === '' ? null : Number(customerId),
-        due_date: dueDate === '' ? null : dueDate,
-      });
-      await invalidateBooks(qc);
-      toastOk('Draft created — submit it for posting from the detail');
-      guard.release();
-      onOpenChange(false);
-      navigate(`/books/invoices/${created.id}`);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const submit = () => {
+    if (!valid) return;
+    const req = {
+      invoice_number: number.trim(),
+      gross_amount: m.grossParsed as number,
+      vat_amount: m.vatEffective as number,
+      currency: 'EUR',
+      tax_point_date: date,
+      customer_id: customerId === '' ? null : Number(customerId),
+      due_date: dueDate === '' ? null : dueDate,
+    };
+    op.run(
+      async (ctx) => {
+        const created = await createInvoice(req);
+        ctx.check();
+        await invalidateBooks(qc);
+        return created;
+      },
+      {
+        onSuccess: (created) => {
+          toastOk('Draft created — submit it for posting from the detail');
+          guard.release();
+          onOpenChange(false);
+          navigate(`/books/invoices/${created.id}`);
+        },
+      },
+    );
   };
 
   return (
@@ -312,8 +324,9 @@ export function NewInvoiceSheet({
       onOpenChange={onOpenChange}
       title="New sales invoice"
       guard={guard}
+      busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         <Field label="Invoice number">
           <TextInput
             value={number}
@@ -381,13 +394,13 @@ export function NewInvoiceSheet({
           className="w-full"
           busy={busy}
           disabled={!valid}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {m.grossParsed !== null && m.grossParsed > 0
             ? `Create invoice · ${signedEuros(m.grossParsed)}`
             : 'Create invoice'}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }
@@ -405,7 +418,24 @@ export function UploadSheet({
   // The chosen File (identity) — also what is uploaded.
   const [file, setFile] = useState<File | null>(null);
   const [claimantId, setClaimantId] = useState('');
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Upload a document');
+  const busy = op.pending;
+  // Partial success (issue #251): the upload landed but processing failed.
+  // Bound to the exact File + claimant it was uploaded with — a retry of
+  // the SAME input only re-runs processing (never a second upload); any
+  // other input is a new upload.
+  const landed = useRef<{
+    file: File;
+    claimantId: string;
+    documentId: number;
+  } | null>(null);
+  const [landedId, setLandedId] = useState<number | null>(null);
+  const partial =
+    landed.current !== null &&
+    landed.current.file === file &&
+    landed.current.claimantId === claimantId
+      ? landed.current
+      : null;
   const guard = useUnsavedChanges({
     label: 'Upload a document',
     active: open,
@@ -418,28 +448,56 @@ export function UploadSheet({
     (e) => e.role === 'employee' || e.role === 'director',
   );
 
-  const submit = async () => {
-    if (busy) return;
+  const submit = () => {
     if (file === null) return;
-    setBusy(true);
-    try {
-      const { document, deduplicated } = await uploadDocument(file, {
-        claimantId: claimantId === '' ? null : Number(claimantId),
-      });
-      if (deduplicated)
-        toastOk('Already uploaded — using the existing document');
-      const outcome = await triageDocument(document.id);
-      if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
-      else toastOk(outcomeText(outcome));
-      await invalidateBooks(qc);
-      guard.release();
-      onOpenChange(false);
-      navigate(`/books/documents/${document.id}`);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    const chosen = { file, claimantId };
+    const resume = partial;
+    op.run(
+      async (ctx) => {
+        let documentId: number;
+        let deduplicated = false;
+        if (resume !== null) {
+          documentId = resume.documentId;
+        } else {
+          const up = await uploadDocument(chosen.file, {
+            claimantId:
+              chosen.claimantId === '' ? null : Number(chosen.claimantId),
+          });
+          documentId = up.document.id;
+          deduplicated = up.deduplicated;
+          landed.current = { ...chosen, documentId };
+        }
+        // Stage boundary: never start processing under another session.
+        ctx.check();
+        const outcome = await triageDocument(documentId);
+        ctx.check();
+        await invalidateBooks(qc);
+        return { documentId, deduplicated, outcome };
+      },
+      {
+        onSuccess: ({ documentId, deduplicated, outcome }) => {
+          if (deduplicated)
+            toastOk('Already uploaded — using the existing document');
+          if (outcome.kind === 'unknown') toastErr(outcomeText(outcome));
+          else toastOk(outcomeText(outcome));
+          landed.current = null;
+          guard.release();
+          onOpenChange(false);
+          navigate(`/books/documents/${documentId}`);
+        },
+        onError: (e) => {
+          const up = landed.current;
+          if (up !== null && up.file === chosen.file) {
+            setLandedId(up.documentId);
+            toastErr(
+              `Uploaded as document #${up.documentId}, but processing failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          } else {
+            toastErr(e instanceof Error ? e.message : String(e));
+          }
+        },
+      },
+    );
   };
 
   return (
@@ -448,8 +506,13 @@ export function UploadSheet({
       onOpenChange={onOpenChange}
       title="Upload a document"
       guard={guard}
+      busy={busy}
     >
-      <div className="space-y-3 px-5 pb-2">
+      <PendingFieldset
+        pending={busy}
+        status="AI is reading the document — this can take a minute…"
+        className="space-y-3 px-5 pb-2"
+      >
         <Field label="File">
           <input
             type="file"
@@ -475,20 +538,28 @@ export function UploadSheet({
             </SelectInput>
           </Field>
         )}
+        {partial !== null && landedId === partial.documentId && (
+          <p className="rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
+            This file is already uploaded as{' '}
+            <Link
+              className="font-semibold underline"
+              to={`/books/documents/${partial.documentId}`}
+            >
+              document #{partial.documentId}
+            </Link>{' '}
+            — only processing failed. Retrying re-runs processing; it does not
+            upload the file again.
+          </p>
+        )}
         <Button
           className="w-full"
           busy={busy}
           disabled={file === null || busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
-          Upload &amp; process
+          {partial !== null ? 'Retry processing' : 'Upload & process'}
         </Button>
-        {busy && (
-          <p className="text-center text-[12.5px] text-ink-2">
-            AI is reading the document — this can take a minute…
-          </p>
-        )}
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

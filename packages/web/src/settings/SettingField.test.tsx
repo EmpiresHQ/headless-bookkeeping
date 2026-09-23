@@ -22,7 +22,7 @@ function mount(current = '') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <SettingField def={DEF} current={current} />
         <AppToaster />
       </UnsavedChangesProvider>
@@ -90,7 +90,7 @@ describe('SettingField', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <SettingField def={DEF} current="one" />
         </UnsavedChangesProvider>
       </QueryClientProvider>,
@@ -102,7 +102,7 @@ describe('SettingField', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <SettingField def={DEF} current="two" />
         </UnsavedChangesProvider>
       </QueryClientProvider>,
@@ -120,7 +120,7 @@ describe('SettingField', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <UnsavedChangesProvider>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
           <SettingField def={DEF} current="three" />
         </UnsavedChangesProvider>
       </QueryClientProvider>,

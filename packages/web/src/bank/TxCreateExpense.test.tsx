@@ -28,6 +28,7 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { TxCreateExpense } from './TxCreateExpense';
 import { MemoryRouter } from 'react-router-dom';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
@@ -42,6 +43,14 @@ const TX = {
   status: 'open',
 } as const;
 
+/** TxScreen owns the line's operation; the form borrows it. */
+function CreateWithOp(
+  props: Omit<React.ComponentProps<typeof TxCreateExpense>, 'op'>,
+) {
+  const op = usePendingOperation('Bank line');
+  return <TxCreateExpense {...props} op={op} />;
+}
+
 function renderForm(onDone = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -49,8 +58,8 @@ function renderForm(onDone = vi.fn()) {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <UnsavedChangesProvider>
-          <TxCreateExpense statementId={3} tx={TX as never} onDone={onDone} />
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
+          <CreateWithOp statementId={3} tx={TX as never} onDone={onDone} />
         </UnsavedChangesProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -153,6 +162,48 @@ describe('TxCreateExpense', () => {
       tax_point_date: '2026-06-27',
       supplier_id: null,
     });
+  });
+
+  it('resumes a landed expense after a failed post: locked facts, link + status, no second create (#251)', async () => {
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 24 } as never);
+    vi.mocked(api.postExpense)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValue({
+        expense: { id: 24, status: 'posted' },
+        policy: { action: 'hold-for-approval', reason: 'over ceiling' },
+      } as never);
+    const onDone = renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    const finish = await screen.findByRole('button', {
+      name: 'Finish · expense #24',
+    });
+    expect(screen.getByRole('link', { name: 'Expense #24' })).toHaveAttribute(
+      'href',
+      '/books/expenses/24',
+    );
+    expect(
+      screen.getByText(/created as a draft but not posted/),
+    ).toBeInTheDocument();
+    // Its facts are the server's now: editing them cannot pretend to apply.
+    expect(screen.getByLabelText('Category')).toBeDisabled();
+    expect(screen.getByLabelText('VAT (EUR)')).toBeDisabled();
+    fireEvent.click(finish);
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({
+        outcome: 'held',
+        expenseId: 24,
+        reason: 'over ceiling',
+      }),
+    );
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(2);
+    expect(api.postExpense).toHaveBeenLastCalledWith(24);
   });
 
   it('passes the held outcome up when policy holds the expense', async () => {

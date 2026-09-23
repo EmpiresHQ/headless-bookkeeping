@@ -9,9 +9,10 @@ import {
 } from '../api';
 import { invalidateEntities, ROLE_LABEL } from '../queries/settings';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 const ROLES: readonly EntityRole[] = [
@@ -42,7 +43,8 @@ export function CreateEntitySheet({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Add entity');
+  const busy = op.pending;
   const [role, setRole] = useState<EntityRole>(defaultRole);
   const [name, setName] = useState('');
   const [country, setCountry] = useState('');
@@ -77,35 +79,35 @@ export function CreateEntitySheet({
     country.trim() !== '' &&
     (needsRegKey ? regKey.trim() !== '' : email.trim() !== '');
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const input: OnboardEntityInput = needsRegKey
-        ? {
-            role,
-            name: name.trim(),
-            country: country.trim().toUpperCase(),
-            registrationKey: regKey.trim(),
-            goodsVsServices: goods,
-            taxStatus,
-          }
-        : {
-            role,
-            name: name.trim(),
-            country: country.trim().toUpperCase(),
-            email: email.trim(),
-            ...(tgUserId.trim() !== '' ? { tgUserId: tgUserId.trim() } : {}),
-          };
-      const created = await onboardEntity(input);
-      toastOk(`${ROLE_LABEL[role]} added — ${name.trim()}`);
-      guard.release();
-      onClose();
-      navigate(`/settings/entities/${created.id}`);
-      void invalidateEntities(qc);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const submit = () => {
+    const input: OnboardEntityInput = needsRegKey
+      ? {
+          role,
+          name: name.trim(),
+          country: country.trim().toUpperCase(),
+          registrationKey: regKey.trim(),
+          goodsVsServices: goods,
+          taxStatus,
+        }
+      : {
+          role,
+          name: name.trim(),
+          country: country.trim().toUpperCase(),
+          email: email.trim(),
+          ...(tgUserId.trim() !== '' ? { tgUserId: tgUserId.trim() } : {}),
+        };
+    op.run(() => onboardEntity(input), {
+      onSuccess: (created) => {
+        toastOk(`${ROLE_LABEL[role]} added — ${name.trim()}`);
+        guard.release();
+        onClose();
+        navigate(`/settings/entities/${created.id}`);
+        void invalidateEntities(qc);
+      },
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+      },
+    });
   };
 
   // Refuse to dismiss while the onboard mutation is in flight: vaul's
@@ -125,7 +127,7 @@ export function CreateEntitySheet({
       guard={guard}
       busy={busy}
     >
-      <div className="space-y-4 px-6 pb-2">
+      <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
         <Field label="Role">
           <SelectInput
             aria-label="Role"
@@ -238,11 +240,11 @@ export function CreateEntitySheet({
           className="w-full"
           busy={busy}
           disabled={!valid || busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {`Add ${ROLE_LABEL[role].toLowerCase()}`}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

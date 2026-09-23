@@ -22,6 +22,7 @@ import { Field, SelectInput, TextInput } from '../ui/Form';
 import { GroupLabel } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 const INGEST_OPTIONS = ['known-only', 'quarantine', 'open'] as const;
 
@@ -73,26 +74,33 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 function IngestPolicyGroup({ current }: { current: string }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Ingest policy');
+  const busy = op.pending;
   // Optimistic local echo (P06 T11 deferred): the select shows the picked
   // value during the in-flight write instead of snapping back to the cached
   // value until the refetch lands. Cleared in `finally`: on success the
   // AWAITED invalidate has already refreshed `current` to the echoed value;
   // on failure the select honestly reverts to server truth.
   const [echo, setEcho] = useState<string | null>(null);
-  const onChange = async (value: string) => {
-    setBusy(true);
-    setEcho(value);
-    try {
-      await setSetting('ingest_policy', value);
-      await invalidateAdminSettings(qc);
-      toastOk(`Ingest policy — ${value}`);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-      setEcho(null);
-    }
+  const onChange = (value: string) => {
+    const started = op.run(
+      async (ctx) => {
+        await setSetting('ingest_policy', value);
+        ctx.check();
+        await invalidateAdminSettings(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk(`Ingest policy — ${value}`);
+          setEcho(null);
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e));
+          setEcho(null);
+        },
+      },
+    );
+    if (started) setEcho(value);
   };
   return (
     <>
@@ -106,7 +114,7 @@ function IngestPolicyGroup({ current }: { current: string }) {
             aria-label="Ingest policy"
             value={echo ?? current}
             disabled={busy}
-            onChange={(e) => void onChange(e.target.value)}
+            onChange={(e) => onChange(e.target.value)}
           >
             <option value="" disabled>
               (choose)
@@ -135,7 +143,10 @@ function policyForm(data: PolicyConfig) {
 
 function RiskGateForm({ data }: { data: PolicyConfig }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  // Stays editable while saving (inline form): the server's values are
+  // adopted only if nothing was typed meanwhile.
+  const op = usePendingOperation('Policy');
+  const busy = op.pending;
   const [initial] = useState(() => policyForm(data));
   const [ceiling, setCeiling] = useState(initial.ceiling);
   const [confidence, setConfidence] = useState(initial.confidence);
@@ -188,32 +199,29 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
         ? 'The ceiling cannot be negative — enter 0 or more'
         : null;
 
-  const save = async () => {
+  const save = () => {
     if (ceilingCents === null || ceilingCents < 0 || !confidenceOk) return;
-    setBusy(true);
     const sent = values;
-    try {
-      const saved = await updatePolicyConfig({
-        auto_post_amount_ceiling: ceilingCents,
-        auto_post_min_confidence: confidenceNum,
-        unknown_supplier_requires_approval: unknownSupplier,
-        always_approve_operations: alwaysApprove
-          .split(',')
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0),
-      });
-      // The saved (server-normalized) snapshot is the new baseline; adopt it
-      // unless the operator kept typing during the save.
-      if (sameValues(latest.current, sent)) adopt(policyForm(saved));
-      syncedData.current = saved;
-      qc.setQueryData(settingsKeys.policy, saved);
-      await invalidatePolicy(qc);
-      toastOk('Policy saved');
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    const req = {
+      auto_post_amount_ceiling: ceilingCents,
+      auto_post_min_confidence: confidenceNum,
+      unknown_supplier_requires_approval: unknownSupplier,
+      always_approve_operations: alwaysApprove
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    };
+    op.run(() => updatePolicyConfig(req), {
+      onSuccess: (saved) => {
+        // The saved (server-normalized) snapshot is the new baseline; adopt
+        // it unless the operator kept typing during the save.
+        if (sameValues(latest.current, sent)) adopt(policyForm(saved));
+        syncedData.current = saved;
+        qc.setQueryData(settingsKeys.policy, saved);
+        void invalidatePolicy(qc);
+        toastOk('Policy saved');
+      },
+    });
   };
 
   return (
@@ -280,7 +288,7 @@ function RiskGateForm({ data }: { data: PolicyConfig }) {
           className="w-full"
           busy={busy}
           disabled={!valid || busy}
-          onClick={() => void save()}
+          onClick={save}
         >
           Save policy
         </Button>

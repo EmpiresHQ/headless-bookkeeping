@@ -26,6 +26,7 @@ import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { channelLabel } from './DocumentsSegment';
 import { statusChip } from './chips';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 function ClassificationFacts({ details }: { details: DocumentDetails }) {
   if (details.classification === null) {
@@ -72,7 +73,8 @@ export function DocumentScreen() {
   const detailsQ = useDocDetails(id);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Document');
+  const busy = op.pending;
 
   if (docsQ.isError) {
     return (
@@ -124,32 +126,41 @@ export function DocumentScreen() {
     }
   };
 
-  const onRetry = async () => {
-    setBusy(true);
-    try {
-      await retryDocument(doc.id);
-      await invalidateBooks(qc);
-      toastOk('Queued for a fresh AI run — the outcome lands in the Inbox');
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const onRetry = () => {
+    const { id } = doc;
+    op.run(
+      async (ctx) => {
+        await retryDocument(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () =>
+          toastOk('Queued for a fresh AI run — the outcome lands in the Inbox'),
+      },
+    );
   };
 
-  const onDelete = async () => {
-    setBusy(true);
-    try {
-      await deleteDocument(doc.id);
-      await invalidateBooks(qc);
-      toastOk('Document deleted');
-      navigate('/books?seg=documents', { replace: true });
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e)); // 409 text verbatim
-      setConfirmDelete(false);
-    } finally {
-      setBusy(false);
-    }
+  const onDelete = () => {
+    const { id } = doc;
+    op.run(
+      async (ctx) => {
+        await deleteDocument(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Document deleted');
+          setConfirmDelete(false);
+          navigate('/books?seg=documents', { replace: true });
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e)); // 409 text verbatim
+          setConfirmDelete(false);
+        },
+      },
+    );
   };
 
   return (
@@ -171,7 +182,7 @@ export function DocumentScreen() {
             variant="secondary"
             className="flex-1"
             busy={busy}
-            onClick={() => void onRetry()}
+            onClick={onRetry}
           >
             Retry AI
           </Button>
@@ -280,7 +291,7 @@ export function DocumentScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
     </div>
   );

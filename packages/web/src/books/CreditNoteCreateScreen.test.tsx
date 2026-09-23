@@ -110,7 +110,7 @@ function mount(url = '/books/credit-notes/new') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <MemoryRouter initialEntries={[url]}>
           <AppToaster />
           <Routes>

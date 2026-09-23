@@ -27,6 +27,7 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { AppToaster } from '../ui/toast';
 import { TxCandidates } from './TxCandidates';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
@@ -73,7 +74,7 @@ function renderWithClient(
 ) {
   render(
     <QueryClientProvider client={client}>
-      <UnsavedChangesProvider>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         {ui}
         <AppToaster />
       </UnsavedChangesProvider>
@@ -82,12 +83,20 @@ function renderWithClient(
   return client;
 }
 
+/** TxScreen owns the line's operation; the list borrows it. */
+function CandidatesWithOp(
+  props: Omit<React.ComponentProps<typeof TxCandidates>, 'op'>,
+) {
+  const op = usePendingOperation('Bank line');
+  return <TxCandidates {...props} op={op} />;
+}
+
 describe('TxCandidates', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('preselects proposal candidates and shows the live remainder', () => {
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
@@ -107,7 +116,7 @@ describe('TxCandidates', () => {
 
   it('recomputes the button on every toggle and disables at zero selection', () => {
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
@@ -145,7 +154,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
@@ -195,7 +204,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={CLAMP_RESULT}
@@ -245,7 +254,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={SKIP_RESULT}
@@ -293,7 +302,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={EXACT_RESULT}
@@ -330,7 +339,7 @@ describe('TxCandidates', () => {
     const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
