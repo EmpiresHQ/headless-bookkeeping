@@ -15,6 +15,7 @@ import { Field, PendingFieldset, TextInput } from '../ui/Form';
 import { lookupState, LookupNotice } from '../ui/Lookup';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
+import { READABLE } from '../ui/List';
 
 /**
  * Supplier selection for create-from-line. No alias-lookup endpoint exists
@@ -147,13 +148,9 @@ export function SupplierSheet({
                   }}
                   className="flex w-full items-center gap-3 border-b border-line px-3.5 py-3 text-left last:border-b-0"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14.5px] font-semibold">
-                      {e.name}
-                    </div>
-                    <div className="truncate text-[12.5px] text-ink-2">
-                      {e.country}
-                    </div>
+                  <div className={`min-w-0 flex-1 ${READABLE}`}>
+                    <div className="text-[14.5px] font-semibold">{e.name}</div>
+                    <div className="text-[12.5px] text-ink-2">{e.country}</div>
                   </div>
                 </button>
               ))}

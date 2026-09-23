@@ -40,7 +40,7 @@ import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { GroupLabel } from '../ui/List';
+import { GroupLabel, ROW_BODY, ROW_IDENTITY, ROW_TRAILING } from '../ui/List';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { toastErr, toastUndo } from '../ui/toast';
 import { ScreenHeader } from '../shell/Headers';
@@ -68,7 +68,7 @@ const DISPOSITION_LABEL: Record<string, string> = {
 /** Line amount + date, right-aligned, never wrapping. */
 function LineTrailing({ line, muted }: { line: LineView; muted?: boolean }) {
   return (
-    <div className="flex-none text-right">
+    <div className={ROW_TRAILING}>
       <AmountText
         cents={line.tx.amount}
         currency={line.tx.currency}
@@ -91,17 +91,17 @@ function DecideRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
       onClick={onOpen}
       className="flex w-full items-center gap-3 border-b border-line px-3.5 py-3 text-left last:border-b-0"
     >
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[14.5px] font-semibold">
-          {txTitle(line.tx)}
+      <div className={ROW_BODY}>
+        <div className={ROW_IDENTITY}>
+          <div className="text-[14.5px] font-semibold">{txTitle(line.tx)}</div>
+          <div className="text-[12.5px] text-ink-2">
+            {partial
+              ? `Partially matched · ${fmtCents(line.recon?.remaining ?? 0)} € left`
+              : 'No AI match — decide'}
+          </div>
         </div>
-        <div className="truncate text-[12.5px] text-ink-2">
-          {partial
-            ? `Partially matched · ${fmtCents(line.recon?.remaining ?? 0)} € left`
-            : 'No AI match — decide'}
-        </div>
+        <LineTrailing line={line} />
       </div>
-      <LineTrailing line={line} />
       <span aria-hidden className="flex-none text-base text-chevron">
         ›
       </span>
@@ -159,15 +159,17 @@ function ProposalRow({
               onClick={onOpen}
               className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
             >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-semibold">
-                  {txTitle(line.tx)}
+              <div className={ROW_BODY}>
+                <div className={ROW_IDENTITY}>
+                  <div className="text-[14.5px] font-semibold">
+                    {txTitle(line.tx)}
+                  </div>
+                  <div className="text-[12.5px] text-ink-2">
+                    → {p.objectLabel} <Chip tone="warn">{p.confidence}</Chip>
+                  </div>
                 </div>
-                <div className="truncate text-[12.5px] text-ink-2">
-                  → {p.objectLabel} <Chip tone="warn">{p.confidence}</Chip>
-                </div>
+                <LineTrailing line={line} />
               </div>
-              <LineTrailing line={line} />
             </button>
           </div>
         );
@@ -179,15 +181,17 @@ function ProposalRow({
             onClick={onOpen}
             className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
           >
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[14.5px] font-semibold">
-                {txTitle(line.tx)}
+            <div className={ROW_BODY}>
+              <div className={ROW_IDENTITY}>
+                <div className="text-[14.5px] font-semibold">
+                  {txTitle(line.tx)}
+                </div>
+                <div className="text-[12.5px] text-ink-2">
+                  → {m.objectLabel} <Chip tone="warn">staged</Chip>
+                </div>
               </div>
-              <div className="truncate text-[12.5px] text-ink-2">
-                → {m.objectLabel} <Chip tone="warn">staged</Chip>
-              </div>
+              <LineTrailing line={line} />
             </div>
-            <LineTrailing line={line} />
           </button>
           <Button
             variant="secondary"
@@ -225,21 +229,23 @@ function DoneRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
           ✓
         </span>
       )}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[14.5px] font-semibold text-ink-2">
-          {txTitle(line.tx)}
+      <div className={ROW_BODY}>
+        <div className={ROW_IDENTITY}>
+          <div className="text-[14.5px] font-semibold text-ink-2">
+            {txTitle(line.tx)}
+          </div>
+          {disposed ? (
+            <div className="mt-0.5">
+              <Chip>{DISPOSITION_LABEL[line.tx.status] ?? line.tx.status}</Chip>
+            </div>
+          ) : (
+            <div className="text-[12.5px] text-ink-2">
+              → {line.active.map((m) => m.objectLabel).join(' · ')}
+            </div>
+          )}
         </div>
-        {disposed ? (
-          <div className="mt-0.5">
-            <Chip>{DISPOSITION_LABEL[line.tx.status] ?? line.tx.status}</Chip>
-          </div>
-        ) : (
-          <div className="truncate text-[12.5px] text-ink-2">
-            → {line.active.map((m) => m.objectLabel).join(' · ')}
-          </div>
-        )}
+        <LineTrailing line={line} muted />
       </div>
-      <LineTrailing line={line} muted />
     </button>
   );
 }

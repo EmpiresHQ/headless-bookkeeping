@@ -20,7 +20,7 @@ import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { GroupLabel, KeyValue, ListGroup, ListRow } from '../ui/List';
+import { GroupLabel, KeyValue, ListGroup, ListRow, READABLE } from '../ui/List';
 import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { AddAliasSheet } from './AddAliasSheet';
@@ -140,7 +140,9 @@ function EntityCard({ entity }: { entity: Entity }) {
   return (
     <>
       <div className="px-5 pb-3 pt-1 text-center">
-        <p className="truncate text-[21px] font-extrabold">{entity.name}</p>
+        <p className={`text-[21px] font-extrabold ${READABLE}`}>
+          {entity.name}
+        </p>
         <p className="mt-1 flex items-center justify-center gap-2 text-[13px] text-ink-2">
           <Chip tone={ROLE_TONE[entity.role]}>{ROLE_LABEL[entity.role]}</Chip>
           <span>

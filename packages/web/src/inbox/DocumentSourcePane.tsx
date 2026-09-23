@@ -28,6 +28,7 @@ import { HttpError } from '../auth';
 import { Button } from '../ui/Button';
 import { toastErr } from '../ui/toast';
 import { loadPdfJs, pdfDocumentOptions } from './pdfjs';
+import { READABLE } from '../ui/List';
 
 /**
  * The source document, viewable INSIDE a verification form (issue #257):
@@ -142,12 +143,19 @@ export function DocumentSourcePane({
       aria-label="Source document"
       className="flex h-full min-h-0 flex-col bg-surface"
     >
-      <div className="flex flex-none items-center gap-2 border-b border-line px-3 py-1.5">
-        <p className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink-2">
+      {/* The filename keeps at least 12rem beside the actions; in a
+          narrower pane the actions wrap onto their own line and the name
+          takes the full header width (#275). */}
+      <div className="flex flex-none flex-wrap items-center justify-end gap-x-2 border-b border-line px-3 py-1.5">
+        <p
+          className={`min-w-0 flex-[1_1_12rem] text-[12.5px] font-semibold text-ink-2 ${READABLE}`}
+        >
           {file?.filename ?? 'Source document'}
         </p>
         {file !== null && url !== null && (
-          <SourceActions file={file} url={url} documentId={documentId} />
+          <div className="flex flex-none items-center">
+            <SourceActions file={file} url={url} documentId={documentId} />
+          </div>
         )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{body}</div>

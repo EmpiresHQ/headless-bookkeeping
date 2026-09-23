@@ -61,6 +61,7 @@ import {
   PrepaymentSheet,
 } from './TxDispositions';
 import { TxMatched } from './TxMatched';
+import { READABLE } from '../ui/List';
 
 /** Exhaustiveness guard for the `TxState` switch below — a compile error at
  *  the `default` case is the point: adding a TxState kind without handling
@@ -548,7 +549,7 @@ function TxScreenFor({
               showSign
               className="block text-[30px] font-extrabold leading-[1.15] tracking-tight"
             />
-            <p className="truncate text-[12.5px] text-ink-2">
+            <p className={`text-[12.5px] text-ink-2 ${READABLE}`}>
               {txTitle(tx)} · {formatTxDate(tx.transaction_date)}
             </p>
             {state.kind === 'matched' && (
