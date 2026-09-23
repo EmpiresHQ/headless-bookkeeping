@@ -1,9 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { type SalesInvoice } from '../api';
-import { signedEuros } from '../lib/money';
 import {
   entityName,
-  groupByMonth,
   invoiceMatchesQuery,
   matchesStatus,
   shortDate,
@@ -17,7 +15,29 @@ import { GroupHeader } from '../ui/GroupHeader';
 import { ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { ActiveFilters, LABELS, statusChip, StatusChipRow } from './chips';
-import { BOOKS_SEARCH, useResetWithFocus, useSetFilterParam } from './filters';
+import {
+  BOOKS_RESET_NAME,
+  BOOKS_SEARCH,
+  useResetWithFocus,
+  useSetFilterParam,
+} from './filters';
+import {
+  formatTotals,
+  inRange,
+  orderSections,
+  totalsByCurrency,
+  DEFAULT_ORDER,
+  type BooksOrderState,
+} from './listOrder';
+
+const invoiceTotals = (rows: SalesInvoice[]) =>
+  formatTotals(
+    totalsByCurrency(
+      rows,
+      (i) => i.gross_amount,
+      (i) => i.currency,
+    ),
+  );
 
 function InvoiceRow({
   inv,
@@ -38,6 +58,7 @@ function InvoiceRow({
         <div className="flex-none">
           <AmountText
             cents={inv.gross_amount}
+            currency={inv.currency}
             showSign
             className="block text-[14px]"
           />
@@ -49,8 +70,15 @@ function InvoiceRow({
 }
 
 /** Books › Invoices — the §4 mirror: customer/number rows, inflow amounts,
- *  month totals under the active filter. */
-export function InvoicesSegment({ q }: { q: string }) {
+ *  month (or per-currency amount-ranked, #279) totals under the active
+ *  filter. */
+export function InvoicesSegment({
+  q,
+  order = DEFAULT_ORDER,
+}: {
+  q: string;
+  order?: BooksOrderState;
+}) {
   const [params] = useSearchParams();
   const rawStatus = params.get('status');
   const status: StatusFilter = STATUS_FILTERS.includes(
@@ -67,11 +95,15 @@ export function InvoicesSegment({ q }: { q: string }) {
   const entities = entitiesQ.data ?? [];
 
   // Applied restrictions from PARSED state (an unknown ?status= is All).
-  const applied = status === 'all' ? [] : [LABELS[status]];
+  const applied = [
+    ...(status === 'all' ? [] : [LABELS[status]]),
+    ...order.labels,
+  ];
   const activeFilters = (result?: {
     shown: number;
     total: number;
     noun: string;
+    totals?: string;
   }) => (
     <ActiveFilters
       filters={applied}
@@ -79,6 +111,7 @@ export function InvoicesSegment({ q }: { q: string }) {
       searchScope={BOOKS_SEARCH.invoices.scope}
       result={result}
       onReset={onReset}
+      resetName={BOOKS_RESET_NAME}
     />
   );
 
@@ -106,8 +139,11 @@ export function InvoicesSegment({ q }: { q: string }) {
     );
   }
 
-  const searched = (invoicesQ.data ?? []).filter((i) =>
-    invoiceMatchesQuery(i, q, entityName(entities, i.customer_id)),
+  // Chip counts honour the search AND the date range (data rule 6).
+  const searched = (invoicesQ.data ?? []).filter(
+    (i) =>
+      inRange(i.tax_point_date, order) &&
+      invoiceMatchesQuery(i, q, entityName(entities, i.customer_id)),
   );
   const counts = Object.fromEntries(
     STATUS_FILTERS.map((f) => [
@@ -116,7 +152,12 @@ export function InvoicesSegment({ q }: { q: string }) {
     ]),
   ) as Record<StatusFilter, number>;
   const filtered = searched.filter((i) => matchesStatus(i, status));
-  const groups = groupByMonth(filtered);
+  const sections = orderSections(filtered, order.order, (i) => ({
+    id: i.id,
+    day: i.tax_point_date,
+    amount: i.gross_amount,
+    currency: i.currency,
+  }));
 
   const total = (invoicesQ.data ?? []).length;
 
@@ -127,21 +168,28 @@ export function InvoicesSegment({ q }: { q: string }) {
         active={status}
         onChange={(f) => setParam('status', f === 'all' ? null : f)}
       />
-      {activeFilters({ shown: filtered.length, total, noun: 'invoices' })}
-      {groups.length === 0 && (
+      {activeFilters({
+        shown: filtered.length,
+        total,
+        noun: 'invoices',
+        totals:
+          filtered.length > 0 ? `total ${invoiceTotals(filtered)}` : undefined,
+      })}
+      {sections.length === 0 && (
         <EmptyState
           icon="📨"
           title="No invoices match"
           hint="Adjust the filter or create one with +"
         />
       )}
-      {groups.map((g) => (
+      {sections.map((g) => (
         <ListGroup
-          key={g.month}
+          key={g.key}
           label={
             <GroupHeader
+              wrap
               label={g.label}
-              trailing={`${signedEuros(g.totalCents)} · ${g.count}`}
+              trailing={`${invoiceTotals(g.rows)} · ${g.rows.length}`}
             />
           }
         >

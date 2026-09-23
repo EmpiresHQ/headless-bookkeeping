@@ -1,11 +1,9 @@
 import { useSearchParams } from 'react-router-dom';
 import { type Expense } from '../api';
-import { signedEuros } from '../lib/money';
 import {
   documentedExpenseIds,
   entityName,
   expenseMatchesQuery,
-  groupByMonth,
   matchesStatus,
   shortDate,
   useDocumentsArchive,
@@ -25,7 +23,29 @@ import {
   statusChip,
   StatusChipRow,
 } from './chips';
-import { BOOKS_SEARCH, useResetWithFocus, useSetFilterParam } from './filters';
+import {
+  BOOKS_RESET_NAME,
+  BOOKS_SEARCH,
+  useResetWithFocus,
+  useSetFilterParam,
+} from './filters';
+import {
+  formatTotals,
+  inRange,
+  orderSections,
+  totalsByCurrency,
+  DEFAULT_ORDER,
+  type BooksOrderState,
+} from './listOrder';
+
+const expenseTotals = (rows: Expense[]) =>
+  formatTotals(
+    totalsByCurrency(
+      rows,
+      (e) => -e.gross_amount,
+      (e) => e.currency,
+    ),
+  );
 
 function ExpenseRow({
   e,
@@ -50,7 +70,11 @@ function ExpenseRow({
       subtitle={parts.join(' · ')}
       trailing={
         <div className="flex-none">
-          <AmountText cents={-e.gross_amount} className="block text-[14px]" />
+          <AmountText
+            cents={-e.gross_amount}
+            currency={e.currency}
+            className="block text-[14px]"
+          />
           <div className="mt-0.5">{statusChip(e.status)}</div>
         </div>
       }
@@ -59,9 +83,16 @@ function ExpenseRow({
 }
 
 /** Books › Expenses: supplier-titled rows in month sections with totals
- *  recomputed under the active filter+search (asset §4). Filters live in
- *  query params (?status=, ?nodoc=1) — shareable, F5-proof. */
-export function ExpensesSegment({ q }: { q: string }) {
+ *  recomputed under the active filter+search (asset §4), or one amount
+ *  ranking per currency (#279). Filters live in query params (?status=,
+ *  ?nodoc=1, ?from= ?to= ?sort=) — shareable, F5-proof. */
+export function ExpensesSegment({
+  q,
+  order = DEFAULT_ORDER,
+}: {
+  q: string;
+  order?: BooksOrderState;
+}) {
   const [params] = useSearchParams();
   const rawStatus = params.get('status');
   const status: StatusFilter = STATUS_FILTERS.includes(
@@ -99,10 +130,12 @@ export function ExpensesSegment({ q }: { q: string }) {
           : 'No document (checking documents…)',
     );
   }
+  applied.push(...order.labels);
   const activeFilters = (result?: {
     shown: number;
     total: number;
     noun: string;
+    totals?: string;
   }) => (
     <ActiveFilters
       filters={applied}
@@ -110,6 +143,7 @@ export function ExpensesSegment({ q }: { q: string }) {
       searchScope={BOOKS_SEARCH.expenses.scope}
       result={result}
       onReset={onReset}
+      resetName={BOOKS_RESET_NAME}
     />
   );
 
@@ -137,8 +171,11 @@ export function ExpensesSegment({ q }: { q: string }) {
     );
   }
 
-  const searched = (expensesQ.data ?? []).filter((e) =>
-    expenseMatchesQuery(e, q, entityName(entities, e.supplier_id)),
+  // Chip counts honour the search AND the date range (data rule 6).
+  const searched = (expensesQ.data ?? []).filter(
+    (e) =>
+      inRange(e.tax_point_date, order) &&
+      expenseMatchesQuery(e, q, entityName(entities, e.supplier_id)),
   );
   const counts = Object.fromEntries(
     STATUS_FILTERS.map((f) => [
@@ -152,7 +189,12 @@ export function ExpensesSegment({ q }: { q: string }) {
   const filtered = searched
     .filter((e) => matchesStatus(e, status))
     .filter((e) => !noDocOnly || !documented.has(e.id));
-  const groups = groupByMonth(filtered);
+  const sections = orderSections(filtered, order.order, (e) => ({
+    id: e.id,
+    day: e.tax_point_date,
+    amount: e.gross_amount,
+    currency: e.currency,
+  }));
 
   const total = (expensesQ.data ?? []).length;
 
@@ -171,21 +213,28 @@ export function ExpensesSegment({ q }: { q: string }) {
           </FilterChip>
         }
       />
-      {activeFilters({ shown: filtered.length, total, noun: 'expenses' })}
-      {groups.length === 0 && (
+      {activeFilters({
+        shown: filtered.length,
+        total,
+        noun: 'expenses',
+        totals:
+          filtered.length > 0 ? `total ${expenseTotals(filtered)}` : undefined,
+      })}
+      {sections.length === 0 && (
         <EmptyState
           icon="🧾"
           title="No expenses match"
           hint="Adjust the filter or create one with +"
         />
       )}
-      {groups.map((g) => (
+      {sections.map((g) => (
         <ListGroup
-          key={g.month}
+          key={g.key}
           label={
             <GroupHeader
+              wrap
               label={g.label}
-              trailing={`${signedEuros(-g.totalCents)} · ${g.count}`}
+              trailing={`${expenseTotals(g.rows)} · ${g.rows.length}`}
             />
           }
         >

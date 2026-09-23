@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { ORDER_PARAMS, type OrderSemantics } from './listOrder';
 
 /** Params owned by individual segments — dropped on segment switch (a Draft
  *  filter has no meaning on Documents); ?q= survives. */
@@ -33,7 +41,45 @@ export const BOOKS_SEARCH = {
   },
 } as const;
 
-/** The URL after Reset (issue #274): the segment filters AND the search go;
+/** Date field + order support per segment (issue #279): the date each
+ *  segment actually filters on, named in the controls and the ActiveFilters
+ *  line. Documents carry no amount — no amount order is offered there. */
+export const BOOKS_ORDER: Record<
+  keyof typeof BOOKS_SEARCH,
+  OrderSemantics & { dateField: string }
+> = {
+  expenses: {
+    dateNoun: 'Tax point',
+    dateField: 'tax point date',
+    amounts: true,
+    noun: 'expenses',
+  },
+  invoices: {
+    dateNoun: 'Tax point',
+    dateField: 'tax point date',
+    amounts: true,
+    noun: 'invoices',
+  },
+  documents: {
+    dateNoun: 'Added',
+    dateField: 'date added',
+    amounts: false,
+    noun: 'documents',
+  },
+  'credit-notes': {
+    dateNoun: 'Tax point',
+    dateField: 'tax point date',
+    amounts: true,
+    noun: 'credit notes',
+  },
+};
+
+/** Books' Reset accessible name — what it actually clears (the shared
+ *  ActiveFilters default stays for Inbox/Bank). */
+export const BOOKS_RESET_NAME = 'Reset filters, search, dates and order';
+
+/** The URL after Reset (issue #274): the segment filters, the search AND
+ *  the date range + order (#279) go;
  *  ?seg=, every unrelated param and the history state stay. A lingering
  *  legacy ?tab= is normalized to ?seg=<the segment on screen>, as useSeg
  *  does on arrival. */
@@ -43,6 +89,7 @@ export function resetFilterParams(
 ): URLSearchParams {
   const next = new URLSearchParams(params);
   for (const key of SEGMENT_PARAMS) next.delete(key);
+  for (const key of ORDER_PARAMS) next.delete(key);
   next.delete('q');
   if (next.has('tab')) {
     next.delete('tab');
@@ -56,12 +103,20 @@ export function resetFilterParams(
 export function useResetFilters(segment: string): () => void {
   const [params, setParams] = useSearchParams();
   const { state } = useLocation();
-  return () =>
+  const signalReset = useContext(BooksResetSignal);
+  return () => {
     setParams(resetFilterParams(params, segment), {
       replace: true,
       state: state as unknown,
     });
+    signalReset();
+  };
 }
+
+/** Told on every Reset (issue #279): the native date inputs clear an
+ *  incomplete entry that never reached the URL, which a URL diff cannot
+ *  show. Provided by BooksScreen; a no-op elsewhere. */
+export const BooksResetSignal = createContext<() => void>(() => undefined);
 
 /** Filter write for a segment: set/delete one param, replace-history, the
  *  entry's state kept (as Reset and useSeg do). */
