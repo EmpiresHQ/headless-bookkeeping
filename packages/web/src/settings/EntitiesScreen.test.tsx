@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
@@ -77,11 +84,35 @@ describe('EntitiesScreen', () => {
     expect(await screen.findByText('Mari Maasikas')).toBeInTheDocument();
     expect(screen.queryByText('Circle K Eesti AS')).toBeNull();
     // Round-trip: switching writes ?seg=.
-    fireEvent.click(screen.getByRole('tab', { name: 'Suppliers' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Suppliers' }));
     await waitFor(() =>
       expect(router.state.location.search).toContain('seg=suppliers'),
     );
     expect(await screen.findByText('Circle K Eesti AS')).toBeInTheDocument();
+  });
+
+  it('role filter is a named radio group: arrows move the choice and keep ?q= (issue #288)', async () => {
+    const router = mount('/settings/entities?q=a');
+    await screen.findByText('Acme Oy');
+    const group = screen.getByRole('radiogroup', { name: 'Entity role' });
+    const all = within(group).getByRole('radio', { name: 'All' });
+    expect(all).toBeChecked();
+    all.focus();
+    await userEvent.keyboard('{ArrowRight}');
+    const suppliers = within(group).getByRole('radio', { name: 'Suppliers' });
+    expect(suppliers).toHaveFocus();
+    expect(suppliers).toBeChecked();
+    await waitFor(() =>
+      expect(router.state.location.search).toContain('seg=suppliers'),
+    );
+    expect(router.state.location.search).toContain('q=a');
+    expect(await screen.findByText('Circle K Eesti AS')).toBeInTheDocument();
+    expect(screen.queryByText('Acme Oy')).toBeNull();
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}');
+    expect(within(group).getByRole('radio', { name: 'Team' })).toBeChecked();
+    await waitFor(() =>
+      expect(router.state.location.search).toContain('seg=team'),
+    );
   });
 
   it('search narrows by name and persists in ?q=', async () => {
@@ -203,7 +234,7 @@ describe('EntitiesScreen', () => {
       // baseline is the segment role, not a hard-coded supplier.
       fireEvent.keyDown(document, { key: 'Escape' });
       await waitFor(() => expect(screen.queryByLabelText('Role')).toBeNull());
-      fireEvent.click(screen.getByRole('tab', { name: 'Team' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Team' }));
       await screen.findByText('Mari Maasikas');
       fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
       expect(await screen.findByLabelText('Role')).toHaveValue('employee');
@@ -240,14 +271,14 @@ describe('EntitiesScreen', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
       await waitFor(() => expect(screen.queryByLabelText('Role')).toBeNull());
       // …and never outlives the sheet: reopening from Suppliers is supplier.
-      fireEvent.click(screen.getByRole('tab', { name: 'Suppliers' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Suppliers' }));
       await screen.findByText('Circle K Eesti AS');
       fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
       expect(await screen.findByLabelText('Role')).toHaveValue('supplier');
       expect(screen.getByLabelText('Registration key')).toHaveValue('');
       fireEvent.keyDown(document, { key: 'Escape' });
       await waitFor(() => expect(screen.queryByLabelText('Role')).toBeNull());
-      fireEvent.click(screen.getByRole('tab', { name: 'Customers' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Customers' }));
       await screen.findByText('Acme Oy');
       fireEvent.click(screen.getByRole('button', { name: '＋ Add' }));
       expect(await screen.findByLabelText('Role')).toHaveValue('customer');

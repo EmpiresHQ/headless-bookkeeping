@@ -46,11 +46,8 @@ describe('BooksScreen', () => {
     expect(
       await screen.findByRole('heading', { name: 'Books' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+    expect(screen.getByRole('radio', { name: 'Expenses' })).toBeChecked();
+    await userEvent.click(screen.getByRole('radio', { name: 'Documents' }));
     expect(await screen.findByText('No documents yet')).toBeInTheDocument();
   });
 
@@ -64,7 +61,7 @@ describe('BooksScreen', () => {
   it('switching segments preserves ?q= but drops segment-specific filters', async () => {
     const { router } = mount('/books?seg=expenses&q=acme&status=draft');
     await screen.findByRole('heading', { name: 'Books' });
-    await userEvent.click(screen.getByRole('tab', { name: 'Invoices' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Invoices' }));
     // q survives in the search box; status chip resets to All:
     expect(screen.getByDisplayValue('acme')).toBeInTheDocument();
     // Nothing loaded at all: the initial empty, not a failed search (#280).

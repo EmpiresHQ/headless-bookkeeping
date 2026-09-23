@@ -149,10 +149,10 @@ describe('ClassifyInvoiceSheet', () => {
       await within(source).findByText('invoice-2026-018.jpg'),
     ).toBeVisible();
     expect(within(source).getByAltText('Source document')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Form' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Form' }));
     expect(screen.getByDisplayValue('2026-019')).toBe(number);
     expect(api.manualClassifyInvoice).not.toHaveBeenCalled();
   });

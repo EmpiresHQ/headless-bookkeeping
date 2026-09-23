@@ -59,6 +59,7 @@ export function EntitiesScreen() {
       />
       <div className="space-y-2.5 px-4 pb-3">
         <SegmentedControl
+          label="Entity role"
           options={[
             { value: 'all' as const, label: 'All' },
             { value: 'suppliers' as const, label: 'Suppliers' },

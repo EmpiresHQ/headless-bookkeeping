@@ -209,7 +209,7 @@ describe('Books search scope (issue #276)', () => {
       ],
     ] as const;
     for (const [tab, shown, scope] of transfers) {
-      await userEvent.click(screen.getByRole('tab', { name: tab }));
+      await userEvent.click(screen.getByRole('radio', { name: tab }));
       await vi.waitFor(async () =>
         expect(await bar()).toHaveTextContent(
           `${shown} · Search “office” in ${scope}`,
@@ -295,7 +295,9 @@ describe('Books search scope (issue #276)', () => {
     const router = mount('?seg=expenses&status=posted&q=office', {
       origin: 'x',
     });
-    await userEvent.click(await screen.findByRole('tab', { name: 'Expenses' }));
+    await userEvent.click(
+      await screen.findByRole('radio', { name: 'Expenses' }),
+    );
     expect(params(router).get('status')).toBe('posted');
     expect(params(router).get('q')).toBe('office');
     expect(router.state.location.state).toEqual({ origin: 'x' });

@@ -314,9 +314,9 @@ describe('InboxScreen', () => {
   it('useSeg round-trip: ?tab= alias reads, switching segments writes ?seg= and drops ?tab= (P06 Task 3)', async () => {
     const router = renderAt('/inbox?tab=approvals');
     expect(
-      await screen.findByRole('tab', { name: 'Approvals 1' }),
-    ).toHaveAttribute('aria-selected', 'true');
-    fireEvent.click(screen.getByRole('tab', { name: 'Triage 1' }));
+      await screen.findByRole('radio', { name: 'Approvals 1' }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'Triage 1' }));
     const search = new URLSearchParams(router.state.location.search);
     expect(search.get('seg')).toBe('triage');
     expect(search.get('tab')).toBeNull();
@@ -325,10 +325,10 @@ describe('InboxScreen', () => {
   it('shows segment counts in the control', async () => {
     renderAt('/inbox');
     expect(
-      await screen.findByRole('tab', { name: 'Triage 1' }),
+      await screen.findByRole('radio', { name: 'Triage 1' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('tab', { name: 'Approvals 1' }),
+      screen.getByRole('radio', { name: 'Approvals 1' }),
     ).toBeInTheDocument();
   });
 

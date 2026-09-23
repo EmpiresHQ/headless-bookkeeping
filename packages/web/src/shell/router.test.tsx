@@ -154,7 +154,7 @@ describe('router', () => {
     expect(
       await screen.findByRole('heading', { name: 'Inbox' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^All$/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^All$/ })).toBeInTheDocument();
   });
 
   it('redirects legacy /intake?expand=5 all the way to the triage detail route', async () => {

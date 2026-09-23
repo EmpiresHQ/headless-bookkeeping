@@ -528,7 +528,7 @@ describe('Bank completion history (#252)', () => {
     await act(() => router.navigate('/bank'));
     await openRow(/Jun/);
     await expectAt('/bank/statements/3', 2);
-    fireEvent.click(await screen.findByRole('tab', { name: /^All/ }));
+    fireEvent.click(await screen.findByRole('radio', { name: /^All/ }));
     await expectAt('/bank/statements/3?seg=all', 2);
     await openRow('WOLT 220627');
     await expectAt('/bank/statements/3/tx/9?seg=all', 3);

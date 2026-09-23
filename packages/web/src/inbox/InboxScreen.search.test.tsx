@@ -168,9 +168,9 @@ describe('InboxScreen search (issue #278)', () => {
     expect(searchBox()).toHaveValue('telia');
     // The queue itself is unchanged: header and segment counts.
     expect(screen.getByText('2 tasks')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Triage 1' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Triage 1' })).toBeInTheDocument();
     expect(
-      screen.getByRole('tab', { name: 'Approvals 1' }),
+      screen.getByRole('radio', { name: 'Approvals 1' }),
     ).toBeInTheDocument();
 
     fireEvent.change(searchBox(), { target: { value: 'tl-2026/07' } });
@@ -262,7 +262,7 @@ describe('InboxScreen search (issue #278)', () => {
   it('the search survives a segment switch', async () => {
     const router = renderAt('/inbox?q=telia');
     await screen.findByText('Telia Eesti AS');
-    fireEvent.click(screen.getByRole('tab', { name: 'Triage 1' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Triage 1' }));
     await waitFor(() =>
       expect(new URLSearchParams(router.state.location.search).get('seg')).toBe(
         'triage',

@@ -88,6 +88,7 @@ export function BooksScreen() {
         />
         <div className="space-y-2.5 px-4 pb-3">
           <SegmentedControl
+            label="Record type"
             options={[
               { value: 'expenses' as const, label: 'Expenses' },
               { value: 'invoices' as const, label: 'Invoices' },
