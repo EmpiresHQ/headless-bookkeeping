@@ -33,7 +33,7 @@ import {
   TextInput,
   useFormErrors,
 } from '../ui/Form';
-import { GroupLabel, KeyValue } from '../ui/List';
+import { GroupLabel, KeyValue, READABLE } from '../ui/List';
 import {
   BlockedReason,
   lookupBlocker,
@@ -308,7 +308,7 @@ export function TxCreateExpense({
           >
             <span className="text-[13px] text-ink-2">Supplier</span>
             <span
-              className={`min-w-0 truncate text-[13px] font-semibold ${
+              className={`min-w-0 text-right text-[13px] font-semibold ${READABLE} ${
                 supplierPick.gone ? 'text-err' : ''
               }`}
             >

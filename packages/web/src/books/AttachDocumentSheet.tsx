@@ -26,6 +26,7 @@ import { SkeletonRows } from '../ui/Feedback';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { Sheet } from '../ui/Sheet';
 import { toastOk } from '../ui/toast';
+import { READABLE } from '../ui/List';
 
 /**
  * Issue #248 — attach a late receipt to an EXISTING expense ("Receipt coming
@@ -254,7 +255,9 @@ export function AttachDocumentSheet({
               }}
             />
             {file !== null && (
-              <span className="mt-1 block truncate text-[13px] font-semibold">
+              <span
+                className={`mt-1 block text-[13px] font-semibold ${READABLE}`}
+              >
                 {file.name}
               </span>
             )}
@@ -406,11 +409,9 @@ function CandidateList({
                 onClick={() => onSelect(d)}
                 className="flex w-full items-center gap-3 border-b border-line px-3.5 py-2.5 text-left last:border-b-0"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold">
-                    {d.filename}
-                  </div>
-                  <div className="truncate text-[12px] text-ink-2">
+                <div className={`min-w-0 flex-1 ${READABLE}`}>
+                  <div className="text-[14px] font-semibold">{d.filename}</div>
+                  <div className="text-[12px] text-ink-2">
                     {d.status === 'needs_triage'
                       ? 'Needs review'
                       : 'Waiting for intake'}{' '}

@@ -14,6 +14,7 @@ import { inboxKeys, invalidateInbox, useNeedsTriage } from '../queries/inbox';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
+import { READABLE } from '../ui/List';
 import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
@@ -186,7 +187,9 @@ export function TriageDocScreen() {
       </p>
       <RefetchError query={triageQ} />
       <div className="px-5 pb-2 pt-1 text-center">
-        <p className="truncate text-[17px] font-extrabold">{item.filename}</p>
+        <p className={`text-[17px] font-extrabold ${READABLE}`}>
+          {item.filename}
+        </p>
       </div>
       <TriageDecisionPanel
         documentId={docId}

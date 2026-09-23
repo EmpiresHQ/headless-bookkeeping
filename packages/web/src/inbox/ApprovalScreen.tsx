@@ -22,7 +22,7 @@ import { useEntities, useInvoices } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { KeyValue, ListGroup } from '../ui/List';
+import { KeyValue, ListGroup, READABLE } from '../ui/List';
 import { LinkButton } from '../ui/LinkButton';
 import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
@@ -97,7 +97,7 @@ function Hero({ amount, subtitle }: { amount: string; subtitle: string }) {
       <p className="whitespace-nowrap text-[28px] font-extrabold tabular-nums">
         {amount}
       </p>
-      <p className="truncate text-[12.5px] text-ink-2">{subtitle}</p>
+      <p className={`text-[12.5px] text-ink-2 ${READABLE}`}>{subtitle}</p>
     </div>
   );
 }

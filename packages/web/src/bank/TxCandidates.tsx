@@ -13,7 +13,7 @@ import {
 } from '../queries/bank';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
-import { GroupLabel } from '../ui/List';
+import { GroupLabel, ROW_BODY, ROW_IDENTITY, ROW_TRAILING } from '../ui/List';
 import { PendingFieldset } from '../ui/Form';
 import { toastErr } from '../ui/toast';
 import {
@@ -286,18 +286,22 @@ export function TxCandidates({
               >
                 ✓
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-semibold">
-                  {c.objectLabel}
+              {/* The full label is visible — same-prefix candidates differ
+                  only in their tails (#275); a huge amount wraps below. */}
+              <div className={ROW_BODY}>
+                <div className={ROW_IDENTITY}>
+                  <div className="text-[14.5px] font-semibold">
+                    {c.objectLabel}
+                  </div>
+                  <div className="text-[12.5px] text-ink-2">
+                    outstanding {fmtCents(c.voucherRemaining)} €
+                  </div>
                 </div>
-                <div className="truncate text-[12.5px] text-ink-2">
-                  outstanding {fmtCents(c.voucherRemaining)} €
+                <div
+                  className={`${ROW_TRAILING} text-[14px] font-bold tabular-nums ${on ? '' : 'text-ink-2'}`}
+                >
+                  {fmtCents(c.voucherRemaining)}
                 </div>
-              </div>
-              <div
-                className={`flex-none text-[14px] font-bold tabular-nums ${on ? '' : 'text-ink-2'}`}
-              >
-                {fmtCents(c.voucherRemaining)}
               </div>
             </button>
           );

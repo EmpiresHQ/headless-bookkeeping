@@ -3,7 +3,7 @@ import type { MatchFacts } from '../api';
 import { signedMoney } from '../lib/money';
 import { KeyValue, ListGroup } from '../ui/List';
 
-// Every row wraps (KeyValue `wrap`): exact amounts, currencies and long
+// Every row wraps (KeyValue never truncates): exact amounts, currencies and long
 // references must stay fully readable at phone width, never truncated.
 import { absoluteDateFromIso } from './format';
 import { formatMoney, targetNoun } from './matchFacts';
@@ -112,33 +112,28 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
   return (
     <>
       <ListGroup label="Bank line">
-        <KeyValue wrap k="Date" v={absoluteDateFromIso(tx.transactionDate)} />
-        <KeyValue wrap k="Amount" v={signedMoney(tx.amount, tx.currency)} />
+        <KeyValue k="Date" v={absoluteDateFromIso(tx.transactionDate)} />
+        <KeyValue k="Amount" v={signedMoney(tx.amount, tx.currency)} />
         {tx.sourceAmount !== null && tx.sourceCurrency !== null && (
           <KeyValue
-            wrap
             k="Original amount"
             v={formatMoney(tx.sourceAmount, tx.sourceCurrency)}
           />
         )}
         {tx.description !== null && (
-          <KeyValue wrap k="Description" v={tx.description} />
+          <KeyValue k="Description" v={tx.description} />
         )}
         {(tx.counterpartyDescriptor ?? tx.counterpartyIban) !== null && (
           <KeyValue
-            wrap
             k="Counterparty"
             v={tx.counterpartyDescriptor ?? tx.counterpartyIban}
           />
         )}
-        {tx.reference !== null && (
-          <KeyValue wrap k="Reference" v={tx.reference} />
-        )}
+        {tx.reference !== null && <KeyValue k="Reference" v={tx.reference} />}
       </ListGroup>
 
       <ListGroup label="Settles">
         <KeyValue
-          wrap
           k={KIND_LABEL[t.kind]}
           v={
             objectLink !== null ? (
@@ -150,10 +145,9 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
             )
           }
         />
-        <KeyValue wrap k="Counterparty" v={t.counterpartyName ?? '—'} />
+        <KeyValue k="Counterparty" v={t.counterpartyName ?? '—'} />
         {t.grossAmount !== null && t.currency !== null && (
           <KeyValue
-            wrap
             k="Document total"
             v={formatMoney(t.grossAmount, t.currency)}
           />
@@ -161,21 +155,18 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
         {t.kind === 'prepayment' && t.advance !== null && (
           <>
             <KeyValue
-              wrap
               k="Advance date"
               v={absoluteDateFromIso(t.advance.date)}
             />
             <KeyValue
-              wrap
               k={`Advance recorded (${base})`}
               v={formatMoney(t.advance.originalBaseAmount, base)}
             />
             {t.advance.currency !== base && (
-              <KeyValue wrap k="Advance currency" v={t.advance.currency} />
+              <KeyValue k="Advance currency" v={t.advance.currency} />
             )}
             {t.advance.fundingLine !== null && (
               <KeyValue
-                wrap
                 k="Advance from line"
                 v={`${absoluteDateFromIso(t.advance.fundingLine.transactionDate)} · ${
                   t.advance.fundingLine.description ??
@@ -187,7 +178,6 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
           </>
         )}
         <KeyValue
-          wrap
           k={
             active
               ? `Still open on it (${base})`
@@ -199,7 +189,6 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
 
       <ListGroup label="This match">
         <KeyValue
-          wrap
           k={`${active ? 'Settles' : 'Would settle'} (${base}${
             allocationIsCash ? '' : ', at the document’s booked rate'
           })`}
@@ -207,7 +196,6 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
         />
         {t.kind !== 'prepayment' && (
           <KeyValue
-            wrap
             k={active ? 'Object after this match' : 'Object if approved'}
             v={
               partialLeft < 0
@@ -220,7 +208,6 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
         )}
         {line.activeCashBase > 0 && (
           <KeyValue
-            wrap
             k={
               active
                 ? `Line cash settled, incl. this match (${base})`
@@ -231,21 +218,18 @@ export function MatchApprovalFacts({ facts }: { facts: MatchFacts }) {
         )}
         {unallocatedNow !== null && (
           <KeyValue
-            wrap
             k={`Line cash unallocated now (${base})`}
             v={formatMoney(Math.max(0, unallocatedNow), base)}
           />
         )}
         {unallocatedAfter !== null && (
           <KeyValue
-            wrap
             k={`Line cash unallocated if approved (${base})`}
             v={formatMoney(Math.max(0, unallocatedAfter), base)}
           />
         )}
         {line.otherDraftCount > 0 && (
           <KeyValue
-            wrap
             k={`Other staged matches on this line — not settled (${base})`}
             v={`${line.otherDraftCount} · ${formatMoney(line.otherDraftAllocatedBase, base)}`}
           />

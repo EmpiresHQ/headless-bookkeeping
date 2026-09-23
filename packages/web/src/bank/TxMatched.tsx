@@ -9,7 +9,13 @@ import { confirmStagedMatch, undoMatches } from '../queries/bank';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
-import { GroupLabel, KeyValue } from '../ui/List';
+import {
+  GroupLabel,
+  KeyValue,
+  ROW_BODY,
+  ROW_IDENTITY,
+  ROW_TRAILING,
+} from '../ui/List';
 import { toastErr, toastOk, toastUndo } from '../ui/toast';
 
 /**
@@ -112,17 +118,21 @@ export function TxMatched({
             >
               🧾
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[14.5px] font-semibold">
-                {m.objectLabel}
+            <div className={ROW_BODY}>
+              <div className={ROW_IDENTITY}>
+                <div className="text-[14.5px] font-semibold">
+                  {m.objectLabel}
+                </div>
+                <div className="text-[12.5px] text-ink-2">
+                  {m.counterpartyName ?? '—'}{' '}
+                  {m.status === 'draft' && <Chip tone="warn">staged</Chip>}
+                </div>
               </div>
-              <div className="truncate text-[12.5px] text-ink-2">
-                {m.counterpartyName ?? '—'}{' '}
-                {m.status === 'draft' && <Chip tone="warn">staged</Chip>}
+              <div
+                className={`${ROW_TRAILING} text-[14px] font-bold tabular-nums`}
+              >
+                {fmtCents(m.amountMatched)} €
               </div>
-            </div>
-            <div className="flex-none text-right text-[14px] font-bold tabular-nums">
-              {fmtCents(m.amountMatched)} €
             </div>
           </div>
         ))}

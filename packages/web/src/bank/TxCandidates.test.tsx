@@ -139,6 +139,51 @@ describe('TxCandidates', () => {
     expect(screen.queryByText(/Line remainder/)).toBeNull();
   });
 
+  it('tells same-prefix candidates apart by their full label and books the chosen one (#275)', async () => {
+    const prefix = `Invoice SUP-2026-${'0123456789'.repeat(6)}`;
+    vi.mocked(api.manualMatch).mockResolvedValueOnce({
+      records: [{ id: 93 }],
+      approvals: [{ id: 14, matchId: 93 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    renderWithClient(
+      <CandidatesWithOp
+        statementId={3}
+        tx={TX as never}
+        result={{
+          ...RESULT,
+          candidates: [
+            { ...RESULT.candidates[0], objectLabel: `${prefix}-ALPHA` },
+            { ...RESULT.candidates[1], objectLabel: `${prefix}-BETA` },
+          ],
+        }}
+        preselectVoucherIds={[]}
+        onMatched={vi.fn()}
+      />,
+    );
+    // Each row's label text keeps its distinguishing suffix (visual
+    // readability is proven by browser geometry, not jsdom).
+    const beta = screen.getByRole('checkbox', { name: `${prefix}-BETA` });
+    expect(beta).toHaveTextContent(`${prefix}-BETA`);
+    expect(
+      screen.getByRole('checkbox', { name: `${prefix}-ALPHA` }),
+    ).toHaveTextContent(`${prefix}-ALPHA`);
+    fireEvent.click(beta);
+    expect(beta).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('checkbox', { name: `${prefix}-ALPHA` }),
+    ).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Match 200.00 €' }));
+    await waitFor(() => expect(api.manualMatch).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.manualMatch).mock.calls[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ voucherId: 71, amountMatched: 20000 }),
+      ]),
+    );
+  });
+
   it('books one manual match per selected candidate with allocated amounts', async () => {
     vi.mocked(api.manualMatch)
       .mockResolvedValueOnce({
