@@ -21,6 +21,7 @@ import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
+import { DocumentSourcePane } from './DocumentSourcePane';
 
 const CURRENCIES = ['EUR', 'DKK', 'USD', 'GBP', 'SEK', 'NOK'] as const;
 const VAT_MARKINGS = [
@@ -188,6 +189,7 @@ export function ClassifyInvoiceSheet({
       onOpenChange={onOpenChange}
       title="Record sales invoice"
       guard={guard}
+      source={<DocumentSourcePane documentId={documentId} active={open} />}
       busy={busy}
     >
       <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">

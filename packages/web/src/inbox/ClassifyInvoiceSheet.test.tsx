@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -7,6 +13,7 @@ vi.mock('../api', async (importOriginal) => ({
   getDocumentReclassify: vi.fn(),
   getEntities: vi.fn(),
   manualClassifyInvoice: vi.fn(),
+  fetchDocumentFile: vi.fn(),
 }));
 
 import * as api from '../api';
@@ -35,6 +42,10 @@ function renderSheet(onDone = vi.fn()) {
 describe('ClassifyInvoiceSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.fetchDocumentFile).mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/jpeg' }),
+      filename: 'invoice-2026-018.jpg',
+    });
     vi.mocked(api.getDocumentReclassify).mockResolvedValue({
       document_id: 12,
       ocr: { ok: true, markdown: 'INVOICE 2026-018 …' },
@@ -115,5 +126,22 @@ describe('ClassifyInvoiceSheet', () => {
       document_id: 12,
       invoice_id: 60,
     });
+  });
+
+  it('source document (#257): viewable from the form while typing; the number survives switching', async () => {
+    renderSheet();
+    const number = await screen.findByDisplayValue('2026-018');
+    fireEvent.change(number, { target: { value: '2026-019' } });
+    const source = screen.getByRole('region', { name: 'Source document' });
+    expect(
+      await within(source).findByText('invoice-2026-018.jpg'),
+    ).toBeVisible();
+    expect(within(source).getByAltText('Source document')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Source document' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+    expect(screen.getByDisplayValue('2026-019')).toBe(number);
+    expect(api.manualClassifyInvoice).not.toHaveBeenCalled();
   });
 });

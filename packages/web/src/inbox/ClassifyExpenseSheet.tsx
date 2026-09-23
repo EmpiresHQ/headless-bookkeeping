@@ -23,6 +23,7 @@ import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
+import { DocumentSourcePane } from './DocumentSourcePane';
 
 const CURRENCIES = ['EUR', 'DKK', 'USD', 'GBP', 'SEK', 'NOK'] as const;
 const VAT_MARKINGS = [
@@ -323,6 +324,7 @@ export function ClassifyExpenseSheet({
       onOpenChange={onOpenChange}
       title="Classify"
       guard={guard}
+      source={<DocumentSourcePane documentId={documentId} active={open} />}
       busy={op.pending}
     >
       <PendingFieldset pending={op.pending} className="space-y-3 px-5 pb-2">

@@ -1,4 +1,10 @@
-import { apiFetch, apiFetchRaw } from './auth';
+import {
+  apiFetch,
+  apiFetchRaw,
+  isSameSession,
+  SessionChangedError,
+  sessionStamp,
+} from './auth';
 
 /**
  * The business-object interfaces below (Organization, Entity, Expense,
@@ -827,6 +833,56 @@ export async function fetchDocumentPreviewObjectUrl(
   const qs = opts.size === 'lg' ? '?size=lg' : '';
   const res = await apiFetchRaw(`/api/documents/${id}/preview${qs}`);
   return URL.createObjectURL(await res.blob());
+}
+
+/** Read a raw response body, then re-check it still belongs to the session
+ *  the request started under (apiFetchRaw owns only up to the headers). */
+async function readOwnedBlob(
+  res: Response,
+  startedAt: ReturnType<typeof sessionStamp>,
+): Promise<Blob> {
+  let blob: Blob;
+  try {
+    blob = await res.blob();
+  } catch (e) {
+    if (!isSameSession(startedAt)) throw new SessionChangedError();
+    throw e;
+  }
+  if (!isSameSession(startedAt)) throw new SessionChangedError();
+  return blob;
+}
+
+/** A document's original bytes as stored (issue #257). */
+export interface DocumentFile {
+  blob: Blob;
+  /** From Content-Disposition; null when the header carries none. */
+  filename: string | null;
+}
+
+/**
+ * Fetch a document's ORIGINAL file (every page, stored MIME type as the blob
+ * type) from the Bearer-only /file endpoint — for viewing the source inside
+ * the app (issue #257). The body read is re-checked against the session the
+ * request started under, so bytes of an ended session are never handed back.
+ */
+export async function fetchDocumentFile(id: number): Promise<DocumentFile> {
+  const startedAt = sessionStamp();
+  const res = await apiFetchRaw(`/api/documents/${id}/file`);
+  const blob = await readOwnedBlob(res, startedAt);
+  const cd = res.headers.get('content-disposition') ?? '';
+  return { blob, filename: cd.match(/filename="(.+?)"/)?.[1] ?? null };
+}
+
+/** The server-rendered page-1 preview PNG as a Blob (see
+ *  fetchDocumentPreviewObjectUrl); the caller owns any object URL. */
+export async function fetchDocumentPreviewBlob(
+  id: number,
+  opts: { size?: 'lg' } = {},
+): Promise<Blob> {
+  const qs = opts.size === 'lg' ? '?size=lg' : '';
+  const startedAt = sessionStamp();
+  const res = await apiFetchRaw(`/api/documents/${id}/preview${qs}`);
+  return readOwnedBlob(res, startedAt);
 }
 
 /**
