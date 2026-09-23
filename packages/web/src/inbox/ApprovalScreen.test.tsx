@@ -241,6 +241,26 @@ describe('ApprovalScreen', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
   });
 
+  it('an unrecognised type offers no decision and claims no effect', async () => {
+    vi.mocked(api.getPendingApprovals).mockResolvedValue([
+      APPROVAL({ id: 11, object_type: 'payroll_run', object_id: 5 }),
+    ]);
+    renderAt('/inbox/approval/11', null);
+    expect(
+      await screen.findByText(/ask your bookkeeper or system operator/),
+    ).toBeInTheDocument();
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    const reject = screen.getByRole('button', { name: 'Reject…' });
+    expect(approve).toBeDisabled();
+    expect(reject).toBeDisabled();
+    expect(screen.queryByText(/posts to the books/)).not.toBeInTheDocument();
+    fireEvent.click(approve);
+    fireEvent.click(reject);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.approveApproval).not.toHaveBeenCalled();
+    expect(api.rejectApproval).not.toHaveBeenCalled();
+  });
+
   describe('bank-match approval facts (issue #256)', () => {
     beforeEach(() => {
       vi.mocked(api.getPendingApprovals).mockResolvedValue([MATCH_APPROVAL]);
@@ -250,7 +270,8 @@ describe('ApprovalScreen', () => {
       });
     });
 
-    const approveBtn = () => screen.getByRole('button', { name: 'Approve' });
+    const approveBtn = () =>
+      screen.getByRole('button', { name: 'Approve match' });
 
     it('shows the exact line, the business object, amounts with units and the meaning before deciding', async () => {
       renderAt('/inbox/approval/9', null);
@@ -334,9 +355,11 @@ describe('ApprovalScreen', () => {
       vi.mocked(api.getMatchFacts).mockReturnValue(new Promise(() => {}));
       renderAt('/inbox/approval/9', null);
       expect(
-        await screen.findByRole('button', { name: 'Approve' }),
+        await screen.findByRole('button', { name: 'Approve match' }),
       ).toBeDisabled();
-      expect(screen.getByRole('button', { name: 'Reject…' })).toBeEnabled();
+      expect(
+        screen.getByRole('button', { name: 'Reject match…' }),
+      ).toBeEnabled();
     });
 
     it('shows a retryable error and keeps Approve off when the facts fail to load', async () => {
@@ -419,7 +442,9 @@ describe('ApprovalScreen', () => {
       expect(screen.queryByText(/prepayment|advance/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/decide in Bank/i)).not.toBeInTheDocument();
       expect(approveBtn()).toBeDisabled();
-      expect(screen.getByRole('button', { name: 'Reject…' })).toBeEnabled();
+      expect(
+        screen.getByRole('button', { name: 'Reject match…' }),
+      ).toBeEnabled();
     });
 
     it('a failed re-check keeps the cached facts visible but turns Approve off until a re-check succeeds', async () => {
@@ -625,12 +650,52 @@ describe('ApprovalScreen', () => {
       expect(
         screen.queryByText(/Approve settles the match/),
       ).not.toBeInTheDocument();
-      fireEvent.click(approveBtn());
+      // Verified active: the confirmation says the discard will be refused.
+      fireEvent.click(screen.getByRole('button', { name: 'Reject match…' }));
+      expect(
+        await screen.findByText(
+          /This match is already active, so it cannot be discarded here/,
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Close approval' }),
+      );
       expect(
         await screen.findByText(
           'Approval closed — the match was already active',
         ),
       ).toBeInTheDocument();
+    });
+
+    it('an active status known only from cached facts is not presented as verified', async () => {
+      vi.mocked(api.getMatchFacts).mockResolvedValue(
+        FACTS({ status: 'active' }),
+      );
+      renderAt('/inbox/approval/9', null);
+      expect(
+        await screen.findByRole('button', { name: 'Close approval' }),
+      ).toBeEnabled();
+      vi.mocked(api.getMatchFacts).mockRejectedValue(new Error('gateway down'));
+      await act(() =>
+        lastClient.refetchQueries({
+          queryKey: ['inbox', 'approval-match', 41],
+        }),
+      );
+      expect(
+        await screen.findByText(/Could not re-check this match — gateway down/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Approve match' }),
+      ).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: 'Reject match…' }));
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Reject bank match',
+      });
+      expect(sheet).toHaveTextContent(
+        /When last loaded, this match was already active/,
+      );
+      expect(sheet).not.toHaveTextContent(/This match is already active/);
     });
 
     it('rejecting stays available without facts and is scoped as discarding the staged match', async () => {
@@ -641,13 +706,24 @@ describe('ApprovalScreen', () => {
       render(<AppToaster />);
       const router = renderAt('/inbox/approval/9', null);
       await screen.findByText('facts down');
-      fireEvent.click(screen.getByRole('button', { name: 'Reject…' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reject match…' }));
+      // Undoing a proposed link, not an object correction: nothing returns
+      // to draft and no posting is implied.
+      expect(
+        await screen.findByRole('dialog', { name: 'Reject bank match' }),
+      ).toHaveTextContent(/discards this proposed match/);
+      expect(screen.queryByText(/goes back to draft/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Reject & return to draft' }),
+      ).not.toBeInTheDocument();
       fireEvent.change(
-        await screen.findByPlaceholderText(/why this should not be posted/i),
-        { target: { value: 'Wrong invoice' } },
+        screen.getByPlaceholderText(/why this match is wrong/i),
+        {
+          target: { value: 'Wrong invoice' },
+        },
       );
       fireEvent.click(
-        screen.getByRole('button', { name: 'Reject & return to draft' }),
+        screen.getByRole('button', { name: 'Reject & discard match' }),
       );
       await waitFor(() =>
         expect(api.rejectApproval).toHaveBeenCalledWith(9, 'Wrong invoice'),
