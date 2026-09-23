@@ -3,15 +3,19 @@ import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { Button } from '../ui/Button';
 import { Field, INPUT_CLS, PendingFieldset } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
+import type { RejectCopy } from './approvalSemantics';
 
 /** Reject = a deliberate decision with a MANDATORY reason (ADR-0015; the
- *  server persists it on the draft). Never window.prompt. */
+ *  server persists it on the approval). Never window.prompt. What rejecting
+ *  does depends on the object type — `copy` says it (issue #290). */
 export function RejectSheet({
+  copy,
   open,
   onOpenChange,
   busy,
   onSubmit,
 }: {
+  copy: RejectCopy;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   busy: boolean;
@@ -29,22 +33,19 @@ export function RejectSheet({
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Reject"
+      title={copy.title}
       guard={guard}
       busy={busy}
     >
       <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
-        <p className="text-[13px] text-ink-2">
-          The item returns to draft with your reason attached — nothing is
-          deleted. (A rejected bank match is discarded instead.)
-        </p>
+        <p className="text-[13px] text-ink-2">{copy.intro}</p>
         <Field label="Reason" hint="Required — it lands in the audit trail">
           <textarea
             className={INPUT_CLS}
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Why this should not be posted…"
+            placeholder={copy.placeholder}
           />
         </Field>
         <Button
@@ -53,7 +54,7 @@ export function RejectSheet({
           disabled={reason.trim() === ''}
           onClick={() => onSubmit(reason.trim(), guard.release)}
         >
-          Reject &amp; return to draft
+          {copy.action}
         </Button>
       </PendingFieldset>
     </Sheet>

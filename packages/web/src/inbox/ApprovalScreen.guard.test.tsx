@@ -81,7 +81,7 @@ describe('ApprovalScreen — bank-match approve handler guard (issue #256)', () 
     vi.mocked(api.getMatchFacts).mockRejectedValue(new Error('facts down'));
     renderAt('/inbox/approval/9');
     await screen.findByText('facts down');
-    const approve = screen.getByRole('button', { name: 'Approve' });
+    const approve = screen.getByRole('button', { name: 'Approve match' });
     expect(approve).toHaveAttribute('data-gated', 'yes');
     fireEvent.click(approve);
     // Give a (wrongly) started operation every chance to call out.
@@ -131,7 +131,7 @@ describe('ApprovalScreen — bank-match approve handler guard (issue #256)', () 
     });
     renderAt('/inbox/approval/9');
     await screen.findByText('Unidentified object');
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve match' }));
     await new Promise((r) => setTimeout(r, 20));
     expect(api.approveApproval).not.toHaveBeenCalled();
   });
@@ -181,7 +181,7 @@ describe('ApprovalScreen — bank-match approve handler guard (issue #256)', () 
     });
     renderAt('/inbox/approval/9');
     await screen.findByText('INV-1 ›');
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve match' }));
     await waitFor(() =>
       expect(api.approveApproval).toHaveBeenCalledWith(9, 'operator'),
     );

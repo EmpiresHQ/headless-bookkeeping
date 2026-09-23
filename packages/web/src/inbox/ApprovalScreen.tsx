@@ -35,6 +35,7 @@ import {
   matchMeaning,
 } from './MatchApprovalFacts';
 import { checkMatchFacts, formatMoney } from './matchFacts';
+import { approvalKind, rejectCopy } from './approvalSemantics';
 import { useSheet } from '../lib/useSheet';
 import { RejectSheet } from './RejectSheet';
 import { useInboxCompletion } from './useInboxCompletion';
@@ -189,6 +190,16 @@ export function ApprovalScreen() {
           ? matchCheck?.ok !== true || matchQ.isError
           : false);
 
+  // What deciding does depends on the type (#290); a type this client cannot
+  // describe is never decided here — no action may claim posting or drafting
+  // it does not know happens.
+  const kind =
+    approval !== undefined ? approvalKind(approval.object_type) : null;
+  const undecidable = kind?.kind === 'unknown';
+  // Validated AND current match facts — cached ones from before a failed
+  // re-check are never described as freshly verified.
+  const matchFresh = matchCheck?.ok === true && !matchQ.isError;
+
   const qc = useQueryClient();
   const rejectSheet = useSheet();
 
@@ -239,7 +250,7 @@ export function ApprovalScreen() {
   const approve = () => {
     // The button's gate, enforced again here: a stale or synthetic click must
     // never decide on facts that are not (or no longer) established.
-    if (factsUnresolved) return;
+    if (factsUnresolved || undecidable) return;
     const to = next;
     const matchFacts = matchCheck?.ok === true ? matchCheck.facts : null;
     const receipt =
@@ -298,6 +309,7 @@ export function ApprovalScreen() {
   // (discardDraftMatch; an active or missing match is refused 409/404 and the
   // approval stays pending), so the receipt below is true whenever it shows.
   const reject = (reason: string, release: () => void) => {
+    if (undecidable) return;
     const to = next;
     const receipt =
       approval?.object_type === 'reconciliation_match'
@@ -614,6 +626,14 @@ export function ApprovalScreen() {
           <p className="text-[22px] font-extrabold">{label}</p>
           <Chip tone="muted">{approval.object_type}</Chip>
         </div>
+        {undecidable && (
+          <p className="mx-6 mb-3 text-[12.5px] leading-snug text-ink-2">
+            This app does not recognise “{approval.object_type}” approvals, so
+            it cannot say what approving or rejecting one would do, and offers
+            neither. Nothing has been decided and it stays pending — ask your
+            bookkeeper or system operator to review it.
+          </p>
+        )}
         <WhyHeldBox reason={approval.policy_reason} />
         <ListGroup label="Facts">
           <KeyValue k="Requested by" v={approval.requested_by} />
@@ -640,29 +660,38 @@ export function ApprovalScreen() {
         <Button
           variant="secondary"
           className="flex-1"
-          disabled={op.pending}
+          disabled={op.pending || undecidable}
           onClick={() => rejectSheet.open()}
         >
-          Reject…
+          {kind?.kind === 'match' ? 'Reject match…' : 'Reject…'}
         </Button>
         <Button
           className="flex-1"
           busy={approving}
-          disabled={rejecting || factsUnresolved}
+          disabled={rejecting || factsUnresolved || undecidable}
           onClick={approve}
         >
-          {heroAmount !== null ? `Approve · ${heroAmount}` : 'Approve'}
+          {kind?.kind === 'match'
+            ? matchFresh && matchCheck?.facts?.status === 'active'
+              ? 'Close approval'
+              : 'Approve match'
+            : heroAmount !== null
+              ? `Approve · ${heroAmount}`
+              : 'Approve'}
         </Button>
       </div>
       <p className="px-6 pt-2 text-center text-[10.5px] text-ink-2">
-        {approval.object_type !== 'reconciliation_match'
-          ? 'Approve posts to the books immediately — recover via a correction'
-          : matchCheck?.facts?.status === 'active'
-            ? 'Approve only closes this request · Reject is refused for an active match — reverse it with Unmatch in Bank'
-            : 'Approve settles the match immediately — undo via Unmatch in Bank'}
+        {kind?.kind === 'unknown'
+          ? 'Approve and Reject are off for this unrecognised type — nothing has been decided'
+          : kind?.kind === 'draft-object'
+            ? 'Approve posts to the books immediately — recover via a correction'
+            : matchCheck?.facts?.status === 'active'
+              ? 'Approve only closes this request · Reject is refused for an active match — reverse it with Unmatch in Bank'
+              : 'Approve settles the match immediately — undo via Unmatch in Bank'}
       </p>
-      {rejectSheet.epoch > 0 && (
+      {rejectSheet.epoch > 0 && kind !== null && kind.kind !== 'unknown' && (
         <RejectSheet
+          copy={rejectCopy(kind, matchCheck?.facts?.status ?? null, matchFresh)}
           // Remount per approval AND per open: auto-advance re-renders this
           // same element for the NEXT item, and a carried-over reason would
           // land a stale justification in the next item's audit trail.
