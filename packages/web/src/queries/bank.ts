@@ -20,6 +20,7 @@ import {
   type MatchProposalView,
 } from '../api';
 import { sharedKeys } from './keys';
+import { HttpError } from '../auth';
 import { rethrowIfEnded, type StageGuard } from '../lib/pendingOperation';
 
 /**
@@ -110,15 +111,26 @@ export function importJobRefetchInterval(query: {
     : false;
 }
 
-/** Import-job polling — the ONLY refetchInterval in the Bank section. */
+/** Terminal import-job statuses never change again. */
+export const isTerminalImportStatus = (status: string | undefined) =>
+  status === 'done' || status === 'failed';
+
+/** Import-job polling — the ONLY refetchInterval in the Bank section. A
+ *  terminal answer is final (no focus refetch can turn it into an error);
+ *  a 404 (see isNotFound) is an answer the screen renders as "unknown job". */
 export function useImportJob(jobId: number | null) {
   return useQuery({
     queryKey: bankKeys.importJob(jobId ?? -1),
     queryFn: () => getBankImportStatus(jobId as number),
     enabled: jobId !== null,
     refetchInterval: importJobRefetchInterval,
+    staleTime: (query) =>
+      isTerminalImportStatus(query.state.data?.status) ? Infinity : 0,
   });
 }
+
+export const isNotFound = (error: unknown) =>
+  error instanceof HttpError && error.status === 404;
 
 /** Statements-list badge: unmatched = open lines not fully reconciled.
  *  Joins transactions (for disposition statuses) with reconciliation rows. */

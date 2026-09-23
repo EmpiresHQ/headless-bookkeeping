@@ -33,14 +33,42 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+/**
+ * A random, non-secret id of the stored sign-in (issue #254), shared by all
+ * tabs through localStorage: every setToken mints a new one, clearToken
+ * removes it. Client state that must not outlive its session (the bank-
+ * import resume pointer) records it instead of anything token-derived.
+ */
+export const SESSION_ID_KEY = 'bk_session_id';
+
+function newSessionId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** The current sign-in's id, or null when signed out. A token stored
+ *  before ids existed gets one lazily. */
+export function currentSessionId(): string | null {
+  if (getToken() === null) return null;
+  let id = localStorage.getItem(SESSION_ID_KEY);
+  if (id === null) {
+    id = newSessionId();
+    localStorage.setItem(SESSION_ID_KEY, id);
+  }
+  return id;
+}
+
 export function setToken(token: string): void {
   revision += 1;
+  localStorage.setItem(SESSION_ID_KEY, newSessionId());
   localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
   revision += 1;
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SESSION_ID_KEY);
 }
 
 /** Raised on a 401 of the CURRENT session so the UI can drop back to the
@@ -60,6 +88,18 @@ export class SessionChangedError extends Error {
   constructor() {
     super('The session changed while the request was in flight');
     this.name = 'SessionChangedError';
+  }
+}
+
+/** A non-OK, non-401 response of the current session. The message keeps
+ *  the "<status> <text>: <detail>" shape callers already render. */
+export class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'HttpError';
   }
 }
 
@@ -106,7 +146,10 @@ async function send(path: string, init: RequestInit): Promise<Response> {
       throw e;
     });
     owned(startedAt);
-    throw new Error(`${res.status} ${res.statusText}: ${detail}`);
+    throw new HttpError(
+      res.status,
+      `${res.status} ${res.statusText}: ${detail}`,
+    );
   }
   return res;
 }
