@@ -36,6 +36,23 @@ dividers, not nested cards. Interactive controls are at least 44px tall. Cards
 and decision panels use an 8px radius; legacy shared primitives may retain their
 existing radius until touched.
 
+Desktop work area (issue #283). Books is the repeated-review screen: below
+`xl` (1280px) it keeps the familiar `max-w-3xl` stacked cards; from `xl` the
+workspace widens to `max-w-6xl` and each row becomes aligned columns under a
+per-group header (one DOM, `books/BooksRow.tsx`; tracks are fixed/`fr` only,
+the amount track is at least 9rem and wraps its own digits):
+
+- Expenses: Supplier · Category · Invoice no. · Tax point · Notes · Amount · Status
+- Invoices: Customer · Invoice no. · Tax point · Notes · Amount · Status
+- Credit notes: Credits · Note no. · Type · Tax point · Amount · Status
+- Documents: (thumbnail) Supplier · File · Channel · Added · Claimant · Status
+
+Details stay routes (no master/detail). Sheets do not stretch: an ordinary
+form is a centred `max-w-xl` column from `md`, a source sheet (#257) a
+`max-w-7xl` side-by-side from `lg`; phones keep the full-width bottom sheet.
+Returning from a row's detail puts the list back on that row
+(`lib/listPosition.ts`).
+
 ## 5. Components
 
 ### Decision Header

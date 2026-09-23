@@ -1,3 +1,4 @@
+import { KEEPS_POSITION } from '../lib/listPosition';
 import { Button } from './Button';
 
 /** Explicit query-error state: server text + retry. */
@@ -11,7 +12,14 @@ export function LoadError({
   return (
     <div className="mx-3.5 mb-3.5 rounded-2xl bg-err-bg px-4 py-3.5">
       <p className="text-[13px] font-semibold text-err">{message}</p>
-      <Button variant="secondary" className="mt-2" onClick={onRetry}>
+      {/* Retry is a recovery (issue #283): it brings back what failed and
+          must not count as scroll intent against a pending list return. */}
+      <Button
+        variant="secondary"
+        className="mt-2"
+        onClick={onRetry}
+        {...{ [KEEPS_POSITION]: '' }}
+      >
         Retry
       </Button>
     </div>

@@ -28,6 +28,7 @@ import {
   getInvoices,
   listCreditNotes,
 } from '../api';
+import { rowTitle } from './rowText.test-util';
 
 /** Issue #280: initial empty / search-empty / filtered-empty / load error
  *  are told apart on the real BooksScreen, with the action that fits. */
@@ -321,7 +322,7 @@ describe('Books empty states (issue #280)', () => {
   it('a number/amount hit still shows while names are unavailable', async () => {
     vi.mocked(getEntities).mockRejectedValue(new Error('boom'));
     mount('?q=S-100');
-    expect(await screen.findByText('travel')).toBeInTheDocument();
+    expect(await screen.findByText(rowTitle('travel'))).toBeInTheDocument();
   });
 
   it('Credit notes: a failed read gets Retry even while another is still loading, without claiming a full search', async () => {

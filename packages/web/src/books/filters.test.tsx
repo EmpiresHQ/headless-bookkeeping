@@ -23,6 +23,7 @@ import {
   getInvoices,
   listCreditNotes,
 } from '../api';
+import { rowTitle } from './rowText.test-util';
 
 const expense = (id: number, status: string, category: string) => ({
   id,
@@ -121,7 +122,7 @@ describe('resetFilterParams (issue #274)', () => {
 describe('Books active restrictions + Reset (issue #274)', () => {
   it('a URL-restored status + No document + search are all summarized over the rendered rows', async () => {
     mount('?status=corrected&nodoc=1&q=Fixture');
-    await screen.findByText('fixture fuel');
+    await screen.findByText(rowTitle('fixture fuel'));
     expect(bar()).toHaveTextContent(
       'Showing 1 of 3 expenses · total −20.00 € · Corrected · No document · Search “Fixture”',
     );
@@ -139,7 +140,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
         origin: 'kept',
       },
     );
-    await screen.findByText('fixture fuel');
+    await screen.findByText(rowTitle('fixture fuel'));
     await userEvent.click(reset());
     await waitFor(() =>
       expect(router.state.location.search).toBe('?seg=expenses&x=1'),
@@ -148,7 +149,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
     expect(router.state.historyAction).toBe('REPLACE');
     expect(screen.queryByRole('group', { name: 'Active filters' })).toBeNull();
     expect(screen.getByRole('searchbox')).toHaveValue('');
-    expect(screen.getByText('software')).toBeInTheDocument();
+    expect(screen.getByText(rowTitle('software'))).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'All' })).toHaveFocus(),
     );
@@ -171,7 +172,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
 
   it('Documents: dstatus + search are summarized', async () => {
     mount('?seg=documents&dstatus=error&q=Fixture');
-    await screen.findByText('fixture.pdf');
+    await screen.findByText(rowTitle('fixture.pdf'));
     expect(bar()).toHaveTextContent(
       'Showing 1 of 2 documents · Errors · Search “Fixture”',
     );
@@ -191,7 +192,7 @@ describe('Books active restrictions + Reset (issue #274)', () => {
   it('No document is not claimed as applied while the archive failed without data', async () => {
     vi.mocked(getDocuments).mockRejectedValue(new Error('503'));
     mount('?nodoc=1');
-    await screen.findByText('software');
+    await screen.findByText(rowTitle('software'));
     await waitFor(() =>
       expect(bar()).toHaveTextContent(
         'No document (not applied: documents failed to load)',

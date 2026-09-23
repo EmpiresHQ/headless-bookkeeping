@@ -10,6 +10,7 @@ vi.mock('../api', async (io) => ({
   getEntities: vi.fn(),
 }));
 import { getEntities, getInvoices } from '../api';
+import { rowTitle, metaLine } from './rowText.test-util';
 
 const INVOICES = [
   {
@@ -72,11 +73,11 @@ describe('InvoicesSegment', () => {
     mount();
     expect(await screen.findByText('Nordic Consulting OÜ')).toBeInTheDocument();
     expect(
-      screen.getByText(/2026-018 · 4 Jul · 🏦 · sent/),
+      screen.getByText(metaLine(/^2026-018 · 4 Jul · 🏦 · sent$/)),
     ).toBeInTheDocument();
     expect(screen.getByText('+1200.00 € · 1')).toBeInTheDocument();
     // Customer-less draft falls back to the invoice number as its title:
-    expect(screen.getByText('2026-019')).toBeInTheDocument();
+    expect(screen.getByText(rowTitle('2026-019'))).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /Nordic Consulting/ }),
     ).toHaveAttribute('href', '/books/invoices/1');
@@ -84,7 +85,7 @@ describe('InvoicesSegment', () => {
 
   it('?status= filters and totals follow', async () => {
     mount('', '/books?seg=invoices&status=draft');
-    expect(await screen.findByText('2026-019')).toBeInTheDocument();
+    expect(await screen.findByText(rowTitle('2026-019'))).toBeInTheDocument();
     expect(screen.queryByText('Nordic Consulting OÜ')).not.toBeInTheDocument();
     expect(screen.getByText('+450.00 € · 1')).toBeInTheDocument();
   });

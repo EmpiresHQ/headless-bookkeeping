@@ -29,6 +29,7 @@ import {
   getInvoices,
   listCreditNotes,
 } from '../api';
+import { rowTitle } from './rowText.test-util';
 
 const expense = (
   id: number,
@@ -135,7 +136,7 @@ const headers = () =>
 describe('Books date range + order (issue #279)', () => {
   it('an inclusive range restricts rows, chip counts, month totals and the line', async () => {
     mount('?from=2026-07-01&to=2026-07-31');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(rowIds('expenses')).toEqual([2, 1]);
     // Both calendar bounds included; June 30 and August 1 are out.
     expect(bar()).toHaveTextContent(
@@ -147,14 +148,14 @@ describe('Books date range + order (issue #279)', () => {
 
   it('a single-sided range is applied and named', async () => {
     mount('?from=2026-08-01');
-    await screen.findByText('cat-3');
+    await screen.findByText(rowTitle('cat-3'));
     expect(rowIds('expenses')).toEqual([5, 4, 3]);
     expect(bar()).toHaveTextContent('Tax point from 1 Aug 2026');
   });
 
   it('month totals stay per currency — EUR and USD are never summed', async () => {
     mount('?from=2026-09-01');
-    await screen.findByText('cat-4');
+    await screen.findByText(rowTitle('cat-4'));
     expect(headers()).toEqual(['September 2026−1400.00 € · −500.00 USD · 2']);
     expect(bar()).toHaveTextContent('total −1400.00 € · −500.00 USD');
     // Rows carry their own currency, not a € mark.
@@ -167,7 +168,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('oldest first reverses months and rows', async () => {
     mount('?sort=oldest');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(rowIds('expenses')).toEqual([6, 1, 2, 3, 4, 5]);
     expect(headers()[0]).toMatch(/^June 2026/);
     expect(bar()).toHaveTextContent('Oldest first');
@@ -175,7 +176,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('largest amount is one ranking across months, one section per currency', async () => {
     mount('?sort=largest');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(rowIds('expenses')).toEqual([4, 1, 6, 3, 2, 5]);
     expect(headers()).toEqual([
       'Amounts in EUR−2430.00 € · 5',
@@ -186,13 +187,13 @@ describe('Books date range + order (issue #279)', () => {
 
   it('smallest amount composes with the range and the status filter', async () => {
     mount('?sort=smallest&status=posted&from=2026-07-01');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(rowIds('expenses')).toEqual([3, 1, 4, 5]);
   });
 
   it('an invalid date is not claimed as applied; the list is unrestricted by it', async () => {
     mount('?from=2026-02-30');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(rowIds('expenses')).toHaveLength(6);
     expect(bar()).toHaveTextContent(
       'Showing 6 of 6 expenses · total −2430.00 € · −500.00 USD · From “2026-02-30” not applied (not a date)',
@@ -207,7 +208,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('a reversed range restricts nothing and says so; both inputs are marked', async () => {
     mount('?from=2026-09-01&to=2026-07-01');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(rowIds('expenses')).toHaveLength(6);
     expect(bar()).toHaveTextContent('Dates not applied: From is after To');
     expect(screen.getByLabelText('From')).toHaveValue('2026-09-01');
@@ -216,7 +217,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('an unknown order is noted; an empty one is simply the default', async () => {
     mount('?sort=biggest');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(bar()).toHaveTextContent(
       'Order “biggest” not recognised — newest first',
     );
@@ -237,7 +238,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('the controls write the URL in place: replace-history, entry state and other params kept', async () => {
     const router = mount('?keep=1', { origin: 'x' });
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     await userEvent.click(screen.getByText('Dates & order'));
     await userEvent.selectOptions(screen.getByLabelText('Order'), 'oldest');
     expect(params(router).toString()).toBe('keep=1&sort=oldest');
@@ -259,7 +260,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('the disclosure opens for a URL with dates/order and names them while closed', async () => {
     mount('?from=2026-07-01&to=2026-07-31&sort=oldest');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const details = screen.getByText('Dates & order').closest('details')!;
     expect(details.open).toBe(true);
     expect(details.querySelector('summary')).toHaveTextContent(
@@ -271,9 +272,9 @@ describe('Books date range + order (issue #279)', () => {
     const router = mount(
       '?status=posted&from=2026-07-01&to=2026-07-31&sort=largest',
     );
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     await userEvent.click(screen.getByRole('tab', { name: 'Credit notes' }));
-    await screen.findByText('CN-1');
+    await screen.findByText(rowTitle('CN-1'));
     expect(params(router).get('status')).toBeNull();
     expect(params(router).get('sort')).toBe('largest');
     // Face value ranks: 30.00 then 10.00; the net is signed (−30 + 10).
@@ -283,7 +284,7 @@ describe('Books date range + order (issue #279)', () => {
     );
 
     await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    await screen.findByText('july.pdf');
+    await screen.findByText(rowTitle('july.pdf'));
     expect(screen.queryByText('august.pdf')).toBeNull();
     expect(bar()).toHaveTextContent(
       'Showing 1 of 2 documents · Added 1 Jul 2026 – 31 Jul 2026 · Newest first — documents have no amount to order by',
@@ -302,7 +303,7 @@ describe('Books date range + order (issue #279)', () => {
       '?seg=expenses&status=posted&q=cat&from=2026-07-01&to=bogus&sort=largest&x=1',
       { origin: 'kept' },
     );
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     await userEvent.click(
       screen.getByRole('button', {
         name: 'Reset filters, search, dates and order',
@@ -318,7 +319,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('Credit notes: dates make the button the Books Reset; a search alone keeps Clear search', async () => {
     const router = mount('?seg=credit-notes&q=CN&from=2026-09-01');
-    await screen.findByText('CN-3');
+    await screen.findByText(rowTitle('CN-3'));
     expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull();
     await userEvent.click(
       screen.getByRole('button', {
@@ -332,7 +333,7 @@ describe('Books date range + order (issue #279)', () => {
 
   it('the Reports pointer is a plain link: no Books state is handed to Reports', async () => {
     const router = mount('?from=2026-07-01', { origin: 'books-entry' });
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     expect(
       screen.getByText(/calendar filter, not a reporting period/),
     ).toBeInTheDocument();
@@ -342,7 +343,7 @@ describe('Books date range + order (issue #279)', () => {
     // Back returns to Books with the range intact.
     await act(() => router.navigate(-1));
     expect(router.state.location.search).toBe('?from=2026-07-01');
-    expect(await screen.findByText('cat-1')).toBeInTheDocument();
+    expect(await screen.findByText(rowTitle('cat-1'))).toBeInTheDocument();
     expect(screen.queryByText('cat-6')).toBeNull();
   });
 });
@@ -390,7 +391,7 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('year typed digit by digit: each complete value commits, nothing is written back', async () => {
     const router = mount('?keep=1', { origin: 'x' });
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     const writes = watchWrites(from);
     // Month + day typed first: incomplete → nothing committed.
@@ -409,7 +410,7 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('an incomplete entry over an applied bound keeps the bound (and says so)', async () => {
     const router = mount('?from=2026-07-01');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     expect(from.value).toBe('2026-07-01');
     browserTypes(from, '', true);
@@ -419,14 +420,14 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('a deliberate clear (empty, not badInput) removes the bound', async () => {
     const router = mount('?from=2026-07-01');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     browserTypes(screen.getByLabelText('From') as HTMLInputElement, '');
     await waitFor(() => expect(params(router).has('from')).toBe(false));
   });
 
   it('URL changes from elsewhere still reach the field: Reset, Back, deep link', async () => {
     const router = mount('?from=2026-07-01&to=2026-07-31');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     const to = screen.getByLabelText('To') as HTMLInputElement;
     expect(to.value).toBe('2026-07-31');
@@ -454,7 +455,7 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('Reset after deleting the year of a bound explicitly clears the field (its value already reads empty)', async () => {
     mount('?from=2026-07-01');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     // The year deleted: native value '' + badInput, month/day still shown.
     browserTypes(from, '', true);
@@ -475,7 +476,7 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('Reset clears a partial entry that never reached the URL (other bound valid), without remounting', async () => {
     const router = mount('?to=2026-07-31&q=cat');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     const to = screen.getByLabelText('To') as HTMLInputElement;
     // Month/day typed into the blank From: badInput, no ?from= ever.
@@ -498,7 +499,7 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('Back to an entry whose bound equals this field’s own last write still resyncs it', async () => {
     const router = mount('?from=2026-09-01');
-    await screen.findByText('cat-4');
+    await screen.findByText(rowTitle('cat-4'));
     await act(() => router.navigate('/books'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     await waitFor(() => expect(from.value).toBe(''));
@@ -512,7 +513,7 @@ describe('Books date input keeps native keyboard entry (issue #279 rework)', () 
 
   it('another filter’s write does not touch a date field mid-entry', async () => {
     mount('');
-    await screen.findByText('cat-1');
+    await screen.findByText(rowTitle('cat-1'));
     const from = screen.getByLabelText('From') as HTMLInputElement;
     browserTypes(from, '', true);
     const writes = watchWrites(from);

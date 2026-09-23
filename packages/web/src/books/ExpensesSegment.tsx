@@ -16,9 +16,11 @@ import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
 import { SkeletonRows } from '../ui/Feedback';
 import { GroupHeader } from '../ui/GroupHeader';
-import { ListGroup, ListRow } from '../ui/List';
+import { ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
+import { useReturnPosition } from '../lib/listPosition';
+import { BooksColumnsHeader, BooksRow, type BooksColumns } from './BooksRow';
 import {
   ActiveFilters,
   FilterChip,
@@ -50,6 +52,21 @@ const expenseTotals = (rows: Expense[]) =>
     ),
   );
 
+/** Desktop columns (xl, issue #283). */
+export const EXPENSE_COLUMNS: BooksColumns = {
+  grid: 'xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.2fr)_5.5rem_minmax(0,1fr)_minmax(9rem,1.1fr)_5.5rem_0.75rem]',
+  labels: [
+    'Supplier',
+    'Category',
+    'Invoice no.',
+    'Tax point',
+    'Notes',
+    'Amount',
+    'Status',
+  ],
+  amountAt: 5,
+};
+
 function ExpenseRow({
   e,
   supplierName,
@@ -59,28 +76,45 @@ function ExpenseRow({
   supplierName: string | null;
   hasDocument: boolean;
 }) {
-  const parts = [e.category];
-  // The supplier's own number identifies the row a search found (#277).
-  if ((e.supplier_invoice_number ?? '').trim() !== '')
-    parts.push(`Invoice no. ${e.supplier_invoice_number}`);
-  parts.push(shortDate(e.tax_point_date));
-  if (e.reconciled) parts.push('🏦');
-  if (!hasDocument) parts.push('📎 no document');
+  const notes: string[] = [];
+  if (e.reconciled) notes.push('🏦');
+  if (!hasDocument) notes.push('📎 no document');
+  const number = (e.supplier_invoice_number ?? '').trim();
   return (
-    <ListRow
+    <BooksRow
       to={`/books/expenses/${e.id}`}
+      columns={EXPENSE_COLUMNS}
       title={supplierName ?? e.category}
-      subtitle={parts.join(' · ')}
-      trailing={
-        <div className="flex-none">
-          <AmountText
-            cents={-e.gross_amount}
-            currency={e.currency}
-            className="block text-[14px]"
-          />
-          <div className="mt-0.5">{statusChip(e.status)}</div>
-        </div>
+      titleXl={
+        supplierName != null
+          ? undefined
+          : e.supplier_id == null
+            ? 'No supplier'
+            : // Assigned, but its name is not loaded (loading, failed or
+              // no longer listed) — never claimed as "No supplier".
+              `Supplier #${e.supplier_id}`
       }
+      cells={[
+        // A supplier-less card is titled by its category; the column keeps
+        // it (the Supplier column says there is none).
+        { key: 'category', value: e.category, xlOnly: supplierName == null },
+        // The supplier's own number identifies the row a search found (#277).
+        {
+          key: 'number',
+          value: number === '' ? null : e.supplier_invoice_number,
+          prefix: 'Invoice no.',
+        },
+        { key: 'date', value: shortDate(e.tax_point_date) },
+        { key: 'notes', value: notes.join(' · ') },
+      ]}
+      amount={
+        <AmountText
+          cents={-e.gross_amount}
+          currency={e.currency}
+          className="block text-[14px]"
+        />
+      }
+      status={statusChip(e.status)}
     />
   );
 }
@@ -109,6 +143,8 @@ export function ExpensesSegment({
   const create = useContext(BooksCreate);
 
   const expensesQ = useExpenses();
+  // Back from a row lands on that row again, once the rows are here (#283).
+  useReturnPosition(rootRef, expensesQ.isSuccess);
   const entitiesQ = useEntities();
   const docsQ = useDocumentsArchive();
   const entities = entitiesQ.data ?? [];
@@ -262,6 +298,7 @@ export function ExpensesSegment({
             />
           }
         >
+          <BooksColumnsHeader columns={EXPENSE_COLUMNS} />
           {g.rows.map((e) => (
             <ExpenseRow
               key={e.id}
