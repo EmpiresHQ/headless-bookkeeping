@@ -456,7 +456,19 @@ describe('ClassifyExpenseSheet', () => {
     fireEvent.change(screen.getByLabelText('Country'), {
       target: { value: 'EE' },
     });
-    expect(screen.getByRole('button', { name: 'Add supplier' })).toBeDisabled();
+    // #265: the button explains instead of going dead — a click names the
+    // missing key at its field, focuses it, and sends nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Add supplier' }));
+    const regKey = screen.getByLabelText('Reg. key');
+    expect(regKey).toHaveAttribute('aria-invalid', 'true');
+    expect(regKey).toHaveAccessibleDescription(
+      'Enter the registration key — a supplier needs one',
+    );
+    await waitFor(() => expect(regKey).toHaveFocus());
+    expect(screen.getByLabelText('Name')).not.toHaveAttribute('aria-invalid');
+    expect(api.onboardEntity).not.toHaveBeenCalled();
+    fireEvent.change(regKey, { target: { value: '12345678' } });
+    expect(regKey).not.toHaveAttribute('aria-invalid');
   });
 
   it('auto-computes VAT at 22% while the VAT field is untouched, then stops', async () => {
@@ -488,7 +500,16 @@ describe('ClassifyExpenseSheet', () => {
     const submit = await screen.findByRole('button', {
       name: 'Create expense · −48.20 €',
     });
-    expect(submit).toBeDisabled(); // no supplier yet
+    // No supplier yet (#265): the click states it at the supplier field
+    // and focuses the search — nothing is sent.
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    const search = screen.getByPlaceholderText(/search suppliers/i);
+    expect(
+      screen.getByRole('group', { name: 'Supplier' }),
+    ).toHaveAccessibleDescription(/Choose a supplier, or add a new one/);
+    await waitFor(() => expect(search).toHaveFocus());
+    expect(api.manualClassify).not.toHaveBeenCalled();
     fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
       target: { value: 'circle' },
     });

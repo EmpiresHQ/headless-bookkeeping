@@ -95,9 +95,21 @@ describe('ClassifyInvoiceSheet', () => {
     renderSheet();
     const nr = await screen.findByDisplayValue('2026-018');
     fireEvent.change(nr, { target: { value: '' } });
-    expect(
+    // Blank is not red before an attempt (#265)…
+    expect(nr).not.toHaveAttribute('aria-invalid');
+    fireEvent.blur(nr);
+    expect(nr).not.toHaveAttribute('aria-invalid');
+    // …the click says what is missing, focuses it, and sends nothing.
+    fireEvent.click(
       screen.getByRole('button', { name: 'Record invoice · +1200.00 €' }),
-    ).toBeDisabled();
+    );
+    expect(nr).toHaveAttribute('aria-invalid', 'true');
+    expect(nr).toHaveAccessibleDescription('Enter the invoice number');
+    await waitFor(() => expect(nr).toHaveFocus());
+    expect(api.manualClassifyInvoice).not.toHaveBeenCalled();
+    fireEvent.change(nr, { target: { value: '2026-019' } });
+    expect(nr).not.toHaveAttribute('aria-invalid');
+    expect(screen.queryByText(/Fix 1 field/)).toBeNull();
   });
 
   it('submits the sales_invoice payload with optional customer', async () => {

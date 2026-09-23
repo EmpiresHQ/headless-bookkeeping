@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  amountError,
   centsToEuroInput,
+  MAX_EXACT_AMOUNT,
   eurosToCents,
   signedEuros,
   signedMoney,
@@ -22,6 +24,19 @@ describe('eurosToCents', () => {
   });
   it('accepts negative amounts', () => {
     expect(eurosToCents('-12.50')).toBe(-1250);
+  });
+  it('converts large amounts exactly, never moving a cent (#265)', () => {
+    // parseFloat(x) * 100 gave 9007199254740991 / 7036874417766402 here.
+    expect(eurosToCents('90071992547409.90')).toBe(9007199254740990);
+    expect(eurosToCents('70368744177664.01')).toBe(7036874417766401);
+    expect(eurosToCents('90071992547409.91')).toBe(Number.MAX_SAFE_INTEGER);
+    expect(eurosToCents('-90071992547409.91')).toBe(-Number.MAX_SAFE_INTEGER);
+    expect(eurosToCents('1,1')).toBe(110);
+  });
+  it('rejects amounts past the exact-integer range instead of rounding', () => {
+    expect(eurosToCents('90071992547409.92')).toBeNull();
+    expect(eurosToCents('100000000000000000000')).toBeNull();
+    expect(eurosToCents('-90071992547409.92')).toBeNull();
   });
 });
 
@@ -63,5 +78,34 @@ describe('signedMoney — signedEuros for an explicit currency', () => {
     expect(signedMoney(-120000, 'USD')).toBe('−1200.00 USD');
     expect(signedMoney(4820, 'DKK')).toBe('+48.20 DKK');
     expect(signedMoney(0, 'GBP')).toBe('0.00 GBP');
+  });
+});
+
+describe('amountError (#265)', () => {
+  const gross = {
+    blank: 'Enter the gross',
+    sign: 'positive',
+    what: 'Gross',
+  } as const;
+  const vat = {
+    blank: 'Enter the VAT',
+    sign: 'nonNegative',
+    what: 'VAT',
+  } as const;
+  it('names what is wrong: blank, format, too large, sign', () => {
+    expect(amountError('  ', gross)).toBe('Enter the gross');
+    expect(amountError('12.345', gross)).toMatch(/at most 2 decimals/);
+    expect(amountError('abc', gross)).toMatch(/like 12\.40/);
+    expect(amountError('90071992547409.92', gross)).toBe(
+      `Too large to record exactly — at most ${MAX_EXACT_AMOUNT}`,
+    );
+    expect(MAX_EXACT_AMOUNT).toBe('90071992547409.91');
+    expect(amountError('0', gross)).toBe('Gross must be greater than zero');
+    expect(amountError('-1', vat)).toBe('VAT cannot be negative');
+  });
+  it('accepts what eurosToCents accepts in range', () => {
+    expect(amountError('0', vat)).toBeNull();
+    expect(amountError('12,40', gross)).toBeNull();
+    expect(amountError('90071992547409.91', gross)).toBeNull();
   });
 });

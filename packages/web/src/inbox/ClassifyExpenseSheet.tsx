@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { HttpError } from '../auth';
 import {
   getDocumentDetails,
   manualClassify,
@@ -8,18 +9,27 @@ import {
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import {
+  amountError,
   centsToEuroInput,
   eurosToCents,
   signedMoney,
   vatFromGross,
 } from '../lib/money';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { sharedKeys } from '../queries/keys';
 import { useCategories, useExpenses, useSuppliers } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
+import {
+  Field,
+  FormErrorSummary,
+  PendingFieldset,
+  SelectInput,
+  TextInput,
+  useFormErrors,
+} from '../ui/Form';
+import { toastErr } from '../ui/toast';
 import {
   BlockedReason,
   lookupBlocker,
@@ -284,19 +294,73 @@ export function ClassifyExpenseSheet({
     (supplierPick.gone
       ? 'The chosen supplier is no longer available — change it.'
       : null);
-  const valid =
-    blocker === null &&
-    supplier !== null &&
-    category !== '' &&
-    date !== '' &&
-    grossCents !== null &&
-    grossCents > 0 &&
-    vatCents !== null &&
-    vatCents >= 0;
+  // Field feedback (issue #265), against the manual-classify EXPENSE arm:
+  // supplier id required, category, whole-cent gross > 0 and VAT >= 0, a
+  // 3-letter currency, a YYYY-MM-DD date. A prefilled value is checked like
+  // a typed one; it turns red only after a blur or a submit attempt.
+  const fieldValues = {
+    supplier: supplier?.id ?? null,
+    gross,
+    vat,
+    date,
+    currency,
+    category,
+    vatMarking,
+    invoiceNumber,
+  };
+  const v = useFormErrors({
+    values: fieldValues,
+    errors: {
+      supplier:
+        supplier === null ? 'Choose a supplier, or add a new one' : null,
+      gross: amountError(gross, {
+        blank: 'Enter the amount',
+        sign: 'positive',
+        what: 'The amount',
+      }),
+      vat: amountError(vat, {
+        blank: 'Enter the VAT — 0.00 if there is none',
+        sign: 'nonNegative',
+        what: 'VAT',
+      }),
+      date:
+        date === ''
+          ? 'Pick the date'
+          : !/^\d{4}-\d{2}-\d{2}$/.test(date)
+            ? `“${date}” is not a date — pick one`
+            : null,
+      currency:
+        currency.length !== 3 ? 'Choose a 3-letter currency code' : null,
+      category: category === '' ? 'Choose a category' : null,
+      vatMarking: null,
+      invoiceNumber: null,
+    },
+    labels: {
+      supplier: 'Supplier',
+      gross: `Amount (${currency})`,
+      vat: `VAT (${currency})`,
+      date: 'Date',
+      currency: 'Currency',
+      category: 'Category',
+      vatMarking: 'VAT marking',
+      invoiceNumber: 'Invoice number',
+    },
+    serverFields: {
+      supplier_id: 'supplier',
+      gross_amount: 'gross',
+      vat_amount: 'vat',
+      tax_point_date: 'date',
+      currency: 'currency',
+      category: 'category',
+      document_vat_marking: 'vatMarking',
+      supplier_invoice_number: 'invoiceNumber',
+    },
+  });
 
   const submit = () => {
-    if (!valid || supplier === null || grossCents === null || vatCents === null)
-      return;
+    if (blocker !== null || !v.attempt()) return;
+    if (supplier === null || grossCents === null || vatCents === null) return;
+    const sent = fieldValues;
     const req = {
       supplier_id: supplier.id,
       category,
@@ -312,20 +376,49 @@ export function ClassifyExpenseSheet({
         guard.release();
         onDone(outcome);
       },
+      onError: (e) => {
+        toastErr(errorMessage(e));
+        // Kept in the form, at the field the server named (issue #265).
+        v.failed(e, sent);
+      },
     });
     if (started) setRunning('submit');
   };
 
+  const newValues = { newName, newCountry, newRegKey };
+  const nv = useFormErrors({
+    values: newValues,
+    errors: {
+      newName: newName.trim() === '' ? "Enter the supplier's name" : null,
+      newCountry:
+        newCountry.trim() === '' ? 'Enter the country code, e.g. EE' : null,
+      newRegKey:
+        newRegKey.trim() === ''
+          ? 'Enter the registration key — a supplier needs one'
+          : null,
+    },
+    labels: { newName: 'Name', newCountry: 'Country', newRegKey: 'Reg. key' },
+    serverFields: {
+      name: 'newName',
+      country: 'newCountry',
+      registrationKey: 'newRegKey',
+    },
+  });
+
   const onCreateSupplier = () => {
+    if (!nv.attempt()) return;
     const req = {
       role: 'supplier' as const,
       name: newName.trim(),
       country: newCountry.trim(),
       registrationKey: newRegKey.trim(),
     };
+    const sent = newValues;
+    let accepted = false;
     const started = op.run(
       async (ctx) => {
         const entity = await onboardEntity(req);
+        accepted = true;
         ctx.check();
         await qc.invalidateQueries({ queryKey: sharedKeys.entities });
         return entity;
@@ -334,6 +427,17 @@ export function ClassifyExpenseSheet({
         onSuccess: (entity) => {
           setSupplier(entity, { created: true });
           setCreatingSupplier(false);
+        },
+        onError: (e) => {
+          toastErr(errorMessage(e));
+          if (accepted) return;
+          nv.failed(
+            e,
+            sent,
+            e instanceof HttpError && e.validation === null
+              ? 'Adding the supplier was not confirmed — your input is kept. Search the list before adding it again, in case it was stored.'
+              : undefined,
+          );
         },
       },
     );
@@ -376,8 +480,11 @@ export function ClassifyExpenseSheet({
         )}
 
         {supplier === null && !creatingSupplier && (
-          <Field label="Supplier">
+          <Field label="Supplier" group required error={v.error('supplier')}>
             <SearchInput
+              {...v.bind('supplier')}
+              aria-label="Search suppliers"
+              aria-invalid={v.error('supplier') !== null ? true : undefined}
               value={supplierSearch}
               onChange={setSupplierSearch}
               placeholder="Search suppliers…"
@@ -427,17 +534,28 @@ export function ClassifyExpenseSheet({
         )}
 
         {supplier === null && creatingSupplier && (
-          <div className="space-y-3">
-            <Field label="Name">
+          <div
+            id={v.idOf('supplier')}
+            tabIndex={-1}
+            role="group"
+            aria-label="New supplier"
+            className="space-y-3 outline-none"
+          >
+            {v.error('supplier') !== null && (
+              <p className="text-xs text-err">{v.error('supplier')}</p>
+            )}
+            <Field label="Name" required error={nv.error('newName')}>
               <TextInput
+                {...nv.bind('newName')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
               />
             </Field>
             <div className="flex gap-2.5">
               <div className="flex-1">
-                <Field label="Country">
+                <Field label="Country" required error={nv.error('newCountry')}>
                   <TextInput
+                    {...nv.bind('newCountry')}
                     value={newCountry}
                     onChange={(e) => setNewCountry(e.target.value)}
                   />
@@ -446,23 +564,22 @@ export function ClassifyExpenseSheet({
               <div className="flex-1">
                 <Field
                   label="Reg. key"
-                  hint="Required — identity of the supplier"
+                  required
+                  hint="Identity of the supplier"
+                  error={nv.error('newRegKey')}
                 >
                   <TextInput
+                    {...nv.bind('newRegKey')}
                     value={newRegKey}
                     onChange={(e) => setNewRegKey(e.target.value)}
                   />
                 </Field>
               </div>
             </div>
+            <FormErrorSummary form={nv} />
             <Button
               className="w-full"
               busy={creating}
-              disabled={
-                newName.trim() === '' ||
-                newCountry.trim() === '' ||
-                newRegKey.trim() === ''
-              }
               onClick={onCreateSupplier}
             >
               Add supplier
@@ -480,10 +597,11 @@ export function ClassifyExpenseSheet({
         {supplier !== null && (
           <Field
             label="Supplier"
+            group
             error={
               supplierPick.gone
                 ? 'This supplier is no longer available — change it'
-                : undefined
+                : v.error('supplier')
             }
           >
             <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2.5">
@@ -492,6 +610,7 @@ export function ClassifyExpenseSheet({
                 {supplierPick.gone && ' (not available)'}
               </span>
               <button
+                id={v.idOf('supplier')}
                 type="button"
                 onClick={() => setSupplier(null)}
                 className="text-[13px] font-semibold text-accent"
@@ -509,9 +628,12 @@ export function ClassifyExpenseSheet({
           <div className="flex-1">
             <Field
               label={`Amount (${currency})`}
+              required
+              error={v.error('gross')}
               hint={`saved from the AI read · VAT auto at ${STANDARD_VAT_RATE_PCT}%`}
             >
               <TextInput
+                {...v.bind('gross')}
                 aria-label={`Amount (${currency})`}
                 inputMode="decimal"
                 value={gross}
@@ -522,9 +644,16 @@ export function ClassifyExpenseSheet({
           <div className="flex-1">
             <Field
               label={`VAT (${currency})`}
-              hint="edit if the receipt differs"
+              required
+              error={v.error('vat')}
+              hint={
+                vatTouched && vat.trim() === ''
+                  ? 'Required — enter 0.00 if there is no VAT'
+                  : 'edit if the receipt differs'
+              }
             >
               <TextInput
+                {...v.bind('vat')}
                 aria-label={`VAT (${currency})`}
                 inputMode="decimal"
                 value={vat}
@@ -539,8 +668,9 @@ export function ClassifyExpenseSheet({
 
         <div className="flex gap-2.5">
           <div className="flex-1">
-            <Field label="Date">
+            <Field label="Date" required error={v.error('date')}>
               <TextInput
+                {...v.bind('date')}
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
@@ -548,8 +678,9 @@ export function ClassifyExpenseSheet({
             </Field>
           </div>
           <div className="flex-1">
-            <Field label="Currency">
+            <Field label="Currency" error={v.error('currency')}>
               <SelectInput
+                {...v.bind('currency')}
                 aria-label="Currency"
                 value={currency}
                 onChange={(e) => setCurrencyChoice(e.target.value)}
@@ -572,11 +703,16 @@ export function ClassifyExpenseSheet({
               ? 'Not in the category list — choose a category'
               : categoriesQ.data?.length === 0
                 ? NO_CATEGORIES
-                : undefined
+                : v.error('category')
           }
           group
+          required
         >
-          <div className="flex flex-wrap gap-1.5">
+          <div
+            id={v.idOf('category')}
+            tabIndex={-1}
+            className="flex flex-wrap gap-1.5 outline-none"
+          >
             {/* The chosen key is never hidden: one the list lacks (or that
                 cannot be checked yet) stays visible, marked. */}
             {category !== '' &&
@@ -620,8 +756,9 @@ export function ClassifyExpenseSheet({
 
         <div className="flex gap-2.5">
           <div className="flex-1">
-            <Field label="VAT marking">
+            <Field label="VAT marking" error={v.error('vatMarking')}>
               <SelectInput
+                {...v.bind('vatMarking')}
                 value={vatMarking}
                 onChange={(e) => setVatMarking(e.target.value)}
               >
@@ -634,8 +771,9 @@ export function ClassifyExpenseSheet({
             </Field>
           </div>
           <div className="flex-1">
-            <Field label="Invoice number">
+            <Field label="Invoice number" error={v.error('invoiceNumber')}>
               <TextInput
+                {...v.bind('invoiceNumber')}
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
               />
@@ -643,10 +781,11 @@ export function ClassifyExpenseSheet({
           </div>
         </div>
 
+        <FormErrorSummary form={v} blocked={blocker !== null} />
         <Button
           className="w-full"
           busy={busy}
-          disabled={!valid}
+          disabled={blocker !== null}
           onClick={submit}
         >
           {grossCents !== null && grossCents > 0

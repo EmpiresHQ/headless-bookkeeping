@@ -7,17 +7,26 @@ import {
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import {
+  amountError,
   centsToEuroInput,
   eurosToCents,
   signedEuros,
   vatFromGross,
 } from '../lib/money';
-import { usePendingOperation } from '../lib/pendingOperation';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { inboxKeys } from '../queries/inbox';
 import { useCustomers } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
+import {
+  Field,
+  FormErrorSummary,
+  PendingFieldset,
+  SelectInput,
+  TextInput,
+  useFormErrors,
+} from '../ui/Form';
+import { toastErr } from '../ui/toast';
 import {
   BlockedReason,
   lookupBlocker,
@@ -167,17 +176,61 @@ export function ClassifyInvoiceSheet({
     (customerPick.gone
       ? 'The chosen customer is no longer available — change it or leave it empty.'
       : null);
-  const valid =
-    blocker === null &&
-    invoiceNumber.trim() !== '' &&
-    date !== '' &&
-    grossCents !== null &&
-    grossCents > 0 &&
-    vatCents !== null &&
-    vatCents >= 0;
+  // Field feedback (issue #265). The rules are the ones this form already
+  // held (a sales invoice's number, gross > 0, VAT >= 0 — the sales-invoice
+  // create contract), now stated at the field instead of a dead button.
+  const fieldValues = {
+    customer: customer?.id ?? null,
+    number: invoiceNumber,
+    gross,
+    vat,
+    date,
+    currency,
+    vatMarking,
+  };
+  const v = useFormErrors({
+    values: fieldValues,
+    errors: {
+      customer: null,
+      number: invoiceNumber.trim() === '' ? 'Enter the invoice number' : null,
+      gross: amountError(gross, {
+        blank: 'Enter the amount',
+        sign: 'positive',
+        what: 'The amount',
+      }),
+      vat: amountError(vat, {
+        blank: 'Enter the VAT — 0.00 if there is none',
+        sign: 'nonNegative',
+        what: 'VAT',
+      }),
+      date: date === '' ? 'Pick the date' : null,
+      currency: null,
+      vatMarking: null,
+    },
+    labels: {
+      customer: 'Customer',
+      number: 'Invoice number',
+      gross: 'Amount (EUR)',
+      vat: 'VAT',
+      date: 'Date',
+      currency: 'Currency',
+      vatMarking: 'VAT marking',
+    },
+    serverFields: {
+      customer_id: 'customer',
+      invoice_number: 'number',
+      gross_amount: 'gross',
+      vat_amount: 'vat',
+      tax_point_date: 'date',
+      currency: 'currency',
+      document_vat_marking: 'vatMarking',
+    },
+  });
 
   const submit = () => {
-    if (!valid || grossCents === null || vatCents === null) return;
+    if (blocker !== null || !v.attempt()) return;
+    if (grossCents === null || vatCents === null) return;
+    const sent = fieldValues;
     const req = {
       target: 'sales_invoice' as const,
       customer_id: customer?.id ?? null,
@@ -192,6 +245,11 @@ export function ClassifyInvoiceSheet({
       onSuccess: (outcome) => {
         guard.release();
         onDone(outcome);
+      },
+      onError: (e) => {
+        toastErr(errorMessage(e));
+        // Kept in the form, at the field the server named (issue #265).
+        v.failed(e, sent);
       },
     });
   };
@@ -223,12 +281,15 @@ export function ClassifyInvoiceSheet({
           </p>
         )}
 
-        <Field label="Customer (optional)">
+        <Field label="Customer (optional)" group error={v.error('customer')}>
           {customer === null ? (
             <>
               <SearchInput
+                {...v.bind('customer')}
                 value={search}
                 onChange={setSearch}
+                aria-label="Search customers"
+                aria-invalid={v.error('customer') !== null ? true : undefined}
                 placeholder="Search customers…"
               />
               <div className="mt-1 overflow-hidden rounded-xl bg-surface">
@@ -263,6 +324,7 @@ export function ClassifyInvoiceSheet({
                 {customerPick.gone && ' — no longer available'}
               </span>
               <button
+                id={v.idOf('customer')}
                 type="button"
                 onClick={() => setCustomer(null)}
                 className="text-[13px] font-semibold text-accent"
@@ -275,8 +337,9 @@ export function ClassifyInvoiceSheet({
         {/* Shown whatever is picked: a failed refresh is worth knowing. */}
         <LookupNotice query={customersQ} what="customers" />
 
-        <Field label="Invoice number">
+        <Field label="Invoice number" required error={v.error('number')}>
           <TextInput
+            {...v.bind('number')}
             value={invoiceNumber}
             onChange={(e) => setInvoiceNumber(e.target.value)}
           />
@@ -284,8 +347,9 @@ export function ClassifyInvoiceSheet({
 
         <div className="flex gap-2.5">
           <div className="flex-1">
-            <Field label="Amount (EUR)">
+            <Field label="Amount (EUR)" required error={v.error('gross')}>
               <TextInput
+                {...v.bind('gross')}
                 aria-label="Amount (EUR)"
                 inputMode="decimal"
                 value={gross}
@@ -294,8 +358,18 @@ export function ClassifyInvoiceSheet({
             </Field>
           </div>
           <div className="flex-1">
-            <Field label="VAT">
+            <Field
+              label="VAT"
+              required
+              error={v.error('vat')}
+              hint={
+                vatTouched && vat.trim() === ''
+                  ? 'Required — enter 0.00 if there is no VAT'
+                  : undefined
+              }
+            >
               <TextInput
+                {...v.bind('vat')}
                 aria-label="VAT"
                 inputMode="decimal"
                 value={vat}
@@ -310,8 +384,9 @@ export function ClassifyInvoiceSheet({
 
         <div className="flex gap-2.5">
           <div className="flex-1">
-            <Field label="Date">
+            <Field label="Date" required error={v.error('date')}>
               <TextInput
+                {...v.bind('date')}
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
@@ -319,8 +394,9 @@ export function ClassifyInvoiceSheet({
             </Field>
           </div>
           <div className="flex-1">
-            <Field label="Currency">
+            <Field label="Currency" error={v.error('currency')}>
               <SelectInput
+                {...v.bind('currency')}
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
               >
@@ -334,8 +410,9 @@ export function ClassifyInvoiceSheet({
           </div>
         </div>
 
-        <Field label="VAT marking">
+        <Field label="VAT marking" error={v.error('vatMarking')}>
           <SelectInput
+            {...v.bind('vatMarking')}
             value={vatMarking}
             onChange={(e) => setVatMarking(e.target.value)}
           >
@@ -347,10 +424,11 @@ export function ClassifyInvoiceSheet({
           </SelectInput>
         </Field>
 
+        <FormErrorSummary form={v} blocked={blocker !== null} />
         <Button
           className="w-full"
           busy={busy}
-          disabled={!valid}
+          disabled={blocker !== null}
           onClick={submit}
         >
           {grossCents !== null && grossCents > 0

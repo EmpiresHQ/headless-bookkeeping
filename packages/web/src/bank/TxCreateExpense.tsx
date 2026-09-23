@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fmtCents, type BankTransaction } from '../api';
+import { HttpError } from '../auth';
 import {
   BookingPartialError,
   createExpenseFromLine,
@@ -12,14 +13,26 @@ import {
   type CreateFromLineResult,
   type FromLineProgress,
 } from '../queries/bank';
-import { centsToEuroInput, eurosToCents, vatFromGross } from '../lib/money';
+import {
+  amountError,
+  centsToEuroInput,
+  eurosToCents,
+  vatFromGross,
+} from '../lib/money';
 import type { PendingOperation } from '../lib/pendingOperation';
 import { useResultLog, writeChain, type ChainSlot } from '../lib/resultLog';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useSheet } from '../lib/useSheet';
 import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
-import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
+import {
+  Field,
+  FormErrorSummary,
+  PendingFieldset,
+  SelectInput,
+  TextInput,
+  useFormErrors,
+} from '../ui/Form';
 import { GroupLabel, KeyValue } from '../ui/List';
 import {
   BlockedReason,
@@ -130,15 +143,45 @@ export function TxCreateExpense({
       (supplierPick.gone
         ? 'The chosen supplier is no longer available — choose again.'
         : null));
-  const valid =
-    blocker === null &&
-    category !== '' &&
-    vatCents !== null &&
-    vatCents >= 0 &&
-    vatCents <= absCents;
+  // Field feedback (issue #265). VAT <= the line amount is this form's own
+  // rule (the line IS the gross), not the create endpoint's. Once the
+  // expense exists (`locked`) its facts are the server's: no field check
+  // may stand between the operator and finishing THAT expense's chain.
+  const fieldValues = {
+    supplier: supplier?.id ?? null,
+    category,
+    vat: docPolicy === 'none' ? '0.00' : vatInput,
+  };
+  const v = useFormErrors({
+    off: locked,
+    values: fieldValues,
+    errors: {
+      supplier: null,
+      category: category === '' ? 'Choose a category' : null,
+      vat:
+        docPolicy === 'none'
+          ? null
+          : (amountError(vatInput, {
+              blank: 'Enter the VAT — 0.00 if there is none',
+              sign: 'nonNegative',
+              what: 'VAT',
+            }) ??
+            (vatCents !== null && vatCents > absCents
+              ? `VAT cannot exceed the line amount (${fmtCents(absCents)})`
+              : null)),
+    },
+    labels: { supplier: 'Supplier', category: 'Category', vat: 'VAT (EUR)' },
+    // Mapped only when the create stage itself was refused (see onError).
+    serverFields: {
+      supplier_id: 'supplier',
+      category: 'category',
+      vat_amount: 'vat',
+    },
+  });
 
   const onSubmit = () => {
-    if (!valid || vatCents === null) return;
+    if (blocker !== null || !v.attempt() || vatCents === null) return;
+    const sent = fieldValues;
     const input = {
       statementId,
       bankTransactionId: tx.id,
@@ -196,6 +239,26 @@ export function TxCreateExpense({
           const p = { ...progress.current };
           setLanded(p);
           toastErr(e instanceof Error ? e.message : String(e));
+          // Stated in the form too (issue #265) — truthfully per stage: a
+          // refused CREATE maps to the fields; after it, the expense exists
+          // and nothing is mapped (its facts are no longer the form's).
+          if (p.expenseId === null) {
+            v.failed(
+              e,
+              sent,
+              e instanceof HttpError &&
+                e.validation === null &&
+                [400, 409, 422].includes(e.status)
+                ? 'Not created — the server refused this expense. Your input is kept.'
+                : undefined,
+            );
+          } else {
+            v.failed(
+              e,
+              null,
+              `Expense #${p.expenseId} is already saved, but a later step did not complete — see above. Retrying finishes the remaining steps for that expense.`,
+            );
+          }
           // A staged-but-unapproved match (or any landed stage) changes
           // the line: refetch — a staged match routes the line to its
           // Confirm recovery.
@@ -238,6 +301,7 @@ export function TxCreateExpense({
         <GroupLabel>Create expense from line</GroupLabel>
         <div className="mx-3.5 mb-3 overflow-hidden rounded-2xl bg-surface">
           <button
+            id={v.idOf('supplier')}
             type="button"
             onClick={() => picker.open()}
             className="flex w-full items-center justify-between gap-3 border-b border-line px-3.5 py-2.5 text-left"
@@ -263,15 +327,17 @@ export function TxCreateExpense({
           <div className="border-b border-line px-3.5 py-2.5">
             <Field
               label="Category"
+              required
               error={
                 categoryGone
                   ? 'This category is no longer available — choose again'
                   : categories?.length === 0
                     ? NO_CATEGORIES
-                    : undefined
+                    : v.error('category')
               }
             >
               <SelectInput
+                {...v.bind('category')}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
@@ -299,6 +365,8 @@ export function TxCreateExpense({
           <div className="border-b border-line px-3.5 py-2.5">
             <Field
               label="VAT (EUR)"
+              required={docPolicy !== 'none'}
+              error={v.error('vat')}
               hint={
                 docPolicy === 'none'
                   ? 'No receipt → input VAT is not deductible'
@@ -306,6 +374,7 @@ export function TxCreateExpense({
               }
             >
               <TextInput
+                {...v.bind('vat')}
                 inputMode="decimal"
                 value={docPolicy === 'none' ? '0.00' : vatInput}
                 disabled={docPolicy === 'none'}
@@ -376,9 +445,10 @@ export function TxCreateExpense({
       </fieldset>
       {landed?.stagedMatchIds == null && (
         <ActionBar>
+          <FormErrorSummary form={v} blocked={blocker !== null} />
           <Button
             className="h-[46px] w-full"
-            disabled={!valid}
+            disabled={blocker !== null}
             busy={busy}
             onClick={onSubmit}
           >

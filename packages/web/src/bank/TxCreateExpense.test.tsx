@@ -97,9 +97,69 @@ describe('TxCreateExpense', () => {
     // 18.60 gross → 3.35 VAT.
     expect(await screen.findByLabelText('VAT (EUR)')).toHaveValue('3.35');
     expect(screen.getByText('27.06.2026 · from the line')).toBeInTheDocument();
-    expect(
+    // No category chosen yet (#265): once the lists are usable the button
+    // is live, and a click names the missing category instead of nothing.
+    await screen.findByText('Meals');
+    const submit = screen.getByRole('button', {
+      name: 'Create & match · −18.60 €',
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    const category = screen.getByLabelText('Category');
+    expect(category).toHaveAccessibleDescription('Choose a category');
+    await waitFor(() => expect(category).toHaveFocus());
+    expect(api.createExpense).not.toHaveBeenCalled();
+  });
+
+  it('VAT above the line amount is explained at the field (bank rule) and nothing is sent (#265)', async () => {
+    renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    const vat = screen.getByLabelText('VAT (EUR)');
+    fireEvent.change(vat, { target: { value: '18.61' } });
+    fireEvent.blur(vat);
+    expect(vat).toHaveAttribute('aria-invalid', 'true');
+    expect(vat).toHaveAccessibleDescription(
+      'VAT cannot exceed the line amount (18.60)',
+    );
+    fireEvent.click(
       screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
-    ).toBeDisabled(); // no category chosen yet
+    );
+    expect(api.createExpense).not.toHaveBeenCalled();
+    await waitFor(() => expect(vat).toHaveFocus());
+    fireEvent.change(vat, { target: { value: '18.60' } });
+    expect(vat).not.toHaveAttribute('aria-invalid');
+  });
+
+  it("a refused create maps the server's field error; input kept, no stage landed (#265)", async () => {
+    const { HttpError } = await import('../auth');
+    vi.mocked(api.createExpense).mockRejectedValue(
+      new HttpError(400, '400 Bad Request: vat_amount: cannot be negative', {
+        fields: { vat_amount: ['cannot be negative'] },
+        formErrors: [],
+      }),
+    );
+    renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    const vat = screen.getByLabelText('VAT (EUR)');
+    await waitFor(() =>
+      expect(vat).toHaveAccessibleDescription('cannot be negative'),
+    );
+    expect(vat).toHaveValue('3.35');
+    expect(vat).not.toBeDisabled();
+    await waitFor(() => expect(vat).toHaveFocus());
+    expect(
+      screen.getByText(/Not saved — the server refused these values/),
+    ).toBeInTheDocument();
+    expect(api.postExpense).not.toHaveBeenCalled();
   });
 
   it('forces VAT to 0 when "No receipt" is chosen', async () => {
@@ -193,6 +253,17 @@ describe('TxCreateExpense', () => {
     // Its facts are the server's now: editing them cannot pretend to apply.
     expect(screen.getByLabelText('Category')).toBeDisabled();
     expect(screen.getByLabelText('VAT (EUR)')).toBeDisabled();
+    // #265: the form states the partial truth — saved, a later step failed —
+    // never "not saved", and maps nothing onto the locked fields.
+    expect(
+      screen.getByText(
+        /Expense #24 is already saved, but a later step did not complete/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Not saved/)).toBeNull();
+    expect(screen.getByLabelText('VAT (EUR)')).not.toHaveAttribute(
+      'aria-invalid',
+    );
     fireEvent.click(finish);
     await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
