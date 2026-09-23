@@ -12,8 +12,8 @@ export const SEGMENT_PARAMS = ['status', 'nodoc', 'dstatus'] as const;
 export const BOOKS_SEARCH = {
   expenses: {
     noun: 'expenses',
-    placeholder: 'Supplier, category, amount…',
-    scope: 'supplier, category or amount',
+    placeholder: 'Supplier, invoice no., category, amount…',
+    scope: 'supplier, invoice number, category or amount',
   },
   invoices: {
     noun: 'invoices',

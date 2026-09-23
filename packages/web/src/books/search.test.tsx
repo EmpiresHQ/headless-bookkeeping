@@ -123,8 +123,8 @@ const HINTS = [
   {
     seg: 'expenses',
     name: 'Search expenses',
-    placeholder: 'Supplier, category, amount…',
-    scope: 'supplier, category or amount',
+    placeholder: 'Supplier, invoice no., category, amount…',
+    scope: 'supplier, invoice number, category or amount',
   },
   {
     seg: 'invoices',
@@ -185,7 +185,7 @@ describe('Books search scope (issue #276)', () => {
     const router = mount('?seg=expenses&q=office&status=posted');
     await vi.waitFor(async () =>
       expect(await bar()).toHaveTextContent(
-        'Showing 2 of 2 expenses · Posted · Search “office” in supplier, category or amount',
+        'Showing 2 of 2 expenses · Posted · Search “office” in supplier, invoice number, category or amount',
       ),
     );
     const transfers = [
@@ -209,6 +209,46 @@ describe('Books search scope (issue #276)', () => {
       expect(params(router).get('status')).toBeNull();
     }
   });
+
+  const LONG = 'EECTB-' + '1805772/'.repeat(12);
+  it.each([
+    // Copied from Facts with stray case and outer whitespace: that one row.
+    [`  ${LONG.toLowerCase()}alpha `, 'Showing 1 of 5 expenses', 3],
+    // The shared prefix finds both same-prefix numbers.
+    [LONG, 'Showing 2 of 5 expenses', null],
+    // Stored tab/NBSP/double space read as single spaces.
+    ['inv 2026 gamma', 'Showing 1 of 5 expenses', 5],
+  ])(
+    'expenses ?q=%j matches the supplier invoice number → %s (issue #277)',
+    async (q, shown, id) => {
+      vi.mocked(getExpenses).mockResolvedValue([
+        ...EXPENSES,
+        { ...expense(3, 1, 'fuel'), supplier_invoice_number: `${LONG}ALPHA` },
+        { ...expense(4, 1, 'fuel'), supplier_invoice_number: `${LONG}BETA` },
+        {
+          ...expense(5, 1, 'fuel'),
+          supplier_invoice_number: 'INV\t2026\u00a0 GAMMA',
+        },
+      ] as never);
+      mount(`?seg=expenses&q=${encodeURIComponent(q)}`);
+      // A long search is abbreviated in the bar; the count and scope are not.
+      await vi.waitFor(async () =>
+        expect(await bar()).toHaveTextContent(`${shown} · Search “`),
+      );
+      expect(await bar()).toHaveTextContent(`” in ${HINTS[0].scope}`);
+      const numbers = screen.getAllByText(/Invoice no\./);
+      expect(numbers).toHaveLength(id === null ? 2 : 1);
+      if (id !== null) {
+        expect(numbers[0].closest('a')).toHaveAttribute(
+          'href',
+          `/books/expenses/${id}`,
+        );
+        expect(numbers[0]).toHaveTextContent(
+          id === 3 ? `Invoice no. ${LONG}ALPHA` : 'Invoice no. INV 2026 GAMMA',
+        );
+      }
+    },
+  );
 
   it('typing keeps other params and the entry state, replacing history', async () => {
     const router = mount('?seg=expenses&status=posted&keep=1', {
