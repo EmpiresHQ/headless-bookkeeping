@@ -1,7 +1,6 @@
 import {
   act,
   fireEvent,
-  render,
   renderHook,
   screen,
   waitFor,
@@ -17,6 +16,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { render } from './previewTestShell';
 import { HttpError, SessionChangedError } from '../auth';
 import { DocPreviewRow } from './DocPreviewRow';
 import { DocThumbLightbox } from './DocThumbLightbox';

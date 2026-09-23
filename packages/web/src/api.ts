@@ -892,27 +892,59 @@ export async function fetchDocumentPreviewBlob(
   return readOwnedBlob(res, startedAt);
 }
 
+/** The browser refused the new tab (window.open returned null). */
+export class PopupBlockedError extends Error {
+  constructor() {
+    super('The browser blocked the new tab');
+    this.name = 'PopupBlockedError';
+  }
+}
+
 /**
  * Open a document's file in a new tab via a freshly-minted signed URL. Opens a
  * blank tab synchronously (inside the click gesture, so the popup blocker does
- * not eat it), then points it at the token-free /shared link once minted.
+ * not eat it — nothing may be awaited before it), then points it at the
+ * token-free /shared link once minted.
  *
  * Deliberately NOT passing 'noopener'/'noreferrer' to window.open: per the
  * HTML spec, either flag makes window.open() return null (no reference to
- * hand back), which silently broke this into always taking the `else`
- * branch below and navigating the CURRENT tab away instead of opening a new
- * one (smoke-tested — Task 16). The target is same-origin (our own
- * /api/documents/:id/shared), so the opener-access trade-off is acceptable.
+ * hand back), indistinguishable from a blocked popup (smoke-tested — Task
+ * 16). The target is same-origin (our own /api/documents/:id/shared), so the
+ * opener-access trade-off is acceptable.
+ *
+ * The current window is never navigated (issue #272): a blocked popup
+ * rejects with PopupBlockedError before anything is requested. Every failure
+ * closes the placeholder and rethrows. `signal` is the caller's scope: its
+ * abort (another document, preview closed, unmount) closes the placeholder
+ * at once, and the minted link is then dropped — 'abandoned', as is a
+ * placeholder the user closed while the link was minted. `isCurrent` is
+ * checked once more before navigating (e.g. the session moved on).
  */
-export async function openSignedDocument(id: number): Promise<void> {
+export async function openSignedDocument(
+  id: number,
+  {
+    signal,
+    isCurrent = () => true,
+  }: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+): Promise<'opened' | 'abandoned'> {
   const tab = window.open('', '_blank');
+  if (tab === null) throw new PopupBlockedError();
+  const closeTab = () => tab.close();
+  signal?.addEventListener('abort', closeTab, { once: true });
   try {
     const { url } = await getSignedDocumentUrl(id);
-    if (tab) tab.location.href = url;
-    else window.location.href = url;
+    if (tab.closed) return 'abandoned';
+    if (signal?.aborted || !isCurrent()) {
+      tab.close();
+      return 'abandoned';
+    }
+    tab.location.href = url;
+    return 'opened';
   } catch (e) {
-    tab?.close();
+    tab.close();
     throw e;
+  } finally {
+    signal?.removeEventListener('abort', closeTab);
   }
 }
 

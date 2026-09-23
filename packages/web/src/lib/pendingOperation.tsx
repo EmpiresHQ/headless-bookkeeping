@@ -92,7 +92,7 @@ export function rethrowIfEnded(e: unknown): void {
 
 /** A 401 anywhere in the cause chain (a helper that wraps its stage
  *  errors must still let the shell sign out). */
-function findUnauthorized(e: unknown): UnauthorizedError | null {
+export function findUnauthorized(e: unknown): UnauthorizedError | null {
   for (let cur = e, depth = 0; cur != null && depth < 5; depth += 1) {
     if (cur instanceof UnauthorizedError) return cur;
     cur =

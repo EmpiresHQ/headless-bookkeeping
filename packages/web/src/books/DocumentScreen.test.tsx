@@ -112,7 +112,7 @@ describe('DocumentScreen', () => {
   });
 
   it('opens the preview in a lightbox and keeps the original file behind an explicit action', async () => {
-    vi.mocked(openSignedDocument).mockResolvedValue(undefined);
+    vi.mocked(openSignedDocument).mockResolvedValue('opened');
     mountAt();
     await userEvent.click(await screen.findByText('Source document'));
     expect(
@@ -123,7 +123,9 @@ describe('DocumentScreen', () => {
     await userEvent.click(
       screen.getByRole('button', { name: 'Open original' }),
     );
-    await waitFor(() => expect(openSignedDocument).toHaveBeenCalledWith(9));
+    await waitFor(() =>
+      expect(openSignedDocument).toHaveBeenCalledWith(9, expect.anything()),
+    );
   });
 
   it('delete is REPLACED by the guard explanation when the linked expense is posted', async () => {

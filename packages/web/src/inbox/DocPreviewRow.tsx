@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { FileImage } from 'lucide-react';
-import { openSignedDocument } from '../api';
 import { ListGroup, ListRow } from '../ui/List';
 import {
   DocumentPreviewLightbox,
   usePreviewObjectUrl,
   type PreviewState,
 } from './DocumentPreviewLightbox';
+import { useOpenOriginal } from './useOpenOriginal';
 
 /**
  * Document preview row (asset §2): thumb + full-screen lightbox. The /preview
@@ -36,6 +36,8 @@ export function DocPreviewRow({
     size: 'lg',
     active: lightboxOpen || openedFor === documentId,
   });
+  // Open original belongs to this document's open preview (issue #272).
+  const original = useOpenOriginal(documentId, lightboxOpen);
 
   return (
     <>
@@ -74,7 +76,7 @@ export function DocPreviewRow({
         thumb={thumb}
         lg={lg}
         onClose={() => setLightboxOpen(false)}
-        onOpenOriginal={() => void openSignedDocument(documentId)}
+        original={original}
       />
     </>
   );
