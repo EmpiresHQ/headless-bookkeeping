@@ -6,7 +6,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
@@ -563,14 +563,17 @@ describe('SettingField — what is known about the stored value', () => {
   });
 
   it('confirmed writes survive leaving and returning while reads keep failing; other drafts are untouched', async () => {
-    vi.mocked(deleteSetting).mockResolvedValue({
-      key: 'ai_model',
-      deleted: true,
-    });
-    vi.mocked(setSetting).mockResolvedValue({
-      key: 'ai_model.ocr',
-      value: 'dots/new',
-    });
+    // The two acknowledgements land at distinct, controlled times (CI
+    // exposed distinct timestamps): whichever write the shared list recorded
+    // LAST is what that list is as new as, so a field's own acknowledgement
+    // only outranks the list until another key's newer write is recorded.
+    let clock = 1_700_000_000_000;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    onTestFinished(() => now.mockRestore());
+    const removed = deferred<{ key: string; deleted: true }>();
+    const saved = deferred<Setting>();
+    vi.mocked(deleteSetting).mockReturnValue(removed.promise);
+    vi.mocked(setSetting).mockReturnValue(saved.promise);
     listOnce([
       { key: 'ai_model', value: 'openai/model-a' },
       { key: 'ai_model.ocr', value: 'dots/old' },
@@ -597,15 +600,30 @@ describe('SettingField — what is known about the stored value', () => {
     type('dots/new', 'Model — OCR');
     fireEvent.click(clearBtn());
     fireEvent.click(saveBtn('Model — OCR'));
+    // The Clear is acknowledged first; the reload after it fails.
+    clock += 1000;
+    await act(async () => removed.resolve({ key: 'ai_model', deleted: true }));
     await waitFor(() =>
-      expect(status()).toHaveTextContent('Stored value removed.'),
+      expect(status()).toHaveTextContent(
+        'Stored value removed. Agents use the built-in default model. Settings could not be reloaded; this is the change the server confirmed.',
+      ),
+    );
+    // The Save is acknowledged later; the reload keeps failing.
+    clock += 1000;
+    await act(async () =>
+      saved.resolve({ key: 'ai_model.ocr', value: 'dots/new' }),
     );
     await waitFor(() =>
-      expect(status('ai_model.ocr')).toHaveTextContent('Saved.'),
+      expect(status('ai_model.ocr')).toHaveTextContent(
+        'Saved. Clear deletes the stored value; then: Uses the Global model. Settings could not be reloaded; this is the change the server confirmed.',
+      ),
     );
-    await waitFor(() =>
-      expect(status()).toHaveTextContent('Settings could not be reloaded'),
+    // The removal is still what is shown — now from the shared list, which
+    // recorded it and is newer than the Clear's own acknowledgement.
+    expect(status()).toHaveTextContent(
+      'Stored value removed. Agents use the built-in default model. Could not refresh — this is the last known value.',
     );
+    expect(input()).toHaveValue('');
     expect(input('API key')).toHaveValue('sk-test-FAKE-draft');
     expect(status('ai_api_key')).toHaveTextContent('Unsaved edit');
     // Leave (the draft is discarded deliberately by reverting it) …
