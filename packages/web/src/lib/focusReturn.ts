@@ -2,7 +2,8 @@ import { useContext, useLayoutEffect, useRef, type RefObject } from 'react';
 import { ModalLayerContext } from './modalLayers';
 
 /**
- * Focus return for modal layers (issue #268): Sheet and ConfirmDialog.
+ * Focus return for modal layers (issue #268): Sheet, ConfirmDialog and the
+ * document preview lightbox (issue #269).
  *
  * The opener is captured at the OPEN edge, before any belt blurs it, and
  * focus is given back only from Radix's close-autofocus — the lifecycle
