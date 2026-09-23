@@ -530,6 +530,10 @@ describe('TriageDocScreen', () => {
 
   it('remounts the classify sheet per document — fresh fields and a live submit after advancing', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    // The prefilled category must be one the list offers (#260).
+    vi.mocked(api.getCategories).mockResolvedValue([
+      { key: 'fuel', label: 'Fuel', accountCode: '5000' },
+    ]);
     vi.mocked(api.getDocumentDetails).mockImplementation((id) =>
       id === 12
         ? Promise.resolve(DETAILS(12, 4820, 867))
@@ -629,6 +633,10 @@ describe('TriageDocScreen', () => {
 
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    // The prefilled category must be one the list offers (#260).
+    vi.mocked(api.getCategories).mockResolvedValue([
+      { key: 'fuel', label: 'Fuel', accountCode: '5000' },
+    ]);
     vi.mocked(api.manualClassify).mockResolvedValue({
       kind: 'unknown',
       document_id: 12,

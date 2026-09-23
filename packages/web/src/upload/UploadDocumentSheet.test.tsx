@@ -564,3 +564,49 @@ describe('UploadDocumentSheet (issue #258)', () => {
     expect(uploadDocument).not.toHaveBeenCalled();
   });
 });
+
+describe('UploadDocumentSheet — payer list states (#260)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    setToken('test-token');
+    vi.mocked(getNeedsTriageItems).mockResolvedValue([]);
+  });
+
+  it('a known-empty payer list keeps the field visible with company paid and says why', async () => {
+    vi.mocked(getEntities).mockResolvedValue([SUPPLIER]);
+    mount();
+    // Past loading: the field shows the explicit company-paid answer.
+    expect(
+      await screen.findByRole('option', { name: '— company paid —' }),
+    ).toBeInTheDocument();
+    const select = screen.getByLabelText('Paid by (claimant)');
+    expect(select).toHaveValue('');
+    expect(select).toHaveAccessibleDescription(
+      /No employee or director is on file/,
+    );
+  });
+
+  it('an empty list whose refresh failed does not claim current absence: warning + Retry', async () => {
+    vi.mocked(getEntities).mockResolvedValue([SUPPLIER]);
+    const { qc } = mount();
+    await screen.findByRole('option', { name: '— company paid —' });
+    vi.mocked(getEntities).mockRejectedValueOnce(new Error('HTTP 503'));
+    await act(() => qc.refetchQueries({ queryKey: ['entities'] }));
+    expect(
+      await screen.findByText(/Couldn't refresh payers \(HTTP 503\)/),
+    ).toBeInTheDocument();
+    const select = screen.getByLabelText('Paid by (claimant)');
+    expect(select).toHaveAccessibleDescription(
+      /The list loaded earlier had no/,
+    );
+    expect(select).not.toHaveAccessibleDescription(/is on file/);
+
+    vi.mocked(getEntities).mockResolvedValue([SUPPLIER, MARI]);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry payers' }));
+    expect(
+      await screen.findByRole('option', { name: 'Mari Maasikas' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't refresh payers/)).toBeNull();
+  });
+});

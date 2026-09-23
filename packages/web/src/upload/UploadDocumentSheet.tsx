@@ -15,6 +15,7 @@ import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useEntities } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, SelectInput } from '../ui/Form';
+import { lookupState, LookupNotice } from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
 import {
@@ -340,7 +341,9 @@ export function UploadDocumentSheet({
             </SelectInput>
           </Field>
         ) : (
-          (claimants.length > 0 || claimantId !== '') && (
+          // Never hidden (#260): a known-empty list still states the answer
+          // — company paid — and why nothing else can be chosen.
+          <div>
             <Field
               label="Paid by (claimant)"
               error={
@@ -351,7 +354,12 @@ export function UploadDocumentSheet({
               hint={
                 partial !== null
                   ? 'Fixed for this file once uploaded — the same file sent again keeps its stored payer'
-                  : 'Only when an employee or director paid out of pocket — the expense is then held for approval'
+                  : claimants.length === 0 && claimantId === ''
+                    ? // Absence is only claimed from a FRESH list (#260).
+                      lookupState(entitiesQ) === 'stale'
+                      ? 'The list loaded earlier had no employee or director, and it could not be refreshed — retry it before relying on company paid'
+                      : 'No employee or director is on file, so only company paid can be chosen — add one under Settings → Entities to record an out-of-pocket payment'
+                    : 'Only when an employee or director paid out of pocket — the expense is then held for approval'
               }
             >
               <SelectInput
@@ -374,7 +382,10 @@ export function UploadDocumentSheet({
                 ))}
               </SelectInput>
             </Field>
-          )
+            {partial === null && (
+              <LookupNotice query={entitiesQ} what="payers" />
+            )}
+          </div>
         )}
         {partial !== null && mismatch && (
           <p className="rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">

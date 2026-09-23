@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   addEntityAlias,
@@ -8,8 +9,10 @@ import {
 import { rethrowIfEnded, usePendingOperation } from '../lib/pendingOperation';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useOrganizationCountry, useSuppliers } from '../queries/bank';
+import { sharedKeys } from '../queries/keys';
 import { Button } from '../ui/Button';
 import { Field, PendingFieldset, TextInput } from '../ui/Form';
+import { lookupState, LookupNotice } from '../ui/Lookup';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
 
@@ -28,8 +31,10 @@ export function SupplierSheet({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   tx: BankTransaction;
-  onPick: (e: Entity) => void;
+  /** `created`: the server just onboarded it (the list may predate it). */
+  onPick: (e: Entity, created: boolean) => void;
 }) {
+  const qc = useQueryClient();
   const suppliersQ = useSuppliers();
   const countryQ = useOrganizationCountry();
   const [q, setQ] = useState('');
@@ -52,12 +57,20 @@ export function SupplierSheet({
     baseline,
   });
 
-  const effCountry = country !== '' ? country : (countryQ.data ?? 'EE');
+  // Issue #260: the organization's country is only a default once it is
+  // KNOWN — a failed/pending load leaves the field empty for an explicit
+  // answer instead of claiming one. A typed country always wins.
+  const effCountry = country !== '' ? country : (countryQ.data ?? '');
+  const countryState = lookupState(countryQ);
+  const listState = lookupState(suppliersQ);
   const filtered = (suppliersQ.data ?? []).filter((e) =>
     e.name.toLowerCase().includes(q.toLowerCase()),
   );
+  const createValid =
+    name.trim() !== '' && regKey.trim() !== '' && effCountry.trim() !== '';
 
   const onCreate = () => {
+    if (!createValid) return;
     const req = {
       role: 'supplier' as const,
       country: effCountry,
@@ -90,12 +103,17 @@ export function SupplierSheet({
           rethrowIfEnded(e);
           // Alias write-back is advisory; the supplier itself was created.
         }
+        // Settled before the pick: no list fetch that predates the creation
+        // can land after it and read as its removal (#260). A failed refresh
+        // does not throw — the created supplier is still the answer.
+        ctx.check();
+        await qc.invalidateQueries({ queryKey: sharedKeys.entities });
         return entity;
       },
       {
         onSuccess: (entity) => {
           guard.release();
-          onPick(entity);
+          onPick(entity, true);
           onOpenChange(false);
         },
       },
@@ -124,7 +142,7 @@ export function SupplierSheet({
                   key={e.id}
                   type="button"
                   onClick={() => {
-                    onPick(e);
+                    onPick(e, false);
                     onOpenChange(false);
                   }}
                   className="flex w-full items-center gap-3 border-b border-line px-3.5 py-3 text-left last:border-b-0"
@@ -139,12 +157,21 @@ export function SupplierSheet({
                   </div>
                 </button>
               ))}
-              {suppliersQ.isSuccess && filtered.length === 0 && (
+              {suppliersQ.data !== undefined && filtered.length === 0 && (
                 <p className="px-3.5 py-3 text-[13px] text-ink-2">
-                  No suppliers match.
+                  {listState === 'stale'
+                    ? 'No suppliers match in the list loaded earlier.'
+                    : 'No suppliers match.'}
                 </p>
               )}
             </div>
+            <LookupNotice query={suppliersQ} what="suppliers" />
+            {(listState === 'loading' || listState === 'error') && (
+              <p className="text-[12.5px] text-ink-2">
+                The supplier list is not available, so an existing supplier may
+                not be shown — create one only if you are sure it is new.
+              </p>
+            )}
             <Button
               variant="secondary"
               className="w-full"
@@ -163,13 +190,39 @@ export function SupplierSheet({
                 onChange={(e) => setName(e.target.value)}
               />
             </Field>
-            <Field label="Country" hint="ISO code, e.g. EE">
-              <TextInput
-                value={effCountry}
-                onChange={(e) => setCountry(e.target.value.toUpperCase())}
-                maxLength={2}
-              />
-            </Field>
+            <div>
+              <Field
+                label="Country"
+                hint={
+                  country === '' && countryState === 'loading'
+                    ? "ISO code, e.g. EE — loading the organization's country…"
+                    : country === '' && countryState === 'stale'
+                      ? "The organization's country as loaded earlier — it could not be refreshed; check it"
+                      : 'ISO code, e.g. EE'
+                }
+                error={
+                  country === '' && countryState === 'error'
+                    ? "Couldn't load the organization's country — enter the supplier's country"
+                    : undefined
+                }
+              >
+                <TextInput
+                  value={effCountry}
+                  onChange={(e) => setCountry(e.target.value.toUpperCase())}
+                  maxLength={2}
+                />
+              </Field>
+              {country === '' &&
+                (countryState === 'error' || countryState === 'stale') && (
+                  <Button
+                    variant="secondary"
+                    className="mt-1.5 px-3 py-1.5 text-[13px]"
+                    onClick={() => void countryQ.refetch()}
+                  >
+                    Retry organization country
+                  </Button>
+                )}
+            </div>
             <Field
               label="Reg. key"
               hint="Registry / VAT number — required to onboard a supplier"
@@ -181,11 +234,7 @@ export function SupplierSheet({
             </Field>
             <Button
               className="w-full"
-              disabled={
-                name.trim() === '' ||
-                regKey.trim() === '' ||
-                effCountry.trim() === ''
-              }
+              disabled={!createValid}
               busy={busy}
               onClick={onCreate}
             >

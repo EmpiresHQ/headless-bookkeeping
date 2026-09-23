@@ -105,6 +105,7 @@ describe('SupplierSheet', () => {
     fireEvent.click(screen.getByText('Wolt Eesti OÜ'));
     expect(onPick).toHaveBeenCalledWith(
       expect.objectContaining({ id: 12, name: 'Wolt Eesti OÜ' }),
+      false,
     );
   });
 
@@ -154,7 +155,10 @@ describe('SupplierSheet', () => {
       }),
     );
     await waitFor(() =>
-      expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 40 })),
+      expect(onPick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 40 }),
+        true,
+      ),
     );
   });
 });
