@@ -20,6 +20,12 @@ import { GroupHeader } from '../ui/GroupHeader';
 import { GroupLabel, ListGroup, ListRow } from '../ui/List';
 import { CheckNotice, checkState } from './checkStatus';
 import { FixInvoiceNumberSheet } from './FixInvoiceNumberSheet';
+import {
+  BUCKET_ORDER,
+  bucketWarnings,
+  PERIOD_BUCKETS,
+  periodItemsHref,
+} from './periodItems';
 
 type PeriodProp = Pick<
   ReportingPeriod,
@@ -114,69 +120,29 @@ export function InfGapsSection({ period }: { period: PeriodProp }) {
   );
 }
 
-/** Aggregate straggler rows: [count, label suffix, link] per bucket. */
-function stragglerRows(warnings: PeriodWarning[]) {
-  const buckets = [
-    {
-      match: (w: PeriodWarning) => w.type === 'pending_approval',
-      label: (n: number) => `${n} awaiting approval`,
-      subtitle:
-        'they enter the declaration only once approved — approving after close posts into the next open period',
-      to: '/inbox?seg=approvals',
-    },
-    {
-      match: (w: PeriodWarning) =>
-        w.type === 'unposted_draft' && w.object_type === 'expense',
-      label: (n: number) =>
-        `${n} expense ${n === 1 ? 'draft' : 'drafts'} not posted`,
-      subtitle: 'drafts are not part of the declaration',
-      to: '/books?seg=expenses&status=draft',
-    },
-    {
-      match: (w: PeriodWarning) =>
-        w.type === 'unposted_draft' && w.object_type === 'sales_invoice',
-      label: (n: number) =>
-        `${n} invoice ${n === 1 ? 'draft' : 'drafts'} not posted`,
-      subtitle: 'drafts are not part of the declaration',
-      to: '/books?seg=invoices&status=draft',
-    },
-  ];
-  const rows: {
-    key: string;
-    label: (n: number) => string;
-    subtitle: string;
-    to?: string;
-    count: number;
-  }[] = buckets.map((b) => ({
-    key: b.to,
-    label: b.label,
-    subtitle: b.subtitle,
-    to: b.to,
-    count: warnings.filter(b.match).length,
-  }));
-  // Defensive: a warning shape this client does not know must never make
-  // the check read "none" (issue #255).
-  const other = warnings.filter((w) => !buckets.some((b) => b.match(w)));
-  rows.push({
-    key: 'other',
-    label: (n) => `${n} other ${n === 1 ? 'item' : 'items'} flagged`,
-    subtitle: 'review before closing',
-    count: other.length,
-  });
-  return rows.filter((b) => b.count > 0);
+/** Aggregate straggler rows: one per non-empty bucket, each opening that
+ *  bucket's OWN objects for this period (issue #261) — never a global list. */
+function stragglerRows(periodId: number, warnings: PeriodWarning[]) {
+  return BUCKET_ORDER.map((key) => ({
+    ...PERIOD_BUCKETS[key],
+    to: periodItemsHref(periodId, key),
+    count: bucketWarnings(warnings, key).length,
+  })).filter((b) => b.count > 0);
 }
 
 /**
  * ADR-0015's "stranded items stay visible": the advisory pre-lock warnings
- * as navigations into Inbox/Books. Open periods only (the endpoint is a
- * pre-close aid); the server NEVER blocks on these. The raw `description`
+ * as navigations into this period's own work lists. Open periods only (the
+ * endpoint is a pre-close aid); the server NEVER blocks on these. The raw `description`
  * (embeds cents, Reality #8) is never rendered.
  */
 export function StragglersSection({ period }: { period: PeriodProp }) {
   const warningsQ = usePeriodWarnings(period.id, period.status === 'open');
   if (period.status !== 'open') return null;
   const rows =
-    warningsQ.data !== undefined ? stragglerRows(warningsQ.data) : [];
+    warningsQ.data !== undefined
+      ? stragglerRows(period.id, warningsQ.data)
+      : [];
   const state = checkState([warningsQ]);
 
   // Checking / unavailable / stale are stated, never collapsed into "none"

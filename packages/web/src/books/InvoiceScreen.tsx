@@ -14,6 +14,7 @@ import {
   useRejectedReason,
 } from '../queries/books';
 import { useEntities, useInvoices } from '../queries/shared';
+import { PeriodOriginNotice, usePeriodOrigin } from '../reports/PeriodOrigin';
 import { ScreenHeader } from '../shell/Headers';
 import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
@@ -55,11 +56,18 @@ export function InvoiceScreen() {
   const op = usePendingOperation('Invoice');
   const receipt = useReceipt();
   const busy = op.pending;
+  // Opened from a period drill-down list (issue #261): say so, offer the
+  // way back, and return there after a delete instead of global Books.
+  const periodOrigin = usePeriodOrigin();
+  const periodNotice = periodOrigin !== null && (
+    <PeriodOriginNotice origin={periodOrigin} />
+  );
 
   if (invoicesQ.isError && invoicesQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
         <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+        {periodNotice}
         <LoadError
           message={
             invoicesQ.error instanceof Error
@@ -83,6 +91,7 @@ export function InvoiceScreen() {
     return (
       <div className="mx-auto max-w-3xl">
         <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+        {periodNotice}
         <EmptyState
           icon="🤷"
           title="This invoice is not in the books"
@@ -174,7 +183,8 @@ export function InvoiceScreen() {
         onSuccess: () => {
           toastOk('Draft invoice deleted');
           setConfirmDelete(false);
-          navigate('/books?seg=invoices', { replace: true });
+          if (periodOrigin !== null) periodOrigin.returnTo();
+          else navigate('/books?seg=invoices', { replace: true });
         },
         onError: (e) => {
           toastErr(e instanceof Error ? e.message : String(e));
@@ -187,6 +197,7 @@ export function InvoiceScreen() {
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="Invoice" backTo="/books?seg=invoices" />
+      {periodNotice}
       <RefetchError query={invoicesQ} />
 
       <div className="px-5 pb-4 pt-1 text-center">

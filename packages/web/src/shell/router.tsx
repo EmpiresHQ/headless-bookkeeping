@@ -74,6 +74,11 @@ const ReportsScreen = lazy(() =>
 const PeriodScreen = lazy(() =>
   import('../reports/PeriodScreen').then((m) => ({ default: m.PeriodScreen })),
 );
+const PeriodItemsScreen = lazy(() =>
+  import('../reports/PeriodItemsScreen').then((m) => ({
+    default: m.PeriodItemsScreen,
+  })),
+);
 const SubmissionsScreen = lazy(() =>
   import('../reports/SubmissionsScreen').then((m) => ({
     default: m.SubmissionsScreen,
@@ -188,6 +193,10 @@ export function buildRoutes(): RouteObject[] {
         { path: '/bank/statements/:id/tx/:txId', element: <TxScreen /> },
         { path: '/reports', element: <ReportsScreen /> },
         { path: '/reports/periods/:id', element: <PeriodScreen /> },
+        {
+          path: '/reports/periods/:id/undecided/:bucket',
+          element: <PeriodItemsScreen />,
+        },
         {
           path: '/reports/periods/:id/submissions',
           element: <SubmissionsScreen />,

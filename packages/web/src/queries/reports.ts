@@ -47,11 +47,14 @@ export const useKmd = (
 
 /** Advisory ADR-0015 stragglers — enabled only where shown (open periods).
  *  The Close sheet passes `refetchOnMount: 'always'` so every open re-checks
- *  instead of trusting a cached result (issue #255). */
+ *  instead of trusting a cached result (issue #255). An observer that may
+ *  mount DISABLED (gated on data still loading) also passes `staleTime: 0`:
+ *  `refetchOnMount` fires only at mount, and enabling over fresh cached data
+ *  would otherwise never re-check (issue #261). */
 export const usePeriodWarnings = (
   periodId: number,
   enabled: boolean,
-  opts: { refetchOnMount?: 'always' } = {},
+  opts: { refetchOnMount?: 'always'; staleTime?: number } = {},
 ) =>
   useQuery({
     queryKey: reportsKeys.warnings(periodId),

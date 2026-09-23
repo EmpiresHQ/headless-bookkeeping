@@ -21,6 +21,7 @@ import {
   useRejectedReason,
 } from '../queries/books';
 import { useEntities, useExpenses } from '../queries/shared';
+import { PeriodOriginNotice, usePeriodOrigin } from '../reports/PeriodOrigin';
 import { ScreenHeader } from '../shell/Headers';
 import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
@@ -98,11 +99,18 @@ export function ExpenseScreen() {
   const op = usePendingOperation('Expense');
   const receipt = useReceipt();
   const busy = op.pending;
+  // Opened from a period drill-down list (issue #261): say so, offer the
+  // way back, and return there after a delete instead of global Books.
+  const periodOrigin = usePeriodOrigin();
+  const periodNotice = periodOrigin !== null && (
+    <PeriodOriginNotice origin={periodOrigin} />
+  );
 
   if (detailQ.isError && detailQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
         <ScreenHeader title="Expense" backTo="/books" />
+        {periodNotice}
         <LoadError
           message={
             detailQ.error instanceof Error
@@ -200,7 +208,8 @@ export function ExpenseScreen() {
         onSuccess: () => {
           toastOk('Draft expense deleted');
           setConfirmDelete(false);
-          navigate('/books', { replace: true });
+          if (periodOrigin !== null) periodOrigin.returnTo();
+          else navigate('/books', { replace: true });
         },
         onError: (e) => {
           // 409 carries the server's own explanation (non-draft).
@@ -214,6 +223,7 @@ export function ExpenseScreen() {
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="Expense" backTo="/books" />
+      {periodNotice}
       <RefetchError query={detailQ} />
 
       <div className="px-5 pb-4 pt-1 text-center">
