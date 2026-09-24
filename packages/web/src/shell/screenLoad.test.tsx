@@ -114,11 +114,8 @@ describe('production routes: a screen chunk that fails to load', () => {
       screen.queryByText('This address does not open a screen'),
     ).toBeNull();
     // The shell survived: its own navigation is still there.
-    expect(
-      within(screen.getByRole('navigation')).getByRole('link', {
-        name: /Books/,
-      }),
-    ).toBeTruthy();
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(nav).getByRole('link', { name: /Books/ })).toBeTruthy();
 
     // Back (a memory router has no in-app browser history, so this is the
     // deep-link Back: the Inbox REPLACES the failed entry).
