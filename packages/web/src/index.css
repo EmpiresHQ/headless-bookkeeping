@@ -18,6 +18,13 @@
       --tabbar-h: 0px;
     }
   }
+  /* Keyboard focus must not come to rest behind the fixed TabBar or a
+     sticky ActionBar (QA-012, #305; WCAG 2.4.11). The browser honours
+     scroll-padding when it scrolls a newly focused element into view.
+     --actionbar-h is set by ui/ActionBar while one is mounted. */
+  html {
+    scroll-padding-bottom: calc(var(--tabbar-h) + var(--actionbar-h, 0px));
+  }
   body {
     @apply bg-bg text-ink antialiased;
     font-family:

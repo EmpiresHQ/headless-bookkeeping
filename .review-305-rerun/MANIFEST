@@ -1,0 +1,20 @@
+QA-012 (#305) re-run evidence — 2026-09-24, main de159d2 + D1 fix.
+Report: docs/qa/2026-09-24-sticky-mobile-preview-rerun.md
+All data route-mocked; every write refused (503). Headless Chromium 1243 via Playwright 1.63.0.
+
+evidence/before-sticky.log                  sticky matrix on de159d2 (D1 reproduced: focusObscured column)
+evidence/after-sticky.log                   same matrix on the fixed build (focusObscured=0 everywhere)
+evidence/extra-sticky.log                   fixed build at 320x480, 844x390, 667x375 (intermediate scroll on short screens)
+evidence/sticky-results-compact.json        per-case sweep/tap/keyboard summary + full Tab walk (y, scrollY, hiddenPct, coveredBy) for the three runs above
+evidence/probe-scrollpad.log                de159d2 with injected html scroll-padding-bottom: Chromium honours it for Tab focus
+evidence/shot-after.log                     fixed build: focused row rect vs ActionBar top, computed scroll-padding-bottom, --actionbar-h
+evidence/before-focus-hidden-*.jpg          de159d2: first 100%-hidden focus step (candidates 320x844, 1440x900; create 320x844)
+evidence/focus-visible-*.jpg                fixed build: the same rows focused and fully visible
+evidence/after-preview.log                  preview matrix on the fixed build (18 cases, all ok)
+evidence/after-preview-summary.txt          close paths, tab cycle, scroll lock, pinch, zoom 300%, 12 pages, pan per case
+evidence/lb-receipt-320x844.jpg             lightbox, long receipt at 320
+evidence/src-pdf-p7-landscape-300-320x844.jpg  source pane, landscape page 7 at 300% at 320
+
+Not committed (local, untracked): harness scripts (.review-305-rerun/work, derived from .review-305/work
+of the first pass), dist-before/dist-after/dist-final builds, full JSON dumps, preview server logs,
+probe-focus-after-write output (O5; quoted in the report), web-test.log / web-lint.log.
