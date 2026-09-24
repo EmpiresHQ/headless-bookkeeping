@@ -1,0 +1,1689 @@
+{
+ "label": "final",
+ "startedAt": "2026-09-24T07:37:49.987Z",
+ "finishedAt": "2026-09-24T07:38:25.704Z",
+ "note": "Compacted from the untracked full run output (work/final-results.json): per-frame timelines and non-painted monitor samples omitted; times are page performance.now() ms since document start (per context).",
+ "cases": [
+  {
+   "name": "S1-slow-thumb-switch",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "failures": [],
+   "ms": 1835,
+   "frames": 106,
+   "checks": 177,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 8,
+    "revoked": 8,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31002:thumb"
+   ],
+   "steps": [
+    {
+     "t": 806,
+     "msg": "A open, thumb held",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 960,
+     "msg": "switched to B (A still pending)",
+     "v": {
+      "sameInstance": true
+     }
+    },
+    {
+     "t": 965,
+     "msg": "released stale A seq 7"
+    },
+    {
+     "t": 1208,
+     "msg": "after stale A answer",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1489,
+     "msg": "B answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok gate start=510 settle=939",
+    "#8 31002:thumb ok gate start=922 settle=1192"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=251 revoked=508",
+    "#2 31002:thumb created=256 revoked=508",
+    "#3 31003:thumb created=264 revoked=508",
+    "#4 31004:thumb created=281 revoked=508",
+    "#5 31005:thumb created=285 revoked=508",
+    "#6 31006:thumb created=288 revoked=509",
+    "#7 31001:thumb created=944 revoked=944",
+    "#8 31002:thumb created=1197 revoked=1551"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S2-rapid-switch-out-of-order",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "failures": [],
+   "ms": 2038,
+   "frames": 119,
+   "checks": 206,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 10,
+    "revoked": 10,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31004:thumb"
+   ],
+   "steps": [
+    {
+     "t": 898,
+     "msg": "3 switches in 508 ms wall-clock",
+     "v": {
+      "sameInstance": true,
+      "gates": {
+       "B": 8,
+       "C": 9,
+       "D": 10
+      }
+     }
+    },
+    {
+     "t": 1153,
+     "msg": "stale B answered",
+     "v": {
+      "path": "/inbox/doc/31004",
+      "heading": "1 of 3",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1437,
+     "msg": "current D answered",
+     "v": {
+      "path": "/inbox/doc/31004",
+      "heading": "1 of 3",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31004:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1687,
+     "msg": "stale C answered after D",
+     "v": {
+      "path": "/inbox/doc/31004",
+      "heading": "1 of 3",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31004:thumb"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=351 settle=351",
+    "#8 31002:thumb ok gate start=500 settle=890",
+    "#9 31003:thumb ok gate start=654 settle=1426",
+    "#10 31004:thumb ok gate start=870 settle=1142"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=202 revoked=351",
+    "#2 31002:thumb created=207 revoked=351",
+    "#3 31003:thumb created=214 revoked=351",
+    "#4 31004:thumb created=231 revoked=351",
+    "#5 31005:thumb created=236 revoked=351",
+    "#6 31006:thumb created=238 revoked=351",
+    "#7 31001:thumb created=360 revoked=499",
+    "#8 31002:thumb created=901 revoked=901",
+    "#10 31004:thumb created=1153 revoked=1768",
+    "#9 31003:thumb created=1435 revoked=1435"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete",
+    "POST /api/documents/31002/complete",
+    "POST /api/documents/31003/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S3-slow-lg-close-reopen",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "failures": [],
+   "ms": 1856,
+   "frames": 109,
+   "checks": 186,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 8,
+    "revoked": 8,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31001:thumb",
+    "31001:lg"
+   ],
+   "steps": [
+    {
+     "t": 702,
+     "msg": "open, lg held",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:thumb"
+      ]
+     }
+    },
+    {
+     "t": 810,
+     "msg": "closed while lg pending"
+    },
+    {
+     "t": 1106,
+     "msg": "reopened, lg still pending",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:thumb"
+      ],
+      "lgRequests": 1
+     }
+    },
+    {
+     "t": 1403,
+     "msg": "lg answered while open",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:lg"
+      ]
+     }
+    },
+    {
+     "t": 1519,
+     "msg": "reopen after lg ready (first frame)",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:lg"
+      ],
+      "lgRequests": 1
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=360 settle=360",
+    "#8 31001:lg ok gate start=421 settle=1098"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=210 revoked=360",
+    "#2 31002:thumb created=213 revoked=360",
+    "#3 31003:thumb created=224 revoked=360",
+    "#4 31004:thumb created=240 revoked=360",
+    "#5 31005:thumb created=243 revoked=360",
+    "#6 31006:thumb created=248 revoked=360",
+    "#7 31001:thumb created=366 revoked=1611",
+    "#8 31001:lg created=1122 revoked=1611"
+   ],
+   "pageErrors": [],
+   "writes": [],
+   "networkPreview": []
+  },
+  {
+   "name": "S4-stale-lg-after-switch",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "failures": [],
+   "ms": 2168,
+   "frames": 125,
+   "checks": 207,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 10,
+    "revoked": 10,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31002:thumb",
+    "31002:lg"
+   ],
+   "steps": [
+    {
+     "t": 524,
+     "msg": "A lg pending, preview closed"
+    },
+    {
+     "t": 951,
+     "msg": "B open: thumb+lg pending",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading preview…",
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1200,
+     "msg": "stale A lg answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading preview…",
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1529,
+     "msg": "B thumb answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1812,
+     "msg": "B lg answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:lg"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=372 settle=372",
+    "#8 31001:lg ok gate start=435 settle=938",
+    "#9 31002:thumb ok gate start=641 settle=1243",
+    "#10 31002:lg ok gate start=682 settle=1516"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=225 revoked=371",
+    "#2 31002:thumb created=248 revoked=371",
+    "#3 31003:thumb created=256 revoked=371",
+    "#4 31004:thumb created=261 revoked=371",
+    "#5 31005:thumb created=266 revoked=371",
+    "#6 31006:thumb created=269 revoked=371",
+    "#7 31001:thumb created=385 revoked=641",
+    "#8 31001:lg created=950 revoked=950",
+    "#9 31002:thumb created=1246 revoked=1911",
+    "#10 31002:lg created=1532 revoked=1911"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S5-new-fetch-error-retry",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "failures": [],
+   "ms": 4223,
+   "frames": 251,
+   "checks": 344,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 9,
+    "revoked": 9,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [],
+   "steps": [
+    {
+     "t": 550,
+     "msg": "switched to B (500 in 600 ms)",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1137,
+     "msg": "B thumb failed",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2053,
+     "msg": "B dialog error",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "The preview couldn’t be loaded.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2165,
+     "msg": "Retry clicked",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading preview…",
+      "retry": [
+       "Retrying…"
+      ],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2742,
+     "msg": "retry succeeded",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:lg"
+      ],
+      "thumbReq": 3,
+      "lgReq": 2
+     }
+    },
+    {
+     "t": 3853,
+     "msg": "C 404 dialog",
+     "v": {
+      "path": "/inbox/doc/31003",
+      "heading": "1 of 4",
+      "dialog": true,
+      "note": "No preview is available for this document. You can still try Open original.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [
+       "no preview"
+      ],
+      "imgs": []
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=321 settle=321",
+    "#8 31002:thumb 500 +600ms start=507 settle=1107",
+    "#9 31002:lg 500 +600ms start=1177 settle=1777",
+    "#10 31002:thumb ok +300ms start=2135 settle=2435",
+    "#11 31002:lg ok +300ms start=2135 settle=2436",
+    "#12 31003:thumb 404 +300ms start=2927 settle=3227",
+    "#13 31003:lg 404 +300ms start=3272 settle=3572"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=191 revoked=321",
+    "#2 31002:thumb created=194 revoked=321",
+    "#3 31003:thumb created=199 revoked=321",
+    "#4 31004:thumb created=204 revoked=321",
+    "#5 31005:thumb created=207 revoked=321",
+    "#6 31006:thumb created=214 revoked=321",
+    "#7 31001:thumb created=330 revoked=507",
+    "#10 31002:thumb created=2448 revoked=2927",
+    "#11 31002:lg created=2457 revoked=2927"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete",
+    "POST /api/documents/31002/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S6-broken-image",
+   "width": 1440,
+   "height": 900,
+   "ok": false,
+   "failures": [
+    "1 painted frames with a broken image"
+   ],
+   "ms": 3182,
+   "frames": 189,
+   "checks": 291,
+   "wrongObject": 0,
+   "brokenPainted": 1,
+   "brokenDomOnly": 3,
+   "brokenBytesImgChecks": 8,
+   "paintedBrokenSamples": [
+    {
+     "t": 732,
+     "via": "raf",
+     "path": "/inbox/doc/31002",
+     "img": "31002:thumb",
+     "exp": {
+      "ctx": "screen",
+      "id": 31002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    }
+   ],
+   "urls": {
+    "created": 13,
+    "revoked": 13,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31003:thumb",
+    "31003:lg"
+   ],
+   "steps": [
+    {
+     "t": 1017,
+     "msg": "B thumb bytes broken",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1549,
+     "msg": "B lg broken",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "The preview couldn’t be loaded.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2100,
+     "msg": "B lg retry ok",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:lg"
+      ]
+     }
+    },
+    {
+     "t": 2798,
+     "msg": "C thumb ok, lg broken",
+     "v": {
+      "path": "/inbox/doc/31003",
+      "heading": "1 of 4",
+      "dialog": true,
+      "note": "The full-size preview couldn’t be loaded — showing a smaller one.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [],
+      "imgs": [
+       "page:31003:thumb",
+       "dialog:31003:thumb"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=342 settle=342",
+    "#8 31002:thumb broken +200ms start=522 settle=722",
+    "#9 31002:lg broken +200ms start=1059 settle=1260",
+    "#10 31002:thumb ok start=1594 settle=1594",
+    "#11 31002:lg ok +200ms start=1595 settle=1795",
+    "#12 31003:thumb ok start=2258 settle=2258",
+    "#13 31003:lg broken +200ms start=2317 settle=2518"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=205 revoked=341",
+    "#2 31002:thumb created=209 revoked=341",
+    "#3 31003:thumb created=212 revoked=341",
+    "#4 31004:thumb created=218 revoked=341",
+    "#5 31005:thumb created=235 revoked=341",
+    "#6 31006:thumb created=238 revoked=341",
+    "#7 31001:thumb created=351 revoked=521",
+    "#8 31002:thumb created=724 revoked=1594",
+    "#9 31002:lg created=1261 revoked=1594",
+    "#10 31002:thumb created=1603 revoked=2258",
+    "#11 31002:lg created=1816 revoked=2258",
+    "#12 31003:thumb created=2270 revoked=2921",
+    "#13 31003:lg created=2519 revoked=2921"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete",
+    "POST /api/documents/31002/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S7-inbox-list-lightbox",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "failures": [],
+   "ms": 2258,
+   "frames": 132,
+   "checks": 200,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 9,
+    "revoked": 9,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31001:thumb",
+    "31002:thumb",
+    "31003:thumb",
+    "31004:thumb",
+    "31005:thumb",
+    "31006:thumb"
+   ],
+   "steps": [
+    {
+     "t": 562,
+     "msg": "A open, lg held",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31001:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1177,
+     "msg": "B open; stale A lg answered",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31002:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1477,
+     "msg": "B lg answered",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31002:lg"
+      ]
+     }
+    },
+    {
+     "t": 1591,
+     "msg": "A reopened (lg refetch held)",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31001:thumb"
+      ],
+      "lgRequests": 2
+     }
+    },
+    {
+     "t": 1875,
+     "msg": "A lg answered",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31001:lg"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:lg ok gate start=280 settle=909",
+    "#8 31002:lg ok gate start=660 settle=1167",
+    "#9 31001:lg ok gate start=1559 settle=1579"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=192 revoked=2016",
+    "#2 31002:thumb created=195 revoked=2016",
+    "#3 31003:thumb created=197 revoked=2016",
+    "#4 31004:thumb created=201 revoked=2016",
+    "#5 31005:thumb created=204 revoked=2016",
+    "#6 31006:thumb created=209 revoked=2016",
+    "#7 31001:lg created=934 revoked=934",
+    "#8 31002:lg created=1187 revoked=1519",
+    "#9 31001:lg created=1593 revoked=1899"
+   ],
+   "pageErrors": [],
+   "writes": [],
+   "networkPreview": []
+  },
+  {
+   "name": "S1-slow-thumb-switch",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 1671,
+   "frames": 98,
+   "checks": 169,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 8,
+    "revoked": 8,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31002:thumb"
+   ],
+   "steps": [
+    {
+     "t": 609,
+     "msg": "A open, thumb held",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 800,
+     "msg": "switched to B (A still pending)",
+     "v": {
+      "sameInstance": true
+     }
+    },
+    {
+     "t": 804,
+     "msg": "released stale A seq 7"
+    },
+    {
+     "t": 1056,
+     "msg": "after stale A answer",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1340,
+     "msg": "B answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok gate start=326 settle=789",
+    "#8 31002:thumb ok gate start=771 settle=1050"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=192 revoked=326",
+    "#2 31002:thumb created=196 revoked=326",
+    "#3 31003:thumb created=198 revoked=326",
+    "#4 31004:thumb created=201 revoked=326",
+    "#5 31005:thumb created=208 revoked=326",
+    "#6 31006:thumb created=216 revoked=326",
+    "#7 31001:thumb created=804 revoked=804",
+    "#8 31002:thumb created=1060 revoked=1408"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S2-rapid-switch-out-of-order",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 1893,
+   "frames": 109,
+   "checks": 196,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 10,
+    "revoked": 10,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31004:thumb"
+   ],
+   "steps": [
+    {
+     "t": 780,
+     "msg": "3 switches in 422 ms wall-clock",
+     "v": {
+      "sameInstance": true,
+      "gates": {
+       "B": 8,
+       "C": 9,
+       "D": 10
+      }
+     }
+    },
+    {
+     "t": 1038,
+     "msg": "stale B answered",
+     "v": {
+      "path": "/inbox/doc/31004",
+      "heading": "1 of 3",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1326,
+     "msg": "current D answered",
+     "v": {
+      "path": "/inbox/doc/31004",
+      "heading": "1 of 3",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31004:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1576,
+     "msg": "stale C answered after D",
+     "v": {
+      "path": "/inbox/doc/31004",
+      "heading": "1 of 3",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31004:thumb"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=328 settle=328",
+    "#8 31002:thumb ok gate start=472 settle=770",
+    "#9 31003:thumb ok gate start=608 settle=1315",
+    "#10 31004:thumb ok gate start=751 settle=1025"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=193 revoked=327",
+    "#2 31002:thumb created=196 revoked=327",
+    "#3 31003:thumb created=199 revoked=327",
+    "#6 31006:thumb created=212 revoked=327",
+    "#4 31004:thumb created=226 revoked=327",
+    "#5 31005:thumb created=230 revoked=327",
+    "#7 31001:thumb created=335 revoked=471",
+    "#8 31002:thumb created=774 revoked=774",
+    "#10 31004:thumb created=1039 revoked=1642",
+    "#9 31003:thumb created=1325 revoked=1325"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete",
+    "POST /api/documents/31002/complete",
+    "POST /api/documents/31003/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S3-slow-lg-close-reopen",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 1756,
+   "frames": 103,
+   "checks": 181,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 8,
+    "revoked": 8,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31001:thumb",
+    "31001:lg"
+   ],
+   "steps": [
+    {
+     "t": 673,
+     "msg": "open, lg held",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:thumb"
+      ]
+     }
+    },
+    {
+     "t": 751,
+     "msg": "closed while lg pending"
+    },
+    {
+     "t": 1041,
+     "msg": "reopened, lg still pending",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:thumb"
+      ],
+      "lgRequests": 1
+     }
+    },
+    {
+     "t": 1334,
+     "msg": "lg answered while open",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:lg"
+      ]
+     }
+    },
+    {
+     "t": 1428,
+     "msg": "reopen after lg ready (first frame)",
+     "v": {
+      "path": "/inbox/doc/31001",
+      "heading": "1 of 6",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31001:thumb",
+       "dialog:31001:lg"
+      ],
+      "lgRequests": 1
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=328 settle=328",
+    "#8 31001:lg ok gate start=391 settle=1034"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=190 revoked=328",
+    "#2 31002:thumb created=193 revoked=328",
+    "#3 31003:thumb created=195 revoked=328",
+    "#4 31004:thumb created=198 revoked=328",
+    "#5 31005:thumb created=201 revoked=328",
+    "#6 31006:thumb created=209 revoked=328",
+    "#7 31001:thumb created=337 revoked=1522",
+    "#8 31001:lg created=1052 revoked=1522"
+   ],
+   "pageErrors": [],
+   "writes": [],
+   "networkPreview": []
+  },
+  {
+   "name": "S4-stale-lg-after-switch",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 2265,
+   "frames": 133,
+   "checks": 215,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 10,
+    "revoked": 10,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31002:thumb",
+    "31002:lg"
+   ],
+   "steps": [
+    {
+     "t": 533,
+     "msg": "A lg pending, preview closed"
+    },
+    {
+     "t": 1056,
+     "msg": "B open: thumb+lg pending",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading preview…",
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1319,
+     "msg": "stale A lg answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading preview…",
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1606,
+     "msg": "B thumb answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1905,
+     "msg": "B lg answered",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:lg"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=374 settle=374",
+    "#8 31001:lg ok gate start=439 settle=1043",
+    "#9 31002:thumb ok gate start=737 settle=1305",
+    "#10 31002:lg ok gate start=786 settle=1592"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=207 revoked=374",
+    "#2 31002:thumb created=213 revoked=374",
+    "#3 31003:thumb created=224 revoked=374",
+    "#4 31004:thumb created=242 revoked=374",
+    "#5 31005:thumb created=244 revoked=374",
+    "#6 31006:thumb created=247 revoked=374",
+    "#7 31001:thumb created=387 revoked=737",
+    "#8 31001:lg created=1066 revoked=1066",
+    "#9 31002:thumb created=1317 revoked=2011",
+    "#10 31002:lg created=1615 revoked=2011"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S5-new-fetch-error-retry",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 4288,
+   "frames": 251,
+   "checks": 344,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 9,
+    "revoked": 9,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [],
+   "steps": [
+    {
+     "t": 658,
+     "msg": "switched to B (500 in 600 ms)",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1256,
+     "msg": "B thumb failed",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2157,
+     "msg": "B dialog error",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "The preview couldn’t be loaded.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2207,
+     "msg": "Retry clicked",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "Loading preview…",
+      "retry": [
+       "Retrying…"
+      ],
+      "thumbPh": [
+       "loading preview"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2788,
+     "msg": "retry succeeded",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:lg"
+      ],
+      "thumbReq": 3,
+      "lgReq": 2
+     }
+    },
+    {
+     "t": 3910,
+     "msg": "C 404 dialog",
+     "v": {
+      "path": "/inbox/doc/31003",
+      "heading": "1 of 4",
+      "dialog": true,
+      "note": "No preview is available for this document. You can still try Open original.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [
+       "no preview"
+      ],
+      "imgs": []
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=365 settle=365",
+    "#8 31002:thumb 500 +600ms start=623 settle=1223",
+    "#9 31002:lg 500 +600ms start=1282 settle=1882",
+    "#10 31002:thumb ok +300ms start=2183 settle=2483",
+    "#11 31002:lg ok +300ms start=2183 settle=2484",
+    "#12 31003:thumb 404 +300ms start=2987 settle=3287",
+    "#13 31003:lg 404 +300ms start=3337 settle=3637"
+   ],
+   "objectUrls": [
+    "#2 31002:thumb created=210 revoked=365",
+    "#3 31003:thumb created=213 revoked=365",
+    "#4 31004:thumb created=216 revoked=365",
+    "#5 31005:thumb created=219 revoked=365",
+    "#6 31006:thumb created=222 revoked=365",
+    "#1 31001:thumb created=229 revoked=364",
+    "#7 31001:thumb created=375 revoked=622",
+    "#10 31002:thumb created=2491 revoked=2987",
+    "#11 31002:lg created=2502 revoked=2987"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete",
+    "POST /api/documents/31002/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S6-broken-image",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 3100,
+   "frames": 183,
+   "checks": 285,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 3,
+   "brokenBytesImgChecks": 7,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 13,
+    "revoked": 13,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31003:thumb",
+    "31003:lg"
+   ],
+   "steps": [
+    {
+     "t": 963,
+     "msg": "B thumb bytes broken",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": false,
+      "note": null,
+      "retry": [],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 1477,
+     "msg": "B lg broken",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "The preview couldn’t be loaded.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [
+       "preview failed to load"
+      ],
+      "imgs": []
+     }
+    },
+    {
+     "t": 2015,
+     "msg": "B lg retry ok",
+     "v": {
+      "path": "/inbox/doc/31002",
+      "heading": "1 of 5",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "page:31002:thumb",
+       "dialog:31002:lg"
+      ]
+     }
+    },
+    {
+     "t": 2731,
+     "msg": "C thumb ok, lg broken",
+     "v": {
+      "path": "/inbox/doc/31003",
+      "heading": "1 of 4",
+      "dialog": true,
+      "note": "The full-size preview couldn’t be loaded — showing a smaller one.",
+      "retry": [
+       "Retry"
+      ],
+      "thumbPh": [],
+      "imgs": [
+       "page:31003:thumb",
+       "dialog:31003:thumb"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:thumb ok start=319 settle=319",
+    "#8 31002:thumb broken +200ms start=477 settle=677",
+    "#9 31002:lg broken +200ms start=988 settle=1188",
+    "#10 31002:thumb ok start=1499 settle=1499",
+    "#11 31002:lg ok +200ms start=1500 settle=1700",
+    "#12 31003:thumb ok start=2185 settle=2185",
+    "#13 31003:lg broken +200ms start=2250 settle=2450"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=188 revoked=318",
+    "#2 31002:thumb created=192 revoked=318",
+    "#3 31003:thumb created=197 revoked=318",
+    "#4 31004:thumb created=204 revoked=318",
+    "#5 31005:thumb created=210 revoked=318",
+    "#6 31006:thumb created=227 revoked=318",
+    "#7 31001:thumb created=328 revoked=477",
+    "#8 31002:thumb created=678 revoked=1499",
+    "#9 31002:lg created=1190 revoked=1499",
+    "#10 31002:thumb created=1513 revoked=2185",
+    "#11 31002:lg created=1726 revoked=2185",
+    "#12 31003:thumb created=2198 revoked=2863",
+    "#13 31003:lg created=2451 revoked=2863"
+   ],
+   "pageErrors": [],
+   "writes": [
+    "POST /api/documents/31001/complete",
+    "POST /api/documents/31002/complete"
+   ],
+   "networkPreview": []
+  },
+  {
+   "name": "S7-inbox-list-lightbox",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "failures": [],
+   "ms": 2319,
+   "frames": 135,
+   "checks": 202,
+   "wrongObject": 0,
+   "brokenPainted": 0,
+   "brokenDomOnly": 0,
+   "brokenBytesImgChecks": 0,
+   "paintedBrokenSamples": [],
+   "urls": {
+    "created": 9,
+    "revoked": 9,
+    "liveAfterLeave": []
+   },
+   "liveBeforeLeave": [
+    "31001:thumb",
+    "31002:thumb",
+    "31003:thumb",
+    "31004:thumb",
+    "31005:thumb",
+    "31006:thumb"
+   ],
+   "steps": [
+    {
+     "t": 654,
+     "msg": "A open, lg held",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31001:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1295,
+     "msg": "B open; stale A lg answered",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31002:thumb"
+      ]
+     }
+    },
+    {
+     "t": 1578,
+     "msg": "B lg answered",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31002:lg"
+      ]
+     }
+    },
+    {
+     "t": 1700,
+     "msg": "A reopened (lg refetch held)",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "Loading full-size preview…",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31001:thumb"
+      ],
+      "lgRequests": 2
+     }
+    },
+    {
+     "t": 1979,
+     "msg": "A lg answered",
+     "v": {
+      "path": "/inbox",
+      "heading": "Inbox",
+      "dialog": true,
+      "note": "",
+      "retry": [],
+      "thumbPh": [],
+      "imgs": [
+       "dialog:31001:lg"
+      ]
+     }
+    }
+   ],
+   "requests": [
+    "#7 31001:lg ok gate start=319 settle=1031",
+    "#8 31002:lg ok gate start=769 settle=1284",
+    "#9 31001:lg ok gate start=1668 settle=1690"
+   ],
+   "objectUrls": [
+    "#1 31001:thumb created=209 revoked=2078",
+    "#2 31002:thumb created=225 revoked=2079",
+    "#3 31003:thumb created=228 revoked=2079",
+    "#4 31004:thumb created=233 revoked=2079",
+    "#5 31005:thumb created=235 revoked=2079",
+    "#6 31006:thumb created=238 revoked=2079",
+    "#7 31001:lg created=1051 revoked=1051",
+    "#8 31002:lg created=1304 revoked=1608",
+    "#9 31001:lg created=1701 revoked=2001"
+   ],
+   "pageErrors": [],
+   "writes": [],
+   "networkPreview": []
+  }
+ ]
+}

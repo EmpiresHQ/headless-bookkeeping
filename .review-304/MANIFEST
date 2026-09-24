@@ -1,0 +1,37 @@
+QA-011 / issue #304 — document preview switch race. Base main db30995. Report: docs/qa/2026-09-24-preview-switch-race.md
+
+COMMITTED (compact evidence)
+  MANIFEST                        this file
+  final.log                       main matrix runner output, S1–S7 × 1440/1920 (13/14; the S6@1440 failure is finding D2)
+  final-results.json              main matrix, compacted: per-step UI state, request start/settle, object-URL create/revoke,
+                                  monitor counters (per-frame timelines and non-painted samples left out)
+  timelines-1440.txt              monitor state-change timelines for S1, S4 and S6 at 1440 (the Inbox-list rows are filtered out)
+  rep1.log, rep1-results.json     25 broken-bytes cycles per width (row thumb + lightbox lg) for D2
+  dev2.log                        first sighting of D2 (dev run of S6/S7 at 1440, before the rect field was added to the monitor)
+  final-s8.log                    S8 runner output (Books archive rows), 0/2: finding D1
+  final-s8-results.json           S8 results, compacted
+  s3-lg-loading-1440.jpg          S3: slow lg, thumb shown as placeholder + "Loading full-size preview…"
+  s4-after-stale-lg-1440.jpg      S4: after doc A's late lg arrived, doc B's lightbox still shows only "Loading preview…"
+  s5-error-retry-1440.jpg         S5: new document's preview failed (500): "The preview couldn't be loaded." + Retry, no image
+  s8-books-broken-thumb-1440.jpg  S8/D1: Books › Documents row 32002 with a persistent broken-image icon (clip, 1440 wide)
+
+UNTRACKED (kept locally under .review-304/work, not committed)
+  harness (main matrix + rep)  inpage.js  sha256 5f4f3233f6aa330a9eba62ea88c744251889a473a286503bfb2cbf4c11641621
+                               common.mjs sha256 f5ca0d1190ad29698e3dbfdabc3b7c29b529c23dcec42fc627fc5f1dfc95a39a
+                               run.mjs    sha256 ce652dc8549b9f22d8d87470f4e72e327af36f6df1f8efcfc99536fd6bb8e723
+                               rep.mjs    sha256 81b59ed6905e959b5d379e5463d8fe131a0a45ef43a85d1076f11a57ea7629d5
+  harness (S8, after adding    inpage.js  sha256 c01a671cfe7a3f69041cfaa77675abfb48d1da17a65ce55ae68a918004122a8c
+  the Books mocks + S8 case)   common.mjs sha256 102aed1833c617111f5647ad832cb93c249952135d0caa6c7bd421dc0925d7c5
+                               run.mjs    sha256 bdec3e5ab31df0d89c0d7e8f182c00d81ebe217ad1637956ffef09ed1e07e3f9
+  results  work/final-results.json (full, 121 kB, with timelines), dev1-results.json/dev1.log, dev2-results.json,
+           final-s8-results.json (full)
+  shots    work/*.jpg (same files as committed)
+  debug    probe.mjs/probe.log, probe0.mjs/probe0.log (fixture-shape crash, see report "Harness issues")
+  build    dist/ (6.4 MB; index.html sha256 008824569d1b416abcd43515d0a3b4df2f80c8be69db8ddc5972be39179ef430,
+           assets/index-B89dC_Y3.js sha256 3a68762e95178d8b0a529da418073226501e3b59c4ff1efb09daa76cac2137fb), work/build.log
+  preview  work/preview.log + preview.pid, work/preview-2.log + preview-2.pid (vite preview on 127.0.0.1:5372; both stopped)
+  other    packages/web/node_modules/pdfjs-dist -> /tmp/hbk-ui-257/.review-257/pdf-deps/node_modules/pdfjs-dist
+           (ignored symlink so vite.config.ts resolves pdfjs-dist in this worktree; no npm install)
+
+Fixtures are defined in common.mjs (6 triage docs 31001–31006, 3 archive docs 32001–32003). Preview PNGs are drawn
+in-page per request (inpage.js); no fixture files were written. All writes were mocked POST /api/documents/:id/complete.

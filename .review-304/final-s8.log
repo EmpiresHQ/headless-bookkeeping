@@ -1,0 +1,3 @@
+FAIL S8-books-archive-broken-thumb @1440: ["persistent broken <img> in archive rows: [{\"who\":\"32002:thumb\",\"complete\":true,\"nw\":0,\"rect\":[36,48],\"alt\":\"\"}]","84 painted frames with a broken image"]
+FAIL S8-books-archive-broken-thumb @1920: ["persistent broken <img> in archive rows: [{\"who\":\"32002:thumb\",\"complete\":true,\"nw\":0,\"rect\":[36,48],\"alt\":\"\"}]","82 painted frames with a broken image"]
+0/2 passed
