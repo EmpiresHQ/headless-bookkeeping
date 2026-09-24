@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { Drawer } from 'vaul';
-import { useFocusReturn } from '../lib/focusReturn';
+import { useFocusReturn, useHoldFocusWhileBusy } from '../lib/focusReturn';
 import { useModalLayer } from '../lib/modalLayers';
 import type { DismissGuard } from '../lib/unsavedChanges';
 import { SegmentedControl } from './SegmentedControl';
@@ -85,6 +85,7 @@ export function Sheet({
       return close !== null && !close.disabled ? close : contentRef.current;
     },
   });
+  useHoldFocusWhileBusy(open && busy, contentRef);
   // This open generation: bumped when `open` flips and on unmount, so a
   // discard answered late (question superseded, sheet closed another way
   // and reopened, or unmounted) can never close a newer generation.

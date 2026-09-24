@@ -13,6 +13,12 @@ acceptance. Keyboard input was real Playwright `Tab` / `Shift+Tab` / `Enter` /
 `Space` / `Arrow*` / `Escape` presses into headless Chromium. No real backend
 was involved. Every API call went to an in-page mock, and no write was issued.
 
+A later same-day run re-checked current `main` `ab7c6eb` after the landmark
+fix (#378). It also covered the areas marked NOT RUN below: sheets,
+validation, pending and error announcements, and radio/checkbox groups. That
+run found one defect (F2), which is fixed in the same commit as that section.
+See [Re-verification on `main` `ab7c6eb`](#re-verification-on-main-ab7c6eb).
+
 ## Verdict
 
 | Area                                              | Status                                                                                                                                                |
@@ -173,3 +179,237 @@ the final `lib.mjs` is kept. `MANIFEST.sha256` freezes the evidence files.
 - Sheets, the document preview, form validation and busy/pending
   announcements were not exercised in this pass (see the verdict table).
 - Colour contrast and forced-colors mode were not measured in this pass.
+
+## Re-verification on `main` `ab7c6eb`
+
+Same bounded, mocked Chromium method as above, re-run on 2026-09-24 against
+`main` `ab7c6eb`. That commit includes #378 (landmarks) and #376 (IMAP port).
+**Still no VoiceOver, no TalkBack, no physical keyboard and no physical
+device.** Key presses are Playwright events in headless Chromium, and
+"announced" means only that the text is in a `role=status` / `role=alert` /
+`aria-live` region or in the AX tree. Nothing was heard.
+
+**Mocked writes only.** The cases that submit something send the request to
+an in-page Playwright route and never to a server:
+
+- `PATCH /api/expenses/12`
+- `DELETE /api/expenses/12`
+- `POST /api/reporting-periods/7/lock`
+
+Every other origin is aborted. Each case asserts the exact list of non-GET
+requests. The mocked lock and delete always answer 503, so even the mock
+state never shows the period locked or the draft deleted.
+
+### Verdict (this run)
+
+| Area                                                         | Status                                                                                                                                                    |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VoiceOver / TalkBack / physical keyboard                     | **NOT RUN** (no device, no native screen reader)                                                                                                          |
+| Landmarks (F1 → #378)                                        | Run, 320/390/1280, 7 routes. **Pass**: exactly one non-empty `main` on every route; `navigation "Primary"` on desktop, the tab bar `navigation` on mobile |
+| Sheet focus, trap, Escape, return (Edit draft)               | Run, 320/390/1280. **Pass**                                                                                                                               |
+| Field validation (`aria-invalid` + description)              | Run, 320/390/1280. **Pass**                                                                                                                               |
+| Pending announcement (busy button, `PendingFieldset` status) | Run, 320/390/1280. **Pass**                                                                                                                               |
+| Error announcement (sheet `alert`, toast live region)        | Run, 320/390/1280. **Pass**. 1 observation (O6)                                                                                                           |
+| **Focus while a submit is pending**                          | **F2: defect confirmed on `ab7c6eb`, fixed in this commit.** 9/9 cases fail on `ab7c6eb` and 9/9 pass with the fix                                        |
+| Checkbox (duplicate consent, lock acknowledgement)           | Run, 320/390/1280. **Pass**. 1 observation (O4)                                                                                                           |
+| Radio group (Correct sheet)                                  | Run, 320/390/1280. **Pass** for keyboard. 1 observation (O5)                                                                                              |
+| Token gate error                                             | Run, 320/390/1280. **Pass**                                                                                                                               |
+| Touch geometry                                               | Run, measured. Unchanged from O3, plus O4                                                                                                                 |
+| Issue #302                                                   | **Stays OPEN**: native VoiceOver/TalkBack acceptance is still untested                                                                                    |
+
+### F2 (fixed here): a pending submit drops keyboard focus out of the modal
+
+**Steps.** These were run at 320, 390 and 1280 on a production build of
+`ab7c6eb`:
+
+1. Open `/books/expenses/12` (a draft). Focus "Edit draft…" and press Enter.
+   Change "Supplier invoice no.", focus "Save draft" and press Enter. The
+   mocked PATCH is held.
+2. Or: press Enter on "Delete draft…", then Enter on "Delete". The mocked
+   DELETE is held.
+3. Or: open `/reports/periods/7` with the warnings read failing, then press
+   Enter on "Close period…". Tick "Close anyway…" with Space, type `2026-09`,
+   focus "Close & freeze…" and press Space. The mocked lock is held.
+4. While the request is held, press Tab 4 times. Then answer the held request
+   with 503.
+
+**Observed on `ab7c6eb`** (`before-results.json`, cases `pending-focus-*`,
+`confirm-pending-*` and `lock-sheet-*`):
+
+- The busy operation disables the focused button, so `document.activeElement`
+  becomes `body` in all 9 cases.
+- The first Tab lands on Radix's `data-radix-focus-guard` span. That span is
+  outside the dialog, `aria-hidden="true"` and invisible (`opacity: 0`).
+- In ConfirmDialog and LockSheet, the 4th Tab reaches a background link in
+  the `aria-hidden` screen behind the modal: "‹ Back" at 320/390 and the
+  sidebar "Inbox" at 1280.
+- When the Edit sheet's save fails, focus stays on the guard span outside
+  the sheet, and the next Tab goes to `body`.
+- When the delete fails, ConfirmDialog closes as designed, but focus stays on
+  the background link instead of returning to "Delete draft…".
+
+**Cause.** `Button` disables itself while `busy` (#281). `PendingFieldset`
+and the Sheet's Close button also disable while busy. Radix's FocusScope can
+only put focus back on the last focused element, and that element is now
+disabled. So nothing holds focus inside the modal.
+`Sheet.restoreAfterVeto` already moved focus back to the content, but only
+after a refused dismiss such as Escape.
+
+**Fix.** `useHoldFocusWhileBusy` in `lib/focusReturn.ts` is used by `Sheet`
+and `ConfirmDialog`. When the layer becomes busy and focus has dropped (to
+`body`, or onto a disabled control inside the layer), it focuses the layer's
+own content element. That is Radix Content, which has `tabIndex -1`. The
+hook never takes focus from an enabled control inside the layer, and never
+from anything focused outside it.
+
+With nothing enabled inside, Tab stays on the content. When the operation
+settles, Tab continues inside the layer. After a success or failure close,
+focus returns to the opener as #268 intended.
+
+**After the fix** (`final-results.json`), at all 3 widths:
+
+- Focus while pending is the dialog content.
+- All 4 Tabs stay inside the modal.
+- After the failed save, focus stays in the sheet and the next Tab goes to
+  "Category".
+- After the failed delete, focus returns to "Delete draft…".
+
+**Regression tests** in `ui/Sheet.focus.test.tsx`:
+
+- A save that disables its focused button parks focus on the sheet.
+- Busy never takes focus from an enabled control.
+- A busy confirm keeps focus in the dialog, and a failure close returns it to
+  the trigger.
+
+With the three source files reverted, the two #302 tests that exercise the
+defect fail (`2 failed | 22 passed`), and they pass with the fix.
+
+**Severity (proposed, not filed as a separate issue):** P2. A keyboard or
+switch user who tabs during a save can end up on invisible or aria-hidden
+elements, or behind the modal. No data is at risk: the operation is still
+locked (#251).
+
+### What passed (per width 320 / 390 / 1280)
+
+- **Landmarks (#378).** Checked on `/inbox`, `/books`, `/bank`, `/reports`,
+  `/reports/periods/7`, `/settings` and `/books/expenses/12`:
+  - Mobile: `main`, `navigation` and the sonner `region`.
+  - Desktop: `complementary` containing `navigation "Primary"`, plus `main`.
+  - `main` is non-empty everywhere. There is no horizontal overflow.
+- **Edit draft sheet.**
+  - `dialog "Edit draft expense"` opens by Enter, and initial focus is
+    `button "Close"`.
+  - "Submit for posting" and "Delete draft…" are absent from the AX tree
+    while it is open.
+  - 40 Tab and 40 Shift+Tab presses all stay inside.
+  - Each of the 10 distinct stops is `:focus-visible` and changed pixels in
+    its ±6 px box.
+- **Validation.** Clearing Gross gives the input `aria-invalid="true"`, and
+  its `aria-describedby` resolves to "Enter an amount like 12.40". "Save
+  draft" is disabled.
+- **Pending.** "Save draft" is `aria-busy="true"` and disabled. Its sibling
+  `role=status` reads "Working… please wait." Escape is refused while busy.
+- **Error.** The mocked 409 "Possible duplicate…" renders a `role=alert` with
+  "Not saved… Your changes are kept".
+- **Consent checkbox.** It appears with the name "This is a separate purchase
+  — save anyway…", and Save is disabled until it is ticked. Space toggles it,
+  and it shows a focus ring. The second PATCH carries
+  `allow_duplicate: true`.
+- **Success.** The sheet closes and focus returns to "Edit draft…". "Draft
+  saved — submit it for posting when ready" appears in the `aria-live=polite`
+  region.
+- **Lock sheet.**
+  - The dialog is named "Close September 2026".
+  - The AX checkbox is "Close anyway without complete checks — …", unchecked.
+    Space checks it, and the AX tree then reports `checked=true`.
+  - "Close & freeze" stays disabled until the box is ticked.
+  - While pending, the `PendingFieldset` status reads "Saving… the form is
+    locked until the server answers." Exactly one button is `aria-busy`.
+  - Escape is refused while busy. The mocked refusal appears in the polite
+    toast region. The period stays open.
+- **Correct sheet radios.**
+  - 3 named radios, exactly one checked.
+  - The group is one Tab stop, and the radio shows a focus ring.
+  - ArrowDown, ArrowDown, ArrowUp move the check: Cosmetic, Credit note,
+    Cosmetic.
+  - Escape on the changed form asks "Discard unsaved changes?" with focus on
+    "Keep editing". "Discard" returns focus to "Correct…".
+- **Token gate** (no stored token, every API answers 401):
+  - The token input is autofocused.
+  - A wrong token gives `role=alert` "That token was not accepted…", and the
+    input gets `aria-invalid="true"` with
+    `aria-describedby="token-gate-problem"`. Focus stays on the input.
+- Every case records 0 page errors. Non-GET requests are exactly the mocked
+  ones listed above.
+
+### Observations (no defect claimed)
+
+**O1 is unchanged.** `/reports/periods/7` still has no `h1`. The first Tab
+there is "‹ Back".
+
+**O3 is unchanged.** "Upload" is 59×22.5, "Import" 57×18 and "‹ Back"
+51×22.5. The search inputs are 19.5 px tall. The inline "Reports" link is
+53×14. There is still no skip link: at 1280 the first Tab on every route is
+the sidebar "Inbox". Landmarks now give screen-reader users a bypass (2.4.1).
+
+**O4. Checkbox and radio inputs are the native 13×13.** Each sits inside a
+`<label>` that also toggles it, so the effective targets are:
+
+- Mobile checkboxes: 280–350 × 39 px, and 272–342 × 82–102 px for the lock
+  acknowledgement.
+- Radio labels: at least 83 px tall.
+- At 1280, the duplicate-consent label is 536 × 19.5 px, below 24 px tall.
+  That is desktop pointer use, and the SC 2.5.8 spacing exception was not
+  measured.
+
+**O5. The Correct sheet's radios have no group name.** They sit in the
+`PendingFieldset` `<fieldset>`, which has no `<legend>`, so the AX tree
+shows `group ""`. Each radio's name is its whole label, including the
+explanation sentence. For example: "Financial — amounts or category are
+wrong Reverses the posted entry and posts…". The sheet title "Correct" gives
+context. Whether this is too verbose in VoiceOver/TalkBack was not heard.
+
+**O6. Failures of the lock and the delete are reported only in the toast
+region.** That region is sonner's `aria-live="polite"` section. The lock
+sheet stays open with no in-sheet error, and the delete dialog closes. The
+text is announced politely, not as an alert. Whether VoiceOver/TalkBack read
+it before the next focus change was not verified.
+
+### Set-up (this run)
+
+- **Build:** two production builds from this worktree with `vite build`
+  (`build.log`, `build-fixed.log`, both exit 0):
+  - Unmodified `ab7c6eb`, served by `vite preview` on `127.0.0.1:5372`.
+  - `ab7c6eb` plus the fix, on `127.0.0.1:5373`.
+
+  Both previews were stopped by PID afterwards, and the ports are free.
+  `node_modules` was symlinked from `hbk-ui-378`, because the shared checkout
+  lacks `pdfjs-dist`.
+
+- **Browser:** Playwright 1.63.0 Chromium, headless, Node 24.21.0, Linux.
+  Contexts at 320×844 and 390×844 (`isMobile` + `hasTouch`) and 1280×844
+  (desktop), DPR 1. Env as above.
+- **Harness:** `a11y.mjs` in `.review-302/evidence/` (untracked, frozen by
+  `MANIFEST.sha256`).
+  - It imports `/tmp/hbk-252-browser/base-fixtures.mjs` and
+    `/tmp/hbk-255-browser/fixtures.mjs` read-only, with the same data as
+    above.
+  - It adds its own gated routes for the PATCH, the DELETE and the lock POST.
+  - It mocks `bank-statements` as `[]`, the document preview as 404 and
+    `mailbox/connectors` as `[]`.
+  - 8 cases × 3 widths = 24.
+  - `probe2.mjs` and `probe3.mjs` are the first single-width reproductions.
+
+| Run     | Build         | Exit | Result | Note                                                                                                                                                                                                  |
+| ------- | ------------- | ---- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| initial | `ab7c6eb`     | 1    | 15/18  | Harness: Escape on a changed Correct form asks to discard (#267, by design). The case now answers "Discard". No pending-focus cases yet                                                               |
+| probe   | `ab7c6eb`     | 1    | 3/6    | First F2 reproduction (`pending-focus`)                                                                                                                                                               |
+| before  | `ab7c6eb`     | 1    | 15/24  | 9 F2 failures (`pending-focus`, `confirm-pending`, `lock-sheet`). An earlier run of this pass read a `body` focus as "inside" (a harness bug in the returned record), so it is superseded by this one |
+| final   | `ab7c6eb`+fix | 0    | 24/24  | All cases pass                                                                                                                                                                                        |
+
+**Checks on the fix** (`packages/web`):
+
+- `tsc -b`: exit 0.
+- `eslint "src/**/*.{ts,tsx}"`: exit 0.
+- `prettier --check` on the 4 changed files: exit 0.
+- `vitest run`: 145 files and 1484 tests passed.
