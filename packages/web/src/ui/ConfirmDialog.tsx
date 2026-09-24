@@ -1,6 +1,6 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useRef, type ReactNode } from 'react';
-import { useFocusReturn } from '../lib/focusReturn';
+import { useFocusReturn, useHoldFocusWhileBusy } from '../lib/focusReturn';
 import { useModalLayer } from '../lib/modalLayers';
 import { Button } from './Button';
 
@@ -46,6 +46,7 @@ export function ConfirmDialog({
   // for "Keep editing" — never into a closing sheet (its own return
   // applies), under a newer layer or after the route moved on.
   const focus = useFocusReturn({ open, contentRef });
+  useHoldFocusWhileBusy(open && busy, contentRef);
   // Long or enlarged text (issue #366): the dialog is bounded by the
   // viewport and scrolls as ONE region — title, warning and both actions —
   // so nothing is ever out of reach and no action is pinned over the text.

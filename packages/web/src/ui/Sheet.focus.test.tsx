@@ -526,6 +526,42 @@ describe('Sheet focus (issue #268)', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 
+  it('a save that disables its focused button parks focus on the sheet, not the background (issue #302)', async () => {
+    const view = (busy: boolean) => (
+      <>
+        <button type="button">Background</button>
+        <Sheet open busy={busy} onOpenChange={vi.fn()} title="Saving">
+          <input aria-label="Note" />
+          <button type="button" disabled={busy}>
+            Save
+          </button>
+        </Sheet>
+      </>
+    );
+    const { rerender } = render(view(false));
+    const save = await screen.findByRole('button', { name: 'Save' });
+    save.focus();
+    rerender(view(true)); // no Escape: the pending save alone
+    const dialog = screen.getByRole('dialog', { name: 'Saving' });
+    expect(document.activeElement).toBe(dialog);
+    rerender(view(false)); // the save failed: the form is editable again
+    expect(document.activeElement).toBe(dialog);
+    expect(ariaViolations).toEqual([]);
+  });
+
+  it('busy never takes focus from an enabled control inside the sheet', async () => {
+    const view = (busy: boolean) => (
+      <Sheet open busy={busy} onOpenChange={vi.fn()} title="Saving">
+        <input aria-label="Note" />
+      </Sheet>
+    );
+    const { rerender } = render(view(false));
+    const note = await screen.findByLabelText('Note');
+    note.focus();
+    rerender(view(true));
+    expect(document.activeElement).toBe(note);
+  });
+
   describe('dirty dismiss (Keep / Discard)', () => {
     function Guarded() {
       const [open, setOpen] = useState(false);
@@ -654,6 +690,47 @@ describe('ConfirmDialog focus (issue #268)', () => {
     const cancel = await screen.findByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(cancel);
     fireEvent.click(cancel);
+    await settle();
+    expect(document.activeElement).toBe(trigger);
+    expect(ariaViolations).toEqual([]);
+  });
+
+  it('a busy confirm keeps focus in the dialog, and a failure close returns it to the button that asked (issue #302)', async () => {
+    function Ask({ busy }: { busy: boolean }) {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Delete draft…
+          </button>
+          <button type="button">Background</button>
+          <ConfirmDialog
+            open={open}
+            onOpenChange={setOpen}
+            title="Delete?"
+            body="Gone for good."
+            confirmLabel="Delete"
+            busy={busy}
+            onConfirm={() => {}}
+          />
+          <button type="button" onClick={() => setOpen(false)}>
+            Fail
+          </button>
+        </>
+      );
+    }
+    const { rerender } = render(<Ask busy={false} />);
+    const trigger = screen.getByRole('button', { name: 'Delete draft…' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const confirm = await screen.findByRole('button', { name: 'Delete' });
+    confirm.focus();
+    rerender(<Ask busy />); // Cancel and Delete are both disabled now
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete?' });
+    expect(document.activeElement).toBe(dialog);
+    rerender(<Ask busy={false} />);
+    // The caller closes the question on failure (an error toast follows).
+    fireEvent.click(screen.getByRole('button', { name: 'Fail', hidden: true }));
     await settle();
     expect(document.activeElement).toBe(trigger);
     expect(ariaViolations).toEqual([]);

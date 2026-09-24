@@ -292,3 +292,33 @@ export function useFocusReturn({
 
   return { onOpenAutoFocus, onCloseAutoFocus };
 }
+
+/**
+ * Focus while a layer is busy (issue #302): the operation in flight disables
+ * the control that started it (and often everything else inside). The
+ * browser then drops focus to the body, and Radix's trap has no enabled
+ * element to put it back on, so the next Tab walks out through its focus
+ * guards into the aria-hidden background. Keep it on the layer's own
+ * container (Radix Content, tabIndex -1): Tab stays put while nothing inside
+ * is enabled and resumes inside once the operation settles; a success close
+ * still returns focus to the opener. Never takes focus from an enabled
+ * control inside, or from anything focused outside the layer.
+ */
+export function useHoldFocusWhileBusy(
+  busy: boolean,
+  contentRef: RefObject<HTMLElement | null>,
+): void {
+  useLayoutEffect(() => {
+    if (!busy) return;
+    const content = contentRef.current;
+    if (content === null || !content.isConnected) return;
+    const active = document.activeElement;
+    const dropped =
+      active === null ||
+      active === document.body ||
+      (content.contains(active) &&
+        active !== content &&
+        active.matches(':disabled'));
+    if (dropped) content.focus({ preventScroll: true });
+  }, [busy, contentRef]);
+}
