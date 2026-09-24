@@ -137,6 +137,85 @@ describe('MailboxScreen', () => {
     );
   });
 
+  it.each([
+    ['blank', ''],
+    ['zero', '0'],
+    ['negative', '-5'],
+    ['out of range', '65536'],
+    ['fractional', '993.5'],
+  ])(
+    'an invalid (%s) IMAP port disables Add mailbox, sends nothing, and keeps the typed fields (issue #376)',
+    async (_label, badPort) => {
+      mount();
+      await screen.findByText('me@example.com');
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Add IMAP mailbox…' }),
+      );
+      fireEvent.change(screen.getByLabelText('IMAP host'), {
+        target: { value: 'imap.example.com' },
+      });
+      fireEvent.change(screen.getByLabelText('Username'), {
+        target: { value: 'me@example.com' },
+      });
+      fireEvent.change(screen.getByLabelText('App password'), {
+        target: { value: 's3cret' },
+      });
+      const add = screen.getByRole('button', { name: 'Add mailbox' });
+      expect(add).toBeEnabled();
+
+      fireEvent.change(screen.getByLabelText('Port'), {
+        target: { value: badPort },
+      });
+      expect(add).toBeDisabled();
+      expect(screen.getByLabelText('Port')).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      expect(
+        screen.getByText('Enter a port from 1 to 65535'),
+      ).toBeInTheDocument();
+      fireEvent.click(add);
+      expect(createMailboxConnector).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('IMAP host')).toHaveValue(
+        'imap.example.com',
+      );
+      expect(screen.getByLabelText('Username')).toHaveValue('me@example.com');
+      expect(screen.getByLabelText('App password')).toHaveValue('s3cret');
+    },
+  );
+
+  it('a corrected IMAP port re-enables Add mailbox and sends that port', async () => {
+    vi.mocked(createMailboxConnector).mockResolvedValue(CONNECTOR);
+    mount();
+    await screen.findByText('me@example.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Add IMAP mailbox…' }));
+    fireEvent.change(screen.getByLabelText('IMAP host'), {
+      target: { value: 'imap.example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Username'), {
+      target: { value: 'me@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('App password'), {
+      target: { value: 's3cret' },
+    });
+    fireEvent.change(screen.getByLabelText('Port'), { target: { value: '' } });
+    const add = screen.getByRole('button', { name: 'Add mailbox' });
+    expect(add).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Port'), {
+      target: { value: '143' },
+    });
+    expect(add).toBeEnabled();
+    expect(
+      screen.queryByText('Enter a port from 1 to 65535'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(add);
+    await waitFor(() =>
+      expect(createMailboxConnector).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 143 }),
+      ),
+    );
+  });
+
   it('OAuth return params surface as a toast and are stripped from the URL', async () => {
     const router = mount('/settings/mailbox?mailbox=connected');
     expect(await screen.findByText('Mailbox connected')).toBeInTheDocument();
