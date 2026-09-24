@@ -56,7 +56,9 @@ function Shell({ onSignOut: signOutNow }: { onSignOut: () => void }) {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <Sidebar onSignOut={onSignOut} inboxCount={inboxCount} />
-      <div className="pb-[calc(var(--tabbar-h)+2.5rem)] lg:pb-6 lg:pl-56">
+      {/* The one main landmark (#378): screens render inside it and never
+          add their own. */}
+      <main className="pb-[calc(var(--tabbar-h)+2.5rem)] lg:pb-6 lg:pl-56">
         {/* Recorded operation results (#259) — outside the Outlet, so a
             route change or a route discard never drops them. */}
         <RecentResults />
@@ -76,7 +78,7 @@ function Shell({ onSignOut: signOutNow }: { onSignOut: () => void }) {
             />
           </Suspense>
         </ScreenBoundary>
-      </div>
+      </main>
       <TabBar inboxCount={inboxCount} />
     </div>
   );

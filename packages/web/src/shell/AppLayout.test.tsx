@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -50,6 +50,28 @@ describe('AppLayout', () => {
     expect(screen.getAllByRole('link', { name: /reports/i })).toHaveLength(2);
     expect(screen.getAllByRole('link', { name: /settings/i })).toHaveLength(2);
     expect(screen.getByText('inbox body')).toBeInTheDocument();
+  });
+
+  it('exposes the routed content as the one main landmark (#378)', () => {
+    renderShell();
+    const main = screen.getByRole('main');
+    expect(within(main).getByText('inbox body')).toBeInTheDocument();
+    // The shell's navigation stays outside main.
+    expect(within(main).queryByRole('link')).toBeNull();
+  });
+
+  it('puts the desktop sidebar links in a labeled nav landmark (#378)', () => {
+    renderShell();
+    const sidebar = screen.getByRole('navigation', { name: 'Primary' });
+    for (const name of [/inbox/i, /books/i, /bank/i, /reports/i, /settings/i]) {
+      expect(within(sidebar).getByRole('link', { name })).toBeInTheDocument();
+    }
+    expect(
+      within(sidebar).queryByRole('button', { name: 'Sign out' }),
+    ).toBeNull();
+    // The mobile TabBar keeps its own nav.
+    expect(screen.getAllByRole('navigation')).toHaveLength(2);
+    expect(document.querySelectorAll('nav[data-tabbar] a')).toHaveLength(5);
   });
 
   it('marks the active section', () => {

@@ -16,27 +16,31 @@ export function Sidebar({
         <BrandMark className="h-6 w-6" />
         books
       </div>
-      {NAV_ITEMS.map(({ to, label, Icon }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) =>
-            `flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium ${
-              isActive
-                ? 'bg-surface font-bold text-accent-deep shadow-sm'
-                : 'text-ink-2 hover:text-ink'
-            }`
-          }
-        >
-          <Icon size={17} strokeWidth={2} />
-          {label}
-          {to === '/inbox' && inboxCount > 0 && (
-            <span className="ml-auto rounded-full bg-alert px-1.5 py-px text-[10px] font-bold text-white">
-              {inboxCount}
-            </span>
-          )}
-        </NavLink>
-      ))}
+      {/* The desktop navigation landmark (#378) — the TabBar's <nav> is
+          display:none at lg:. */}
+      <nav aria-label="Primary" className="flex flex-col gap-0.5">
+        {NAV_ITEMS.map(({ to, label, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium ${
+                isActive
+                  ? 'bg-surface font-bold text-accent-deep shadow-sm'
+                  : 'text-ink-2 hover:text-ink'
+              }`
+            }
+          >
+            <Icon size={17} strokeWidth={2} />
+            {label}
+            {to === '/inbox' && inboxCount > 0 && (
+              <span className="ml-auto rounded-full bg-alert px-1.5 py-px text-[10px] font-bold text-white">
+                {inboxCount}
+              </span>
+            )}
+          </NavLink>
+        ))}
+      </nav>
       <button
         type="button"
         onClick={onSignOut}
