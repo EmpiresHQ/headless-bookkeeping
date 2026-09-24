@@ -1,0 +1,27 @@
+QA-003 (#296) re-run evidence — 2026-09-24, main 225df1f (unmodified production build).
+Report: docs/qa/2026-09-24-safe-area-landscape-rerun.md
+All data route-mocked; every write refused (503) and counted: 0 in every scenario.
+Headless Chromium 153.0.8010.12 via Playwright 1.63.0, Node 24.21.0. Proxy only — CDP safe-area
+override, layout-resize rotation, JS matchMedia stub for display-mode. No device, no toolbar.
+
+evidence/probe.log            env() under override × viewport-fit (shipped / cover / contain); CDP display-mode ignored
+evidence/safearea.log         29-scenario matrix (A–H), flagged band overlaps per step
+evidence/safearea.json        every step: env, scroll, rects, band overlap per side, hit-test
+evidence/A-books-P-forced.jpg        header in forced top band; TabBar padded to 34
+evidence/C-new-expense-L-forced.jpg  New expense, landscape, CTA revealed
+evidence/D-verify-L-forced.jpg       Classify sheet, landscape (Close in forced right band)
+evidence/E-lightbox-P-forced.jpg     lightbox top bar in forced top band
+evidence/E-lightbox-L-forced.jpg     lightbox Close preview in forced right band
+harness/probe.mjs, harness/safearea.mjs   the probe and the matrix
+harness/common.mjs, harness/inpage.js     fixtures from the #295 re-run (port 5496; optional 40-row
+                                          expense list, custom UA, display-mode matchMedia stub)
+
+Run (needs the local Playwright set-up):
+  (packages/web) node ../../node_modules/vite/bin/vite.js build --outDir ../../.review-296-rerun/work/dist
+  (packages/web) node ../../node_modules/vite/bin/vite.js preview --outDir ../../.review-296-rerun/work/dist --port 5496 --strictPort
+  TMPDIR=/root/.cache/hbk-browser-tmp LD_LIBRARY_PATH=/tmp/hbk-browser-libs/root/usr/lib \
+  FONTCONFIG_FILE=/tmp/hbk-browser-libs/fonts.conf OUT_DIR=<dir>/ node harness/safearea.mjs   # ONLY=<regex>
+  (preview binds localhost; REVIEW_BASE defaults to http://localhost:5496)
+
+Not committed (local, untracked): .review-296-rerun/work (dist/, preview log, run1 with the
+superseded first pass, run2 raw screenshots, debug scripts).
