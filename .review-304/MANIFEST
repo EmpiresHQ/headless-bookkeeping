@@ -35,3 +35,11 @@ UNTRACKED (kept locally under .review-304/work, not committed)
 
 Fixtures are defined in common.mjs (6 triage docs 31001–31006, 3 archive docs 32001–32003). Preview PNGs are drawn
 in-page per request (inpage.js); no fixture files were written. All writes were mocked POST /api/documents/:id/complete.
+
+RE-RUN 2026-09-24 on main 4f583f4 (after #303/#378), committed under rerun-2026-09-24/
+  h/inpage.js, h/common.mjs, h/run.mjs, h/summarize.mjs   the new harness (the first run's was never committed and was lost)
+  final-before.log, final-after.log                         runner output, 13 cases x 3 viewports, unfixed vs D1-fixed build
+  summary-before.txt, summary-after.txt                     per case/viewport: wrong-object samples, broken frames, URL counters
+  final-before-compact.json, final-after-compact.json       per-case step values, monitor results, request plans/timing (no frame timelines)
+  shots/                                                    before/after Books documents (D1), mobile error + Retry, mobile lg loading, stale-lg 1440
+Untracked, local only: work/ (builds dist/ + dist-after/, full results with timelines, dev runs, probe).
