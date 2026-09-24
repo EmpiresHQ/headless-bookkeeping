@@ -1,0 +1,49 @@
+FAIL books-expenses @1440: page.waitForFunction: Timeout 20000ms exceeded.
+FAIL inbox @1440: page.waitForFunction: Timeout 20000ms exceeded.
+FAIL bank-statement @1440: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('radio', { name: /^All \d+/ })[22m
+[2m    - locator resolved to <input name=":r5:" value="all" type="radio" class="peer sr-only"/>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <label class="relative flex min-h-11 flex-auto text-xs font-semibold leading-tight">…</label> intercepts pointer events[22m
+
+FAIL books-documents @1440: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('radio', { name: 'Documents' })[22m
+[2m    - locator resolved to <input name=":r4:" type="radio" value="documents" class="peer sr-only"/>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <label class="relative flex min-h-11 flex-auto text-xs font-semibold leading-tight">…</label> intercepts pointer events
+PASS repeat-nav @1440: []
+FAIL books-expenses @1920: page.waitForFunction: Timeout 20000ms exceeded.
+FAIL inbox @1920: page.waitForFunction: Timeout 20000ms exceeded.
+FAIL bank-statement @1920: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('radio', { name: /^All \d+/ })[22m
+[2m    - locator resolved to <input name=":r5:" value="all" type="radio" class="peer sr-only"/>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <label class="relative flex min-h-11 flex-auto text-xs font-semibold leading-tight">…</label> intercepts pointer events[22m
+
+FAIL books-documents @1920: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('radio', { name: 'Documents' })[22m
+[2m    - locator resolved to <input name=":r4:" type="radio" value="documents" class="peer sr-only"/>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <label class="relative flex min-h-11 flex-auto text-xs font-semibold leading-tight">…</label> intercepts pointer events
+PASS repeat-nav @1920: []
+2/10 passed
