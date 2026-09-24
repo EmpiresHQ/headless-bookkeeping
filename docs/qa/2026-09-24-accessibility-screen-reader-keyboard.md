@@ -19,7 +19,7 @@ was involved. Every API call went to an in-page mock, and no write was issued.
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | VoiceOver (iOS) / TalkBack (Android)              | **NOT RUN** (no device or native screen reader available)                                                                                             |
 | Physical keyboard / OS focus                      | **NOT RUN**. Playwright key events in headless Chromium only                                                                                          |
-| Landmarks                                         | **1 proposed finding (F1)**, confirmed from source and DOM                                                                                            |
+| Landmarks                                         | **1 confirmed finding (F1 → [#378](https://github.com/EmpiresHQ/headless-bookkeeping/issues/378))**, from source and DOM                              |
 | Keyboard route navigation                         | Run, 320/390/1280. Works. 1 observation (O1)                                                                                                          |
 | Focus visible (Books list, Reports period)        | Run, 320/390/1280. **Pass**: every distinct Tab stop changed pixels when focused. 1 observation (O2)                                                  |
 | Segmented control as a radio group (#288)         | Run, 320/390/1280. **Pass**                                                                                                                           |
@@ -33,9 +33,9 @@ was involved. Every API call went to an in-page mock, and no write was issued.
 
 ## Proposed finding (not fixed here)
 
-**F1. No `main` landmark on any route, and the desktop sidebar is not a
+**F1 → [#378](https://github.com/EmpiresHQ/headless-bookkeeping/issues/378) (filed by root, P2): no `main` landmark on any route, and the desktop sidebar is not a
 navigation landmark.** Confirmed from source and from the rendered DOM and AX
-tree. No severity is proposed here; root decides the follow-up.
+tree.
 
 - Source: `packages/web/src/shell/AppLayout.tsx` wraps the routed screen in a
   plain `<div>`. There is no `<main>` or `role="main"` anywhere in
