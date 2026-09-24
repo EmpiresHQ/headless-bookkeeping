@@ -153,6 +153,8 @@ Root's independent two-page probe was also negative, both with and without the t
 
 ## Not covered
 
+Follow-up on `ea0b00c` (M2d Finish retry, #375 check, desktop, lost approve, and a correction to the M3d candidate model): [`2026-09-24-network-background-mutations-followup.md`](2026-09-24-network-background-mutations-followup.md).
+
 - Native iOS/Android backgrounding, OS suspension or app kill; a real network change such as Wi-Fi↔cellular or captive portals; a real backend or database. Upload/import over real HTTP sockets was not run (root's real-HTTP runs cover New expense only).
 - Retry by "Finish" after a lost **post** response (M2d), because the real re-post answer is unknown.
 - Bank-fee / supplier / other chains, bulk "Book matches", Undo, approvals from the Inbox, and a desktop viewport.
