@@ -1,0 +1,118 @@
+[
+ {
+  "width": 1440,
+  "height": 900,
+  "steps": {
+   "booksOpenBack": [
+    {
+     "idx": 5,
+     "openMs": 180,
+     "backMs": 481,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 600,
+     "openMs": 178,
+     "backMs": 400,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 1150,
+     "openMs": 171,
+     "backMs": 520,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 5,
+     "openMs": 182,
+     "backMs": 408,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 600,
+     "openMs": 162,
+     "backMs": 447,
+     "dTop": 0,
+     "focused": true
+    }
+   ]
+  },
+  "fails": [],
+  "log": {
+   "unhandled": [],
+   "held": [],
+   "pageErrors": [
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document."
+   ],
+   "consoleErrors": [],
+   "gets": 31,
+   "previews": 0
+  }
+ },
+ {
+  "width": 1920,
+  "height": 1080,
+  "steps": {
+   "booksOpenBack": [
+    {
+     "idx": 5,
+     "openMs": 185,
+     "backMs": 441,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 600,
+     "openMs": 166,
+     "backMs": 419,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 1150,
+     "openMs": 165,
+     "backMs": 459,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 5,
+     "openMs": 170,
+     "backMs": 423,
+     "dTop": 0,
+     "focused": true
+    },
+    {
+     "idx": 600,
+     "openMs": 166,
+     "backMs": 411,
+     "dTop": 0,
+     "focused": true
+    }
+   ]
+  },
+  "fails": [],
+  "log": {
+   "unhandled": [],
+   "held": [],
+   "pageErrors": [
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+    "Failed to read the 'localStorage' property from 'Window': Access is denied for this document."
+   ],
+   "consoleErrors": [],
+   "gets": 31,
+   "previews": 0
+  }
+ }
+]

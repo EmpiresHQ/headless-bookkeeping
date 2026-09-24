@@ -1,0 +1,362 @@
+[
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "books",
+  "trial": 0,
+  "oldValueUntilMs": 120,
+  "lastBlankSampleMs": 76,
+  "samples": 361
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "books",
+  "trial": 1,
+  "oldValueUntilMs": 116,
+  "lastBlankSampleMs": 62,
+  "samples": 361
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "books",
+  "trial": 2,
+  "oldValueUntilMs": 111,
+  "lastBlankSampleMs": 70,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "inbox",
+  "trial": 0,
+  "oldValueUntilMs": 99,
+  "lastBlankSampleMs": 59,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "inbox",
+  "trial": 1,
+  "oldValueUntilMs": 97,
+  "lastBlankSampleMs": 66,
+  "samples": 365
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "inbox",
+  "trial": 2,
+  "oldValueUntilMs": 97,
+  "lastBlankSampleMs": 59,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "bank",
+  "trial": 0,
+  "oldValueUntilMs": 63,
+  "lastBlankSampleMs": 39,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "bank",
+  "trial": 1,
+  "oldValueUntilMs": 72,
+  "lastBlankSampleMs": 40,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1440,
+  "screen": "bank",
+  "trial": 2,
+  "oldValueUntilMs": 65,
+  "lastBlankSampleMs": 39,
+  "samples": 363
+ },
+ {
+  "width": 1440,
+  "data": "full",
+  "log": {
+   "unhandled": [],
+   "held": [],
+   "pageErrors": []
+  }
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "books",
+  "trial": 0,
+  "oldValueUntilMs": 122,
+  "lastBlankSampleMs": 84,
+  "samples": 365
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "books",
+  "trial": 1,
+  "oldValueUntilMs": 113,
+  "lastBlankSampleMs": 69,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "books",
+  "trial": 2,
+  "oldValueUntilMs": 114,
+  "lastBlankSampleMs": 72,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "inbox",
+  "trial": 0,
+  "oldValueUntilMs": 98,
+  "lastBlankSampleMs": 62,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "inbox",
+  "trial": 1,
+  "oldValueUntilMs": 92,
+  "lastBlankSampleMs": 56,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "inbox",
+  "trial": 2,
+  "oldValueUntilMs": 116,
+  "lastBlankSampleMs": 80,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "bank",
+  "trial": 0,
+  "oldValueUntilMs": 65,
+  "lastBlankSampleMs": 38,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "bank",
+  "trial": 1,
+  "oldValueUntilMs": 65,
+  "lastBlankSampleMs": 40,
+  "samples": 363
+ },
+ {
+  "data": "full",
+  "width": 1920,
+  "screen": "bank",
+  "trial": 2,
+  "oldValueUntilMs": 57,
+  "lastBlankSampleMs": 29,
+  "samples": 365
+ },
+ {
+  "width": 1920,
+  "data": "full",
+  "log": {
+   "unhandled": [],
+   "held": [],
+   "pageErrors": []
+  }
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "books",
+  "trial": 0,
+  "oldValueUntilMs": 37,
+  "lastBlankSampleMs": 24,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "books",
+  "trial": 1,
+  "oldValueUntilMs": 24,
+  "lastBlankSampleMs": 7,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "books",
+  "trial": 2,
+  "oldValueUntilMs": 23,
+  "lastBlankSampleMs": 6,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "inbox",
+  "trial": 0,
+  "oldValueUntilMs": 29,
+  "lastBlankSampleMs": 10,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "inbox",
+  "trial": 1,
+  "oldValueUntilMs": 28,
+  "lastBlankSampleMs": 11,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "inbox",
+  "trial": 2,
+  "oldValueUntilMs": 22,
+  "lastBlankSampleMs": 5,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "bank",
+  "trial": 0,
+  "oldValueUntilMs": 37,
+  "lastBlankSampleMs": 18,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "bank",
+  "trial": 1,
+  "oldValueUntilMs": 39,
+  "lastBlankSampleMs": 21,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1440,
+  "screen": "bank",
+  "trial": 2,
+  "oldValueUntilMs": 22,
+  "lastBlankSampleMs": 5,
+  "samples": 363
+ },
+ {
+  "width": 1440,
+  "data": "small",
+  "log": {
+   "unhandled": [],
+   "held": [],
+   "pageErrors": []
+  }
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "books",
+  "trial": 0,
+  "oldValueUntilMs": 28,
+  "lastBlankSampleMs": 12,
+  "samples": 365
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "books",
+  "trial": 1,
+  "oldValueUntilMs": 37,
+  "lastBlankSampleMs": 21,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "books",
+  "trial": 2,
+  "oldValueUntilMs": 40,
+  "lastBlankSampleMs": 22,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "inbox",
+  "trial": 0,
+  "oldValueUntilMs": 22,
+  "lastBlankSampleMs": 4,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "inbox",
+  "trial": 1,
+  "oldValueUntilMs": 22,
+  "lastBlankSampleMs": 4,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "inbox",
+  "trial": 2,
+  "oldValueUntilMs": 26,
+  "lastBlankSampleMs": 7,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "bank",
+  "trial": 0,
+  "oldValueUntilMs": 21,
+  "lastBlankSampleMs": 3,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "bank",
+  "trial": 1,
+  "oldValueUntilMs": 24,
+  "lastBlankSampleMs": 7,
+  "samples": 363
+ },
+ {
+  "data": "small",
+  "width": 1920,
+  "screen": "bank",
+  "trial": 2,
+  "oldValueUntilMs": 21,
+  "lastBlankSampleMs": 10,
+  "samples": 363
+ },
+ {
+  "width": 1920,
+  "data": "small",
+  "log": {
+   "unhandled": [],
+   "held": [],
+   "pageErrors": []
+  }
+ }
+]
