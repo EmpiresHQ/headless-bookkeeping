@@ -1,0 +1,62 @@
+## S1-slow-thumb-switch@1440
+27 [raf] /inbox doc=-
+397 [raf] /inbox/doc/31001 doc=- row31001=31001:thumb,row31002=31002:thumb,row31003=31003:thumb,row31004=31004:thumb,row31005=31005:thumb,row31006=31006:thumb
+515 [mut] /inbox/doc/31001 doc=31001   ph=loading preview
+906 [mut] /inbox/doc/31002 doc=31001   ph=loading preview
+923 [mut] /inbox/doc/31002 doc=31002   ph=loading preview
+1200 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb(loading)
+1203 [load] /inbox/doc/31002 doc=31002 screen31002=31002:thumb
+1527 [raf] /settings doc=31002 screen31002=31002:thumb
+1553 [mut] /settings doc=-
+
+## S4-stale-lg-after-switch@1440
+29 [raf] /inbox doc=-
+328 [raf] /inbox/doc/31001 doc=- row31001=31001:thumb,row31002=31002:thumb,row31003=31003:thumb,row31004=31004:thumb,row31005=31005:thumb,row31006=31006:thumb
+375 [mut] /inbox/doc/31001 doc=31001   ph=loading preview
+386 [mut] /inbox/doc/31001 doc=31001 screen31001=31001:thumb(loading)
+388 [load] /inbox/doc/31001 doc=31001 screen31001=31001:thumb
+451 [mut] /inbox/doc/31001 doc=31001 screen31001=31001:thumb,dialog31001=31001:thumb note="Loading full-size preview…"
+504 [mut] /inbox/doc/31001 doc=31001 screen31001=31001:thumb
+625 [mut] /inbox/doc/31002 doc=31001 screen31001=31001:thumb
+643 [mut] /inbox/doc/31002 doc=31002   ph=loading preview
+687 [mut] /inbox/doc/31002 doc=31002  note="Loading preview…" ph=loading preview
+1248 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb(loading),dialog31002=31002:thumb(loading)(0px) note="Loading full-size preview…"
+1249 [load] /inbox/doc/31002 doc=31002 screen31002=31002:thumb,dialog31002=31002:thumb note="Loading full-size preview…"
+1533 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb,dialog31002=31002:lg(loading)(0px)
+1535 [load] /inbox/doc/31002 doc=31002 screen31002=31002:thumb,dialog31002=31002:lg
+1835 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb
+1895 [raf] /settings doc=31002 screen31002=31002:thumb
+1913 [mut] /settings doc=-
+
+## S6-broken-image@1440
+7 [raf] /inbox doc=-
+296 [raf] /inbox/doc/31001 doc=- row31001=31001:thumb,row31002=31002:thumb,row31003=31003:thumb,row31004=31004:thumb,row31005=31005:thumb,row31006=31006:thumb
+345 [mut] /inbox/doc/31001 doc=31001   ph=loading preview
+353 [mut] /inbox/doc/31001 doc=31001 screen31001=31001:thumb(loading)
+359 [mut] /inbox/doc/31001 doc=31001 screen31001=31001:thumb
+499 [mut] /inbox/doc/31002 doc=31001 screen31001=31001:thumb
+523 [mut] /inbox/doc/31002 doc=31002   ph=loading preview
+726 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb(loading)
+731 [error] /inbox/doc/31002 doc=31002 screen31002=31002:thumb!BROKEN
+736 [mut] /inbox/doc/31002 doc=31002   ph=preview failed to load
+1073 [mut] /inbox/doc/31002 doc=31002  note="Loading preview…" ph=preview failed to load
+1266 [mut] /inbox/doc/31002 doc=31002 dialog31002=31002:lg(loading)(0px)  ph=preview failed to load
+1272 [error] /inbox/doc/31002 doc=31002 dialog31002=31002:lg!BROKEN  ph=preview failed to load
+1276 [mut] /inbox/doc/31002 doc=31002  note="The preview couldn’t be loaded." ph=preview failed to load
+1595 [mut] /inbox/doc/31002 doc=31002  note="Loading preview…" ph=loading preview
+1607 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb(loading),dialog31002=31002:thumb(loading)(0px) note="Loading full-size preview…"
+1610 [load] /inbox/doc/31002 doc=31002 screen31002=31002:thumb,dialog31002=31002:thumb note="Loading full-size preview…"
+1819 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb,dialog31002=31002:lg(loading)(0px)
+1821 [load] /inbox/doc/31002 doc=31002 screen31002=31002:thumb,dialog31002=31002:lg
+2136 [mut] /inbox/doc/31002 doc=31002 screen31002=31002:thumb
+2243 [mut] /inbox/doc/31003 doc=31002 screen31002=31002:thumb
+2260 [mut] /inbox/doc/31003 doc=31003   ph=loading preview
+2271 [mut] /inbox/doc/31003 doc=31003 screen31003=31003:thumb(loading)
+2272 [load] /inbox/doc/31003 doc=31003 screen31003=31003:thumb
+2322 [mut] /inbox/doc/31003 doc=31003 screen31003=31003:thumb,dialog31003=31003:thumb note="Loading full-size preview…"
+2522 [mut] /inbox/doc/31003 doc=31003 screen31003=31003:thumb,dialog31003=31003:lg(loading)(0px)
+2526 [error] /inbox/doc/31003 doc=31003 screen31003=31003:thumb,dialog31003=31003:lg!BROKEN
+2530 [mut] /inbox/doc/31003 doc=31003 screen31003=31003:thumb,dialog31003=31003:thumb note="The full-size preview couldn’t be loaded — showing a smaller one."
+2827 [mut] /inbox/doc/31003 doc=31003 screen31003=31003:thumb
+2896 [raf] /settings doc=31003 screen31003=31003:thumb
+2924 [mut] /settings doc=-
