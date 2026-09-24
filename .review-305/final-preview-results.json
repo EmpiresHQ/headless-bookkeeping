@@ -1,0 +1,3733 @@
+[
+ {
+  "vp": "320x844",
+  "case": "inbox-lightbox-a4",
+  "id": 31001,
+  "scrollBefore": 4123,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     1131,
+     1600
+    ],
+    "shown": [
+     296,
+     418.7
+    ],
+    "x": 12,
+    "y": 242.6,
+    "scale": 0.262,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 268,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 4123,
+   "after": 4123,
+   "stillOpen": true
+  },
+  "pinch": {
+   "vv": {
+    "scale": 5,
+    "left": 59,
+    "top": 136,
+    "w": 64,
+    "h": 169,
+    "scrollY": 4123
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1131,
+      1600
+     ],
+     "shown": [
+      296,
+      418.7
+     ],
+     "x": 12,
+     "y": 242.6,
+     "scale": 0.262,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 320,
+     "cw": 320,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 268,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "pinchPan": {
+   "vv": {
+    "scale": 5,
+    "left": 0,
+    "top": 0,
+    "w": 64,
+    "h": 169,
+    "scrollY": 4123
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1131,
+      1600
+     ],
+     "shown": [
+      296,
+      418.7
+     ],
+     "x": 12,
+     "y": 242.6,
+     "scale": 0.262,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 320,
+     "cw": 320,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 268,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "closeWhileZoomed": {
+   "reachable": false
+  },
+  "unpinch": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 320,
+   "h": 844,
+   "scrollY": 4123
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4123,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4123,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    160,
+    681
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4123,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4123,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "320x844",
+  "case": "inbox-lightbox-receipt",
+  "id": 31002,
+  "scrollBefore": 4255,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     213,
+     1600
+    ],
+    "shown": [
+     101.2,
+     760
+    ],
+    "x": 109.4,
+    "y": 72,
+    "scale": 0.475,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 268,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 4255,
+   "after": 4255,
+   "stillOpen": true
+  },
+  "pinch": {
+   "vv": {
+    "scale": 5,
+    "left": 59,
+    "top": 136,
+    "w": 64,
+    "h": 169,
+    "scrollY": 4255
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      213,
+      1600
+     ],
+     "shown": [
+      101.2,
+      760
+     ],
+     "x": 109.4,
+     "y": 72,
+     "scale": 0.475,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 320,
+     "cw": 320,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 268,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "pinchPan": {
+   "vv": {
+    "scale": 5,
+    "left": 0,
+    "top": 0,
+    "w": 64,
+    "h": 169,
+    "scrollY": 4255
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      213,
+      1600
+     ],
+     "shown": [
+      101.2,
+      760
+     ],
+     "x": 109.4,
+     "y": 72,
+     "scale": 0.475,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 320,
+     "cw": 320,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 268,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "closeWhileZoomed": {
+   "reachable": false
+  },
+  "unpinch": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 320,
+   "h": 844,
+   "scrollY": 4255
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4255,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4255,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    8,
+    422
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4255,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4255,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "320x844",
+  "case": "inbox-lightbox-wide",
+  "id": 31003,
+  "scrollBefore": 4387,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     1600,
+     400
+    ],
+    "shown": [
+     296,
+     74
+    ],
+    "x": 12,
+    "y": 415,
+    "scale": 0.185,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 268,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 4387,
+   "after": 4387,
+   "stillOpen": true
+  },
+  "pinch": {
+   "vv": {
+    "scale": 5,
+    "left": 59,
+    "top": 136,
+    "w": 64,
+    "h": 169,
+    "scrollY": 4387
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1600,
+      400
+     ],
+     "shown": [
+      296,
+      74
+     ],
+     "x": 12,
+     "y": 415,
+     "scale": 0.185,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 320,
+     "cw": 320,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 268,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "pinchPan": {
+   "vv": {
+    "scale": 5,
+    "left": 0,
+    "top": 0,
+    "w": 64,
+    "h": 169,
+    "scrollY": 4387
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1600,
+      400
+     ],
+     "shown": [
+      296,
+      74
+     ],
+     "x": 12,
+     "y": 415,
+     "scale": 0.185,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 320,
+     "cw": 320,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 268,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "closeWhileZoomed": {
+   "reachable": false
+  },
+  "unpinch": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 320,
+   "h": 844,
+   "scrollY": 4387
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4387,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4387,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    160,
+    509
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4387,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 4387,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "320x844",
+  "case": "triage-row-lightbox-receipt",
+  "id": 31002,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     213,
+     1600
+    ],
+    "shown": [
+     101.2,
+     760
+    ],
+    "x": 109.4,
+    "y": 72,
+    "scale": 0.475,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 268,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "close_x": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_escape": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_back": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_backdrop": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "scrollBefore": 0,
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "320x844",
+  "case": "source-pane-pdf",
+  "id": 31004,
+  "pageScrollBefore": 0,
+  "segmentRole": 1,
+  "sourceActive": "true",
+  "fit": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "100%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     304,
+     430
+    ],
+    "backing": [
+     608,
+     860
+    ]
+   },
+   "scroller": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 534,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "overflowFit": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "zoom300": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ]
+   },
+   "scroller": {
+    "sw": 927,
+    "cw": 320,
+    "sh": 1306,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "zoomInDisabledAtMax": true,
+  "overflowZoom": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "panned": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ]
+   },
+   "scroller": {
+    "sw": 927,
+    "cw": 320,
+    "sh": 1306,
+    "ch": 534,
+    "sl": 0,
+    "st": 238
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "swipeDownAtTop": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ]
+   },
+   "scroller": {
+    "sw": 927,
+    "cw": 320,
+    "sh": 1306,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "pinchInSheet": {
+   "vv": {
+    "scale": 1,
+    "left": 0,
+    "top": 0,
+    "w": 320,
+    "h": 844,
+    "scrollY": 0
+   },
+   "zoom": "300%"
+  },
+  "unpinchInSheet": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 320,
+   "h": 844,
+   "scrollY": 0
+  },
+  "pages": [
+   {
+    "k": 2,
+    "label": "Page 2 of 12",
+    "drawn": "2",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 3,
+    "label": "Page 3 of 12",
+    "drawn": "3",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 4,
+    "label": "Page 4 of 12",
+    "drawn": "4",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 5,
+    "label": "Page 5 of 12",
+    "drawn": "5",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 6,
+    "label": "Page 6 of 12",
+    "drawn": "6",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 7,
+    "label": "Page 7 of 12",
+    "drawn": "7",
+    "css": [
+     912,
+     644
+    ],
+    "backing": [
+     1824,
+     1288
+    ],
+    "st": 0,
+    "sw": 928,
+    "cw": 320
+   },
+   {
+    "k": 8,
+    "label": "Page 8 of 12",
+    "drawn": "8",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 9,
+    "label": "Page 9 of 12",
+    "drawn": "9",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 10,
+    "label": "Page 10 of 12",
+    "drawn": "10",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 11,
+    "label": "Page 11 of 12",
+    "drawn": "11",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   },
+   {
+    "k": 12,
+    "label": "Page 12 of 12",
+    "drawn": "12",
+    "css": [
+     911,
+     1290
+    ],
+    "backing": [
+     1823,
+     2581
+    ],
+    "st": 0,
+    "sw": 927,
+    "cw": 320
+   }
+  ],
+  "nextDisabledAtEnd": true,
+  "fitAtEnd": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": "Page 12 of 12",
+   "zoom": "100%",
+   "drawnPage": "12",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     304,
+     430
+    ],
+    "backing": [
+     608,
+     860
+    ]
+   },
+   "scroller": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 534,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "formActiveAfterToggle": "false",
+  "afterToggle": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": "Page 12 of 12",
+   "zoom": "100%",
+   "drawnPage": "12",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     304,
+     430
+    ],
+    "backing": [
+     608,
+     860
+    ]
+   },
+   "scroller": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 534,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "closeEscape": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0,
+   "focus": "Choose category"
+  },
+  "closeBack": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0
+  },
+  "closeX": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0,
+   "focus": "Choose category"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "320x844",
+  "case": "source-pane-photo",
+  "id": 31005,
+  "pageScrollBefore": 0,
+  "segmentRole": 1,
+  "sourceActive": "true",
+  "fit": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "100%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     304,
+     405
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 320,
+    "cw": 320,
+    "sh": 534,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "overflowFit": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "zoom300": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     912,
+     1216
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 928,
+    "cw": 320,
+    "sh": 1232,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "zoomInDisabledAtMax": true,
+  "overflowZoom": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "panned": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     912,
+     1216
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 928,
+    "cw": 320,
+    "sh": 1232,
+    "ch": 534,
+    "sl": 0,
+    "st": 238
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "swipeDownAtTop": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 320,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     912,
+     1216
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 928,
+    "cw": 320,
+    "sh": 1232,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 320,
+   "vw": 320
+  },
+  "pinchInSheet": {
+   "vv": {
+    "scale": 1,
+    "left": 0,
+    "top": 0,
+    "w": 320,
+    "h": 844,
+    "scrollY": 0
+   },
+   "zoom": "300%"
+  },
+  "unpinchInSheet": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 320,
+   "h": 844,
+   "scrollY": 0
+  },
+  "closeEscape": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0,
+   "focus": "Review extracted data"
+  },
+  "closeBack": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0
+  },
+  "closeX": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0,
+   "focus": "Review extracted data"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "390x844",
+  "case": "inbox-lightbox-a4",
+  "id": 31001,
+  "scrollBefore": 3368,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     1131,
+     1600
+    ],
+    "shown": [
+     366,
+     517.8
+    ],
+    "x": 12,
+    "y": 193.1,
+    "scale": 0.324,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 338,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 3368,
+   "after": 3368,
+   "stillOpen": true
+  },
+  "pinch": {
+   "vv": {
+    "scale": 5,
+    "left": 56,
+    "top": 109,
+    "w": 78,
+    "h": 169,
+    "scrollY": 3368
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1131,
+      1600
+     ],
+     "shown": [
+      366,
+      517.8
+     ],
+     "x": 12,
+     "y": 193.1,
+     "scale": 0.324,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 390,
+     "cw": 390,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 338,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "pinchPan": {
+   "vv": {
+    "scale": 5,
+    "left": 0,
+    "top": 0,
+    "w": 78,
+    "h": 169,
+    "scrollY": 3368
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1131,
+      1600
+     ],
+     "shown": [
+      366,
+      517.8
+     ],
+     "x": 12,
+     "y": 193.1,
+     "scale": 0.324,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 390,
+     "cw": 390,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 338,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "closeWhileZoomed": {
+   "reachable": false
+  },
+  "unpinch": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 390,
+   "h": 844,
+   "scrollY": 3368
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3368,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3368,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    195,
+    731
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3368,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3368,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "390x844",
+  "case": "inbox-lightbox-receipt",
+  "id": 31002,
+  "scrollBefore": 3479,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     213,
+     1600
+    ],
+    "shown": [
+     101.2,
+     760
+    ],
+    "x": 144.4,
+    "y": 72,
+    "scale": 0.475,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 338,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 3479,
+   "after": 3479,
+   "stillOpen": true
+  },
+  "pinch": {
+   "vv": {
+    "scale": 5,
+    "left": 55,
+    "top": 117,
+    "w": 78,
+    "h": 169,
+    "scrollY": 3479
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      213,
+      1600
+     ],
+     "shown": [
+      101.2,
+      760
+     ],
+     "x": 144.4,
+     "y": 72,
+     "scale": 0.475,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 390,
+     "cw": 390,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 338,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "pinchPan": {
+   "vv": {
+    "scale": 5,
+    "left": 0,
+    "top": 0,
+    "w": 78,
+    "h": 169,
+    "scrollY": 3479
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      213,
+      1600
+     ],
+     "shown": [
+      101.2,
+      760
+     ],
+     "x": 144.4,
+     "y": 72,
+     "scale": 0.475,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 390,
+     "cw": 390,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 338,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "closeWhileZoomed": {
+   "reachable": false
+  },
+  "unpinch": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 390,
+   "h": 844,
+   "scrollY": 3479
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3479,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3479,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    8,
+    422
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3479,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3479,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "390x844",
+  "case": "inbox-lightbox-wide",
+  "id": 31003,
+  "scrollBefore": 3589,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     1600,
+     400
+    ],
+    "shown": [
+     366,
+     91.5
+    ],
+    "x": 12,
+    "y": 406.3,
+    "scale": 0.229,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 338,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 3589,
+   "after": 3589,
+   "stillOpen": true
+  },
+  "pinch": {
+   "vv": {
+    "scale": 5,
+    "left": 63,
+    "top": 109,
+    "w": 78,
+    "h": 169,
+    "scrollY": 3589
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1600,
+      400
+     ],
+     "shown": [
+      366,
+      91.5
+     ],
+     "x": 12,
+     "y": 406.3,
+     "scale": 0.229,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 390,
+     "cw": 390,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 338,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "pinchPan": {
+   "vv": {
+    "scale": 5,
+    "left": 0,
+    "top": 0,
+    "w": 78,
+    "h": 169,
+    "scrollY": 3589
+   },
+   "lb": {
+    "open": true,
+    "img": {
+     "natural": [
+      1600,
+      400
+     ],
+     "shown": [
+      366,
+      91.5
+     ],
+     "x": 12,
+     "y": 406.3,
+     "scale": 0.229,
+     "inViewport": true
+    },
+    "imgBoxScroll": {
+     "sw": 390,
+     "cw": 390,
+     "sh": 784,
+     "ch": 784
+    },
+    "close": {
+     "x": 338,
+     "y": 10,
+     "w": 40,
+     "h": 40,
+     "hit": true,
+     "inVisualViewport": false
+    },
+    "note": "",
+    "focus": "Close preview",
+    "focusInDialog": true,
+    "bodyLock": {
+     "overflow": "hidden",
+     "locked": true,
+     "pointerEvents": "none"
+    }
+   }
+  },
+  "closeWhileZoomed": {
+   "reachable": false
+  },
+  "unpinch": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 390,
+   "h": 844,
+   "scrollY": 3589
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3589,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3589,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    195,
+    518
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3589,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 3589,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "390x844",
+  "case": "triage-row-lightbox-receipt",
+  "id": 31002,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     213,
+     1600
+    ],
+    "shown": [
+     101.2,
+     760
+    ],
+    "x": 144.4,
+    "y": 72,
+    "scale": 0.475,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 784,
+    "ch": 784
+   },
+   "close": {
+    "x": 338,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "close_x": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_escape": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_back": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_backdrop": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "scrollBefore": 0,
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "390x844",
+  "case": "source-pane-pdf",
+  "id": 31004,
+  "pageScrollBefore": 0,
+  "segmentRole": 1,
+  "sourceActive": "true",
+  "fit": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "100%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     374,
+     529
+    ],
+    "backing": [
+     748,
+     1058
+    ]
+   },
+   "scroller": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 545,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "overflowFit": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "zoom300": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ]
+   },
+   "scroller": {
+    "sw": 1138,
+    "cw": 390,
+    "sh": 1603,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "zoomInDisabledAtMax": true,
+  "overflowZoom": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "panned": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ]
+   },
+   "scroller": {
+    "sw": 1138,
+    "cw": 390,
+    "sh": 1603,
+    "ch": 534,
+    "sl": 0,
+    "st": 238
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "swipeDownAtTop": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ]
+   },
+   "scroller": {
+    "sw": 1138,
+    "cw": 390,
+    "sh": 1603,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "pinchInSheet": {
+   "vv": {
+    "scale": 1,
+    "left": 0,
+    "top": 0,
+    "w": 390,
+    "h": 844,
+    "scrollY": 0
+   },
+   "zoom": "300%"
+  },
+  "unpinchInSheet": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 390,
+   "h": 844,
+   "scrollY": 0
+  },
+  "pages": [
+   {
+    "k": 2,
+    "label": "Page 2 of 12",
+    "drawn": "2",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 3,
+    "label": "Page 3 of 12",
+    "drawn": "3",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 4,
+    "label": "Page 4 of 12",
+    "drawn": "4",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 5,
+    "label": "Page 5 of 12",
+    "drawn": "5",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 6,
+    "label": "Page 6 of 12",
+    "drawn": "6",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 7,
+    "label": "Page 7 of 12",
+    "drawn": "7",
+    "css": [
+     1122,
+     792
+    ],
+    "backing": [
+     2244,
+     1585
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 8,
+    "label": "Page 8 of 12",
+    "drawn": "8",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 9,
+    "label": "Page 9 of 12",
+    "drawn": "9",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 10,
+    "label": "Page 10 of 12",
+    "drawn": "10",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 11,
+    "label": "Page 11 of 12",
+    "drawn": "11",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   },
+   {
+    "k": 12,
+    "label": "Page 12 of 12",
+    "drawn": "12",
+    "css": [
+     1122,
+     1587
+    ],
+    "backing": [
+     2244,
+     3175
+    ],
+    "st": 0,
+    "sw": 1138,
+    "cw": 390
+   }
+  ],
+  "nextDisabledAtEnd": true,
+  "fitAtEnd": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": "Page 12 of 12",
+   "zoom": "100%",
+   "drawnPage": "12",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     374,
+     529
+    ],
+    "backing": [
+     748,
+     1058
+    ]
+   },
+   "scroller": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 545,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "formActiveAfterToggle": "false",
+  "afterToggle": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": "Page 12 of 12",
+   "zoom": "100%",
+   "drawnPage": "12",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     374,
+     529
+    ],
+    "backing": [
+     748,
+     1058
+    ]
+   },
+   "scroller": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 545,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "closeEscape": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0,
+   "focus": "Choose category"
+  },
+  "closeBack": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0
+  },
+  "closeX": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0,
+   "focus": "Choose category"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "390x844",
+  "case": "source-pane-photo",
+  "id": 31005,
+  "pageScrollBefore": 0,
+  "segmentRole": 1,
+  "sourceActive": "true",
+  "fit": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "100%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     374,
+     499
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 390,
+    "cw": 390,
+    "sh": 534,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "overflowFit": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "zoom300": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     1122,
+     1496
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 1138,
+    "cw": 390,
+    "sh": 1512,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "zoomInDisabledAtMax": true,
+  "overflowZoom": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "panned": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     1122,
+     1496
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 1138,
+    "cw": 390,
+    "sh": 1512,
+    "ch": 534,
+    "sl": 0,
+    "st": 238
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "swipeDownAtTop": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 0,
+    "y": 186,
+    "w": 390,
+    "h": 646
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     1122,
+     1496
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 1138,
+    "cw": 390,
+    "sh": 1512,
+    "ch": 534,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 390,
+   "vw": 390
+  },
+  "pinchInSheet": {
+   "vv": {
+    "scale": 1,
+    "left": 0,
+    "top": 0,
+    "w": 390,
+    "h": 844,
+    "scrollY": 0
+   },
+   "zoom": "300%"
+  },
+  "unpinchInSheet": {
+   "scale": 1,
+   "left": 0,
+   "top": 0,
+   "w": 390,
+   "h": 844,
+   "scrollY": 0
+  },
+  "closeEscape": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0,
+   "focus": "Review extracted data"
+  },
+  "closeBack": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0
+  },
+  "closeX": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0,
+   "focus": "Review extracted data"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "1440x900",
+  "case": "inbox-lightbox-a4",
+  "id": 31001,
+  "scrollBefore": 2787,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     1131,
+     1600
+    ],
+    "shown": [
+     576.8,
+     816
+    ],
+    "x": 431.6,
+    "y": 72,
+    "scale": 0.51,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 1440,
+    "cw": 1440,
+    "sh": 840,
+    "ch": 840
+   },
+   "close": {
+    "x": 1388,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 2787,
+   "after": 2787,
+   "stillOpen": true
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2787,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2787,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    8,
+    450
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2787,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2787,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "1440x900",
+  "case": "inbox-lightbox-receipt",
+  "id": 31002,
+  "scrollBefore": 2879,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     213,
+     1600
+    ],
+    "shown": [
+     108.6,
+     816
+    ],
+    "x": 665.7,
+    "y": 72,
+    "scale": 0.51,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 1440,
+    "cw": 1440,
+    "sh": 840,
+    "ch": 840
+   },
+   "close": {
+    "x": 1388,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 2879,
+   "after": 2879,
+   "stillOpen": true
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2879,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2879,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    8,
+    450
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2879,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2879,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "1440x900",
+  "case": "inbox-lightbox-wide",
+  "id": 31003,
+  "scrollBefore": 2970,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     1600,
+     400
+    ],
+    "shown": [
+     1416,
+     354
+    ],
+    "x": 12,
+    "y": 303,
+    "scale": 0.885,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 1440,
+    "cw": 1440,
+    "sh": 840,
+    "ch": 840
+   },
+   "close": {
+    "x": 1388,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "tabCycle": [
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   },
+   {
+    "el": "Open original",
+    "inDialog": true
+   },
+   {
+    "el": "Close preview",
+    "inDialog": true
+   }
+  ],
+  "scrollLock": {
+   "before": 2970,
+   "after": 2970,
+   "stillOpen": true
+  },
+  "closeX": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2970,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "keyboardOpenFocus": "Close preview",
+  "closeEscape": {
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2970,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBackdrop": {
+   "at": [
+    720,
+    677
+   ],
+   "target": "DIV.flex min-h-0 flex-1 items-cent",
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2970,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "closeBack": {
+   "historyLenBefore": 3,
+   "open": false,
+   "path": "/inbox",
+   "scrollY": 2970,
+   "focusOnOpener": true,
+   "focus": "Open document preview"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "1440x900",
+  "case": "triage-row-lightbox-receipt",
+  "id": 31002,
+  "open": {
+   "open": true,
+   "img": {
+    "natural": [
+     213,
+     1600
+    ],
+    "shown": [
+     108.6,
+     816
+    ],
+    "x": 665.7,
+    "y": 72,
+    "scale": 0.51,
+    "inViewport": true
+   },
+   "imgBoxScroll": {
+    "sw": 1440,
+    "cw": 1440,
+    "sh": 840,
+    "ch": 840
+   },
+   "close": {
+    "x": 1388,
+    "y": 10,
+    "w": 40,
+    "h": 40,
+    "hit": true,
+    "inVisualViewport": true
+   },
+   "note": "",
+   "focus": "Close preview",
+   "focusInDialog": true,
+   "bodyLock": {
+    "overflow": "hidden",
+    "locked": true,
+    "pointerEvents": "none"
+   }
+  },
+  "overflowOpen": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "close_x": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_escape": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_back": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "close_backdrop": {
+   "open": false,
+   "path": "/inbox/doc/31002",
+   "scrollY": 0,
+   "focus": "Source documentTap to preview›"
+  },
+  "scrollBefore": 0,
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "1440x900",
+  "case": "source-pane-pdf",
+  "id": 31004,
+  "pageScrollBefore": 0,
+  "fit": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": "Page 1 of 12",
+   "zoom": "100%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     579,
+     819
+    ],
+    "backing": [
+     579,
+     819
+    ]
+   },
+   "scroller": {
+    "sw": 595,
+    "cw": 595,
+    "sh": 835,
+    "ch": 658,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "overflowFit": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "zoom300": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ]
+   },
+   "scroller": {
+    "sw": 1753,
+    "cw": 595,
+    "sh": 2474,
+    "ch": 658,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "zoomInDisabledAtMax": true,
+  "overflowZoom": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "panned": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": "Page 1 of 12",
+   "zoom": "300%",
+   "drawnPage": "1",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ]
+   },
+   "scroller": {
+    "sw": 1753,
+    "cw": 595,
+    "sh": 2474,
+    "ch": 658,
+    "sl": 300,
+    "st": 400
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "pages": [
+   {
+    "k": 2,
+    "label": "Page 2 of 12",
+    "drawn": "2",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 3,
+    "label": "Page 3 of 12",
+    "drawn": "3",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 4,
+    "label": "Page 4 of 12",
+    "drawn": "4",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 5,
+    "label": "Page 5 of 12",
+    "drawn": "5",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 6,
+    "label": "Page 6 of 12",
+    "drawn": "6",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 7,
+    "label": "Page 7 of 12",
+    "drawn": "7",
+    "css": [
+     1737,
+     1227
+    ],
+    "backing": [
+     1737,
+     1227
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 8,
+    "label": "Page 8 of 12",
+    "drawn": "8",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 9,
+    "label": "Page 9 of 12",
+    "drawn": "9",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 10,
+    "label": "Page 10 of 12",
+    "drawn": "10",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 11,
+    "label": "Page 11 of 12",
+    "drawn": "11",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   },
+   {
+    "k": 12,
+    "label": "Page 12 of 12",
+    "drawn": "12",
+    "css": [
+     1737,
+     2458
+    ],
+    "backing": [
+     1737,
+     2458
+    ],
+    "st": 0,
+    "sw": 1753,
+    "cw": 595
+   }
+  ],
+  "nextDisabledAtEnd": true,
+  "fitAtEnd": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": "Page 12 of 12",
+   "zoom": "100%",
+   "drawnPage": "12",
+   "media": {
+    "tag": "CANVAS",
+    "css": [
+     579,
+     819
+    ],
+    "backing": [
+     579,
+     819
+    ]
+   },
+   "scroller": {
+    "sw": 595,
+    "cw": 595,
+    "sh": 835,
+    "ch": 658,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "closeEscape": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0,
+   "focus": "Choose category"
+  },
+  "closeBack": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0
+  },
+  "closeX": {
+   "sheet": false,
+   "path": "/inbox/doc/31004",
+   "scrollY": 0,
+   "focus": "Choose category"
+  },
+  "errors": [],
+  "writes": []
+ },
+ {
+  "vp": "1440x900",
+  "case": "source-pane-photo",
+  "id": 31005,
+  "pageScrollBefore": 0,
+  "fit": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": null,
+   "zoom": "100%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     594,
+     792
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 610,
+    "cw": 610,
+    "sh": 808,
+    "ch": 658,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "overflowFit": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "zoom300": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     1782,
+     2376
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 1798,
+    "cw": 610,
+    "sh": 2392,
+    "ch": 658,
+    "sl": 0,
+    "st": 0
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "zoomInDisabledAtMax": true,
+  "overflowZoom": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "panned": {
+   "present": true,
+   "sheet": true,
+   "visible": true,
+   "paneRect": {
+    "x": 101,
+    "y": 135,
+    "w": 610,
+    "h": 752
+   },
+   "label": null,
+   "zoom": "300%",
+   "drawnPage": null,
+   "media": {
+    "tag": "IMG",
+    "css": [
+     1782,
+     2376
+    ],
+    "backing": [
+     3024,
+     4032
+    ]
+   },
+   "scroller": {
+    "sw": 1798,
+    "cw": 610,
+    "sh": 2392,
+    "ch": 658,
+    "sl": 300,
+    "st": 400
+   },
+   "winScrollY": 0,
+   "docScrollW": 1440,
+   "vw": 1440
+  },
+  "closeEscape": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0,
+   "focus": "Review extracted data"
+  },
+  "closeBack": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0
+  },
+  "closeX": {
+   "sheet": false,
+   "path": "/inbox/doc/31005",
+   "scrollY": 0,
+   "focus": "Review extracted data"
+  },
+  "errors": [],
+  "writes": []
+ }
+]
