@@ -1,4 +1,7 @@
 import { Toaster, toast } from 'sonner';
+// Sonner injects these rules at runtime too, but a host CSP can reject that
+// <style> tag. Bundle them so the toaster remains a fixed overlay.
+import 'sonner/dist/styles.css';
 
 export function AppToaster() {
   return <Toaster position="top-center" richColors closeButton={false} />;
