@@ -1,0 +1,21 @@
+QA-010 / issue #303 — desktop realistic data. Base main f83cee8. Report: docs/qa/2026-09-24-desktop-realistic-data.md
+
+COMMITTED (compact evidence)
+  MANIFEST              this file
+  final-results.json    final run.mjs results, 1440+1920 (timings, counts, layout probes, request counts)
+  final.log             final runner output (4/10; failures classified in the report)
+  initial.log           initial runner output (2/10; harness radio-click + first keystroke-loss sighting)
+  typing.log            typing matrix, stopped early on request at 78/120 result rows (log ends with the kill trace) (1920 small-data rows missing)
+
+UNTRACKED (kept locally, not committed)
+  harness  fixtures.mjs sha256 a10211f95c1795ac3b90033cd987108b48148ac940958de7b4bcf5935de67258
+           run.mjs      sha256 d26dd33f3669a7cff44a36017f1601335a14d4b981a22327f5a4fa94761186a0
+           typing.mjs   sha256 136d222858aed915c96787f58bfea559bdc6c90eff8185a4b7c87000c0823381
+  results  initial-results.json, run2-results.json, run2.log
+  shots    books-expenses-{1440,1920}.png, inbox-{1440,1920}.png, bank-statement-{1440,1920}.png, fail-*.png
+  debug    probe.mjs/probe.log, probe2.mjs/probe2.log, dbg.mjs, dbg2.mjs, dbg3.mjs (Book-button DOM check)
+  build    dist/ (6.4 MB; index.html sha256 008824569d1b416abcd43515d0a3b4df2f80c8be69db8ddc5972be39179ef430,
+           assets/index-B89dC_Y3.js sha256 3a68762e95178d8b0a529da418073226501e3b59c4ff1efb09daa76cac2137fb), build.log
+  preview  preview.log, preview.pid (vite preview PID 571437 on 127.0.0.1:5371, stopped)
+
+Fixtures are generated in memory from seed 303 (buildData in fixtures.mjs); no fixture files were written.

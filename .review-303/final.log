@@ -1,0 +1,12 @@
+FAIL books-expenses @1440: page.waitForFunction: Timeout 10000ms exceeded.
+FAIL inbox @1440: ["search showing 20 1000 tasks"]
+FAIL bank-statement @1440: page.waitForFunction: Timeout 10000ms exceeded.
+PASS books-documents @1440: []
+PASS repeat-nav @1440: []
+FAIL books-expenses @1920: page.waitForFunction: Timeout 10000ms exceeded.
+FAIL inbox @1920: ["search showing 20 1000 tasks"]
+FAIL bank-statement @1920: page.waitForFunction: Timeout 10000ms exceeded.
+PASS books-documents @1920: []
+PASS repeat-nav @1920: []
+4/10 passed
+exit=1
