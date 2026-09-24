@@ -10,19 +10,23 @@ mock. No real period was locked, and no real credential, token or mailbox was
 used or contacted. A mock's accept, refuse or dedup behaviour says nothing
 about the real server's accounting correctness or idempotency.
 
+A later same-day run re-checked these flows on `main` `ea0b00c`, after the F1
+fix (#376) and the landmark change (#378). See
+[Re-verification on `main` `ea0b00c`](#re-verification-on-main-ea0b00c).
+
 ## Verdict
 
-| Area (issue #301 list)                              | Status                                                                                                                                                                                   |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Physical iOS/Android browser                        | **NOT RUN** (no device available)                                                                                                                                                        |
-| Period viewing / closing with fresh proof           | Run (mock), 320 + 390. **Pass**. Root ran the fresh-proof gating and pending-dismiss cases; this run covers server refusal → retry → frozen state                                        |
-| XML / CSV download                                  | Run (mock), 320 + 390. **Pass**: real browser download events, exact suggested filenames and bodies. 1 cosmetic observation (O1)                                                         |
-| Correcting a supplier invoice number (INF gap)      | Run (mock), 320 + 390. **Pass**                                                                                                                                                          |
-| Settings Save / Clear (failure, pending, refetch)   | Run (mock), 320 + 390. **Pass**. Root ran the AI-model races; this run covers the `public_api_url` key on the device screen                                                              |
-| Counterparty creation (Settings → Entities)         | Run (mock), 320 + 390. **Pass**                                                                                                                                                          |
-| Mailbox connection (IMAP, OAuth start/return, Sync) | Run (mock), 320 + 390. Mostly pass. **1 proposed, source-derived defect (F1 → [#376](https://github.com/EmpiresHQ/headless-bookkeeping/issues/376))**: an empty IMAP port is sent as `0` |
-| Device connection (enrollment QR)                   | Run (mock), 320 + 390. **Pass**                                                                                                                                                          |
-| Issue #301                                          | **Stays OPEN**: the issue asks for a physical pass, and physical-device acceptance is untested                                                                                           |
+| Area (issue #301 list)                              | Status                                                                                                                                                                                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Physical iOS/Android browser                        | **NOT RUN** (no device available)                                                                                                                                                                                               |
+| Period viewing / closing with fresh proof           | Run (mock), 320 + 390. **Pass**. Root ran the fresh-proof gating and pending-dismiss cases; this run covers server refusal → retry → frozen state                                                                               |
+| XML / CSV download                                  | Run (mock), 320 + 390. **Pass**: real browser download events, exact suggested filenames and bodies. 1 cosmetic observation (O1)                                                                                                |
+| Correcting a supplier invoice number (INF gap)      | Run (mock), 320 + 390. **Pass**                                                                                                                                                                                                 |
+| Settings Save / Clear (failure, pending, refetch)   | Run (mock), 320 + 390. **Pass**. Root ran the AI-model races; this run covers the `public_api_url` key on the device screen                                                                                                     |
+| Counterparty creation (Settings → Entities)         | Run (mock), 320 + 390. **Pass**                                                                                                                                                                                                 |
+| Mailbox connection (IMAP, OAuth start/return, Sync) | Run (mock), 320 + 390. Mostly pass. **1 proposed, source-derived defect (F1 → [#376](https://github.com/EmpiresHQ/headless-bookkeeping/issues/376))**: an empty IMAP port is sent as `0`. Fixed by `9db60ca`; re-verified below |
+| Device connection (enrollment QR)                   | Run (mock), 320 + 390. **Pass**                                                                                                                                                                                                 |
+| Issue #301                                          | **Stays OPEN**: the issue asks for a physical pass, and physical-device acceptance is untested                                                                                                                                  |
 
 ### Proposed finding (not fixed here)
 
@@ -174,3 +178,172 @@ Root ran its own preview on 5265 against the same build (`/tmp/hbk-301-browser/r
 - Results: `reports-results.json` (final), `reports-run2-results.json`, `reports-initial-results.json`; `settings-results.json` (final), `settings-run2-results.json`, `settings-initial-results.json`.
 - Logs: `reports-initial.log`, `reports-run2.log`, `reports-final.log`, `settings-initial.log`, `settings-run2.log`, `settings-final.log`, `probe-settings.log`, `preview.log`, `preview.pid`.
 - Screenshots per width: `period-open`, `download-failure`, `fix-number-{sheet,failure,saved}`, `close-{sheet,failure}`, `period-frozen`, `enroll-{unconfigured,qr}`, `imap-{sheet,failure,empty-port}`, `mailbox-listed`, `entity-{sheet,created}`, plus the `fail-*` shots from the failed runs (`fail-mailbox-imap-{320,390}.png` were overwritten by run2's failure of the same case; the other settings `fail-*` shots are from the initial run).
+
+## Re-verification on `main` `ea0b00c`
+
+Run on 2026-09-24, later the same day. Two web changes landed after the first
+run: `9db60ca` (#376, IMAP port validation in `AddImapSheet.tsx`) and `84ca1f7`
+(#378, the shell wrapper `div` became `<main>` and the desktop sidebar gained
+`<nav aria-label="Primary">`). `git diff d03c592..ea0b00c -- packages/web`
+touches only `AddImapSheet.tsx`, `AppLayout.tsx`, `Sidebar.tsx` and their tests.
+**No physical phone and no native iOS Safari / Android Chrome were used here
+either.** No product code was changed, and no defect was found.
+
+### Set-up
+
+- **Build:** a fresh `tsc -b` (exit 0) and `vite build` (exit 0) from this
+  worktree at `ea0b00c`, served by `vite preview` on `127.0.0.1:5391`, then
+  stopped by PID. Dependencies came from the `hbk-ui-378` worktree's
+  `node_modules`, because the shared checkout's copy has no `pdfjs-dist`.
+- **Browser:** Chromium 153.0.8010.12 (Playwright 1.63.0, headless) on Node
+  24.21.0 on Linux. Contexts 320×844 and 390×844 CSS px, `isMobile` +
+  `hasTouch`, DPR 1. Same environment variables as the first run.
+- **Fixtures:** the same read-only bases (`/tmp/hbk-252-browser`,
+  `/tmp/hbk-255-browser` period, `/tmp/hbk-289-browser` settings). On top of
+  them, a new stateful mock in `mobile-settings.mjs` covers mailbox
+  connectors, OAuth start, entities and device enrollment. The first run's
+  agent scripts were not kept, so this is a rewrite, not a rerun. Fake values
+  only: `FAKE-APP-PASSWORD-301`, `FAKE-ENROLL-TOKEN-n`, `*.fixture.invalid`.
+- **Non-GET safety:** a `page.on('request')` hook records every non-GET under
+  `/api` and `/admin`, and each case asserts the exact list. Unknown non-GETs
+  are answered 500 by the base fixture, and every case asserts that no page
+  errors occurred and there is no horizontal scroll.
+- **Touch geometry:** each case measures the control's rect after it stops
+  moving. The hit extent is found by probing `elementFromPoint` outward from
+  the centre, which is why a 42.5 px box reads 43–44.
+
+### Results
+
+| Script                | Cases              | Run     | Exit | Result                   |
+| --------------------- | ------------------ | ------- | ---- | ------------------------ |
+| `reports.mjs` (root)  | 2 × {320, 390} = 4 | final   | 0    | **4 / 4**                |
+| `settings.mjs` (root) | 1 × {320, 390} = 2 | final   | 0    | **2 / 2**                |
+| `mobile-settings.mjs` | 7 × {320, 390} =14 | initial | 1    | 12 / 14 (harness, below) |
+|                       |                    | run2    | 1    | 12 / 14 (harness, below) |
+|                       |                    | final   | 0    | **14 / 14**              |
+
+- **Root `reports.mjs`:**
+  - XML/CSV downloads fire real download events with the served filenames and
+    bytes. A 409 refusal produces no download, and a manual retry works. 0
+    non-GET.
+  - Closing the period re-reads KMD and warnings before the lock, and sends
+    exactly one `POST …/7/lock`.
+- **Root `settings.mjs`:** AI-model Save 503 keeps the draft, the held save
+  keeps a newer edit, and Clear works. Writes were `PUT` ×3 and `DELETE` ×1 on
+  `ai_model` only.
+- **`imap-port-validation` (the #376 fix on a phone):**
+  - The Port input has `type=number`, `inputmode=numeric`, `min=1` and
+    `max=65535`, and defaults to 993.
+  - For `""`, `0`, `70000` and `99999999`, "Add mailbox" is disabled. "Enter a
+    port from 1 to 65535" shows inside the viewport, and the input carries
+    `aria-invalid="true"` with the message in `aria-describedby`.
+  - A forced tap on the disabled button sent **0 POST**. Refilling 993 clears
+    the error and enables the button.
+  - "Add mailbox" is 272×42.5 at 320 (y 757.5) and 342×42.5 at 390, visible
+    without scrolling.
+- **`imap-add-refuse-retry-sync`:**
+  - Port typed as `" 143 "`; Chromium's number input holds `143`.
+  - A 400 refusal shows its toast and the sheet keeps host, mode and the
+    21-character password.
+  - A held retry disables the fieldset. A forced second tap and Escape do not
+    dismiss the sheet, and exactly one more POST leaves.
+  - On release: toast "Mailbox added — qa301@fixture.invalid", and the
+    password is absent from the page HTML. "Sync …" (73×42.5) posts
+    `…/connectors/50/sync`, and "last synced" appears.
+  - Bodies carry `port: 143`. Non-GET: `POST /api/mailbox/connectors` ×2, then
+    `POST /api/mailbox/connectors/50/sync`.
+- **`oauth-start-return`:** a refused OAuth start shows a toast, does not
+  navigate and re-enables the buttons. A same-origin stand-in URL with
+  `?mailbox=connected` shows "Mailbox connected" and strips the query. 0
+  non-GET.
+- **`entity-create`:**
+  - "＋ Add" is 80×42.5.
+  - A 400 refusal keeps name and key. A held retry is not dismissed by Escape
+    or a second tap, and exactly one more POST leaves.
+  - On release: toast "Supplier added — QA 301 Supplier OÜ",
+    `/settings/entities/44` shows the entity, and Back returns to the list,
+    which now includes it.
+  - Body as in the first run, with country `EE`. Non-GET: `POST /api/entities`
+    ×2.
+- **`device-enrollment`:**
+  - The mint on mount was held: skeleton shown, no "Try again". The 500 then
+    shows "The QR cannot be generated yet".
+  - Save of `public_api_url`, then "Try again", gives a QR of 252 px at 320
+    and 256 px at 390, within the width. The token is not in the page text.
+  - Regenerate changes the `src`, and Clear shows "Stored value removed".
+  - Non-GET: `POST /api/device-enrollments`, `PUT
+/admin/settings/public_api_url`, `POST` ×2, `DELETE
+/admin/settings/public_api_url`.
+- **`landmarks-settings` (#378 on a phone):**
+  - Exactly one `<main>`, with `padding-bottom` 95 px above the tab bar. The
+    sidebar's `nav "Primary"` is not displayed at 320/390, and the tab bar's
+    `nav` is.
+  - Tab links Inbox/Books/Reports/Settings are 46–47×44 at y 792, inside the
+    viewport. The "Mail intake" settings row has a 66 px hit height.
+- **`route-recovery`:** `/settings/nope` renders "Not found … This address
+  does not open a screen" with section links, and its "‹ Back" leads to
+  `/inbox`. A reload of `/settings/mailbox` restores the screen. 0 non-GET.
+
+Every toast measured was fully inside the viewport at y 16, 16 px from the
+side.
+
+### Not re-run, and why
+
+- The Reports invoice-number correction (`fix-invoice-number`), and the
+  first run's close refusal → retry → frozen state, were **not** re-run. Their
+  scripts were not kept, and none of their source files changed between
+  `d03c592` and `ea0b00c`. The first run's result stands for them, on the
+  older build.
+
+### Harness failures and corrections
+
+- **Initial and run2, 12/14:** `entity-create` failed at both widths after the
+  POST succeeded and the entity screen rendered. The harness waited for a
+  heading "QA 301 Supplier OÜ" (initial), then for a heading "Entity" (run2).
+  `EntityScreen` passes no `heading` to `ScreenHeader`, so the title renders
+  as a `span`, not an `h1`. That was my wrong model. The screens without a
+  heading are already recorded by the #302 report. The final run waits for
+  the text "Entity" and the entity's name inside `<main>`.
+
+### Observations (no defect claimed)
+
+- **O2. A toast raised while a sheet is open cannot be touched.** The IMAP 400
+  toast is drawn over the top of the sheet. At 320 it covers the sheet title
+  for its lifetime, as the `imap-failure-320.png` screenshot shows. It is
+  readable, but `elementFromPoint` at its centre does not return the toast. It
+  cannot be tapped or swiped away until sonner's default timeout, because the
+  app sets no close button (`closeButton={false}`). The sheet keeps the
+  input, so nothing is lost.
+- **O3.** Primary buttons are 42.5 CSS px tall, slightly under a 44 px goal and
+  well over WCAG 2.5.8's 24 px. "‹ Back" on the Not-found screen is 51×22.5,
+  already recorded as O3 in the #302 report.
+
+### Limitations
+
+These are the same as the first run's. In short:
+
+- No physical device, OS keyboard, native download UI or real gestures.
+  Escape stands in for a dismiss gesture.
+- Only the fixed 844 px height was used.
+- The OAuth provider round-trip was simulated on the same origin. The QR was
+  not decoded.
+- Mock semantics only. No server-side port validation (#376's controller
+  change) was exercised.
+
+Issue #301 stays **open** for the physical iOS/Android pass.
+
+### Evidence (untracked, `.review-301/agent-evidence/` in this worktree)
+
+- Scripts: `mobile-settings.mjs` (final), `mobile-settings.initial.mjs`, and
+  copies of root's `reports.mjs` and `settings.mjs` (output path only
+  changed).
+- Results: `mobile-settings-results.json`, `-run2-results.json`,
+  `-initial-results.json`, `reports-results.json`, `settings-results.json`.
+- Logs: `mobile-settings-{initial,run2,final}.log`, `reports.log`,
+  `settings.log`, `tsc.log`, `build.log`, `preview.log`.
+- Screenshots per width:
+  - `imap-port-invalid-cleared`, `imap-failure`, `mailbox-listed`,
+    `entity-created`, `enroll-qr`.
+  - `settings` (from `landmarks-settings`, which overwrote root's).
+  - `downloads`, `closed-period`, plus the downloaded `download-{320,390}.{xml,csv}`.
+  - `fail-entity-create-*` (from run2).
