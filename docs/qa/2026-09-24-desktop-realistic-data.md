@@ -141,6 +141,9 @@ non-GET requests** (no mutation was reached).
 
 ### Dropped search keystrokes: UNCONFIRMED candidate (C1), not filed
 
+> **Update (re-run on `2f22cab`):** C1 is confirmed and fixed. See
+> [2026-09-24-desktop-realistic-data-rerun.md](2026-09-24-desktop-realistic-data-rerun.md).
+
 **Symptom.** A searchbox value was shorter than the characters typed into it.
 This happened with fast synthetic typing into the Books › Expenses, Inbox and
 Bank statement searches:
