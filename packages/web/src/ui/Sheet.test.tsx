@@ -306,8 +306,10 @@ describe('Sheet', () => {
         .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
         .mockImplementation(function (this: HTMLElement) {
           if (this.getAttribute('role') !== 'dialog') return new DOMRect();
+          // Fixed at `bottom` (vaul's inline lift, else 0).
           const h = boxHeight(this);
-          return new DOMRect(0, window.innerHeight - h, 390, h);
+          const bottom = parseFloat(this.style.bottom) || 0;
+          return new DOMRect(0, window.innerHeight - bottom - h, 390, h);
         });
       vv = Object.assign(new EventTarget(), {
         height: 844,
@@ -480,6 +482,88 @@ describe('Sheet', () => {
         next.style.height = '500px';
         await frame();
         expect(next.style.height).toBe('500px');
+      } finally {
+        restore();
+      }
+    });
+
+    // Issue #295 (QA-002 re-run): rotating with the keyboard up. vaul
+    // floors the panel height at `visualViewport.height - top`, and the top
+    // it reads right after a layout change is the portrait lift seen in the
+    // landscape box — far above the screen — so the panel came out taller
+    // than the space left over the keyboard, Close and the first fields
+    // pushed above the screen until the keyboard went away.
+    it('rotating with the keyboard up keeps the panel top on screen', async () => {
+      setup();
+      try {
+        renderSheet();
+        const gross = screen.getByLabelText('Gross') as HTMLInputElement;
+        fireEvent.change(gross, { target: { value: '45.67' } });
+        gross.focus();
+        await viewport(844, { height: 508 }); // portrait, keyboard up
+        expect(dialog().getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
+        await viewport(390, { height: 200 }); // landscape, keyboard up
+        const land = dialog().getBoundingClientRect();
+        expect(dialog().style.bottom).toBe('190px');
+        expect(land.top).toBeGreaterThanOrEqual(0);
+        expect(land.bottom).toBeLessThanOrEqual(200);
+        await viewport(844, { height: 508 }); // portrait again
+        // Full use of the room over the keyboard again, not the landscape
+        // height: vaul's 26px gap at the top, as on a first lift.
+        const port = dialog().getBoundingClientRect();
+        expect(port.top).toBeCloseTo(26);
+        expect(port.bottom).toBe(508);
+        await viewport(844); // keyboard hidden
+        expect(boxHeight(dialog())).toBe(NATURAL);
+        expect(parseFloat(dialog().style.bottom || '0')).toBe(0);
+        expect(document.activeElement).toBe(gross);
+        expect(gross.value).toBe('45.67');
+      } finally {
+        restore();
+      }
+    });
+
+    it('a short panel keeps its own height when fitted after a rotation', async () => {
+      setup();
+      try {
+        render(
+          <Sheet open onOpenChange={vi.fn()} title="Reason">
+            <input aria-label="Gross" />
+          </Sheet>,
+        );
+        const natural = vi
+          .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+          .mockImplementation(function (this: HTMLElement) {
+            if (this.getAttribute('role') !== 'dialog') return new DOMRect();
+            const inline = parseFloat(this.style.height);
+            const h = Math.min(
+              Number.isNaN(inline) ? 300 : inline,
+              window.innerHeight * 0.92,
+            );
+            const bottom = parseFloat(this.style.bottom) || 0;
+            return new DOMRect(0, window.innerHeight - bottom - h, 390, h);
+          });
+        screen.getByLabelText('Gross').focus();
+        await viewport(844, { height: 508 });
+        await viewport(390, { height: 200 });
+        expect(dialog().getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
+        await viewport(844, { height: 508 });
+        expect(dialog().getBoundingClientRect().height).toBe(300);
+        natural.mockRestore();
+      } finally {
+        restore();
+      }
+    });
+
+    it('leaves a lifted panel that fits to vaul', async () => {
+      setup();
+      try {
+        renderSheet();
+        screen.getByLabelText('Gross').focus();
+        await viewport(844, { height: 508 });
+        const lifted = dialog().getAttribute('style');
+        await viewport(844, { height: 508 });
+        expect(dialog().getAttribute('style')).toBe(lifted);
       } finally {
         restore();
       }

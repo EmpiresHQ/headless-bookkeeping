@@ -19,6 +19,9 @@ const VAUL_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 // Rounding slack between innerHeight (integer) and visualViewport.height
 // (fractional) when nothing covers the page.
 const VIEWPORT_SLACK = 1;
+// vaul's WINDOW_TOP_OFFSET: the gap it leaves above a panel lifted over the
+// keyboard.
+const KEYBOARD_TOP_GAP = 26;
 
 /** Bottom sheet for actions attached to the current screen (spec: action =
  *  sheet; object with identity = route; irreversible = ConfirmDialog).
@@ -185,25 +188,66 @@ export function Sheet({
   // again in the next frame, before paint — for the panel the event was
   // for, only while it is still this sheet's open panel and the viewport
   // still coincides. No transform, focus or scroll is touched.
+  //
+  // Keyboard up across a layout change (issue #295: rotation, split
+  // screen): vaul floors the height at `visualViewport.height - top`, and
+  // the top it reads right after the layout changed is the old lift seen in
+  // the new box — above the screen — so the panel comes out taller than the
+  // room over the keyboard, Close and the first fields out of reach. When
+  // the unzoomed panel's top is above the visible band, size it (bottom
+  // stays on the keyboard) to its CSS height or the room from
+  // `KEYBOARD_TOP_GAP` below the band's top — vaul's own gap — whichever is
+  // smaller, and keep doing so until the keyboard goes. A panel that fits
+  // is left to vaul, and nothing is sized while zoomed.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     let frame: number | null = null;
-    const release = (el: HTMLDivElement | null) => {
-      if (!el || el !== contentRef.current || !el.isConnected) return;
-      if (el.getAttribute('data-state') !== 'open') return;
+    const current = (el: HTMLDivElement | null): el is HTMLDivElement =>
+      !!el &&
+      el === contentRef.current &&
+      el.isConnected &&
+      el.getAttribute('data-state') === 'open';
+    const release = (el: HTMLDivElement) => {
       if (vv.scale !== 1 || vv.offsetTop !== 0 || vv.offsetLeft !== 0) return;
       if (Math.abs(window.innerHeight - vv.height) > VIEWPORT_SLACK) return;
       el.style.removeProperty('height');
       el.style.removeProperty('bottom');
     };
+    // The panel this effect has sized; until the keyboard goes, vaul's own
+    // arithmetic starts from that size, so keep sizing it (rotating back
+    // must get the room back, not keep the landscape height).
+    let fitted: HTMLDivElement | null = null;
+    const fitUnderKeyboard = (el: HTMLDivElement) => {
+      if (vv.scale !== 1) return;
+      if (window.innerHeight - vv.height <= VIEWPORT_SLACK) {
+        fitted = null;
+        return;
+      }
+      const box = el.getBoundingClientRect();
+      const bandTop = vv.offsetTop;
+      if (fitted !== el && box.top >= bandTop - VIEWPORT_SLACK) return;
+      // The CSS height (content up to max-h, or the source sheet's h) is
+      // the most the panel wants; the room over the keyboard is the most
+      // it gets.
+      el.style.removeProperty('height');
+      const natural = el.getBoundingClientRect().height;
+      const room = box.bottom - (bandTop + KEYBOARD_TOP_GAP);
+      el.style.height = `${Math.max(Math.min(natural, room), 0)}px`;
+      fitted = el;
+    };
+    const adjust = (el: HTMLDivElement | null) => {
+      if (!current(el)) return;
+      release(el);
+      fitUnderKeyboard(el);
+    };
     const onResize = () => {
       const el = contentRef.current;
-      release(el);
+      adjust(el);
       if (frame !== null) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = null;
-        release(el);
+        adjust(el);
       });
     };
     vv.addEventListener('resize', onResize);

@@ -1,0 +1,28 @@
+QA-002 (#295) re-run evidence — 2026-09-24, main 1208ad8 (before) and 1208ad8 + D1 Sheet fix (after).
+Report: docs/qa/2026-09-24-keyboard-resize-rerun.md
+All data route-mocked; every write refused (503) and counted: 0 in every scenario.
+Headless Chromium 153.0.8010.12 via Playwright 1.63.0, Node 24.21.0. Proxy only — no soft keyboard, no device.
+
+evidence/kb-before.log                     19-scenario matrix on the unmodified build (S3-expense-L-rotate+kb fails: D1)
+evidence/kb-after.log                      same matrix on the fixed build (19/19)
+evidence/kb-checks-compact.json            every check (402) per scenario, before and after, with fixture counters
+evidence/rotate-before-after.log           rotation probe, 4 form-sheet cases, before (5395) then after first fix draft (5396)
+evidence/rotate-verify-before-after.log    rotation probe, Verify source sheet, before / first fix draft (shows the short-sheet regression the final fix removed)
+evidence/rotate-after-final.log            rotation probe, all 5 cases on the final fixed build
+evidence/rotate-kb-before-390x844.jpg      D1: landscape with keyboard stub, sheet top/Close/Category above the screen
+evidence/rotate-kb-after-390x844.jpg       same step on the fixed build
+evidence/S1-kb-open-390x844.jpg            reopened New expense with keyboard stub up (fixed build)
+evidence/S4-verify-390x844.jpg             Verify source sheet after (L) restore (fixed build)
+evidence/S6-reject-textarea.jpg            Reject reason textarea, 8 lines, keyboard stub up (fixed build)
+harness/kb.mjs, harness/rotate.mjs         the matrix and the rotation probe
+harness/common.mjs, harness/inpage.js      fixtures, copied from the #305 harness (base port changed to 5395)
+
+Run (needs the local Playwright set-up):
+  TMPDIR=/root/.cache/hbk-browser-tmp LD_LIBRARY_PATH=/tmp/hbk-browser-libs/root/usr/lib \
+  FONTCONFIG_FILE=/tmp/hbk-browser-libs/fonts.conf REVIEW_BASE=http://127.0.0.1:<port> \
+  OUT_DIR=<dir>/ node harness/kb.mjs          # ONLY=<regex> to filter scenarios
+  VP=390x844 DPORT=336 DLAND=190 WHICH='New expense'|'New sales invoice'|verify node harness/rotate.mjs
+Serve a build with: node node_modules/vite/bin/vite.js preview --outDir <dist> --port <port> (from packages/web).
+
+Not committed (local, untracked): .review-295-rerun/work (builds dist/ and dist-after/, preview logs,
+full JSON dumps, raw screenshots, web-test.log, web-lint.log).
