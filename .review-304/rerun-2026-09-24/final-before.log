@@ -1,0 +1,39 @@
+PASS S1 1440x900 1791ms created=8 revoked=8 live=0 frames=101 samples=167 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S2 1440x900 2244ms created=10 revoked=10 live=0 frames=131 samples=189 fails=0 brokenRaf=0 brokenDom=0 writes=3 unhandled=0
+PASS S3 1440x900 1627ms created=8 revoked=8 live=0 frames=93 samples=213 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+PASS S4 1440x900 1938ms created=10 revoked=10 live=0 frames=114 samples=184 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S5 1440x900 4054ms created=9 revoked=9 live=0 frames=240 samples=187 fails=0 brokenRaf=0 brokenDom=0 writes=3 unhandled=0
+FAIL S6 1440x900 2540ms created=13 revoked=13 live=0 frames=148 samples=245 fails=0 brokenRaf=1 brokenDom=3 writes=2 unhandled=0
+PASS S7 1440x900 1702ms created=9 revoked=9 live=0 frames=98 samples=427 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+FAIL S8 1440x900 1994ms created=3 revoked=3 live=0 frames=115 samples=244 fails=0 brokenRaf=20 brokenDom=6 writes=0 unhandled=0 ERR D1: row 32002 keeps a broken image [{"id":32001,"img":true,"broken":false,"w":61,"glyph":false},{"id":32002,"img":true,"broken":true,"w":0,"glyph":false},{"id":32003,"img":true,"broken":false,"w":63,"glyph":false}]
+PASS S9 1440x900 2688ms created=22 revoked=22 live=0 frames=157 samples=514 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+PASS S10 1440x900 5174ms created=9 revoked=9 live=0 frames=309 samples=414 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S11 1440x900 14011ms created=112 revoked=112 live=0 frames=836 samples=1383 fails=0 brokenRaf=0 brokenDom=5 writes=19 unhandled=0
+PASS S12 1440x900 10568ms created=0 revoked=0 live=0 frames=165 samples=0 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+FAIL S13 1440x900 22230ms created=206 revoked=206 live=0 frames=1327 samples=3869 fails=0 brokenRaf=7 brokenDom=50 writes=0 unhandled=0
+PASS S1 1920x1080 1630ms created=8 revoked=8 live=0 frames=95 samples=145 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S2 1920x1080 2115ms created=10 revoked=10 live=0 frames=121 samples=164 fails=0 brokenRaf=0 brokenDom=0 writes=3 unhandled=0
+PASS S3 1920x1080 1513ms created=8 revoked=8 live=0 frames=88 samples=194 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+PASS S4 1920x1080 1847ms created=10 revoked=10 live=0 frames=108 samples=190 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S5 1920x1080 4035ms created=9 revoked=9 live=0 frames=239 samples=193 fails=0 brokenRaf=0 brokenDom=0 writes=3 unhandled=0
+FAIL S6 1920x1080 2633ms created=13 revoked=13 live=0 frames=156 samples=249 fails=0 brokenRaf=1 brokenDom=3 writes=2 unhandled=0
+PASS S7 1920x1080 1807ms created=9 revoked=9 live=0 frames=104 samples=473 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+FAIL S8 1920x1080 1936ms created=3 revoked=3 live=0 frames=114 samples=240 fails=0 brokenRaf=20 brokenDom=6 writes=0 unhandled=0 ERR D1: row 32002 keeps a broken image [{"id":32001,"img":true,"broken":false,"w":61,"glyph":false},{"id":32002,"img":true,"broken":true,"w":0,"glyph":false},{"id":32003,"img":true,"broken":false,"w":63,"glyph":false}]
+PASS S9 1920x1080 2661ms created=22 revoked=22 live=0 frames=157 samples=492 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+PASS S10 1920x1080 5234ms created=9 revoked=9 live=0 frames=313 samples=428 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+FAIL S11 1920x1080 13624ms created=193 revoked=193 live=0 frames=814 samples=1525 fails=0 brokenRaf=2 brokenDom=6 writes=14 unhandled=0
+PASS S12 1920x1080 10524ms created=0 revoked=0 live=0 frames=164 samples=0 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+FAIL S13 1920x1080 22077ms created=206 revoked=206 live=0 frames=1316 samples=3842 fails=0 brokenRaf=5 brokenDom=50 writes=0 unhandled=0
+PASS S1 390x844m 1632ms created=8 revoked=8 live=0 frames=97 samples=165 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S2 390x844m 2175ms created=10 revoked=10 live=0 frames=127 samples=181 fails=0 brokenRaf=0 brokenDom=0 writes=3 unhandled=0
+PASS S3 390x844m 1652ms created=8 revoked=8 live=0 frames=95 samples=202 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+PASS S4 390x844m 2088ms created=10 revoked=10 live=0 frames=122 samples=198 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S5 390x844m 4155ms created=9 revoked=9 live=0 frames=244 samples=210 fails=0 brokenRaf=0 brokenDom=0 writes=3 unhandled=0
+FAIL S6 390x844m 2647ms created=13 revoked=13 live=0 frames=156 samples=248 fails=0 brokenRaf=1 brokenDom=3 writes=2 unhandled=0
+PASS S7 390x844m 1779ms created=9 revoked=9 live=0 frames=105 samples=457 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+FAIL S8 390x844m 1929ms created=3 revoked=3 live=0 frames=114 samples=240 fails=0 brokenRaf=20 brokenDom=6 writes=0 unhandled=0 ERR D1: row 32002 keeps a broken image [{"id":32001,"img":true,"broken":false,"w":61,"glyph":false},{"id":32002,"img":true,"broken":true,"w":0,"glyph":false},{"id":32003,"img":true,"broken":false,"w":63,"glyph":false}]
+PASS S9 390x844m 2476ms created=22 revoked=22 live=0 frames=146 samples=458 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+PASS S10 390x844m 5245ms created=9 revoked=9 live=0 frames=311 samples=418 fails=0 brokenRaf=0 brokenDom=0 writes=1 unhandled=0
+PASS S11 390x844m 14027ms created=189 revoked=189 live=0 frames=837 samples=1445 fails=0 brokenRaf=0 brokenDom=9 writes=13 unhandled=0
+PASS S12 390x844m 10427ms created=0 revoked=0 live=0 frames=159 samples=0 fails=0 brokenRaf=0 brokenDom=0 writes=0 unhandled=0
+FAIL S13 390x844m 22171ms created=206 revoked=206 live=0 frames=1325 samples=3873 fails=0 brokenRaf=7 brokenDom=50 writes=0 unhandled=0

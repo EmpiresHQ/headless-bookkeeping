@@ -1,5 +1,194 @@
 # QA-011: Switching documents while a preview loads (issue #304)
 
+## Re-run on `main` `4f583f4` (2026-09-24, after #303 and #378)
+
+A second, independent pass over the same question, on current `main`
+(`4f583f4`, which includes the #303 fast-search fix and the #378 app-shell
+landmarks). The first run's harness was never committed and was gone, so
+a new one was written and is now committed under
+`.review-304/rerun-2026-09-24/h/`. **Mocked and read-only:** every `/api`
+request was answered by a Playwright route mock and every `/preview` by an
+in-page `fetch` mock. The static server has no proxy, so no request could
+reach a real backend. The only writes were mocked
+`POST /api/documents/:id/complete` (79 per build); 0 held, 0 unhandled, 0
+page errors. **Native iOS, Safari/WebKit, Firefox and physical devices were
+not run.**
+
+### Verdict
+
+| Check                                                                     | Result                                                                                                                                                                                 |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A preview of another object is ever visible (S1–S13, 3 viewports)         | **Pass**, both builds. 0 wrong-object samples in 23 975–24 266 image checks over ~11 450 rAF frames per build (blob identity and decoded-pixel identity both checked)                  |
+| Stale late answers (thumb and lg)                                         | **Pass**. Revoked 0–1 ms after creation, never placed in an `<img>` (checked with a per-URL "shown" flag)                                                                              |
+| Errors on the new fetch are surfaced (500, 404, network error, bad bytes) | **Pass**. The row says "preview failed to load" / "no preview"; the lightbox says "The preview couldn’t be loaded." + Retry, or "No preview is available…"; Retry recovers             |
+| Object URL cleanup                                                        | **Pass**. 1415 of 1415 created URLs revoked per build after leaving through the app; 0 live                                                                                            |
+| **D1** Books › Documents persistent broken image                          | **Reproduced on `4f583f4`** (row 32002 broken in 20 of 20 sampled frames at every viewport). **Fixed in this commit**: after the fix the row shows the fallback glyph, 0 broken frames |
+| **D2** one painted frame of a broken `<img>` before the error state       | **Still present, not fixed** (see below): unchanged by this commit                                                                                                                     |
+| #303 fast search (`?q=`-bound) and #378 landmarks                         | **No regression**. 12 of 12 typing runs intact per build; 1 `main` everywhere and the desktop `Primary` nav                                                                            |
+
+### Set-up
+
+- **Builds:** `vite build` of `packages/web` at `4f583f4` ("before",
+  `index.html` sha256 `26d5c9e…8886`, `index-BVh8m1g_.js`) and the same
+  tree with the D1 fix ("after", `1fd7cb2…fbf`, `index-DpiddmlL.js`).
+  They were served by `.review-303/h/serve.mjs` (static, no `/api` proxy) on
+  `127.0.0.1:5374` and `127.0.0.1:5375`. Both servers are stopped. Worktree
+  `node_modules` is an ignored symlink to an existing install. There was no
+  `npm install`.
+- **Browser:** Playwright 1.63.0, headless Chromium (`chromium_headless_shell-1243`),
+  `--no-sandbox`. Viewports: **1440×900** and **1920×1080** desktop (DPR 1, no
+  touch), and **390×844** mobile emulation (`isMobile`, touch, DPR 3). One
+  browser at a time. The final before and after runs were made back to back
+  on an otherwise idle machine. Linux, Intel Core i5-7400T (4 cores),
+  7 GB RAM, Node 24.21.0.
+- **Fixtures:** triage documents `31001`–`31006` (`31001`–`31030` for the
+  soak), reasons `low_confidence` / `category_unresolved`, file names
+  `qa-doc-<id>.pdf`. Archive documents `32001`–`32003` for Books. No
+  real financial data.
+- **Preview mock (`inpage.js`):** per `<id>:thumb|lg`, a FIFO plan of `ok`,
+  `500`, `404`, `neterr` (a rejected fetch), `broken` (200 `image/png`, not a
+  PNG) or `slowbody` (headers at once, body trickled over 200–1500 ms), with
+  an optional delay and/or a gate that the harness releases. An `ok` body is
+  a PNG whose width encodes the document (thumb 60 + id % 100, lg 600 + id % 100),
+  with the request's identity appended after `IEND`.
+  - Plans are added only after the Inbox list has made its own thumb
+    requests. Otherwise the list would consume them. This was found in the
+    first dev run.
+- **Monitor:** on every rAF (pre-paint), DOM mutation and image
+  `load`/`error`, every `blob:` `<img>` is checked. The expected document
+  for each image is:
+  - in a lightbox, the document it was opened for;
+  - in a list row, the row's single document link;
+  - otherwise, the rendered `h1` file name (not the URL).
+
+  A failure is one of three things: a different object by blob marker, a
+  different object by pixel width, or a URL revoked before the image
+  decoded. Broken images are counted only at rAF samples.
+
+### Timing and fault matrix (every case at every viewport, both builds)
+
+| Case | What                                                                                                                                                    | Faults / timing                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| S1   | Slow thumb of A; Archive moves the same screen to B; A answers after the switch, then B                                                                 | Gates                                                   |
+| S2   | A→B→C→D in ~425–440 ms; answers B, D, then C after D                                                                                                    | Gates, out of order                                     |
+| S3   | Slow lg: open, close, reopen while pending (still 1 lg request), answer while open, reopen shows lg on the first frame                                  | Gate                                                    |
+| S4   | A's lg pending when the row switches to B; B opened with thumb and lg pending; A answers late                                                           | Gates                                                   |
+| S5   | New document's thumb and lg 500 (600 ms) → Retry; next 404; next network error                                                                          | 500 / 404 / `neterr`                                    |
+| S6   | New document's thumb and lg undecodable → Retry; next lg undecodable with thumb ok                                                                      | `broken`                                                |
+| S7   | Inbox list lightbox (`DocThumbLightbox`): open A, close, open B, A's lg answers, reopen A (refetches)                                                   | Gates                                                   |
+| S8   | Books › Documents, row 32002 undecodable (D1)                                                                                                           | `broken`                                                |
+| S9   | **New.** Leave and re-enter by Back/Forward with thumbs pending (unmount/remount); Back while the lightbox is open closes only the lightbox             | Gates                                                   |
+| S10  | **New.** Slow body download across a switch and across close/reopen of the lightbox                                                                     | `slowbody` 600–1500 ms                                  |
+| S11  | **New.** Seeded soak: 40 random actions (advance, open, close, Back, leave and re-enter) with no settling, over 30 documents, random per-request faults | `ok`/`slowbody`/`500`/`404`/`broken`/`neterr`, 0–500 ms |
+| S12  | #378 landmarks on `/inbox`, `/inbox/doc/:id`, `/books`; #303 typing into Inbox and Books search at 0 and 30 ms per key                                  | —                                                       |
+| S13  | D2 repeat: 25 cycles of open document (thumb `broken`) + open preview (lg `broken`)                                                                     | `broken`, 50–210 ms                                     |
+
+All scripted assertions passed on both builds, except S8 on "before" (D1).
+Selected values (after, 1440):
+
+- **Stale answers:** S1 A revoked 0 ms after creation; S2 B/C 1 ms; S4 A's lg 0 ms; S10 A's slow body 0 ms. None was ever shown.
+- **S3:** 1 lg request over two opens; the first frame after reopen is the lg (601 px).
+- **S5:** "loading preview" → "preview failed to load", then Retry → lg. 404 → "no preview" / "No preview is available for this document. You can still try Open original.". A network error → "preview failed to load".
+- **S9:** Back with the lightbox open stayed on `/inbox/doc/31004` and closed the preview.
+- **S11:** it settled on the last document, with that document's own thumb (1440: 31030, 1920: 31027, 390: 31028).
+- **S12:**
+  - **Search:** the field and `?q=` were intact for `qa-doc-31004` and `Põhja-Eesti 1234.56` at 0 and 30 ms per key.
+  - **Landmarks:** 1 `main` on every page, plus the `Primary` nav on desktop. On mobile the only nav is the unnamed tab bar (#378 names the desktop nav).
+
+Rendered `<img>` samples with a broken image at a painted frame:
+
+| Build  | Viewport  | S6           | S8 (D1)      | S11 (Inbox list row 34×34) | S13 row thumb / lightbox (cycles of 25) |
+| ------ | --------- | ------------ | ------------ | -------------------------- | --------------------------------------- |
+| before | 1440×900  | 1 (lightbox) | **20 (all)** | 0                          | 4 / 3                                   |
+| before | 1920×1080 | 1 (lightbox) | **20 (all)** | 2                          | 3 / 2                                   |
+| before | 390×844   | 1 (row)      | **20 (all)** | 0                          | 6 / 1                                   |
+| after  | 1440×900  | 0            | **0**        | 0                          | 1 / 6                                   |
+| after  | 1920×1080 | 1 (lightbox) | **0**        | 1                          | 2 / 2                                   |
+| after  | 390×844   | 0            | **0**        | 0                          | 4 / 1                                   |
+
+### D1: fixed (`packages/web/src/books/DocThumb.tsx`)
+
+`DocThumb` now has an `onError` handler. Bytes that download but do not decode switch the row to
+its fallback (the built-in glyph, or the caller's `fallback`), as
+`DocPreviewRow` and `DocThumbLightbox` already do. The result is also
+bound to the `id` it was fetched for, so the latent "previous id's image
+while the new one loads" case (first report, D1 note) cannot happen either.
+Regression tests in `DocThumb.test.tsx` cover the glyph fallback, the custom
+fallback and the id switch. All 3 fail on the unfixed component and pass
+with the fix. In the browser, row 32002 now shows the glyph at all three
+viewports (screenshots `before-`/`after-s8-books-documents-*.jpg`).
+
+### D2: still open (suggested P4, follow-up, not fixed here)
+
+D2 was reproduced again on both builds. Undecodable bytes produce a broken `<img>`
+for about one painted frame before `reportBroken` swaps in the error state:
+
+- **S13:** 1–6 of 25 cycles per surface.
+- **Soak and list:** once or twice in the S11 soak, including the Inbox list thumbnail (`DocThumbLightbox`, 34×34), which the first report had not seen.
+- **Books row (after the fix):** `DocThumb`'s new fallback has the same one-frame window in principle. It was not observed there (0 of 3 viewports).
+
+The final state is always the correct error + Retry. A fix belongs in the shared
+`usePreviewObjectUrl` (decode before `ready`, or keep the `<img>` hidden
+until `load`). That is wider than this QA pass and touches every preview
+test, so it is left as a follow-up. No issue was filed.
+
+### Harness notes (not product)
+
+- **S2 timing flake.** In the first full "before" run, S2 failed its old
+  "revoked within 1 ms" assertion at 1440 and at 390; the per-URL detail
+  was not recorded. A concurrent `vitest` run later gave 2–3 ms. In every
+  such run the monitor saw 0 wrong-object samples. The assertion is now
+  "revoked and never shown in an `<img>`". S2 then passed 15 of 15 extra
+  runs and the final runs.
+- **Same-instance check.** The S1 check (does the same Source row node survive the advance?) did not find the row with this
+  harness's selector (`sameNode: false` means "untagged", not "remounted"). So this run
+  does not re-establish that the same `DocPreviewRow` instance was reused.
+  The first report did.
+- **Under load.** While `vitest` ran in parallel, four long Inbox/router
+  tests timed out (52–229 s). Run alone, the same files pass, and the full
+  suite passes (below).
+
+### Observations (not defects)
+
+- **O3 (mobile 390×844).** In the lightbox, the dimmed page and the tab bar
+  show through behind the bottom status line. After a queue advance, the
+  "Archived without booking" toast sits above the open lightbox
+  (`after-s5-error-retry-390x844m.jpg`). This is cosmetic and outside this
+  issue.
+- O1 (stale requests are not aborted) and O2 (the thumb → lg swap) from
+  the first run still apply. The code is unchanged.
+
+### Checks
+
+`packages/web`: `vitest run` 146 files, 1489 tests passed (run alone);
+`tsc -b` clean; `eslint` and `prettier --check` clean on the changed files.
+
+### Limits (untested)
+
+- **Scope:**
+  - Real backend and real corrupt or partial PNGs; HTTP/1.1 connection limits.
+  - `ApprovalScreen` and `books/DocumentScreen` previews were not driven separately. `DocumentSourcePane` was not driven.
+  - Sign-out during a pending preview.
+- **Environment:** WebKit/Safari, Firefox, native iOS, physical devices. Mobile was Chromium emulation only.
+
+### Evidence
+
+`.review-304/rerun-2026-09-24/`:
+
+- the harness `h/`;
+- `final-before.log` and `final-after.log`;
+- `summary-*.txt`;
+- `final-*-compact.json` (per-case steps, request start/settle, URL counters, monitor results);
+- `shots/`.
+
+Full results with per-frame timelines and both builds are kept locally in
+`.review-304/work/` (untracked).
+
+## First run (main `db30995`)
+
+The sections below are the original run, kept as recorded. D1 is fixed by
+the re-run above. D2 is still open.
+
 This was a verification task, not an assumed bug. The run was a bounded,
 mocked Chromium matrix at **1440×900** and **1920×1080** CSS px, DPR 1, on
 `main` `db30995`. No product code, tests, configs or app assets were changed.
