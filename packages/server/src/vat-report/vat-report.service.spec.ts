@@ -899,6 +899,90 @@ describe('VAT report snapshot generation (integration)', () => {
       await organizationService.updateOrganization({ country: 'EE' });
     });
 
+    describe('untagged VAT settlements (issue #395)', () => {
+      const line = (
+        account_code: string,
+        base_amount: number,
+        is_debit: boolean,
+        vat_code: string | null = null,
+      ) => ({
+        account_code,
+        amount: base_amount,
+        base_amount,
+        is_debit,
+        vat_code,
+        currency: 'EUR',
+        fx_rate: 1,
+      });
+
+      beforeEach(async () => {
+        await seedPostedVoucher('2024-02-15', [
+          line('EXPENSE_SOFTWARE', 10000, true, 'EE_INPUT_24'),
+          line('VAT_RECEIVABLE', 2400, true, 'EE_INPUT_24'),
+          line('AP', 12400, false),
+        ]);
+        await seedPostedVoucher('2024-02-16', [
+          line('AR', 24800, true),
+          line('REVENUE', 20000, false, 'EE_OUTPUT_24'),
+          line('VAT_PAYABLE', 4800, false, 'EE_OUTPUT_24'),
+        ]);
+      });
+
+      it.each([
+        ['refund', 'VAT_RECEIVABLE', false],
+        ['liability payment', 'VAT_PAYABLE', true],
+      ] as const)(
+        'excludes a prior-period %s from current KMD totals',
+        async (_name, account, debit) => {
+          const settlement = await seedPostedVoucher('2024-02-20', [
+            line(account, 1200, debit),
+            line('CASH', 1200, !debit),
+          ]);
+          const preview = await vatReportService.preview(1);
+          expect(preview.total_input_vat).toBe(2400);
+          expect(preview.total_output_vat).toBe(4800);
+          expect(preview.voucher_ids).toContain(settlement);
+          expect(await vatReportService.buildDeclaration(1)).toMatchObject({
+            row4_output_vat: preview.total_output_vat,
+            row5_input_vat: preview.total_input_vat,
+            net_vat_due: 2400,
+          });
+        },
+      );
+
+      it('retains signed VAT-coded corrections and reverse charge alongside settlements', async () => {
+        await seedPostedVoucher('2024-02-20', [
+          line('VAT_RECEIVABLE', 1200, false),
+          line('CASH', 1200, true),
+          line('VAT_PAYABLE', 600, true),
+          line('CASH', 600, false),
+        ]);
+        await seedPostedVoucher('2024-02-21', [
+          line('EXPENSE_SOFTWARE', 5000, true, 'EE_REVERSE_CHARGE_EU'),
+          line('AP', 5000, false),
+          line('VAT_RECEIVABLE', 1200, true, 'EE_REVERSE_CHARGE_EU'),
+          line('VAT_PAYABLE', 1200, false, 'EE_REVERSE_CHARGE_EU'),
+        ]);
+        await seedPostedVoucher('2024-02-22', [
+          line('EXPENSE_SOFTWARE', 1000, false, 'EE_INPUT_24'),
+          line('VAT_RECEIVABLE', 240, false, 'EE_INPUT_24'),
+          line('AP', 1240, true),
+          line('REVENUE', 2000, true, 'EE_OUTPUT_24'),
+          line('VAT_PAYABLE', 480, true, 'EE_OUTPUT_24'),
+          line('AR', 2480, false),
+        ]);
+        const preview = await vatReportService.preview(1);
+        expect(preview.total_input_vat).toBe(3360);
+        expect(preview.total_output_vat).toBe(5520);
+        expect(await vatReportService.buildDeclaration(1)).toMatchObject({
+          row4_output_vat: 5520,
+          row5_input_vat: 3360,
+          net_vat_due: 2160,
+          row6_intra_eu_acquisition: 5000,
+        });
+      });
+    });
+
     it('maps an INTRA-EU acquisition to rows 1/4/5 + row 6 (issue #210)', async () => {
       // Imported service self-assessed at 24% of 1600 = 384, net cash zero.
       await seedPostedVoucher('2024-02-15', [

@@ -581,6 +581,11 @@ export class VatReportService {
     );
 
     for (const line of lines) {
+      // An untagged line is not VAT activity (issue #395): a settlement of
+      // a prior-period VAT refund or liability must not move rows 4/5. The
+      // same inclusion rule compute() applies; coded corrections keep their sign.
+      if (line.vat_code === null || line.vat_code === undefined) continue;
+
       // VAT-control lines feed the VAT-amount totals (rows 4 / 5), keyed on
       // account code — independent of jurisdiction.
       if (line.account_code === 'VAT_PAYABLE') {

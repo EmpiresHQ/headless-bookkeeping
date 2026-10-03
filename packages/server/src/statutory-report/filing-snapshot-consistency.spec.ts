@@ -182,6 +182,70 @@ describe('Filing-state consistency (issue #200)', () => {
   ): Promise<number> =>
     (await db.selectFrom(table).selectAll().execute()).length;
 
+  it('exports current input VAT without prior-period settlements (issue #395)', async () => {
+    await postSale({ invoiceNumber: 'SETTLEMENT-TEST', net: 10000 });
+    const accounts = await db
+      .selectFrom('account')
+      .select(['id', 'code'])
+      .execute();
+    const byCode = new Map(accounts.map((a) => [a.code, a.id]));
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: 'SYNTHETIC-395',
+        tax_point_date: '2024-02-20',
+        posted_at: 1,
+        previous_hash: null,
+        reverses_id: null,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    const entries: [string, number, number, string | null][] = [
+      ['EXPENSE_SOFTWARE', 5000, 1, 'EE_INPUT_24'],
+      ['VAT_RECEIVABLE', 1200, 1, 'EE_INPUT_24'],
+      ['AP', 6200, 0, null],
+      ['CASH', 700, 1, null],
+      ['VAT_RECEIVABLE', 700, 0, null],
+      ['VAT_PAYABLE', 900, 1, null],
+      ['CASH', 900, 0, null],
+    ];
+    await db
+      .insertInto('voucher_line')
+      .values(
+        entries.map(([code, amount, is_debit, vat_code]) => ({
+          voucher_id: voucher.id,
+          account_id: byCode.get(code)!,
+          amount,
+          base_amount: amount,
+          currency: 'EUR',
+          fx_rate: 1,
+          is_debit,
+          vat_code,
+        })),
+      )
+      .execute();
+    const preview = await vatReports.preview(PERIOD_ID);
+    expect(preview.total_input_vat).toBe(1200);
+    expect(preview.total_output_vat).toBe(2400);
+    const draft = await statutory.generate(PERIOD_ID, { formats: ['xml'] });
+    expect(draft.artifacts[0].content).toContain(
+      '<inputVatTotal>12.00</inputVatTotal>',
+    );
+    await periods.lock(PERIOD_ID);
+    const final = await statutory.generate(PERIOD_ID, { formats: ['xml'] });
+    expect(final.artifacts[0].content).toContain(
+      '<inputVatTotal>12.00</inputVatTotal>',
+    );
+    expect(await vatReports.buildDeclaration(PERIOD_ID)).toMatchObject({
+      row4_output_vat: 2400,
+      row5_input_vat: 1200,
+      net_vat_due: 1200,
+    });
+  });
+
   // ── AC1: a draft download freezes nothing ────────────────────────────────
 
   it('a draft export leaves no permanent filing snapshot behind', async () => {
