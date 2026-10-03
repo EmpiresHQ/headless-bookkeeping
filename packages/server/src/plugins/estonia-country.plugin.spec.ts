@@ -689,6 +689,11 @@ describe('EstoniaCountryPlugin — getCategories()', () => {
 
   it('returns the expense categories with stable key/label/accountCode', () => {
     const cats = plugin.getCategories();
+    expect(cats.find((cat) => cat.key === 'office_supplies')).toEqual({
+      key: 'office_supplies',
+      label: 'Office Supplies',
+      accountCode: 'EXPENSE_OFFICE_SUPPLIES',
+    });
     const keys = cats.map((c) => c.key);
     expect(keys).toEqual(
       expect.arrayContaining([
@@ -704,6 +709,7 @@ describe('EstoniaCountryPlugin — getCategories()', () => {
         'meals',
         'insurance',
         'education',
+        'office_supplies',
       ]),
     );
     // No 'revenue' — getCategories() is the EXPENSE set only.

@@ -79,6 +79,7 @@ describe('Estonia RTJ mapping', () => {
     expect(ACCOUNT_TO_LINE['REVENUE']).toBe('revenue');
     expect(ACCOUNT_TO_LINE['DEPRECIATION_EXPENSE']).toBe('depreciation');
     expect(ACCOUNT_TO_LINE['EXPENSE_OTHER']).toBe('otherOperatingExpenses');
+    expect(ACCOUNT_TO_LINE['EXPENSE_OFFICE_SUPPLIES']).toBe('otherOperatingExpenses');
   });
 
   it('every RTJ_LINES key is a known concept with a statement + sign', () => {

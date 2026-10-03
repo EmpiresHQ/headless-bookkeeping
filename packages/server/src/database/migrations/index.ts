@@ -78,6 +78,9 @@ import * as m078 from './078_add_health_allowance_facts';
 import * as m079 from './079_add_prepayment_tax_treatment';
 import * as m076 from './076_add_service_place_of_supply_facts';
 
+import * as m081 from './081_add_tax_accounts';
+import * as m082 from './082_add_office_supplies_account';
+
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
   '002_create_account': m002,
@@ -157,4 +160,6 @@ export const migrations: Record<string, Migration> = {
   '078_add_health_allowance_facts': m078,
   '079_add_prepayment_tax_treatment': m079,
   '080_add_document_classification_snapshot': m080,
+  '081_add_tax_accounts': m081,
+  '082_add_office_supplies_account': m082,
 };
