@@ -205,6 +205,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: null,
       });
 
@@ -263,6 +266,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: 10,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -276,6 +282,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: 'expense',
         corrects_object_id: 1,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -397,6 +406,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: null,
       });
       mockVoucherLineRepository.getLinesByVoucherId.mockResolvedValue([
@@ -448,6 +460,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: 10,
         corrects_object_type: null,
         corrects_object_id: null,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -460,6 +475,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: 'expense',
         corrects_object_id: 1,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Wrong amount',
         lines: [],
       };
@@ -468,7 +486,26 @@ describe('CorrectionsService (unit)', () => {
       // positional `posted[1]` would now re-point the object at the REVERSAL
       // (id 20). Role-based resolution must still pick the corrected (id 21).
       const swapped = [correctedVoucher, reversalVoucher];
-      const fakeTrx = {} as unknown;
+      // The correction also CARRIES OVER the object's settlements from the
+      // superseded voucher to the corrected one (issue #202), so the fake
+      // transaction records those sub-ledger updates instead of ignoring them.
+      const carriedOver: { table: string; set: unknown; where: unknown }[] = [];
+      const fakeTrx = {
+        updateTable: (table: string) => ({
+          set: (values: unknown) => ({
+            where: (_column: string, _op: string, value: unknown) => {
+              const step = {
+                where: () => step,
+                execute: () => {
+                  carriedOver.push({ table, set: values, where: value });
+                  return Promise.resolve([]);
+                },
+              };
+              return step;
+            },
+          }),
+        }),
+      } as unknown;
       mockPostingService.postVouchersAtomic.mockImplementation(
         async (
           _drafts: unknown,
@@ -496,6 +533,21 @@ describe('CorrectionsService (unit)', () => {
       // Result fields resolved by role, not position.
       expect(result.reversalVoucherId).toBe(20);
       expect(result.correctedVoucherId).toBe(21);
+
+      // Both sub-ledger settlement records move from the superseded voucher
+      // (10) to the corrected one (21) — no posted voucher is touched.
+      expect(carriedOver).toEqual([
+        {
+          table: 'reconciliation_match',
+          set: { voucher_id: 21 },
+          where: 10,
+        },
+        {
+          table: 'prepayment_allocation',
+          set: { invoice_voucher_id: 21 },
+          where: 10,
+        },
+      ]);
 
       // The status flip re-points the object at the CORRECTED voucher (21),
       // NOT at posted[1] (which is the reversal, 20, in this swapped pair).
@@ -532,6 +584,9 @@ describe('CorrectionsService (unit)', () => {
         reverses_id: null,
         corrects_object_type: 'expense',
         corrects_object_id: 1,
+        input_vat_entitlement_basis: null,
+        input_vat_deduction_numerator: null,
+        input_vat_deduction_denominator: null,
         reason: 'Earlier correction',
       });
 

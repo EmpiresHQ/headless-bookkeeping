@@ -34,7 +34,6 @@ function CurrentPeriodHero({ period }: { period: ReportingPeriod }) {
   return (
     <Link
       to={`/reports/periods/${period.id}`}
-      viewTransition
       className="mx-3.5 mb-3.5 block rounded-2xl bg-accent-deep p-4 text-white"
     >
       <div className="flex items-center justify-between gap-3">

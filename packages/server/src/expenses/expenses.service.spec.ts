@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -24,9 +25,11 @@ describe('ExpensesService (integration)', () => {
   let service: ExpensesService;
   let entitiesService: EntitiesService;
   let organizationService: OrganizationService;
+  let auditLog: AuditLogService;
+  let rawDb: SqliteDb.Database;
 
   beforeEach(async () => {
-    const rawDb = new SqliteDb(':memory:');
+    rawDb = new SqliteDb(':memory:');
     rawDb.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: rawDb }),
@@ -46,6 +49,7 @@ describe('ExpensesService (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrgContextResolver,
         CurrencyService,
@@ -66,6 +70,7 @@ describe('ExpensesService (integration)', () => {
     service = module.get(ExpensesService);
     entitiesService = module.get(EntitiesService);
     organizationService = module.get(OrganizationService);
+    auditLog = module.get(AuditLogService);
   });
 
   afterEach(async () => {
@@ -191,6 +196,10 @@ describe('ExpensesService (integration)', () => {
 
   describe('generateDraftVoucher', () => {
     it('returns a transient draft voucher with accrual lines', async () => {
+      // The VAT_RECEIVABLE leg below exists only because the organisation is a
+      // registered person with a full deduction right (issue #211); the seeded
+      // default is not registered, so the fixture says so explicitly.
+      await organizationService.updateOrganization({ vat_registered: true });
       const expense = await service.createExpense(sampleDto());
       const draft = await service.generateDraftVoucher(expense.id);
 
@@ -394,6 +403,181 @@ describe('ExpensesService (integration)', () => {
     });
   });
 
+  describe('updateDraft hardening (issue #247)', () => {
+    async function makeVoucher(number: string): Promise<number> {
+      const v = await db
+        .insertInto('voucher')
+        .values({
+          voucher_number: number,
+          tax_point_date: '2026-03-15',
+          posted_at: 1,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      return v.id;
+    }
+
+    async function supplier(name: string, key: string) {
+      return entitiesService.onboard({
+        role: 'supplier',
+        country: 'EE',
+        name,
+        registrationKey: key,
+      });
+    }
+
+    it('edits every editable fact of a draft in place, keeping provenance', async () => {
+      const s = await supplier('Edit Supplier', 'EE100000001');
+      const e = await service.createExpense({
+        ...sampleDto(),
+        ai_confidence: 0.7,
+        ai_document_type: 'receipt',
+        document_vat_marking: '24%',
+      });
+      const updated = await service.updateDraft(e.id, {
+        category: 'transport',
+        supplier_id: s.id,
+        gross_amount: 6200,
+        vat_amount: 1200,
+        currency: 'USD',
+        tax_point_date: '2026-04-01',
+        supplier_invoice_number: 'S-1',
+        company_addressed_receipt: true,
+      });
+      expect(updated).toMatchObject({
+        id: e.id,
+        status: 'draft',
+        category: 'transport',
+        supplier_id: s.id,
+        gross_amount: 6200,
+        vat_amount: 1200,
+        currency: 'USD',
+        tax_point_date: '2026-04-01',
+        supplier_invoice_number: 'S-1',
+        company_addressed_receipt: true,
+        ai_confidence: 0.7,
+        ai_document_type: 'receipt',
+        document_vat_marking: '24%',
+      });
+    });
+
+    it('refuses a posted or reversed expense and writes nothing', async () => {
+      for (const status of ['posted', 'reversed'] as const) {
+        const e = await service.createExpense(sampleDto());
+        const v = await makeVoucher(`V-${status}`);
+        await service.updateExpenseStatus(e.id, status, v);
+        const before = await service.getExpenseById(e.id);
+        await expect(
+          service.updateDraft(e.id, { gross_amount: 1 }),
+        ).rejects.toThrow(new RegExp(`is ${status}`));
+        expect(await service.getExpenseById(e.id)).toEqual(before);
+      }
+    });
+
+    it('refuses a voucher-backed "draft" row (the claim requires voucher_id IS NULL)', async () => {
+      const e = await service.createExpense(sampleDto());
+      const v = await makeVoucher('V-ORPHAN');
+      await db
+        .updateTable('expense')
+        .set({ voucher_id: v })
+        .where('id', '=', e.id)
+        .execute();
+      await expect(
+        service.updateDraft(e.id, { gross_amount: 1000, vat_amount: 0 }),
+      ).rejects.toThrow(/changed while this edit was being applied/);
+      const after = await service.getExpenseById(e.id);
+      expect(after.gross_amount).toBe(12300);
+      expect(after.voucher_id).toBe(v);
+    });
+
+    it('does NOT overwrite an expense that gets posted mid-edit (conditional claim)', async () => {
+      const e = await service.createExpense(sampleDto());
+      const voucherId = await makeVoucher('V-MID-EDIT');
+      // Interleave a post between the in-transaction read and the UPDATE on
+      // the single connection the transaction holds.
+      const flip = jest
+        .spyOn(
+          service as unknown as { assertMergedAmounts: () => void },
+          'assertMergedAmounts',
+        )
+        .mockImplementation(() => {
+          rawDb
+            .prepare(
+              "UPDATE expense SET status = 'posted', voucher_id = ? WHERE id = ?",
+            )
+            .run(voucherId, e.id);
+        });
+      await expect(
+        service.updateDraft(e.id, {
+          gross_amount: 99900,
+          category: 'transport',
+        }),
+      ).rejects.toThrow(/changed while this edit was being applied/);
+      flip.mockRestore();
+      const after = await service.getExpenseById(e.id);
+      expect(after.gross_amount).toBe(12300);
+      expect(after.category).toBe('software');
+    });
+
+    it('validates the MERGED amounts, not just the fields sent', async () => {
+      const e = await service.createExpense(sampleDto());
+      await expect(
+        service.updateDraft(e.id, { vat_amount: 50000 }),
+      ).rejects.toThrow(/would exceed gross_amount/);
+      await expect(
+        service.updateDraft(e.id, { gross_amount: 1000 }),
+      ).rejects.toThrow(/would exceed gross_amount/);
+    });
+
+    it('an edit of a newly editable fact makes a prepared draft stale', async () => {
+      const s = await supplier('Fingerprint Supplier', 'EE100000002');
+      const e = await service.createExpense(sampleDto());
+      for (const patch of [
+        { supplier_id: s.id },
+        { currency: 'USD' },
+        { tax_point_date: '2026-03-16' },
+        { company_addressed_receipt: true },
+      ]) {
+        const before = await service.draftFactsFingerprint(e.id);
+        await service.updateDraft(e.id, patch);
+        await expect(
+          service.assertDraftFactsUnchangedTx(db, e.id, before),
+        ).rejects.toThrow(/changed while it was being posted/);
+      }
+    });
+
+    it('rolls the edit back when the duplicate-override audit entry fails', async () => {
+      const s = await supplier('Dup Supplier', 'EE100000003');
+      await service.createExpense({
+        ...sampleDto(),
+        supplier_id: s.id,
+        supplier_invoice_number: 'N-1',
+      });
+      const b = await service.createExpense({
+        ...sampleDto(),
+        supplier_id: s.id,
+        supplier_invoice_number: 'N-2',
+      });
+      const record = jest
+        .spyOn(auditLog, 'record')
+        .mockRejectedValueOnce(new Error('audit_log unavailable'));
+      await expect(
+        service.updateDraft(b.id, {
+          supplier_invoice_number: 'N-1',
+          category: 'transport',
+          allow_duplicate: true,
+        }),
+      ).rejects.toThrow(/audit_log unavailable/);
+      record.mockRestore();
+      const after = await service.getExpenseById(b.id);
+      expect(after.supplier_invoice_number).toBe('N-2');
+      expect(after.category).toBe('software');
+      expect(
+        await db.selectFrom('audit_log').select('id').execute(),
+      ).toHaveLength(0);
+    });
+  });
+
   describe('supplier_invoice_number', () => {
     it('persists supplier_invoice_number on create', async () => {
       const e = await service.createExpense({
@@ -451,6 +635,7 @@ describe('ExpensesService (integration)', () => {
           OrganizationService,
           NullCountryPlugin,
           EstoniaCountryPlugin,
+          ...fxTestProviders(),
           PluginLoader,
           OrgContextResolver,
           CurrencyService,
@@ -497,8 +682,15 @@ describe('ExpensesService (integration)', () => {
 
   describe('reverse charge on imported services (EE org)', () => {
     it('books self-assessed output + input VAT for a US service supplier', async () => {
-      // Switch the org to Estonia so the EstoniaCountryPlugin is active.
-      await organizationService.updateOrganization({ country: 'EE' });
+      // Switch the org to Estonia so the EstoniaCountryPlugin is active, and
+      // register it: a reverse charge is self-assessed by anyone who receives
+      // the supply, but it is only DEDUCTIBLE for a registered person with a
+      // deduction right (issue #211). This test is about the ordinary,
+      // fully-entitled case.
+      await organizationService.updateOrganization({
+        country: 'EE',
+        vat_registered: true,
+      });
 
       const supplier = await entitiesService.onboard({
         role: 'supplier',
@@ -506,6 +698,9 @@ describe('ExpensesService (integration)', () => {
         name: 'OpenRouter',
         registrationKey: 'US-OR-1',
         goodsVsServices: 'services',
+        // The supplier is a person engaged in business — the fact that makes
+        // this a self-assessed acquisition at all (issue #210).
+        taxStatus: 'taxable_business',
       });
 
       // $16 imported service, no VAT on the document.
@@ -533,8 +728,8 @@ describe('ExpensesService (integration)', () => {
       expect(input).toBeDefined();
       expect(output!.amount).toBe(384); // 24% of 1600
       expect(input!.amount).toBe(384);
-      expect(output!.vat_code).toBe('EE_REVERSE_CHARGE');
-      expect(input!.vat_code).toBe('EE_REVERSE_CHARGE');
+      expect(output!.vat_code).toBe('EE_REVERSE_CHARGE_3RD_COUNTRY');
+      expect(input!.vat_code).toBe('EE_REVERSE_CHARGE_3RD_COUNTRY');
 
       // Balanced; the VAT legs cancel so only the gross is owed.
       const debit = draft.lines
@@ -544,6 +739,29 @@ describe('ExpensesService (integration)', () => {
         .filter((l) => !l.is_debit)
         .reduce((s, l) => s + l.base_amount, 0);
       expect(debit).toBe(credit);
+    });
+  });
+  describe('the draft-facts guard sees OUR OWN VAT facts (issue #211)', () => {
+    it('refuses a prepared draft after the entitlement changed underneath it', async () => {
+      await organizationService.updateOrganization({ vat_registered: true });
+      const expense = await service.createExpense(sampleDto());
+
+      // What a caller captures before generating the draft.
+      const before = await service.draftFactsFingerprint(expense.id);
+
+      // Neither the expense nor any supplier moves — only the proportion we may
+      // deduct, which decides what the legs ARE. Without this in the
+      // fingerprint the stale draft would post a deduction nobody is entitled
+      // to any more.
+      await organizationService.updateOrganization({
+        input_vat_entitlement: 'partial',
+        input_vat_deduction_permille: 500,
+      });
+
+      expect(await service.draftFactsFingerprint(expense.id)).not.toBe(before);
+      await expect(
+        service.assertDraftFactsUnchangedTx(db, expense.id, before),
+      ).rejects.toThrow(/input-VAT deduction/);
     });
   });
 });

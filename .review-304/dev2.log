@@ -1,0 +1,3 @@
+FAIL S6-broken-image @1440: ["2 painted frames with a broken image"]
+PASS S7-inbox-list-lightbox @1440: []
+1/2 passed

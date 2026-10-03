@@ -10,6 +10,7 @@ vi.mock('../api', async (io) => ({
   fetchDocumentPreviewObjectUrl: vi.fn().mockResolvedValue('blob:x'),
 }));
 import { fetchDocumentPreviewObjectUrl, getDocuments } from '../api';
+import { rowTitle, metaLine } from './rowText.test-util';
 
 const DOCS = [
   {
@@ -64,10 +65,14 @@ describe('DocumentsSegment', () => {
   it('titles rows by supplier (filename only while unrecognized), shows channel + claimant, links the detail', async () => {
     mount();
     expect(await screen.findByText('AS Merko Ehitus')).toBeInTheDocument();
-    expect(screen.getByText(/arve-183\.pdf · ✉ email/)).toBeInTheDocument();
+    expect(
+      screen.getByText(metaLine(/arve-183\.pdf · ✉ email/)),
+    ).toBeInTheDocument();
     // Unrecognized document falls back to its filename as the title:
-    expect(screen.getByText('weird.jpg')).toBeInTheDocument();
-    expect(screen.getByText(/Claimant: Mari Maasikas/)).toBeInTheDocument();
+    expect(screen.getByText(rowTitle('weird.jpg'))).toBeInTheDocument();
+    expect(
+      screen.getByText(metaLine(/Claimant: Mari Maasikas/)),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /AS Merko Ehitus/ }),
     ).toHaveAttribute('href', '/books/documents/9');
@@ -87,7 +92,7 @@ describe('DocumentsSegment', () => {
 
   it('?dstatus=needs_triage filters the list', async () => {
     mount('', '/books?seg=documents&dstatus=needs_triage');
-    expect(await screen.findByText('weird.jpg')).toBeInTheDocument();
+    expect(await screen.findByText(rowTitle('weird.jpg'))).toBeInTheDocument();
     expect(screen.queryByText('AS Merko Ehitus')).toBeNull();
   });
 
@@ -95,7 +100,7 @@ describe('DocumentsSegment', () => {
     vi.mocked(fetchDocumentPreviewObjectUrl).mockClear();
     mount();
     await screen.findByText('AS Merko Ehitus');
-    await screen.findByText('weird.jpg');
+    await screen.findByText(rowTitle('weird.jpg'));
     await waitFor(() =>
       expect(fetchDocumentPreviewObjectUrl).toHaveBeenCalledWith(9),
     );

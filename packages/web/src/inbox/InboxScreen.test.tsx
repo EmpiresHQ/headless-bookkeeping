@@ -9,6 +9,13 @@ import {
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The chosen file's local preview (#293) is not under test here: pdf.js
+// never settles, so no viewer state or control joins these flows.
+vi.mock('./pdfjs', () => ({
+  loadPdfJs: () => new Promise(() => undefined),
+  pdfDocumentOptions: () => ({}),
+}));
+
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   getNeedsTriageItems: vi.fn(),
@@ -24,6 +31,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { InboxScreen } from './InboxScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 // Fixed clock (not the real wall clock — see beforeEach/afterEach below):
 // picking Date.now() at import time made the Today/Earlier split flaky
@@ -47,10 +55,21 @@ function renderAt(path: string) {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
+}
+
+async function openRowByText(
+  router: ReturnType<typeof renderAt>,
+  text: string,
+  path: string,
+) {
+  fireEvent.click(await screen.findByText(text));
+  await waitFor(() => expect(router.state.location.pathname).toBe(path));
 }
 
 describe('InboxScreen', () => {
@@ -106,6 +125,7 @@ describe('InboxScreen', () => {
         country: 'EE',
         name: 'Telia Eesti AS',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.getReportingPeriods).mockResolvedValue([]);
@@ -192,6 +212,90 @@ describe('InboxScreen', () => {
       expect(link).toHaveAttribute('href', '/inbox/doc/12');
     });
 
+    describe('preview lightbox stays out of the row link (UI-002)', () => {
+      async function openPreview() {
+        const router = renderAt('/inbox');
+        const thumb = await screen.findByRole('button', {
+          name: 'Open document preview',
+        });
+        fireEvent.click(thumb);
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Document preview',
+        });
+        return { router, thumb, dialog };
+      }
+
+      it('renders no interactive element inside any row link', async () => {
+        await openPreview();
+        // The modal preview hides the list from the accessibility tree
+        // (issue #269) — the links are still in the DOM behind it.
+        expect(screen.queryAllByRole('link')).toHaveLength(0);
+        const links = screen.getAllByRole('link', { hidden: true });
+        expect(links.length).toBeGreaterThan(0);
+        for (const link of links) {
+          expect(
+            link.querySelector(
+              'a, button, input, select, textarea, [tabindex]',
+            ),
+          ).toBeNull();
+        }
+        // Neither the thumb button nor the open dialog sit inside the link.
+        const button = screen.getByRole('button', {
+          name: 'Open document preview',
+          hidden: true,
+        });
+        expect(button.closest('a')).toBeNull();
+        expect(screen.getByRole('dialog').closest('a')).toBeNull();
+      });
+
+      it.each([
+        ['the backdrop', (dialog: HTMLElement) => fireEvent.click(dialog)],
+        [
+          'the X button',
+          (dialog: HTMLElement) =>
+            fireEvent.click(
+              within(dialog).getByRole('button', { name: 'Close preview' }),
+            ),
+        ],
+        // A real keypress bubbles from the focused control to the document,
+        // where Radix listens for the top layer's Escape.
+        ['Escape', () => fireEvent.keyDown(document, { key: 'Escape' })],
+      ])(
+        'closing via %s only closes the preview and keeps /inbox',
+        async (_label, close) => {
+          const { router, dialog } = await openPreview();
+          // jsdom doesn't run an <a>'s native default action, so an X click
+          // bubbling through a real <a> would pass unnoticed here — assert the
+          // dialog is outside any link as well as the router outcome.
+          expect(dialog.closest('a')).toBeNull();
+          close(dialog);
+
+          await waitFor(() =>
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+          );
+          expect(router.state.location.pathname).toBe('/inbox');
+          expect(router.state.historyAction).toBe('POP');
+          expect(screen.queryByText('doc detail')).not.toBeInTheDocument();
+          // The list (and its row) is still mounted, not re-rendered from a
+          // detail round-trip.
+          expect(screen.getByText('cheque_scan_038.jpg')).toBeInTheDocument();
+        },
+      );
+
+      it('opening the preview does not navigate', async () => {
+        const { router } = await openPreview();
+        expect(router.state.location.pathname).toBe('/inbox');
+      });
+
+      it('clicking the row itself still navigates to the document', async () => {
+        const router = renderAt('/inbox');
+        await screen.findByRole('button', { name: 'Open document preview' });
+        fireEvent.click(screen.getByText('cheque_scan_038.jpg'));
+        expect(await screen.findByText('doc detail')).toBeInTheDocument();
+        expect(router.state.location.pathname).toBe('/inbox/doc/12');
+      });
+    });
+
     it('does not fetch a thumbnail for an approval row (no document id) and shows the checkmark glyph', async () => {
       renderAt('/inbox');
       expect(await screen.findByText('Telia Eesti AS')).toBeInTheDocument();
@@ -217,9 +321,9 @@ describe('InboxScreen', () => {
   it('useSeg round-trip: ?tab= alias reads, switching segments writes ?seg= and drops ?tab= (P06 Task 3)', async () => {
     const router = renderAt('/inbox?tab=approvals');
     expect(
-      await screen.findByRole('tab', { name: 'Approvals 1' }),
-    ).toHaveAttribute('aria-selected', 'true');
-    fireEvent.click(screen.getByRole('tab', { name: 'Triage 1' }));
+      await screen.findByRole('radio', { name: 'Approvals 1' }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'Triage 1' }));
     const search = new URLSearchParams(router.state.location.search);
     expect(search.get('seg')).toBe('triage');
     expect(search.get('tab')).toBeNull();
@@ -228,10 +332,10 @@ describe('InboxScreen', () => {
   it('shows segment counts in the control', async () => {
     renderAt('/inbox');
     expect(
-      await screen.findByRole('tab', { name: 'Triage 1' }),
+      await screen.findByRole('radio', { name: 'Triage 1' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('tab', { name: 'Approvals 1' }),
+      screen.getByRole('radio', { name: 'Approvals 1' }),
     ).toBeInTheDocument();
   });
 
@@ -271,8 +375,56 @@ describe('InboxScreen', () => {
       within(hero as HTMLElement).getByText('−89.00 €'),
     ).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /Start clearing · 2/ });
-    // Newest first = the fresh triage doc (created an hour ago).
-    expect(cta).toHaveAttribute('href', '/inbox/doc/12');
+    // The first row AS RENDERED (Earlier before Today) — the same member the
+    // run starts with (issue #253), not the newest entry.
+    expect(cta).toHaveAttribute('href', '/inbox/approval/7');
+  });
+
+  describe('queue run (issue #253)', () => {
+    const runOf = (router: ReturnType<typeof renderAt>) =>
+      (router.state.location.state as { hbkRun?: unknown } | null)?.hbkRun;
+
+    it('Start clearing snapshots the rendered order, Earlier then Today', async () => {
+      vi.mocked(api.getReportingPeriods).mockResolvedValue([
+        {
+          id: 1,
+          name: 'July 2026',
+          start_date: '2026-07-01',
+          end_date: '2026-07-31',
+          status: 'open',
+          filed_at: null,
+        },
+      ]);
+      const router = renderAt('/inbox');
+      fireEvent.click(
+        await screen.findByRole('link', { name: /Start clearing · 2/ }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox/approval/7'),
+      );
+      expect(runOf(router)).toEqual({
+        seg: 'all',
+        members: ['/inbox/approval/7', '/inbox/doc/12'],
+      });
+    });
+
+    it('a non-first row starts a run over the whole visible segment, clicked item included', async () => {
+      const router = renderAt('/inbox');
+      await openRowByText(router, 'cheque_scan_038.jpg', '/inbox/doc/12');
+      expect(runOf(router)).toEqual({
+        seg: 'all',
+        members: ['/inbox/approval/7', '/inbox/doc/12'],
+      });
+    });
+
+    it("a segment run holds only that segment's items", async () => {
+      const router = renderAt('/inbox?seg=triage');
+      await openRowByText(router, 'cheque_scan_038.jpg', '/inbox/doc/12');
+      expect(runOf(router)).toEqual({
+        seg: 'triage',
+        members: ['/inbox/doc/12'],
+      });
+    });
   });
 
   it('hides the hero when no period is open', async () => {
@@ -281,7 +433,25 @@ describe('InboxScreen', () => {
     expect(screen.queryByText(/expenses this period/)).not.toBeInTheDocument();
   });
 
-  it('uploads a file, auto-triages it and refreshes the queue', async () => {
+  it('uploads through the shared sheet: same payer field, claimant sent, a needs-review result opens as a SINGLE item returning to this segment (#258)', async () => {
+    vi.mocked(api.getEntities).mockResolvedValue([
+      {
+        id: 3,
+        role: 'supplier',
+        country: 'EE',
+        name: 'Telia Eesti AS',
+        goods_vs_services: null,
+        tax_status: null,
+      },
+      {
+        id: 5,
+        role: 'employee',
+        country: 'EE',
+        name: 'Mari Maasikas',
+        goods_vs_services: null,
+        tax_status: null,
+      },
+    ]);
     vi.mocked(api.uploadDocument).mockResolvedValue({
       document: {
         id: 99,
@@ -291,28 +461,47 @@ describe('InboxScreen', () => {
         status: 'pending',
         processing_since: null,
         created_at: 1,
+        claimant_id: 5,
       },
       deduplicated: false,
     });
-    vi.mocked(api.triageDocument).mockResolvedValue({
-      kind: 'expense',
-      document_id: 99,
-      expense_id: 500,
+    vi.mocked(api.triageDocument).mockImplementation(async () => {
+      // The workflow parked it: the queue now holds it.
+      vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+        {
+          id: 99,
+          filename: 'r.pdf',
+          created_at: NOW,
+          reason: 'Unknown supplier',
+          reason_type: 'supplier_unresolved',
+        },
+      ]);
+      return { kind: 'unknown', document_id: 99, reason: 'Unknown supplier' };
     });
-    renderAt('/inbox');
-    await screen.findByText('Telia Eesti AS');
-    const callsBefore = vi.mocked(api.getNeedsTriageItems).mock.calls.length;
-    const input = screen.getByLabelText('Upload document');
-    fireEvent.change(input, {
-      target: {
-        files: [new File(['x'], 'r.pdf', { type: 'application/pdf' })],
-      },
+    const router = renderAt('/inbox?seg=triage');
+    await screen.findByText('cheque_scan_038.jpg');
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    const payer = await screen.findByLabelText('Paid by (claimant)');
+    // Suppliers are never offered as the payer.
+    expect(
+      within(payer).queryByRole('option', { name: 'Telia Eesti AS' }),
+    ).toBeNull();
+    fireEvent.change(payer, { target: { value: '5' } });
+    const file = new File(['x'], 'r.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('File'), {
+      target: { files: [file] },
     });
-    await waitFor(() => expect(api.triageDocument).toHaveBeenCalledWith(99));
+    fireEvent.click(screen.getByRole('button', { name: 'Upload & process' }));
     await waitFor(() =>
-      expect(
-        vi.mocked(api.getNeedsTriageItems).mock.calls.length,
-      ).toBeGreaterThan(callsBefore),
+      expect(router.state.location.pathname).toBe('/inbox/doc/99'),
+    );
+    expect(api.uploadDocument).toHaveBeenCalledWith(file, { claimantId: 5 });
+    expect(api.triageDocument).toHaveBeenCalledTimes(1);
+    const state = router.state.location.state as Record<string, unknown>;
+    // Single item: no queue run; its origin is this Inbox segment.
+    expect(state.hbkRun).toBeUndefined();
+    expect((state.hbkOrigin as { href: string }).href).toBe(
+      '/inbox?seg=triage',
     );
   });
 });

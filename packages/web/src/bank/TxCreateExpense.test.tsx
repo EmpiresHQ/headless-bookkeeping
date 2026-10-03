@@ -27,6 +27,9 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { TxCreateExpense } from './TxCreateExpense';
+import { MemoryRouter } from 'react-router-dom';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -40,13 +43,25 @@ const TX = {
   status: 'open',
 } as const;
 
+/** TxScreen owns the line's operation; the form borrows it. */
+function CreateWithOp(
+  props: Omit<React.ComponentProps<typeof TxCreateExpense>, 'op'>,
+) {
+  const op = usePendingOperation('Bank line');
+  return <TxCreateExpense {...props} op={op} />;
+}
+
 function renderForm(onDone = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <TxCreateExpense statementId={3} tx={TX as never} onDone={onDone} />
+      <MemoryRouter>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
+          <CreateWithOp statementId={3} tx={TX as never} onDone={onDone} />
+        </UnsavedChangesProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   return onDone;
@@ -65,9 +80,13 @@ describe('TxCreateExpense', () => {
       country: 'EE',
       base_currency: 'EUR',
       vat_registered: true,
+      vat_registration_kind: 'ordinary',
+      input_vat_entitlement: 'full',
+      input_vat_deduction_permille: null,
       org_type: 'company',
       created_at: 0,
       name: null,
+      registry_code: null,
       vat_registration_number: null,
       iban: null,
     });
@@ -78,9 +97,69 @@ describe('TxCreateExpense', () => {
     // 18.60 gross → 3.35 VAT.
     expect(await screen.findByLabelText('VAT (EUR)')).toHaveValue('3.35');
     expect(screen.getByText('27.06.2026 · from the line')).toBeInTheDocument();
-    expect(
+    // No category chosen yet (#265): once the lists are usable the button
+    // is live, and a click names the missing category instead of nothing.
+    await screen.findByText('Meals');
+    const submit = screen.getByRole('button', {
+      name: 'Create & match · −18.60 €',
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    const category = screen.getByLabelText('Category');
+    expect(category).toHaveAccessibleDescription('Choose a category');
+    await waitFor(() => expect(category).toHaveFocus());
+    expect(api.createExpense).not.toHaveBeenCalled();
+  });
+
+  it('VAT above the line amount is explained at the field (bank rule) and nothing is sent (#265)', async () => {
+    renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    const vat = screen.getByLabelText('VAT (EUR)');
+    fireEvent.change(vat, { target: { value: '18.61' } });
+    fireEvent.blur(vat);
+    expect(vat).toHaveAttribute('aria-invalid', 'true');
+    expect(vat).toHaveAccessibleDescription(
+      'VAT cannot exceed the line amount (18.60)',
+    );
+    fireEvent.click(
       screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
-    ).toBeDisabled(); // no category chosen yet
+    );
+    expect(api.createExpense).not.toHaveBeenCalled();
+    await waitFor(() => expect(vat).toHaveFocus());
+    fireEvent.change(vat, { target: { value: '18.60' } });
+    expect(vat).not.toHaveAttribute('aria-invalid');
+  });
+
+  it("a refused create maps the server's field error; input kept, no stage landed (#265)", async () => {
+    const { HttpError } = await import('../auth');
+    vi.mocked(api.createExpense).mockRejectedValue(
+      new HttpError(400, '400 Bad Request: vat_amount: cannot be negative', {
+        fields: { vat_amount: ['cannot be negative'] },
+        formErrors: [],
+      }),
+    );
+    renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    const vat = screen.getByLabelText('VAT (EUR)');
+    await waitFor(() =>
+      expect(vat).toHaveAccessibleDescription('cannot be negative'),
+    );
+    expect(vat).toHaveValue('3.35');
+    expect(vat).not.toBeDisabled();
+    await waitFor(() => expect(vat).toHaveFocus());
+    expect(
+      screen.getByText(/Not saved — the server refused these values/),
+    ).toBeInTheDocument();
+    expect(api.postExpense).not.toHaveBeenCalled();
   });
 
   it('forces VAT to 0 when "No receipt" is chosen', async () => {
@@ -143,6 +222,117 @@ describe('TxCreateExpense', () => {
       tax_point_date: '2026-06-27',
       supplier_id: null,
     });
+  });
+
+  it('resumes a landed expense after a failed post: locked facts, link + status, no second create (#251)', async () => {
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 24 } as never);
+    vi.mocked(api.postExpense)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValue({
+        expense: { id: 24, status: 'posted' },
+        policy: { action: 'hold-for-approval', reason: 'over ceiling' },
+      } as never);
+    const onDone = renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    const finish = await screen.findByRole('button', {
+      name: 'Finish · expense #24',
+    });
+    expect(screen.getByRole('link', { name: 'Expense #24' })).toHaveAttribute(
+      'href',
+      '/books/expenses/24',
+    );
+    // #373: a failed post response does not establish "not posted".
+    expect(
+      screen.getByText(
+        /posting it was not confirmed — it may or may not be posted/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/not posted\./)).toBeNull();
+    // Its facts are the server's now: editing them cannot pretend to apply.
+    expect(screen.getByLabelText('Category')).toBeDisabled();
+    expect(screen.getByLabelText('VAT (EUR)')).toBeDisabled();
+    // #265: the form states the partial truth — saved, a later step failed —
+    // never "not saved", and maps nothing onto the locked fields.
+    expect(
+      screen.getByText(
+        /Expense #24 is already saved, but a later step did not complete/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Not saved/)).toBeNull();
+    expect(screen.getByLabelText('VAT (EUR)')).not.toHaveAttribute(
+      'aria-invalid',
+    );
+    fireEvent.click(finish);
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({
+        outcome: 'held',
+        expenseId: 24,
+        reason: 'over ceiling',
+      }),
+    );
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(2);
+    expect(api.postExpense).toHaveBeenLastCalledWith(24);
+  });
+
+  it('a confirmed post stays stated as posted; the retry resumes at matching without re-posting (#373)', async () => {
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 24 } as never);
+    vi.mocked(api.postExpense).mockResolvedValue({
+      expense: { id: 24, status: 'posted' },
+      policy: { action: 'auto-post', reason: 'ok' },
+    } as never);
+    vi.mocked(api.getMatchCandidates)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValue({
+        bankTransactionId: 9,
+        lineRemaining: 1860,
+        candidates: [
+          {
+            voucherId: 70,
+            objectType: 'expense',
+            objectId: 24,
+            objectLabel: 'Expense #24',
+            counterpartyName: null,
+            voucherRemaining: 1860,
+          },
+        ],
+      });
+    vi.mocked(api.manualMatch).mockResolvedValue({
+      records: [{ id: 88 }],
+      approvals: [{ id: 12, matchId: 88 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    const onDone = renderForm();
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    const finish = await screen.findByRole('button', {
+      name: 'Finish · expense #24',
+    });
+    expect(screen.getByText(/was created and posted\./)).toBeInTheDocument();
+    expect(screen.queryByText(/not confirmed/)).toBeNull();
+    fireEvent.click(finish);
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({
+        outcome: 'matched',
+        expenseId: 24,
+        matchId: 88,
+      }),
+    );
+    expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(1);
   });
 
   it('passes the held outcome up when policy holds the expense', async () => {

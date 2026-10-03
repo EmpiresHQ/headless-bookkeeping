@@ -1,0 +1,4 @@
+start [ 1, 0, 0 ] width=device-width, initial-scale=1.0
+after synth pinch [ 1, 0, 0 ]
+after touch pinch [ 5, 146, 246 ]
+after setPageScaleFactor [ 2, 146, 246 ]

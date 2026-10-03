@@ -25,6 +25,7 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { AppToaster } from '../ui/toast';
 import { TxMatched } from './TxMatched';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -60,7 +61,7 @@ describe('TxMatched', () => {
     vi.mocked(api.unmatchMatch).mockResolvedValue({});
     const onChanged = vi.fn();
     render(
-      <>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <TxMatched
           statementId={3}
           tx={TX as never}
@@ -70,7 +71,7 @@ describe('TxMatched', () => {
           onChanged={onChanged}
         />
         <AppToaster />
-      </>,
+      </UnsavedChangesProvider>,
     );
     expect(screen.getByText('Matched with')).toBeInTheDocument();
     expect(screen.getByText('Expense #61')).toBeInTheDocument();
@@ -105,7 +106,7 @@ describe('TxMatched', () => {
     } as never);
     const onChanged = vi.fn();
     render(
-      <>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
         <TxMatched
           statementId={3}
           tx={TX as never}
@@ -122,7 +123,7 @@ describe('TxMatched', () => {
           onChanged={onChanged}
         />
         <AppToaster />
-      </>,
+      </UnsavedChangesProvider>,
     );
     expect(screen.getByText('staged')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm match' }));

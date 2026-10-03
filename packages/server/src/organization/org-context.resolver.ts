@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { Kysely } from 'kysely';
+import { Database } from '../database/types';
 import { OrganizationService } from './organization.service';
 import { Organization } from './types';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -41,15 +43,26 @@ export class OrgContextResolver {
 
   /**
    * Resolve the Organization, its active country plugin, and the OrgContext the
-   * plugin consumes — in one call.
+   * plugin consumes — in one call. Pass `executor` to read inside an open
+   * transaction (the SQLite dialect holds one connection; a root-`db` read
+   * during a transaction deadlocks).
    */
-  async resolve(): Promise<ResolvedOrgContext> {
-    const organization = await this.organizationService.getOrganization();
+  async resolve(executor?: Kysely<Database>): Promise<ResolvedOrgContext> {
+    const organization =
+      await this.organizationService.getOrganization(executor);
     const plugin = this.pluginLoader.resolve(organization.country);
     const orgContext: OrgContext = {
       country: organization.country,
       vatRegistered: !!organization.vat_registered,
       baseCurrency: organization.base_currency,
+      // The organisation's OWN VAT facts, which decide whether a purchase's
+      // input VAT is reclaimable at all (issue #211).
+      vatRegistrationKind:
+        organization.vat_registration_kind === 'limited'
+          ? 'limited'
+          : 'ordinary',
+      inputVatEntitlement: organization.input_vat_entitlement,
+      inputVatDeductionPermille: organization.input_vat_deduction_permille,
     };
 
     return { organization, plugin, orgContext };

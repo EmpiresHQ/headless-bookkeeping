@@ -1,25 +1,30 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
-import { UnauthorizedError } from '../auth';
+import { SessionChangedError, UnauthorizedError } from '../auth';
 
 /**
- * Central QueryClient. Any 401 (UnauthorizedError from apiFetch) anywhere —
- * query or mutation — funnels into onUnauthorized so the shell can drop to
- * the TokenGate immediately. This wiring is correctly built and verified
- * end-to-end in Root.tsx. As of Plan 06 every screen's data-fetching routes
- * through useQuery/useMutation on this QueryClient (the last plain
- * `apiFetch`-based views died with the old tabbed Settings shell in Task 12).
+ * Central QueryClient — one per authenticated session (Root creates a fresh
+ * one on every sign-in, issue #251), so a query or mutation of an ended
+ * session can never write into the next session's cache. Any 401
+ * (UnauthorizedError from apiFetch) — query or mutation — funnels into
+ * onUnauthorized, which signs out only while that 401's session is still
+ * the current one (auth.isCurrentUnauthorized). A request whose session
+ * ended in flight (SessionChangedError) is never retried under the newer
+ * token.
  */
-export function createQueryClient(onUnauthorized: () => void): QueryClient {
+export function createQueryClient(
+  onUnauthorized: (error: UnauthorizedError) => void,
+): QueryClient {
   const handle = (error: unknown) => {
-    if (error instanceof UnauthorizedError) onUnauthorized();
+    if (error instanceof UnauthorizedError) onUnauthorized(error);
   };
+  const noRetry = (error: unknown) =>
+    error instanceof UnauthorizedError || error instanceof SessionChangedError;
   return new QueryClient({
     queryCache: new QueryCache({ onError: handle }),
     mutationCache: new MutationCache({ onError: handle }),
     defaultOptions: {
       queries: {
-        retry: (failureCount, error) =>
-          !(error instanceof UnauthorizedError) && failureCount < 1,
+        retry: (failureCount, error) => !noRetry(error) && failureCount < 1,
         retryDelay: 0,
         staleTime: 15_000,
         refetchOnWindowFocus: true,

@@ -5,6 +5,8 @@ export interface Database {
   account: AccountTable;
   voucher: VoucherTable;
   voucher_line: VoucherLineTable;
+  fx_reference_rate: FxReferenceRateTable;
+  fx_rate_probe: FxRateProbeTable;
   voucher_sequence: VoucherSequenceTable;
   expense: ExpenseTable;
   sales_invoice: SalesInvoiceTable;
@@ -33,10 +35,15 @@ export interface Database {
   audit_log: AuditLogTable;
   credit_note: CreditNoteTable;
   fixed_asset: FixedAssetTable;
+  fixed_asset_depreciation: FixedAssetDepreciationTable;
   statutory_submission_event: StatutorySubmissionEventTable;
+  statutory_filing_snapshot: StatutoryFilingSnapshotTable;
   mailbox_connector: MailboxConnectorTable;
   business_trip: BusinessTripTable;
   allowance: AllowanceTable;
+  prepayment_advance: PrepaymentAdvanceTable;
+  prepayment_allocation: PrepaymentAllocationTable;
+  prepayment_refund: PrepaymentRefundTable;
 }
 
 export interface OrganizationTable {
@@ -46,12 +53,22 @@ export interface OrganizationTable {
   // plugin" (ADR-0004).
   base_currency: string | null;
   vat_registered: number;
+  // Which kind of VAT registration (issue #211): 'ordinary' (maksukohustuslane,
+  // deducts input VAT) | 'limited' (piiratud maksukohustuslane — self-assesses
+  // the output tax on specified acquisitions, deducts nothing).
+  vat_registration_kind: Generated<string>;
+  // Right to deduct input VAT: 'full' | 'partial' | 'none' (issue #211).
+  input_vat_entitlement: Generated<string>;
+  // The deductible proportion in PER MILLE (0…1000) when the entitlement is
+  // 'partial'; NULL otherwise, enforced by a CHECK.
+  input_vat_deduction_permille: number | null;
   // Legal form: 'company' | 'sole_proprietor' (ADR-0017/ADR-0023).
   // Generated because migration 017 adds DEFAULT 'company'.
   org_type: Generated<string>;
   created_at: number;
   // Declarant identity for statutory reports (migration 037).
   vat_registration_number: string | null;
+  registry_code: string | null;
   // Own IBAN printed on outgoing invoices — signals document direction (migration 046).
   iban: string | null;
   name: string | null;
@@ -86,6 +103,26 @@ export interface VoucherTable {
   corrects_object_type: string | null;
   corrects_object_id: number | null;
   reason: string | null;
+  /**
+   * The financial year (a `reporting_period` row with `kind = 'annual'`) whose
+   * CLOSE posted this voucher — the trusted mark of a year-end adjustment
+   * (issue #207). Written only by the validated annual-close posting path, never
+   * from a request payload, and immutable once the voucher is posted (ADR-0019
+   * trigger). A VAT snapshot excludes the vouchers carrying it, so a year-end
+   * adjustment booked after the month was filed never drifts a frozen return.
+   */
+  annual_close_period_id: number | null;
+  /**
+   * The input-VAT deduction entitlement this purchase was POSTED at (issue
+   * #211): why it applied (`input_vat_entitlement_basis`) and the exact integer
+   * fraction of the tax that was deducted. Frozen here because the
+   * organisation's settings move and a posted voucher must keep saying what it
+   * was booked on. NULL = no input-VAT decision was recorded on this voucher
+   * (a sale, a system entry, or anything posted before this column existed).
+   */
+  input_vat_entitlement_basis: string | null;
+  input_vat_deduction_numerator: number | null;
+  input_vat_deduction_denominator: number | null;
 }
 
 export interface VoucherLineTable {
@@ -98,6 +135,14 @@ export interface VoucherLineTable {
   // Cents in base currency (EUR).
   base_amount: number;
   fx_rate: number;
+  // Provenance of `fx_rate` (issue #203). NULL on lines posted before the
+  // provenance columns existed — such a line stays distinguishable as
+  // "rate source unknown" rather than being retroactively blessed.
+  // The publication date the rate was taken from (YYYY-MM-DD). Differs from
+  // the voucher's tax point whenever the authority published nothing that day.
+  fx_rate_date: string | null;
+  // The publishing authority ('ECB'), or 'identity' / 'bank_statement'.
+  fx_rate_source: string | null;
   vat_code: string | null;
   // SQLite boolean (0/1): 1 = debit, 0 = credit.
   is_debit: number;
@@ -120,6 +165,14 @@ export interface SalesInvoiceTable {
   document_vat_marking: string | null;
   // FK to the intake document that originated this invoice — null for manually created invoices.
   document_id: number | null;
+  // What THIS invoice supplies: 'goods' | 'services'. Null ⇒ fall back to the
+  // customer entity's goods_vs_services (pre-#209 behavior, preserved).
+  supply_type: string | null;
+  // Place-of-supply rule for a service supply (KMS §10). 'general' is the
+  // residual rule and the default; any other value names a declared exception
+  // the plugin refuses to auto-classify. Generated: migration 076 gives the
+  // column DEFAULT 'general', so an insert may omit it.
+  service_place_rule: Generated<string>;
   created_at: number;
   updated_at: number;
 }
@@ -185,6 +238,13 @@ export interface ReportingPeriodTable {
   name: string;
   start_date: string;
   end_date: string;
+  /**
+   * Which timeline this period belongs to (issue #207): `vat` — the tax
+   * calendar a KMD is filed for — or `annual` — an independent financial year
+   * the annual accounts are produced and closed for. The two coexist over the
+   * same dates; the overlap guard applies WITHIN a timeline.
+   */
+  kind: Generated<string>;
   status: string;
   filed_at: number | null;
   vat_report_snapshot_id: number | null;
@@ -203,6 +263,8 @@ export interface DocumentTable {
   status: string;
   // Nullable JSON (TEXT): the JSON-stringified TriageResult that blocked this
   // document on the supplier-unresolved route (migration 039). NULL otherwise.
+  // Read-only successful extraction, independent of supplier replay eligibility.
+  classification_snapshot: Generated<string | null>;
   pending_triage_result: string | null;
   // Nullable JSON (TEXT): deterministic Pass-2 enrichment retained alongside
   // pending_triage_result for parked replay/debug flows.
@@ -252,6 +314,10 @@ export interface EntityTable {
   name: string;
   // 'goods' | 'services' | 'unknown'
   goods_vs_services: string | null;
+  // Whether this counterparty is a taxable person acting as such:
+  // 'taxable_business' | 'non_taxable' | 'unknown'. NULL ⇒ never recorded,
+  // read as unknown — never as a consumer (issue #209).
+  tax_status: string | null;
   created_at: number | null;
   updated_at: number | null;
 }
@@ -334,6 +400,18 @@ export interface ReconciliationMatchTable {
   // The realized-FX voucher this match posted (multi-currency only), so an
   // unmatch can reverse it. Null for same-currency matches.
   fx_voucher_id: Generated<number | null>;
+  // The settlement voucher this match posted at activation (Dr bank / Cr AR,
+  // or Dr AP / Cr bank), so an unmatch reverses exactly that voucher
+  // (migration 070, ADR-0008). Null for a prepayment match (its cash is
+  // already booked by the advance voucher) and for matches activated before
+  // migration 070 — those are reported as unposted settlements, never guessed.
+  settlement_voucher_id: Generated<number | null>;
+  // The CASH this match consumed from its bank line, in base cents
+  // (migration 071). Differs from `amount_matched` — booked base at the
+  // invoice's rate — whenever a foreign settlement moved the rate. Null for a
+  // match activated before migration 071, which is read as having consumed
+  // its booked amount.
+  cash_base_amount: Generated<number | null>;
   created_at: number;
 }
 
@@ -560,6 +638,34 @@ export interface FixedAssetTable {
   disposal_voucher_id: number | null;
 }
 
+// FixedAssetDepreciation: WHICH posted depreciation belongs to WHICH asset
+// (migration 075, issue #208).
+//
+// Attribution metadata OVER the ledger, never a parallel ledger: every row
+// names an amount that already exists as an ACCUM_DEPRECIATION_* credit on the
+// posted voucher it points at. The annual close posts ONE voucher with one
+// line per asset CLASS, so without this table there is no way to tell how much
+// of a class's posted depreciation belongs to a single asset — which is what
+// made a disposal re-charge depreciation the close had already posted (#208)
+// and every asset card deduct its peers' depreciation (#214).
+//
+// Written inside the SAME transaction as the voucher it attributes, so an
+// attributed charge and its ledger lines can never exist apart.
+export interface FixedAssetDepreciationTable {
+  id: Generated<number>;
+  fixed_asset_id: number;
+  // The posted voucher carrying the ACCUM_DEPRECIATION_* credit.
+  voucher_id: number;
+  // Credit-positive: the share of that voucher's contra credit for this asset.
+  amount_minor: number;
+  // ISO date the charge runs through (the close's period end, or the
+  // disposal date) — the asset's accumulated-depreciation high-water mark.
+  charge_through_date: string;
+  // 'annual_close' | 'disposal_catch_up' | 'legacy_backfill'
+  source: string;
+  created_at: number;
+}
+
 // StatutorySubmissionEvent: append-only, jurisdiction-neutral log of the
 // external statutory-filing lifecycle over an immutable snapshot (ADR-0037).
 // One row per lifecycle event; filing state is a FOLD over the events (no
@@ -576,11 +682,38 @@ export interface StatutorySubmissionEventTable {
   // 'prepared' | 'submitted' | 'accepted' | 'rejected'
   //   | 'correction_submitted' | 'correction_accepted'
   event_kind: string;
+  // The exact statutory_filing_snapshot version this event identifies (issue
+  // #200). NULL for events recorded before migration 068, and for periods
+  // whose plugin freezes no filing payload.
+  source_payload_id: number | null;
   // e-MTA confirmation id (nullable).
   external_ref: string | null;
   occurred_at: number;
   actor: string;
   note: string | null;
+}
+
+// Issue #200: the COMPLETE filing state a period is filed against — the frozen
+// `StatutoryReportInput` (declarant identity, signed declaration bases, VAT
+// boxes/totals and per-document INF lines) bound to one frozen `vat_report`.
+// Append-only via BEFORE UPDATE/DELETE triggers (ADR-0009): a correction
+// appends a newer row for the same `vat_report_id`; which version an export
+// renders is pinned per submission event (statutory_submission_event
+// .source_payload_id), never decided by recency alone.
+export interface StatutoryFilingSnapshotTable {
+  id: Generated<number>;
+  reporting_period_id: number;
+  vat_report_id: number;
+  // Jurisdiction/report identifier, e.g. 'EE_KMD'.
+  report_kind: string;
+  // The country whose plugin rendered this filing, frozen so a later
+  // organization.country change cannot alter an already-filed artifact.
+  country: string;
+  // JSON string: the frozen StatutoryReportInput.
+  payload: string;
+  // Why this row exists: 'lock' | 'reconcile'.
+  reason: string;
+  created_at: number;
 }
 
 export interface MailboxConnectorTable {
@@ -633,4 +766,147 @@ export interface AllowanceTable {
   voucher_id: number | null;
   created_at: number;
   updated_at: number;
+  // Health/sports eligibility facts (issue #212). All nullable: a pre-existing
+  // row never recorded them, and NULL reads as NOT eligible — never as eligible.
+  health_category: string | null;
+  // 'employee' | 'board_member' | 'other'
+  claimant_relation: string | null;
+  // WHICH document evidences the expense — an intake Document, or an external
+  // reference when the paper lives elsewhere.
+  supporting_document_id: number | null;
+  supporting_document_ref: string | null;
+  // The provider's licence/registration, for the categories that qualify only
+  // because a registered provider supplied the service.
+  provider_registration: string | null;
+  // SQLite boolean (0/1): the benefit is available to every eligible employee.
+  offered_to_all_employees: number | null;
+  // What was DECIDED at posting time, so a posted claim stays explicable.
+  exemption_basis: string | null;
+  // The accumulation window the allocation was made against ('2026', '2024-Q3').
+  limit_window: string | null;
+  // The employer's own tax on the taxable excess, owed ON TOP of the payout.
+  fringe_income_tax_amount: Generated<number>;
+  fringe_social_tax_amount: Generated<number>;
+}
+
+// Prepayment advance: the reconciliation record of ONE posted advance voucher —
+// who it belongs to and where the money came from (issue #201). The Voucher
+// stays the accounting evidence; this row says what it MEANS.
+export interface PrepaymentAdvanceTable {
+  id: Generated<number>;
+  // The posted advance voucher (one advance per voucher).
+  voucher_id: number;
+  // 'customer' (liability we owe) | 'supplier' (asset we prepaid).
+  kind: string;
+  account_code: string;
+  // The owning counterparty. NULL = unresolved: visible, but NOT allocatable —
+  // an advance is never attributed to whoever happens to ask.
+  entity_id: number | null;
+  // Source bank provenance.
+  bank_transaction_id: number | null;
+  original_base_amount: number;
+  currency: string;
+  // SQLite boolean: 1 = remaining balance UNKNOWN (an unlinked historical
+  // draw-down of this kind exists) → reported as unknown and blocked from
+  // allocation. Cleared only by explicitly linking those draw-downs.
+  needs_review: Generated<number>;
+  // 'service' | 'backfill' | 'operator'
+  origin: string;
+  created_at: number;
+  // What the money IS (issue #213): 'taxable_supply' (an advance on an
+  // identified supply — the receipt is its tax point) | 'non_taxable_deposit'
+  // (a gross liability, no turnover) | 'unresolved' (unclassified and HELD:
+  // recorded, but neither allocatable nor settleable).
+  tax_treatment: Generated<string>;
+  // Jurisdiction VAT code the advance was declared under; NULL unless taxable.
+  vat_code: string | null;
+  // The rate IN FORCE on the receipt date, in per mille (240 = 24%). Frozen —
+  // a later invoice never reprices an earlier advance.
+  vat_rate_permille: number | null;
+  // Gross base-currency minor units received. `original_base_amount` stays the
+  // prepayment LEG (net when taxable), which is what the ledger carries.
+  gross_base_amount: number | null;
+  // Output VAT declared at the receipt; 0 for a deposit or unresolved receipt.
+  vat_base_amount: Generated<number>;
+  // WHICH supply this is an advance on — required for a taxable advance.
+  supply_description: string | null;
+  // The advance/pro-forma document number issued for this payment, if any.
+  advance_document_number: string | null;
+  // The advance tax point: the day the payment was received.
+  advance_tax_point_date: string | null;
+  // Set when this advance was reclassified: its voucher was reversed and this
+  // names the VAT-bearing advance posted in its place.
+  superseded_by_advance_id: number | null;
+}
+
+// Prepayment allocation: ONE draw-down — source advance → target invoice, for
+// one counterparty, evidenced by one posted allocation voucher. Released (stops
+// consuming the advance) exactly when that voucher is reversed, derived from
+// `voucher.reverses_id` rather than a second status column.
+export interface PrepaymentAllocationTable {
+  id: Generated<number>;
+  advance_id: number;
+  invoice_voucher_id: number;
+  // The counterparty both sides shared. NULL only for backfilled rows.
+  entity_id: number | null;
+  base_amount: number;
+  currency: string;
+  allocation_voucher_id: number;
+  // The advance VAT this draw-down releases (issue #213): the share of the
+  // output VAT declared at the receipt that the final invoice now declares
+  // itself. 0 for a deposit, an unresolved receipt, or a pre-#213 allocation.
+  vat_base_amount: Generated<number>;
+  // 'service' | 'backfill' | 'operator'
+  origin: string;
+  created_at: number;
+}
+
+/**
+ * One refund of a customer advance (issue #213): the posted refund voucher, the
+ * bank line that paid it, and the split it took back. `bank_transaction_id` is
+ * UNIQUE, so a retried call cannot refund the same money twice.
+ */
+export interface PrepaymentRefundTable {
+  id: Generated<number>;
+  advance_id: number;
+  voucher_id: number;
+  bank_transaction_id: number;
+  net_base_amount: number;
+  vat_base_amount: number;
+  currency: string;
+  // The cancellation/credit document this relief is taken under, and why.
+  credit_reference: string;
+  reason: string;
+  refund_date: string;
+  created_at: number;
+}
+
+/**
+ * An append-only cache of authoritative reference-rate publications
+ * (issue #203). One row = one observation: on `rate_date`, `source` published
+ * that 1 `base_currency` buys `rate` units of `quote_currency`.
+ */
+export interface FxReferenceRateTable {
+  id: Generated<number>;
+  source: string;
+  base_currency: string;
+  quote_currency: string;
+  rate_date: string;
+  rate: number;
+  fetched_at: number;
+}
+
+/**
+ * A window of dates the rate authority was actually asked about (issue #203).
+ * Separates "we looked and there was nothing" from "we never looked", so a
+ * cached older observation is never mistaken for coverage of a later date.
+ */
+export interface FxRateProbeTable {
+  id: Generated<number>;
+  source: string;
+  base_currency: string;
+  quote_currency: string;
+  from_date: string;
+  to_date: string;
+  probed_at: number;
 }

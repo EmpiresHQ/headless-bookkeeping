@@ -53,6 +53,30 @@ describe('AnnualAccountsController', () => {
     );
   });
 
+  it('GET reports WHICH gap withheld the artifact, as a 400', async () => {
+    service.generate.mockResolvedValue({
+      artifacts: [],
+      warnings: [
+        {
+          code: 'missing_declarant_reg_number',
+          message: 'Annual accounts declarant has no commercial registry code',
+        },
+      ],
+    });
+    const res = {
+      setHeader: jest.fn(),
+      send: jest.fn(),
+    } as unknown as import('express').Response;
+
+    await expect(controller.download(7, res)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining('no commercial registry code'),
+    });
+    // Nothing was written to the response either.
+    expect(res.send).not.toHaveBeenCalled();
+    expect(res.setHeader).not.toHaveBeenCalled();
+  });
+
   it('POST finalize delegates and returns artifacts + warnings JSON', async () => {
     service.finalize.mockResolvedValue({
       artifacts: [

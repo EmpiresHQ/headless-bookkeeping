@@ -1,5 +1,10 @@
 import { Reflector } from '@nestjs/core';
-import { MailboxController } from './mailbox.controller';
+import { BadRequestException } from '@nestjs/common';
+import {
+  CreateImapConnectorDto,
+  MailboxController,
+} from './mailbox.controller';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { IS_PUBLIC_KEY } from '../auth/api-token.guard';
 import type { Response } from 'express';
 
@@ -107,5 +112,57 @@ describe('MailboxController.callback (OAuth redirect)', () => {
       new Error('UNIQUE constraint failed: mailbox_connector.channel'),
     );
     await expect(controller.create(passwordDto)).rejects.toThrow(/UNIQUE/);
+  });
+});
+
+// The global ZodValidationPipe (main.ts) is the HTTP boundary for create():
+// an invalid port must be a 400 before the controller ever stores a row.
+describe('MailboxController.create body validation (issue #376)', () => {
+  const pipe = new ZodValidationPipe();
+  const validate = (body: unknown) =>
+    pipe.transform(body, { type: 'body', metatype: CreateImapConnectorDto });
+  const body = {
+    channel: 'email_sync',
+    provider: 'imap',
+    host: 'imap.example.com',
+    port: 993,
+    username: 'me@example.com',
+    secret: 's3cret',
+    folder: 'INBOX',
+  };
+
+  it('accepts a valid IMAP connector body', () => {
+    expect(validate(body)).toEqual(body);
+    expect(validate({ ...body, port: 1 })).toMatchObject({ port: 1 });
+    expect(validate({ ...body, port: 65535 })).toMatchObject({ port: 65535 });
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -1],
+    ['out of range', 65536],
+    ['fractional', 993.5],
+    ['empty string', ''],
+    ['numeric string', '993'],
+    ['null', null],
+    ['missing', undefined],
+  ])('rejects a %s port with a 400 naming the field', (_label, port) => {
+    let err: unknown;
+    try {
+      validate({ ...body, port });
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toHaveProperty('port');
+  });
+
+  it('rejects a blank host or username', () => {
+    expect(() => validate({ ...body, host: '  ' })).toThrow(
+      BadRequestException,
+    );
+    expect(() => validate({ ...body, username: '' })).toThrow(
+      BadRequestException,
+    );
   });
 });

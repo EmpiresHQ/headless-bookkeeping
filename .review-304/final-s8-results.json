@@ -1,0 +1,262 @@
+{
+ "label": "final-s8",
+ "startedAt": "2026-09-24T07:41:24.088Z",
+ "finishedAt": "2026-09-24T07:41:28.415Z",
+ "note": "S8 run separately after the main matrix (same build/harness plus Books mocks). paintedBrokenSamples truncated to first 3.",
+ "cases": [
+  {
+   "name": "S8-books-archive-broken-thumb",
+   "width": 1440,
+   "height": 900,
+   "ok": false,
+   "failures": [
+    "persistent broken <img> in archive rows: [{\"who\":\"32002:thumb\",\"complete\":true,\"nw\":0,\"rect\":[36,48],\"alt\":\"\"}]",
+    "84 painted frames with a broken image"
+   ],
+   "frames": 118,
+   "wrongObject": 0,
+   "brokenPainted": 84,
+   "paintedBrokenSamples": [
+    {
+     "t": 369,
+     "via": "raf",
+     "path": "/books",
+     "img": "32002:thumb",
+     "exp": {
+      "ctx": "row",
+      "id": 32002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    },
+    {
+     "t": 389,
+     "via": "raf",
+     "path": "/books",
+     "img": "32002:thumb",
+     "exp": {
+      "ctx": "row",
+      "id": 32002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    },
+    {
+     "t": 402,
+     "via": "raf",
+     "path": "/books",
+     "img": "32002:thumb",
+     "exp": {
+      "ctx": "row",
+      "id": 32002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    }
+   ],
+   "steps": [
+    {
+     "t": 1665,
+     "msg": "archive rows settled (+1 s)",
+     "v": {
+      "imgs": [
+       {
+        "who": "32001:thumb",
+        "complete": true,
+        "nw": 61,
+        "rect": [
+         36,
+         48
+        ],
+        "alt": ""
+       },
+       {
+        "who": "32002:thumb",
+        "complete": true,
+        "nw": 0,
+        "rect": [
+         36,
+         48
+        ],
+        "alt": ""
+       },
+       {
+        "who": "32003:thumb",
+        "complete": true,
+        "nw": 63,
+        "rect": [
+         36,
+         48
+        ],
+        "alt": ""
+       }
+      ],
+      "reqs32002": 1
+     }
+    }
+   ],
+   "requests": [
+    "#1 32001:thumb ok start=352 settle=352",
+    "#2 32002:thumb broken start=353 settle=353",
+    "#3 32003:thumb ok start=353 settle=353"
+   ],
+   "objectUrls": [
+    "#2 32002:thumb created=355 revoked=1769",
+    "#1 32001:thumb created=360 revoked=1769",
+    "#3 32003:thumb created=364 revoked=1769"
+   ],
+   "urls": {
+    "created": 3,
+    "revoked": 3,
+    "liveAfterLeave": []
+   },
+   "pageErrors": [],
+   "writes": []
+  },
+  {
+   "name": "S8-books-archive-broken-thumb",
+   "width": 1920,
+   "height": 1080,
+   "ok": false,
+   "failures": [
+    "persistent broken <img> in archive rows: [{\"who\":\"32002:thumb\",\"complete\":true,\"nw\":0,\"rect\":[36,48],\"alt\":\"\"}]",
+    "82 painted frames with a broken image"
+   ],
+   "frames": 119,
+   "wrongObject": 0,
+   "brokenPainted": 82,
+   "paintedBrokenSamples": [
+    {
+     "t": 444,
+     "via": "raf",
+     "path": "/books",
+     "img": "32002:thumb",
+     "exp": {
+      "ctx": "row",
+      "id": 32002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    },
+    {
+     "t": 458,
+     "via": "raf",
+     "path": "/books",
+     "img": "32002:thumb",
+     "exp": {
+      "ctx": "row",
+      "id": 32002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    },
+    {
+     "t": 476,
+     "via": "raf",
+     "path": "/books",
+     "img": "32002:thumb",
+     "exp": {
+      "ctx": "row",
+      "id": 32002
+     },
+     "v": [
+      "broken-bytes-img",
+      "broken-render"
+     ],
+     "rect": [
+      36,
+      48
+     ]
+    }
+   ],
+   "steps": [
+    {
+     "t": 1742,
+     "msg": "archive rows settled (+1 s)",
+     "v": {
+      "imgs": [
+       {
+        "who": "32001:thumb",
+        "complete": true,
+        "nw": 61,
+        "rect": [
+         36,
+         48
+        ],
+        "alt": ""
+       },
+       {
+        "who": "32002:thumb",
+        "complete": true,
+        "nw": 0,
+        "rect": [
+         36,
+         48
+        ],
+        "alt": ""
+       },
+       {
+        "who": "32003:thumb",
+        "complete": true,
+        "nw": 63,
+        "rect": [
+         36,
+         48
+        ],
+        "alt": ""
+       }
+      ],
+      "reqs32002": 1
+     }
+    }
+   ],
+   "requests": [
+    "#1 32001:thumb ok start=423 settle=423",
+    "#2 32002:thumb broken start=424 settle=424",
+    "#3 32003:thumb ok start=425 settle=425"
+   ],
+   "objectUrls": [
+    "#2 32002:thumb created=427 revoked=1807",
+    "#1 32001:thumb created=441 revoked=1807",
+    "#3 32003:thumb created=450 revoked=1807"
+   ],
+   "urls": {
+    "created": 3,
+    "revoked": 3,
+    "liveAfterLeave": []
+   },
+   "pageErrors": [],
+   "writes": []
+  }
+ ]
+}

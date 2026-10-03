@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -64,6 +65,7 @@ describe('RulesService (unit)', () => {
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         { provide: PeriodLockService, useValue: mockPeriodLock },
       ],
     }).compile();
@@ -446,6 +448,7 @@ describe('RulesService (real-DI against seeded chart + NullCountryPlugin)', () =
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         { provide: PeriodLockService, useValue: mockPeriodLock },
       ],
     }).compile();

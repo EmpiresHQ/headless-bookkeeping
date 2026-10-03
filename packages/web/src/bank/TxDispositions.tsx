@@ -1,6 +1,16 @@
-import { fmtCents, type BankTransaction } from '../api';
+import { useState } from 'react';
+import {
+  fmtCents,
+  type AdvanceTaxInput,
+  type AdvanceTaxTreatment,
+  type BankTransaction,
+} from '../api';
 import { signedEuros } from '../lib/money';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
+import { ActionBar } from '../ui/ActionBar';
 import { Button } from '../ui/Button';
+import { Field, SelectInput, TextInput } from '../ui/Form';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { GroupLabel } from '../ui/List';
 import { Sheet } from '../ui/Sheet';
 
@@ -78,7 +88,12 @@ export function OtherSheet({
     });
   }
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Other actions">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Other actions"
+      busy={busy}
+    >
       <div className="px-4 pb-4">
         <div className="overflow-hidden rounded-2xl bg-surface">
           {options.map((o) => (
@@ -102,7 +117,9 @@ export function OtherSheet({
           ))}
           {options.length === 0 && (
             <p className="px-3.5 py-3 text-[13px] text-ink-2">
-              No dispositions apply — the line has matches or is incoming-only.
+              {hasMatches
+                ? 'Nothing else applies — this line already has matches.'
+                : 'Nothing else applies to this line.'}
             </p>
           )}
         </div>
@@ -133,7 +150,12 @@ export function PersonalSheet({
   onConfirm: () => void;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Personal spend">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Personal spend"
+      busy={busy}
+    >
       <p className="px-7 pb-2.5 text-center text-[12px] text-ink-2">
         {tx.description ?? 'Bank line'} · {fmtCents(tx.amount)} €
       </p>
@@ -164,48 +186,222 @@ export function PersonalSheet({
   );
 }
 
-/** Whole-line prepayment — explicit confirm (posts immediately, no undo). */
+/**
+ * Whole-line prepayment — explicit confirm (posts immediately, no undo).
+ *
+ * For money RECEIVED the sheet also asks what it is (issue #213). Estonian VAT
+ * arises on the earlier of the supply and the payment for it, so an advance on
+ * an identified taxable supply owes its VAT on the day it arrives — and a
+ * security deposit owes none. The system will not guess between them: an
+ * unclassified receipt is recorded and then HELD, which the sheet says plainly
+ * instead of promising a future match.
+ *
+ * Money PAID to a supplier is unchanged: it declares no output VAT, so it asks
+ * nothing extra.
+ */
 export function PrepaymentSheet({
   open,
   onOpenChange,
   tx,
   busy,
+  vatTreatments,
   onConfirm,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   tx: BankTransaction;
   busy: boolean;
-  onConfirm: () => void;
+  /** Treatments the country plugin allows for this receipt date. */
+  vatTreatments: { vat_code: string; rate_permille: number }[];
+  /** `release` marks the form saved — call it on success BEFORE leaving. */
+  onConfirm: (tax: AdvanceTaxInput | undefined, release: () => void) => void;
 }) {
   const incoming = tx.amount > 0;
   const abs = fmtCents(Math.abs(tx.amount));
+  const [treatment, setTreatment] = useState<AdvanceTaxTreatment>('unresolved');
+  const [vatCode, setVatCode] = useState('');
+  const [supply, setSupply] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const guard = useUnsavedChanges({
+    label: 'Record prepayment',
+    active: open,
+    values: { treatment, vatCode, supply, documentNumber },
+    baseline: {
+      treatment: 'unresolved',
+      vatCode: '',
+      supply: '',
+      documentNumber: '',
+    },
+  });
+
+  const effectiveVatCode = vatCode || vatTreatments[0]?.vat_code || '';
+  const rate = vatTreatments.find(
+    (t) => t.vat_code === effectiveVatCode,
+  )?.rate_permille;
+  // The VAT inside the money received, at the rate in force on its date.
+  const vatCents =
+    rate === undefined
+      ? null
+      : Math.round((Math.abs(tx.amount) * rate) / (1000 + rate));
+
+  const taxableIncomplete =
+    treatment === 'taxable_supply' &&
+    (supply.trim() === '' || effectiveVatCode === '');
+
+  const submit = () => {
+    if (!incoming) return onConfirm(undefined, guard.release);
+    if (treatment === 'unresolved') return onConfirm(undefined, guard.release);
+    onConfirm(
+      treatment === 'taxable_supply'
+        ? {
+            tax_treatment: 'taxable_supply',
+            vat_code: effectiveVatCode,
+            supply_description: supply.trim(),
+            ...(documentNumber.trim()
+              ? { advance_document_number: documentNumber.trim() }
+              : {}),
+          }
+        : { tax_treatment: 'non_taxable_deposit' },
+      guard.release,
+    );
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Record prepayment">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Record prepayment"
+      guard={guard}
+      busy={busy}
+    >
       <p className="px-7 pb-2.5 text-center text-[12px] text-ink-2">
         {tx.description ?? 'Bank line'} · {incoming ? '+' : '−'}
         {abs} €
       </p>
+
+      {incoming && (
+        <div className="mx-4 mb-3 space-y-3">
+          <Field
+            group
+            label="What is this money?"
+            hint="A payment for an identified supply is taxed on the day it arrives — a deposit is not."
+          >
+            <SegmentedControl<AdvanceTaxTreatment>
+              label="Tax treatment"
+              options={[
+                { value: 'taxable_supply', label: 'Advance for a supply' },
+                { value: 'non_taxable_deposit', label: 'Deposit' },
+                { value: 'unresolved', label: 'Not sure yet' },
+              ]}
+              value={treatment}
+              onChange={setTreatment}
+            />
+          </Field>
+
+          {treatment === 'taxable_supply' && (
+            <>
+              <Field
+                label="What was paid for"
+                hint="The supply this advance pays for — it is what makes the payment taxable."
+              >
+                <TextInput
+                  value={supply}
+                  onChange={(e) => setSupply(e.target.value)}
+                  placeholder="e.g. Website build, delivery in March"
+                />
+              </Field>
+              <Field
+                label="VAT treatment"
+                hint={
+                  vatTreatments.length === 0
+                    ? 'No advance treatment is available for this date — record it as not sure yet and ask your accountant.'
+                    : undefined
+                }
+              >
+                <SelectInput
+                  value={effectiveVatCode}
+                  onChange={(e) => setVatCode(e.target.value)}
+                  disabled={vatTreatments.length === 0}
+                >
+                  {vatTreatments.map((t) => (
+                    <option key={t.vat_code} value={t.vat_code}>
+                      {t.rate_permille / 10}% · {t.vat_code}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field
+                label="Advance invoice number (if issued)"
+                hint="Estonia expects the advance invoice within 7 days of the payment; the number is needed before the VAT return is filed."
+              >
+                <TextInput
+                  value={documentNumber}
+                  onChange={(e) => setDocumentNumber(e.target.value)}
+                  placeholder="e.g. ETTEMAKS-12"
+                />
+              </Field>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="mx-4 mb-3 rounded-[13px] bg-warn-bg px-3.5 py-2.5 text-[12px] leading-[1.45] text-warn-deep">
         <b className="mb-0.5 block text-[11px] uppercase tracking-wide">
           What happens
         </b>
-        Records the whole {abs} € as a{' '}
-        {incoming
-          ? 'customer prepayment (money received on account)'
-          : 'supplier prepayment (money paid on account)'}
-        . It can settle {incoming ? 'invoices' : 'bills'} later — future lines
-        will offer it as a match candidate.
+        {!incoming &&
+          `Records the whole ${abs} € as a supplier prepayment (money paid on account). Applying it to the supplier’s bill isn’t available in this app — once the bill is booked, ask your bookkeeper to apply it.`}
+        {incoming && treatment === 'taxable_supply' && (
+          <>
+            Records {abs} € received as an advance on that supply.{' '}
+            {vatCents === null
+              ? 'Its VAT is declared on the date the money arrived.'
+              : `${fmtCents(vatCents)} € of VAT is declared on the date the money arrived`}
+            {vatCents === null
+              ? ''
+              : `, and ${fmtCents(Math.abs(tx.amount) - vatCents)} € is owed to the customer until the invoice.`}{' '}
+            When the advance is applied to the final invoice, that VAT is
+            released so it isn’t declared twice. Applying it isn’t available in
+            this app — ask your bookkeeper to apply it when you issue the final
+            invoice.
+          </>
+        )}
+        {incoming && treatment === 'non_taxable_deposit' && (
+          <>
+            Records the whole {abs} € as a deposit held for the customer. No VAT
+            is declared, because no supply is being paid for. Applying it to an
+            invoice isn’t available in this app — ask your bookkeeper to apply
+            it when you issue the invoice.
+          </>
+        )}
+        {incoming && treatment === 'unresolved' && (
+          <>
+            Records the {abs} € received, but HOLDS it: until somebody says
+            whether it pays for a supply, it cannot settle an invoice and the
+            VAT return for this period cannot be filed. If you know what it is,
+            choose one of the options above now — afterwards, ask your
+            bookkeeper to classify it; that isn’t available in this app.
+          </>
+        )}
       </div>
+
       <div className="flex gap-2.5 px-4 pb-4">
         <Button
           variant="secondary"
           className="h-[46px] flex-1"
-          onClick={() => onOpenChange(false)}
+          disabled={busy}
+          onClick={() =>
+            void guard.confirmDiscard().then((ok) => ok && onOpenChange(false))
+          }
         >
           Cancel
         </Button>
-        <Button className="h-[46px] flex-1" busy={busy} onClick={onConfirm}>
+        <Button
+          className="h-[46px] flex-1"
+          busy={busy}
+          disabled={taxableIncomplete}
+          onClick={submit}
+        >
           Record prepayment · {incoming ? '+' : '−'}
           {abs} €
         </Button>
@@ -229,14 +425,15 @@ export function IncomingOpen({
         <b className="mb-0.5 block text-[11px] uppercase tracking-wide">
           Incoming payment, no open invoices
         </b>
-        Record it as a customer prepayment — it will offer itself as a match
-        when the invoice appears.
+        Record it as a customer prepayment. The next step asks what the money
+        is: a payment for a supply is taxed on the day it arrived, a deposit is
+        not, and an unclassified receipt is held until someone says which.
       </div>
-      <div className="sticky bottom-0 bg-gradient-to-t from-bg via-bg/95 to-transparent px-4 pb-3.5 pt-3">
+      <ActionBar>
         <Button className="h-[46px] w-full" onClick={onPrepayment}>
           Record prepayment · {signedEuros(tx.amount)}
         </Button>
-      </div>
+      </ActionBar>
     </>
   );
 }

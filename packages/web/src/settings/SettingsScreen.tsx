@@ -64,7 +64,7 @@ export function SettingsScreen() {
         <ListRow
           to="/settings/categories"
           title="Categories"
-          subtitle="Read-only — owned by the country plugin"
+          subtitle="Read-only — set by your organization’s country"
         />
       </ListGroup>
       <ListGroup label="Intake">
@@ -82,7 +82,7 @@ export function SettingsScreen() {
         <ListRow
           to="/settings/policy"
           title="Posting policy"
-          subtitle="Risk gate & ingest policy"
+          subtitle="What posts automatically and what needs approval"
         />
       </ListGroup>
       <ListGroup label="System">

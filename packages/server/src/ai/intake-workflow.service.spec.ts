@@ -1,3 +1,4 @@
+import { FxRateUnavailableError } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -559,6 +560,74 @@ describe('IntakeWorkflowService', () => {
         'possible duplicate of expense #84',
       );
     });
+
+    it('retains duplicate facts without enabling supplier replay, and clears stale facts on failed retry', async () => {
+      const docId = await seedDocument();
+      const triage = sampleTriageResult({
+        confidence: 0.94,
+        gross_amount: 1736,
+        vat_amount: 336,
+        tax_point_date: '2026-09-20',
+        supplier_invoice_number: '70379',
+        category: 'software',
+        supplier_proposal: { mode: 'match', match_entity_id: 7 },
+      });
+      mockPass2Agent.classify.mockResolvedValue({ ok: true, result: triage });
+      mockProposeDraft.proposeDraft.mockResolvedValue({
+        outcome: 'possible-duplicate',
+        reason:
+          'possible duplicate of expense #146: same supplier and invoice number 70379.',
+      });
+      await service.process(docId);
+      const calls = mockPass2Agent.classify.mock.calls.length;
+      const details = await service.details(docId);
+      expect(details.classification).toMatchObject({
+        ok: true,
+        result: {
+          gross_amount: 1736,
+          vat_amount: 336,
+          supplier_invoice_number: '70379',
+        },
+      });
+      expect(JSON.stringify(details)).not.toContain('match_entity_id');
+      expect(JSON.stringify(details)).not.toContain('supplier_proposal');
+      expect(await documentsService.getPendingTriageReplay(docId)).toBeNull();
+      await expect(service.resolveSupplier(docId, 7)).rejects.toThrow(
+        'no pending supplier proposal',
+      );
+      expect(mockPass2Agent.classify).toHaveBeenCalledTimes(calls);
+      expect(await db.selectFrom('expense').selectAll().execute()).toEqual([]);
+
+      await documentsService.reprocessDocument(docId);
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'agent-unavailable',
+        detail: 'timeout',
+      });
+      await service.process(docId);
+      expect((await service.details(docId)).classification).toBeNull();
+      expect(
+        await documentsService.getClassificationSnapshot(docId),
+      ).toBeNull();
+    });
+
+    it.each(['duplicate', 'unknown', 'not_a_document'] as const)(
+      'retains %s classification before a no-expense route',
+      async (kind) => {
+        const docId = await seedDocument();
+        mockPass2Agent.classify.mockResolvedValue({
+          ok: true,
+          result: sampleTriageResult({ kind, confidence: 0.5 }),
+        });
+        await service.process(docId);
+        expect((await service.details(docId)).classification).toMatchObject({
+          ok: true,
+          result: { kind },
+        });
+        expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+        expect(await documentsService.getPendingTriageReplay(docId)).toBeNull();
+      },
+    );
 
     it('files a matched RECEIPT away as processed with an audit_log trace, without creating work for a human', async () => {
       // The dominant production pattern: a vendor emails the invoice and the
@@ -1517,32 +1586,35 @@ describe('IntakeWorkflowService', () => {
       expect(finding?.reason_type).toBe('not_a_document');
     });
 
-    it('persists non_postable_document for a confident order_confirmation, and never proposes a draft', async () => {
-      const docId = await seedDocument();
-      mockPass2Agent.classify.mockResolvedValue({
-        ok: true,
-        result: sampleTriageResult({
-          kind: 'new_expense',
-          document_type: 'order_confirmation',
-          confidence: 0.95,
-        }),
-      });
+    it.each(['new_expense', 'not_a_document'] as const)(
+      'persists the specific order hold for kind=%s without proposing a draft',
+      async (kind) => {
+        const docId = await seedDocument();
+        mockPass2Agent.classify.mockResolvedValue({
+          ok: true,
+          result: sampleTriageResult({
+            kind,
+            document_type: 'order_confirmation',
+            confidence: 0.95,
+          }),
+        });
 
-      const result = await service.process(docId);
+        const result = await service.process(docId);
 
-      expect(result.status).toBe('needs_triage');
-      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+        expect(result.status).toBe('needs_triage');
+        expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
 
-      const doc = await documentsService.getById(docId);
-      expect(doc.status).toBe('needs_triage');
+        const doc = await documentsService.getById(docId);
+        expect(doc.status).toBe('needs_triage');
 
-      const finding = await auditFindingsService.findOpenByReference(
-        'needs_triage',
-        'document',
-        docId,
-      );
-      expect(finding?.reason_type).toBe('non_postable_document');
-    });
+        const finding = await auditFindingsService.findOpenByReference(
+          'needs_triage',
+          'document',
+          docId,
+        );
+        expect(finding?.reason_type).toBe('non_postable_document');
+      },
+    );
 
     it('flips ocr_failed -> classification_failed on re-route, updating BOTH fields', async () => {
       const docId = await seedDocument();
@@ -2269,6 +2341,103 @@ describe('IntakeWorkflowService', () => {
 
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('triaged');
+    });
+  });
+
+  /**
+   * Issue #203: a document in a currency we cannot authoritatively value on
+   * its own tax-point date is an EXPECTED outcome, not a crash. It must be
+   * HELD for a human, with a reason they can act on — and nothing may reach
+   * the ledger at a rate we invented.
+   */
+  describe('an unavailable reference rate holds the document', () => {
+    const arrangeExpense = () => {
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ currency: 'USD' }),
+        enrichment: sampleEnrichment(),
+      });
+    };
+
+    it('routes to needs_triage with an actionable reason, not "Unexpected error"', async () => {
+      const docId = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError(
+          'USD',
+          'EUR',
+          '2026-03-15',
+          'ECB published no rate on 2026-03-15 nor in the 7 day(s) before it',
+          'no_rate_for_date',
+        ),
+      );
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        docId,
+      );
+      expect(finding?.description).toContain('USD→EUR');
+      expect(finding?.description).toContain('2026-03-15');
+      // The old behaviour surfaced this as an unforeseen fault, which told the
+      // operator nothing about what to do.
+      expect(finding?.description).not.toContain('Unexpected error');
+    });
+
+    it('posts NO voucher and leaves no expense behind', async () => {
+      const docId = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError('USD', 'EUR', '2026-03-15', 'no rate'),
+      );
+
+      await service.process(docId);
+
+      expect(await db.selectFrom('voucher').selectAll().execute()).toEqual([]);
+      expect(await db.selectFrom('expense').selectAll().execute()).toEqual([]);
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('tells a retryable outage apart from a rate that will never exist', async () => {
+      const outageDoc = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError(
+          'USD',
+          'EUR',
+          '2026-03-15',
+          'ECB responded 503',
+          'upstream_unavailable',
+        ),
+      );
+
+      await service.process(outageDoc);
+
+      const finding = await auditFindingsService.findOpenByReference(
+        'needs_triage',
+        'document',
+        outageDoc,
+      );
+      // An outage is worth retrying; an unsupported pair is not, and the
+      // operator is told which this is.
+      expect(finding?.description).toMatch(/Retry once the rate source/i);
+    });
+
+    it('does not release the processing lock holding the document hostage', async () => {
+      const docId = await seedDocument();
+      arrangeExpense();
+      mockProposeDraft.proposeDraft.mockRejectedValue(
+        new FxRateUnavailableError('USD', 'EUR', '2026-03-15', 'no rate'),
+      );
+
+      await service.process(docId);
+
+      const doc = await documentsService.getById(docId);
+      expect(doc.processing_since).toBeNull();
     });
   });
 });

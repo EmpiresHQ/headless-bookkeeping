@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -7,10 +13,12 @@ vi.mock('../api', async (importOriginal) => ({
   getDocumentReclassify: vi.fn(),
   getEntities: vi.fn(),
   manualClassifyInvoice: vi.fn(),
+  fetchDocumentFile: vi.fn(),
 }));
 
 import * as api from '../api';
 import { ClassifyInvoiceSheet } from './ClassifyInvoiceSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function renderSheet(onDone = vi.fn()) {
   const client = new QueryClient({
@@ -18,12 +26,14 @@ function renderSheet(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <ClassifyInvoiceSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onDone={onDone}
-      />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <ClassifyInvoiceSheet
+          documentId={12}
+          open
+          onOpenChange={() => undefined}
+          onDone={onDone}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onDone;
@@ -32,6 +42,10 @@ function renderSheet(onDone = vi.fn()) {
 describe('ClassifyInvoiceSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.fetchDocumentFile).mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/jpeg' }),
+      filename: 'invoice-2026-018.jpg',
+    });
     vi.mocked(api.getDocumentReclassify).mockResolvedValue({
       document_id: 12,
       ocr: { ok: true, markdown: 'INVOICE 2026-018 …' },
@@ -58,6 +72,7 @@ describe('ClassifyInvoiceSheet', () => {
         country: 'EE',
         name: 'Nordic Consulting OÜ',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.manualClassifyInvoice).mockResolvedValue({
@@ -80,9 +95,21 @@ describe('ClassifyInvoiceSheet', () => {
     renderSheet();
     const nr = await screen.findByDisplayValue('2026-018');
     fireEvent.change(nr, { target: { value: '' } });
-    expect(
+    // Blank is not red before an attempt (#265)…
+    expect(nr).not.toHaveAttribute('aria-invalid');
+    fireEvent.blur(nr);
+    expect(nr).not.toHaveAttribute('aria-invalid');
+    // …the click says what is missing, focuses it, and sends nothing.
+    fireEvent.click(
       screen.getByRole('button', { name: 'Record invoice · +1200.00 €' }),
-    ).toBeDisabled();
+    );
+    expect(nr).toHaveAttribute('aria-invalid', 'true');
+    expect(nr).toHaveAccessibleDescription('Enter the invoice number');
+    await waitFor(() => expect(nr).toHaveFocus());
+    expect(api.manualClassifyInvoice).not.toHaveBeenCalled();
+    fireEvent.change(nr, { target: { value: '2026-019' } });
+    expect(nr).not.toHaveAttribute('aria-invalid');
+    expect(screen.queryByText(/Fix 1 field/)).toBeNull();
   });
 
   it('submits the sales_invoice payload with optional customer', async () => {
@@ -111,5 +138,22 @@ describe('ClassifyInvoiceSheet', () => {
       document_id: 12,
       invoice_id: 60,
     });
+  });
+
+  it('source document (#257): viewable from the form while typing; the number survives switching', async () => {
+    renderSheet();
+    const number = await screen.findByDisplayValue('2026-018');
+    fireEvent.change(number, { target: { value: '2026-019' } });
+    const source = screen.getByRole('region', { name: 'Source document' });
+    expect(
+      await within(source).findByText('invoice-2026-018.jpg'),
+    ).toBeVisible();
+    expect(within(source).getByAltText('Source document')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Form' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Form' }));
+    expect(screen.getByDisplayValue('2026-019')).toBe(number);
+    expect(api.manualClassifyInvoice).not.toHaveBeenCalled();
   });
 });

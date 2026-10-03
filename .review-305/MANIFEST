@@ -1,0 +1,47 @@
+QA-012 / issue #305 — remaining sticky action bars + mobile preview. Base main 68d2289. Report: docs/qa/2026-09-24-mobile-preview-sticky-actions.md
+
+COMMITTED (compact evidence)
+  MANIFEST                                this file
+  final-sticky.log                        sticky matrix runner output: 5 screens x 320x844/390x844/320x568/1440x900 (20 cases)
+  final-sticky-results.json               sticky matrix, compacted: scroll sweep (136 samples: ActionBar/TabBar/CTA rects,
+                                          full-visibility + 5-point hit test), touch drag + tap effect, mocked writes, Tab walk
+                                          with 5x5 occlusion grid per focus (finding D1), Enter/Escape, soft-keyboard proxy
+  sticky-summary.txt                      per-case geometry table + every partially/fully hidden focus step (D1)
+  final-preview.log                       preview matrix runner output: Inbox lightbox (A4/receipt/wide), triage row lightbox,
+                                          source pane (12-page PDF, 3024x4032 photo) x 320x844/390x844/1440x900 (18 cases)
+  final-preview-results.json              preview matrix, compacted (toolbar button lists dropped)
+  touch-pan.log                           pure-axis touch drags + pinch inside the source pane at 300% (320/390, PDF+photo)
+  probe-pinch.log                         synthesizePinchGesture no-op vs raw two-finger dispatchTouchEvent (scale 5)
+  probe-drag.log                          raw one-finger drag distances (-200 -> 185 px etc.)
+  focus-hidden-candidates-320x844.jpg     D1: focused candidate row #1308 hidden under the Match ActionBar
+  focus-hidden-create-320x844.jpg         D1: focused "Personal · Bank fee · Prepayment" row hidden under the TabBar
+  focus-hidden-candidates-1440x900.jpg    D1 desktop: focused candidate row #1311 hidden under the sticky Match bar
+  shot-matched-320x844-mid.jpg            TxMatched after a touch drag to scrollY 335: Unmatch pinned above the TabBar
+  shot-create-320x844-mid.jpg             TxCreateExpense after a touch drag (scrollY 59)
+  lb-receipt-320x844.jpg                  lightbox, receipt lg 213x1600 shown 101x760 (O2)
+  lb-wide-320x844.jpg                     lightbox, wide lg 1600x400 shown 296x74
+  src-pdf-300-panned-320x844.jpg          source pane, PDF page 1 at 300% after a touch pan
+  src-pdf-p7-landscape-300-320x844.jpg    source pane, landscape page 7 of 12 at 300%
+  src-pdf-fit-1440x900.jpg                desktop control: split form/source view, page 1 fit width
+
+UNTRACKED (kept locally under .review-305/work and .review-305/dist, not committed)
+  harness  inpage.js     sha256 5e25cc08e2fae0d20eaa1302c46a92d488eb0fb6b17886f79d80716b72f5ff81
+           common.mjs    sha256 f6c456603d9681607a33446b7b03d424b1b74342948f253891b6837692027e62
+           sticky.mjs    sha256 151eadbedd549984c200cfaf4da84cfacd8df51ba51bbe41016b2e1dea6116e5
+           preview.mjs   sha256 5179670cd8537e5d188665fa950adb35cda88e5810848cd88daeaa7d3c8ef2bf
+           probe-pan.mjs sha256 b32c05ebbec9800881ac9426d35610f0e7a8ef68e6927d3bad01eab79937df6c
+           probe-pinch.mjs, probe-drag.mjs, probe.mjs (+ probe.log)
+  results  work/final-sticky-results.json (full, 184 kB), work/final-preview-results.json (full)
+  dev runs dev1/dev2-sticky.{json,log}, dev1/dev2-preview.{json,log} — superseded (synthetic gestures were no-ops,
+           missing approvals mock, wrong row tagging, Back out of the app); see report "Harness issues"
+  shots    work/*.jpg (17 more, incl. pinch captures not trusted as visual evidence)
+  build    dist/ (6.4 MB; index.html sha256 008824569d1b416abcd43515d0a3b4df2f80c8be69db8ddc5972be39179ef430,
+           assets/index-B89dC_Y3.js sha256 3a68762e95178d8b0a529da418073226501e3b59c4ff1efb09daa76cac2137fb), work/build.log
+  preview  work/preview.log + preview.pid (vite preview on 127.0.0.1:5373; stopped)
+  other    packages/web/node_modules/pdfjs-dist -> /tmp/hbk-ui-257/.review-257/pdf-deps/node_modules/pdfjs-dist
+           (ignored symlink so vite.config.ts resolves pdfjs-dist in this worktree; no npm install)
+
+Fixtures are defined in common.mjs (bank statement 1 lines 501-505, 40 triage docs 31001-31040, generated 12-page PDF)
+and inpage.js (preview/photo PNGs drawn per request at server-capped sizes). Every non-GET was refused by the mock (503);
+the only writes attempted were DELETE /api/bank-statements/1/matches/:id, POST /api/approvals/96001/approve and
+POST /api/bank-statements/1/match. No production writes.

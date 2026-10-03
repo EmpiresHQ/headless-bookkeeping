@@ -1,3 +1,5 @@
+import { FX_RATE_SOURCE } from '../src/fx/fx-rate.types';
+import { ECB_FIXTURE_RATES, FixtureFxRateSource } from './fx-fixtures';
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 // Internal paths (no public API for this) — revisit if @nestjs/serve-static bumps a major.
@@ -54,6 +56,11 @@ describe('Operator SPA serving (e2e)', () => {
     })
       .overrideProvider(AbstractLoader)
       .useClass(ExpressLoader)
+      // Issue #203: the FX rate source is the ONE boundary at which
+      // authoritative rates enter the system. An e2e test binds it to a
+      // deterministic fixture, so booting the app never reaches the ECB.
+      .overrideProvider(FX_RATE_SOURCE)
+      .useValue(new FixtureFxRateSource(ECB_FIXTURE_RATES))
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();

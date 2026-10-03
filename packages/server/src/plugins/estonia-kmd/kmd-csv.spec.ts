@@ -1,10 +1,17 @@
+import { emptyKmdDeclaration } from '../../../test/kmd-fixture';
 import { renderKmdCsv } from './kmd-csv';
 import { StatutoryReportInput } from '../statutory-report.types';
 
 const input: StatutoryReportInput = {
-  declarant: { regNumber: 'EE100000001', name: 'Test OÜ' },
+  declarant: { regNumber: '17499653', name: 'Test OÜ' },
   period: { name: '2026-05', startDate: '2026-05-01', endDate: '2026-05-31' },
   mode: 'final',
+  declaration: {
+    ...emptyKmdDeclaration,
+    row1_base_24: 200000,
+    row4_output_vat: 48000,
+    net_vat_due: 48000,
+  },
   boxes: [
     {
       vat_code: 'EE_OUTPUT_24',

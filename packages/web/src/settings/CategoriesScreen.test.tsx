@@ -16,9 +16,13 @@ const ORG: Organization = {
   country: 'EE',
   base_currency: null,
   vat_registered: true,
+  vat_registration_kind: 'ordinary',
+  input_vat_entitlement: 'full',
+  input_vat_deduction_permille: null,
   org_type: 'company',
   created_at: 0,
   name: 'Acme OÜ',
+  registry_code: null,
   vat_registration_number: null,
   iban: null,
 };
@@ -44,13 +48,13 @@ beforeEach(() => {
 });
 
 describe('CategoriesScreen', () => {
-  it('lists label + key and explains plugin ownership', async () => {
+  it('lists label + key and explains the list is read-only for the country', async () => {
     mount();
     expect(await screen.findByText('Software')).toBeInTheDocument();
     expect(screen.getByText('Fuel')).toBeInTheDocument();
     expect(screen.getByText(/software/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Defined by the EE country plugin/),
+      screen.getByText(/The expense categories for EE — read-only/),
     ).toBeInTheDocument();
   });
 

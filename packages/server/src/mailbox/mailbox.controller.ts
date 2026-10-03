@@ -13,6 +13,8 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { Public } from '../auth/api-token.guard';
 import {
   MailboxConnectorService,
@@ -20,6 +22,22 @@ import {
 } from './mailbox-connector.service';
 import { OAuthService } from './oauth.service';
 import { MailSyncWorker } from './mail-sync.worker';
+
+/** IMAP password connector body. The port must be a real TCP port — an
+ *  empty/zero port used to be stored and marked `connected` (issue #376). */
+export const createImapConnectorSchema = z.object({
+  channel: z.enum(['email_sync', 'email_push']),
+  provider: z.enum(['gmail', 'outlook', 'imap']),
+  host: z.string().trim().min(1),
+  port: z.number().int().min(1).max(65535),
+  username: z.string().trim().min(1),
+  secret: z.string().min(1),
+  folder: z.string().optional(),
+});
+
+export class CreateImapConnectorDto extends createZodDto(
+  createImapConnectorSchema,
+) {}
 
 @ApiTags('mailbox')
 @Controller('api/mailbox')
@@ -40,18 +58,7 @@ export class MailboxController {
 
   @Post('connectors')
   @ApiOperation({ summary: 'Create an IMAP password connector' })
-  async create(
-    @Body()
-    dto: {
-      channel: 'email_sync' | 'email_push';
-      provider: 'gmail' | 'outlook' | 'imap';
-      host: string;
-      port: number;
-      username: string;
-      secret: string;
-      folder?: string;
-    },
-  ): Promise<MailboxConnector> {
+  async create(@Body() dto: CreateImapConnectorDto): Promise<MailboxConnector> {
     try {
       const connector = await this.connectors.create({
         ...dto,

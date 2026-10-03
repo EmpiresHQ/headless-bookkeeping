@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 /**
  * Shared ?seg= segment state with the legacy ?tab= alias (bookmarks from
@@ -17,6 +17,9 @@ export function useSeg<T extends string>(
   clear: readonly string[] = [],
 ): [T, (next: T) => void] {
   const [params, setParams] = useSearchParams();
+  // A segment flick rewrites this entry in place: it keeps the entry's own
+  // history state (an origin record, issue #252).
+  const { state } = useLocation();
   const raw = params.get('seg') ?? params.get('tab');
   const seg = segments.includes(raw as T) ? (raw as T) : fallback;
 
@@ -31,15 +34,15 @@ export function useSeg<T extends string>(
     if (raw !== null && segments.includes(raw as T) && !p.has('seg'))
       p.set('seg', raw);
     p.delete('tab');
-    setParams(p, { replace: true });
-  }, [params, segments, setParams]);
+    setParams(p, { replace: true, state: state as unknown });
+  }, [params, segments, setParams, state]);
 
   const setSeg = (next: T) => {
     const p = new URLSearchParams(params);
     p.set('seg', next);
     p.delete('tab');
     for (const key of clear) p.delete(key);
-    setParams(p, { replace: true });
+    setParams(p, { replace: true, state: state as unknown });
   };
   return [seg, setSeg];
 }

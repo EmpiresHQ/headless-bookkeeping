@@ -20,6 +20,16 @@ export interface SeedAllowanceInput {
    * Pass an array of segments; it is JSON-stringified into the breakdown column.
    */
   breakdown?: Array<Record<string, unknown>>;
+  /** Health eligibility facts (issue #212); omitted = a legacy row with none. */
+  health?: {
+    category?: string;
+    claimantRelation?: string;
+    supportingDocumentRef?: string;
+    providerRegistration?: string;
+    offeredToAllEmployees?: boolean;
+  };
+  fringeIncomeTax?: number;
+  fringeSocialTax?: number;
 }
 
 /**
@@ -47,6 +57,18 @@ export async function seedAllowance(
       tax_free_amount: input.taxFreeAmount,
       taxable_amount: input.taxableAmount,
       breakdown: input.breakdown ? JSON.stringify(input.breakdown) : null,
+      health_category: input.health?.category ?? null,
+      claimant_relation: input.health?.claimantRelation ?? null,
+      supporting_document_ref: input.health?.supportingDocumentRef ?? null,
+      provider_registration: input.health?.providerRegistration ?? null,
+      offered_to_all_employees:
+        input.health?.offeredToAllEmployees === undefined
+          ? null
+          : input.health.offeredToAllEmployees
+            ? 1
+            : 0,
+      fringe_income_tax_amount: input.fringeIncomeTax ?? 0,
+      fringe_social_tax_amount: input.fringeSocialTax ?? 0,
       period_start: input.periodStart,
       period_end: input.periodEnd ?? null,
       status: input.status ?? 'posted',

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
-import type { ToolsInput } from '@mastra/core/agent';
 import { EntitiesService } from '../entities/entities.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -13,13 +12,14 @@ import {
   withOrgIdentity,
   OrgIdentityContext,
 } from './triage-instructions';
+import { normalizeIdentifier } from '../entities/identifier-normalization';
 import {
-  createSearchSuppliersTool,
-  createListCategoriesTool,
-  createGetClassificationMemoryTool,
-  createPreviewCategoryMappingTool,
-  createGetClassificationContextTool,
-} from './tools';
+  EVIDENCE_CONTRACT,
+  CLASSIFICATION_CONTEXT_CONTRACT,
+  TriageEvidence,
+  TriageContext,
+  triageContextSchema,
+} from './triage-context';
 
 /**
  * MastraService — factory for the kernel's @mastra/core agents.
@@ -31,9 +31,9 @@ import {
  * restart required. (A boot-time singleton froze the config at startup, which
  * meant settings saved after boot were silently ignored.)
  *
- * The triage agent has NO write tools (no post, createDraft, proposeDraft) —
- * all tools are read-only wrappers over kernel services. The bank-mapping agent
- * has no tools at all.
+ * Automatic triage uses tool-free evidence extraction and classification.
+ * Supplier context is retrieved by the application between those calls. No
+ * agent can write business objects or choose whether to execute the lookup.
  *
  * The @mastra/* packages are real ESM dependencies, statically imported here and
  * resolved via `require(esm)` at runtime on Node 24. Jest's CJS runtime cannot
@@ -52,54 +52,42 @@ export class MastraService {
     private readonly categoryService: CategoryService,
   ) {}
 
-  /**
-   * The read-only tool set for the triage agent. Config-independent, so it is
-   * rebuilt cheaply on each agent build (the tools are thin wrappers over
-   * already-injected services).
-   */
-  private buildTools(): ToolsInput {
-    const searchSuppliers = createSearchSuppliersTool(this.entitiesService);
-    const listCategories = createListCategoriesTool(this.categoryService);
-    const getClassificationMemory = createGetClassificationMemoryTool(
-      this.expensesService,
-    );
-    const previewCategoryMapping = createPreviewCategoryMappingTool(
-      this.pluginLoader,
-      this.organizationService,
-    );
-    // Primary path: one deep read that composes supplier resolve/propose +
-    // classification memory + mapping preview (with the memory actually flowing
-    // through to the plugin). The granular tools above are retained as a fallback.
-    const getClassificationContext = createGetClassificationContextTool(
-      this.entitiesService,
-      this.expensesService,
-      this.pluginLoader,
-      this.organizationService,
-    );
-
-    return {
-      searchSuppliers,
-      listCategories,
-      getClassificationMemory,
-      previewCategoryMapping,
-      getClassificationContext,
+  /** Application-owned lookup. No agent loop and no VAT treatment guessed here. */
+  async resolveTriageContext(input: TriageEvidence): Promise<TriageContext> {
+    const empty: TriageContext = {
+      supplier: { resolution: 'unmatched' },
+      classificationMemory: [],
     };
-  }
-
-  private buildEnrichmentTools(): ToolsInput {
-    const {
-      listCategories,
-      getClassificationMemory,
-      previewCategoryMapping,
-      getClassificationContext,
-    } = this.buildTools();
-
-    return {
-      listCategories,
-      getClassificationMemory,
-      previewCategoryMapping,
-      getClassificationContext,
-    };
+    if (input.kind !== 'new_expense') return empty;
+    if (
+      !input.category ||
+      !(await this.categoryService.isValid(input.category))
+    ) {
+      throw new Error('Unknown candidate category');
+    }
+    const key = input.evidence.registrationKey;
+    if (!key) return empty;
+    const normalizedKey = normalizeIdentifier('registration_key', key);
+    if (!normalizedKey) return empty;
+    const entity = await this.entitiesService.resolveByIdentifier(
+      'registration_key',
+      normalizedKey,
+    );
+    if (!entity) return empty;
+    if (input.evidence.country && input.evidence.country !== entity.country) {
+      throw new Error('Supplier country contradicts observed evidence');
+    }
+    return triageContextSchema.parse({
+      supplier: {
+        resolution: 'matched',
+        matchEntityId: entity.id,
+        name: entity.name,
+        country: entity.country,
+      },
+      classificationMemory: await this.expensesService.getPostedCategoryHistory(
+        entity.id,
+      ),
+    });
   }
 
   async buildTriageEnrichmentAgent(
@@ -122,9 +110,8 @@ export class MastraService {
     return new Agent({
       id: 'triage-enrichment-agent',
       name: 'Triage Enrichment Agent',
-      instructions: finalInstructions,
+      instructions: finalInstructions + '\n\n' + EVIDENCE_CONTRACT,
       model,
-      tools: this.buildEnrichmentTools(),
     });
   }
 
@@ -149,7 +136,8 @@ export class MastraService {
     return new Agent({
       id: 'triage-classification-agent',
       name: 'Triage Classification Agent',
-      instructions: finalInstructions,
+      instructions:
+        finalInstructions + '\n\n' + CLASSIFICATION_CONTEXT_CONTRACT,
       model,
     });
   }

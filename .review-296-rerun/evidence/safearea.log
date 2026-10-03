@@ -1,0 +1,108 @@
+ran   A-books-header-tabbar P-none  writes=0 errors=0
+      books top [390x844 env 0/0/0/0 scrollY=0] clear
+ran   B-bank-actionbar P-none  writes=0 errors=0
+      tx 501 at max scroll [390x844 env 0/0/0/0 scrollY=85] clear
+ran   C-new-expense+confirm P-none  writes=0 errors=0
+      opened [390x844 env 0/0/0/0 scrollY=0] clear
+      CTA revealed [390x844 env 0/0/0/0 scrollY=0] clear
+      discard ConfirmDialog [390x844 env 0/0/0/0 scrollY=0] FLAGGED: sheet Close HIT-FAIL; sheet CTA HIT-FAIL
+      kept editing [390x844 env 0/0/0/0 scrollY=0] clear — Gross kept = 45.67
+ran   D-verify-source-sheet P-none  writes=0 errors=0
+      opened (Form) [390x844 env 0/0/0/0 scrollY=0] clear
+      form CTA revealed [390x844 env 0/0/0/0 scrollY=0] clear
+ran   E-preview-lightbox P-none  writes=0 errors=0
+      lightbox open [390x844 env 0/0/0/0 scrollY=0] clear
+ran   A-books-header-tabbar P-forced  writes=0 errors=0
+      books top [390x844 env 47/0/34/0 scrollY=0] FLAGGED: h1 band{"t":27}; header+ band{"t":25.5}
+ran   B-bank-actionbar P-forced  writes=0 errors=0
+      tx 501 at max scroll [390x844 env 47/0/34/0 scrollY=111] clear
+ran   C-new-expense+confirm P-forced  writes=0 errors=0
+      opened [390x844 env 47/0/34/0 scrollY=0] clear
+      CTA revealed [390x844 env 47/0/34/0 scrollY=0] clear
+      discard ConfirmDialog [390x844 env 47/0/34/0 scrollY=0] FLAGGED: sheet Close HIT-FAIL; sheet CTA HIT-FAIL
+      kept editing [390x844 env 47/0/34/0 scrollY=0] clear — Gross kept = 45.67
+ran   D-verify-source-sheet P-forced  writes=0 errors=0
+      opened (Form) [390x844 env 47/0/34/0 scrollY=0] clear
+      form CTA revealed [390x844 env 47/0/34/0 scrollY=0] clear
+ran   E-preview-lightbox P-forced  writes=0 errors=0
+      lightbox open [390x844 env 47/0/34/0 scrollY=0] FLAGGED: lb Close preview band{"t":37}; lb Open original band{"t":35.5}
+ran   A-books-header-tabbar L-none  writes=0 errors=0
+      books top [844x390 env 0/0/0/0 scrollY=0] clear
+ran   B-bank-actionbar L-none  writes=0 errors=0
+      tx 501 at max scroll [844x390 env 0/0/0/0 scrollY=486] clear
+ran   C-new-expense+confirm L-none  writes=0 errors=0
+      opened [844x390 env 0/0/0/0 scrollY=0] FLAGGED: sheet CTA OFFSCREEN HIT-FAIL
+      CTA revealed [844x390 env 0/0/0/0 scrollY=0] clear
+      discard ConfirmDialog [844x390 env 0/0/0/0 scrollY=0] FLAGGED: sheet Close HIT-FAIL; sheet CTA HIT-FAIL
+      kept editing [844x390 env 0/0/0/0 scrollY=0] clear — Gross kept = 45.67
+ran   D-verify-source-sheet L-none  writes=0 errors=0
+      opened (Form) [844x390 env 0/0/0/0 scrollY=0] FLAGGED: sheet CTA OFFSCREEN HIT-FAIL
+      form CTA revealed [844x390 env 0/0/0/0 scrollY=0] clear
+ran   E-preview-lightbox L-none  writes=0 errors=0
+      lightbox open [844x390 env 0/0/0/0 scrollY=22] clear
+ran   A-books-header-tabbar L-forced  writes=0 errors=0
+      books top [844x390 env 0/47/21/47 scrollY=0] clear
+ran   B-bank-actionbar L-forced  writes=0 errors=0
+      tx 501 at max scroll [844x390 env 0/47/21/47 scrollY=499] clear
+ran   C-new-expense+confirm L-forced  writes=0 errors=0
+      opened [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet CTA band{"b":42.5} OFFSCREEN HIT-FAIL
+      CTA revealed [844x390 env 0/47/21/47 scrollY=0] clear
+      discard ConfirmDialog [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet Close HIT-FAIL; sheet CTA HIT-FAIL
+      kept editing [844x390 env 0/47/21/47 scrollY=0] clear — Gross kept = 45.67
+ran   D-verify-source-sheet L-forced  writes=0 errors=0
+      opened (Form) [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet Close band{"r":39}; sheet CTA band{"r":27,"b":42.5,"l":27} OFFSCREEN HIT-FAIL
+      form CTA revealed [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet Close band{"r":39}; sheet CTA band{"r":27,"b":9.2,"l":27}
+ran   E-preview-lightbox L-forced  writes=0 errors=0
+      lightbox open [844x390 env 0/47/21/47 scrollY=35] FLAGGED: lb Close preview band{"r":35}
+ran   F-rotate-new-expense forced  writes=0 errors=0
+      P fresh [390x844 env 47/0/34/0 scrollY=0] clear
+      rotation 1 → L [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet CTA band{"b":42.5} OFFSCREEN HIT-FAIL — Gross = 45.67
+      rotation 2 → P [390x844 env 47/0/34/0 scrollY=0] clear — Gross = 45.67
+      rotation 3 → L [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet CTA band{"b":42.5} OFFSCREEN HIT-FAIL — Gross = 45.67
+      rotation 4 → P [390x844 env 47/0/34/0 scrollY=0] clear — Gross = 45.67
+      P after rotations, CTA revealed [390x844 env 47/0/34/0 scrollY=0] clear
+ran   G-rotate-lightbox forced  writes=0 errors=0
+      P [390x844 env 47/0/34/0 scrollY=0] FLAGGED: lb Close preview band{"t":37}; lb Open original band{"t":35.5}
+      rotation 1 → L [844x390 env 0/47/21/47 scrollY=0] FLAGGED: lb Close preview band{"r":35}
+      rotation 2 → P [390x844 env 47/0/34/0 scrollY=0] FLAGGED: lb Close preview band{"t":37}; lb Open original band{"t":35.5}
+      after Escape [390x844 env 47/0/34/0 scrollY=0] FLAGGED: h1 band{"t":22.5} — lightbox still open = false
+ran   G2-rotate-verify forced  writes=0 errors=0
+      P [390x844 env 47/0/34/0 scrollY=0] clear
+      rotation 1 → L [844x390 env 0/47/21/47 scrollY=0] FLAGGED: sheet Close band{"r":39}; sheet CTA band{"r":27,"b":42.5,"l":27} OFFSCREEN HIT-FAIL
+      rotation 2 → P [390x844 env 47/0/34/0 scrollY=0] clear
+ran   H-scrolled-sheet P-chromium-UA  writes=0 errors=0
+      scrolled, closed [390x844 env 47/0/34/0 scrollY=900] clear — display-mode stub=false, matchMedia=false
+      chooser open [390x844 env 47/0/34/0 scrollY=900] clear
+      sheet open [390x844 env 47/0/34/0 scrollY=900] clear
+      sheet closed [390x844 env 47/0/34/0 scrollY=900] clear
+      restore [390x844 env 47/0/34/0 scrollY=900] clear — scrollY 900 → 900; tabbar [0,390,763,844] → [0,390,763,844]
+ran   H-scrolled-sheet P-safari-tab-UA  writes=0 errors=0
+      scrolled, closed [390x844 env 47/0/34/0 scrollY=900] clear — display-mode stub=false, matchMedia=false
+      chooser open [390x844 env 47/0/34/0 scrollY=900] clear
+      sheet open [390x844 env 47/0/34/0 scrollY=900] clear
+      sheet closed [390x844 env 47/0/34/0 scrollY=900] clear
+      restore [390x844 env 47/0/34/0 scrollY=900] clear — scrollY 900 → 900; tabbar [0,390,763,844] → [0,390,763,844]
+ran   H-scrolled-sheet P-safari-UA+standalone-stub  writes=0 errors=0
+      scrolled, closed [390x844 env 47/0/34/0 scrollY=900] clear — display-mode stub=true, matchMedia=true
+      chooser open [390x844 env 47/0/34/0 scrollY=900] clear
+      sheet open [390x844 env 47/0/34/0 scrollY=900] clear
+      sheet closed [390x844 env 47/0/34/0 scrollY=900] clear
+      restore [390x844 env 47/0/34/0 scrollY=900] clear — scrollY 900 → 900; tabbar [0,390,763,844] → [0,390,763,844]
+ran   H-scrolled-sheet L-chromium-UA  writes=0 errors=0
+      scrolled, closed [844x390 env 0/47/21/47 scrollY=600] clear — display-mode stub=false, matchMedia=false
+      chooser open [844x390 env 0/47/21/47 scrollY=600] clear
+      sheet open [844x390 env 0/47/21/47 scrollY=600] FLAGGED: sheet CTA band{"b":42.5} OFFSCREEN HIT-FAIL
+      sheet closed [844x390 env 0/47/21/47 scrollY=600] clear
+      restore [844x390 env 0/47/21/47 scrollY=600] clear — scrollY 600 → 600; tabbar [0,844,322,390] → [0,844,322,390]
+ran   H-scrolled-sheet L-safari-tab-UA  writes=0 errors=0
+      scrolled, closed [844x390 env 0/47/21/47 scrollY=600] clear — display-mode stub=false, matchMedia=false
+      chooser open [844x390 env 0/47/21/47 scrollY=600] clear
+      sheet open [844x390 env 0/47/21/47 scrollY=600] FLAGGED: sheet CTA band{"b":42.5} OFFSCREEN HIT-FAIL
+      sheet closed [844x390 env 0/47/21/47 scrollY=600] clear
+      restore [844x390 env 0/47/21/47 scrollY=600] clear — scrollY 600 → 600; tabbar [0,844,322,390] → [0,844,322,390]
+ran   H-scrolled-sheet L-safari-UA+standalone-stub  writes=0 errors=0
+      scrolled, closed [844x390 env 0/47/21/47 scrollY=600] clear — display-mode stub=true, matchMedia=true
+      chooser open [844x390 env 0/47/21/47 scrollY=600] clear
+      sheet open [844x390 env 0/47/21/47 scrollY=600] FLAGGED: sheet CTA band{"b":42.5} OFFSCREEN HIT-FAIL
+      sheet closed [844x390 env 0/47/21/47 scrollY=600] clear
+      restore [844x390 env 0/47/21/47 scrollY=600] clear — scrollY 600 → 600; tabbar [0,844,322,390] → [0,844,322,390]

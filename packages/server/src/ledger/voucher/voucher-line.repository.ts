@@ -27,6 +27,8 @@ export class VoucherLineRepository {
     currency,
     base_amount,
     fx_rate,
+    fx_rate_date,
+    fx_rate_source,
     vat_code,
     is_debit,
   }: {
@@ -37,6 +39,8 @@ export class VoucherLineRepository {
     currency: string;
     base_amount: number;
     fx_rate: number;
+    fx_rate_date: string | null;
+    fx_rate_source: string | null;
     vat_code: string | null;
     is_debit: number;
   }): VoucherLine {
@@ -48,6 +52,8 @@ export class VoucherLineRepository {
       currency,
       base_amount,
       fx_rate,
+      fx_rate_date,
+      fx_rate_source,
       vat_code,
       is_debit: toBool(is_debit),
     };

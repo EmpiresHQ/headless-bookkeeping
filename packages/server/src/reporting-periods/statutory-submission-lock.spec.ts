@@ -1,3 +1,5 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -14,6 +16,9 @@ import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 
 describe('ReportingPeriod lock → prepared event (integration)', () => {
   let db: Kysely<Database>;
@@ -64,13 +69,18 @@ describe('ReportingPeriod lock → prepared event (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         ReportingPeriodsService,
         VatReportService,
+        PrepaymentAllocationRepository,
         LedgerBalanceService,
         OrganizationService,
         PluginLoader,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         AuditLogService,
         StatutorySubmissionService,
+        StatutoryReportService,
+        AuditFindingsService,
+        OrgContextResolver,
       ],
     }).compile();
 

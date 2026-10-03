@@ -1,0 +1,1102 @@
+{
+ "before": [
+  {
+   "name": "S1-expense-vv-lifecycle",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opens with focus on Close (no keyboard pop)",
+    "ok   no inline Vaul height at open",
+    "ok   kb open: sheet lifted to bottom=Δ",
+    "ok   kb open: sheet inside visible band",
+    "ok   kb open: Close button visible",
+    "ok   kb open: Gross reachable in band",
+    "ok   Tab moves to VAT",
+    "ok   VAT field in band after focus move",
+    "ok   kb grows: bottom follows",
+    "ok   kb grows: sheet inside band",
+    "ok   kb grows: VAT still reachable",
+    "ok   picker focus: inline height/bottom cleared",
+    "ok   picker focus: sheet back to open height",
+    "ok   date: sheet lifted",
+    "ok   hide w/ focus kept: inline cleared",
+    "ok   hide w/ focus kept: open height restored",
+    "ok   hide w/ focus kept: sheet bottom at viewport bottom",
+    "ok   2nd open: lifted again",
+    "ok   kb open: CTA hit-testable after scroll (not tapped)",
+    "ok   dirty Escape asks to discard",
+    "ok   discard dialog takes focus off the input (a real keyboard hides)",
+    "ok   discard dialog buttons tappable after kb hides",
+    "ok   after discard: route kept, body unlocked, focus on opener",
+    "ok   reopen: no stale inline size, same height, empty form",
+    "ok   reopen: kb handling works",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "record": {
+    "discardButtonsWithStubStillUp": [
+     [
+      "Keep editing",
+      true
+     ],
+     [
+      "Discard",
+      true
+     ]
+    ]
+   }
+  },
+  {
+   "name": "S1-expense-vv-lifecycle",
+   "viewport": [
+    320,
+    568
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opens with focus on Close (no keyboard pop)",
+    "ok   no inline Vaul height at open",
+    "ok   kb open: sheet lifted to bottom=Δ",
+    "ok   kb open: sheet inside visible band",
+    "ok   kb open: Close button visible",
+    "ok   kb open: Gross reachable in band",
+    "ok   Tab moves to VAT",
+    "ok   VAT field in band after focus move",
+    "ok   kb grows: bottom follows",
+    "ok   kb grows: sheet inside band",
+    "ok   kb grows: VAT still reachable",
+    "ok   picker focus: inline height/bottom cleared",
+    "ok   picker focus: sheet back to open height",
+    "ok   date: sheet lifted",
+    "ok   hide w/ focus kept: inline cleared",
+    "ok   hide w/ focus kept: open height restored",
+    "ok   hide w/ focus kept: sheet bottom at viewport bottom",
+    "ok   2nd open: lifted again",
+    "ok   kb open: CTA hit-testable after scroll (not tapped)",
+    "ok   dirty Escape asks to discard",
+    "ok   discard dialog takes focus off the input (a real keyboard hides)",
+    "ok   discard dialog buttons tappable after kb hides",
+    "ok   after discard: route kept, body unlocked, focus on opener",
+    "ok   reopen: no stale inline size, same height, empty form",
+    "ok   reopen: kb handling works",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "record": {
+    "discardButtonsWithStubStillUp": [
+     [
+      "Keep editing",
+      false
+     ],
+     [
+      "Discard",
+      false
+     ]
+    ]
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-close-button",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-escape",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-back",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-backdrop",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S3-expense-L-shrink",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet within visible band, Close visible",
+    "ok   shrunk: focus + value kept",
+    "ok   shrunk: field reachable",
+    "ok   shrunk: CTA hit-testable (not tapped)",
+    "ok   #362: inline size released after restore",
+    "ok   #362: sheet back to its opened height",
+    "ok   restored: sheet bottom at viewport bottom",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S3-invoice-L-shrink",
+   "viewport": [
+    320,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet within visible band, Close visible",
+    "ok   shrunk: focus + value kept",
+    "ok   shrunk: field reachable",
+    "ok   shrunk: CTA hit-testable (not tapped)",
+    "ok   #362: inline size released after restore",
+    "ok   #362: sheet back to its opened height",
+    "ok   restored: sheet bottom at viewport bottom",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S3-expense-L-rotate+kb",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": true,
+   "error": null,
+   "checks": [
+    "FAIL shrunk: sheet within visible band, Close visible [{\"y\":-159,\"bottom\":200,\"h\":359,\"x\":134,\"w\":576},200]",
+    "FAIL rotated, kb up: first field reachable -73",
+    "ok   shrunk: focus + value kept",
+    "ok   shrunk: field reachable",
+    "ok   shrunk: CTA hit-testable (not tapped)",
+    "ok   rotated back, kb up: sheet inside band",
+    "ok   rotated back, kb up: as tall as the first lift",
+    "ok   #362: inline size released after restore",
+    "ok   #362: sheet back to its opened height",
+    "ok   restored: sheet bottom at viewport bottom",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S4-verify-source-sheet",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opened at 92vh",
+    "ok   has a text-like field",
+    "ok   kb up: sheet inside band, Close visible",
+    "ok   kb up: field reachable",
+    "ok   source switch: no text field focused (a real keyboard hides)",
+    "ok   source: inline released, 92vh again",
+    "ok   form value kept across switch",
+    "ok   shrunk: sheet within viewport, Close visible",
+    "ok   shrunk: field reachable",
+    "ok   #362: restored to 92vh, no inline size",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "network /api/documents/31001/file"
+    ],
+    "errors": []
+   },
+   "fieldCount": 5
+  },
+  {
+   "name": "S4-verify-source-sheet",
+   "viewport": [
+    1440,
+    900
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opened at 92vh",
+    "ok   has a text-like field",
+    "ok   shrunk: sheet within viewport, Close visible",
+    "ok   shrunk: field reachable",
+    "ok   #362: restored to 92vh, no inline size",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "network /api/documents/31001/file"
+    ],
+    "errors": []
+   },
+   "fieldCount": 5
+  },
+  {
+   "name": "S5-desktop-window-shrink",
+   "viewport": [
+    1440,
+    900
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet top/Close visible",
+    "ok   shrunk: sheet ≤ 92vh",
+    "ok   shrunk: focused field reachable",
+    "ok   Tab 0: focus in sheet and visible",
+    "ok   Tab 1: focus in sheet and visible",
+    "ok   Tab 2: focus in sheet and visible",
+    "ok   Tab 3: focus in sheet and visible",
+    "ok   shrunk: CTA hit-testable (not clicked)",
+    "ok   restored: same height, no inline size",
+    "ok   values kept",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S5-desktop-window-shrink",
+   "viewport": [
+    1024,
+    768
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet top/Close visible",
+    "ok   shrunk: sheet ≤ 92vh",
+    "ok   shrunk: focused field reachable",
+    "ok   Tab 0: focus in sheet and visible",
+    "ok   Tab 1: focus in sheet and visible",
+    "ok   Tab 2: focus in sheet and visible",
+    "ok   Tab 3: focus in sheet and visible",
+    "ok   shrunk: CTA hit-testable (not clicked)",
+    "ok   restored: same height, no inline size",
+    "ok   values kept",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S5-desktop-window-shrink",
+   "viewport": [
+    768,
+    1024
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet top/Close visible",
+    "ok   shrunk: sheet ≤ 92vh",
+    "ok   shrunk: focused field reachable",
+    "ok   Tab 0: focus in sheet and visible",
+    "ok   Tab 1: focus in sheet and visible",
+    "ok   Tab 2: focus in sheet and visible",
+    "ok   Tab 3: focus in sheet and visible",
+    "ok   shrunk: CTA hit-testable (not clicked)",
+    "ok   restored: same height, no inline size",
+    "ok   values kept",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S6-reject-textarea",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   Enter inserts newlines, does not submit",
+    "ok   kb up: sheet inside band",
+    "ok   textarea bottom (caret line) reachable",
+    "ok   CTA enabled + hit-testable (not tapped)",
+    "ok   kb hidden: inline released",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "GET /api/reconciliation/matches/7015"
+    ],
+    "errors": []
+   }
+  },
+  {
+   "name": "S7-bank-create-actionbar",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   has text-like fields",
+    "ok   programmatic focus scroll: no text field under a sticky bar",
+    "ok   (L) last field visible",
+    "ok   (L) CTA hit-testable at end of scroll (not tapped)",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "fieldCount": 1
+  },
+  {
+   "name": "S7-bank-create-actionbar",
+   "viewport": [
+    320,
+    568
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   has text-like fields",
+    "ok   programmatic focus scroll: no text field under a sticky bar",
+    "ok   (L) last field visible",
+    "ok   (L) CTA hit-testable at end of scroll (not tapped)",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "fieldCount": 1
+  },
+  {
+   "name": "S7-organization-page",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   has text-like fields",
+    "ok   programmatic focus scroll: no text field under a sticky bar",
+    "ok   (L) last field visible",
+    "ok   (L) CTA hit-testable at end of scroll (not tapped)",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "fieldCount": 6
+  },
+  {
+   "name": "S8-imap-number-password",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   port reachable with kb up",
+    "ok   password reachable above autofill bar",
+    "ok   CTA hit-testable (not tapped)",
+    "ok   kb hidden: inline released",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "GET /admin/settings"
+    ],
+    "errors": []
+   },
+   "portAttrs": {
+    "type": "number",
+    "inputMode": "numeric",
+    "fontPx": "15px"
+   }
+  }
+ ],
+ "after": [
+  {
+   "name": "S1-expense-vv-lifecycle",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opens with focus on Close (no keyboard pop)",
+    "ok   no inline Vaul height at open",
+    "ok   kb open: sheet lifted to bottom=Δ",
+    "ok   kb open: sheet inside visible band",
+    "ok   kb open: Close button visible",
+    "ok   kb open: Gross reachable in band",
+    "ok   Tab moves to VAT",
+    "ok   VAT field in band after focus move",
+    "ok   kb grows: bottom follows",
+    "ok   kb grows: sheet inside band",
+    "ok   kb grows: VAT still reachable",
+    "ok   picker focus: inline height/bottom cleared",
+    "ok   picker focus: sheet back to open height",
+    "ok   date: sheet lifted",
+    "ok   hide w/ focus kept: inline cleared",
+    "ok   hide w/ focus kept: open height restored",
+    "ok   hide w/ focus kept: sheet bottom at viewport bottom",
+    "ok   2nd open: lifted again",
+    "ok   kb open: CTA hit-testable after scroll (not tapped)",
+    "ok   dirty Escape asks to discard",
+    "ok   discard dialog takes focus off the input (a real keyboard hides)",
+    "ok   discard dialog buttons tappable after kb hides",
+    "ok   after discard: route kept, body unlocked, focus on opener",
+    "ok   reopen: no stale inline size, same height, empty form",
+    "ok   reopen: kb handling works",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "record": {
+    "discardButtonsWithStubStillUp": [
+     [
+      "Keep editing",
+      true
+     ],
+     [
+      "Discard",
+      true
+     ]
+    ]
+   }
+  },
+  {
+   "name": "S1-expense-vv-lifecycle",
+   "viewport": [
+    320,
+    568
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opens with focus on Close (no keyboard pop)",
+    "ok   no inline Vaul height at open",
+    "ok   kb open: sheet lifted to bottom=Δ",
+    "ok   kb open: sheet inside visible band",
+    "ok   kb open: Close button visible",
+    "ok   kb open: Gross reachable in band",
+    "ok   Tab moves to VAT",
+    "ok   VAT field in band after focus move",
+    "ok   kb grows: bottom follows",
+    "ok   kb grows: sheet inside band",
+    "ok   kb grows: VAT still reachable",
+    "ok   picker focus: inline height/bottom cleared",
+    "ok   picker focus: sheet back to open height",
+    "ok   date: sheet lifted",
+    "ok   hide w/ focus kept: inline cleared",
+    "ok   hide w/ focus kept: open height restored",
+    "ok   hide w/ focus kept: sheet bottom at viewport bottom",
+    "ok   2nd open: lifted again",
+    "ok   kb open: CTA hit-testable after scroll (not tapped)",
+    "ok   dirty Escape asks to discard",
+    "ok   discard dialog takes focus off the input (a real keyboard hides)",
+    "ok   discard dialog buttons tappable after kb hides",
+    "ok   after discard: route kept, body unlocked, focus on opener",
+    "ok   reopen: no stale inline size, same height, empty form",
+    "ok   reopen: kb handling works",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "record": {
+    "discardButtonsWithStubStillUp": [
+     [
+      "Keep editing",
+      false
+     ],
+     [
+      "Discard",
+      false
+     ]
+    ]
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-close-button",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-escape",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-back",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S2-dismiss-kb-up-backdrop",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   clean form closes without a question",
+    "ok   input no longer focused (keyboard would hide)",
+    "ok   route stays /books",
+    "ok   body unlocked",
+    "ok   focus returned to opener",
+    "ok   page not left scrolled",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S3-expense-L-shrink",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet within visible band, Close visible",
+    "ok   shrunk: focus + value kept",
+    "ok   shrunk: field reachable",
+    "ok   shrunk: CTA hit-testable (not tapped)",
+    "ok   #362: inline size released after restore",
+    "ok   #362: sheet back to its opened height",
+    "ok   restored: sheet bottom at viewport bottom",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S3-invoice-L-shrink",
+   "viewport": [
+    320,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet within visible band, Close visible",
+    "ok   shrunk: focus + value kept",
+    "ok   shrunk: field reachable",
+    "ok   shrunk: CTA hit-testable (not tapped)",
+    "ok   #362: inline size released after restore",
+    "ok   #362: sheet back to its opened height",
+    "ok   restored: sheet bottom at viewport bottom",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S3-expense-L-rotate+kb",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet within visible band, Close visible",
+    "ok   rotated, kb up: first field reachable",
+    "ok   shrunk: focus + value kept",
+    "ok   shrunk: field reachable",
+    "ok   shrunk: CTA hit-testable (not tapped)",
+    "ok   rotated back, kb up: sheet inside band",
+    "ok   rotated back, kb up: as tall as the first lift",
+    "ok   #362: inline size released after restore",
+    "ok   #362: sheet back to its opened height",
+    "ok   restored: sheet bottom at viewport bottom",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S4-verify-source-sheet",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opened at 92vh",
+    "ok   has a text-like field",
+    "ok   kb up: sheet inside band, Close visible",
+    "ok   kb up: field reachable",
+    "ok   source switch: no text field focused (a real keyboard hides)",
+    "ok   source: inline released, 92vh again",
+    "ok   form value kept across switch",
+    "ok   shrunk: sheet within viewport, Close visible",
+    "ok   shrunk: field reachable",
+    "ok   #362: restored to 92vh, no inline size",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "network /api/documents/31001/file"
+    ],
+    "errors": []
+   },
+   "fieldCount": 5
+  },
+  {
+   "name": "S4-verify-source-sheet",
+   "viewport": [
+    1440,
+    900
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   opened at 92vh",
+    "ok   has a text-like field",
+    "ok   shrunk: sheet within viewport, Close visible",
+    "ok   shrunk: field reachable",
+    "ok   #362: restored to 92vh, no inline size",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "network /api/documents/31001/file"
+    ],
+    "errors": []
+   },
+   "fieldCount": 5
+  },
+  {
+   "name": "S5-desktop-window-shrink",
+   "viewport": [
+    1440,
+    900
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet top/Close visible",
+    "ok   shrunk: sheet ≤ 92vh",
+    "ok   shrunk: focused field reachable",
+    "ok   Tab 0: focus in sheet and visible",
+    "ok   Tab 1: focus in sheet and visible",
+    "ok   Tab 2: focus in sheet and visible",
+    "ok   Tab 3: focus in sheet and visible",
+    "ok   shrunk: CTA hit-testable (not clicked)",
+    "ok   restored: same height, no inline size",
+    "ok   values kept",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S5-desktop-window-shrink",
+   "viewport": [
+    1024,
+    768
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet top/Close visible",
+    "ok   shrunk: sheet ≤ 92vh",
+    "ok   shrunk: focused field reachable",
+    "ok   Tab 0: focus in sheet and visible",
+    "ok   Tab 1: focus in sheet and visible",
+    "ok   Tab 2: focus in sheet and visible",
+    "ok   Tab 3: focus in sheet and visible",
+    "ok   shrunk: CTA hit-testable (not clicked)",
+    "ok   restored: same height, no inline size",
+    "ok   values kept",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S5-desktop-window-shrink",
+   "viewport": [
+    768,
+    1024
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   shrunk: sheet top/Close visible",
+    "ok   shrunk: sheet ≤ 92vh",
+    "ok   shrunk: focused field reachable",
+    "ok   Tab 0: focus in sheet and visible",
+    "ok   Tab 1: focus in sheet and visible",
+    "ok   Tab 2: focus in sheet and visible",
+    "ok   Tab 3: focus in sheet and visible",
+    "ok   shrunk: CTA hit-testable (not clicked)",
+    "ok   restored: same height, no inline size",
+    "ok   values kept",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   }
+  },
+  {
+   "name": "S6-reject-textarea",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   Enter inserts newlines, does not submit",
+    "ok   kb up: sheet inside band",
+    "ok   textarea bottom (caret line) reachable",
+    "ok   CTA enabled + hit-testable (not tapped)",
+    "ok   kb hidden: inline released",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "GET /api/reconciliation/matches/7015"
+    ],
+    "errors": []
+   }
+  },
+  {
+   "name": "S7-bank-create-actionbar",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   has text-like fields",
+    "ok   programmatic focus scroll: no text field under a sticky bar",
+    "ok   (L) last field visible",
+    "ok   (L) CTA hit-testable at end of scroll (not tapped)",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "fieldCount": 1
+  },
+  {
+   "name": "S7-bank-create-actionbar",
+   "viewport": [
+    320,
+    568
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   has text-like fields",
+    "ok   programmatic focus scroll: no text field under a sticky bar",
+    "ok   (L) last field visible",
+    "ok   (L) CTA hit-testable at end of scroll (not tapped)",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "fieldCount": 1
+  },
+  {
+   "name": "S7-organization-page",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   has text-like fields",
+    "ok   programmatic focus scroll: no text field under a sticky bar",
+    "ok   (L) last field visible",
+    "ok   (L) CTA hit-testable at end of scroll (not tapped)",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [],
+    "errors": []
+   },
+   "fieldCount": 6
+  },
+  {
+   "name": "S8-imap-number-password",
+   "viewport": [
+    390,
+    844
+   ],
+   "fail": false,
+   "error": null,
+   "checks": [
+    "ok   port reachable with kb up",
+    "ok   password reachable above autofill bar",
+    "ok   CTA hit-testable (not tapped)",
+    "ok   kb hidden: inline released",
+    "ok   no writes reached the mock",
+    "ok   no page errors"
+   ],
+   "fixture": {
+    "writes": 0,
+    "unhandled": [
+     "GET /admin/settings"
+    ],
+    "errors": []
+   },
+   "portAttrs": {
+    "type": "number",
+    "inputMode": "numeric",
+    "fontPx": "15px"
+   }
+  }
+ ]
+}

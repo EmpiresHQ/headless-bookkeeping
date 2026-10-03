@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -30,6 +31,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 describe('ExpensesController (integration)', () => {
   let db: Kysely<Database>;
   let controller: ExpensesController;
+  let organizationService: OrganizationService;
 
   beforeEach(async () => {
     const rawDb = new SqliteDb(':memory:');
@@ -53,6 +55,7 @@ describe('ExpensesController (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrgContextResolver,
         CurrencyService,
@@ -80,6 +83,7 @@ describe('ExpensesController (integration)', () => {
     }).compile();
 
     controller = module.get(ExpensesController);
+    organizationService = module.get(OrganizationService);
   });
 
   afterEach(async () => {
@@ -133,6 +137,9 @@ describe('ExpensesController (integration)', () => {
 
   describe('POST /api/expenses/:id/generate-draft', () => {
     it('returns a transient draft voucher', async () => {
+      // Three legs (the middle one being VAT_RECEIVABLE) presuppose a deduction
+      // right, which the seeded unregistered default does not have (issue #211).
+      await organizationService.updateOrganization({ vat_registered: true });
       const expense = await controller.createExpense(sampleDto());
       const draft = await controller.generateDraft(String(expense.id));
 

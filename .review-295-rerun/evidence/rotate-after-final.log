@@ -1,0 +1,40 @@
+== after 390x844 336 190 New expense
+{"label":"opened","inner":[390,844],"vvH":844,"top":174,"h":671,"bottom":0,"inline":"|","closeTop":182,"scroller":[236,820],"active":"Close"}
+{"label":"kb up portrait","inner":[390,844],"vvH":508,"top":26,"h":482,"bottom":336,"inline":"482px|336px","closeTop":34,"scroller":[88,484],"active":"Gross (€)required"}
+{"label":"rotated landscape, kb up","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[88,176],"active":"Gross (€)required"}
+{"label":"first field revealed","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[88,176],"active":"Gross (€)required","firstFieldTop":112}
+{"label":"rotated back portrait, kb up","inner":[390,844],"vvH":508,"top":26,"h":482,"bottom":336,"inline":"482px|336px","closeTop":34,"scroller":[88,484],"active":"Gross (€)required"}
+{"label":"kb hidden","inner":[390,844],"vvH":844,"top":174,"h":671,"bottom":0,"inline":"|","closeTop":182,"scroller":[236,820],"active":"Gross (€)required"}
+writes 0 errors []
+== after 320x568 260 170 New expense
+{"label":"opened","inner":[320,568],"vvH":568,"top":45,"h":523,"bottom":0,"inline":"|","closeTop":53,"scroller":[107,544],"active":"Close"}
+{"label":"kb up portrait","inner":[320,568],"vvH":308,"top":45,"h":263,"bottom":260,"inline":"262.547px|260px","closeTop":53,"scroller":[107,284],"active":"Gross (€)required"}
+{"label":"rotated landscape, kb up","inner":[568,320],"vvH":150,"top":26,"h":124,"bottom":170,"inline":"124px|170px","closeTop":34,"scroller":[88,126],"active":"Gross (€)required"}
+{"label":"first field revealed","inner":[568,320],"vvH":150,"top":26,"h":124,"bottom":170,"inline":"124px|170px","closeTop":34,"scroller":[88,126],"active":"Gross (€)required","firstFieldTop":88}
+{"label":"rotated back portrait, kb up","inner":[320,568],"vvH":308,"top":26,"h":282,"bottom":260,"inline":"282px|260px","closeTop":34,"scroller":[88,284],"active":"Gross (€)required"}
+{"label":"kb hidden","inner":[320,568],"vvH":568,"top":45,"h":523,"bottom":0,"inline":"|","closeTop":53,"scroller":[107,544],"active":"Gross (€)required"}
+writes 0 errors []
+== after 390x844 336 190 New sales invoice
+{"label":"opened","inner":[390,844],"vvH":844,"top":85,"h":759,"bottom":0,"inline":"|","closeTop":93,"scroller":[147,820],"active":"Close"}
+{"label":"kb up portrait","inner":[390,844],"vvH":508,"top":85,"h":423,"bottom":336,"inline":"423px|336px","closeTop":93,"scroller":[147,484],"active":"Gross (€)required"}
+{"label":"rotated landscape, kb up","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[88,176],"active":"Gross (€)required"}
+{"label":"first field revealed","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[88,176],"active":"Gross (€)required","firstFieldTop":112}
+{"label":"rotated back portrait, kb up","inner":[390,844],"vvH":508,"top":26,"h":482,"bottom":336,"inline":"482px|336px","closeTop":34,"scroller":[88,484],"active":"Gross (€)required"}
+{"label":"kb hidden","inner":[390,844],"vvH":844,"top":85,"h":759,"bottom":0,"inline":"|","closeTop":93,"scroller":[147,820],"active":"Gross (€)required"}
+writes 0 errors []
+== after 412x915 300 180 New expense
+{"label":"opened","inner":[412,915],"vvH":915,"top":245,"h":671,"bottom":0,"inline":"|","closeTop":253,"scroller":[307,891],"active":"Close"}
+{"label":"kb up portrait","inner":[412,915],"vvH":615,"top":26,"h":589,"bottom":300,"inline":"589px|300px","closeTop":34,"scroller":[88,591],"active":"Gross (€)required"}
+{"label":"rotated landscape, kb up","inner":[915,412],"vvH":232,"top":26,"h":206,"bottom":180,"inline":"206px|180px","closeTop":34,"scroller":[88,208],"active":"Gross (€)required"}
+{"label":"first field revealed","inner":[915,412],"vvH":232,"top":26,"h":206,"bottom":180,"inline":"206px|180px","closeTop":34,"scroller":[88,208],"active":"Gross (€)required","firstFieldTop":112}
+{"label":"rotated back portrait, kb up","inner":[412,915],"vvH":615,"top":26,"h":589,"bottom":300,"inline":"589px|300px","closeTop":34,"scroller":[88,591],"active":"Gross (€)required"}
+{"label":"kb hidden","inner":[412,915],"vvH":915,"top":245,"h":671,"bottom":0,"inline":"|","closeTop":253,"scroller":[307,891],"active":"Gross (€)required"}
+writes 0 errors []
+== after 390x844 336 190 verify
+{"label":"opened","inner":[390,844],"vvH":844,"top":68,"h":776,"bottom":0,"inline":"|","closeTop":76,"scroller":[186,832],"active":"Close"}
+{"label":"kb up portrait","inner":[390,844],"vvH":508,"top":68,"h":440,"bottom":336,"inline":"440.469px|336px","closeTop":76,"scroller":[186,496],"active":"Amount (EUR)"}
+{"label":"rotated landscape, kb up","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[144,188],"active":"Amount (EUR)"}
+{"label":"first field revealed","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[144,188],"active":"Amount (EUR)","firstFieldTop":89}
+{"label":"rotated back portrait, kb up","inner":[390,844],"vvH":508,"top":26,"h":482,"bottom":336,"inline":"482px|336px","closeTop":34,"scroller":[144,496],"active":"Amount (EUR)"}
+{"label":"kb hidden","inner":[390,844],"vvH":844,"top":68,"h":776,"bottom":0,"inline":"|","closeTop":76,"scroller":[186,832],"active":"Amount (EUR)"}
+writes 0 errors []

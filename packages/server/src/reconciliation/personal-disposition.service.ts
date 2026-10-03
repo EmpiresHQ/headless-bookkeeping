@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   NotFoundException,
@@ -67,7 +68,17 @@ export class PersonalDispositionService {
       );
     }
 
-    // 3. Get org_type + country from organization
+    // 3. Get org_type + country from organization.
+    //
+    // The measurement basis is sampled FIRST, ahead of every other read of the
+    // organisation (issue #215): a personal disposition off a bank transaction
+    // can be the ledger's first voucher, and the plugin, the rate and the
+    // rounding are all resolved after this point. The earliest sample is what
+    // makes the guard sound — a settings edit landing anywhere in the window
+    // leaves this stamp disagreeing with the row the posting transaction reads
+    // and the post is refused, whereas a LATER sample would record the new
+    // basis against amounts the old plugin measured.
+    const { baseCurrency, basis } = await this.currencyService.getLedgerBasis();
     const { organization: org, plugin } =
       await this.orgContextResolver.resolve();
     const orgType = org.org_type;
@@ -96,21 +107,31 @@ export class PersonalDispositionService {
     // The bank leg carries the transaction's currency converted to base
     // currency via the plugin reference rate (1.0 for same-currency).
     const absAmount = Math.abs(txn.amount);
-    const baseCurrency = await this.currencyService.getBaseCurrency();
     // Guard the plugin call to the cross-currency case only: same-currency is
     // an identity (rate 1.0) and the null plugin throws on a real FX pair.
-    const fxRate =
-      txn.currency === baseCurrency
-        ? 1.0
-        : plugin.getReferenceRate(
-            txn.currency,
-            baseCurrency,
-            txn.transaction_date,
-          );
+    // Resolved BEFORE the transaction opens (#203: the lookup is now
+    // authoritative and may reach the network; better-sqlite3's single
+    // synchronous connection forbids that inside an open transaction).
+    const {
+      rate: fxRate,
+      rateDate,
+      source: rateSource,
+    } = txn.currency === baseCurrency
+      ? {
+          rate: 1.0,
+          rateDate: txn.transaction_date,
+          source: IDENTITY_RATE_SOURCE,
+        }
+      : await plugin.getReferenceRate(
+          txn.currency,
+          baseCurrency,
+          txn.transaction_date,
+        );
     const baseAmount = Math.round(absAmount * fxRate);
 
     const draft: DraftVoucher = {
       tax_point_date: txn.transaction_date,
+      measured_basis: basis,
       reason: `Personal disposition: ${txn.description ?? 'no description'}`,
       lines: [
         {
@@ -119,6 +140,8 @@ export class PersonalDispositionService {
           currency: baseCurrency,
           base_amount: baseAmount,
           fx_rate: 1.0,
+          fx_rate_date: txn.transaction_date,
+          fx_rate_source: IDENTITY_RATE_SOURCE,
           is_debit: true,
         },
         {
@@ -127,6 +150,8 @@ export class PersonalDispositionService {
           currency: txn.currency,
           base_amount: baseAmount,
           fx_rate: fxRate,
+          fx_rate_date: rateDate,
+          fx_rate_source: rateSource,
           is_debit: false,
         },
       ],

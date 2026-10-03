@@ -1,16 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AppToaster } from '../ui/toast';
-import { NewExpenseSheet, NewInvoiceSheet, UploadSheet } from './create';
+import { NewExpenseSheet, NewInvoiceSheet } from './create';
 
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
   createExpense: vi.fn(),
   createInvoice: vi.fn(),
-  uploadDocument: vi.fn(),
-  triageDocument: vi.fn(),
   getCategories: vi.fn(),
   getEntities: vi.fn(),
 }));
@@ -19,9 +23,8 @@ import {
   createInvoice,
   getCategories,
   getEntities,
-  triageDocument,
-  uploadDocument,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function seed(entities: unknown[] = []) {
   vi.mocked(getCategories).mockResolvedValue([
@@ -34,15 +37,20 @@ function mount(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books" element={ui} />
-          <Route path="/books/expenses/:id" element={<div>EXP DETAIL</div>} />
-          <Route path="/books/invoices/:id" element={<div>INV DETAIL</div>} />
-          <Route path="/books/documents/:id" element={<div>DOC DETAIL</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <MemoryRouter initialEntries={['/books']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books" element={ui} />
+            <Route path="/books/expenses/:id" element={<div>EXP DETAIL</div>} />
+            <Route path="/books/invoices/:id" element={<div>INV DETAIL</div>} />
+            <Route
+              path="/books/documents/:id"
+              element={<div>DOC DETAIL</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -118,53 +126,40 @@ describe('create flows', () => {
     expect(await screen.findByText('INV DETAIL')).toBeInTheDocument();
   });
 
-  it('UploadSheet sends the claimant and lands on the document detail', async () => {
-    seed([
-      {
-        id: 5,
-        role: 'employee',
-        country: 'EE',
-        name: 'Mari Maasikas',
-        goods_vs_services: null,
-      },
-    ]);
-    vi.mocked(uploadDocument).mockResolvedValue({
-      document: { id: 77 },
-      deduplicated: false,
-    } as never);
-    vi.mocked(triageDocument).mockResolvedValue({
-      kind: 'expense',
-      document_id: 77,
-      expense_id: 31,
-    } as never);
-    mount(<UploadSheet open onOpenChange={() => undefined} />);
-    fireEvent.change(await screen.findByLabelText('Paid by (claimant)'), {
-      target: { value: '5' },
-    });
-    const file = new File(['x'], 'r.pdf', { type: 'application/pdf' });
-    fireEvent.change(screen.getByLabelText('File'), {
-      target: { files: [file] },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Upload & process' }));
-    await waitFor(() =>
-      expect(uploadDocument).toHaveBeenCalledWith(file, { claimantId: 5 }),
+  it('NewExpenseSheet locks its fields while saving and keeps them after a failure (#251)', async () => {
+    vi.clearAllMocks();
+    seed();
+    let fail!: (e: unknown) => void;
+    vi.mocked(createExpense).mockReturnValue(
+      new Promise((_, rej) => (fail = rej)) as never,
     );
-    await waitFor(() => expect(triageDocument).toHaveBeenCalledWith(77));
-    expect(await screen.findByText('DOC DETAIL')).toBeInTheDocument();
-  });
-
-  it('UploadSheet hides the claimant dropdown when no employee/director exists', async () => {
-    seed([
-      {
-        id: 6,
-        role: 'supplier',
-        country: 'EE',
-        name: 'X',
-        goods_vs_services: null,
-      },
-    ]);
-    mount(<UploadSheet open onOpenChange={() => undefined} />);
-    expect(await screen.findByLabelText('File')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Paid by (claimant)')).toBeNull();
+    mount(<NewExpenseSheet open onOpenChange={() => undefined} />);
+    await screen.findByText('Fuel');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'fuel' },
+    });
+    fireEvent.change(screen.getByLabelText('Gross (€)'), {
+      target: { value: '123.45' },
+    });
+    fireEvent.change(screen.getByLabelText('Tax point date'), {
+      target: { value: '2026-07-01' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Create expense/ }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Gross (€)')).toBeDisabled(),
+    );
+    await act(async () => fail(new Error('503 Service Unavailable')));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Gross (€)')).not.toBeDisabled(),
+    );
+    expect(screen.getByLabelText('Gross (€)')).toHaveValue('123.45');
+    // Stated in the form too (#265) — persistently, and without claiming
+    // the unknown outcome was a refusal.
+    const alert = await screen.findByText(
+      /Creating the draft expense was not confirmed/,
+    );
+    expect(alert.closest('[role="alert"]')).toHaveTextContent(
+      /503 Service Unavailable/,
+    );
   });
 });

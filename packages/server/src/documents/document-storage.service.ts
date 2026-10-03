@@ -26,9 +26,18 @@ export class DocumentStorageService {
     filename: string,
     buffer: Buffer,
   ): Promise<string> {
-    const filePath = join(this.root, String(id), filename);
+    const storagePath = this.pathFor(id, filename);
+    const filePath = join(this.root, storagePath);
     await fs.mkdir(dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, buffer);
+    return storagePath;
+  }
+
+  /**
+   * The relative path `saveFile(id, filename)` writes to — known BEFORE the
+   * write, so a caller can clean up bytes a failed write left behind.
+   */
+  pathFor(id: number, filename: string): string {
     return join(String(id), filename);
   }
 

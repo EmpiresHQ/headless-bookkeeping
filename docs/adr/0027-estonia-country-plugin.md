@@ -109,3 +109,78 @@ Estonia over IE (the Null default) as the first real plugin: EUR base currency a
 2. **Reverse-charge is a classification marker only.** `resolveCrossBorderTreatment` returns `EE_REVERSE_CHARGE` as the VAT code on intra-EU acquisitions. The full two-sided posting (output VAT box + input VAT box, netting to zero) required for the EE VAT return is a **VAT-report layer concern**, not a classification concern. The plugin marks the code; the VAT-report layer (deferred) interprets it. This is consistent with ADR-0002: the plugin is the sole resolver of the VAT code; report generation is separate.
 
 3. **FX rates are v1 hardcoded placeholders.** `getReferenceRate` uses a static table (`USD→EUR: 0.92`, `GBP→EUR: 1.16`). Live ECB rate fetching is a tracked debt: `getReferenceRate` is a pure synchronous function and cannot perform I/O; making it async requires an interface change (deferred). The hardcoded rates unblock the realized-FX and cross-currency test paths.
+
+## Amendment (issue #209): service sales are decided by facts, or refused
+
+The revenue mapping originally read one condition — "another EU country AND the
+counterparty deals in services" — and answered 24% for everything else. That
+charged Estonian VAT on a general-rule service sold to a US business, and
+zero-rated a service sold to a Finnish CONSUMER purely because Finland is in the
+EU. Neither follows from KMS §10: the place of a general-rule service turns on
+whether the recipient is a **taxable person acting as such**, which is a fact
+about the customer, not an inference from its country.
+
+Two facts were added rather than a cleverer inference:
+
+- `entity.tax_status` — `taxable_business | non_taxable | unknown`. The
+  counterparty's status (never our own registration, which is #211's subject).
+  Existing rows are NOT backfilled: they stay unknown.
+- `sales_invoice.supply_type` + `sales_invoice.service_place_rule` — what this
+  invoice supplies and under which place-of-supply rule. `service_place_rule`
+  defaults to `general` because the general rule IS the residual one; an
+  exception exists only when a caller declares it.
+
+The plugin then maps the EMTA general-rule table (see the guide for the matrix),
+distinguishing the two zero-rates with separate VAT codes — `EE_OUTPUT_0_EU`
+(KMD rows 3 **and 3.1**, VD tähis 3S) and `EE_OUTPUT_0_3RD_COUNTRY` (row 3 only,
+no VD), because row 3.1 and the VD are both reports on supplies to other member
+states. `KmdBaseClassification.outputSubRow` carries that breakdown, so the
+jurisdiction-agnostic VAT report never learns what "3.1" means.
+
+**Refusal is part of the contract.** When a fact that decides the treatment is
+missing or contradictory, `resolveCategoryMapping` throws
+`UnresolvedVatTreatmentError` (HTTP 422) carrying the missing fact and the call
+that supplies it, and nothing is posted. The kernel's usual escapes do not fit
+here: holding for approval and "booking conservatively" both still put a number
+on a return that the facts do not support, and a semantic override relaxes a
+RULE, whereas this is an absent FACT. An unknown status is treated as unknown,
+never as a consumer. The one place an unknown is allowed through is a DOMESTIC
+supply, where it cannot change the answer (24% either way).
+
+Rates are read at the invoice's tax point (`getVatRate(code, onDate?)`), so a
+back-dated invoice is measured against the rate that governed it (EE: 20% →
+22% from 2024-01-01 → 24% from 2025-07-01) rather than today's.
+
+### Documented limitations (as amended)
+
+4. **Only the general rule is implemented.** Every named place-of-supply
+   exception is refused with an actionable message. Implementing one means
+   adding the facts its rule actually needs (e.g. where the property is), not
+   widening the default.
+
+5. **Goods sales are untouched.** Their place of supply follows the movement of
+   the goods, which this issue does not model; a goods sale keeps the standard
+   domestic mapping.
+
+6. **The tax-amount check is scoped to service sales.** A service sale's
+   `vat_amount` must equal the resolved rate on the net, because the treatment
+   was derived from facts and is therefore checkable. Goods sales and purchases
+   keep the tax their document states — the kernel has never recomputed those.
+
+### Two consequences of adding a declaration row and a refusal
+
+**A frozen filing payload is never rewritten.**
+`statutory_filing_snapshot.payload` is the artifact a filing was made from, so a
+payload frozen before field 3.1 had its own declaration row keeps its exact
+bytes. It is normalized on READ
+(`normalizeFrozenStatutoryInput`): a missing `row3_1_intra_eu_supply` is read as
+`vd_intra_eu_services`, which is what the XML/CSV box was rendered from at the
+time. An old payload therefore still renders byte-identically and XSD-valid
+instead of emitting `NaN`.
+
+**A refusal needs a remedy on the refused object.**
+`PATCH /api/sales-invoices/:id` corrects a DRAFT (or pending) invoice's
+`supply_type`, `service_place_rule` and amounts, because the invoice number is
+unique and re-creating the invoice returns 409. A POSTED invoice is refused with
+409 — its voucher is immutable and is corrected by reversal (ADR-0006).
+Customer-side facts stay on `PATCH /api/entities/:id`.

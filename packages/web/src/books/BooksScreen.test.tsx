@@ -1,9 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+
+// The chosen file's local preview (#293) is not under test here: pdf.js
+// never settles, so no viewer state or control joins these flows.
+vi.mock('../inbox/pdfjs', () => ({
+  loadPdfJs: () => new Promise(() => undefined),
+  pdfDocumentOptions: () => ({}),
+}));
 import { BooksScreen } from './BooksScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 vi.mock('../api', async (io) => ({
   ...(await io<typeof import('../api')>()),
@@ -25,7 +39,9 @@ function mount(url = '/books') {
   );
   const view = render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { ...view, router };
@@ -37,12 +53,9 @@ describe('BooksScreen', () => {
     expect(
       await screen.findByRole('heading', { name: 'Books' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Expenses' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
-    expect(await screen.findByText('No documents match')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Expenses' })).toBeChecked();
+    await userEvent.click(screen.getByRole('radio', { name: 'Documents' }));
+    expect(await screen.findByText('No documents yet')).toBeInTheDocument();
   });
 
   it('accepts the legacy ?tab= alias', async () => {
@@ -55,10 +68,11 @@ describe('BooksScreen', () => {
   it('switching segments preserves ?q= but drops segment-specific filters', async () => {
     const { router } = mount('/books?seg=expenses&q=acme&status=draft');
     await screen.findByRole('heading', { name: 'Books' });
-    await userEvent.click(screen.getByRole('tab', { name: 'Invoices' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Invoices' }));
     // q survives in the search box; status chip resets to All:
     expect(screen.getByDisplayValue('acme')).toBeInTheDocument();
-    expect(await screen.findByText('No invoices match')).toBeInTheDocument();
+    // Nothing loaded at all: the initial empty, not a failed search (#280).
+    expect(await screen.findByText('No invoices yet')).toBeInTheDocument();
     // useSeg round-trip (P06 Task 3): ?seg= updated, ?q= PRESERVED, the
     // segment-scoped params (status/nodoc/dstatus) and any ?tab= dropped.
     const search = new URLSearchParams(router.state.location.search);
@@ -89,6 +103,8 @@ describe('BooksScreen', () => {
       target: { value: '48.20' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('Gross (€)')).toBeNull(),
     );
@@ -107,6 +123,8 @@ describe('BooksScreen', () => {
       target: { value: 'INV-HALF' },
     });
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByLabelText('Invoice number')).toBeNull(),
     );
@@ -128,11 +146,45 @@ describe('BooksScreen', () => {
     fireEvent.change(fileInput, { target: { files: [file] } });
     expect(screen.getByRole('button', { name: /Upload/ })).not.toBeDisabled();
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() => expect(screen.queryByLabelText('File')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Add to the books' }));
     fireEvent.click(await screen.findByText('Upload a document'));
     expect(
       await screen.findByRole('button', { name: /Upload/ }),
     ).toBeDisabled();
+  });
+  it('issue #268: keyboard menu → New expense handoff; closing returns to "Add to the books", the menu never steals late', async () => {
+    const user = userEvent.setup();
+    mount();
+    const add = await screen.findByRole('button', {
+      name: 'Add to the books',
+    });
+    add.focus();
+    await user.keyboard('{Enter}');
+    const menu = await screen.findByRole('dialog', {
+      name: 'Add to the books',
+    });
+    expect(document.activeElement).toBe(
+      within(menu).getByRole('button', { name: 'Close' }),
+    );
+    within(menu)
+      .getByRole('button', { name: /New expense/ })
+      .focus();
+    await user.keyboard('{Enter}');
+    const form = await screen.findByRole('dialog', { name: 'New expense' });
+    const formClose = within(form).getByRole('button', { name: 'Close' });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Add to the books' }),
+      ).toBeNull(),
+    );
+    // The menu's exit has run its close-autofocus: focus stayed in the form.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(formClose);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(document.activeElement).toBe(add));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

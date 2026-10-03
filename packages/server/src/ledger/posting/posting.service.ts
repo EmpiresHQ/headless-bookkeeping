@@ -1,4 +1,9 @@
-import { Injectable, Optional, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Optional,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../../database/types';
@@ -21,6 +26,14 @@ import { DraftVoucher, PostedVoucher, VoucherLine } from '../voucher/types';
 import { ValidationError } from './types';
 import { GENESIS_HASH, computeVoucherHash } from './voucher-hash';
 import { NULL_VAT_CODE } from './vat-constants';
+import {
+  ANNUAL_CLOSE_ACCOUNT_CODES,
+  ANNUAL_CLOSE_ALLOWED_VAT_CODES,
+} from '../../reporting-periods/annual-close';
+import {
+  OrganizationBasisRow,
+  sameBasisRow,
+} from '../../organization/ledger-basis';
 
 /**
  * The semantic-validation decision for a post, made EXPLICITLY by the caller
@@ -42,7 +55,26 @@ export type PostingSemantics =
       context: SemanticValidationContext;
       override?: Override;
     }
-  | { kind: 'system-generated' };
+  | { kind: 'system-generated' }
+  | {
+      /**
+       * A YEAR-END ADJUSTMENT of a financial year (issue #207) — the annual
+       * depreciation charge the close of `financialYearId` posts on the year's
+       * last day. Like `system-generated` it declares no semantic context, and
+       * it additionally CLAIMS the narrowly validated route that may post into
+       * a VAT period already filed (see `reporting-periods/annual-close.ts`).
+       *
+       * The claim is not the authorization: {@link PostingService.postVoucherTx}
+       * validates the year, the date, the accounts and the VAT metadata, and
+       * {@link PeriodLockService.assertAnnualClosePostable} validates the lock
+       * state, before anything is written. It is constructed by
+       * `AnnualAccountsService.finalize` alone — no request payload can carry
+       * it, since {@link DraftVoucher} has no field for it and every HTTP
+       * write path posts `system-generated` or `intake-driven`.
+       */
+      kind: 'annual-close';
+      financialYearId: number;
+    };
 
 /**
  * The result of preparing a draft: resolved lines (account_code → account_id),
@@ -51,6 +83,12 @@ export type PostingSemantics =
 export interface PreparedVoucher {
   draft: DraftVoucher;
   resolved: ValidatableLine[];
+  /**
+   * The caller's declared semantics, carried into the transaction so the
+   * period-lock enforcement point sees the same declaration the preparation
+   * did (issue #207 — an annual-close claim must not be lost on the way in).
+   */
+  semantics: PostingSemantics;
 }
 
 const SYSTEM_GENERATED: PostingSemantics = { kind: 'system-generated' };
@@ -173,14 +211,59 @@ export class PostingService {
   async prepare(
     draft: DraftVoucher,
     semantics: PostingSemantics = SYSTEM_GENERATED,
+    executor?: Kysely<Database>,
   ): Promise<PreparedVoucher> {
-    const { resolved, accounts } = await this.resolveAndValidate(draft);
+    const { resolved, accounts } = await this.resolveAndValidate(
+      draft,
+      executor,
+    );
 
     if (semantics.kind === 'intake-driven') {
       await this.enforceSemantic(draft, resolved, accounts, semantics);
     }
 
-    return { draft, resolved };
+    return {
+      // The measurement basis travels ON the draft, so every post path carries
+      // it without a further parameter (issue #215). A generator's own stamp
+      // WINS: it is taken before the FX conversion is awaited, so it covers the
+      // whole window in which the amounts were measured.
+      //
+      // The fallback below stamps the basis as at prepare time. That is the
+      // full window ONLY for a draft that did no conversion of its own; for a
+      // generator that converts without stamping, the conversion happened
+      // before this sample and an edit that landed during it is NOT detected
+      // here. VoucherProjectionService (intake), PrepaymentService (a bank
+      // advance) and PersonalDispositionService therefore stamp explicitly.
+      //
+      // This check is about a basis that MOVED under an in-flight measurement.
+      // It is not the only way an amount can be measured in the wrong unit: a
+      // draft built from a PERSISTED denomination carries no conversion at all,
+      // and is guarded where that denomination lives — see
+      // ApprovalsService.assertAllowanceInBaseCurrency (issue #215), which
+      // refuses an allowance whose stored currency is not the books'.
+      draft: draft.measured_basis
+        ? draft
+        : {
+            ...draft,
+            measured_basis: await this.readBasis(executor ?? this.db),
+          },
+      resolved,
+      semantics,
+    };
+  }
+
+  /**
+   * Read the organisation's measurement basis (issue #215). Returns undefined
+   * when the singleton is absent — the low-level posting tests run without one,
+   * and an absent row is not a basis change.
+   */
+  private async readBasis(
+    executor: Kysely<Database>,
+  ): Promise<OrganizationBasisRow | undefined> {
+    return executor
+      .selectFrom('organization')
+      .select(['country', 'base_currency'])
+      .executeTakeFirst();
   }
 
   /**
@@ -190,12 +273,18 @@ export class PostingService {
    * re-implementing the code→id lookup. An unknown code resolves to id -1,
    * which fails the structural existence check.
    */
-  async resolveLines(draft: DraftVoucher): Promise<{
+  async resolveLines(
+    draft: DraftVoucher,
+    executor?: Kysely<Database>,
+  ): Promise<{
     resolved: ValidatableLine[];
     accounts: { id: number; code: string; currency: string | null }[];
   }> {
     const codes = [...new Set(draft.lines.map((l) => l.account_code))];
-    const accounts = await this.accountService.getAccountsByCodes(codes);
+    const accounts = await this.accountService.getAccountsByCodes(
+      codes,
+      executor,
+    );
     const byCode = new Map(accounts.map((a) => [a.code, a]));
 
     const resolved: ValidatableLine[] = draft.lines.map((l) => {
@@ -218,11 +307,14 @@ export class PostingService {
    * Resolve + run the structural tier. Throws ValidationError on a structural
    * failure. Shared by the single- and multi-voucher posting paths.
    */
-  private async resolveAndValidate(draft: DraftVoucher): Promise<{
+  private async resolveAndValidate(
+    draft: DraftVoucher,
+    executor?: Kysely<Database>,
+  ): Promise<{
     resolved: ValidatableLine[];
     accounts: { id: number; code: string; currency: string | null }[];
   }> {
-    const { resolved, accounts } = await this.resolveLines(draft);
+    const { resolved, accounts } = await this.resolveLines(draft, executor);
     const validIds = new Set(accounts.map((a) => a.id));
 
     const result = this.validation.validateVoucherLines(resolved, validIds);
@@ -299,7 +391,50 @@ export class PostingService {
     trx: Kysely<Database>,
     prepared: PreparedVoucher,
   ): Promise<PostedVoucher> {
-    return this.postVoucherTx(trx, prepared.draft, prepared.resolved);
+    return this.postVoucherTx(
+      trx,
+      prepared.draft,
+      prepared.resolved,
+      prepared.semantics,
+    );
+  }
+
+  /**
+   * Refuse a post whose amounts were measured under a basis the organisation
+   * has since left (issue #215).
+   *
+   * Compares the RAW row, not the effective basis: no plugin is available at
+   * this seam, and raw equality implies effective equality, so a real basis
+   * change never slips through. The converse does not hold — an effect-free
+   * edit (`'EUR'` → `null` under an EUR-default plugin) remains permitted at
+   * any time and reads here as a difference — so a post in flight across such
+   * an edit is rejected although its measurement was fine. Deliberate: nothing
+   * is written, the caller retries, and the alternative is resolving defaults
+   * at a seam that has no plugin.
+   *
+   * A draft carrying no stamp is not checked; see {@link prepare} for which
+   * drafts carry one and what the fallback does and does not cover.
+   */
+  private async assertBasisUnchanged(
+    trx: Kysely<Database>,
+    measuredBasis: OrganizationBasisRow | undefined,
+  ): Promise<void> {
+    if (!measuredBasis) {
+      return;
+    }
+    const currentBasis = await this.readBasis(trx);
+    if (!currentBasis || sameBasisRow(measuredBasis, currentBasis)) {
+      return;
+    }
+    throw new ConflictException(
+      `The organisation's ledger measurement basis changed while this voucher ` +
+        `was being measured: its amounts were measured as ` +
+        `base_currency=${measuredBasis.base_currency ?? 'default'} ` +
+        `country=${measuredBasis.country}, and the organisation now records ` +
+        `base_currency=${currentBasis.base_currency ?? 'default'} ` +
+        `country=${currentBasis.country}. Nothing was posted; retry the ` +
+        `operation so the amounts are measured under the current basis.`,
+    );
   }
 
   /**
@@ -313,10 +448,38 @@ export class PostingService {
     trx: Kysely<Database>,
     draft: DraftVoucher,
     resolved: ValidatableLine[],
+    semantics: PostingSemantics = SYSTEM_GENERATED,
   ): Promise<PostedVoucher> {
+    // Measurement basis (issue #215). The organisation's base currency and
+    // jurisdiction may be changed while the ledger is still EMPTY, and a draft
+    // prepared just before such a change already carries `base_amount`s
+    // measured the old way — its conversion may even have been awaiting an FX
+    // rate over the network while the settings moved. Posting it would make the
+    // very first voucher say a basis it was not measured in, and every later
+    // voucher would be summed against it. Compare inside the transaction, where
+    // the row cannot move again, and refuse rather than mislabel.
+    await this.assertBasisUnchanged(trx, draft.measured_basis);
+
     // Hard process rule (ADR-0009): cannot post into a locked reporting period.
     // ONE enforcement point, throw mode (BadRequestException) — see ADR-0019.
-    await this.periodLock.assertPeriodOpen(draft.tax_point_date, trx);
+    //
+    // The single exception is the year-end adjustment route (issue #207), and
+    // it is validated here, at that same enforcement point, rather than trusted:
+    // the accounts and the VAT metadata are checked below and the lock state in
+    // `assertAnnualClosePostable`. A caller cannot skip the checks by calling
+    // this method directly — the claim IS the thing being validated.
+    const annualClose =
+      semantics.kind === 'annual-close' ? semantics.financialYearId : null;
+    if (annualClose !== null) {
+      this.assertAnnualCloseShape(draft);
+      await this.periodLock.assertAnnualClosePostable(
+        draft.tax_point_date,
+        annualClose,
+        trx,
+      );
+    } else {
+      await this.periodLock.assertPeriodOpen(draft.tax_point_date, trx);
+    }
 
     const postedAt = Math.floor(Date.now() / 1000);
 
@@ -353,6 +516,19 @@ export class PostingService {
         corrects_object_type: draft.corrects_object_type ?? null,
         corrects_object_id: draft.corrects_object_id ?? null,
         reason: draft.reason ?? null,
+        // The trusted mark of a year-end adjustment (issue #207): written only
+        // here, only after the checks above passed, and immutable afterwards
+        // (posted vouchers are immutable by trigger, ADR-0019).
+        annual_close_period_id: annualClose,
+        // The input-VAT deduction entitlement this purchase was booked at
+        // (issue #211). Written from the draft, never recomputed later: an
+        // organisation's settings change, and a posted voucher must keep saying
+        // what it was posted on.
+        input_vat_entitlement_basis: draft.input_vat_entitlement?.basis ?? null,
+        input_vat_deduction_numerator:
+          draft.input_vat_entitlement?.numerator ?? null,
+        input_vat_deduction_denominator:
+          draft.input_vat_entitlement?.denominator ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -367,6 +543,11 @@ export class PostingService {
           currency: l.currency,
           base_amount: l.base_amount,
           fx_rate: l.fx_rate,
+          // Issue #203: WHICH publication the rate came from, and from whom.
+          // A generator that did not supply it writes NULL — never a guessed
+          // source, which would make an unattributed rate look authoritative.
+          fx_rate_date: l.fx_rate_date ?? null,
+          fx_rate_source: l.fx_rate_source ?? null,
           vat_code: l.vat_code ?? null,
           is_debit: l.is_debit ? 1 : 0,
         })),
@@ -382,11 +563,49 @@ export class PostingService {
       currency: r.currency,
       base_amount: r.base_amount,
       fx_rate: r.fx_rate,
+      fx_rate_date: r.fx_rate_date,
+      fx_rate_source: r.fx_rate_source,
       vat_code: r.vat_code,
       is_debit: toBool(r.is_debit),
     }));
 
     return { ...voucher, lines };
+  }
+
+  /**
+   * What a year-end adjustment is allowed to BE (issue #207), checked before the
+   * locked-period rule is relaxed for it:
+   *  - every line on an {@link ANNUAL_CLOSE_ACCOUNT_CODES} account — the
+   *    depreciation charge and its accumulated-depreciation contra accounts, a
+   *    list that contains no VAT-control account and no cash, receivable or
+   *    payable account, so the adjustment cannot move money or VAT;
+   *  - no line carrying real VAT metadata, so nothing that belongs on a
+   *    declaration can ride in on a whitelisted account.
+   *
+   * Both are structural facts about the voucher, not claims about it — which is
+   * the point: the caller's declaration decides which checks run, never whether
+   * they pass.
+   */
+  private assertAnnualCloseShape(draft: DraftVoucher): void {
+    const badAccounts = draft.lines
+      .map((l) => l.account_code)
+      .filter((code) => !ANNUAL_CLOSE_ACCOUNT_CODES.includes(code));
+    if (badAccounts.length > 0) {
+      throw new BadRequestException(
+        `A year-end adjustment may only touch ${ANNUAL_CLOSE_ACCOUNT_CODES.join(', ')} — ` +
+          `rejected line(s) on ${[...new Set(badAccounts)].join(', ')}`,
+      );
+    }
+
+    const vatCodes = draft.lines
+      .map((l) => l.vat_code ?? null)
+      .filter((code) => !ANNUAL_CLOSE_ALLOWED_VAT_CODES.includes(code));
+    if (vatCodes.length > 0) {
+      throw new BadRequestException(
+        `A year-end adjustment may not carry VAT metadata — rejected VAT code(s) ` +
+          `${[...new Set(vatCodes)].join(', ')}`,
+      );
+    }
   }
 
   /**

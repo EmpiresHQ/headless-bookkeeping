@@ -7,6 +7,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
 
 /**
  * Focused integration tests for the consolidated outstanding-voucher query
@@ -36,6 +37,7 @@ describe('OutstandingVoucherService', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
       ],
     }).compile();
 
@@ -71,6 +73,30 @@ describe('OutstandingVoucherService', () => {
         corrects_object_type: null,
         corrects_object_id: null,
         reason: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return voucher.id;
+  }
+
+  /** A posted counter-voucher reversing `reversesId`. */
+  async function insertReversalVoucher(
+    taxPointDate: string,
+    reversesId: number,
+  ): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    voucherCounter++;
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: `V-2025-${String(voucherCounter).padStart(6, '0')}-REV`,
+        tax_point_date: taxPointDate,
+        posted_at: now,
+        previous_hash: null,
+        reverses_id: reversesId,
+        corrects_object_type: null,
+        corrects_object_id: null,
+        reason: 'reversal',
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -371,12 +397,42 @@ describe('OutstandingVoucherService', () => {
   // ── Prepayment candidate set ───────────────────────────────────────────
 
   describe('findCustomerPrepaymentCandidates', () => {
-    it('returns the undrawn CUSTOMER_PREPAYMENTS credit with the caller-supplied entity', async () => {
+    /** Register a posted prepayment voucher as an OWNED advance (issue #201). */
+    async function registerAdvance(
+      voucherId: number,
+      entityId: number | null,
+      baseAmount: number,
+      opts: { needsReview?: boolean } = {},
+    ): Promise<void> {
+      await db
+        .insertInto('prepayment_advance')
+        .values({
+          voucher_id: voucherId,
+          kind: 'customer',
+          account_code: 'CUSTOMER_PREPAYMENTS',
+          entity_id: entityId,
+          bank_transaction_id: null,
+          original_base_amount: baseAmount,
+          currency: 'EUR',
+          needs_review: opts.needsReview ? 1 : 0,
+          origin: 'service',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+    }
+
+    async function seedAdvanceVoucher(amount: number): Promise<number> {
+      const voucherId = await insertVoucher('2025-01-10');
+      await insertLine(voucherId, 'BANK_EUR', amount, 1);
+      await insertLine(voucherId, 'CUSTOMER_PREPAYMENTS', amount, 0);
+      return voucherId;
+    }
+
+    it('returns the undrawn CUSTOMER_PREPAYMENTS credit owned by that customer', async () => {
       const customerId = await seedCustomer();
       // Dr BANK_EUR / Cr CUSTOMER_PREPAYMENTS — money received on account.
-      const voucherId = await insertVoucher('2025-01-10');
-      await insertLine(voucherId, 'BANK_EUR', 40000, 1);
-      await insertLine(voucherId, 'CUSTOMER_PREPAYMENTS', 40000, 0);
+      const voucherId = await seedAdvanceVoucher(40000);
+      await registerAdvance(voucherId, customerId, 40000);
 
       const candidates =
         await service.findCustomerPrepaymentCandidates(customerId);
@@ -387,6 +443,98 @@ describe('OutstandingVoucherService', () => {
       expect(candidates[0].accountCode).toBe('CUSTOMER_PREPAYMENTS');
       expect(candidates[0].entityId).toBe(customerId);
       expect(candidates[0].remainingBalance).toBe(40000);
+    });
+
+    it('does NOT offer another customer an advance it does not own', async () => {
+      const owner = await seedCustomer();
+      const other = await seedCustomer();
+      const voucherId = await seedAdvanceVoucher(40000);
+      await registerAdvance(voucherId, owner, 40000);
+
+      // Before #201 this query returned EVERY prepayment voucher with the
+      // caller's entity id stamped onto it.
+      await expect(
+        service.findCustomerPrepaymentCandidates(other),
+      ).resolves.toEqual([]);
+    });
+
+    it('does NOT offer an advance with no resolved owner', async () => {
+      const customerId = await seedCustomer();
+      const voucherId = await seedAdvanceVoucher(40000);
+      await registerAdvance(voucherId, null, 40000);
+
+      await expect(
+        service.findCustomerPrepaymentCandidates(customerId),
+      ).resolves.toEqual([]);
+    });
+
+    it('does NOT offer an advance whose balance is unverified', async () => {
+      const customerId = await seedCustomer();
+      const voucherId = await seedAdvanceVoucher(40000);
+      await registerAdvance(voucherId, customerId, 40000, {
+        needsReview: true,
+      });
+
+      await expect(
+        service.findCustomerPrepaymentCandidates(customerId),
+      ).resolves.toEqual([]);
+    });
+
+    it('does NOT offer an advance whose own voucher was reversed', async () => {
+      const customerId = await seedCustomer();
+      const voucherId = await seedAdvanceVoucher(40000);
+      await registerAdvance(voucherId, customerId, 40000);
+
+      const reversalId = await insertReversalVoucher('2025-01-11', voucherId);
+      await insertLine(reversalId, 'CUSTOMER_PREPAYMENTS', 40000, 1);
+      await insertLine(reversalId, 'BANK_EUR', 40000, 0);
+
+      await expect(
+        service.findCustomerPrepaymentCandidates(customerId),
+      ).resolves.toEqual([]);
+    });
+
+    it('nets an active allocation out of the advance remaining balance', async () => {
+      const customerId = await seedCustomer();
+      const voucherId = await seedAdvanceVoucher(40000);
+      await registerAdvance(voucherId, customerId, 40000);
+
+      const invoiceId = await insertVoucher('2025-01-12');
+      await insertLine(invoiceId, 'AR', 40000, 1);
+      await insertLine(invoiceId, 'REVENUE', 40000, 0);
+
+      const clearingId = await insertVoucher('2025-01-13');
+      await insertLine(clearingId, 'CUSTOMER_PREPAYMENTS', 15000, 1);
+      await insertLine(clearingId, 'AR', 15000, 0);
+
+      const advance = await db
+        .selectFrom('prepayment_advance')
+        .select('id')
+        .where('voucher_id', '=', voucherId)
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('prepayment_allocation')
+        .values({
+          advance_id: advance.id,
+          invoice_voucher_id: invoiceId,
+          entity_id: customerId,
+          base_amount: 15000,
+          currency: 'EUR',
+          allocation_voucher_id: clearingId,
+          origin: 'service',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
+      const candidates =
+        await service.findCustomerPrepaymentCandidates(customerId);
+      expect(candidates[0].remainingBalance).toBe(25000);
+
+      // The SAME allocation is netted out of the invoice's own outstanding, so
+      // a cash match cannot settle what the prepayment already relieved.
+      await expect(service.getRemainingVoucherBalance(invoiceId)).resolves.toBe(
+        25000,
+      );
     });
   });
 });

@@ -20,13 +20,22 @@ import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { GroupLabel, KeyValue, ListGroup, ListRow } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { GroupLabel, KeyValue, ListGroup, ListRow, READABLE } from '../ui/List';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { AddAliasSheet } from './AddAliasSheet';
 import { EditEntitySheet } from './EditEntitySheet';
+import { usePendingOperation } from '../lib/pendingOperation';
 
 /** /settings/entities/:id — asset §8: identity + links + memory in one card. */
+/** Labels for entity.tax_status — 'unknown' (and a never-recorded NULL) reads
+ *  as "Not recorded", never as "Consumer". */
+const TAX_STATUS_LABEL: Record<string, string> = {
+  taxable_business: 'Business (taxable person)',
+  non_taxable: 'Consumer (non-taxable)',
+  unknown: 'Not recorded',
+};
+
 export function EntityScreen() {
   const { id: idParam } = useParams();
   const valid = idParam !== undefined && /^\d+$/.test(idParam);
@@ -47,7 +56,7 @@ export function EntityScreen() {
       </Frame>
     );
   }
-  if (entityQ.isError) {
+  if (entityQ.isError && entityQ.data === undefined) {
     return (
       <Frame>
         <LoadError
@@ -61,6 +70,7 @@ export function EntityScreen() {
   }
   return (
     <Frame>
+      <RefetchError query={entityQ} />
       <EntityCard entity={entityQ.data} />
     </Frame>
   );
@@ -81,7 +91,8 @@ function EntityCard({ entity }: { entity: Entity }) {
   const edit = useSheet();
   const alias = useSheet();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const op = usePendingOperation('Entity');
+  const deleting = op.pending;
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
 
@@ -107,19 +118,21 @@ function EntityCard({ entity }: { entity: Entity }) {
       ? classificationMemory(expensesQ.data ?? [], entity.id)
       : null;
 
-  const onDelete = async () => {
-    setDeleting(true);
-    try {
-      await deleteEntity(entity.id);
-      toastOk(`Deleted — ${entity.name}`);
-      navigate('/settings/entities');
-      void invalidateEntities(qc);
-    } catch (e) {
-      // The server's 409 sentence is already human (Reality #5).
-      toastErr(e instanceof Error ? e.message : String(e));
-      setDeleting(false);
-      setDeleteOpen(false);
-    }
+  const onDelete = () => {
+    const { id, name } = entity;
+    op.run(() => deleteEntity(id), {
+      onSuccess: () => {
+        toastOk(`Deleted — ${name}`);
+        setDeleteOpen(false);
+        navigate('/settings/entities');
+        void invalidateEntities(qc);
+      },
+      onError: (e) => {
+        // The server's 409 sentence is already human (Reality #5).
+        toastErr(e instanceof Error ? e.message : String(e));
+        setDeleteOpen(false);
+      },
+    });
   };
 
   const bookingsQuery = `q=${encodeURIComponent(entity.name).replace(/%20/g, '+')}`;
@@ -127,7 +140,9 @@ function EntityCard({ entity }: { entity: Entity }) {
   return (
     <>
       <div className="px-5 pb-3 pt-1 text-center">
-        <p className="truncate text-[21px] font-extrabold">{entity.name}</p>
+        <p className={`text-[21px] font-extrabold ${READABLE}`}>
+          {entity.name}
+        </p>
         <p className="mt-1 flex items-center justify-center gap-2 text-[13px] text-ink-2">
           <Chip tone={ROLE_TONE[entity.role]}>{ROLE_LABEL[entity.role]}</Chip>
           <span>
@@ -142,6 +157,12 @@ function EntityCard({ entity }: { entity: Entity }) {
 
       <ListGroup>
         {regKey !== null && <KeyValue k="Registration key" v={regKey} />}
+        {(entity.role === 'customer' || entity.role === 'supplier') && (
+          <KeyValue
+            k="Tax status"
+            v={TAX_STATUS_LABEL[entity.tax_status ?? 'unknown'] ?? 'Unknown'}
+          />
+        )}
         {email !== null && <KeyValue k="Email" v={email} />}
         {tg !== null && <KeyValue k="Telegram id" v={tg} />}
         {stats !== null && (
@@ -263,7 +284,7 @@ function EntityCard({ entity }: { entity: Entity }) {
         confirmLabel="Delete entity"
         destructive
         busy={deleting}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
     </>
   );

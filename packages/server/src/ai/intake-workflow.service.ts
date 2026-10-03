@@ -1,3 +1,5 @@
+import { FxRateUnavailableError } from '../fx/fx-rate.types';
+import { UnresolvedVatTreatmentError } from '../plugins/vat-treatment.errors';
 import {
   Injectable,
   Logger,
@@ -107,6 +109,8 @@ export function pass2FailureReason(
   detail: string,
 ): string {
   switch (category) {
+    case 'evidence-invalid':
+    case 'context-failed':
     case 'enrichment-failed':
     case 'enrichment-incomplete':
     case 'enrichment-tool-not-called':
@@ -294,9 +298,9 @@ export class IntakeWorkflowService {
    * ai_confidence → confidence; the remaining fields (amounts, category, etc.)
    * come from the Expense's own columns.
    *
-   * A document with no linked Expense (e.g. needs_triage or OCR-only) returns
-   * OCR text with classification: null. A missing OCR artifact returns the OCR
-   * failure shape with classification: null.
+   * Without a linked Expense, use the saved classification snapshot (or the
+   * legacy supplier replay). OCR-only documents return classification: null.
+   * A missing OCR artifact returns the OCR failure shape with classification: null.
    */
   // Not gated: details() is read-only and does not run the OCR/LLM pipeline,
   // so it does not need ProcessingGate serialization (unlike process() which
@@ -331,7 +335,8 @@ export class IntakeWorkflowService {
 
     if (!expense) {
       const pendingReplay =
-        await this.documents.getPendingTriageReplay(documentId);
+        (await this.documents.getClassificationSnapshot(documentId)) ??
+        (await this.documents.getPendingTriageReplay(documentId));
       if (pendingReplay) {
         // Strip supplier_proposal / customer_proposal off the wire — a raw
         // proposal can carry match_entity_id (the AI's unverified guess at an
@@ -414,7 +419,14 @@ export class IntakeWorkflowService {
     documentId: number,
     claimantId?: number | null,
   ): Promise<IntakeWorkflowResult> {
-    return this.gate.run(() => this.processInner(documentId, claimantId));
+    // The per-document exclusion (issue #248) spans the status read through
+    // routing, so a deliberate attach cannot claim the document between this
+    // run's "still pending" read and its draft creation — nor the reverse.
+    return this.gate.run(() =>
+      this.documents.runExclusive(documentId, () =>
+        this.processInner(documentId, claimantId),
+      ),
+    );
   }
 
   private async processInner(
@@ -516,6 +528,13 @@ export class IntakeWorkflowService {
 
       const triageResult = pass2.result;
       const pass2Enrichment = pass2.enrichment ?? null;
+      // Preserve evidence before ANY routing decision, including holds which
+      // intentionally create no Expense. This does not enable supplier replay.
+      await this.documents.setClassificationSnapshot(
+        documentId,
+        triageResult,
+        pass2Enrichment,
+      );
       this.logger.debug(
         `Pass 2 complete for document ${documentId}: kind=${triageResult.kind}, confidence=${triageResult.confidence}`,
       );
@@ -526,7 +545,13 @@ export class IntakeWorkflowService {
       // attempt — so junk never reaches proposeDraft / the posting pipeline
       // (where it fails structural validation and surfaces as a confusing
       // "Unexpected error during intake"). High confidence does NOT post it.
-      if (triageResult.kind === 'not_a_document') {
+      // A recognized order/proforma has a more specific hold reason even when
+      // the model also calls it irrelevant. Neither route may create a draft.
+      if (
+        triageResult.kind === 'not_a_document' &&
+        triageResult.document_type !== 'order_confirmation' &&
+        triageResult.document_type !== 'proforma'
+      ) {
         this.logger.warn(
           `Document ${documentId} classified as not_a_document — routing to needs_triage (relevance gate)`,
         );
@@ -584,6 +609,40 @@ export class IntakeWorkflowService {
           );
       }
     } catch (err) {
+      // A missing reference rate is an EXPECTED outcome, not a fault (issue
+      // #203): the document is in a currency we cannot authoritatively value
+      // on its own tax-point date. It is HELD — routed to needs_triage with a
+      // reason a human can act on — and no voucher is posted at any rate we
+      // made up. Reporting it as an unforeseen fault would bury the one piece
+      // of information that makes it fixable.
+      if (err instanceof FxRateUnavailableError) {
+        this.logger.warn(
+          `Document ${documentId} held: ${err.message} ` +
+            `(reason=${err.reason}, retryable=${String(err.retryable)})`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          err.retryable
+            ? `Currency conversion is on hold: the ${err.fromCurrency}→${err.toCurrency} ` +
+                `reference rate for ${err.date} could not be fetched right now ` +
+                `(${err.detail}). Retry once the rate source is reachable.`
+            : `Cannot value this document: no authoritative ${err.fromCurrency}→${err.toCurrency} ` +
+                `reference rate governs ${err.date} (${err.detail}). Confirm the ` +
+                `currency and tax-point date, or book it manually.`,
+        );
+      }
+
+      // A supply whose VAT treatment the recorded facts cannot decide (issue
+      // #209) is an EXPECTED outcome too, not a fault: the document is HELD
+      // with the missing fact named, and no voucher is posted on a guessed
+      // place of supply. Same shape as the missing-rate hold above.
+      if (err instanceof UnresolvedVatTreatmentError) {
+        this.logger.warn(
+          `Document ${documentId} held: ${err.message} (code=${err.code})`,
+        );
+        return this.routeNeedsTriage(documentId, err.actionableReason);
+      }
+
       // Safety net (ADR-0024): no fault may leave the document stranded in
       // `pending`. Any unforeseen throw during OCR / classification / routing
       // routes the document to needs_triage with the error surfaced, so a human
@@ -856,6 +915,15 @@ export class IntakeWorkflowService {
     documentId: number,
     supplierEntityId: number,
   ): Promise<IntakeWorkflowResult> {
+    return this.documents.runExclusive(documentId, () =>
+      this.resolveSupplierInner(documentId, supplierEntityId),
+    );
+  }
+
+  private async resolveSupplierInner(
+    documentId: number,
+    supplierEntityId: number,
+  ): Promise<IntakeWorkflowResult> {
     const doc = await this.documents.getById(documentId);
 
     // Idempotent replay: already resolved into a draft.
@@ -982,6 +1050,15 @@ export class IntakeWorkflowService {
    * existing draft instead of creating a second expense.
    */
   async manualClassify(
+    documentId: number,
+    dto: ManualClassifyDto,
+  ): Promise<IntakeWorkflowResult> {
+    return this.documents.runExclusive(documentId, () =>
+      this.manualClassifyInner(documentId, dto),
+    );
+  }
+
+  private async manualClassifyInner(
     documentId: number,
     dto: ManualClassifyDto,
   ): Promise<IntakeWorkflowResult> {

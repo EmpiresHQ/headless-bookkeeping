@@ -26,21 +26,49 @@ import { LoadError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { channelLabel } from './DocumentsSegment';
 import { statusChip } from './chips';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { useOriginState } from '../lib/returnNavigation';
+import { useScreenEntry } from '../lib/screenEntry';
+
+/** Technical failure detail, collapsed below the plain explanation. */
+function Diagnostics({
+  category,
+  detail,
+}: {
+  category: string;
+  detail: string;
+}) {
+  return (
+    <details className="mt-1.5">
+      <summary className="cursor-pointer text-[12px] text-ink-3">
+        Technical details
+      </summary>
+      <p className="mt-1 break-words text-[12px] text-ink-3">
+        {category}: {detail}
+      </p>
+    </details>
+  );
+}
 
 function ClassificationFacts({ details }: { details: DocumentDetails }) {
   if (details.classification === null) {
     return (
       <p className="px-3.5 py-2.5 text-[13px] text-ink-2">
-        No classification — OCR produced no text.
+        {details.ocr.ok
+          ? 'No saved AI reading for this document.'
+          : 'The AI has not read this document — its text could not be read from the file.'}
       </p>
     );
   }
   if (!details.classification.ok) {
     return (
-      <p className="px-3.5 py-2.5 text-[13px] text-err">
-        Classification failed ({details.classification.category}):{' '}
-        {details.classification.detail}
-      </p>
+      <div className="px-3.5 py-2.5 text-[13px]">
+        <p className="text-err">The AI could not read this document.</p>
+        <Diagnostics
+          category={details.classification.category}
+          detail={details.classification.detail}
+        />
+      </div>
     );
   }
   const r = details.classification.result;
@@ -68,16 +96,24 @@ export function DocumentScreen() {
   const id = Number(idParam);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  // "Resolve in Inbox" records this page as the task's origin (issue #252).
+  const origin = useOriginState();
   const docsQ = useDocumentsArchive();
   const detailsQ = useDocDetails(id);
+  useScreenEntry(!docsQ.isPending);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Document');
+  const busy = op.pending;
 
   if (docsQ.isError) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Document" backTo="/books?seg=documents" />
+        <ScreenHeader
+          title="Document"
+          heading="Document"
+          backTo="/books?seg=documents"
+        />
         <LoadError
           message={
             docsQ.error instanceof Error
@@ -92,7 +128,11 @@ export function DocumentScreen() {
   if (docsQ.isPending) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Document" backTo="/books?seg=documents" />
+        <ScreenHeader
+          title="Document"
+          heading="Document"
+          backTo="/books?seg=documents"
+        />
         <SkeletonRows count={4} />
       </div>
     );
@@ -101,7 +141,11 @@ export function DocumentScreen() {
   if (doc === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Document" backTo="/books?seg=documents" />
+        <ScreenHeader
+          title="Document"
+          heading="Document"
+          backTo="/books?seg=documents"
+        />
         <EmptyState
           icon="🤷"
           title="Document not found"
@@ -124,37 +168,50 @@ export function DocumentScreen() {
     }
   };
 
-  const onRetry = async () => {
-    setBusy(true);
-    try {
-      await retryDocument(doc.id);
-      await invalidateBooks(qc);
-      toastOk('Queued for a fresh AI run — the outcome lands in the Inbox');
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const onRetry = () => {
+    const { id } = doc;
+    op.run(
+      async (ctx) => {
+        await retryDocument(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () =>
+          toastOk('Queued for a fresh AI run — the outcome lands in the Inbox'),
+      },
+    );
   };
 
-  const onDelete = async () => {
-    setBusy(true);
-    try {
-      await deleteDocument(doc.id);
-      await invalidateBooks(qc);
-      toastOk('Document deleted');
-      navigate('/books?seg=documents', { replace: true });
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e)); // 409 text verbatim
-      setConfirmDelete(false);
-    } finally {
-      setBusy(false);
-    }
+  const onDelete = () => {
+    const { id } = doc;
+    op.run(
+      async (ctx) => {
+        await deleteDocument(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Document deleted');
+          setConfirmDelete(false);
+          navigate('/books?seg=documents', { replace: true });
+        },
+        onError: (e) => {
+          toastErr(e instanceof Error ? e.message : String(e)); // 409 text verbatim
+          setConfirmDelete(false);
+        },
+      },
+    );
   };
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title="Document" backTo="/books?seg=documents" />
+      <ScreenHeader
+        title="Document"
+        heading={`Document ${doc.filename}`}
+        backTo="/books?seg=documents"
+      />
 
       <DocPreviewRow documentId={doc.id} />
 
@@ -171,7 +228,7 @@ export function DocumentScreen() {
             variant="secondary"
             className="flex-1"
             busy={busy}
-            onClick={() => void onRetry()}
+            onClick={onRetry}
           >
             Retry AI
           </Button>
@@ -186,7 +243,11 @@ export function DocumentScreen() {
               reason_type: doc.reason_type ?? 'unknown',
             })}
           </p>
-          <LinkButton to={`/inbox/doc/${doc.id}`} className="mt-2 w-full">
+          <LinkButton
+            to={`/inbox/doc/${doc.id}`}
+            state={origin}
+            className="mt-2 w-full"
+          >
             Resolve in Inbox
           </LinkButton>
         </div>
@@ -221,7 +282,7 @@ export function DocumentScreen() {
         </ListGroup>
       )}
 
-      <ListGroup label="AI reading (persisted — never re-run here)">
+      <ListGroup label="AI reading — saved when the document was processed">
         {detailsQ.isPending && (
           <p className="px-3.5 py-2.5 text-[13px] text-ink-2">Loading…</p>
         )}
@@ -237,17 +298,22 @@ export function DocumentScreen() {
             <ClassificationFacts details={detailsQ.data} />
             <details className="border-t border-line px-3.5 py-2.5">
               <summary className="cursor-pointer text-[13px] font-semibold">
-                OCR text
+                Text read from the file
               </summary>
               {detailsQ.data.ocr.ok ? (
                 <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap text-xs">
                   {detailsQ.data.ocr.markdown}
                 </pre>
               ) : (
-                <p className="mt-2 text-[13px] text-err">
-                  OCR failed ({detailsQ.data.ocr.category}):{' '}
-                  {detailsQ.data.ocr.detail}
-                </p>
+                <div className="mt-2 text-[13px]">
+                  <p className="text-err">
+                    The text could not be read from this file.
+                  </p>
+                  <Diagnostics
+                    category={detailsQ.data.ocr.category}
+                    detail={detailsQ.data.ocr.detail}
+                  />
+                </div>
               )}
             </details>
           </>
@@ -257,8 +323,9 @@ export function DocumentScreen() {
       <div className="space-y-2 px-5 pt-2">
         {deleteLocked ? (
           <p className="text-center text-[12.5px] text-ink-2">
-            This document is evidence for a posted expense — correct or reverse
-            the expense first (ADR-0012).
+            {doc.expense_status === 'posted'
+              ? 'This document can’t be deleted — it is kept as evidence for the posted expense. To change the figures, open the expense and use Correct….'
+              : 'This document can’t be deleted — it is kept as evidence for the corrected expense.'}
           </p>
         ) : (
           <Button
@@ -280,7 +347,7 @@ export function DocumentScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
     </div>
   );

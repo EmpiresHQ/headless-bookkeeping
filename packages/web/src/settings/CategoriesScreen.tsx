@@ -15,14 +15,16 @@ import { LoadError } from '../ui/LoadError';
 export function CategoriesScreen() {
   const categoriesQ = useCategories();
   const orgQ = useOrganization();
-  const country = orgQ.data?.country ?? 'country';
+  const country = orgQ.data?.country;
   return (
     <div className="mx-auto max-w-3xl pb-6">
       <ScreenHeader title="Categories" backTo="/settings" />
       <p className="mx-6 mb-3 text-[12.5px] text-ink-2">
-        Defined by the {country} country plugin — read-only. The AI and the
-        classify forms pick from this list; each expense carries one of these
-        keys as its category.
+        {country != null
+          ? `The expense categories for ${country} — read-only.`
+          : 'The expense categories for your organization — read-only.'}{' '}
+        Every expense is filed under one of them: the AI suggests one, and you
+        choose from this list when reviewing or correcting an expense.
       </p>
       {categoriesQ.isPending ? (
         <SkeletonRows count={5} />
@@ -39,7 +41,7 @@ export function CategoriesScreen() {
         <EmptyState
           icon="🏷"
           title="No categories"
-          hint="The active country plugin defines none — check the organization country."
+          hint="None are defined for this country — check the organization country in Settings."
         />
       ) : (
         <ListGroup>

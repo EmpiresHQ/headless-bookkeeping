@@ -11,6 +11,16 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import type { NeedsTriageItem, PendingDraft } from '../api';
 import { TriageDecisionPanel } from './TriageDecisionPanel';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+
+/** The screen owns the document's operation; the panel borrows it. */
+function PanelWithOp(
+  props: Omit<React.ComponentProps<typeof TriageDecisionPanel>, 'op'>,
+) {
+  const op = usePendingOperation('Document triage');
+  return <TriageDecisionPanel {...props} op={op} />;
+}
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
   id: 12,
@@ -40,27 +50,28 @@ const DRAFT = (
 });
 
 function renderPanel(
-  props: Partial<React.ComponentProps<typeof TriageDecisionPanel>> = {},
+  props: Partial<
+    Omit<React.ComponentProps<typeof TriageDecisionPanel>, 'op'>
+  > = {},
 ) {
   const onOpen = vi.fn();
   const onArchive = vi.fn();
-  const onResolved = vi
-    .fn<(outcome: import('../api').TriageOutcome) => Promise<void>>()
-    .mockResolvedValue(undefined);
+  const onResolved = vi.fn<(outcome: import('../api').TriageOutcome) => void>();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <TriageDecisionPanel
-        documentId={12}
-        item={ITEM()}
-        busy={false}
-        onOpen={onOpen}
-        onArchive={onArchive}
-        onResolved={onResolved}
-        {...props}
-      />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <PanelWithOp
+          documentId={12}
+          item={ITEM()}
+          onOpen={onOpen}
+          onArchive={onArchive}
+          onResolved={onResolved}
+          {...props}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { onOpen, onArchive, onResolved };
@@ -79,6 +90,22 @@ describe('TriageDecisionPanel', () => {
     expect(details).not.toHaveAttribute('open');
     expect(details).toHaveTextContent('AI confidence 0.41 below threshold 0.8');
   });
+
+  it.each(['future_reason', null, undefined, 'constructor', '__proto__'])(
+    'renders a manual-review fallback for an unexpected API reason %s',
+    (reason) => {
+      const { onOpen } = renderPanel({
+        item: ITEM({ reason_type: reason as NeedsTriageItem['reason_type'] }),
+      });
+      expect(
+        screen.getByRole('heading', { name: 'Review this document manually' }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Classify manually' }),
+      );
+      expect(onOpen).toHaveBeenCalledWith('classify');
+    },
+  );
 
   describe('supplier_unresolved', () => {
     const supplierItem = ITEM({
@@ -226,6 +253,8 @@ describe('TriageDecisionPanel', () => {
       ['outgoing_invoice', 'Review sales invoice', 'invoice'],
       ['ocr_failed', 'Replace or retry file', 'ocr'],
       ['classification_failed', 'Classify manually', 'classify'],
+      ['possible_duplicate', 'Review possible duplicate', 'duplicate'],
+      ['non_postable_document', 'Review document type', 'classify'],
     ] as const;
 
     it.each(cases)('%s → %s opens %s', (reason_type, label, sheet) => {

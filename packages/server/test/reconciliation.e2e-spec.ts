@@ -1,3 +1,5 @@
+import { FX_RATE_SOURCE } from '../src/fx/fx-rate.types';
+import { ECB_FIXTURE_RATES, FixtureFxRateSource } from './fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -12,6 +14,7 @@ import { EntitiesService } from '../src/entities/entities.service';
 import { MastraService } from '../src/ai/mastra.service';
 import { fauxMastraService } from './faux-mastra.service';
 import { createHash } from 'crypto';
+import { ZodValidationPipe } from '../src/common/pipes/zod-validation.pipe';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -72,9 +75,18 @@ describe('Reconciliation E2E (full flow)', () => {
       .useValue(root)
       .overrideProvider(MastraService)
       .useValue(fauxMastraService)
+      // Issue #203: the FX rate source is the ONE boundary at which
+      // authoritative rates enter the system. An e2e test binds it to a
+      // deterministic fixture, so booting the app never reaches the ECB.
+      .overrideProvider(FX_RATE_SOURCE)
+      .useValue(new FixtureFxRateSource(ECB_FIXTURE_RATES))
       .compile();
 
     app = module.createNestApplication();
+    // The production pipe: DTO schemas must hold over real HTTP, including a
+    // POST sent with no body at all (issue #201 added an optional body to
+    // `POST /api/bank-transactions/:id/prepayment`).
+    app.useGlobalPipes(new ZodValidationPipe());
     await app.init();
 
     apiToken = 'test-token-e2e-12345';
@@ -611,13 +623,21 @@ describe('Reconciliation E2E (full flow)', () => {
     // Expected BANK_EUR balance from all posted vouchers:
     // - AR voucher: no BANK_EUR lines
     // - AP voucher: no BANK_EUR lines
-    // - Match execution: no settlement voucher posted (only reconciliation_match)
+    // - Match approval: Dr BANK_EUR 12500 / Cr AR 12500 — the settlement
+    //   voucher the activation posts (issue #202, ADR-0008: payment is a
+    //   separate Voucher that clears AR/AP). Before it, an approved receipt
+    //   moved no money in the ledger at all.
     // - Prepayment: Dr BANK_EUR 5000
     // - Personal: Cr BANK_EUR 3000
-    // Net: +5000 - 3000 = +2000
+    // Net: +12500 + 5000 - 3000 = +14500
 
     const bankBalance = await getAccountBalance('BANK_EUR');
-    expect(bankBalance).toBe(2000);
+    expect(bankBalance).toBe(14500);
+
+    // The receipt landed in the bank because AR was cleared by the same
+    // voucher — the subledger open item and the AR control move together.
+    const arBalance = await getAccountBalance('AR');
+    expect(arBalance).toBe(0);
 
     // ── Step 11: Verify no unmatched transactions left ────────────────
     // Transaction A: matched (status should still be 'open' since match
@@ -664,6 +684,108 @@ describe('Reconciliation E2E (full flow)', () => {
 
   // ── Test: Prepayment draw-down ──────────────────────────────────────
 
+  it('GET /api/reconciliation/matches/:id resolves an approval to its exact pair, read-only (#256)', async () => {
+    const { voucher } = await postSalesInvoice('INV-256', 12500, 0);
+    const { statement, transactions } = await uploadBankStatement([
+      {
+        transaction_date: '2024-01-15',
+        amount: 12500,
+        description: 'Payment INV-256',
+        reference: 'INV-256',
+      },
+    ]);
+    const txId = Reflect.get(transactions[0], 'id') as number;
+
+    const staged = await request(app.getHttpServer())
+      .post(
+        `/api/bank-statements/${Reflect.get(statement, 'id') as number}/match`,
+      )
+      .set('Authorization', `Bearer ${apiToken}`)
+      .send({
+        matches: [
+          {
+            bankTransactionId: txId,
+            voucherId: Reflect.get(voucher, 'id') as number,
+            matchType: 'exact',
+            amountMatched: 12500,
+            confidence: 'high',
+            signal: 'manual',
+          },
+        ],
+      })
+      .expect(201);
+    const { approvals } = staged.body as {
+      approvals: { id: number; matchId: number }[];
+    };
+    const pending = await request(app.getHttpServer())
+      .get('/api/approvals/pending')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200);
+    const approval = (
+      pending.body as {
+        approvals: { id: number; object_type: string; object_id: number }[];
+      }
+    ).approvals.find((a) => a.id === approvals[0].id);
+    expect(approval).toMatchObject({
+      object_type: 'reconciliation_match',
+      object_id: approvals[0].matchId,
+    });
+
+    const countRows = async () =>
+      Promise.all(
+        (
+          [
+            'voucher',
+            'voucher_line',
+            'reconciliation_match',
+            'approval',
+          ] as const
+        ).map((t) =>
+          db
+            .selectFrom(t)
+            .select((eb) => eb.fn.countAll<number>().as('n'))
+            .executeTakeFirstOrThrow(),
+        ),
+      );
+    const before = await countRows();
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/reconciliation/matches/${approval!.object_id}`)
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(200);
+    expect(res.body).toMatchObject({
+      matchId: approval!.object_id,
+      status: 'draft',
+      matchType: 'exact',
+      amountMatched: 12500,
+      baseCurrency: 'EUR',
+      bankTransaction: {
+        id: txId,
+        statementId: Reflect.get(statement, 'id'),
+        amount: 12500,
+        currency: 'EUR',
+        description: 'Payment INV-256',
+      },
+      target: {
+        kind: 'sales_invoice',
+        objectId: expect.any(Number),
+        objectLabel: 'INV-256',
+        counterpartyName: 'Test Customer',
+        grossAmount: 12500,
+        currency: 'EUR',
+      },
+    });
+    expect(await countRows()).toEqual(before);
+
+    await request(app.getHttpServer())
+      .get('/api/reconciliation/matches/999999')
+      .set('Authorization', `Bearer ${apiToken}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/reconciliation/matches/${approval!.object_id}`)
+      .expect(401);
+  });
+
   it('supports prepayment draw-down against an AR invoice', async () => {
     // Post a sales invoice.
     const { voucher: arVoucher } = await postSalesInvoice(
@@ -684,10 +806,16 @@ describe('Reconciliation E2E (full flow)', () => {
     const _statementId = Reflect.get(statement, 'id') as number;
     const txnId = Reflect.get(transactions[0], 'id') as number;
 
-    // Create prepayment.
+    // Create prepayment, naming the counterparty it belongs to. An advance
+    // owns its counterparty from creation (issue #201); an unowned one is
+    // reported and refused rather than drawn down against anybody's invoice.
+    // It also says WHAT the money is (issue #213): this case is about the
+    // draw-down mechanics, so it is a deposit — a receipt with no treatment
+    // is held and cannot be drawn down at all.
     const prepayRes = await request(app.getHttpServer())
       .post(`/api/bank-transactions/${txnId}/prepayment`)
       .set('Authorization', `Bearer ${apiToken}`)
+      .send({ entity_id: customerId, tax_treatment: 'non_taxable_deposit' })
       .expect(201);
     const prepayVoucherId = Reflect.get(prepayRes.body, 'id') as number;
 
@@ -908,31 +1036,40 @@ describe('Reconciliation E2E (full flow)', () => {
       .send({ approved_by: 'e2e' })
       .expect(201);
 
-    // The realized-FX voucher id is recorded on the match.
+    // The settlement voucher is recorded on the match, and it carries the
+    // realized FX on the SAME voucher (issue #202): the receivable is cleared
+    // at the booked 90 000, the bank takes the 92 000 that actually arrived,
+    // and the 2 000 difference is the gain. One voucher, posted atomically
+    // with the activation — no second, standalone FX posting on a bank
+    // account the money never touched.
     const activated = await db
       .selectFrom('reconciliation_match')
-      .select('fx_voucher_id')
+      .select(['fx_voucher_id', 'settlement_voucher_id'])
       .where('id', '=', matchResult.records[0].id)
       .executeTakeFirstOrThrow();
-    expect(activated.fx_voucher_id).not.toBeNull();
-    const fxVoucherId = activated.fx_voucher_id!;
-    const fxLines = await db
+    expect(activated.settlement_voucher_id).not.toBeNull();
+    expect(activated.fx_voucher_id).toBeNull();
+
+    const settlementLines = await db
       .selectFrom('voucher_line')
       .innerJoin('account', 'account.id', 'voucher_line.account_id')
       .select('account.code as account_code')
       .select('voucher_line.base_amount')
       .select('voucher_line.is_debit')
-      .where('voucher_line.voucher_id', '=', fxVoucherId)
+      .where('voucher_line.voucher_id', '=', activated.settlement_voucher_id!)
       .execute();
 
-    expect(fxLines).toHaveLength(2);
-    const bankLine = fxLines.find((l) => l.account_code === 'BANK_EUR');
-    const fxLine = fxLines.find((l) => l.account_code === 'FX_GAIN_LOSS');
-    expect(bankLine).toBeDefined();
-    expect(bankLine!.is_debit).toBe(1); // Dr BANK_EUR (gain)
-    expect(bankLine!.base_amount).toBe(2000); // |90000 - 92000| = 2000
-    expect(fxLine).toBeDefined();
-    expect(fxLine!.is_debit).toBe(0); // Cr FX_GAIN_LOSS
+    expect(settlementLines).toHaveLength(3);
+    const bankLine = settlementLines.find((l) => l.account_code === 'BANK_EUR');
+    const arLine = settlementLines.find((l) => l.account_code === 'AR');
+    const fxLine = settlementLines.find(
+      (l) => l.account_code === 'FX_GAIN_LOSS',
+    );
+    expect(bankLine!.is_debit).toBe(1); // Dr BANK_EUR — the cash that arrived
+    expect(bankLine!.base_amount).toBe(92000);
+    expect(arLine!.is_debit).toBe(0); // Cr AR — the booked receivable
+    expect(arLine!.base_amount).toBe(90000);
+    expect(fxLine!.is_debit).toBe(0); // Cr FX_GAIN_LOSS (gain)
     expect(fxLine!.base_amount).toBe(2000);
   });
 });

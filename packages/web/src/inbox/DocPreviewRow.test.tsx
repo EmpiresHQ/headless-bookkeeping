@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -14,6 +8,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { render } from './previewTestShell';
 import { DocPreviewRow } from './DocPreviewRow';
 
 /** Mock impl distinguishing the thumb fetch (no opts) from the lg fetch
@@ -112,12 +107,19 @@ describe('DocPreviewRow', () => {
       }),
     );
 
-    // The rejection is swallowed — the lightbox never leaves the thumb blob.
+    // The thumb stays as a placeholder, honestly qualified, with Retry
+    // (issue #270) — never presented as the full preview.
     await waitFor(() =>
-      expect(within(dialog).getByAltText('Document preview')).toHaveAttribute(
-        'src',
-        'blob:thumb',
+      expect(within(dialog).getByRole('status')).toHaveTextContent(
+        'The full-size preview couldn’t be loaded — showing a smaller one.',
       ),
     );
+    expect(within(dialog).getByAltText('Document preview')).toHaveAttribute(
+      'src',
+      'blob:thumb',
+    );
+    expect(
+      within(dialog).getByRole('button', { name: 'Retry' }),
+    ).toBeInTheDocument();
   });
 });

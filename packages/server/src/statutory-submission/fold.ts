@@ -4,6 +4,7 @@ import { EventKind, SubmissionStatus } from './types';
 export interface FoldEvent {
   event_kind: EventKind;
   source_snapshot_id: number;
+  source_payload_id: number | null;
   occurred_at: number;
   external_ref: string | null;
 }
@@ -11,6 +12,7 @@ export interface FoldEvent {
 export interface FoldedState {
   status: SubmissionStatus;
   currentSnapshotId: number | null;
+  currentPayloadId: number | null;
   lastExternalRef: string | null;
   submissionCount: number;
 }
@@ -29,6 +31,7 @@ export function foldSubmissionState(events: FoldEvent[]): FoldedState {
     return {
       status: 'not_started',
       currentSnapshotId: null,
+      currentPayloadId: null,
       lastExternalRef: null,
       submissionCount: 0,
     };
@@ -38,6 +41,7 @@ export function foldSubmissionState(events: FoldEvent[]): FoldedState {
 
   let status: SubmissionStatus = 'not_started';
   let currentSnapshotId: number | null = null;
+  let currentPayloadId: number | null = null;
   let lastExternalRef: string | null = null;
   let submissionCount = 0;
 
@@ -45,12 +49,14 @@ export function foldSubmissionState(events: FoldEvent[]): FoldedState {
     status = e.event_kind;
     if (e.event_kind === 'prepared') {
       currentSnapshotId = e.source_snapshot_id;
+      currentPayloadId = e.source_payload_id;
     }
     if (
       e.event_kind === 'submitted' ||
       e.event_kind === 'correction_submitted'
     ) {
       currentSnapshotId = e.source_snapshot_id;
+      currentPayloadId = e.source_payload_id;
       submissionCount += 1;
     }
     if (e.external_ref !== null) {
@@ -58,5 +64,11 @@ export function foldSubmissionState(events: FoldEvent[]): FoldedState {
     }
   }
 
-  return { status, currentSnapshotId, lastExternalRef, submissionCount };
+  return {
+    status,
+    currentSnapshotId,
+    currentPayloadId,
+    lastExternalRef,
+    submissionCount,
+  };
 }

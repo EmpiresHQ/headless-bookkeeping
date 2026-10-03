@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Param,
   Body,
@@ -10,7 +11,11 @@ import {
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { SalesInvoicesService } from './sales-invoices.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
-import { CreateSalesInvoiceDto, SalesInvoicePostOverrideDto } from './types';
+import {
+  CreateSalesInvoiceDto,
+  PatchSalesInvoiceDraftDto,
+  SalesInvoicePostOverrideDto,
+} from './types';
 import type { SalesInvoice } from './types';
 import { DraftVoucher } from '../ledger/voucher/types';
 import { isInvoiceNumberConflict } from './sales-invoices.service';
@@ -64,6 +69,44 @@ export class SalesInvoicesController {
     }
   }
 
+  /**
+   * Correct a DRAFT invoice's facts, then post it again.
+   *
+   * The supported remedy for the 422 refusals a service sale can hit (issue
+   * #209) — a wrongly stated `supply_type` / `service_place_rule`, or a VAT
+   * amount that contradicts the resolved treatment — and for a rejection
+   * (issue #247). Draft/pending only; a posted invoice is 409 (its voucher is
+   * immutable — reverse it instead). Saving never posts.
+   */
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Patch a draft sales invoice',
+    description:
+      'Correct a draft (or pending) invoice: gross_amount, vat_amount ' +
+      '(integer cents), currency, tax_point_date, due_date, supply_type, ' +
+      'service_place_rule, and — only while never sent — invoice_number and ' +
+      'customer_id (sent -> 409; duplicate number -> 409). A pending invoice ' +
+      'returns to draft and its approval is superseded. Provenance ' +
+      '(document_id) is not editable (400). Posted/reversed -> 409. Never posts.',
+  })
+  @ApiParam({ name: 'id', description: 'Sales invoice id' })
+  async patchDraft(
+    @Param('id') id: string,
+    @Body() dto: PatchSalesInvoiceDraftDto,
+  ): Promise<SalesInvoice> {
+    try {
+      return await this.salesInvoicesService.updateDraft(Number(id), dto);
+    } catch (err) {
+      // The UNIQUE constraint is the backstop for the service's own pre-check.
+      if (isInvoiceNumberConflict(err)) {
+        throw new ConflictException(
+          `Invoice number ${String(dto.invoice_number)} already exists`,
+        );
+      }
+      throw err;
+    }
+  }
+
   @Post(':id/generate-draft')
   @ApiOperation({
     summary: 'Generate a draft voucher for a sales invoice',
@@ -107,11 +150,24 @@ export class SalesInvoicesController {
   ) {
     const invoiceId = Number(id);
 
+    // Taken BEFORE the draft is generated: whatever changes from here on — the
+    // invoice's amounts or supply facts, the customer's country or tax status —
+    // makes the prepared entry stale, and the pipeline refuses inside its own
+    // transaction rather than posting facts nobody holds any more (issue #209).
+    const factsAtDraftTime =
+      await this.salesInvoicesService.draftFactsFingerprint(invoiceId);
+
     const result = await this.pipeline.runPipeline({
       businessObjectId: invoiceId,
       businessObjectType: 'sales_invoice',
       draftGenerator: () =>
         this.salesInvoicesService.generateDraftVoucher(invoiceId),
+      assertFactsUnchanged: (trx) =>
+        this.salesInvoicesService.assertDraftFactsUnchangedTx(
+          trx,
+          invoiceId,
+          factsAtDraftTime,
+        ),
       category: 'revenue',
       refetch: () => this.salesInvoicesService.getInvoiceById(invoiceId),
       override:

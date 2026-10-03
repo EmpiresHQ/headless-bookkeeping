@@ -1,3 +1,4 @@
+import { IDENTITY_RATE_SOURCE } from '../fx/fx-rate.types';
 import {
   Injectable,
   NotFoundException,
@@ -126,6 +127,8 @@ export class DividendsService {
         currency: baseCurrency,
         base_amount: retainedDebit,
         fx_rate: 1.0,
+        fx_rate_date: dto.tax_point_date,
+        fx_rate_source: IDENTITY_RATE_SOURCE,
         is_debit: true,
       },
       // Cr DIVIDEND_PAYABLE (net to owner)
@@ -135,6 +138,8 @@ export class DividendsService {
         currency: baseCurrency,
         base_amount: netPayable,
         fx_rate: 1.0,
+        fx_rate_date: dto.tax_point_date,
+        fx_rate_source: IDENTITY_RATE_SOURCE,
         is_debit: false,
       },
     ];
@@ -147,6 +152,8 @@ export class DividendsService {
         currency: baseCurrency,
         base_amount: withholdingAmount,
         fx_rate: 1.0,
+        fx_rate_date: dto.tax_point_date,
+        fx_rate_source: IDENTITY_RATE_SOURCE,
         is_debit: false,
       });
     }
@@ -159,6 +166,8 @@ export class DividendsService {
         currency: baseCurrency,
         base_amount: distTaxAmount,
         fx_rate: 1.0,
+        fx_rate_date: dto.tax_point_date,
+        fx_rate_source: IDENTITY_RATE_SOURCE,
         is_debit: false,
       });
     }
@@ -263,6 +272,8 @@ export class DividendsService {
       baseCurrency,
       rate: fxRate,
       baseAmount,
+      rateDate,
+      rateSource,
     } = await this.currencyService.toBase(
       absAmount,
       txn.currency,
@@ -280,6 +291,8 @@ export class DividendsService {
           currency: baseCurrency,
           base_amount: baseAmount,
           fx_rate: 1.0,
+          fx_rate_date: txn.transaction_date,
+          fx_rate_source: IDENTITY_RATE_SOURCE,
           is_debit: true,
         },
         {
@@ -288,6 +301,8 @@ export class DividendsService {
           currency: txn.currency,
           base_amount: baseAmount,
           fx_rate: fxRate,
+          fx_rate_date: rateDate,
+          fx_rate_source: rateSource,
           is_debit: false,
         },
       ],

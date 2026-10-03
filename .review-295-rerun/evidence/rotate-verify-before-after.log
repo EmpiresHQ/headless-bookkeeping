@@ -1,0 +1,16 @@
+== verify base 5395
+{"label":"opened","inner":[390,844],"vvH":844,"top":68,"h":776,"bottom":0,"inline":"|","closeTop":76,"scroller":[186,832],"active":"Close"}
+{"label":"kb up portrait","inner":[390,844],"vvH":508,"top":68,"h":440,"bottom":336,"inline":"440.469px|336px","closeTop":76,"scroller":[186,496],"active":"Amount (EUR)"}
+{"label":"rotated landscape, kb up","inner":[844,390],"vvH":200,"top":-386,"h":586,"bottom":190,"inline":"586.469px|190px","closeTop":-378,"scroller":[-268,188],"active":"Amount (EUR)"}
+{"label":"first field revealed","inner":[844,390],"vvH":200,"top":-386,"h":586,"bottom":190,"inline":"586.469px|190px","closeTop":-378,"scroller":[-268,188],"active":"Amount (EUR)","firstFieldTop":-323}
+{"label":"rotated back portrait, kb up","inner":[390,844],"vvH":508,"top":26,"h":482,"bottom":336,"inline":"482px|336px","closeTop":34,"scroller":[144,496],"active":"Amount (EUR)"}
+{"label":"kb hidden","inner":[390,844],"vvH":844,"top":68,"h":776,"bottom":0,"inline":"|","closeTop":76,"scroller":[186,832],"active":"Amount (EUR)"}
+writes 0 errors []
+== verify base 5396
+{"label":"opened","inner":[390,844],"vvH":844,"top":68,"h":776,"bottom":0,"inline":"|","closeTop":76,"scroller":[186,832],"active":"Close"}
+{"label":"kb up portrait","inner":[390,844],"vvH":508,"top":68,"h":440,"bottom":336,"inline":"440.469px|336px","closeTop":76,"scroller":[186,496],"active":"Amount (EUR)"}
+{"label":"rotated landscape, kb up","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[144,188],"active":"Amount (EUR)"}
+{"label":"first field revealed","inner":[844,390],"vvH":200,"top":26,"h":174,"bottom":190,"inline":"174px|190px","closeTop":34,"scroller":[144,188],"active":"Amount (EUR)","firstFieldTop":89}
+{"label":"rotated back portrait, kb up","inner":[390,844],"vvH":508,"top":334,"h":174,"bottom":336,"inline":"174px|336px","closeTop":342,"scroller":[452,496],"active":"Amount (EUR)"}
+{"label":"kb hidden","inner":[390,844],"vvH":844,"top":68,"h":776,"bottom":0,"inline":"|","closeTop":76,"scroller":[186,832],"active":"Amount (EUR)"}
+writes 0 errors []

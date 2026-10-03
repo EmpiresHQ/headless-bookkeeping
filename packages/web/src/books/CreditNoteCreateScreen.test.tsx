@@ -21,6 +21,7 @@ import {
   getInvoices,
   listCreditNotes,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 function seed() {
   vi.mocked(listCreditNotes).mockResolvedValue([
@@ -50,6 +51,8 @@ function seed() {
       document_id: null,
       status: 'posted',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     },
     {
@@ -64,6 +67,8 @@ function seed() {
       document_id: null,
       status: 'draft',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     },
   ] as never);
@@ -87,6 +92,7 @@ function seed() {
       country: 'EE',
       name: 'Nordic Consulting OÜ',
       goods_vs_services: null,
+      tax_status: null,
     },
     {
       id: 9,
@@ -94,6 +100,7 @@ function seed() {
       country: 'EE',
       name: 'AS Merko Ehitus',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
 }
@@ -103,19 +110,21 @@ function mount(url = '/books/credit-notes/new') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[url]}>
-        <AppToaster />
-        <Routes>
-          <Route
-            path="/books/credit-notes/new"
-            element={<CreditNoteCreateScreen />}
-          />
-          <Route
-            path="/books/credit-notes/:id"
-            element={<div>NOTE DETAIL</div>}
-          />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <MemoryRouter initialEntries={[url]}>
+          <AppToaster />
+          <Routes>
+            <Route
+              path="/books/credit-notes/new"
+              element={<CreditNoteCreateScreen />}
+            />
+            <Route
+              path="/books/credit-notes/:id"
+              element={<div>NOTE DETAIL</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -135,6 +144,23 @@ describe('CreditNoteCreateScreen', () => {
     expect(screen.queryByText(/2026-019/)).toBeNull();
     // No raw ID entry anywhere:
     expect(screen.queryByLabelText(/object id/i)).toBeNull();
+  });
+
+  it('the picker search is named by its purpose, not its placeholder (#287)', async () => {
+    mount();
+    await screen.findByText(/2026-018 · Nordic Consulting OÜ/);
+    const search = screen.getByRole('searchbox', {
+      name: 'Search invoices and expenses to credit',
+    });
+    await userEvent.type(search, 'merko');
+    // Still named once the placeholder is gone; the list narrows.
+    expect(
+      screen.getByRole('searchbox', {
+        name: 'Search invoices and expenses to credit',
+      }),
+    ).toHaveValue('merko');
+    expect(screen.getByText(/rent · AS Merko Ehitus/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-018/)).toBeNull();
   });
 
   it('?type=&id= preselects the object and the form submits CENTS from euro inputs', async () => {

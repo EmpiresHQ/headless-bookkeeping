@@ -36,7 +36,15 @@ export class ZodValidationPipe implements PipeTransform {
     return result.data;
   }
 
+  /**
+   * Field errors keyed by field. Errors that belong to the payload as a whole
+   * (an unrecognized key of a strict object, an object-level refine) have no
+   * field, so they travel under `_errors` instead of vanishing from the body.
+   */
   private formatErrors(error: ZodError): Record<string, string[]> {
-    return error.flatten().fieldErrors;
+    const { fieldErrors, formErrors } = error.flatten();
+    return formErrors.length > 0
+      ? { ...fieldErrors, _errors: formErrors }
+      : fieldErrors;
   }
 }

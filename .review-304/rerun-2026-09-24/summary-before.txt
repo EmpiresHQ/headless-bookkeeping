@@ -1,0 +1,40 @@
+S1   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=101 samples=167
+S2   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=131 samples=189
+S3   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=93 samples=213
+S4   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=114 samples=184
+S5   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=240 samples=187
+S6   1440x900   steps=ok wrongObject=0 brokenFrames={"lightbox 167x24":1} urls=13/13 live=0 frames=148 samples=245
+S7   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=98 samples=427
+S8   1440x900   steps=FAIL: D1: row 32002 keeps a broken image [{"id":32001,"img":true,"broken":false,"w":61,"glyph":false},{"id":32002,"img":true,"broken":true,"w":0," wrongObject=0 brokenFrames={"row 36x48":20} urls=3/3 live=0 frames=115 samples=244 rows=["32001:img","32002:BROKEN","32003:img"]
+S9   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=22/22 live=0 frames=157 samples=514
+S10  1440x900   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=309 samples=414
+S11  1440x900   steps=ok wrongObject=0 brokenFrames={} urls=112/112 live=0 frames=836 samples=1383
+S12  1440x900   steps=ok wrongObject=0 brokenFrames={} urls=0/0 live=0 frames=165 samples=0
+S13  1440x900   steps=ok wrongObject=0 brokenFrames={"screen 36x48":4,"lightbox 167x24":3} urls=206/206 live=0 frames=1327 samples=3869 cyclesRow=4/25 cyclesLightbox=3/25
+S1   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=95 samples=145
+S2   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=121 samples=164
+S3   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=88 samples=194
+S4   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=108 samples=190
+S5   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=239 samples=193
+S6   1920x1080  steps=ok wrongObject=0 brokenFrames={"lightbox 167x24":1} urls=13/13 live=0 frames=156 samples=249
+S7   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=104 samples=473
+S8   1920x1080  steps=FAIL: D1: row 32002 keeps a broken image [{"id":32001,"img":true,"broken":false,"w":61,"glyph":false},{"id":32002,"img":true,"broken":true,"w":0," wrongObject=0 brokenFrames={"row 36x48":20} urls=3/3 live=0 frames=114 samples=240 rows=["32001:img","32002:BROKEN","32003:img"]
+S9   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=22/22 live=0 frames=157 samples=492
+S10  1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=313 samples=428
+S11  1920x1080  steps=ok wrongObject=0 brokenFrames={"row 34x34":2} urls=193/193 live=0 frames=814 samples=1525
+S12  1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=0/0 live=0 frames=164 samples=0
+S13  1920x1080  steps=ok wrongObject=0 brokenFrames={"screen 36x48":3,"lightbox 167x24":2} urls=206/206 live=0 frames=1316 samples=3842 cyclesRow=3/25 cyclesLightbox=2/25
+S1   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=97 samples=165
+S2   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=127 samples=181
+S3   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=95 samples=202
+S4   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=122 samples=198
+S5   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=244 samples=210
+S6   390x844m   steps=ok wrongObject=0 brokenFrames={"screen 36x48":1} urls=13/13 live=0 frames=156 samples=248
+S7   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=105 samples=457
+S8   390x844m   steps=FAIL: D1: row 32002 keeps a broken image [{"id":32001,"img":true,"broken":false,"w":61,"glyph":false},{"id":32002,"img":true,"broken":true,"w":0," wrongObject=0 brokenFrames={"row 36x48":20} urls=3/3 live=0 frames=114 samples=240 rows=["32001:img","32002:BROKEN","32003:img"]
+S9   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=22/22 live=0 frames=146 samples=458
+S10  390x844m   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=311 samples=418
+S11  390x844m   steps=ok wrongObject=0 brokenFrames={} urls=189/189 live=0 frames=837 samples=1445
+S12  390x844m   steps=ok wrongObject=0 brokenFrames={} urls=0/0 live=0 frames=159 samples=0
+S13  390x844m   steps=ok wrongObject=0 brokenFrames={"lightbox 167x24":1,"screen 36x48":6} urls=206/206 live=0 frames=1325 samples=3873 cyclesRow=6/25 cyclesLightbox=1/25
+{"runs":39,"wrong":0,"frames":11461,"samples":24266,"created":1415,"revoked":1415,"live":0,"writes":79,"pageErrors":0,"unhandled":0,"routePreview":0}

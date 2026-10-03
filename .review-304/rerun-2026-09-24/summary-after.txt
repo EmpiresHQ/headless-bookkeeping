@@ -1,0 +1,40 @@
+S1   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=101 samples=166
+S2   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=127 samples=186
+S3   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=86 samples=184
+S4   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=113 samples=186
+S5   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=239 samples=181
+S6   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=13/13 live=0 frames=157 samples=244
+S7   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=101 samples=451
+S8   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=3/3 live=0 frames=117 samples=165 rows=["32001:img","32002:glyph","32003:img"]
+S9   1440x900   steps=ok wrongObject=0 brokenFrames={} urls=22/22 live=0 frames=155 samples=494
+S10  1440x900   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=311 samples=426
+S11  1440x900   steps=ok wrongObject=0 brokenFrames={} urls=112/112 live=0 frames=815 samples=1212
+S12  1440x900   steps=ok wrongObject=0 brokenFrames={} urls=0/0 live=0 frames=165 samples=0
+S13  1440x900   steps=ok wrongObject=0 brokenFrames={"screen 36x48":1,"lightbox 167x24":6} urls=206/206 live=0 frames=1325 samples=3847 cyclesRow=1/25 cyclesLightbox=6/25
+S1   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=96 samples=157
+S2   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=124 samples=178
+S3   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=94 samples=201
+S4   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=112 samples=194
+S5   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=242 samples=196
+S6   1920x1080  steps=ok wrongObject=0 brokenFrames={"lightbox 167x24":1} urls=13/13 live=0 frames=153 samples=243
+S7   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=102 samples=456
+S8   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=3/3 live=0 frames=111 samples=159 rows=["32001:img","32002:glyph","32003:img"]
+S9   1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=22/22 live=0 frames=154 samples=502
+S10  1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=308 samples=414
+S11  1920x1080  steps=ok wrongObject=0 brokenFrames={"row 34x34":1} urls=193/193 live=0 frames=827 samples=1653
+S12  1920x1080  steps=ok wrongObject=0 brokenFrames={} urls=0/0 live=0 frames=166 samples=0
+S13  1920x1080  steps=ok wrongObject=0 brokenFrames={"screen 36x48":2,"lightbox 167x24":2} urls=206/206 live=0 frames=1325 samples=3825 cyclesRow=2/25 cyclesLightbox=2/25
+S1   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=94 samples=159
+S2   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=129 samples=190
+S3   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=8/8 live=0 frames=91 samples=196
+S4   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=10/10 live=0 frames=121 samples=199
+S5   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=229 samples=166
+S6   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=13/13 live=0 frames=156 samples=250
+S7   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=108 samples=493
+S8   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=3/3 live=0 frames=117 samples=167 rows=["32001:img","32002:glyph","32003:img"]
+S9   390x844m   steps=ok wrongObject=0 brokenFrames={} urls=22/22 live=0 frames=157 samples=501
+S10  390x844m   steps=ok wrongObject=0 brokenFrames={} urls=9/9 live=0 frames=308 samples=425
+S11  390x844m   steps=ok wrongObject=0 brokenFrames={} urls=189/189 live=0 frames=843 samples=1478
+S12  390x844m   steps=ok wrongObject=0 brokenFrames={} urls=0/0 live=0 frames=165 samples=0
+S13  390x844m   steps=ok wrongObject=0 brokenFrames={"screen 36x48":4,"lightbox 167x24":1} urls=206/206 live=0 frames=1307 samples=3831 cyclesRow=4/25 cyclesLightbox=1/25
+{"runs":39,"wrong":0,"frames":11451,"samples":23975,"created":1415,"revoked":1415,"live":0,"writes":79,"pageErrors":0,"unhandled":0,"routePreview":0}

@@ -5,12 +5,22 @@ import {
   onboardEntity,
   type EntityRole,
   type OnboardEntityInput,
+  type TaxStatus,
 } from '../api';
 import { invalidateEntities, ROLE_LABEL } from '../queries/settings';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import {
+  GOODS_OPTIONS,
+  REG_KEY_HINT,
+  TAX_STATUS_HINT,
+  TAX_STATUS_OPTIONS,
+  type GoodsOrServices,
+} from '../lib/entityOptions';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 
 const ROLES: readonly EntityRole[] = [
   'supplier',
@@ -33,23 +43,43 @@ export function CreateEntitySheet({
   open,
   onClose,
   defaultRole = 'supplier',
+  roleHint,
 }: {
   open: boolean;
   onClose: () => void;
   defaultRole?: EntityRole;
+  /** Visible note under Role, e.g. documenting the All-segment default. */
+  roleHint?: string;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Add entity');
+  const busy = op.pending;
   const [role, setRole] = useState<EntityRole>(defaultRole);
   const [name, setName] = useState('');
   const [country, setCountry] = useState('');
   const [regKey, setRegKey] = useState('');
-  const [goods, setGoods] = useState<'goods' | 'services' | 'unknown'>(
-    'unknown',
-  );
+  const [goods, setGoods] = useState<GoodsOrServices>('unknown');
+  const [taxStatus, setTaxStatus] = useState<TaxStatus>('unknown');
   const [email, setEmail] = useState('');
   const [tgUserId, setTgUserId] = useState('');
+  const values = {
+    role,
+    name,
+    country,
+    regKey,
+    goods,
+    taxStatus,
+    email,
+    tgUserId,
+  };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Add entity',
+    active: open,
+    values,
+    baseline,
+  });
 
   const needsRegKey = NEEDS_REG_KEY.includes(role);
   const valid =
@@ -57,33 +87,35 @@ export function CreateEntitySheet({
     country.trim() !== '' &&
     (needsRegKey ? regKey.trim() !== '' : email.trim() !== '');
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const input: OnboardEntityInput = needsRegKey
-        ? {
-            role,
-            name: name.trim(),
-            country: country.trim().toUpperCase(),
-            registrationKey: regKey.trim(),
-            goodsVsServices: goods,
-          }
-        : {
-            role,
-            name: name.trim(),
-            country: country.trim().toUpperCase(),
-            email: email.trim(),
-            ...(tgUserId.trim() !== '' ? { tgUserId: tgUserId.trim() } : {}),
-          };
-      const created = await onboardEntity(input);
-      toastOk(`${ROLE_LABEL[role]} added — ${name.trim()}`);
-      onClose();
-      navigate(`/settings/entities/${created.id}`);
-      void invalidateEntities(qc);
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const submit = () => {
+    const input: OnboardEntityInput = needsRegKey
+      ? {
+          role,
+          name: name.trim(),
+          country: country.trim().toUpperCase(),
+          registrationKey: regKey.trim(),
+          goodsVsServices: goods,
+          taxStatus,
+        }
+      : {
+          role,
+          name: name.trim(),
+          country: country.trim().toUpperCase(),
+          email: email.trim(),
+          ...(tgUserId.trim() !== '' ? { tgUserId: tgUserId.trim() } : {}),
+        };
+    op.run(() => onboardEntity(input), {
+      onSuccess: (created) => {
+        toastOk(`${ROLE_LABEL[role]} added — ${name.trim()}`);
+        guard.release();
+        onClose();
+        navigate(`/settings/entities/${created.id}`);
+        void invalidateEntities(qc);
+      },
+      onError: (e) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+      },
+    });
   };
 
   // Refuse to dismiss while the onboard mutation is in flight: vaul's
@@ -96,9 +128,15 @@ export function CreateEntitySheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={guardedOnOpenChange} title="Add entity">
-      <div className="space-y-4 px-6 pb-2">
-        <Field label="Role">
+    <Sheet
+      open={open}
+      onOpenChange={guardedOnOpenChange}
+      title="Add entity"
+      guard={guard}
+      busy={busy}
+    >
+      <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
+        <Field label="Role" hint={roleHint}>
           <SelectInput
             aria-label="Role"
             value={role}
@@ -138,10 +176,7 @@ export function CreateEntitySheet({
         </Field>
         {needsRegKey ? (
           <>
-            <Field
-              label="Registration key"
-              hint="Registry or VAT number — the strong identity that matches documents and bank lines. Cannot be changed later."
-            >
+            <Field label="Registration key" hint={REG_KEY_HINT}>
               <TextInput
                 aria-label="Registration key"
                 value={regKey}
@@ -153,13 +188,26 @@ export function CreateEntitySheet({
               <SelectInput
                 aria-label="Goods or services"
                 value={goods}
-                onChange={(e) =>
-                  setGoods(e.target.value as 'goods' | 'services' | 'unknown')
-                }
+                onChange={(e) => setGoods(e.target.value as GoodsOrServices)}
               >
-                <option value="unknown">Unknown</option>
-                <option value="goods">Goods</option>
-                <option value="services">Services</option>
+                {GOODS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="Tax status" hint={TAX_STATUS_HINT}>
+              <SelectInput
+                aria-label="Tax status"
+                value={taxStatus}
+                onChange={(e) => setTaxStatus(e.target.value as TaxStatus)}
+              >
+                {TAX_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </SelectInput>
             </Field>
           </>
@@ -194,11 +242,11 @@ export function CreateEntitySheet({
           className="w-full"
           busy={busy}
           disabled={!valid || busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {`Add ${ROLE_LABEL[role].toLowerCase()}`}
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

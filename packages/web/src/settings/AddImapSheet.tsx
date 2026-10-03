@@ -7,9 +7,21 @@ import {
 } from '../api';
 import { invalidateMailbox } from '../queries/settings';
 import { Button } from '../ui/Button';
-import { Field, SelectInput, TextInput } from '../ui/Form';
+import { Field, PendingFieldset, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
+
+/** A TCP port: whole number 1–65535, else null. Mirrors the server's
+ *  connector schema so an empty field never becomes `Number('') === 0`
+ *  (issue #376). */
+export function parseImapPort(raw: string): number | null {
+  const t = raw.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n >= 1 && n <= 65535 ? n : null;
+}
 
 /** App-password IMAP connector (Reality #9). Credentials are encrypted at
  *  rest server-side; access is read-only. */
@@ -21,7 +33,8 @@ export function AddImapSheet({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Add mailbox');
+  const busy = op.pending;
   const [channel, setChannel] = useState<MailboxChannel>('email_sync');
   const [provider, setProvider] = useState<MailboxProvider>('imap');
   const [host, setHost] = useState('');
@@ -29,39 +42,59 @@ export function AddImapSheet({
   const [username, setUsername] = useState('');
   const [secret, setSecret] = useState('');
   const [folder, setFolder] = useState('INBOX');
+  const values = { channel, provider, host, port, username, secret, folder };
+  const [baseline] = useState(values);
+  const guard = useUnsavedChanges({
+    label: 'Add IMAP mailbox',
+    active: open,
+    values,
+    baseline,
+  });
 
+  const portNumber = parseImapPort(port);
   const valid =
-    host.trim() !== '' && username.trim() !== '' && secret.length > 0;
+    host.trim() !== '' &&
+    portNumber !== null &&
+    username.trim() !== '' &&
+    secret.length > 0;
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      await createMailboxConnector({
-        channel,
-        provider,
-        host: host.trim(),
-        port: Number(port),
-        username: username.trim(),
-        secret,
-        folder: folder.trim() || undefined,
-      });
-      toastOk(`Mailbox added — ${username.trim()}`);
-      onClose();
-      void invalidateMailbox(qc);
-    } catch (e) {
-      // Includes the server's MAILBOX_SECRET_KEY guidance verbatim.
-      toastErr(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
+  const submit = () => {
+    if (!valid || portNumber === null) return;
+    op.run(
+      () =>
+        createMailboxConnector({
+          channel,
+          provider,
+          host: host.trim(),
+          port: portNumber,
+          username: username.trim(),
+          secret,
+          folder: folder.trim() || undefined,
+        }),
+      {
+        onSuccess: () => {
+          toastOk(`Mailbox added — ${username.trim()}`);
+          guard.release();
+          onClose();
+          void invalidateMailbox(qc);
+        },
+        onError: (e) => {
+          // Includes the server's MAILBOX_SECRET_KEY guidance verbatim.
+          toastErr(e instanceof Error ? e.message : String(e));
+        },
+      },
+    );
   };
 
   return (
     <Sheet
       open={open}
-      onOpenChange={(o) => !o && !busy && onClose()}
+      onOpenChange={(o) => !o && onClose()}
+      guard={guard}
+      busy={busy}
       title="Add IMAP mailbox"
     >
-      <div className="space-y-4 px-6 pb-2">
+      <PendingFieldset pending={busy} className="space-y-4 px-6 pb-2">
         <Field
           label="Mode"
           hint="email_sync polls your own inbox (read-only firehose); email_push is a single dedicated accounting mailbox"
@@ -94,10 +127,16 @@ export function AddImapSheet({
             placeholder="imap.example.com"
           />
         </Field>
-        <Field label="Port">
+        <Field
+          label="Port"
+          error={portNumber === null ? 'Enter a port from 1 to 65535' : null}
+        >
           <TextInput
             aria-label="Port"
             type="number"
+            inputMode="numeric"
+            min={1}
+            max={65535}
             value={port}
             onChange={(e) => setPort(e.target.value)}
           />
@@ -129,11 +168,11 @@ export function AddImapSheet({
           className="w-full"
           busy={busy}
           disabled={!valid || busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           Add mailbox
         </Button>
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

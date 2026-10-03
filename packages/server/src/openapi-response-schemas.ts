@@ -198,6 +198,7 @@ export const reportingPeriodResponseSchema = {
     'name',
     'start_date',
     'end_date',
+    'kind',
     'status',
     'filed_at',
     'vat_report_snapshot_id',
@@ -208,6 +209,10 @@ export const reportingPeriodResponseSchema = {
     name: stringSchema,
     start_date: stringSchema,
     end_date: stringSchema,
+    kind: {
+      type: 'string',
+      enum: ['vat', 'annual'],
+    },
     status: {
       type: 'string',
       enum: ['open', 'locked'],
@@ -248,5 +253,46 @@ export const reportingPeriodsListResponseSchema = {
       type: 'array',
       items: reportingPeriodResponseSchema,
     },
+  },
+};
+
+/** GET /api/expenses/:id/attachable-documents (issue #248). */
+export const attachableDocumentsResponseSchema = {
+  type: 'object',
+  required: ['documents'],
+  properties: {
+    documents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'filename',
+          'mime_type',
+          'status',
+          'created_at',
+          'reason',
+        ],
+        properties: {
+          id: integerSchema,
+          filename: stringSchema,
+          mime_type: stringSchema,
+          status: { type: 'string', enum: ['pending', 'needs_triage'] },
+          created_at: integerSchema,
+          reason: nullableStringSchema,
+        },
+      },
+    },
+  },
+};
+
+/** POST /api/expenses/:id/attach-document (issue #248). */
+export const attachDocumentResponseSchema = {
+  type: 'object',
+  required: ['outcome', 'expense', 'document'],
+  properties: {
+    outcome: { type: 'string', enum: ['attached', 'already_attached'] },
+    expense: expenseResponseSchema,
+    document: documentResponseSchema,
   },
 };

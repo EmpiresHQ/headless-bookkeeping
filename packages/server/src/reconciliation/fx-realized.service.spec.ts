@@ -1,3 +1,5 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
+import { FxRateUnavailableError, ResolvedFxRate } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -21,7 +23,11 @@ import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
+import { OrgContextResolver } from '../organization/org-context.resolver';
+import { PrepaymentService } from './prepayment.service';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 
 /**
  * Integration test for FX realized auto-posting (Task 25 / ADR-0004).
@@ -70,11 +76,16 @@ describe('FXRealizedService (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
+        PrepaymentService,
+        OrgContextResolver,
         ReconciliationService,
       ],
     }).compile();
@@ -659,7 +670,7 @@ describe('FXRealizedService (integration)', () => {
   });
 
   describe('FX on match activation', () => {
-    it('posts the FX voucher when a foreign-currency match is activated', async () => {
+    it('carries the FX inside the settlement voucher when a foreign match is activated', async () => {
       const customer = await seedCustomer();
       const voucherId = await seedForeignCurrencySalesInvoiceVoucher(
         customer.id,
@@ -689,29 +700,43 @@ describe('FXRealizedService (integration)', () => {
         },
       ]);
 
-      // Staging creates the draft but posts no FX.
+      // Staging creates the draft but posts nothing.
       expect(result.records.length).toBe(1);
 
-      // FX posts when the match is ACTIVATED (the approval seam).
-      const { fxVoucherId } = await reconciliationService.activateMatch(
-        result.records[0].id,
-      );
-      expect(fxVoucherId).not.toBeNull();
+      // 10 000 USD booked at 7.0 = 70 000; the bank delivered 71 400 of cash.
+      // The settlement clears the BOOKED receivable, banks the ACTUAL cash and
+      // books the 1 400 difference as the realized gain — one voucher, posted
+      // with the activation itself.
+      const { fxVoucherId, settlementVoucherId } =
+        await reconciliationService.activateMatch(result.records[0].id);
+      expect(settlementVoucherId).not.toBeNull();
+      // No second, standalone FX voucher on the base bank account.
+      expect(fxVoucherId).toBeNull();
 
-      const persistedLines = await db
+      const lines = await db
         .selectFrom('voucher_line')
-        .selectAll()
-        .where('voucher_id', '=', fxVoucherId!)
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select([
+          'account.code as code',
+          'voucher_line.is_debit as is_debit',
+          'voucher_line.base_amount as base_amount',
+        ])
+        .where('voucher_line.voucher_id', '=', settlementVoucherId!)
+        .orderBy('account.code')
         .execute();
-      expect(persistedLines.length).toBe(2);
+      expect(lines).toEqual([
+        { code: 'AR', is_debit: 0, base_amount: 70_000 },
+        { code: 'BANK_EUR', is_debit: 1, base_amount: 71_400 },
+        { code: 'FX_GAIN_LOSS', is_debit: 0, base_amount: 1_400 },
+      ]);
 
-      // The FX voucher is recorded on the match so an unmatch can reverse it.
       const row = await db
         .selectFrom('reconciliation_match')
-        .select('fx_voucher_id')
+        .select(['fx_voucher_id', 'settlement_voucher_id'])
         .where('id', '=', result.records[0].id)
         .executeTakeFirstOrThrow();
-      expect(row.fx_voucher_id).toBe(fxVoucherId);
+      expect(row.settlement_voucher_id).toBe(settlementVoucherId);
+      expect(row.fx_voucher_id).toBeNull();
     });
 
     it('posts no FX for a same-currency match', async () => {
@@ -852,10 +877,31 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
     CountryPlugin,
     'getReferenceRate' | 'getDefaultBaseCurrency' | 'roundToBaseMinorUnits'
   > = {
-    getReferenceRate(from: string, to: string): number {
-      if (from === to) return 1.0;
-      if (from === 'USD' && to === 'EUR') return 0.9;
-      throw new Error(`Unexpected pair ${from} → ${to}`);
+    // A deterministic fixture rate with real provenance (issue #203): the
+    // pair, the publication date it came from and who published it. The
+    // numeric scenario is unchanged — 100 USD still books as 90 EUR.
+    getReferenceRate(
+      from: string,
+      to: string,
+      date: string,
+    ): Promise<ResolvedFxRate> {
+      if (from === to) {
+        return Promise.resolve({
+          rate: 1.0,
+          rateDate: date,
+          source: 'fixture',
+        });
+      }
+      if (from === 'USD' && to === 'EUR') {
+        return Promise.resolve({
+          rate: 0.9,
+          rateDate: date,
+          source: 'fixture',
+        });
+      }
+      return Promise.reject(
+        new FxRateUnavailableError(from, to, date, 'not in this fixture'),
+      );
     },
     getDefaultBaseCurrency: () => 'EUR',
     roundToBaseMinorUnits: (amount: number) => Math.round(amount),
@@ -896,11 +942,16 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         FXRealizedService,
+        SettlementVoucherService,
         LedgerBalanceService,
         OutstandingVoucherService,
+        PrepaymentAllocationRepository,
+        PrepaymentService,
+        OrgContextResolver,
         ReconciliationService,
       ],
     })

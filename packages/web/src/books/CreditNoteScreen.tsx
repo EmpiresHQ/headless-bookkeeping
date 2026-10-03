@@ -10,6 +10,7 @@ import { KeyValue, ListGroup, ListRow } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
 import { statusChip } from './chips';
 import { creditNoteDisplay, creditNoteSign } from './CreditNotesSegment';
+import { useScreenEntry } from '../lib/screenEntry';
 
 export function CreditNoteScreen() {
   const { id: idParam } = useParams();
@@ -18,11 +19,16 @@ export function CreditNoteScreen() {
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
+  useScreenEntry(noteQ.data !== undefined || noteQ.isError);
 
   if (noteQ.isError) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Credit note" backTo="/books?seg=credit-notes" />
+        <ScreenHeader
+          title="Credit note"
+          heading="Credit note"
+          backTo="/books?seg=credit-notes"
+        />
         <LoadError
           message={
             noteQ.error instanceof Error
@@ -37,7 +43,11 @@ export function CreditNoteScreen() {
   if (noteQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Credit note" backTo="/books?seg=credit-notes" />
+        <ScreenHeader
+          title="Credit note"
+          heading="Credit note"
+          backTo="/books?seg=credit-notes"
+        />
         <SkeletonRows count={3} />
       </div>
     );
@@ -63,7 +73,11 @@ export function CreditNoteScreen() {
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title="Credit note" backTo="/books?seg=credit-notes" />
+      <ScreenHeader
+        title="Credit note"
+        heading={`Credit note ${n.credit_note_number}`}
+        backTo="/books?seg=credit-notes"
+      />
       <div className="px-5 pb-4 pt-1 text-center">
         <AmountText
           cents={creditNoteSign(n)}

@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -45,6 +46,7 @@ describe('OrgContextResolver (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrgContextResolver,
       ],
@@ -87,6 +89,11 @@ describe('OrgContextResolver (integration)', () => {
       country: 'IE',
       vatRegistered: false,
       baseCurrency: null,
+      // The default org is not VAT-registered, so it carries no deduction
+      // entitlement — the fact the purchase side now reads (issue #211).
+      vatRegistrationKind: 'ordinary',
+      inputVatEntitlement: 'none',
+      inputVatDeductionPermille: null,
     });
   });
 
@@ -104,6 +111,11 @@ describe('OrgContextResolver (integration)', () => {
       country: 'EE',
       vatRegistered: true,
       baseCurrency: 'EUR',
+      // Registering without saying more means an ORDINARY registration with the
+      // full deduction right — the statutory default (issue #211).
+      vatRegistrationKind: 'ordinary',
+      inputVatEntitlement: 'full',
+      inputVatDeductionPermille: null,
     });
   });
 });

@@ -317,6 +317,23 @@ curl -H "$H" -H "$J" -X POST $B/api/expenses/<id>/correct -d '{...}'
 curl -H "$H" -H "$J" -X POST $B/api/sales-invoices/<id>/correct -d '{...}'
 ```
 
+### Customer prepayments — say what the money IS (issue #213)
+```bash
+# An advance on an identified taxable supply: VAT is declared on the RECEIPT
+# date (KMS §11 lg 1 — the earlier of supply and payment), net + VAT split.
+curl -H "$H" -H "$J" -X POST $B/api/bank-transactions/<txnId>/prepayment -d '{
+  "entity_id":7,"tax_treatment":"taxable_supply","vat_code":"EE_OUTPUT_24",
+  "supply_description":"Website build, delivery in March",
+  "advance_document_number":"ETTEMAKS-12"}'
+curl -H "$H" "$B/api/prepayments/advance-vat-treatments?receipt_date=2026-02-10"
+curl -H "$H" -H "$J" -X POST $B/api/prepayments/<voucherId>/tax-treatment -d '{"tax_treatment":"non_taxable_deposit"}'
+curl -H "$H" -H "$J" -X POST $B/api/prepayments/<voucherId>/refund -d '{"bank_transaction_id":42,"credit_reference":"KREEDIT-7","reason":"Order cancelled"}'
+```
+A customer receipt with NO treatment is recorded but **held**: it cannot be
+drawn down or settled, and its period cannot be filed until it is classified.
+Supplier advances are unaffected. The final invoice releases the advance VAT
+once, dated at the invoice's own tax point.
+
 ### Dividends (company only; gated by the plugin)
 ```bash
 curl -H "$H" -H "$J" -X POST $B/api/dividends -d '{"gross_amount":100000,"tax_point_date":"2026-06-09"}'
@@ -333,7 +350,7 @@ curl -H "$H" "$B/admin/approvals" "$B/admin/findings/open" "$B/admin/periods"
 ```
 
 ### What is NOT there (honest): income tax and annual report
-- **Taxes:** only **VAT** is computed (via the plugin's VAT codes and the VAT report). No income/corporate tax. Cross-border / reverse-charge — the interface exists but is **not called** in v1 (reserved); foreign VAT is never silently reclaimed, disputed cases → hold.
+- **Taxes:** **VAT** is computed (via the plugin's VAT codes and the VAT report), and the employer's **fringe-benefit tax** on the taxable part of a health/sports allowance is computed and posted, with its TSD annex 4 code 4120 / INF 14 part III figures at `GET /api/reports/fringe-benefits/health?year=` (figures only — nothing is filed). No payroll, no income tax on wages, no corporate income tax. Cross-border / reverse-charge — the interface exists but is **not called** in v1 (reserved); foreign VAT is never silently reclaimed, disputed cases → hold.
 - **Annual report / financial statements (P&L, balance sheet, formatted trial balance):** **not implemented (V2).** Only raw balances (`/admin/accounts`) and a distributable-profit utility exist. Year-end close is deferred.
 
 ---

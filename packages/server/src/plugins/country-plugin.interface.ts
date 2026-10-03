@@ -1,3 +1,8 @@
+import type {
+  AdvanceTaxPointContext,
+  AdvanceTaxPointDecision,
+} from './advance-tax-point.types';
+import { ResolvedFxRate } from '../fx/fx-rate.types';
 import type { CountryPluginRetrieval } from './country-plugin-retrieval.interface';
 import type { AllowanceType, AllowanceRates } from './allowance-rates.types';
 import type {
@@ -15,11 +20,20 @@ import type {
   AnnualAccountsOpts,
   AnnualAccountsResult,
 } from './annual-accounts.types';
+import type {
+  InputVatEntitlement,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
+import type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+} from './health-allowance.types';
 
 export type {
   VatComputation,
   ExpenseTreatmentPreview,
   KmdBaseClassification,
+  KmdClassificationContext,
   CountryPluginRetrieval,
 } from './country-plugin-retrieval.interface';
 
@@ -28,6 +42,14 @@ export type {
   StatutoryReportResult,
   StatutoryFormat,
 } from './statutory-report.types';
+
+export type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+  HealthEligibilityFacts,
+  HealthExemptionBasis,
+  ClaimantRelation,
+} from './health-allowance.types';
 
 export type {
   AssetClass,
@@ -41,6 +63,12 @@ export type {
   AnnualAccountsResult,
 } from './annual-accounts.types';
 
+export type {
+  InputVatEntitlement,
+  InputVatEntitlementBasis,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
+
 /**
  * VATCode - A country-specific classification of a line's VAT treatment.
  * Owned and defined by a country plugin (e.g. "DK_INPUT_25").
@@ -49,16 +77,56 @@ export type {
 export type VATCode = string;
 
 /**
- * SupplierFacts - Intrinsic, context-free facts about a Supplier.
+ * CounterpartyTaxStatus - Whether the counterparty is a taxable person acting
+ * as such (issue #209).
+ *
+ * The fact that decides a cross-border service's place of supply, and which a
+ * country code cannot stand in for. `unknown` is a real, distinct answer — it
+ * is NOT a consumer, and a plugin must refuse rather than pick a side.
+ */
+export type CounterpartyTaxStatus =
+  | 'taxable_business'
+  | 'non_taxable'
+  | 'unknown';
+
+/**
+ * ServicePlaceRule - Which place-of-supply rule governs a service supply.
+ *
+ * `general` is the residual rule (EE: KMS §10 lg 1 / lg 2 — B2B where the
+ * customer is established, B2C where the supplier is) and therefore the
+ * default: an exception exists only when the caller declares one. Every other
+ * member names a rule with its own place, and a plugin that does not implement
+ * it must REFUSE it with an actionable message — never fold it into the
+ * general rule, and never blanket-zero it.
+ */
+export type ServicePlaceRule =
+  | 'general'
+  | 'immovable_property'
+  | 'passenger_transport'
+  | 'cultural_artistic_sporting_admission'
+  | 'restaurant_catering'
+  | 'short_term_hire_of_means_of_transport'
+  | 'electronically_supplied_to_consumer'
+  | 'other_special';
+
+/**
+ * SupplierFacts - Intrinsic, context-free facts about the COUNTERPARTY of a
+ * transaction — the supplier on a purchase, the customer on a sale. (The name
+ * predates the sales side; the shape is the counterparty's, not the seller's.)
  * Used by the country plugin to resolve VAT treatment and account mapping.
  */
 export interface SupplierFacts {
-  /** ISO country code of the supplier (e.g. "IE", "DK", "GB"). */
+  /** ISO country code of the counterparty (e.g. "IE", "DK", "GB"). */
   country: string;
-  /** Whether the supplier provides goods or services. */
+  /** Whether the counterparty deals in goods or services. */
   goodsVsServices: 'goods' | 'services' | 'unknown';
   /** Historical categories this supplier's purchases have been mapped to. */
   classificationMemory: string[];
+  /**
+   * Whether the counterparty is a taxable person acting as such. Absent ⇒
+   * 'unknown' — the plugin must treat that as unresolved, not as a consumer.
+   */
+  taxStatus?: CounterpartyTaxStatus;
 }
 
 /**
@@ -71,6 +139,36 @@ export interface OrgContext {
   vatRegistered: boolean;
   /** Base currency override, or null to inherit from the country plugin. */
   baseCurrency: string | null;
+  /**
+   * WHICH kind of VAT registration (issue #211). 'ordinary' is the taxable
+   * person that deducts input VAT; 'limited' is one registered only because it
+   * receives specified acquisitions — it self-assesses the output tax and
+   * deducts nothing. Being liable for VAT and being entitled to deduct it are
+   * different questions, and `vatRegistered` alone answers only the first.
+   */
+  vatRegistrationKind?: 'ordinary' | 'limited';
+  /** The Organization's recorded right to deduct input VAT (issue #211). */
+  inputVatEntitlement?: 'full' | 'partial' | 'none';
+  /**
+   * The deductible proportion in PER MILLE (0…1000) when the entitlement is
+   * 'partial'; null otherwise. Per mille so the proportion is an exact integer.
+   */
+  inputVatDeductionPermille?: number | null;
+}
+
+/**
+ * SupplyFacts - Facts about THIS transaction rather than about the
+ * counterparty (issue #209). A customer's `goodsVsServices` describes what it
+ * normally deals in; `supplyType` describes what this particular invoice
+ * supplies, and `servicePlaceRule` under which rule that service is taxed.
+ *
+ * Both are optional: absent `supplyType` falls back to the counterparty's
+ * nature (pre-#209 behavior), absent `servicePlaceRule` means the residual
+ * general rule.
+ */
+export interface SupplyFacts {
+  supplyType?: 'goods' | 'services' | 'unknown';
+  servicePlaceRule?: ServicePlaceRule;
 }
 
 /**
@@ -178,15 +276,49 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * - Organization context (registration status, base currency)
    *
    * @param category - User-facing category label
-   * @param supplierFacts - Supplier intrinsic facts + classification memory
+   * @param supplierFacts - Counterparty intrinsic facts + classification memory
    * @param orgContext - Organization context (country, VAT registration, base currency)
+   * @param supplyFacts - Facts about THIS supply (what it supplies, under which
+   *   place-of-supply rule). Omitted ⇒ the counterparty's nature and the
+   *   residual general rule.
    * @returns Resolved account code + VAT code
+   * @throws UnresolvedVatTreatmentError when the recorded facts cannot decide
+   *   the treatment (e.g. a cross-border service to a customer of unknown tax
+   *   status). Refusing is the contract — a plugin must not guess.
    */
   resolveCategoryMapping(
     category: string,
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
+    supplyFacts?: SupplyFacts,
   ): CategoryMappingResult;
+
+  /**
+   * OPTIONAL: assert that a SALE's tax amount agrees with the treatment this
+   * plugin just resolved for it, throwing `UnresolvedVatTreatmentError` when it
+   * does not (issue #209).
+   *
+   * Whether an invoice's tax amount is CHECKABLE is a jurisdiction question, not
+   * a kernel one: it is checkable exactly where the plugin derived the rate from
+   * recorded facts (EE: a general-rule service — the treatment came from the
+   * customer's tax status and the place-of-supply rule, so the amount follows
+   * arithmetically). A plugin that maps revenue to one flat code regardless of
+   * facts has derived nothing and must not pretend to check anything — it simply
+   * does not implement this, and the kernel then books the tax the document
+   * states, exactly as before.
+   */
+  assertSaleTaxAmount?(input: {
+    /** Net amount in document-currency minor units (gross − tax). */
+    netMinorUnits: number;
+    /** Tax amount the caller stated, in document-currency minor units. */
+    vatMinorUnits: number;
+    /** The VAT code this plugin resolved for the sale. */
+    vatCode: VATCode;
+    /** Tax point (YYYY-MM-DD) — the rate in force is read as of this date. */
+    taxPointDate: string;
+    counterpartyFacts: SupplierFacts;
+    supplyFacts?: SupplyFacts;
+  }): void;
 
   /**
    * Returns the available reporting period frequency options for this country.
@@ -212,30 +344,46 @@ export interface CountryPlugin extends CountryPluginRetrieval {
   getDefaultBaseCurrency(): string;
 
   /**
-   * Returns the reference exchange rate for converting between two currencies
-   * as of a given date.
+   * Returns the AUTHORITATIVE reference exchange rate for converting between
+   * two currencies as of a given date, together with the provenance that makes
+   * the result reproducible.
    *
    * Rate semantics: how many `toCurrency` units does 1 `fromCurrency` unit buy.
-   * E.g., USD→EUR rate of 0.85 means 1 USD = 0.85 EUR.
+   * E.g., USD→EUR rate of 0.85 means 1 USD = 0.85 EUR. The rate must be a
+   * positive number; when the two currencies are the same it is exactly 1.0.
    *
-   * The rate must be a positive number.
-   * When the two currencies are the same, the rate is exactly 1.0.
+   * The returned {@link ResolvedFxRate} also carries:
+   *   - `rateDate`, the publication date the rate was actually taken from,
+   *     which is NOT always `date`: authorities do not publish on weekends or
+   *     holidays, and each jurisdiction's statute says which neighbouring
+   *     publication then governs. The applied date is returned so it can be
+   *     persisted, rather than being re-derived (differently) later.
+   *   - `source`, the publishing authority.
    *
-   * In v1 (before real FX integration), the null plugin only supports
-   * same-currency conversions (EUR→EUR = 1.0). Cross-currency throws.
+   * This is ASYNCHRONOUS because a real rate is an observation that must be
+   * looked up — from a cache, and on a miss from the authority over the
+   * network (issue #203; the former synchronous signature is exactly what
+   * forced a hardcoded placeholder map into the production posting path).
+   * Callers MUST therefore resolve rates BEFORE opening a SQLite transaction:
+   * better-sqlite3 runs one synchronous connection and an awaited round trip
+   * inside an open transaction deadlocks. Every posting path in the kernel
+   * already prepares its draft pre-transaction for this same reason.
    *
    * @param fromCurrency - The source currency code (e.g. "USD")
    * @param toCurrency - The target currency code (e.g. "EUR")
-   * @param date - The date for which to fetch the rate (YYYY-MM-DD).
-   *   Determines which historical rate to use.
-   * @returns The exchange rate as a positive number
-   * @throws Error if the rate is not available for the given pair or date
+   * @param date - The tax-point / transaction date (YYYY-MM-DD) whose rate
+   *   governs. Determines which historical publication is used.
+   * @returns The applied rate with its publication date and source
+   * @throws {FxRateUnavailableError} when no authoritative rate governs the
+   *   pair and date. Implementations MUST NOT substitute a latest, current or
+   *   constant rate: an unsupported base amount in an immutable ledger is
+   *   worse than a refused posting (ADR-0012, no break-glass).
    */
   getReferenceRate(
     fromCurrency: string,
     toCurrency: string,
     date: string,
-  ): number;
+  ): Promise<ResolvedFxRate>;
 
   /**
    * Rounds a fractional base-currency amount to integer minor units (cents).
@@ -308,6 +456,31 @@ export interface CountryPlugin extends CountryPluginRetrieval {
     orgContext: OrgContext,
     context: { vatCharged: boolean },
   ): CrossBorderResolution;
+
+  /**
+   * Resolves HOW MUCH of a purchase's input VAT the Organization may deduct
+   * (issue #211) — as an exact integer fraction, before any VAT_RECEIVABLE leg
+   * is composed.
+   *
+   * Entitlement is a FISCAL question, so the plugin owns it (ADR-0002): whether
+   * a registration confers a deduction right, whether a partial proportion
+   * applies, and whether this particular treatment or VAT code is restricted.
+   * The kernel only composes the legs from the fraction it is handed — it adds
+   * no VAT arithmetic of its own, and it does not second-guess the answer
+   * beyond checking that the fraction is usable.
+   *
+   * Non-deductible VAT is NOT lost: the kernel books it into the expense or
+   * asset cost, where it belongs, and keeps it out of the deductible input-VAT
+   * total on the return.
+   *
+   * @throws UnresolvedVatTreatmentError when the organisation's recorded VAT
+   *   facts contradict each other or do not decide the proportion. Refusing is
+   *   the contract — a plugin must not deduct a figure nobody recorded.
+   */
+  resolveInputVatEntitlement(
+    orgContext: OrgContext,
+    context: InputVatEntitlementContext,
+  ): InputVatEntitlement;
 
   /**
    * Returns the dividend withholding tax rate for the Organization's country.
@@ -417,4 +590,57 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    * Per ADR-0002.
    */
   getAllowanceAccount(type: AllowanceType): string;
+
+  /**
+   * The health/sports exemption in force ON THE GIVEN DATE — its cap, the
+   * calendar window the cap accumulates over, and the expenditure that
+   * qualifies (issue #212). `null` means this jurisdiction grants NO health
+   * exemption on that date; it never means "no limit".
+   *
+   * Asked per DATE, not per year, because all three parts move: Estonia ran a
+   * EUR 100 per QUARTER exemption over a narrow medical list until 2024-12-31
+   * and a EUR 400 per YEAR exemption over an expanded list from 2025-01-01, so
+   * a 2024 claim must be measured against the 2024 rules and a 2026 claim
+   * against today's. Applying today's cap or today's category list backwards
+   * would exempt expenditure that was taxable when it was incurred.
+   *
+   * @param date - the benefit's authoritative date, 'YYYY-MM-DD'
+   */
+  getHealthAllowanceRules(date: string): HealthAllowanceRules | null;
+
+  /**
+   * Does a payment received in ADVANCE of a supply create a tax point of its
+   * own, and at what rate (issue #213)?
+   *
+   * The kernel must not answer this by looking at a VAT code alone. Two facts
+   * it cannot read off the code decide it:
+   *
+   *  - the organisation's own registration. A LIMITED taxable person is
+   *    registered for acquisitions and makes no taxable supplies of its own
+   *    (issue #211), so nothing it receives in advance declares output VAT.
+   *  - the supply's own timing rule. A jurisdiction may tax a supply and still
+   *    say that a payment for it does NOT advance the tax point — Estonia's
+   *    general rule (KMS §11 lg 1) expressly excludes intra-Community supply,
+   *    which has its own §11 lg 2 timing.
+   *
+   * An unsupported combination comes back as a HOLD with the reason and the
+   * route to resolve it; the caller posts nothing. This never returns a
+   * "closest" treatment.
+   */
+  resolveAdvanceTaxPoint(
+    context: AdvanceTaxPointContext,
+  ): AdvanceTaxPointDecision;
+
+  /**
+   * The employer's own tax on a taxable fringe benefit of `benefitValue`
+   * (base-currency minor units) on the given date, plus the accounts it books
+   * to. Owed IN ADDITION to what the claimant is paid — never withheld from it.
+   * `null` when the jurisdiction taxes fringe benefits through payroll instead,
+   * in which case the taxable part is simply an employment-cost expense.
+   */
+  resolveFringeBenefitTax(
+    benefitValue: number,
+    date: string,
+    orgContext: OrgContext,
+  ): FringeBenefitTax | null;
 }

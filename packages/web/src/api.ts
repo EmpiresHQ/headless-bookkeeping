@@ -1,4 +1,10 @@
-import { apiFetch, apiFetchRaw } from './auth';
+import {
+  apiFetch,
+  apiFetchRaw,
+  isSameSession,
+  SessionChangedError,
+  sessionStamp,
+} from './auth';
 
 /**
  * The business-object interfaces below (Organization, Entity, Expense,
@@ -20,10 +26,16 @@ export interface Organization {
   country: string;
   base_currency: string | null;
   vat_registered: boolean;
+  // Issue #211: being liable for VAT and being entitled to deduct it are
+  // different questions, so the organisation records both.
+  vat_registration_kind: 'ordinary' | 'limited';
+  input_vat_entitlement: 'full' | 'partial' | 'none';
+  input_vat_deduction_permille: number | null;
   org_type: string;
   created_at: number;
   name: string | null;
   vat_registration_number: string | null;
+  registry_code: string | null;
   iban: string | null;
 }
 
@@ -53,12 +65,33 @@ export interface EntityIdentifier {
  *  and directors are the ADR-0036 claimants (there is NO 'claimant' role). */
 export type EntityRole = 'supplier' | 'customer' | 'employee' | 'director';
 
+/** Whether a counterparty is a taxable person (business) acting as such.
+ *  'unknown' is a real answer, not a synonym for consumer. */
+export type TaxStatus = 'taxable_business' | 'non_taxable' | 'unknown';
+
+/** Place-of-supply rules a service invoice may declare (server
+ *  sales-invoices/types.ts SERVICE_PLACE_RULES). Only 'general' is
+ *  auto-classified; the rest are refused with an actionable message. */
+export type ServicePlaceRule =
+  | 'general'
+  | 'immovable_property'
+  | 'passenger_transport'
+  | 'cultural_artistic_sporting_admission'
+  | 'restaurant_catering'
+  | 'short_term_hire_of_means_of_transport'
+  | 'electronically_supplied_to_consumer'
+  | 'other_special';
+
 export interface Entity {
   id: number;
   role: EntityRole;
   country: string;
   name: string;
   goods_vs_services: string | null;
+  /** 'taxable_business' | 'non_taxable' | 'unknown'; null ⇒ never recorded.
+   *  Decides a cross-border service sale's VAT treatment (issue #209): while it
+   *  is unknown the server REFUSES to post such an invoice. */
+  tax_status: string | null;
   // Present on a single-entity fetch (getEntity); absent on the list.
   identifiers?: EntityIdentifier[];
 }
@@ -93,6 +126,10 @@ export interface SalesInvoice {
   document_id: number | null;
   status: string;
   sent_at: number | null;
+  /** What this invoice supplies; null ⇒ inherit the customer's nature. */
+  supply_type: 'goods' | 'services' | null;
+  /** Declared place-of-supply rule for a service supply; 'general' by default. */
+  service_place_rule: ServicePlaceRule;
   // True when the posted voucher is matched to a bank transaction.
   reconciled: boolean;
 }
@@ -105,6 +142,10 @@ export interface DocumentRow {
   status: string;
   processing_since: number | null;
   created_at: number;
+  /** The stored out-of-pocket payer (ADR-0036); null = company paid. The
+   *  server always sends it; optional so older fixtures stay valid —
+   *  absent means UNKNOWN, never company paid. */
+  claimant_id?: number | null;
 }
 
 export type DocumentChannel =
@@ -125,6 +166,8 @@ export type TriageReasonType =
   | 'classification_failed'
   | 'unimplemented'
   | 'not_a_document'
+  | 'non_postable_document'
+  | 'possible_duplicate'
   | 'unknown';
 
 /**
@@ -159,9 +202,14 @@ export interface UpdateOrganizationDto {
   // null clears the override → inherit the country plugin's base currency.
   base_currency?: string | null;
   vat_registered?: boolean;
+  vat_registration_kind?: 'ordinary' | 'limited';
+  input_vat_entitlement?: 'full' | 'partial' | 'none';
+  // null clears the proportion (required when leaving 'partial').
+  input_vat_deduction_permille?: number | null;
   org_type?: 'company' | 'sole_proprietor';
   name?: string | null;
   vat_registration_number?: string | null;
+  registry_code?: string | null;
   iban?: string | null;
 }
 
@@ -215,11 +263,58 @@ export interface ExpenseDetail {
   supplier_invoice_number: string | null;
   ai_confidence: number | null;
   claimant_id: number | null;
+  /** Only meaningful with a claimant (ADR-0036); null ⇒ not recorded.
+   *  Always sent by the server; optional so older fixtures stay valid. */
+  company_addressed_receipt?: boolean | null;
   created_at: number;
 }
 
 export const getExpense = (id: number) =>
   apiFetch<ExpenseDetail>(`/api/expenses/${id}`);
+
+/** A document the server says may become this expense's source (issue #248).
+ *  The server owns eligibility — a document with no linked expense can still
+ *  be a sales invoice's source, an allowance's evidence or a filed receipt. */
+export interface AttachableDocument {
+  id: number;
+  filename: string;
+  mime_type: string;
+  status: 'pending' | 'needs_triage';
+  created_at: number;
+  reason: string | null;
+}
+
+export const listAttachableDocuments = (expenseId: number) =>
+  apiFetch<{ documents: AttachableDocument[] }>(
+    `/api/expenses/${expenseId}/attachable-documents`,
+  ).then((r) => r.documents);
+
+export interface AttachDocumentResult {
+  outcome: 'attached' | 'already_attached';
+  expense: ExpenseDetail;
+  document: DocumentRow;
+}
+
+/** Attach a late receipt to an EXISTING expense: a new file (stored and
+ *  attached in one step, never queued for intake) or an attachable document.
+ *  Fills an empty source only; amounts, status and entry are unchanged. */
+export const attachExpenseDocument = (
+  expenseId: number,
+  source: { file: File } | { documentId: number },
+) => {
+  const path = `/api/expenses/${expenseId}/attach-document`;
+  if ('file' in source) {
+    // Multipart: set NO content-type so the browser adds the boundary.
+    const body = new FormData();
+    body.append('file', source.file);
+    return apiFetch<AttachDocumentResult>(path, { method: 'POST', body });
+  }
+  return apiFetch<AttachDocumentResult>(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ document_id: source.documentId }),
+  });
+};
 
 /** Set the supplier invoice number on a POSTED expense — no ledger impact;
  *  400 when the expense's reporting period is locked (expenses.service.ts:
@@ -285,9 +380,15 @@ export const getDocumentReclassify = (id: number) =>
 
 export const deleteDocument = (id: number) =>
   apiFetch<{ deleted: number }>(`/api/documents/${id}`, { method: 'DELETE' });
+/**
+ * The VAT calendar — the periods this screen files and locks. The endpoint
+ * defaults to `kind=vat`, so the independent financial years the annual
+ * accounts are closed against (server-side `kind=annual`) never appear here and
+ * cannot be mistaken for a filable VAT period.
+ */
 export const getReportingPeriods = () =>
   apiFetch<{ reportingPeriods: ReportingPeriod[] }>(
-    '/api/reporting-periods',
+    '/api/reporting-periods?kind=vat',
   ).then((r) => r.reportingPeriods);
 
 export interface CreateReportingPeriodInput {
@@ -488,6 +589,11 @@ export interface CreateInvoiceInput {
   customer_id?: number | null;
   due_date?: string | null;
   document_vat_marking?: string | null;
+  /** Omitted ⇒ the customer entity's goods/services nature decides. */
+  supply_type?: 'goods' | 'services' | null;
+  /** Omitted ⇒ 'general', the residual place-of-supply rule. A named
+   *  exception is refused at posting rather than auto-classified. */
+  service_place_rule?: ServicePlaceRule;
 }
 
 export const createInvoice = (input: CreateInvoiceInput) =>
@@ -495,6 +601,51 @@ export const createInvoice = (input: CreateInvoiceInput) =>
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
+  });
+
+// ── Draft edits (issue #247 — draft/pending only, never posts) ────────────
+/** PATCH /api/expenses/:id — the server's closed editable-field set. Amounts
+ *  are integer cents; provenance (document_id, AI facts) is not editable. */
+export interface ExpenseDraftPatch {
+  category?: string;
+  supplier_id?: number | null;
+  gross_amount?: number;
+  vat_amount?: number;
+  currency?: string;
+  tax_point_date?: string;
+  supplier_invoice_number?: string | null;
+  claimant_id?: number | null;
+  company_addressed_receipt?: boolean | null;
+  /** Deliberate override when the edit collides with another expense (409). */
+  allow_duplicate?: boolean;
+}
+
+export const updateExpenseDraft = (id: number, patch: ExpenseDraftPatch) =>
+  apiFetch<ExpenseDetail>(`/api/expenses/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+
+/** PATCH /api/sales-invoices/:id. invoice_number/customer_id only while the
+ *  invoice has never been sent (409 otherwise). */
+export interface InvoiceDraftPatch {
+  invoice_number?: string;
+  customer_id?: number | null;
+  gross_amount?: number;
+  vat_amount?: number;
+  currency?: string;
+  tax_point_date?: string;
+  due_date?: string | null;
+  supply_type?: 'goods' | 'services' | null;
+  service_place_rule?: ServicePlaceRule;
+}
+
+export const updateInvoiceDraft = (id: number, patch: InvoiceDraftPatch) =>
+  apiFetch<SalesInvoice>(`/api/sales-invoices/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
   });
 
 // ── Corrections (reversal + corrected voucher of a POSTED object) ──────────
@@ -591,6 +742,7 @@ export interface OnboardEntityInput {
   name: string;
   registrationKey?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  taxStatus?: TaxStatus;
   email?: string;
   tgUserId?: string;
 }
@@ -607,6 +759,7 @@ export interface UpdateEntityInput {
   name?: string;
   country?: string;
   goodsVsServices?: 'goods' | 'services' | 'unknown';
+  taxStatus?: TaxStatus;
 }
 
 export const updateEntity = (id: number, input: UpdateEntityInput) =>
@@ -676,37 +829,122 @@ export const getSignedDocumentUrl = (id: number) =>
  * Pass `{ size: 'lg' }` for the larger, sharper lightbox variant
  * (`?size=lg`); omitted/default fetches the ~256px thumbnail — backwards
  * compatible with every existing caller.
+ *
+ * A 404 (HttpError) means this document has no preview — not that its
+ * original is missing; any other failure is worth a retry.
  */
 export async function fetchDocumentPreviewObjectUrl(
   id: number,
   opts: { size?: 'lg' } = {},
 ): Promise<string> {
+  // Session-owned through the body read (issue #270): bytes of an ended
+  // session never become an object URL.
+  return URL.createObjectURL(await fetchDocumentPreviewBlob(id, opts));
+}
+
+/** Read a raw response body, then re-check it still belongs to the session
+ *  the request started under (apiFetchRaw owns only up to the headers). */
+async function readOwnedBlob(
+  res: Response,
+  startedAt: ReturnType<typeof sessionStamp>,
+): Promise<Blob> {
+  let blob: Blob;
+  try {
+    blob = await res.blob();
+  } catch (e) {
+    if (!isSameSession(startedAt)) throw new SessionChangedError();
+    throw e;
+  }
+  if (!isSameSession(startedAt)) throw new SessionChangedError();
+  return blob;
+}
+
+/** A document's original bytes as stored (issue #257). */
+export interface DocumentFile {
+  blob: Blob;
+  /** From Content-Disposition; null when the header carries none. */
+  filename: string | null;
+}
+
+/**
+ * Fetch a document's ORIGINAL file (every page, stored MIME type as the blob
+ * type) from the Bearer-only /file endpoint — for viewing the source inside
+ * the app (issue #257). The body read is re-checked against the session the
+ * request started under, so bytes of an ended session are never handed back.
+ */
+export async function fetchDocumentFile(id: number): Promise<DocumentFile> {
+  const startedAt = sessionStamp();
+  const res = await apiFetchRaw(`/api/documents/${id}/file`);
+  const blob = await readOwnedBlob(res, startedAt);
+  const cd = res.headers.get('content-disposition') ?? '';
+  return { blob, filename: cd.match(/filename="(.+?)"/)?.[1] ?? null };
+}
+
+/** The server-rendered page-1 preview PNG as a Blob (see
+ *  fetchDocumentPreviewObjectUrl); the caller owns any object URL. */
+export async function fetchDocumentPreviewBlob(
+  id: number,
+  opts: { size?: 'lg' } = {},
+): Promise<Blob> {
   const qs = opts.size === 'lg' ? '?size=lg' : '';
+  const startedAt = sessionStamp();
   const res = await apiFetchRaw(`/api/documents/${id}/preview${qs}`);
-  return URL.createObjectURL(await res.blob());
+  return readOwnedBlob(res, startedAt);
+}
+
+/** The browser refused the new tab (window.open returned null). */
+export class PopupBlockedError extends Error {
+  constructor() {
+    super('The browser blocked the new tab');
+    this.name = 'PopupBlockedError';
+  }
 }
 
 /**
  * Open a document's file in a new tab via a freshly-minted signed URL. Opens a
  * blank tab synchronously (inside the click gesture, so the popup blocker does
- * not eat it), then points it at the token-free /shared link once minted.
+ * not eat it — nothing may be awaited before it), then points it at the
+ * token-free /shared link once minted.
  *
  * Deliberately NOT passing 'noopener'/'noreferrer' to window.open: per the
  * HTML spec, either flag makes window.open() return null (no reference to
- * hand back), which silently broke this into always taking the `else`
- * branch below and navigating the CURRENT tab away instead of opening a new
- * one (smoke-tested — Task 16). The target is same-origin (our own
- * /api/documents/:id/shared), so the opener-access trade-off is acceptable.
+ * hand back), indistinguishable from a blocked popup (smoke-tested — Task
+ * 16). The target is same-origin (our own /api/documents/:id/shared), so the
+ * opener-access trade-off is acceptable.
+ *
+ * The current window is never navigated (issue #272): a blocked popup
+ * rejects with PopupBlockedError before anything is requested. Every failure
+ * closes the placeholder and rethrows. `signal` is the caller's scope: its
+ * abort (another document, preview closed, unmount) closes the placeholder
+ * at once, and the minted link is then dropped — 'abandoned', as is a
+ * placeholder the user closed while the link was minted. `isCurrent` is
+ * checked once more before navigating (e.g. the session moved on).
  */
-export async function openSignedDocument(id: number): Promise<void> {
+export async function openSignedDocument(
+  id: number,
+  {
+    signal,
+    isCurrent = () => true,
+  }: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+): Promise<'opened' | 'abandoned'> {
   const tab = window.open('', '_blank');
+  if (tab === null) throw new PopupBlockedError();
+  const closeTab = () => tab.close();
+  signal?.addEventListener('abort', closeTab, { once: true });
   try {
     const { url } = await getSignedDocumentUrl(id);
-    if (tab) tab.location.href = url;
-    else window.location.href = url;
+    if (tab.closed) return 'abandoned';
+    if (signal?.aborted || !isCurrent()) {
+      tab.close();
+      return 'abandoned';
+    }
+    tab.location.href = url;
+    return 'opened';
   } catch (e) {
-    tab?.close();
+    tab.close();
     throw e;
+  } finally {
+    signal?.removeEventListener('abort', closeTab);
   }
 }
 
@@ -1121,6 +1359,69 @@ export interface MatchRowView {
   counterpartyName: string | null;
 }
 
+/** The exact pair a reconciliation_match approval decides, by match id
+ *  (issue #256). Built server-side from persisted figures only — no FX
+ *  conversion — so every amount names its own unit: the line in its own
+ *  currency (+ original foreign amount), the target document in ITS currency,
+ *  allocations in `baseCurrency`. No voucher ids (ADR-0030). Untrusted shape:
+ *  validate with `matchFactsProblem` before any decision depends on it. */
+export interface MatchFacts {
+  matchId: number;
+  status: 'draft' | 'active';
+  matchType: 'exact' | 'partial' | 'prepayment';
+  signal: string | null;
+  amountMatched: number; // BASE cents, booked
+  baseCurrency: string;
+  bankTransaction: {
+    id: number;
+    statementId: number;
+    transactionDate: string;
+    description: string | null;
+    amount: number; // signed cents in `currency`
+    currency: string;
+    sourceAmount: number | null;
+    sourceCurrency: string | null;
+    counterpartyIban: string | null;
+    counterpartyDescriptor: string | null;
+    reference: string | null;
+    status: string;
+  };
+  line: {
+    activeAllocatedBase: number;
+    activeCashBase: number;
+    otherDraftCount: number;
+    otherDraftAllocatedBase: number;
+  };
+  target: {
+    kind: 'sales_invoice' | 'expense' | 'prepayment' | 'unidentified';
+    advanceKind: 'customer' | 'supplier' | null;
+    objectId: number | null;
+    objectLabel: string;
+    counterpartyName: string | null;
+    grossAmount: number | null;
+    currency: string | null;
+    voucherRemaining: number; // BASE cents
+    advance: {
+      date: string;
+      originalBaseAmount: number;
+      currency: string;
+      fundingLine: {
+        transactionDate: string;
+        description: string | null;
+        reference: string | null;
+        amount: number;
+        currency: string;
+      } | null;
+      needsReview: boolean;
+      taxTreatment: string;
+      ownerResolved: boolean;
+    } | null;
+  };
+}
+
+export const getMatchFacts = (matchId: number) =>
+  apiFetch<unknown>(`/api/reconciliation/matches/${matchId}`);
+
 export const getStatementMatches = (statementId: number) =>
   apiFetch<MatchRowView[]>(`/api/bank-statements/${statementId}/matches`);
 
@@ -1174,10 +1475,45 @@ export const manualMatch = (
 
 // Prepayment / Personal post ledger vouchers; the UI ignores the returned
 // voucher (ADR-0030) and only needs success/failure.
-export const createPrepayment = (bankTransactionId: number) =>
+/**
+ * What a customer receipt IS, for tax (issue #213). Nothing is inferred from
+ * the bank narrative: an advance on an identified taxable supply declares VAT
+ * on the day the money arrives, a deposit declares nothing, and an
+ * unclassified receipt is recorded but HELD until somebody says which.
+ */
+export type AdvanceTaxTreatment =
+  | 'taxable_supply'
+  | 'non_taxable_deposit'
+  | 'unresolved';
+
+export interface AdvanceTaxInput {
+  tax_treatment: AdvanceTaxTreatment;
+  /** Required for 'taxable_supply'. */
+  vat_code?: string;
+  supply_description?: string;
+  advance_document_number?: string;
+}
+
+export const createPrepayment = (
+  bankTransactionId: number,
+  tax?: AdvanceTaxInput,
+) =>
   apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/prepayment`, {
     method: 'POST',
+    ...(tax
+      ? {
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(tax),
+        }
+      : {}),
   });
+
+/** The VAT treatments an advance received on this date may declare (the
+ *  country plugin's answer — the UI never hard-codes a jurisdiction's codes). */
+export const getAdvanceVatTreatments = (receiptDate: string) =>
+  apiFetch<{ treatments: { vat_code: string; rate_permille: number }[] }>(
+    `/api/prepayments/advance-vat-treatments?receipt_date=${receiptDate}`,
+  ).then((r) => r.treatments);
 
 export const markPersonal = (bankTransactionId: number) =>
   apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/personal`, {

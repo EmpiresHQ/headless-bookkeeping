@@ -1,3 +1,12 @@
+import type {
+  AdvanceTaxPointContext,
+  AdvanceTaxPointDecision,
+} from './advance-tax-point.types';
+import {
+  FxRateUnavailableError,
+  IDENTITY_RATE_SOURCE,
+  ResolvedFxRate,
+} from '../fx/fx-rate.types';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   CategoryDef,
@@ -8,6 +17,11 @@ import {
   SupplierFacts,
   VATCode,
 } from './country-plugin.interface';
+import type {
+  InputVatEntitlement,
+  InputVatEntitlementContext,
+} from './input-vat-entitlement.types';
+import { entitlementFromOrgContext } from './input-vat-entitlement';
 import {
   AssetClass,
   DepreciationMethod,
@@ -30,6 +44,10 @@ import {
 } from './country-plugin-retrieval.interface';
 import { NULL_VAT_CODE } from '../ledger/posting/vat-constants';
 import { AllowanceRates, AllowanceType } from './allowance-rates.types';
+import type {
+  FringeBenefitTax,
+  HealthAllowanceRules,
+} from './health-allowance.types';
 
 /**
  * Re-exported for backward compatibility with existing importers. The SOURCE
@@ -162,16 +180,33 @@ export class NullCountryPlugin implements CountryPlugin {
     return 'EUR';
   }
 
+  /**
+   * The neutral plugin names no rate authority, so it can answer only the
+   * identity. A cross-currency pair is REFUSED, not guessed: which authority
+   * governs a conversion is a jurisdiction rule (ADR-0002/ADR-0004), and a
+   * deployment running on the neutral fallback has not declared one.
+   */
   getReferenceRate(
     fromCurrency: string,
     toCurrency: string,
-    _date: string,
-  ): number {
+    date: string,
+  ): Promise<ResolvedFxRate> {
     if (fromCurrency === toCurrency) {
-      return 1.0;
+      return Promise.resolve({
+        rate: 1.0,
+        rateDate: date,
+        source: IDENTITY_RATE_SOURCE,
+      });
     }
-    throw new Error(
-      `Cross-currency FX not supported in null plugin: ${fromCurrency} → ${toCurrency}`,
+    return Promise.reject(
+      new FxRateUnavailableError(
+        fromCurrency,
+        toCurrency,
+        date,
+        'the neutral country plugin declares no rate authority; register a ' +
+          'country plugin for this deployment',
+        'unsupported_pair',
+      ),
     );
   }
 
@@ -187,6 +222,18 @@ export class NullCountryPlugin implements CountryPlugin {
     _context: { supplier: SupplierFacts; org: OrgContext },
   ): boolean {
     return [NULL_VAT_CODE, 'IE_INPUT_23', 'IE_OUTPUT_23'].includes(vatCode);
+  }
+
+  /**
+   * The neutral jurisdiction's entitlement rule (issue #211): exactly the
+   * organisation's own recorded VAT facts, with nothing added. There is no
+   * "limited registration" concept here, so registration kind does not enter.
+   */
+  resolveInputVatEntitlement(
+    orgContext: OrgContext,
+    _context: InputVatEntitlementContext,
+  ): InputVatEntitlement {
+    return entitlementFromOrgContext(orgContext);
   }
 
   resolvePersonalDispositionAccount(orgType: string): string {
@@ -284,6 +331,7 @@ export class NullCountryPlugin implements CountryPlugin {
   classifyKmd(_vatCode: VATCode): KmdBaseClassification {
     return {
       outputBaseRow: null,
+      outputSubRow: null,
       acquisitionRow: null,
       vdCode: null,
       review: null,
@@ -346,5 +394,57 @@ export class NullCountryPlugin implements CountryPlugin {
       return 'EXPENSE_TRAVEL';
     }
     return 'EXPENSE_OTHER';
+  }
+
+  /**
+   * The neutral plugin grants NO health/sports exemption (issue #212). It is a
+   * stand-in for "we do not know this jurisdiction's rules", and the honest
+   * consequence of not knowing them is that nothing can be declared exempt —
+   * not that everything can. A deployment whose country DOES grant one gets it
+   * from that country's plugin.
+   */
+  getHealthAllowanceRules(_date: string): HealthAllowanceRules | null {
+    void _date;
+    return null;
+  }
+
+  /**
+   * The neutral plugin knows no time-of-supply rule, so it cannot say that a
+   * payment received in advance creates a tax point. It HOLDS every case
+   * rather than declaring turnover on a rule it does not have (issue #213).
+   */
+  resolveAdvanceTaxPoint(
+    context: AdvanceTaxPointContext,
+  ): AdvanceTaxPointDecision {
+    return {
+      supported: false,
+      code: 'no_jurisdiction_rule',
+      message:
+        `This deployment has no country plugin that defines when a payment received in ` +
+        `advance creates a tax point, so '${context.vatCode}' cannot be declared at the ` +
+        `receipt.`,
+      howToResolve:
+        'Leave the receipt unclassified for accounting review — payment for a supply is not ' +
+        'a security deposit, and labelling it as one would hide it from the filing checks. ' +
+        'Configure the organisation with a country whose plugin implements advance taxation ' +
+        'to declare it.',
+    };
+  }
+
+  /**
+   * The neutral plugin knows no employer-level fringe-benefit tax, so a taxable
+   * benefit is an ordinary employment cost here and carries no tax lines of its
+   * own. Returning zero-rate taxes instead would assert a rate this plugin has
+   * no basis for.
+   */
+  resolveFringeBenefitTax(
+    _benefitValue: number,
+    _date: string,
+    _orgContext: OrgContext,
+  ): FringeBenefitTax | null {
+    void _benefitValue;
+    void _date;
+    void _orgContext;
+    return null;
   }
 }

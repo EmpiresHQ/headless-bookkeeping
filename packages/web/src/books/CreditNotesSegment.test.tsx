@@ -21,6 +21,7 @@ import {
   getInvoices,
   listCreditNotes,
 } from '../api';
+import { metaLine } from './rowText.test-util';
 
 const NOTE = {
   id: 7,
@@ -51,6 +52,8 @@ function seed() {
       document_id: null,
       status: 'posted',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     },
   ] as never);
@@ -62,6 +65,7 @@ function seed() {
       country: 'EE',
       name: 'Nordic Consulting OÜ',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
 }
@@ -103,6 +107,7 @@ function seedExpenseNote() {
       country: 'EE',
       name: 'AS Merko Ehitus',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
 }
@@ -124,7 +129,7 @@ describe('Credit notes', () => {
       await screen.findByText('Nordic Consulting OÜ · Invoice 2026-018'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/CN-1 · credits invoice · 2 Jul/),
+      screen.getByText(metaLine(/CN-1 · credits invoice · 2 Jul/)),
     ).toBeInTheDocument();
     expect(screen.getByText(/−400\.00/)).toBeInTheDocument();
     expect(
@@ -161,7 +166,7 @@ describe('Credit notes', () => {
       await screen.findByText('AS Merko Ehitus · Expense rent'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/CN-2 · credits expense · 3 Jul/),
+      screen.getByText(metaLine(/CN-2 · credits expense · 3 Jul/)),
     ).toBeInTheDocument();
     expect(screen.getByText(/\+4\.00/)).toBeInTheDocument();
     expect(screen.queryByText(/-4\.00/)).not.toBeInTheDocument();

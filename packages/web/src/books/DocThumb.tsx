@@ -5,6 +5,8 @@ import { fetchDocumentPreviewObjectUrl } from '../api';
 
 /** Archive-row thumbnail: bearer-only /preview bytes → blob URL, revoked on
  *  unmount (same choreography as inbox/DocPreviewRow — StrictMode-safe).
+ *  Bytes that download but do not decode fall back to the glyph, never a
+ *  broken image (issue #304); a result only ever shows for its own `id`.
  *
  *  `className` and `fallback` default to the original appearance, so
  *  existing callers (DocumentsSegment.tsx) need no change. `fallback`, when
@@ -19,7 +21,11 @@ export function DocThumb({
   className?: string;
   fallback?: ReactNode;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    id: number;
+    src: string;
+    broken: boolean;
+  } | null>(null);
 
   useEffect(() => {
     let revoked = false;
@@ -31,7 +37,7 @@ export function DocThumb({
           return;
         }
         objectUrl = url;
-        setSrc(url);
+        setPreview({ id, src: url, broken: false });
       })
       .catch(() => undefined); // no preview → fallback glyph
     return () => {
@@ -40,8 +46,24 @@ export function DocThumb({
     };
   }, [id]);
 
+  const src =
+    preview !== null && preview.id === id && !preview.broken
+      ? preview.src
+      : null;
   if (src !== null) {
-    return <img src={src} alt="" className={`${className} object-cover`} />;
+    return (
+      <img
+        key={src}
+        src={src}
+        alt=""
+        className={`${className} object-cover`}
+        onError={() =>
+          setPreview((cur) =>
+            cur !== null && cur.src === src ? { ...cur, broken: true } : cur,
+          )
+        }
+      />
+    );
   }
 
   if (fallback !== undefined) {

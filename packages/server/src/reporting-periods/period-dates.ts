@@ -134,7 +134,7 @@ function formatDate(year: number, month: number, day: number): string {
 }
 
 /** Add `n` days to an ISO date string and return a new ISO date string. */
-function addDays(date: string, n: number): string {
+export function addDays(date: string, n: number): string {
   const d = new Date(date + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);

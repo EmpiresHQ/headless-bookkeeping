@@ -31,8 +31,19 @@ export interface KmdDeclaration {
   row1_base_24: number;
   /** Row 2 — 9%/13% reduced-rate taxable supply base. */
   row2_base_reduced: number;
+  /** Separate reduced-rate bases required by the KMD XML format. */
+  row2_base_9: number;
+  row2_base_13: number;
   /** Row 3 — 0% supply base (intra-EU services, exports). */
   row3_base_zero: number;
+  /**
+   * Row 3.1 — the part of row 3 that is an intra-Community supply to a TAXABLE
+   * person of another member state (KMD field 3.1,
+   * `euSupplyInclGoodsAndServicesZeroVat`). A third-country 0% supply belongs
+   * to row 3 and NOT here: 3.1 is a statement about supplies to other member
+   * states, and the two zeros are reported differently (issue #209).
+   */
+  row3_1_intra_eu_supply: number;
   /** Row 4 — total output VAT due (from VAT_PAYABLE control lines). */
   row4_output_vat: number;
   /** Row 5 — total deductible input VAT (from VAT_RECEIVABLE control lines). */
@@ -41,6 +52,50 @@ export interface KmdDeclaration {
   row6_intra_eu_acquisition: number;
   /** Row 7 — other reverse-charged acquisition base (e.g. imported non-EU service). */
   row7_other_acquisition: number;
+  /**
+   * Reverse-charged acquisition base that belongs to row 6 OR row 7, on
+   * vouchers posted before the origin was recorded (issue #210). It is
+   * deliberately in NEITHER row: the old classifier's silent "row 7" is the
+   * defect this field exists to stop. Nonzero ⇒ `review_flags` names the
+   * correction, and the statutory export refuses to render a FINAL return.
+   *
+   * Absent from declarations frozen before #210 — read it as 0 there
+   * (`normalizeFrozenStatutoryInput`), which is what those filings assumed.
+   */
+  row6_7_unresolved_acquisition: number;
+  /**
+   * The vouchers whose acquisition origin is still unknown — the GATE, and the
+   * reason it is a list of vouchers rather than the amount above. A signed
+   * total can net to zero across two unrelated legacy movements while both
+   * rows they belong to are still wrong, so cancellation is not resolution.
+   * Nonempty ⇒ the period cannot be locked and no FINAL statutory artifact is
+   * rendered. Empty on declarations frozen before #210.
+   */
+  unresolved_acquisition_vouchers: string[];
+  /**
+   * Customer advances RECEIVED in this period that nobody has classified
+   * (issue #213). A payment for an identified taxable supply declares VAT on
+   * the day it arrives (KMS §11 lg 1), so a receipt whose treatment is unknown
+   * is a return that cannot honestly claim either to have declared that VAT or
+   * to have correctly left it out. Nonempty ⇒ `review_flags` names the
+   * classification route, no FINAL artifact renders, and freezing a new filing
+   * payload is refused — exactly the #210 gate, for the other unknown.
+   *
+   * Absent from declarations frozen before #213: read as [] / 0 there, which
+   * is what those filings assumed.
+   */
+  unresolved_advance_receipts: string[];
+  /** Gross of those held receipts — reported, but in no row. */
+  unresolved_advance_base: number;
+  /**
+   * Advance documents in this period whose REVERSAL shape cannot be turned
+   * into documents that reconcile with these boxes (issue #213): a partial
+   * counter-voucher, a reversal of a reversal, or a mirror split across two
+   * periods. Nonempty ⇒ named in `review_flags`, no FINAL artifact renders,
+   * and freezing a new filing payload is refused. Empty on declarations
+   * frozen before #213.
+   */
+  unsupported_advance_reversals: string[];
   /** Net VAT due (row 4 − row 5); negative means reclaimable. */
   net_vat_due: number;
   /** Total 0% intra-EU service supplies to declare on the VD koondaruanne (tähis 3S). */

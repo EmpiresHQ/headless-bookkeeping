@@ -14,22 +14,30 @@ const VARIANTS: Record<Variant, string> = {
 
 /** A route navigation styled as a kit Button (mirror of ui/Button styles).
  *  Use when a "button" is really a Link — never window.location, never a
- *  button+navigate pair. Always animates with viewTransition. */
+ *  button+navigate pair. No route view transition (issue #252: react-router's
+ *  view-transition state can overwrite a newer navigation's render). */
 export function LinkButton({
   to,
+  state,
   variant = 'primary',
   className = '',
+  onClick,
   children,
 }: {
   to: string;
+  /** History state for the push (e.g. the origin record, issue #252). */
+  state?: unknown;
   variant?: Variant;
   className?: string;
+  /** Side effect of following the link (not a navigation replacement). */
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
     <Link
       to={to}
-      viewTransition
+      state={state}
+      onClick={onClick}
       className={`inline-block rounded-xl px-4 py-2.5 text-center text-[15px] font-bold ${VARIANTS[variant]} ${className}`}
     >
       {children}

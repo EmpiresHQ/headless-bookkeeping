@@ -42,10 +42,33 @@ form are emitted in v1; optional breakdowns are deferred.
 
 **3. Equity has no year-end close sweep.** The balance-sheet equity section is
 three live lines: Osakapital (`EQUITY`/`SHARE_CAPITAL`), Eelmiste perioodide
-jaotamata kasum (`RETAINED_EARNINGS`), Aruandeaasta kasum (period revenue −
-expense via `LedgerBalanceService`). Because every voucher balances, the sheet
-balances **without** a sweep; sweeping into retained earnings is needed only to
-*open* the next year and is a separate concern.
+jaotamata kasum, Aruandeaasta kasum (period revenue − expense via
+`LedgerBalanceService`). Because every voucher balances, the sheet balances
+**without** a sweep; sweeping into retained earnings is needed only to *open*
+the next year and is a separate concern.
+
+Because there is no sweep, the brought-forward line is **not** the
+`RETAINED_EARNINGS` balance. It is that balance — together with every other
+non-capital equity account, e.g. `OWNERS_DRAWINGS` — **plus the cumulative
+result of all earlier periods, which is still sitting on the revenue/expense
+accounts**. Reading only the account was the bug in issue #206: a closed
+profitable year left no trace in the next year's equity, so the next year could
+not balance or be finalized. The two components never double-count, because a
+sweep that raises the account zeroes exactly the P&L it came from.
+
+An operator may nevertheless post a sweep by hand, dated either on the closed
+year's last day or on the new year's opening day. Its P&L leg is not trading of
+the period it falls in, so the report attributes it to the brought-forward line
+instead — but only on **explicit persisted intent**: a voucher `reason` starting
+`Closing transfer of retained earnings`, plus the structural requirement that
+the voucher touch nothing but P&L accounts and `RETAINED_EARNINGS`. Shape is not
+evidence of intent (`Dr OWNERS_DRAWINGS / Cr EXPENSE_RENT` reclassifying a
+personal purchase has the same shape and genuinely reduces the year's expense),
+and neither is a resulting zero P&L balance (a same-day sale, or a later
+reversal, changes it). Reversals of a recognised transfer are recognised with
+it. An unmarked sweep is read exactly as posted: equity still totals correctly
+and the sheet still balances, only the split between the two equity lines
+follows the posting.
 
 **4. The report is a pure projection of the posted ledger.** Period-end
 adjustments — depreciation (ADR-0035) being the only one in scope for the
@@ -99,3 +122,24 @@ open period (no break-glass, ADR-0012), never by editing the locked year.
   online-shop module.
 - v1 covers the balance sheet + income statement. Notes/disclosures beyond the
   mandatory väike lines, consolidation, and X-tee/API submission are deferred.
+
+## Amendment (issue #207, 2026-09-20): the year the accounts are produced for
+
+The annual accounts are produced for a **financial year** — a reporting period
+with `kind = 'annual'` (ADR-0009 amendment) — which coexists with the twelve
+monthly VAT periods it spans instead of competing with them.
+
+- §1's neutral input keeps its shape; what changes is *which* period supplies the
+  comparative column: the previous period **on the same timeline**. For FY2026
+  that is FY2025, never December 2026 or the nearest earlier month. (A draft over
+  a VAT period keeps comparing against the previous VAT period, unchanged.)
+- §5's **final** still "locks the year via the existing period-lock", but through
+  `closeFinancialYear`: the status flip and nothing else. Filing a KMD for a
+  financial year is refused — its turnover was declared by the monthly returns,
+  and a second overlapping return would be a false filing, not a stricter one.
+- §4's "adjustments are real vouchers posted before the report reads them" now
+  has a defined route when the date they belong on is inside an already filed
+  VAT period: the narrowly validated `annual-close` posting capability described
+  in the ADR-0009 amendment. It never reopens or rewrites a filed return, and it
+  refuses a financial year that is already closed — so §8 (post-final corrections
+  go through the next open period) holds for the annual timeline too.

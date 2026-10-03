@@ -1,13 +1,31 @@
+import { useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { DocumentArchiveRow } from '../api';
 import { triageChipLabel } from '../inbox/reason';
 import { useDocumentsArchive } from '../queries/books';
 import { relativeTime } from '../relativeTime';
 import { Chip } from '../ui/Chip';
-import { EmptyState, SkeletonRows } from '../ui/Feedback';
-import { ListGroup, ListRow } from '../ui/List';
+import { Button } from '../ui/Button';
+import { SkeletonRows } from '../ui/Feedback';
+import { ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
+import { BooksCreate, BooksEmpty, effectiveDateFilter } from './BooksEmpty';
+import { useReturnPosition } from '../lib/listPosition';
+import { BooksColumnsHeader, BooksRow, type BooksColumns } from './BooksRow';
 import { DocThumb } from './DocThumb';
+import { ActiveFilters, FilterChip, FilterStrip } from './chips';
+import {
+  BOOKS_RESET_NAME,
+  BOOKS_SEARCH,
+  useResetWithFocus,
+  useSetFilterParam,
+} from './filters';
+import {
+  DEFAULT_ORDER,
+  inRange,
+  localDay,
+  type BooksOrderState,
+} from './listOrder';
 
 export function channelLabel(channel: string | null): string {
   switch (channel) {
@@ -45,6 +63,14 @@ const matchesDocFilter = (d: DocumentArchiveRow, f: DocFilter): boolean => {
   return d.status === f;
 };
 
+/** Desktop columns (xl, issue #283); the thumbnail stays the row's
+ *  leading slot, outside the link. */
+export const DOCUMENT_COLUMNS: BooksColumns = {
+  grid: 'xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_7rem_7rem_minmax(0,1fr)_6rem_0.75rem]',
+  labels: ['Supplier', 'File', 'Channel', 'Added', 'Claimant', 'Status'],
+  leading: 'xl:w-9',
+};
+
 function docStatusChip(d: DocumentArchiveRow) {
   switch (d.status) {
     case 'processed':
@@ -64,97 +90,170 @@ function docStatusChip(d: DocumentArchiveRow) {
   }
 }
 
-export function DocumentsSegment({ q }: { q: string }) {
-  const [params, setParams] = useSearchParams();
+export function DocumentsSegment({
+  q,
+  order = DEFAULT_ORDER,
+}: {
+  q: string;
+  order?: BooksOrderState;
+}) {
+  const [params] = useSearchParams();
   const raw = params.get('dstatus');
   const filter: DocFilter = DOC_FILTERS.some((f) => f.key === raw)
     ? (raw as DocFilter)
     : 'all';
+  const setParam = useSetFilterParam();
+  const { rootRef, onReset } = useResetWithFocus('documents');
+  const create = useContext(BooksCreate);
   const docsQ = useDocumentsArchive();
+  // Back from a row lands on that row again, once the rows are here (#283).
+  useReturnPosition(rootRef, docsQ.isSuccess);
 
-  if (docsQ.isPending) return <SkeletonRows count={5} />;
+  // Applied restrictions from PARSED state (an unknown ?dstatus= is All).
+  // Documents have no amount: an amount ?sort= arrives here as a
+  // not-applied note from parseBooksOrder, never as an order.
+  const applied = [
+    ...(filter === 'all'
+      ? []
+      : DOC_FILTERS.filter((f) => f.key === filter).map((f) => f.label)),
+    ...order.labels,
+  ];
+  const activeFilters = (result?: {
+    shown: number;
+    total: number;
+    noun: string;
+  }) => (
+    <ActiveFilters
+      filters={applied}
+      q={q}
+      searchScope={BOOKS_SEARCH.documents.scope}
+      result={result}
+      onReset={onReset}
+      resetName={BOOKS_RESET_NAME}
+    />
+  );
+
+  if (docsQ.isPending) {
+    return (
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <SkeletonRows count={5} />
+      </div>
+    );
+  }
   if (docsQ.isError) {
     return (
-      <LoadError
-        message={
-          docsQ.error instanceof Error
-            ? docsQ.error.message
-            : 'Failed to load documents'
-        }
-        onRetry={() => void docsQ.refetch()}
-      />
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <LoadError
+          message={
+            docsQ.error instanceof Error
+              ? docsQ.error.message
+              : 'Failed to load documents'
+          }
+          onRetry={() => void docsQ.refetch()}
+        />
+      </div>
     );
   }
 
   const needle = q.trim().toLowerCase();
+  // The date range is on the day the document was added, in the viewer's
+  // local calendar (#279); chip counts honour it like the search.
   const searched = (docsQ.data ?? []).filter(
     (d) =>
-      needle === '' ||
-      d.filename.toLowerCase().includes(needle) ||
-      (d.supplier_name ?? '').toLowerCase().includes(needle),
+      inRange(localDay(d.created_at), order) &&
+      (needle === '' ||
+        d.filename.toLowerCase().includes(needle) ||
+        (d.supplier_name ?? '').toLowerCase().includes(needle)),
   );
+  const dir = order.order === 'oldest' ? -1 : 1;
   const rows = searched
     .filter((d) => matchesDocFilter(d, filter))
-    .sort((a, b) => b.created_at - a.created_at);
+    .sort((a, b) => dir * (b.created_at - a.created_at || b.id - a.id));
+
+  const total = (docsQ.data ?? []).length;
 
   return (
-    <div>
-      <div className="flex gap-1.5 overflow-x-auto px-4 pb-2.5">
+    <div ref={rootRef} tabIndex={-1} className="outline-none">
+      <FilterStrip>
         {DOC_FILTERS.map((f) => {
           const count = searched.filter((d) =>
             matchesDocFilter(d, f.key),
           ).length;
           return (
-            <button
+            <FilterChip
               key={f.key}
-              type="button"
-              onClick={() => {
-                const next = new URLSearchParams(params);
-                if (f.key === 'all') next.delete('dstatus');
-                else next.set('dstatus', f.key);
-                setParams(next, { replace: true });
-              }}
-              className={`flex-none whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold ${
-                f.key === filter
-                  ? 'bg-accent text-white'
-                  : 'bg-surface text-ink-2'
-              }`}
+              active={f.key === filter}
+              onClick={() =>
+                setParam('dstatus', f.key === 'all' ? null : f.key)
+              }
             >
               {f.key === 'all' ? f.label : `${f.label} ${count}`}
-            </button>
+            </FilterChip>
           );
         })}
-      </div>
+      </FilterStrip>
+      {activeFilters({ shown: rows.length, total, noun: 'documents' })}
       {rows.length === 0 && (
-        <EmptyState
+        <BooksEmpty
           icon="🗂"
-          title="No documents match"
-          hint="Upload one with + or adjust the filter"
+          noun="documents"
+          total={total}
+          q={q}
+          scope={BOOKS_SEARCH.documents.scope}
+          // The search reads the archive row itself (file name, supplier
+          // name): no auxiliary lookup takes part.
+          filters={[
+            ...(filter === 'all'
+              ? []
+              : DOC_FILTERS.filter((f) => f.key === filter).map(
+                  (f) => f.label,
+                )),
+            ...effectiveDateFilter(order, order.labels[0]),
+          ]}
+          onReset={onReset}
+          restricted={applied.length > 0 || q.trim() !== ''}
+          initialHint="Upload a receipt or invoice to start."
+          initialAction={
+            create && (
+              <Button className="min-h-11" onClick={() => create('upload')}>
+                Upload document
+              </Button>
+            )
+          }
         />
       )}
       {rows.length > 0 && (
         <ListGroup>
-          {rows.map((d) => {
-            const subtitleParts = [
-              // Filename moves to the subtitle once the supplier is known.
-              ...(d.supplier_name != null ? [d.filename] : []),
-              channelLabel(d.channel),
-              relativeTime(d.created_at),
-              ...(d.claimant_name != null
-                ? [`Claimant: ${d.claimant_name}`]
-                : []),
-            ];
-            return (
-              <ListRow
-                key={d.id}
-                to={`/books/documents/${d.id}`}
-                leading={<DocThumb id={d.id} />}
-                title={d.supplier_name ?? d.filename}
-                subtitle={subtitleParts.join(' · ')}
-                chip={docStatusChip(d)}
-              />
-            );
-          })}
+          <BooksColumnsHeader columns={DOCUMENT_COLUMNS} />
+          {rows.map((d) => (
+            <BooksRow
+              key={d.id}
+              to={`/books/documents/${d.id}`}
+              columns={DOCUMENT_COLUMNS}
+              leading={<DocThumb id={d.id} />}
+              title={d.supplier_name ?? d.filename}
+              titleXl={d.supplier_name == null ? 'Unrecognized' : undefined}
+              cells={[
+                // An unrecognized card is titled by its filename; the File
+                // column always shows it.
+                {
+                  key: 'file',
+                  value: d.filename,
+                  xlOnly: d.supplier_name == null,
+                },
+                { key: 'channel', value: channelLabel(d.channel) },
+                { key: 'added', value: relativeTime(d.created_at) },
+                {
+                  key: 'claimant',
+                  value: d.claimant_name,
+                  prefix: 'Claimant:',
+                },
+              ]}
+              status={docStatusChip(d)}
+            />
+          ))}
         </ListGroup>
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   deleteExpense,
@@ -9,7 +9,9 @@ import {
 } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
 import { humanizePolicyReason } from '../inbox/reason';
-import { signedEuros } from '../lib/money';
+import { currencyMark, signedMoney } from '../lib/money';
+import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
+import { useReceipt } from '../lib/resultLog';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -19,17 +21,21 @@ import {
   useRejectedReason,
 } from '../queries/books';
 import { useEntities, useExpenses } from '../queries/shared';
+import { PeriodOriginNotice, usePeriodOrigin } from '../reports/PeriodOrigin';
 import { ScreenHeader } from '../shell/Headers';
 import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SkeletonRows } from '../ui/Feedback';
-import { LinkButton } from '../ui/LinkButton';
 import { KeyValue, ListGroup, ListRow } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
+import { ExpenseEditSheet } from './EditDraftSheet';
+import { AttachDocumentSheet } from './AttachDocumentSheet';
+import { PendingApproval } from './PendingApproval';
+import { useScreenEntry } from '../lib/screenEntry';
 
 /** Honest history (Reality #2): built ONLY from exposed facts — created_at,
  *  the rejection log, and the reversed status. The correction's own date and
@@ -48,7 +54,7 @@ function History({
       {detail.status === 'reversed' && (
         <ListRow
           title="Corrected"
-          subtitle="A reversal + corrected entry replaced the original (ADR-0009); the figures above are the corrected ones"
+          subtitle="The original entry was reversed and replaced; the figures above are the corrected ones"
         />
       )}
       {rejectedReason != null && (
@@ -81,6 +87,7 @@ export function ExpenseScreen() {
   const entitiesQ = useEntities();
   const docsQ = useDocumentsArchive();
   const detail = detailQ.data;
+  useScreenEntry(detail !== undefined || detailQ.isError);
   const rejectionQ = useRejectedReason(
     'expense',
     id,
@@ -89,12 +96,25 @@ export function ExpenseScreen() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const correctSheet = useSheet();
-  const [busy, setBusy] = useState(false);
+  // Return target once a correction removed "Correct…" (issue #268).
+  const correctedRef = useRef<HTMLParagraphElement>(null);
+  const editSheet = useSheet();
+  const attachSheet = useSheet();
+  const op = usePendingOperation('Expense');
+  const receipt = useReceipt();
+  const busy = op.pending;
+  // Opened from a period drill-down list (issue #261): say so, offer the
+  // way back, and return there after a delete instead of global Books.
+  const periodOrigin = usePeriodOrigin();
+  const periodNotice = periodOrigin !== null && (
+    <PeriodOriginNotice origin={periodOrigin} />
+  );
 
-  if (detailQ.isError) {
+  if (detailQ.isError && detailQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Expense" backTo="/books" />
+        <ScreenHeader title="Expense" heading="Expense" backTo="/books" />
+        {periodNotice}
         <LoadError
           message={
             detailQ.error instanceof Error
@@ -109,7 +129,7 @@ export function ExpenseScreen() {
   if (detail === undefined) {
     return (
       <div className="mx-auto max-w-3xl">
-        <ScreenHeader title="Expense" backTo="/books" />
+        <ScreenHeader title="Expense" heading="Expense" backTo="/books" />
         <SkeletonRows count={4} />
       </div>
     );
@@ -122,44 +142,92 @@ export function ExpenseScreen() {
   const rate = vatRatePct(detail.gross_amount, detail.vat_amount);
   const rejection = rejectionQ.data ?? null;
 
-  const onSubmitForPosting = async () => {
-    setBusy(true);
-    try {
-      const res = await postExpense(detail.id);
-      await invalidateBooks(qc);
-      if (res.policy.action === 'hold-for-approval') {
-        toastOk(
-          `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
+  const onSubmitForPosting = () => {
+    const { id, gross_amount, currency } = detail;
+    // Only the post's own failure is "not confirmed" — a failed refresh
+    // after an accepted post keeps its recorded outcome.
+    let accepted = false;
+    op.run(
+      async (ctx) => {
+        const res = await postExpense(id);
+        accepted = true;
+        ctx.check();
+        // Recorded before the cache refresh: the post is accepted (#259).
+        const held = res.policy.action === 'hold-for-approval';
+        receipt(
+          `post:${id}`,
+          {
+            action: 'Submit for posting',
+            title: `Expense #${id}`,
+            outcome: held
+              ? `Held for approval — ${humanizePolicyReason(res.policy.reason)}. Not posted until approved.`
+              : `Posted · ${signedMoney(-gross_amount, currency)}`,
+            tone: held ? 'pending' : 'ok',
+            links: [{ label: `Expense #${id}`, to: `/books/expenses/${id}` }],
+          },
+          ctx.live,
         );
-      } else {
-        toastOk(`Posted · ${signedEuros(-detail.gross_amount)}`);
-      }
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+        await invalidateBooks(qc);
+        return res;
+      },
+      {
+        onSuccess: (res) => {
+          if (res.policy.action === 'hold-for-approval') {
+            toastOk(
+              `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
+            );
+          } else {
+            toastOk(`Posted · ${signedMoney(-gross_amount, currency)}`);
+          }
+        },
+        onError: (e) => {
+          toastErr(errorMessage(e));
+          if (accepted) return;
+          receipt(`post:${id}`, {
+            action: 'Submit for posting',
+            title: `Expense #${id}`,
+            outcome: `Submitting for posting was not confirmed (${errorMessage(e)}). Open it for its current state before trying again.`,
+            tone: 'error',
+            links: [{ label: `Expense #${id}`, to: `/books/expenses/${id}` }],
+          });
+        },
+      },
+    );
   };
 
-  const onDelete = async () => {
-    setBusy(true);
-    try {
-      await deleteExpense(detail.id);
-      await invalidateBooks(qc);
-      toastOk('Draft expense deleted');
-      navigate('/books', { replace: true });
-    } catch (e) {
-      // 409 carries the server's own explanation (non-draft).
-      toastErr(e instanceof Error ? e.message : String(e));
-      setConfirmDelete(false);
-    } finally {
-      setBusy(false);
-    }
+  const onDelete = () => {
+    const { id } = detail;
+    op.run(
+      async (ctx) => {
+        await deleteExpense(id);
+        ctx.check();
+        await invalidateBooks(qc);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Draft expense deleted');
+          setConfirmDelete(false);
+          if (periodOrigin !== null) periodOrigin.returnTo();
+          else navigate('/books', { replace: true });
+        },
+        onError: (e) => {
+          // 409 carries the server's own explanation (non-draft).
+          toastErr(e instanceof Error ? e.message : String(e));
+          setConfirmDelete(false);
+        },
+      },
+    );
   };
 
   return (
     <div className="mx-auto max-w-3xl pb-6">
-      <ScreenHeader title="Expense" backTo="/books" />
+      <ScreenHeader
+        title="Expense"
+        heading={`Expense #${detail.id}${supplier != null ? `, ${supplier}` : ''}`}
+        backTo="/books"
+      />
+      {periodNotice}
+      <RefetchError query={detailQ} />
 
       <div className="px-5 pb-4 pt-1 text-center">
         <AmountText
@@ -190,7 +258,7 @@ export function ExpenseScreen() {
         <KeyValue k="Category" v={detail.category} />
         <KeyValue
           k="VAT"
-          v={`${fmtCents(detail.vat_amount)} €${rate != null ? ` (${rate}%)` : ''}`}
+          v={`${fmtCents(detail.vat_amount)} ${currencyMark(detail.currency)}${rate != null ? ` (${rate}%)` : ''}`}
         />
         <KeyValue
           k="Tax point"
@@ -229,8 +297,10 @@ export function ExpenseScreen() {
       {detail.document_id == null && (
         <ListGroup label="Document">
           <ListRow
-            title="No source document"
-            subtitle="Entered without a receipt/invoice — uploads land in Documents (auto-attach is a server follow-up)"
+            leading={<span aria-hidden>📎</span>}
+            title="Attach receipt…"
+            subtitle="No source document yet — upload it or pick one from Documents"
+            onClick={() => attachSheet.open()}
           />
         </ListGroup>
       )}
@@ -250,12 +320,16 @@ export function ExpenseScreen() {
       <div className="space-y-2 px-5 pt-2">
         {detail.status === 'draft' && (
           <>
-            <Button
-              className="w-full"
-              busy={busy}
-              onClick={() => void onSubmitForPosting()}
-            >
+            <Button className="w-full" busy={busy} onClick={onSubmitForPosting}>
               Submit for posting
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={busy}
+              onClick={() => editSheet.open()}
+            >
+              Edit draft…
             </Button>
             <Button
               variant="danger"
@@ -268,14 +342,12 @@ export function ExpenseScreen() {
           </>
         )}
         {detail.status === 'pending' && (
-          <>
-            <p className="text-center text-[12.5px] text-ink-2">
-              Waiting for approval — decide it in the Inbox.
-            </p>
-            <LinkButton to="/inbox?seg=approvals" className="w-full">
-              Open Inbox
-            </LinkButton>
-          </>
+          <PendingApproval
+            objectType="expense"
+            objectId={detail.id}
+            noun="expense"
+            onReload={() => void detailQ.refetch()}
+          />
         )}
         {detail.status === 'posted' && (
           <>
@@ -287,14 +359,18 @@ export function ExpenseScreen() {
               Correct…
             </Button>
             <p className="text-center text-[12.5px] text-ink-2">
-              Posted entries change only through a correction (ADR-0009).
+              A posted expense can’t be edited — change it with a correction.
             </p>
           </>
         )}
         {detail.status === 'reversed' && (
-          <p className="text-center text-[12.5px] text-ink-2">
-            Already corrected — corrections are one-shot (ADR-0009). Issue a
-            credit note or a new expense for further changes.
+          <p
+            ref={correctedRef}
+            tabIndex={-1}
+            className="text-center text-[12.5px] text-ink-2"
+          >
+            Already corrected — a posted expense can be corrected only once. For
+            further changes, ask your bookkeeper.
           </p>
         )}
       </div>
@@ -307,7 +383,7 @@ export function ExpenseScreen() {
         confirmLabel="Delete"
         destructive
         busy={busy}
-        onConfirm={() => void onDelete()}
+        onConfirm={onDelete}
       />
 
       {/* Mount is reachable independent of `detail.status`: a successful
@@ -319,6 +395,31 @@ export function ExpenseScreen() {
        *  stays gated on status; only the mount moved to the sheet's own
        *  open/close lifecycle (epoch keeps state fresh per open, P07 T7
        *  discipline). */}
+      {/* Same keep-mounted lifecycle as CorrectSheet: a save refetches the
+       *  object while the sheet closes; the epoch key gives every open a
+       *  fresh form prefilled from the current facts. */}
+      {editSheet.epoch > 0 && (
+        <ExpenseEditSheet
+          key={`edit-${detail.id}-${editSheet.epoch}`}
+          open={editSheet.isOpen}
+          onOpenChange={(o) => !o && editSheet.close()}
+          detail={detail}
+          onSaved={() => void detailQ.refetch()}
+        />
+      )}
+
+      {/* Same keep-mounted lifecycle: a successful attach refetches the
+       *  expense (its Document group flips to the linked file) while the
+       *  sheet closes. */}
+      {attachSheet.epoch > 0 && (
+        <AttachDocumentSheet
+          key={`attach-${detail.id}-${attachSheet.epoch}`}
+          open={attachSheet.isOpen}
+          onOpenChange={(o) => !o && attachSheet.close()}
+          detail={detail}
+        />
+      )}
+
       {correctSheet.epoch > 0 && (
         <CorrectSheet
           key={`${detail.id}-${correctSheet.epoch}`}
@@ -329,6 +430,7 @@ export function ExpenseScreen() {
           grossCents={detail.gross_amount}
           vatCents={detail.vat_amount}
           category={detail.category}
+          returnFocusFallback={correctedRef}
           onDone={() => void detailQ.refetch()}
         />
       )}

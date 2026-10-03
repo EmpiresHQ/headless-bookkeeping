@@ -1,0 +1,5879 @@
+[
+ {
+  "name": "A-books-header-tabbar P-none",
+  "steps": [
+   {
+    "label": "books top",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       789,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "h1": {
+      "rect": [
+       20,
+       114.9,
+       20,
+       63.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "header+": {
+      "rect": [
+       332,
+       376,
+       21.5,
+       65.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "B-bank-actionbar P-none",
+  "steps": [
+   {
+    "label": "tx 501 at max scroll",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 85,
+    "maxScroll": 85,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       789,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       792,
+       836
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar CTA": {
+      "rect": [
+       16,
+       374,
+       549.3,
+       595.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar": {
+      "rect": [
+       0,
+       390,
+       537.3,
+       609.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "C-new-expense+confirm P-none",
+  "steps": [
+   {
+    "label": "opened",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "CTA revealed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "discard ConfirmDialog",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "alert": {
+      "rect": [
+       24,
+       366,
+       335.8,
+       508.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "alert Keep editing": {
+      "rect": [
+       44,
+       190,
+       445.8,
+       488.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "alert Discard": {
+      "rect": [
+       200,
+       346,
+       445.8,
+       488.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": [
+     "sheet Close HIT-FAIL",
+     "sheet CTA HIT-FAIL"
+    ]
+   },
+   {
+    "label": "kept editing",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "note": "Gross kept = 45.67",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "D-verify-source-sheet P-none",
+  "steps": [
+   {
+    "label": "opened (Form)",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       67.5,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       75.5,
+       119.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       766.5,
+       809
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "form CTA revealed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       67.5,
+       844
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       75.5,
+       119.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       766.5,
+       809
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": [
+   "network /api/documents/31001/file"
+  ]
+ },
+ {
+  "name": "E-preview-lightbox P-none",
+  "steps": [
+   {
+    "label": "lightbox open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       338,
+       378,
+       10,
+       50
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       175.4,
+       330,
+       11.5,
+       48.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       12,
+       378,
+       193.1,
+       710.9
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "A-books-header-tabbar P-forced",
+  "steps": [
+   {
+    "label": "books top",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "h1": {
+      "rect": [
+       20,
+       114.9,
+       20,
+       63.5
+      ],
+      "band": {
+       "t": 27
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "header+": {
+      "rect": [
+       332,
+       376,
+       21.5,
+       65.5
+      ],
+      "band": {
+       "t": 25.5
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": [
+     "h1 band{\"t\":27}",
+     "header+ band{\"t\":25.5}"
+    ]
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "B-bank-actionbar P-forced",
+  "steps": [
+   {
+    "label": "tx 501 at max scroll",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 111,
+    "maxScroll": 111,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar CTA": {
+      "rect": [
+       16,
+       374,
+       523.3,
+       569.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar": {
+      "rect": [
+       0,
+       390,
+       511.3,
+       583.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "C-new-expense+confirm P-forced",
+  "steps": [
+   {
+    "label": "opened",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "CTA revealed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "discard ConfirmDialog",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "alert": {
+      "rect": [
+       24,
+       366,
+       335.8,
+       508.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "alert Keep editing": {
+      "rect": [
+       44,
+       190,
+       445.8,
+       488.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "alert Discard": {
+      "rect": [
+       200,
+       346,
+       445.8,
+       488.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": [
+     "sheet Close HIT-FAIL",
+     "sheet CTA HIT-FAIL"
+    ]
+   },
+   {
+    "label": "kept editing",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "Gross kept = 45.67",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "D-verify-source-sheet P-forced",
+  "steps": [
+   {
+    "label": "opened (Form)",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       67.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       75.5,
+       119.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       766.5,
+       809
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "form CTA revealed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       67.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       75.5,
+       119.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       766.5,
+       809
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": [
+   "network /api/documents/31001/file"
+  ]
+ },
+ {
+  "name": "E-preview-lightbox P-forced",
+  "steps": [
+   {
+    "label": "lightbox open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       338,
+       378,
+       10,
+       50
+      ],
+      "band": {
+       "t": 37
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       175.4,
+       330,
+       11.5,
+       48.5
+      ],
+      "band": {
+       "t": 35.5
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       12,
+       378,
+       193.1,
+       710.9
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": [
+     "lb Close preview band{\"t\":37}",
+     "lb Open original band{\"t\":35.5}"
+    ]
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "A-books-header-tabbar L-none",
+  "steps": [
+   {
+    "label": "books top",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 263,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       335,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "h1": {
+      "rect": [
+       58,
+       152.9,
+       20,
+       63.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "header+": {
+      "rect": [
+       748,
+       792,
+       21.5,
+       65.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "B-bank-actionbar L-none",
+  "steps": [
+   {
+    "label": "tx 501 at max scroll",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 486,
+    "maxScroll": 486,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       335,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       338,
+       382
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar CTA": {
+      "rect": [
+       54,
+       790,
+       110.8,
+       156.8
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar": {
+      "rect": [
+       38,
+       806,
+       98.8,
+       170.8
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "C-new-expense+confirm L-none",
+  "steps": [
+   {
+    "label": "opened",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 263,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {},
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": [
+     "sheet CTA OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "CTA revealed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 263,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       323.2,
+       365.7
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "discard ConfirmDialog",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 263,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       323.2,
+       365.7
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "alert": {
+      "rect": [
+       230,
+       614,
+       108.8,
+       281.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "alert Keep editing": {
+      "rect": [
+       250,
+       417,
+       218.8,
+       261.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "alert Discard": {
+      "rect": [
+       427,
+       594,
+       218.8,
+       261.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": [
+     "sheet Close HIT-FAIL",
+     "sheet CTA HIT-FAIL"
+    ]
+   },
+   {
+    "label": "kept editing",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 263,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       323.2,
+       365.7
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "note": "Gross kept = 45.67",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "D-verify-source-sheet L-none",
+  "steps": [
+   {
+    "label": "opened (Form)",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 212,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       844,
+       31.2,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       792,
+       836,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       824,
+       656.7,
+       699.2
+      ],
+      "band": {},
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": [
+     "sheet CTA OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "form CTA revealed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 0,
+    "maxScroll": 212,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       844,
+       31.2,
+       390
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       792,
+       836,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       824,
+       335.7,
+       378.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": [
+   "network /api/documents/31001/file"
+  ]
+ },
+ {
+  "name": "E-preview-lightbox L-none",
+  "steps": [
+   {
+    "label": "lightbox open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/0/0/0",
+    "scrollY": 22,
+    "maxScroll": 212,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       792,
+       832,
+       10,
+       50
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       629.4,
+       784,
+       11.5,
+       48.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       313.8,
+       530.1,
+       72,
+       378
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "8px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "A-books-header-tabbar L-forced",
+  "steps": [
+   {
+    "label": "books top",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "h1": {
+      "rect": [
+       58,
+       152.9,
+       20,
+       63.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "header+": {
+      "rect": [
+       748,
+       792,
+       21.5,
+       65.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "B-bank-actionbar L-forced",
+  "steps": [
+   {
+    "label": "tx 501 at max scroll",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 499,
+    "maxScroll": 499,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar CTA": {
+      "rect": [
+       54,
+       790,
+       97.8,
+       143.8
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "actionbar": {
+      "rect": [
+       38,
+       806,
+       85.8,
+       157.8
+      ],
+      "band": {
+       "r": 9,
+       "l": 9
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "C-new-expense+confirm L-forced",
+  "steps": [
+   {
+    "label": "opened",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {
+       "b": 42.5
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet CTA band{\"b\":42.5} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "CTA revealed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       323.2,
+       365.7
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "discard ConfirmDialog",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       323.2,
+       365.7
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": false
+     },
+     "alert": {
+      "rect": [
+       230,
+       614,
+       108.8,
+       281.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "alert Keep editing": {
+      "rect": [
+       250,
+       417,
+       218.8,
+       261.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "alert Discard": {
+      "rect": [
+       427,
+       594,
+       218.8,
+       261.3
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet Close HIT-FAIL",
+     "sheet CTA HIT-FAIL"
+    ]
+   },
+   {
+    "label": "kept editing",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       323.2,
+       365.7
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "Gross kept = 45.67",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "D-verify-source-sheet L-forced",
+  "steps": [
+   {
+    "label": "opened (Form)",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 225,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       844,
+       31.2,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       792,
+       836,
+       39.2,
+       83.2
+      ],
+      "band": {
+       "r": 39
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       824,
+       656.7,
+       699.2
+      ],
+      "band": {
+       "r": 27,
+       "b": 42.5,
+       "l": 27
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet Close band{\"r\":39}",
+     "sheet CTA band{\"r\":27,\"b\":42.5,\"l\":27} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "form CTA revealed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 225,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       844,
+       31.2,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       792,
+       836,
+       39.2,
+       83.2
+      ],
+      "band": {
+       "r": 39
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       824,
+       335.7,
+       378.2
+      ],
+      "band": {
+       "r": 27,
+       "b": 9.2,
+       "l": 27
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet Close band{\"r\":39}",
+     "sheet CTA band{\"r\":27,\"b\":9.2,\"l\":27}"
+    ]
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": [
+   "network /api/documents/31001/file"
+  ]
+ },
+ {
+  "name": "E-preview-lightbox L-forced",
+  "steps": [
+   {
+    "label": "lightbox open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 35,
+    "maxScroll": 225,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       792,
+       832,
+       10,
+       50
+      ],
+      "band": {
+       "r": 35
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       629.4,
+       784,
+       11.5,
+       48.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       313.8,
+       530.1,
+       72,
+       378
+      ],
+      "band": {
+       "b": 9
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "lb Close preview band{\"r\":35}"
+    ]
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "F-rotate-new-expense forced",
+  "steps": [
+   {
+    "label": "P fresh",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "rotation 1 → L",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {
+       "b": 42.5
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "Gross = 45.67",
+    "flagged": [
+     "sheet CTA band{\"b\":42.5} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "rotation 2 → P",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "Gross = 45.67",
+    "flagged": []
+   },
+   {
+    "label": "rotation 3 → L",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 276,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {
+       "b": 42.5
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "Gross = 45.67",
+    "flagged": [
+     "sheet CTA band{\"b\":42.5} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "rotation 4 → P",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "Gross = 45.67",
+    "flagged": []
+   },
+   {
+    "label": "P after rotations, CTA revealed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "G-rotate-lightbox forced",
+  "steps": [
+   {
+    "label": "P",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       338,
+       378,
+       10,
+       50
+      ],
+      "band": {
+       "t": 37
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       175.4,
+       330,
+       11.5,
+       48.5
+      ],
+      "band": {
+       "t": 35.5
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       12,
+       378,
+       193.1,
+       710.9
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": [
+     "lb Close preview band{\"t\":37}",
+     "lb Open original band{\"t\":35.5}"
+    ]
+   },
+   {
+    "label": "rotation 1 → L",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 225,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       792,
+       832,
+       10,
+       50
+      ],
+      "band": {
+       "r": 35
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       629.4,
+       784,
+       11.5,
+       48.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       313.8,
+       530.1,
+       72,
+       378
+      ],
+      "band": {
+       "b": 9
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "lb Close preview band{\"r\":35}"
+    ]
+   },
+   {
+    "label": "rotation 2 → P",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "lb Close preview": {
+      "rect": [
+       338,
+       378,
+       10,
+       50
+      ],
+      "band": {
+       "t": 37
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lb Open original": {
+      "rect": [
+       175.4,
+       330,
+       11.5,
+       48.5
+      ],
+      "band": {
+       "t": 35.5
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "lbImg": {
+      "rect": [
+       12,
+       378,
+       193.1,
+       710.9
+      ],
+      "band": {},
+      "offscreen": false,
+      "container": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": [
+     "lb Close preview band{\"t\":37}",
+     "lb Open original band{\"t\":35.5}"
+    ]
+   },
+   {
+    "label": "after Escape",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "h1": {
+      "rect": [
+       155.9,
+       241.9,
+       10,
+       32.5
+      ],
+      "band": {
+       "t": 22.5
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "header+": null,
+     "tabbar pb": "34px"
+    },
+    "note": "lightbox still open = false",
+    "flagged": [
+     "h1 band{\"t\":22.5}"
+    ]
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "G2-rotate-verify forced",
+  "steps": [
+   {
+    "label": "P",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       67.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       75.5,
+       119.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       766.5,
+       809
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "rotation 1 → L",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 0,
+    "maxScroll": 225,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       844,
+       31.2,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       792,
+       836,
+       39.2,
+       83.2
+      ],
+      "band": {
+       "r": 39
+      },
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       824,
+       656.7,
+       699.2
+      ],
+      "band": {
+       "r": 27,
+       "b": 42.5,
+       "l": 27
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet Close band{\"r\":39}",
+     "sheet CTA band{\"r\":27,\"b\":42.5,\"l\":27} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "rotation 2 → P",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 0,
+    "maxScroll": 0,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       67.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       75.5,
+       119.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       766.5,
+       809
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "12px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": [
+   "network /api/documents/31001/file"
+  ]
+ },
+ {
+  "name": "H-scrolled-sheet P-chromium-UA",
+  "steps": [
+   {
+    "label": "scrolled, closed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "display-mode stub=false, matchMedia=false",
+    "flagged": []
+   },
+   {
+    "label": "chooser open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       549.1,
+       844.6
+      ],
+      "band": {
+       "b": 34.6
+      },
+      "offscreen": true,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       557.1,
+       601.1
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": null,
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet closed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "restore",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "scrollY 900 → 900; tabbar [0,390,763,844] → [0,390,763,844]",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "H-scrolled-sheet P-safari-tab-UA",
+  "steps": [
+   {
+    "label": "scrolled, closed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "display-mode stub=false, matchMedia=false",
+    "flagged": []
+   },
+   {
+    "label": "chooser open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       549.4,
+       844.9
+      ],
+      "band": {
+       "b": 34.9
+      },
+      "offscreen": true,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       557.4,
+       601.4
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": null,
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet closed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "restore",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "scrollY 900 → 900; tabbar [0,390,763,844] → [0,390,763,844]",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "H-scrolled-sheet P-safari-UA+standalone-stub",
+  "steps": [
+   {
+    "label": "scrolled, closed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "display-mode stub=true, matchMedia=true",
+    "flagged": []
+   },
+   {
+    "label": "chooser open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       549.1,
+       844.6
+      ],
+      "band": {
+       "b": 34.6
+      },
+      "offscreen": true,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       557.1,
+       601.1
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": null,
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet open",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       0,
+       390,
+       173.5,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       338,
+       382,
+       181.5,
+       225.5
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       20,
+       370,
+       757.5,
+       800
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet closed",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "restore",
+    "vp": [
+     390,
+     844
+    ],
+    "env": "47/0/34/0",
+    "scrollY": 900,
+    "maxScroll": 2990,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       390,
+       763,
+       844
+      ],
+      "band": {
+       "b": 34
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       16,
+       62,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       94,
+       140,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       172,
+       218,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       250,
+       296,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       328,
+       374,
+       766,
+       810
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "34px"
+    },
+    "note": "scrollY 900 → 900; tabbar [0,390,763,844] → [0,390,763,844]",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "H-scrolled-sheet L-chromium-UA",
+  "steps": [
+   {
+    "label": "scrolled, closed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "display-mode stub=false, matchMedia=false",
+    "flagged": []
+   },
+   {
+    "label": "chooser open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       95.1,
+       390.6
+      ],
+      "band": {
+       "b": 21.6
+      },
+      "offscreen": true,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       103.1,
+       147.1
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": null,
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {
+       "b": 42.5
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet CTA band{\"b\":42.5} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "sheet closed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "restore",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "scrollY 600 → 600; tabbar [0,844,322,390] → [0,844,322,390]",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "H-scrolled-sheet L-safari-tab-UA",
+  "steps": [
+   {
+    "label": "scrolled, closed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "display-mode stub=false, matchMedia=false",
+    "flagged": []
+   },
+   {
+    "label": "chooser open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       95.4,
+       390.9
+      ],
+      "band": {
+       "b": 21.9
+      },
+      "offscreen": true,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       103.4,
+       147.4
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": null,
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {
+       "b": 42.5
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet CTA band{\"b\":42.5} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "sheet closed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "restore",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "scrollY 600 → 600; tabbar [0,844,322,390] → [0,844,322,390]",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ },
+ {
+  "name": "H-scrolled-sheet L-safari-UA+standalone-stub",
+  "steps": [
+   {
+    "label": "scrolled, closed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "display-mode stub=true, matchMedia=true",
+    "flagged": []
+   },
+   {
+    "label": "chooser open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       95.1,
+       390.6
+      ],
+      "band": {
+       "b": 21.6
+      },
+      "offscreen": true,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       103.1,
+       147.1
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": null,
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "sheet open",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "sheet": {
+      "rect": [
+       134,
+       710,
+       31.2,
+       390
+      ],
+      "band": {
+       "b": 21
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "sheet Close": {
+      "rect": [
+       658,
+       702,
+       39.2,
+       83.2
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "sheet CTA": {
+      "rect": [
+       154,
+       690,
+       599.2,
+       641.7
+      ],
+      "band": {
+       "b": 42.5
+      },
+      "offscreen": true,
+      "hit": false
+     },
+     "sheet style": {
+      "pb": "24px",
+      "inline": "|"
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": [
+     "sheet CTA band{\"b\":42.5} OFFSCREEN HIT-FAIL"
+    ]
+   },
+   {
+    "label": "sheet closed",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "flagged": []
+   },
+   {
+    "label": "restore",
+    "vp": [
+     844,
+     390
+    ],
+    "env": "0/47/21/47",
+    "scrollY": 600,
+    "maxScroll": 2941,
+    "body": {
+     "position": "",
+     "top": ""
+    },
+    "targets": {
+     "tabbar": {
+      "rect": [
+       0,
+       844,
+       322,
+       390
+      ],
+      "band": {
+       "r": 47,
+       "b": 21,
+       "l": 47
+      },
+      "offscreen": false,
+      "container": true
+     },
+     "tab:Inbox40": {
+      "rect": [
+       61.4,
+       107.4,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Books": {
+      "rect": [
+       230.2,
+       276.2,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Bank": {
+      "rect": [
+       399,
+       445,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Reports": {
+      "rect": [
+       567.8,
+       613.8,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tab:Settings": {
+      "rect": [
+       736.6,
+       782.6,
+       325,
+       369
+      ],
+      "band": {},
+      "offscreen": false,
+      "hit": true
+     },
+     "tabbar pb": "21px"
+    },
+    "note": "scrollY 600 → 600; tabbar [0,844,322,390] → [0,844,322,390]",
+    "flagged": []
+   }
+  ],
+  "writes": 0,
+  "errors": [],
+  "unhandled": []
+ }
+]

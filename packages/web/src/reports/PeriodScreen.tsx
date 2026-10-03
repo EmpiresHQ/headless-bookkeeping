@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   downloadStatutoryReport,
@@ -18,36 +18,49 @@ import {
   useKmd,
   useSubmissionState,
 } from '../queries/reports';
-import { useReportingPeriods } from '../queries/shared';
+import { useEntities, useReportingPeriods } from '../queries/shared';
 import { ScreenHeader } from '../shell/Headers';
 import { Button } from '../ui/Button';
 import { Chip } from '../ui/Chip';
 import { EmptyState, SkeletonRows } from '../ui/Feedback';
 import { ListGroup, ListRow, KeyValue, GroupLabel } from '../ui/List';
-import { LoadError } from '../ui/LoadError';
+import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr } from '../ui/toast';
 import { LockSheet } from './LockSheet';
 import { InfGapsSection, InPeriodSection, StragglersSection } from './sections';
 
-/** Info banner — live vs frozen is THE §7 marking decision. */
-function StatusBanner({ period }: { period: ReportingPeriod }) {
-  if (period.status === 'open') {
+/** Info banner — live vs frozen is THE §7 marking decision. Focusable
+ *  (tabIndex -1): the same-screen return target once closing the period
+ *  removed the "Close period…" trigger (issue #268) — it then states the
+ *  outcome. */
+const StatusBanner = forwardRef<HTMLDivElement, { period: ReportingPeriod }>(
+  function StatusBanner({ period }, ref) {
+    if (period.status === 'open') {
+      return (
+        <div
+          ref={ref}
+          tabIndex={-1}
+          className="mx-3.5 mb-3.5 rounded-2xl bg-tint px-4 py-3 text-[13px] text-accent"
+        >
+          Live preview — recomputed from the posted books every time you open
+          this screen.
+        </div>
+      );
+    }
     return (
-      <div className="mx-3.5 mb-3.5 rounded-2xl bg-tint px-4 py-3 text-[13px] text-accent">
-        Live preview — recomputed from the posted books every time you open this
-        screen.
+      <div
+        ref={ref}
+        tabIndex={-1}
+        className="mx-3.5 mb-3.5 rounded-2xl bg-surface px-4 py-3 text-[13px] text-ink-2"
+      >
+        Frozen — closed{' '}
+        {period.filed_at !== null ? absoluteDate(period.filed_at) : 'earlier'}.
+        The declaration can no longer change; corrections go forward into the
+        open period.
       </div>
     );
-  }
-  return (
-    <div className="mx-3.5 mb-3.5 rounded-2xl bg-surface px-4 py-3 text-[13px] text-ink-2">
-      Frozen — closed{' '}
-      {period.filed_at !== null ? absoluteDate(period.filed_at) : 'earlier'}.
-      The declaration can no longer change; corrections go forward into the open
-      period.
-    </div>
-  );
-}
+  },
+);
 
 /** The declaration itself: seven human-labeled boxes + the highlighted net
  *  line + the VD 3S row with its manual-filing notice (Reality #5/#6). */
@@ -161,7 +174,11 @@ export function PeriodScreen() {
   const period = (periodsQ.data ?? []).find((p) => p.id === periodId);
   const kmdQ = useKmd(periodId, validPeriodId);
   const submissionQ = useSubmissionState(periodId, period?.status === 'locked');
+  // Entities only ENRICH row labels — their failure is not a failed check
+  // (issue #255); said once here instead of in every section.
+  const entitiesQ = useEntities();
   const lock = useSheet();
+  const statusRef = useRef<HTMLDivElement>(null);
   const oldest = oldestOpen(periodsQ.data ?? []);
 
   if (periodsQ.isPending) {
@@ -172,7 +189,7 @@ export function PeriodScreen() {
       </div>
     );
   }
-  if (periodsQ.isError) {
+  if (periodsQ.isError && periodsQ.data === undefined) {
     return (
       <div className="mx-auto max-w-3xl pb-6">
         <ScreenHeader title="Period" backTo="/reports" />
@@ -211,11 +228,12 @@ export function PeriodScreen() {
           </Chip>
         }
       />
+      <RefetchError query={periodsQ} />
       <p className="mb-2 px-5 text-[12.5px] text-ink-2">
         {absoluteDateFromIso(period.start_date)} –{' '}
         {absoluteDateFromIso(period.end_date)}
       </p>
-      <StatusBanner period={period} />
+      <StatusBanner ref={statusRef} period={period} />
       {period.status === 'locked' && submissionQ.data !== undefined && (
         <ListGroup>
           <ListRow
@@ -226,7 +244,8 @@ export function PeriodScreen() {
         </ListGroup>
       )}
       {kmdQ.isPending && <SkeletonRows count={4} />}
-      {kmdQ.isError && (
+      {kmdQ.isError && kmdQ.data !== undefined && <RefetchError query={kmdQ} />}
+      {kmdQ.isError && kmdQ.data === undefined && (
         <LoadError
           message={
             kmdQ.error instanceof Error
@@ -241,6 +260,17 @@ export function PeriodScreen() {
           <DeclarationGroup decl={kmdQ.data} />
           <ReviewFlags flags={kmdQ.data.review_flags} />
         </>
+      )}
+      {entitiesQ.isError && entitiesQ.data === undefined && (
+        <div className="mx-3.5 mb-3.5 flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-[12.5px] text-ink-2">
+          <span>
+            Supplier and customer names could not be loaded — rows show
+            categories and numbers instead. The checks below are unaffected.
+          </span>
+          <Button variant="secondary" onClick={() => void entitiesQ.refetch()}>
+            Retry names
+          </Button>
+        </div>
       )}
       <InfGapsSection period={period} />
       <StragglersSection period={period} />
@@ -265,11 +295,9 @@ export function PeriodScreen() {
         <LockSheet
           key={`${period.id}-${lock.epoch}`}
           period={period}
-          netVatDueCents={
-            kmdQ.data !== undefined ? kmdQ.data.net_vat_due : null
-          }
           open={lock.isOpen}
           onOpenChange={(o) => !o && lock.close()}
+          returnFocusFallback={statusRef}
         />
       )}
     </div>

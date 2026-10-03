@@ -1,14 +1,32 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setToken } from '../auth';
-import { buildRoutes } from './router';
+import { buildRouter, buildRoutes } from './router';
 
 function renderAt(path: string) {
   const router = createMemoryRouter(buildRoutes(), { initialEntries: [path] });
   render(<RouterProvider router={router} />);
   return router;
 }
+
+const where = (r: ReturnType<typeof renderAt>) => {
+  const { pathname, search, hash } = r.state.location;
+  return pathname + search + hash;
+};
+
+const notFoundHeading = () =>
+  screen.findByRole('heading', {
+    level: 1,
+    name: 'This address does not open a screen',
+  });
 
 /** The new Inbox/Books screens fetch on mount; route JSON per endpoint so any
  *  screen the router lands on renders without network noise. Specific
@@ -48,6 +66,7 @@ function mockApiFetch() {
         role: 'employee',
         country: 'EE',
         goods_vs_services: null,
+        tax_status: null,
         identifiers: [],
       });
     if (url.includes('/api/entities')) return json({ entities: [] });
@@ -74,9 +93,13 @@ function mockApiFetch() {
         country: 'EE',
         base_currency: null,
         vat_registered: true,
+        vat_registration_kind: 'ordinary',
+        input_vat_entitlement: 'full',
+        input_vat_deduction_permille: null,
         org_type: 'company',
         created_at: 0,
         name: 'Acme OÜ',
+        registry_code: null,
         vat_registration_number: 'EE123456789',
         iban: null,
       });
@@ -138,8 +161,9 @@ describe('router', () => {
     localStorage.clear();
     renderAt('/inbox');
     expect(
-      screen.getByRole('heading', { name: /api token/i }),
+      screen.getByRole('heading', { name: 'Sign in' }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText('API token')).toHaveValue('');
   });
 
   it('redirects / to /inbox and renders the new queue screen', async () => {
@@ -148,7 +172,7 @@ describe('router', () => {
     expect(
       await screen.findByRole('heading', { name: 'Inbox' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^All$/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^All$/ })).toBeInTheDocument();
   });
 
   it('redirects legacy /intake?expand=5 all the way to the triage detail route', async () => {
@@ -162,7 +186,7 @@ describe('router', () => {
     renderAt('/inbox/approval/7');
     // No approval with id 7 in the empty mocked list — the "already
     // decided" state proves ApprovalScreen (not a 404/blank route) mounted.
-    expect(await screen.findByText('Already decided')).toBeInTheDocument();
+    expect(await screen.findByText('No pending approval')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /back to inbox/i }),
     ).toHaveAttribute('href', '/inbox');
@@ -336,5 +360,104 @@ describe('router', () => {
       'href',
       '/bank/import',
     );
+  });
+});
+
+/** Issue #291: an unknown address is said in place, never silently sent to
+ *  the Inbox; recovery is the person's deliberate choice. */
+describe('unknown address', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setToken('test-token');
+    mockApiFetch();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps the whole unmatched URL and says the screen was not opened, without echoing the query or hash', async () => {
+    const router = renderAt('/bookz?q=fixture#part');
+    await notFoundHeading();
+    expect(where(router)).toBe('/bookz?q=fixture#part');
+    expect(screen.getByText('/bookz')).toBeInTheDocument();
+    expect(
+      screen.getByText(/requested screen could not be opened/),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/fixture|#part/);
+  });
+
+  it('a nested typo under a known section is not found, not that section', async () => {
+    const router = renderAt('/settings/old-screen');
+    await notFoundHeading();
+    expect(where(router)).toBe('/settings/old-screen');
+    expect(screen.getByText('/settings/old-screen')).toBeInTheDocument();
+  });
+
+  it('a section choice pushes, so Back returns to the unknown address', async () => {
+    const router = renderAt('/bookz?q=fixture#part');
+    await notFoundHeading();
+    const sections = within(
+      screen.getByText('Go to a section').parentElement as HTMLElement,
+    );
+    expect(
+      sections.getAllByRole('link').map((a) => a.getAttribute('href')),
+    ).toEqual(['/inbox', '/books', '/bank', '/reports', '/settings']);
+    fireEvent.click(sections.getByRole('link', { name: 'Books' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Books' }),
+    ).toBeInTheDocument();
+    expect(router.state.historyAction).toBe('PUSH');
+    await act(() => router.navigate(-1));
+    await notFoundHeading();
+    expect(where(router)).toBe('/bookz?q=fixture#part');
+  });
+
+  it('on a deep link, Back replaces the unknown entry with the Inbox', async () => {
+    const router = renderAt('/bookz?q=fixture#part');
+    await notFoundHeading();
+    fireEvent.click(screen.getByRole('link', { name: /Back/ }));
+    expect(
+      await screen.findByRole('heading', { name: 'Inbox' }),
+    ).toBeInTheDocument();
+    expect(where(router)).toBe('/inbox');
+    expect(router.state.historyAction).toBe('REPLACE');
+  });
+
+  it('a very long path is shown elided', async () => {
+    renderAt(`/${'x'.repeat(5000)}`);
+    await notFoundHeading();
+    const shown = screen.getByText(/^\/x+…$/);
+    expect(shown.textContent!.length).toBeLessThan(200);
+  });
+
+  it('a malformed percent-encoded path is not found, shown as typed', async () => {
+    const router = renderAt('/%E0%A4%A');
+    await notFoundHeading();
+    expect(router.state.location.pathname).toBe('/%E0%A4%A');
+    expect(screen.getByText('/%E0%A4%A')).toBeInTheDocument();
+  });
+
+  it('an encoded path is shown decoded', async () => {
+    renderAt('/b%C3%B6oks%20old');
+    await notFoundHeading();
+    expect(screen.getByText('/böoks old')).toBeInTheDocument();
+  });
+
+  it('in the browser router, the URL stays in the address bar and in-app Back goes to the previous screen', async () => {
+    window.history.replaceState(null, '', '/inbox');
+    const router = buildRouter();
+    render(<RouterProvider router={router} />);
+    expect(
+      await screen.findByRole('heading', { name: 'Inbox' }),
+    ).toBeInTheDocument();
+    await act(() => router.navigate('/bookz?q=fixture#part'));
+    await notFoundHeading();
+    expect(
+      window.location.pathname + window.location.search + window.location.hash,
+    ).toBe('/bookz?q=fixture#part');
+    // In-app history exists: Back is history back, not a jump to Inbox.
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+    await waitFor(() => expect(window.location.pathname).toBe('/inbox'));
+    expect(router.state.historyAction).toBe('POP');
+    router.dispose();
+    window.history.replaceState(null, '', '/');
   });
 });

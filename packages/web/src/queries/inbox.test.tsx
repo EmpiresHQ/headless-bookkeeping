@@ -28,6 +28,7 @@ import {
   invalidateInbox,
   nextRouteAfter,
   openPeriod,
+  pendingApprovalFor,
   periodExpensesTotal,
   queuePosition,
   splitTodayEarlier,
@@ -101,6 +102,39 @@ describe('buildQueue', () => {
   });
 });
 
+describe('pendingApprovalFor (#262)', () => {
+  const rows = [
+    A(12, 1, { object_type: 'expense', object_id: 99 }),
+    A(90, 1, { object_type: 'reconciliation_match', object_id: 12 }),
+    A(101, 1, { object_type: 'expense', object_id: 12 }),
+    A(102, 1, { object_type: 'sales_invoice', object_id: 12 }),
+    A(103, 1, {
+      object_type: 'expense',
+      object_id: 12,
+      status: 'superseded',
+      superseded_by: 90,
+    }),
+  ];
+  it('matches the exact typed pair only — never an approval id or another type', () => {
+    const find = (object_type: string, object_id: number) =>
+      pendingApprovalFor({ object_type, object_id }, rows)?.id ?? null;
+    expect(find('expense', 12)).toBe(101);
+    expect(find('sales_invoice', 12)).toBe(102);
+    expect(find('reconciliation_match', 12)).toBe(90);
+    expect(find('expense', 101)).toBeNull();
+    expect(find('allowance', 12)).toBeNull();
+  });
+  it('several pending: the newest, whatever the list order', () => {
+    const more = [
+      A(140, 1, { object_type: 'expense', object_id: 12 }),
+      ...rows,
+    ];
+    expect(
+      pendingApprovalFor({ object_type: 'expense', object_id: 12 }, more)?.id,
+    ).toBe(140);
+  });
+});
+
 describe('sections and progress', () => {
   const now = new Date('2026-07-09T10:00:00');
   const todayTs = Math.floor(new Date('2026-07-09T08:00:00').getTime() / 1000);
@@ -137,6 +171,7 @@ describe('approvalDisplay', () => {
       country: 'EE',
       name: 'Telia Eesti AS',
       goods_vs_services: null,
+      tax_status: null,
     },
     {
       id: 4,
@@ -144,6 +179,7 @@ describe('approvalDisplay', () => {
       country: 'EE',
       name: 'Nordic Consulting',
       goods_vs_services: null,
+      tax_status: null,
     },
   ];
   const expenses: Expense[] = [
@@ -173,6 +209,8 @@ describe('approvalDisplay', () => {
       document_id: null,
       status: 'pending',
       sent_at: null,
+      supply_type: null,
+      service_place_rule: 'general' as const,
       reconciled: false,
     },
   ];

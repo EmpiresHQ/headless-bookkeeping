@@ -19,6 +19,16 @@ export const DraftVoucherSchema = z.object({
   tax_point_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'tax_point_date must be YYYY-MM-DD'),
+  /**
+   * Why this voucher exists, persisted verbatim on the immutable voucher. The
+   * column and `DraftVoucher.reason` already existed for system-generated
+   * vouchers; exposing it here lets an operator state an intent the report
+   * cannot otherwise infer from the lines — notably the documented
+   * `Closing transfer of retained earnings for <year>` marker that tells a
+   * year-end P&L sweep apart from an ordinary adjustment of the same shape
+   * (issue #206, AnnualAccountsService).
+   */
+  reason: z.string().min(1).optional(),
   lines: z
     .array(DraftVoucherLineSchema)
     .min(2, 'at least 2 lines required for double-entry'),

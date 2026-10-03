@@ -1,3 +1,5 @@
+import { FX_RATE_SOURCE } from '../src/fx/fx-rate.types';
+import { ECB_FIXTURE_RATES, FixtureFxRateSource } from './fx-fixtures';
 /**
  * E2E: GET /api/documents/:id/preview — wire-level header assertions (Gap 1).
  *
@@ -67,6 +69,11 @@ describe('GET /api/documents/:id/preview — HTTP headers (e2e)', () => {
         // expose it or app.init() throws.
         setReprocessKicker: jest.fn(),
       })
+      // Issue #203: the FX rate source is the ONE boundary at which
+      // authoritative rates enter the system. An e2e test binds it to a
+      // deterministic fixture, so booting the app never reaches the ECB.
+      .overrideProvider(FX_RATE_SOURCE)
+      .useValue(new FixtureFxRateSource(ECB_FIXTURE_RATES))
       .compile();
 
     app = moduleRef.createNestApplication();

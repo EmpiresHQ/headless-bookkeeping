@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -12,23 +18,27 @@ vi.mock('../api', async (importOriginal) => ({
   getExpenses: vi.fn(),
   manualClassify: vi.fn(),
   onboardEntity: vi.fn(),
+  fetchDocumentFile: vi.fn(),
 }));
 
 import * as api from '../api';
 import { ClassifyExpenseSheet } from './ClassifyExpenseSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
-function renderSheet(onDone = vi.fn()) {
+function renderSheet(onDone = vi.fn(), onOpenChange = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <ClassifyExpenseSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onDone={onDone}
-      />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <ClassifyExpenseSheet
+          documentId={12}
+          open
+          onOpenChange={onOpenChange}
+          onDone={onDone}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onDone;
@@ -37,6 +47,10 @@ function renderSheet(onDone = vi.fn()) {
 describe('ClassifyExpenseSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.fetchDocumentFile).mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/png' }),
+      filename: 'circle-k.png',
+    });
     vi.mocked(api.getDocumentDetails).mockResolvedValue({
       document_id: 12,
       ocr: { ok: true, markdown: 'CIRCLE K …' },
@@ -70,6 +84,7 @@ describe('ClassifyExpenseSheet', () => {
         country: 'EE',
         name: 'Circle K Eesti AS',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.getExpenses).mockResolvedValue([
@@ -183,13 +198,13 @@ describe('ClassifyExpenseSheet', () => {
     const onDone = renderSheet();
     expect(await screen.findByText(/no saved ai facts/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/amount \(eur\)/i)).toHaveValue('');
-    expect(screen.getByLabelText('VAT')).toHaveValue('');
+    expect(screen.getByLabelText('VAT (EUR)')).toHaveValue('');
     expect(api.getDocumentReclassify).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/amount \(eur\)/i), {
       target: { value: '25.00' },
     });
-    fireEvent.change(screen.getByLabelText('VAT'), {
+    fireEvent.change(screen.getByLabelText('VAT (EUR)'), {
       target: { value: '4.51' },
     });
     fireEvent.change(screen.getByLabelText(/date/i), {
@@ -227,6 +242,7 @@ describe('ClassifyExpenseSheet', () => {
       country: 'EE',
       name: 'Citybee Eesti OÜ',
       goods_vs_services: null,
+      tax_status: null,
     });
     renderSheet();
     await screen.findByDisplayValue('48.20');
@@ -311,6 +327,7 @@ describe('ClassifyExpenseSheet', () => {
       country: 'EE',
       name: 'Citybee Eesti OÜ',
       goods_vs_services: null,
+      tax_status: null,
     });
     renderSheet();
     await screen.findByDisplayValue('48.20');
@@ -439,7 +456,19 @@ describe('ClassifyExpenseSheet', () => {
     fireEvent.change(screen.getByLabelText('Country'), {
       target: { value: 'EE' },
     });
-    expect(screen.getByRole('button', { name: 'Add supplier' })).toBeDisabled();
+    // #265: the button explains instead of going dead — a click names the
+    // missing key at its field, focuses it, and sends nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Add supplier' }));
+    const regKey = screen.getByLabelText('Reg. key');
+    expect(regKey).toHaveAttribute('aria-invalid', 'true');
+    expect(regKey).toHaveAccessibleDescription(
+      'Enter the registration key — a supplier needs one',
+    );
+    await waitFor(() => expect(regKey).toHaveFocus());
+    expect(screen.getByLabelText('Name')).not.toHaveAttribute('aria-invalid');
+    expect(api.onboardEntity).not.toHaveBeenCalled();
+    fireEvent.change(regKey, { target: { value: '12345678' } });
+    expect(regKey).not.toHaveAttribute('aria-invalid');
   });
 
   it('auto-computes VAT at 22% while the VAT field is untouched, then stops', async () => {
@@ -449,7 +478,7 @@ describe('ClassifyExpenseSheet', () => {
     // 10000 * 22 / 122 = 1803
     expect(screen.getByDisplayValue('18.03')).toBeInTheDocument();
     // Exact-string match: a /vat/i regex would also hit "VAT marking".
-    const vat = screen.getByLabelText('VAT');
+    const vat = screen.getByLabelText('VAT (EUR)');
     fireEvent.change(vat, { target: { value: '0.00' } });
     fireEvent.change(gross, { target: { value: '50.00' } });
     expect(screen.getByDisplayValue('0.00')).toBeInTheDocument(); // manual VAT kept
@@ -471,7 +500,16 @@ describe('ClassifyExpenseSheet', () => {
     const submit = await screen.findByRole('button', {
       name: 'Create expense · −48.20 €',
     });
-    expect(submit).toBeDisabled(); // no supplier yet
+    // No supplier yet (#265): the click states it at the supplier field
+    // and focuses the search — nothing is sent.
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    const search = screen.getByPlaceholderText(/search suppliers/i);
+    expect(
+      screen.getByRole('group', { name: 'Supplier' }),
+    ).toHaveAccessibleDescription(/Choose a supplier, or add a new one/);
+    await waitFor(() => expect(search).toHaveFocus());
+    expect(api.manualClassify).not.toHaveBeenCalled();
     fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
       target: { value: 'circle' },
     });
@@ -497,6 +535,121 @@ describe('ClassifyExpenseSheet', () => {
     });
   });
 
+  it('shows the selected currency on amount, VAT and button without converting', async () => {
+    const onDone = renderSheet();
+    await screen.findByDisplayValue('48.20');
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'USD' },
+    });
+    fireEvent.change(screen.getByLabelText('Amount (USD)'), {
+      target: { value: '1200' },
+    });
+    // 120000 * 22 / 122 = 21639 — unchanged by the currency switch below.
+    expect(screen.getByLabelText('VAT (USD)')).toHaveValue('216.39');
+    expect(
+      screen.getByRole('button', { name: 'Create expense · −1200.00 USD' }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'SEK' },
+    });
+    expect(screen.getByLabelText('Amount (SEK)')).toHaveValue('1200');
+    expect(screen.getByLabelText('VAT (SEK)')).toHaveValue('216.39');
+    fireEvent.change(screen.getByLabelText('Currency'), {
+      target: { value: 'USD' },
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/search suppliers/i), {
+      target: { value: 'circle' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Circle K Eesti AS/ }));
+    const submit = screen.getByRole('button', {
+      name: 'Create expense · −1200.00 USD',
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(api.manualClassify).toHaveBeenCalledWith(
+        12,
+        expect.objectContaining({
+          gross_amount: 120000,
+          vat_amount: 21639,
+          currency: 'USD',
+        }),
+      ),
+    );
+    expect(onDone).toHaveBeenCalled();
+  });
+
+  it('keeps a deliberate currency pick (even EUR) when the persisted facts land later', async () => {
+    let resolveDetails!: (
+      v: Awaited<ReturnType<typeof api.getDocumentDetails>>,
+    ) => void;
+    vi.mocked(api.getDocumentDetails).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetails = resolve;
+      }),
+    );
+    renderSheet();
+    const select = await screen.findByLabelText('Currency');
+    fireEvent.change(select, { target: { value: 'USD' } });
+    fireEvent.change(select, { target: { value: 'EUR' } });
+
+    resolveDetails({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'X …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'USD',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+      },
+    });
+    await screen.findByDisplayValue('48.20');
+    expect(select).toHaveValue('EUR');
+    expect(
+      screen.getByRole('button', { name: 'Create expense · −48.20 €' }),
+    ).toBeInTheDocument();
+  });
+
+  it('prefills a persisted currency, including one outside the fixed list', async () => {
+    vi.mocked(api.getDocumentDetails).mockResolvedValue({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'X …' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'CHF',
+          tax_point_date: '2026-07-01',
+          category: 'fuel',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+        },
+      },
+    });
+    renderSheet();
+    expect(await screen.findByLabelText('Amount (CHF)')).toHaveValue('48.20');
+    expect(screen.getByLabelText('Currency')).toHaveValue('CHF');
+    expect(screen.getByLabelText('VAT (CHF)')).toHaveValue('8.67');
+    expect(
+      screen.getByRole('button', { name: 'Create expense · −48.20 CHF' }),
+    ).toBeInTheDocument();
+  });
+
   it('expands the full category list behind "All…"', async () => {
     renderSheet();
     await screen.findByDisplayValue('48.20');
@@ -504,5 +657,51 @@ describe('ClassifyExpenseSheet', () => {
     expect(
       screen.getByRole('button', { name: 'Software & IT' }),
     ).toBeInTheDocument();
+  });
+
+  it('unsaved guard (#250): the prefill is not an edit; a VAT typed then reverted to the prefill closes without asking', async () => {
+    const onOpenChange = vi.fn();
+    renderSheet(vi.fn(), onOpenChange);
+    const vat = screen.getByLabelText('VAT (EUR)');
+    await waitFor(() => expect(vat).toHaveValue('8.67'));
+
+    fireEvent.change(vat, { target: { value: '10.00' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Keep editing' }),
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(vat).toHaveValue('10.00');
+
+    fireEvent.change(vat, { target: { value: '8.67' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('source document (#257): viewable from the form; switching keeps typed input and the dirty guard', async () => {
+    const onOpenChange = vi.fn();
+    renderSheet(vi.fn(), onOpenChange);
+    const vat = screen.getByLabelText('VAT (EUR)');
+    await waitFor(() => expect(vat).toHaveValue('8.67'));
+    fireEvent.change(vat, { target: { value: '10.00' } });
+
+    const source = screen.getByRole('region', { name: 'Source document' });
+    expect(await within(source).findByAltText('Source document')).toBeVisible();
+    expect(api.fetchDocumentFile).toHaveBeenCalledWith(12);
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Source document' }));
+      fireEvent.click(within(source).getByRole('button', { name: 'Zoom in' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Form' }));
+    }
+    expect(screen.getByLabelText('VAT (EUR)')).toBe(vat);
+    expect(vat).toHaveValue('10.00');
+    // Viewing the source released nothing: a dismiss still asks.
+    expect(onOpenChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(
+      await screen.findByRole('button', { name: 'Keep editing' }),
+    ).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });

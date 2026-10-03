@@ -10,12 +10,17 @@ import { CurrencyModule } from '../currency/currency.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { ReconciliationService } from './reconciliation.service';
 import { OutstandingVoucherService } from './outstanding-voucher.service';
-import { ReconciliationController } from './reconciliation.controller';
+import { PrepaymentFactsModule } from './prepayment-facts.module';
+import {
+  ReconciliationController,
+  ReconciliationMatchController,
+} from './reconciliation.controller';
 import { PrepaymentService } from './prepayment.service';
 import { PrepaymentController } from './prepayment.controller';
 import { PersonalDispositionService } from './personal-disposition.service';
 import { PersonalDispositionController } from './personal-disposition.controller';
 import { FXRealizedService } from './fx-realized.service';
+import { SettlementVoucherService } from './settlement-voucher.service';
 import { FXRealizedController } from './fx-realized.controller';
 
 @Module({
@@ -29,6 +34,7 @@ import { FXRealizedController } from './fx-realized.controller';
     PluginsModule,
     CurrencyModule,
     OrganizationModule,
+    PrepaymentFactsModule,
   ],
   providers: [
     ReconciliationService,
@@ -36,9 +42,11 @@ import { FXRealizedController } from './fx-realized.controller';
     PrepaymentService,
     PersonalDispositionService,
     FXRealizedService,
+    SettlementVoucherService,
   ],
   controllers: [
     ReconciliationController,
+    ReconciliationMatchController,
     PrepaymentController,
     PersonalDispositionController,
     FXRealizedController,

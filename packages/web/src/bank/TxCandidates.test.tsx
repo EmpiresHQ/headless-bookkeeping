@@ -27,6 +27,8 @@ vi.mock('../api', async (importOriginal) => ({
 import * as api from '../api';
 import { AppToaster } from '../ui/toast';
 import { TxCandidates } from './TxCandidates';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -72,11 +74,21 @@ function renderWithClient(
 ) {
   render(
     <QueryClientProvider client={client}>
-      {ui}
-      <AppToaster />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        {ui}
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return client;
+}
+
+/** TxScreen owns the line's operation; the list borrows it. */
+function CandidatesWithOp(
+  props: Omit<React.ComponentProps<typeof TxCandidates>, 'op'>,
+) {
+  const op = usePendingOperation('Bank line');
+  return <TxCandidates {...props} op={op} />;
 }
 
 describe('TxCandidates', () => {
@@ -84,7 +96,7 @@ describe('TxCandidates', () => {
 
   it('preselects proposal candidates and shows the live remainder', () => {
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
@@ -104,7 +116,7 @@ describe('TxCandidates', () => {
 
   it('recomputes the button on every toggle and disables at zero selection', () => {
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
@@ -127,6 +139,51 @@ describe('TxCandidates', () => {
     expect(screen.queryByText(/Line remainder/)).toBeNull();
   });
 
+  it('tells same-prefix candidates apart by their full label and books the chosen one (#275)', async () => {
+    const prefix = `Invoice SUP-2026-${'0123456789'.repeat(6)}`;
+    vi.mocked(api.manualMatch).mockResolvedValueOnce({
+      records: [{ id: 93 }],
+      approvals: [{ id: 14, matchId: 93 }],
+    });
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      approval: {},
+    } as never);
+    renderWithClient(
+      <CandidatesWithOp
+        statementId={3}
+        tx={TX as never}
+        result={{
+          ...RESULT,
+          candidates: [
+            { ...RESULT.candidates[0], objectLabel: `${prefix}-ALPHA` },
+            { ...RESULT.candidates[1], objectLabel: `${prefix}-BETA` },
+          ],
+        }}
+        preselectVoucherIds={[]}
+        onMatched={vi.fn()}
+      />,
+    );
+    // Each row's label text keeps its distinguishing suffix (visual
+    // readability is proven by browser geometry, not jsdom).
+    const beta = screen.getByRole('checkbox', { name: `${prefix}-BETA` });
+    expect(beta).toHaveTextContent(`${prefix}-BETA`);
+    expect(
+      screen.getByRole('checkbox', { name: `${prefix}-ALPHA` }),
+    ).toHaveTextContent(`${prefix}-ALPHA`);
+    fireEvent.click(beta);
+    expect(beta).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('checkbox', { name: `${prefix}-ALPHA` }),
+    ).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Match 200.00 €' }));
+    await waitFor(() => expect(api.manualMatch).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(api.manualMatch).mock.calls[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ voucherId: 71, amountMatched: 20000 }),
+      ]),
+    );
+  });
+
   it('books one manual match per selected candidate with allocated amounts', async () => {
     vi.mocked(api.manualMatch)
       .mockResolvedValueOnce({
@@ -142,7 +199,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}
@@ -152,7 +209,11 @@ describe('TxCandidates', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
     await waitFor(() =>
-      expect(onMatched).toHaveBeenCalledWith([91, 92], 50000),
+      expect(onMatched).toHaveBeenCalledWith(
+        [91, 92],
+        50000,
+        expect.anything(),
+      ),
     );
     expect(api.manualMatch).toHaveBeenNthCalledWith(1, 3, {
       bankTransactionId: 9,
@@ -192,7 +253,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={CLAMP_RESULT}
@@ -201,7 +262,9 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 500.00 €' }));
-    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 50000));
+    await waitFor(() =>
+      expect(onMatched).toHaveBeenCalledWith([91], 50000, expect.anything()),
+    );
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 80,
@@ -242,7 +305,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={SKIP_RESULT}
@@ -251,7 +314,9 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 300.00 €' }));
-    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([91], 30000));
+    await waitFor(() =>
+      expect(onMatched).toHaveBeenCalledWith([91], 30000, expect.anything()),
+    );
     expect(api.manualMatch).toHaveBeenCalledTimes(1);
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
@@ -290,7 +355,7 @@ describe('TxCandidates', () => {
     } as never);
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={EXACT_RESULT}
@@ -299,7 +364,9 @@ describe('TxCandidates', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Match 250.00 €' }));
-    await waitFor(() => expect(onMatched).toHaveBeenCalledWith([99], 25000));
+    await waitFor(() =>
+      expect(onMatched).toHaveBeenCalledWith([99], 25000, expect.anything()),
+    );
     expect(api.manualMatch).toHaveBeenCalledWith(3, {
       bankTransactionId: 9,
       voucherId: 95,
@@ -327,7 +394,7 @@ describe('TxCandidates', () => {
     const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
     const onMatched = vi.fn();
     renderWithClient(
-      <TxCandidates
+      <CandidatesWithOp
         statementId={3}
         tx={TX as never}
         result={RESULT}

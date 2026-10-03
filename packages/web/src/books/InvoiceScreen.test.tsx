@@ -33,11 +33,14 @@ import {
   postInvoice,
   type SalesInvoice,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 // Typed against SalesInvoice (not inferred) so overrides like
 // `sent_at: null` in the draft test type-check against the real
 // nullable fields instead of the narrower literal type TS would infer.
 const INVOICE: SalesInvoice = {
+  supply_type: null,
+  service_place_rule: 'general',
   id: 3,
   customer_id: 7,
   invoice_number: '2026-018',
@@ -65,6 +68,7 @@ function mountAt(
       country: 'EE',
       name: 'Nordic Consulting OÜ',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
   // MUST be mocked BEFORE render — the rejection query fires on mount.
@@ -73,13 +77,15 @@ function mountAt(
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/books/invoices/${id}`]}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/invoices/:id" element={<InvoiceScreen />} />
-          <Route path="/books" element={<div>BOOKS LIST</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <MemoryRouter initialEntries={[`/books/invoices/${id}`]}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/invoices/:id" element={<InvoiceScreen />} />
+            <Route path="/books" element={<div>BOOKS LIST</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { ...utils, qc };
@@ -116,6 +122,8 @@ describe('InvoiceScreen', () => {
     fireEvent.change(reason, { target: { value: 'wrong VAT rate' } });
     expect(reason).toHaveValue('wrong VAT rate');
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
     );

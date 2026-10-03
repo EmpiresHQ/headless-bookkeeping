@@ -266,6 +266,11 @@ export class CreditNotesService {
         currency: l.currency,
         base_amount: Math.round(l.base_amount * f),
         fx_rate: l.fx_rate,
+        // The rate's provenance mirrors the line being credited/reversed
+        // (issue #203): the same evidence explains both, and a pre-#203 line's
+        // NULL provenance is carried through rather than invented.
+        fx_rate_date: l.fx_rate_date,
+        fx_rate_source: l.fx_rate_source,
         vat_code: l.vat_code, // inherited
         is_debit: !l.is_debit, // sign-flipped
       };

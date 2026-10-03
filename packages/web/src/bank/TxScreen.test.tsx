@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -26,11 +32,13 @@ vi.mock('../api', async (importOriginal) => ({
   addEntityAlias: vi.fn(),
   markPersonal: vi.fn(),
   createPrepayment: vi.fn(),
+  getAdvanceVatTreatments: vi.fn(),
 }));
 
 import * as api from '../api';
 import { AppToaster } from '../ui/toast';
 import { TxScreen } from './TxScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const BASE_TX = {
   id: 9,
@@ -79,14 +87,21 @@ function mockLine(
     { key: 'bank fee', label: 'Bank Fee', accountCode: 'EXPENSE_BANK_FEE' },
   ]);
   vi.mocked(api.getEntities).mockResolvedValue([]);
+  vi.mocked(api.getAdvanceVatTreatments).mockResolvedValue([
+    { vat_code: 'EE_OUTPUT_24', rate_permille: 240 },
+  ]);
   vi.mocked(api.getOrganization).mockResolvedValue({
     id: 1,
     country: 'EE',
     base_currency: 'EUR',
     vat_registered: true,
+    vat_registration_kind: 'ordinary',
+    input_vat_entitlement: 'full',
+    input_vat_deduction_permille: null,
     org_type: 'company',
     created_at: 0,
     name: null,
+    registry_code: null,
     vat_registration_number: null,
     iban: null,
   });
@@ -105,8 +120,10 @@ function renderTx(path = '/bank/statements/3/tx/9') {
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-      <AppToaster />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <RouterProvider router={router} />
+        <AppToaster />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
@@ -283,12 +300,14 @@ describe('TxScreen state composition', () => {
     );
   });
 
-  it('unmounts the create form on done — a second click cannot post a duplicate', async () => {
+  it('keeps the line protected until the awaited refresh settles — no duplicate, then one success (#251)', async () => {
     mockLine();
-    // Pin the createDone guard, not navigation: the tx refetch triggered by
-    // onDone's invalidateStatement hangs, so `navigate` never fires. The ONLY
-    // thing that can remove the submit button is the guard's own unmount —
-    // without it, the button re-enables in the done-window and stays.
+    // The statement refresh is part of the operation (issue #251): while
+    // the tx-list refetch it triggers is held, the operation is still in
+    // flight — the form stays locked and a second submit cannot start. Its
+    // release then runs the success continuation exactly once, from
+    // TxScreen (which owns the operation and stays mounted even though the
+    // refresh re-routes the line).
     // Phase-encoded mocks: the tx list resolves once (mount) and then hangs
     // (the invalidation refetch that must NOT be the thing that removes the
     // button); candidates flip on the mutations that cause them — fresh
@@ -314,6 +333,7 @@ describe('TxScreen state composition', () => {
       ],
     };
     let txListServed = false;
+    let releaseRefetch: () => void = () => undefined;
     vi.mocked(api.listBankTransactions)
       .mockReset()
       .mockImplementation(() => {
@@ -321,7 +341,9 @@ describe('TxScreen state composition', () => {
           txListServed = true;
           return Promise.resolve([BASE_TX] as never);
         }
-        return new Promise(() => {});
+        return new Promise((resolve) => {
+          releaseRefetch = () => resolve([BASE_TX] as never);
+        });
       });
     let candidates: typeof freshExpense = noCandidates;
     vi.mocked(api.getMatchCandidates).mockImplementation(() =>
@@ -348,23 +370,31 @@ describe('TxScreen state composition', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
     );
-    // The success toast renders in the same batched flush as the form's own
-    // setBusy(false) — the exact moment the done-window would open. (Waiting
-    // on the button's name alone is not a sync point: while busy it renders
-    // '…', so its accessible name never matches mid-flight.)
-    await screen.findByText('Expense created & matched · −18.60 €');
-    // Guard: the form unmounted in that same flush. Without the guard the
-    // button would be back — enabled — and a second tap would post a
-    // duplicate expense.
+    // Every API stage landed; only the refresh is outstanding.
+    await waitFor(() => expect(api.approveApproval).toHaveBeenCalledTimes(1));
+    // Busy (#281): the primary keeps its operation name but is locked.
+    const primary = screen.getByRole('button', {
+      name: 'Create & match · −18.60 €',
+    });
+    expect(primary).toBeDisabled();
+    expect(primary).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent(/locked/);
     expect(
-      screen.queryByRole('button', { name: 'Create & match · −18.60 €' }),
+      screen.queryByText('Expense created & matched · −18.60 €'),
     ).toBeNull();
-    // ...and it vanished BEFORE navigation — the guard, not the redirect.
     expect(router.state.location.pathname).toBe('/bank/statements/3/tx/9');
+
+    await act(async () => releaseRefetch());
+    await screen.findByText('Expense created & matched · −18.60 €');
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/bank/statements/3'),
+    );
     expect(api.createExpense).toHaveBeenCalledTimes(1);
+    expect(api.postExpense).toHaveBeenCalledTimes(1);
+    expect(api.manualMatch).toHaveBeenCalledTimes(1);
   });
 
-  it('prepayment confirms through the explanation sheet and calls createPrepayment', async () => {
+  it('holds an incoming prepayment nobody classified, and says so (#213)', async () => {
     mockLine({ amount: 50000, description: 'ETTEMAKS Baltic Trade' });
     vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
     const router = renderTx();
@@ -373,18 +403,86 @@ describe('TxScreen state composition', () => {
         name: 'Record prepayment · +500.00 €',
       }),
     );
-    // The explanation sheet is the explicit confirm step.
-    expect(
-      await screen.findByText(/money received on account/),
-    ).toBeInTheDocument();
+    // The sheet asks what the money is, and defaults to no claim at all.
+    expect(await screen.findByText('What is this money?')).toBeInTheDocument();
+    expect(screen.getByText(/cannot settle an invoice/)).toBeInTheDocument();
+
     const confirms = screen.getAllByRole('button', {
       name: 'Record prepayment · +500.00 €',
     });
     fireEvent.click(confirms[confirms.length - 1]);
-    await waitFor(() => expect(api.createPrepayment).toHaveBeenCalledWith(9));
+    // No treatment is sent: the receipt is recorded and HELD server-side.
+    await waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9, undefined),
+    );
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/bank/statements/3'),
     );
+  });
+
+  it('sends the taxable advance facts when the receipt pays for a supply (#213)', async () => {
+    mockLine({ amount: 12400, description: 'ETTEMAKS Baltic Trade' });
+    vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
+    vi.mocked(api.getAdvanceVatTreatments).mockResolvedValue([
+      { vat_code: 'EE_OUTPUT_24', rate_permille: 240 },
+      { vat_code: 'EE_OUTPUT_9', rate_permille: 90 },
+    ]);
+    renderTx();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Record prepayment · +124.00 €',
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole('radio', { name: 'Advance for a supply' }),
+    );
+
+    // Until the supply is named, the confirm is not available: what the
+    // payment is FOR is the fact that makes it taxable.
+    const confirmName = 'Record prepayment · +124.00 €';
+    const disabled = screen.getAllByRole('button', { name: confirmName });
+    expect(disabled[disabled.length - 1]).toBeDisabled();
+
+    fireEvent.change(await screen.findByPlaceholderText(/Website build/), {
+      target: { value: 'Website build, delivery March' },
+    });
+    // The 24 EUR inside the 124 is shown before anything is posted.
+    expect(await screen.findByText(/24\.00 € of VAT/)).toBeInTheDocument();
+
+    const confirms = screen.getAllByRole('button', { name: confirmName });
+    fireEvent.click(confirms[confirms.length - 1]);
+    await waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9, {
+        tax_treatment: 'taxable_supply',
+        vat_code: 'EE_OUTPUT_24',
+        supply_description: 'Website build, delivery March',
+      }),
+    );
+  });
+
+  it('leaves an outgoing supplier prepayment a one-tap confirm (#213)', async () => {
+    mockLine({ amount: -50000, description: 'Ettemaks tarnijale' });
+    vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
+    renderTx();
+    fireEvent.click(
+      await screen.findByText('Personal · Bank fee · Prepayment'),
+    );
+    fireEvent.click(await screen.findByText('Prepayment'));
+
+    // No tax question at all: a supplier advance declares no output VAT.
+    expect(screen.queryByText('What is this money?')).toBeNull();
+    const confirms = screen.getAllByRole('button', {
+      name: 'Record prepayment · −500.00 €',
+    });
+    fireEvent.click(confirms[confirms.length - 1]);
+    await waitFor(() =>
+      expect(api.createPrepayment).toHaveBeenCalledWith(9, undefined),
+    );
+    // And it is NOT reported as held: nothing about it is pending.
+    expect(
+      await screen.findByText('Recorded as prepayment'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/held until its tax treatment/)).toBeNull();
   });
 
   it('renders the disposed state read-only', async () => {

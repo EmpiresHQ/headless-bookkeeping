@@ -49,8 +49,8 @@ delegates here. Credit notes flow into INF assembly as ordinary (negative) lines
 
 **4. Reporting modes.** A `locked` period yields a deterministic `final` report
 (built from the snapshot's immutable vouchers); an `open` period yields a `draft`
-preview from live tables. A `final` report without a declarant VAT registration
-number is hard-blocked; INF data gaps (missing invoice number on a qualifying
+preview from live tables. A `final` report without a valid declarant commercial
+registry code is hard-blocked; INF data gaps (missing invoice number on a qualifying
 line, etc.) surface as `statutory_report_incomplete` audit findings so they can be
 fixed pre-lock (a metadata-only `PATCH /expenses/:id/document-metadata` sets the
 opaque `supplier_invoice_number` while the period is open).
@@ -60,11 +60,41 @@ opaque `supplier_invoice_number` while the period is open).
   kernel assembly and REST/SPA path are unchanged.
 - XML correctness is anchored to the official XSD in CI, so "it imports into
   e-MTA" is a tested property, not a hope. Schema bumps are plugin-only changes.
-- The KMD declaration-body box net values are back-derived per rate from output
-  VAT (`net = round(vat / rate)`) because the VAT snapshot stores VAT amounts, not
-  per-rate taxable bases; INF line amounts come straight from `base_amount`. If a
-  future requirement needs exact per-rate taxable bases on the boxes, the
-  assembly must carry them in the neutral input.
+- As corrected for #196, the input carries the declaration built from signed
+  ledger bases. XML and CSV use these exact amounts, including zero-rated
+  supplies and reverse-charge acquisitions; reduced 9% and 13% bases stay
+  separate. Supply bases are credit-positive and acquisition bases debit-positive,
+  so reversals subtract. VAT amounts are never divided by rates to infer bases.
+- Declarant identity uses `organization.registry_code` (8 digits for an Estonian
+  company), separately from `vat_registration_number`. Migration 066 leaves it
+  null for existing organizations; the operator must enter it before final export.
 - The current domain produces one VAT rate per document, so INF emits one line per
   document. Mixed-rate line-item documents would require grouping by `vat_code`
   within a document — explicitly deferred.
+
+## Amendment (issue #200, 2026-09-20): draft reads live, final replays frozen
+
+Decision 4 said a `locked` period yields a deterministic `final` "built from the
+snapshot's immutable vouchers" and an `open` period a `draft` preview. The
+implementation reached both through `VatReportService.generate`, which **freezes**
+— so downloading a draft froze the filing state, and a later lock filed that
+premature snapshot while the XML was assembled from live data.
+
+Corrected:
+
+- A **draft** is assembled entirely from `VatReportService.preview` and the live
+  tables. It stores nothing.
+- Closing a period freezes, atomically, a complete `vat_report` **and** a
+  `statutory_filing_snapshot` holding the whole `StatutoryReportInput`. A
+  snapshot that drifted (frozen early) is superseded by a fresh one rather than
+  reused; the stale row is retained, immutable, and flagged as an audit finding.
+- A **final** replays that frozen payload verbatim — including the declarant
+  identity and the **rendering jurisdiction**. Resolving the plugin from
+  `organization.country` at export time would let a later country change alter,
+  or (via `NullCountryPlugin`) silently empty, an already-filed artifact.
+- A locked period with no frozen payload has no reproducible final: the export
+  **refuses (409)** and points at the reconciliation endpoint. It offers no
+  "reconstructed" variant on purpose — neither the KMD XML nor the CSV has a
+  field that marks an artifact as a rebuild, so any file produced there would be
+  indistinguishable from a real filing to a caller reading only the bytes. The
+  live figures remain available through the read-only VAT-report preview.

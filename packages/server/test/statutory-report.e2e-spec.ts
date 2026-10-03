@@ -1,3 +1,5 @@
+import { FX_RATE_SOURCE } from '../src/fx/fx-rate.types';
+import { ECB_FIXTURE_RATES, FixtureFxRateSource } from './fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -52,6 +54,11 @@ describe('Statutory Report download endpoint (E2E)', () => {
       .useValue(root)
       .overrideProvider(MastraService)
       .useValue(fauxMastraService)
+      // Issue #203: the FX rate source is the ONE boundary at which
+      // authoritative rates enter the system. An e2e test binds it to a
+      // deterministic fixture, so booting the app never reaches the ECB.
+      .overrideProvider(FX_RATE_SOURCE)
+      .useValue(new FixtureFxRateSource(ECB_FIXTURE_RATES))
       .compile();
 
     app = module.createNestApplication();
@@ -88,6 +95,7 @@ describe('Statutory Report download endpoint (E2E)', () => {
       country: 'EE',
       vat_registered: true,
       vat_registration_number: 'EE100000001',
+      registry_code: '17499653',
       name: 'Test OÜ',
     });
 
@@ -142,6 +150,30 @@ describe('Statutory Report download endpoint (E2E)', () => {
     expect(res.headers['content-type']).toContain('application/xml');
     expect(res.headers['content-disposition']).toContain('.xml');
     expect(res.text).toContain('<vatDeclaration>');
+    expect(res.text).toContain('<taxPayerRegCode>17499653</taxPayerRegCode>');
+  });
+
+  it('persists a registry code through the organization API independently of VAT identity', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/organization')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        registry_code: '17499653',
+        vat_registration_number: 'EE102983355',
+      })
+      .expect(200);
+    expect(response.body).toMatchObject({
+      registry_code: '17499653',
+      vat_registration_number: 'EE102983355',
+    });
+    const fetched = await request(app.getHttpServer())
+      .get('/api/organization')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(fetched.body).toMatchObject({
+      registry_code: '17499653',
+      vat_registration_number: 'EE102983355',
+    });
   });
 
   it('format=all returns a zip', async () => {

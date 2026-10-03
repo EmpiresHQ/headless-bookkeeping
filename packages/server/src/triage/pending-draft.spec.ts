@@ -20,12 +20,15 @@ const resolverReturning = (
   };
 };
 
-const supplier = (over: Partial<EntityWithIdentifiers> = {}): EntityWithIdentifiers => ({
+const supplier = (
+  over: Partial<EntityWithIdentifiers> = {},
+): EntityWithIdentifiers => ({
   id: 37,
   role: 'supplier',
   country: 'EE',
   name: 'Citybee Eesti OÜ',
   goods_vs_services: null,
+  tax_status: null,
   created_at: null,
   updated_at: null,
   identifiers: [],

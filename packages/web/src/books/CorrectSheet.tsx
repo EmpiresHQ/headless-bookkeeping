@@ -1,12 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { correctExpense, correctInvoice, type CorrectionRequest } from '../api';
 import { centsToEuroInput, eurosToCents } from '../lib/money';
+import { usePendingOperation } from '../lib/pendingOperation';
+import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { invalidateBooks } from '../queries/books';
 import { useCategories } from '../queries/shared';
 import { Button } from '../ui/Button';
-import { Field, INPUT_CLS, SelectInput, TextInput } from '../ui/Form';
+import {
+  Field,
+  INPUT_CLS,
+  PendingFieldset,
+  SelectInput,
+  TextInput,
+} from '../ui/Form';
 import { LinkButton } from '../ui/LinkButton';
+import { LookupNotice } from '../ui/Lookup';
 import { Sheet } from '../ui/Sheet';
 import { toastErr, toastOk } from '../ui/toast';
 
@@ -14,9 +23,9 @@ type Kind = 'financial' | 'cosmetic' | 'credit_note';
 
 const EXPLAIN: Record<Kind, string> = {
   financial:
-    'Posts a reversal + a corrected entry; this document becomes “corrected” and the new figures go live. If the original period is locked, both land in the current open period (ADR-0009).',
+    'Reverses the posted entry and posts the corrected figures; this document is then marked “corrected” and can’t be corrected again. If its period is locked, the correction is dated into the current open period.',
   cosmetic:
-    'Fixes presentation only — nothing changes in the books. (The server records no changes for this yet; use it to leave a reasoned note.)',
+    'For a problem that doesn’t affect the figures. Nothing changes in the books and nothing is saved — not even the reason. If the amounts or category are wrong, choose Financial.',
   credit_note:
     'Issues a negative document against this one; the original stays posted. Opens the credit-note form with this document preselected.',
 };
@@ -36,6 +45,7 @@ export function CorrectSheet({
   vatCents,
   category,
   onDone,
+  returnFocusFallback,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -46,6 +56,8 @@ export function CorrectSheet({
   /** Current category — expenses only; invoices pass undefined. */
   category?: string;
   onDone: () => void;
+  /** Focus target on close once a correction removed the trigger. */
+  returnFocusFallback?: RefObject<HTMLElement | null>;
 }) {
   const qc = useQueryClient();
   const categoriesQ = useCategories();
@@ -54,7 +66,17 @@ export function CorrectSheet({
   const [vat, setVat] = useState(centsToEuroInput(vatCents));
   const [cat, setCat] = useState(category ?? '');
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
+  const op = usePendingOperation('Correct');
+  const busy = op.pending;
+  // The fields were seeded from these props once; a later refetch of the
+  // props does not reseed them, so the baseline is frozen the same way.
+  const [baseline] = useState(() => ({ kind, gross, vat, cat, reason }));
+  const guard = useUnsavedChanges({
+    label: 'Correct',
+    active: open,
+    values: { kind, gross, vat, cat, reason },
+    baseline,
+  });
 
   const grossParsed = eurosToCents(gross);
   const vatParsed = eurosToCents(vat);
@@ -67,65 +89,77 @@ export function CorrectSheet({
     reason.trim() !== '' && (kind === 'cosmetic' || financialValid);
   const sign = objectType === 'expense' ? '−' : '+';
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const req: CorrectionRequest =
-        kind === 'cosmetic'
-          ? { kind: 'cosmetic', reason: reason.trim() }
-          : {
-              kind: 'financial',
-              reason: reason.trim(),
-              patch: {
-                gross_amount: grossParsed as number,
-                vat_amount: vatParsed as number,
-                ...(objectType === 'expense' && cat !== ''
-                  ? { category: cat }
-                  : {}),
-              },
-            };
-      const res =
-        objectType === 'expense'
-          ? await correctExpense(objectId, req)
-          : await correctInvoice(objectId, req);
-      await invalidateBooks(qc);
-      if (res.outcome === 'unsupported_status') {
-        // The object was corrected by someone/something else in the
-        // meantime — corrections are one-shot (ADR-0009), so this request
-        // did nothing. Show reality, not a false success receipt.
-        toastErr(
-          'Nothing changed — this document was already corrected (corrections are one-shot)',
-        );
-      } else if (res.redirected === true) {
-        toastOk(
-          'Correction landed in the current open period — the original period is locked',
-        );
-      } else if (kind === 'cosmetic') {
-        toastOk(
-          'Cosmetic note sent — not stored, nothing changed in the books',
-        );
-      } else {
-        toastOk(
-          `Correction posted · ${sign}${centsToEuroInput(grossParsed as number)} €`,
-        );
-      }
-      onOpenChange(false);
-      onDone();
-    } catch (e) {
-      toastErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const submit = () => {
+    if (!canSubmit) return;
+    const req: CorrectionRequest =
+      kind === 'cosmetic'
+        ? { kind: 'cosmetic', reason: reason.trim() }
+        : {
+            kind: 'financial',
+            reason: reason.trim(),
+            patch: {
+              gross_amount: grossParsed as number,
+              vat_amount: vatParsed as number,
+              ...(objectType === 'expense' && cat !== ''
+                ? { category: cat }
+                : {}),
+            },
+          };
+    const submittedKind = kind;
+    const submittedGross = grossParsed;
+    op.run(
+      async (ctx) => {
+        const res =
+          objectType === 'expense'
+            ? await correctExpense(objectId, req)
+            : await correctInvoice(objectId, req);
+        ctx.check();
+        await invalidateBooks(qc);
+        return res;
+      },
+      {
+        onSuccess: (res) => {
+          if (res.outcome === 'unsupported_status') {
+            // The object was corrected by someone/something else in the
+            // meantime — corrections are one-shot (ADR-0009), so this request
+            // did nothing. Show reality, not a false success receipt.
+            toastErr(
+              'Nothing changed — this document was already corrected, and a correction can be made only once',
+            );
+          } else if (res.redirected === true) {
+            toastOk(
+              'Correction landed in the current open period — the original period is locked',
+            );
+          } else if (submittedKind === 'cosmetic') {
+            toastOk('Nothing saved — the books are unchanged');
+          } else {
+            toastOk(
+              `Correction posted · ${sign}${centsToEuroInput(submittedGross as number)} €`,
+            );
+          }
+          guard.release();
+          onOpenChange(false);
+          onDone();
+        },
+      },
+    );
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Correct">
-      <div className="space-y-3 px-5 pb-2">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Correct"
+      guard={guard}
+      busy={busy}
+      returnFocusFallback={returnFocusFallback}
+    >
+      <PendingFieldset pending={busy} className="space-y-3 px-5 pb-2">
         <div className="space-y-2">
           {(
             [
               ['financial', 'Financial — amounts or category are wrong'],
-              ['cosmetic', 'Cosmetic — presentation only'],
+              ['cosmetic', 'Cosmetic — the figures are right'],
               ['credit_note', 'Credit note — credit part or all of it'],
             ] as const
           ).map(([k, label]) => (
@@ -179,23 +213,26 @@ export function CorrectSheet({
                   />
                 </Field>
                 {objectType === 'expense' && (
-                  <Field label="Category">
-                    <SelectInput
-                      value={cat}
-                      onChange={(e) => setCat(e.target.value)}
-                    >
-                      {/* Keep a predating category selectable so it is never lost */}
-                      {cat !== '' &&
-                        !(categoriesQ.data ?? []).some(
-                          (c) => c.key === cat,
-                        ) && <option value={cat}>{cat}</option>}
-                      {(categoriesQ.data ?? []).map((c) => (
-                        <option key={c.key} value={c.key}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </SelectInput>
-                  </Field>
+                  <div>
+                    <Field label="Category">
+                      <SelectInput
+                        value={cat}
+                        onChange={(e) => setCat(e.target.value)}
+                      >
+                        {/* Keep a predating category selectable so it is never lost */}
+                        {cat !== '' &&
+                          !(categoriesQ.data ?? []).some(
+                            (c) => c.key === cat,
+                          ) && <option value={cat}>{cat}</option>}
+                        {(categoriesQ.data ?? []).map((c) => (
+                          <option key={c.key} value={c.key}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    </Field>
+                    <LookupNotice query={categoriesQ} what="categories" />
+                  </div>
                 )}
               </>
             )}
@@ -203,7 +240,7 @@ export function CorrectSheet({
               label="Reason"
               hint={
                 kind === 'cosmetic'
-                  ? 'Required — not stored; write it for your own reference'
+                  ? 'Required, but not saved anywhere'
                   : 'Required — it lands in the audit trail'
               }
             >
@@ -219,17 +256,17 @@ export function CorrectSheet({
               className="w-full"
               busy={busy}
               disabled={!canSubmit}
-              onClick={() => void submit()}
+              onClick={submit}
             >
               {kind === 'cosmetic'
-                ? 'Record cosmetic correction'
+                ? 'Confirm — nothing will be saved'
                 : `Post correction · ${sign}${
                     grossParsed !== null ? centsToEuroInput(grossParsed) : gross
                   } €`}
             </Button>
           </>
         )}
-      </div>
+      </PendingFieldset>
     </Sheet>
   );
 }

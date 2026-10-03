@@ -1,3 +1,5 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -20,6 +22,9 @@ import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrganizationService } from '../organization/organization.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 // ValidationError not used in these tests
 // import { ValidationError } from '../ledger/posting/types';
 import { DraftVoucher } from '../ledger/voucher/types';
@@ -86,6 +91,7 @@ describe('ReportingPeriod lock + filing guard (integration)', () => {
         ReportingPeriodsService,
         ReportingPeriodsController,
         VatReportService,
+        PrepaymentAllocationRepository,
         LedgerBalanceService,
         AccountService,
         LedgerValidationService,
@@ -93,10 +99,14 @@ describe('ReportingPeriod lock + filing guard (integration)', () => {
         PeriodLockService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrganizationService,
         AuditLogService,
         StatutorySubmissionService,
+        StatutoryReportService,
+        AuditFindingsService,
+        OrgContextResolver,
       ],
       controllers: [ReportingPeriodsController],
     }).compile();

@@ -1,3 +1,4 @@
+import * as m080 from './080_add_document_classification_snapshot';
 import { Migration } from 'kysely/migration';
 import * as m001 from './001_create_organization';
 import * as m002 from './002_create_account';
@@ -62,8 +63,23 @@ import * as m062 from './062_create_allowance';
 import * as m063 from './063_approval_object_type_allowance';
 import * as m064 from './064_add_document_pending_triage_enrichment';
 import * as m065 from './065_add_audit_finding_reason_type';
-import * as m066 from './066_add_tax_accounts';
-import * as m067 from './067_add_office_supplies_account';
+import * as m066 from './066_add_organization_registry_code';
+import * as m067 from './067_create_statutory_filing_snapshot';
+import * as m068 from './068_add_submission_event_payload_id';
+import * as m069 from './069_create_prepayment_advance_allocation';
+import * as m070 from './070_add_match_settlement_voucher';
+import * as m071 from './071_add_match_cash_base_amount';
+import * as m072 from './072_create_fx_reference_rate';
+import * as m073 from './073_add_voucher_line_fx_provenance';
+import * as m074 from './074_add_reporting_period_kind';
+import * as m075 from './075_create_fixed_asset_depreciation';
+import * as m077 from './077_add_input_vat_entitlement';
+import * as m078 from './078_add_health_allowance_facts';
+import * as m079 from './079_add_prepayment_tax_treatment';
+import * as m076 from './076_add_service_place_of_supply_facts';
+
+import * as m081 from './081_add_tax_accounts';
+import * as m082 from './082_add_office_supplies_account';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -129,6 +145,21 @@ export const migrations: Record<string, Migration> = {
   '063_approval_object_type_allowance': m063,
   '064_add_document_pending_triage_enrichment': m064,
   '065_add_audit_finding_reason_type': m065,
-  '066_add_tax_accounts': m066,
-  '067_add_office_supplies_account': m067,
+  '066_add_organization_registry_code': m066,
+  '067_create_statutory_filing_snapshot': m067,
+  '068_add_submission_event_payload_id': m068,
+  '069_create_prepayment_advance_allocation': m069,
+  '070_add_match_settlement_voucher': m070,
+  '071_add_match_cash_base_amount': m071,
+  '072_create_fx_reference_rate': m072,
+  '073_add_voucher_line_fx_provenance': m073,
+  '074_add_reporting_period_kind': m074,
+  '075_create_fixed_asset_depreciation': m075,
+  '076_add_service_place_of_supply_facts': m076,
+  '077_add_input_vat_entitlement': m077,
+  '078_add_health_allowance_facts': m078,
+  '079_add_prepayment_tax_treatment': m079,
+  '080_add_document_classification_snapshot': m080,
+  '081_add_tax_accounts': m081,
+  '082_add_office_supplies_account': m082,
 };

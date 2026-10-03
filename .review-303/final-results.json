@@ -1,0 +1,940 @@
+{
+ "label": "final",
+ "startedAt": "2026-09-24T07:16:12.014Z",
+ "cases": [
+  {
+   "name": "books-expenses",
+   "width": 1440,
+   "height": 900,
+   "ok": false,
+   "error": "page.waitForFunction: Timeout 10000ms exceeded.",
+   "partial": {
+    "coldLoadMs": 684,
+    "afterLoad": {
+     "lt": {
+      "count": 2,
+      "total": 450,
+      "max": 385
+     },
+     "heapMB": 16.5,
+     "nodes": 24639
+    },
+    "layout": {
+     "vw": 1440,
+     "scrollW": 1440,
+     "scrollY": 0,
+     "docH": 77657,
+     "sidebar": {
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 900,
+      "position": "fixed"
+     }
+    },
+    "cells": {
+     "rows": 1200,
+     "overlaps": 0,
+     "overflow": 0,
+     "truncatedCells": 0,
+     "samples": []
+    },
+    "keystrokeMs": [
+     30
+    ]
+   },
+   "pageErrors": [],
+   "ms": 11421
+  },
+  {
+   "name": "inbox",
+   "width": 1440,
+   "height": 900,
+   "ok": false,
+   "result": {
+    "coldLoadMs": 984,
+    "afterLoad": {
+     "lt": {
+      "count": 3,
+      "total": 403,
+      "max": 184
+     },
+     "heapMB": 26.9,
+     "nodes": 13736
+    },
+    "layout": {
+     "vw": 1440,
+     "scrollW": 1440,
+     "scrollY": 0,
+     "docH": 92258,
+     "sidebar": {
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 900,
+      "position": "fixed"
+     }
+    },
+    "previewGetsAfterLoad": 600,
+    "cells": {
+     "rows": 1000,
+     "overlaps": 0,
+     "overflow": 0,
+     "truncatedCells": 0,
+     "samples": []
+    },
+    "keystrokeMs": [
+     49,
+     72,
+     39,
+     28,
+     23,
+     27,
+     23,
+     27
+    ],
+    "searchLongTasks": {
+     "n": 0,
+     "total": 0,
+     "max": 0
+    },
+    "step": "seg All",
+    "searchShowing": "20 1000 tasks",
+    "segmentMs": {
+     "Triage": 642,
+     "Approvals": 171,
+     "All": 665
+    },
+    "scroll": {
+     "frames": 155,
+     "p50": 16.7,
+     "p95": 21.7,
+     "max": 91.9,
+     "over50": 3,
+     "sidebarAtBottom": {
+      "x": 0,
+      "y": 0,
+      "h": 900
+     },
+     "atBottom": true
+    },
+    "openBack": [
+     {
+      "n": 5,
+      "id": "/inbox/doc/30270",
+      "openMs": 185,
+      "backMs": 1292,
+      "topBefore": 617,
+      "topAfter": 617,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     },
+     {
+      "n": 300,
+      "id": "/inbox/doc/30064",
+      "openMs": 145,
+      "backMs": 1122,
+      "topBefore": 616,
+      "topAfter": 616,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     },
+     {
+      "n": 700,
+      "id": "/inbox/doc/30395",
+      "openMs": 94,
+      "backMs": 1134,
+      "topBefore": 617,
+      "topAfter": 617,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     },
+     {
+      "n": 990,
+      "id": "/inbox/doc/30550",
+      "openMs": 186,
+      "backMs": 1302,
+      "topBefore": 617,
+      "topAfter": 617,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     }
+    ],
+    "previewGetsTotal": 4204,
+    "end": {
+     "lt": {
+      "count": 16,
+      "total": 2167,
+      "max": 322
+     },
+     "heapMB": 37.7,
+     "nodes": 14548
+    },
+    "failures": [
+     "search showing 20 1000 tasks"
+    ]
+   },
+   "pageErrors": [],
+   "writes": {},
+   "requests": {
+    "GET /api/triage/needs-triage": 1,
+    "GET /api/approvals/pending": 1,
+    "GET /api/documents/:n/preview": 4204,
+    "GET /api/reporting-periods": 1,
+    "GET /api/expenses": 1,
+    "GET /api/sales-invoices": 1,
+    "GET /api/entities": 1,
+    "GET /api/categories": 1,
+    "GET /api/documents/:n/details": 4
+   },
+   "ms": 13570
+  },
+  {
+   "name": "bank-statement",
+   "width": 1440,
+   "height": 900,
+   "ok": false,
+   "error": "page.waitForFunction: Timeout 10000ms exceeded.",
+   "partial": {
+    "coldLoadMs": 420,
+    "afterLoad": {
+     "lt": {
+      "count": 1,
+      "total": 58,
+      "max": 58
+     },
+     "heapMB": 13.1,
+     "nodes": 8523
+    },
+    "layout": {
+     "vw": 1440,
+     "scrollW": 1440,
+     "scrollY": 0,
+     "docH": 53870,
+     "sidebar": {
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 900,
+      "position": "fixed"
+     }
+    },
+    "lineButtons": 800,
+    "bookText": "Book 200 matches −170925.21 € net",
+    "expectedNet": "-170925.21",
+    "bookButtonDocY": 20889,
+    "bookButtonScreensBelow": 23.2,
+    "toggleMs": 82,
+    "segAllMs": 287,
+    "allLines": 1000,
+    "scroll": {
+     "frames": 114,
+     "p50": 16.7,
+     "p95": 16.9,
+     "max": 17.2,
+     "over50": 0,
+     "sidebarAtBottom": {
+      "x": 0,
+      "y": 0,
+      "h": 900
+     },
+     "atBottom": true
+    },
+    "keystrokeMs": [
+     22
+    ]
+   },
+   "pageErrors": [],
+   "ms": 13516
+  },
+  {
+   "name": "books-documents",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "result": {
+    "visits": [
+     {
+      "ms": 1432,
+      "longTasks": {
+       "n": 3,
+       "total": 630,
+       "max": 398
+      },
+      "previewGets": 1000
+     },
+     {
+      "ms": 1370,
+      "longTasks": {
+       "n": 3,
+       "total": 633,
+       "max": 419
+      },
+      "previewGets": 1000
+     },
+     {
+      "ms": 1585,
+      "longTasks": {
+       "n": 3,
+       "total": 637,
+       "max": 433
+      },
+      "previewGets": 1000
+     }
+    ],
+    "cells": {
+     "rows": 1000,
+     "overlaps": 0,
+     "overflow": 0,
+     "truncatedCells": 0,
+     "samples": []
+    },
+    "end": {
+     "lt": {
+      "count": 4,
+      "total": 723,
+      "max": 433
+     },
+     "heapMB": 97.2,
+     "nodes": 17982
+    },
+    "failures": []
+   },
+   "pageErrors": [],
+   "writes": {},
+   "requests": {
+    "GET /api/triage/needs-triage": 3,
+    "GET /api/approvals/pending": 3,
+    "GET /api/expenses": 3,
+    "GET /api/entities": 3,
+    "GET /api/documents": 3,
+    "GET /api/documents/:n/preview": 3000
+   },
+   "ms": 7518
+  },
+  {
+   "name": "repeat-nav",
+   "width": 1440,
+   "height": 900,
+   "ok": true,
+   "result": {
+    "rounds": [
+     {
+      "round": 0,
+      "Inbox": 768,
+      "Books": 1194,
+      "Bank": 417,
+      "Reports": 93,
+      "heapMB": 14,
+      "nodes": 147
+     },
+     {
+      "round": 1,
+      "Inbox": 598,
+      "Books": 1002,
+      "Bank": 180,
+      "Reports": 64,
+      "heapMB": 7.2,
+      "nodes": 147
+     },
+     {
+      "round": 2,
+      "Inbox": 598,
+      "Books": 1129,
+      "Bank": 146,
+      "Reports": 61,
+      "heapMB": 14.6,
+      "nodes": 147
+     },
+     {
+      "round": 3,
+      "Inbox": 601,
+      "Books": 1041,
+      "Bank": 207,
+      "Reports": 63,
+      "heapMB": 7.4,
+      "nodes": 147
+     },
+     {
+      "round": 4,
+      "Inbox": 621,
+      "Books": 1024,
+      "Bank": 147,
+      "Reports": 62,
+      "heapMB": 14.7,
+      "nodes": 147
+     },
+     {
+      "round": 5,
+      "Inbox": 613,
+      "Books": 939,
+      "Bank": 195,
+      "Reports": 65,
+      "heapMB": 12.4,
+      "nodes": 147
+     },
+     {
+      "round": 6,
+      "Inbox": 593,
+      "Books": 997,
+      "Bank": 162,
+      "Reports": 44,
+      "heapMB": 17.3,
+      "nodes": 147
+     },
+     {
+      "round": 7,
+      "Inbox": 581,
+      "Books": 929,
+      "Bank": 173,
+      "Reports": 92,
+      "heapMB": 12.5,
+      "nodes": 147
+     },
+     {
+      "round": 8,
+      "Inbox": 569,
+      "Books": 989,
+      "Bank": 210,
+      "Reports": 57,
+      "heapMB": 13.3,
+      "nodes": 147
+     },
+     {
+      "round": 9,
+      "Inbox": 593,
+      "Books": 897,
+      "Bank": 159,
+      "Reports": 66,
+      "heapMB": 13.4,
+      "nodes": 147
+     }
+    ],
+    "heap0": 3.8,
+    "previewGets": 6000,
+    "expensesGets": 2,
+    "summary": {
+     "Inbox": {
+      "median": 598,
+      "max": 768
+     },
+     "Books": {
+      "median": 1002,
+      "max": 1194
+     },
+     "Bank": {
+      "median": 180,
+      "max": 417
+     },
+     "Reports": {
+      "median": 64,
+      "max": 93
+     }
+    },
+    "failures": []
+   },
+   "pageErrors": [],
+   "writes": {},
+   "requests": {
+    "GET /api/triage/needs-triage": 2,
+    "GET /api/approvals/pending": 2,
+    "GET /api/reporting-periods": 2,
+    "GET /api/reporting-periods/:n/kmd": 2,
+    "GET /api/reporting-periods/:n/submission-state": 2,
+    "GET /api/documents/:n/preview": 6000,
+    "GET /api/expenses": 2,
+    "GET /api/sales-invoices": 2,
+    "GET /api/entities": 2,
+    "GET /api/documents": 2,
+    "GET /api/bank-statements": 2,
+    "GET /api/bank-statements/:n/transactions": 48,
+    "GET /api/bank-statements/:n/reconciliation": 48
+   },
+   "ms": 20624
+  },
+  {
+   "name": "books-expenses",
+   "width": 1920,
+   "height": 1080,
+   "ok": false,
+   "error": "page.waitForFunction: Timeout 10000ms exceeded.",
+   "partial": {
+    "coldLoadMs": 621,
+    "afterLoad": {
+     "lt": {
+      "count": 2,
+      "total": 435,
+      "max": 370
+     },
+     "heapMB": 16.4,
+     "nodes": 24639
+    },
+    "layout": {
+     "vw": 1920,
+     "scrollW": 1920,
+     "scrollY": 0,
+     "docH": 77657,
+     "sidebar": {
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 1080,
+      "position": "fixed"
+     }
+    },
+    "cells": {
+     "rows": 1200,
+     "overlaps": 0,
+     "overflow": 0,
+     "truncatedCells": 0,
+     "samples": []
+    },
+    "keystrokeMs": [
+     52
+    ]
+   },
+   "pageErrors": [],
+   "ms": 11402
+  },
+  {
+   "name": "inbox",
+   "width": 1920,
+   "height": 1080,
+   "ok": false,
+   "result": {
+    "coldLoadMs": 802,
+    "afterLoad": {
+     "lt": {
+      "count": 2,
+      "total": 335,
+      "max": 188
+     },
+     "heapMB": 23.8,
+     "nodes": 13537
+    },
+    "layout": {
+     "vw": 1920,
+     "scrollW": 1920,
+     "scrollY": 0,
+     "docH": 92258,
+     "sidebar": {
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 1080,
+      "position": "fixed"
+     }
+    },
+    "previewGetsAfterLoad": 600,
+    "cells": {
+     "rows": 1000,
+     "overlaps": 0,
+     "overflow": 0,
+     "truncatedCells": 0,
+     "samples": []
+    },
+    "keystrokeMs": [
+     48,
+     83,
+     24,
+     39,
+     28,
+     23,
+     27,
+     24
+    ],
+    "searchLongTasks": {
+     "n": 0,
+     "total": 0,
+     "max": 0
+    },
+    "step": "seg All",
+    "searchShowing": "20 1000 tasks",
+    "segmentMs": {
+     "Triage": 620,
+     "Approvals": 177,
+     "All": 634
+    },
+    "scroll": {
+     "frames": 154,
+     "p50": 16.6,
+     "p95": 18.9,
+     "max": 122.3,
+     "over50": 5,
+     "sidebarAtBottom": {
+      "x": 0,
+      "y": 0,
+      "h": 1080
+     },
+     "atBottom": true
+    },
+    "openBack": [
+     {
+      "n": 5,
+      "id": "/inbox/doc/30270",
+      "openMs": 235,
+      "backMs": 1212,
+      "topBefore": 707,
+      "topAfter": 707,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     },
+     {
+      "n": 300,
+      "id": "/inbox/doc/30064",
+      "openMs": 127,
+      "backMs": 1184,
+      "topBefore": 706,
+      "topAfter": 706,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     },
+     {
+      "n": 700,
+      "id": "/inbox/doc/30395",
+      "openMs": 205,
+      "backMs": 1218,
+      "topBefore": 707,
+      "topAfter": 707,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     },
+     {
+      "n": 990,
+      "id": "/inbox/doc/30550",
+      "openMs": 140,
+      "backMs": 1321,
+      "topBefore": 707,
+      "topAfter": 707,
+      "dTop": 0,
+      "focused": true,
+      "urlKept": true
+     }
+    ],
+    "previewGetsTotal": 4204,
+    "end": {
+     "lt": {
+      "count": 20,
+      "total": 2396,
+      "max": 251
+     },
+     "heapMB": 25.3,
+     "nodes": 14548
+    },
+    "failures": [
+     "search showing 20 1000 tasks"
+    ]
+   },
+   "pageErrors": [],
+   "writes": {},
+   "requests": {
+    "GET /api/triage/needs-triage": 1,
+    "GET /api/approvals/pending": 1,
+    "GET /api/documents/:n/preview": 4204,
+    "GET /api/reporting-periods": 1,
+    "GET /api/expenses": 1,
+    "GET /api/sales-invoices": 1,
+    "GET /api/entities": 1,
+    "GET /api/categories": 1,
+    "GET /api/documents/:n/details": 4
+   },
+   "ms": 13380
+  },
+  {
+   "name": "bank-statement",
+   "width": 1920,
+   "height": 1080,
+   "ok": false,
+   "error": "page.waitForFunction: Timeout 10000ms exceeded.",
+   "partial": {
+    "coldLoadMs": 484,
+    "afterLoad": {
+     "lt": {
+      "count": 1,
+      "total": 51,
+      "max": 51
+     },
+     "heapMB": 14.3,
+     "nodes": 8523
+    },
+    "layout": {
+     "vw": 1920,
+     "scrollW": 1920,
+     "scrollY": 0,
+     "docH": 53870,
+     "sidebar": {
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 1080,
+      "position": "fixed"
+     }
+    },
+    "lineButtons": 800,
+    "bookText": "Book 200 matches −170925.21 € net",
+    "expectedNet": "-170925.21",
+    "bookButtonDocY": 20889,
+    "bookButtonScreensBelow": 19.3,
+    "toggleMs": 82,
+    "segAllMs": 233,
+    "allLines": 1000,
+    "scroll": {
+     "frames": 114,
+     "p50": 16.7,
+     "p95": 27.3,
+     "max": 31.6,
+     "over50": 0,
+     "sidebarAtBottom": {
+      "x": 0,
+      "y": 0,
+      "h": 1080
+     },
+     "atBottom": true
+    },
+    "keystrokeMs": [
+     28
+    ]
+   },
+   "pageErrors": [],
+   "ms": 13737
+  },
+  {
+   "name": "books-documents",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "result": {
+    "visits": [
+     {
+      "ms": 1545,
+      "longTasks": {
+       "n": 5,
+       "total": 790,
+       "max": 395
+      },
+      "previewGets": 1000
+     },
+     {
+      "ms": 1363,
+      "longTasks": {
+       "n": 3,
+       "total": 607,
+       "max": 395
+      },
+      "previewGets": 1000
+     },
+     {
+      "ms": 1563,
+      "longTasks": {
+       "n": 4,
+       "total": 797,
+       "max": 433
+      },
+      "previewGets": 1000
+     }
+    ],
+    "cells": {
+     "rows": 1000,
+     "overlaps": 0,
+     "overflow": 0,
+     "truncatedCells": 0,
+     "samples": []
+    },
+    "end": {
+     "lt": {
+      "count": 4,
+      "total": 797,
+      "max": 433
+     },
+     "heapMB": 92.8,
+     "nodes": 17462
+    },
+    "failures": []
+   },
+   "pageErrors": [],
+   "writes": {},
+   "requests": {
+    "GET /api/triage/needs-triage": 3,
+    "GET /api/approvals/pending": 3,
+    "GET /api/expenses": 3,
+    "GET /api/entities": 3,
+    "GET /api/documents": 3,
+    "GET /api/documents/:n/preview": 3000
+   },
+   "ms": 7511
+  },
+  {
+   "name": "repeat-nav",
+   "width": 1920,
+   "height": 1080,
+   "ok": true,
+   "result": {
+    "rounds": [
+     {
+      "round": 0,
+      "Inbox": 840,
+      "Books": 1154,
+      "Bank": 302,
+      "Reports": 141,
+      "heapMB": 14,
+      "nodes": 147
+     },
+     {
+      "round": 1,
+      "Inbox": 608,
+      "Books": 940,
+      "Bank": 231,
+      "Reports": 60,
+      "heapMB": 7.2,
+      "nodes": 147
+     },
+     {
+      "round": 2,
+      "Inbox": 506,
+      "Books": 1059,
+      "Bank": 133,
+      "Reports": 49,
+      "heapMB": 14.4,
+      "nodes": 147
+     },
+     {
+      "round": 3,
+      "Inbox": 665,
+      "Books": 939,
+      "Bank": 183,
+      "Reports": 93,
+      "heapMB": 12.3,
+      "nodes": 147
+     },
+     {
+      "round": 4,
+      "Inbox": 587,
+      "Books": 929,
+      "Bank": 218,
+      "Reports": 80,
+      "heapMB": 19.4,
+      "nodes": 147
+     },
+     {
+      "round": 5,
+      "Inbox": 630,
+      "Books": 957,
+      "Bank": 142,
+      "Reports": 60,
+      "heapMB": 11.9,
+      "nodes": 147
+     },
+     {
+      "round": 6,
+      "Inbox": 543,
+      "Books": 1000,
+      "Bank": 177,
+      "Reports": 78,
+      "heapMB": 9.8,
+      "nodes": 147
+     },
+     {
+      "round": 7,
+      "Inbox": 657,
+      "Books": 941,
+      "Bank": 157,
+      "Reports": 52,
+      "heapMB": 14.7,
+      "nodes": 147
+     },
+     {
+      "round": 8,
+      "Inbox": 694,
+      "Books": 928,
+      "Bank": 287,
+      "Reports": 68,
+      "heapMB": 8.5,
+      "nodes": 147
+     },
+     {
+      "round": 9,
+      "Inbox": 610,
+      "Books": 1154,
+      "Bank": 173,
+      "Reports": 47,
+      "heapMB": 13.4,
+      "nodes": 147
+     }
+    ],
+    "heap0": 3.8,
+    "previewGets": 6000,
+    "expensesGets": 2,
+    "summary": {
+     "Inbox": {
+      "median": 630,
+      "max": 840
+     },
+     "Books": {
+      "median": 957,
+      "max": 1154
+     },
+     "Bank": {
+      "median": 183,
+      "max": 302
+     },
+     "Reports": {
+      "median": 68,
+      "max": 141
+     }
+    },
+    "failures": []
+   },
+   "pageErrors": [],
+   "writes": {},
+   "requests": {
+    "GET /api/triage/needs-triage": 2,
+    "GET /api/approvals/pending": 2,
+    "GET /api/reporting-periods": 2,
+    "GET /api/reporting-periods/:n/kmd": 2,
+    "GET /api/reporting-periods/:n/submission-state": 2,
+    "GET /api/documents/:n/preview": 6000,
+    "GET /api/expenses": 2,
+    "GET /api/sales-invoices": 2,
+    "GET /api/entities": 2,
+    "GET /api/documents": 2,
+    "GET /api/bank-statements": 2,
+    "GET /api/bank-statements/:n/transactions": 48,
+    "GET /api/bank-statements/:n/reconciliation": 48
+   },
+   "ms": 20825
+  }
+ ],
+ "fixture": {
+  "entities": 450,
+  "expenses": 1200,
+  "invoices": 1000,
+  "documents": 1000,
+  "triage": 600,
+  "approvals": 400,
+  "statements": 24,
+  "statementLines": 1000,
+  "proposals": 300,
+  "activeMatches": 200,
+  "maxEntityName": 96,
+  "expected": {
+   "expenses": 1200,
+   "needleExpenses": 77,
+   "needleDraft": 16,
+   "q1": 194,
+   "inbox": 1000,
+   "inboxNeedle": 20,
+   "proposals": 300,
+   "preselected": 200,
+   "unmatched": 800,
+   "q1MaxEurCents": 1193126758
+  }
+ },
+ "finishedAt": "2026-09-24T07:18:26.711Z"
+}

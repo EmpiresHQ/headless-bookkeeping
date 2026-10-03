@@ -1,3 +1,4 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -41,6 +42,7 @@ describe('AllowanceService', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         AllowanceLimitService,
         BusinessTripService,

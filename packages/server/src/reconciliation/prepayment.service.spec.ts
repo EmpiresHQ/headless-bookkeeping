@@ -1,3 +1,5 @@
+import { fxTestProviders } from '../../test/fx-fixtures';
+import { FxRateUnavailableError, ResolvedFxRate } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -18,7 +20,20 @@ import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { PluginLoader } from '../plugins/plugin-loader.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CountryPlugin } from '../plugins/country-plugin.interface';
+import { EntitiesService } from '../entities/entities.service';
+import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
+import { OutstandingVoucherService } from './outstanding-voucher.service';
+import { PrepaymentAllocationRepository } from './prepayment-allocation.repository';
 import { PrepaymentService } from './prepayment.service';
+
+/**
+ * Issue #213: these cases are about balances, ownership and settlement, not
+ * about tax. The receipts are therefore classified explicitly as non-taxable
+ * deposits — a gross liability that declares nothing, which is exactly the
+ * posting these expectations were written against. A receipt left
+ * unclassified is HELD by design and cannot be drawn down.
+ */
+const DEPOSIT_RECEIPT = { treatment: 'non_taxable_deposit' as const };
 
 /**
  * Integration test for prepayment creation and draw-down.
@@ -29,7 +44,8 @@ describe('PrepaymentService (integration)', () => {
   let prepaymentService: PrepaymentService;
   let bankStatementService: BankStatementService;
   let transactionRepo: BankTransactionRepository;
-  let _postingService: PostingService;
+  let postingService: PostingService;
+  let outstandingVoucherService: OutstandingVoucherService;
   let voucherCounter = 0;
 
   beforeEach(async () => {
@@ -57,9 +73,14 @@ describe('PrepaymentService (integration)', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         OrgContextResolver,
+        EntitiesService,
+        LedgerBalanceService,
+        OutstandingVoucherService,
+        PrepaymentAllocationRepository,
         PrepaymentService,
       ],
     }).compile();
@@ -67,7 +88,8 @@ describe('PrepaymentService (integration)', () => {
     prepaymentService = module.get(PrepaymentService);
     bankStatementService = module.get(BankStatementService);
     transactionRepo = module.get(BankTransactionRepository);
-    _postingService = module.get(PostingService);
+    postingService = module.get(PostingService);
+    outstandingVoucherService = module.get(OutstandingVoucherService);
   });
 
   afterEach(async () => {
@@ -76,7 +98,11 @@ describe('PrepaymentService (integration)', () => {
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
-  async function seedBankTransaction(amount: number, status = 'open') {
+  async function seedBankTransaction(
+    amount: number,
+    status = 'open',
+    counterpartyIban?: string,
+  ) {
     const stmt = await bankStatementService.createStatement({
       account_code: 'BANK_EUR',
       start_date: '2025-01-01',
@@ -88,11 +114,89 @@ describe('PrepaymentService (integration)', () => {
             amount > 0 ? 'Customer payment received' : 'Supplier payment sent',
           amount,
           currency: 'EUR',
+          counterparty_iban: counterpartyIban ?? null,
           status: status as 'open' | 'prepayment',
         },
       ],
     });
     return stmt.transactions[0];
+  }
+
+  /** A counterparty to own an advance/invoice. */
+  async function seedEntity(
+    role: 'customer' | 'supplier',
+    name: string,
+  ): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await db
+      .insertInto('entity')
+      .values({
+        role,
+        country: 'IE',
+        name,
+        goods_vs_services: 'services',
+        created_at: now,
+        updated_at: now,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return row.id;
+  }
+
+  /**
+   * Bind a posted AR voucher to a **Customer** via its SalesInvoice, so the
+   * draw-down path can verify both sides name the same counterparty.
+   */
+  async function bindSalesInvoice(
+    voucherId: number,
+    customerId: number,
+    grossCents: number,
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await db
+      .insertInto('sales_invoice')
+      .values({
+        customer_id: customerId,
+        invoice_number: `INV-${voucherId}`,
+        gross_amount: grossCents,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2025-01-20',
+        due_date: null,
+        status: 'posted',
+        sent_at: null,
+        voucher_id: voucherId,
+        document_vat_marking: null,
+        document_id: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
+  }
+
+  /** Bind a posted AP voucher to a **Supplier** via its Expense. */
+  async function bindExpense(
+    voucherId: number,
+    supplierId: number,
+    grossCents: number,
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await db
+      .insertInto('expense')
+      .values({
+        document_id: null,
+        supplier_id: supplierId,
+        category: 'software',
+        gross_amount: grossCents,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2025-01-20',
+        status: 'posted',
+        voucher_id: voucherId,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
   }
 
   async function seedSalesInvoiceVoucher(
@@ -361,13 +465,85 @@ describe('PrepaymentService (integration)', () => {
     return voucher.id;
   }
 
+  /**
+   * Post a mirrored counter-voucher for `voucherId` through the real posting
+   * path — the ledger's own way of undoing a posted Voucher (ADR-0009).
+   */
+  async function reverseVoucher(voucherId: number): Promise<number> {
+    const lines = await db
+      .selectFrom('voucher_line')
+      .innerJoin('account', 'account.id', 'voucher_line.account_id')
+      .select([
+        'account.code as code',
+        'voucher_line.amount as amount',
+        'voucher_line.currency as currency',
+        'voucher_line.base_amount as base_amount',
+        'voucher_line.fx_rate as fx_rate',
+        'voucher_line.is_debit as is_debit',
+      ])
+      .where('voucher_line.voucher_id', '=', voucherId)
+      .execute();
+
+    const reversal = await postingService.postVoucher({
+      tax_point_date: new Date().toISOString().slice(0, 10),
+      reverses_id: voucherId,
+      reason: 'test reversal',
+      lines: lines.map((l) => ({
+        account_code: l.code,
+        amount: l.amount,
+        currency: l.currency,
+        base_amount: l.base_amount,
+        fx_rate: l.fx_rate,
+        is_debit: l.is_debit !== 1,
+      })),
+    });
+    return reversal.id;
+  }
+
+  /**
+   * A posted Dr CUSTOMER_PREPAYMENTS / Cr AR clearing voucher with NO
+   * allocation record — the shape a pre-#201 draw-down left behind.
+   */
+  async function seedClearingVoucher(
+    invoiceVoucherId: number,
+    amount: number,
+  ): Promise<number> {
+    const voucher = await postingService.postVoucher({
+      tax_point_date: '2025-01-25',
+      reason: `Draw-down of prepayment V-0 against invoice V-${invoiceVoucherId}`,
+      lines: [
+        {
+          account_code: 'CUSTOMER_PREPAYMENTS',
+          amount,
+          currency: 'EUR',
+          base_amount: amount,
+          fx_rate: 1.0,
+          is_debit: true,
+        },
+        {
+          account_code: 'AR',
+          amount,
+          currency: 'EUR',
+          base_amount: amount,
+          fx_rate: 1.0,
+          is_debit: false,
+        },
+      ],
+    });
+    return voucher.id;
+  }
+
   // ── Customer prepayment creation ───────────────────────────────────
 
   describe('createCustomerPrepayment', () => {
     it('posts Dr BANK_EUR / Cr CUSTOMER_PREPAYMENTS for an incoming payment', async () => {
       const txn = await seedBankTransaction(50000);
 
-      const voucher = await prepaymentService.createCustomerPrepayment(txn.id);
+      const voucher = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
+      );
 
       expect(voucher.id).toBeGreaterThan(0);
       expect(voucher.lines).toHaveLength(2);
@@ -401,7 +577,11 @@ describe('PrepaymentService (integration)', () => {
     it('updates the bank transaction status to prepayment', async () => {
       const txn = await seedBankTransaction(30000);
 
-      await prepaymentService.createCustomerPrepayment(txn.id);
+      await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
+      );
 
       const updated = await db
         .selectFrom('bank_transaction')
@@ -411,7 +591,11 @@ describe('PrepaymentService (integration)', () => {
       expect(updated.status).toBe('prepayment');
     });
 
-    it('rolls back the voucher if the bank transaction status update fails', async () => {
+    it('rolls back the voucher when the bank line is consumed while it is being prepared', async () => {
+      // Issue #213: the bank line is CLAIMED conditionally on still being
+      // open, inside the posting transaction. The FX and plugin lookups run
+      // before that transaction, so an ordinary reconciliation can take the
+      // same line meanwhile — which must refuse, not book the money twice.
       const txn = await seedBankTransaction(30000);
       const before = await db
         .selectFrom('voucher')
@@ -419,12 +603,25 @@ describe('PrepaymentService (integration)', () => {
         .executeTakeFirstOrThrow();
 
       jest
-        .spyOn(transactionRepo, 'updateStatus')
-        .mockRejectedValueOnce(new Error('forced status failure'));
+        .spyOn(transactionRepo, 'findById')
+        .mockImplementationOnce(async (id: number) => {
+          const found = await new BankTransactionRepository(db).findById(id);
+          // Another path consumes the line after it was read as open.
+          await db
+            .updateTable('bank_transaction')
+            .set({ status: 'personal' })
+            .where('id', '=', id)
+            .execute();
+          return found;
+        });
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id),
-      ).rejects.toThrow('forced status failure');
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
+      ).rejects.toThrow('no longer open');
 
       const after = await db
         .selectFrom('voucher')
@@ -437,14 +634,18 @@ describe('PrepaymentService (integration)', () => {
         .executeTakeFirstOrThrow();
 
       expect(after.count).toBe(before.count);
-      expect(updated.status).toBe('open');
+      expect(updated.status).toBe('personal');
     });
 
     it('rejects a non-open transaction', async () => {
       const txn = await seedBankTransaction(20000, 'prepayment');
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id),
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('not open');
     });
 
@@ -452,13 +653,21 @@ describe('PrepaymentService (integration)', () => {
       const txn = await seedBankTransaction(-10000);
 
       await expect(
-        prepaymentService.createCustomerPrepayment(txn.id),
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('positive');
     });
 
     it('rejects a non-existent transaction', async () => {
       await expect(
-        prepaymentService.createCustomerPrepayment(99999),
+        prepaymentService.createCustomerPrepayment(
+          99999,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('not found');
     });
   });
@@ -502,7 +711,11 @@ describe('PrepaymentService (integration)', () => {
       const txn = await seedBankTransaction(15000);
 
       await expect(
-        prepaymentService.createSupplierPrepayment(txn.id),
+        prepaymentService.createSupplierPrepayment(
+          txn.id,
+          undefined,
+          DEPOSIT_RECEIPT,
+        ),
       ).rejects.toThrow('negative');
     });
   });
@@ -515,6 +728,8 @@ describe('PrepaymentService (integration)', () => {
 
       const voucher = await prepaymentService.createPrepaymentFromTransaction(
         txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const creditAccount = await db
@@ -532,6 +747,8 @@ describe('PrepaymentService (integration)', () => {
 
       const voucher = await prepaymentService.createPrepaymentFromTransaction(
         txn.id,
+        undefined,
+        DEPOSIT_RECEIPT,
       );
 
       const debitAccount = await db
@@ -549,10 +766,13 @@ describe('PrepaymentService (integration)', () => {
 
   describe('drawDownPrepayment (customer)', () => {
     it('creates Dr CUSTOMER_PREPAYMENTS / Cr AR clearing voucher', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       // Create a customer prepayment of 50000.
       const txn = await seedBankTransaction(50000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       // Create an AR invoice of 80000.
@@ -560,6 +780,7 @@ describe('PrepaymentService (integration)', () => {
         80000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 80000);
 
       // Draw down 30000.
       const drawDown = await prepaymentService.drawDownPrepayment(
@@ -590,9 +811,28 @@ describe('PrepaymentService (integration)', () => {
 
       expect(debitLine!.base_amount).toBe(30000);
       expect(creditLine!.base_amount).toBe(30000);
+
+      // The allocation itself is persisted: source advance, target invoice,
+      // counterparty, amount, and the voucher that evidences it (issue #201).
+      const allocation = await db
+        .selectFrom('prepayment_allocation')
+        .innerJoin(
+          'prepayment_advance',
+          'prepayment_advance.id',
+          'prepayment_allocation.advance_id',
+        )
+        .selectAll('prepayment_allocation')
+        .select('prepayment_advance.voucher_id as advance_voucher_id')
+        .executeTakeFirstOrThrow();
+      expect(allocation.advance_voucher_id).toBe(prepayVoucher.id);
+      expect(allocation.invoice_voucher_id).toBe(invoiceVoucherId);
+      expect(allocation.entity_id).toBe(customerId);
+      expect(allocation.base_amount).toBe(30000);
+      expect(allocation.allocation_voucher_id).toBe(drawDown.id);
     });
 
     it('books cross-currency relief in base currency and leaves residual AR open', async () => {
+      const customerId = await seedEntity('customer', 'Cust FX');
       // Prepayment line carries USD (non-base) currency; base balance = 9000 EUR.
       const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
         9000,
@@ -604,6 +844,17 @@ describe('PrepaymentService (integration)', () => {
       const { voucherId: invoiceVoucherId, arBase } =
         await seedForeignSalesInvoiceVoucher(20000, 'USD', 0.85, '2025-01-20');
       expect(arBase).toBe(17000);
+      await bindSalesInvoice(invoiceVoucherId, customerId, 20000);
+
+      // A prepayment voucher posted outside this service carries no advance
+      // record, so it is registered through the documented repair path before
+      // it can be drawn down (issue #201).
+      await prepaymentService.resolveAdvanceOwnership(prepayVoucherId, {
+        entityId: customerId,
+      });
+      // A registered customer receipt is held until it says what it is
+      // (issue #213); this case is about FX, so it is a deposit.
+      await prepaymentService.classifyAdvance(prepayVoucherId, DEPOSIT_RECEIPT);
 
       // Draw down the full prepayment (9000 base). drawAmount = min(req, 9000, 17000) = 9000.
       const drawDown = await prepaymentService.drawDownPrepayment(
@@ -654,15 +905,19 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('clamps draw-down to prepayment remaining balance', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(20000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         50000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 50000);
 
       // Request 30000 but only 20000 is available.
       const drawDown = await prepaymentService.drawDownPrepayment(
@@ -675,15 +930,19 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('clamps draw-down to invoice remaining balance', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(50000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         15000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 15000);
 
       // Request 30000 but invoice is only 15000.
       const drawDown = await prepaymentService.drawDownPrepayment(
@@ -710,10 +969,43 @@ describe('PrepaymentService (integration)', () => {
       ).rejects.toThrow('not found');
     });
 
-    it('rejects customer prepayment drawn against AP invoice', async () => {
+    it('rejects a non-integer or non-positive amount', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(50000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        50000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 50000);
+
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          prepayVoucher.id,
+          invoiceVoucherId,
+          1000.5,
+        ),
+      ).rejects.toThrow('whole number');
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          prepayVoucher.id,
+          invoiceVoucherId,
+          0,
+        ),
+      ).rejects.toThrow('positive');
+    });
+
+    it('rejects customer prepayment drawn against AP invoice', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(50000);
+      const prepayVoucher = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const apVoucherId = await seedExpenseVoucher(30000, '2025-01-20');
@@ -728,15 +1020,19 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('rejects draw-down on exhausted prepayment', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(20000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         50000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 50000);
 
       // First draw-down: exhaust the prepayment.
       await prepaymentService.drawDownPrepayment(
@@ -756,15 +1052,19 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('supports partial draw-downs (multiple draws)', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(60000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         100000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 100000);
 
       // First draw: 20000.
       const draw1 = await prepaymentService.drawDownPrepayment(
@@ -797,12 +1097,15 @@ describe('PrepaymentService (integration)', () => {
 
   describe('drawDownPrepayment (supplier)', () => {
     it('creates Dr AP / Cr SUPPLIER_PREPAYMENTS clearing voucher', async () => {
+      const supplierId = await seedEntity('supplier', 'Supp A');
       const txn = await seedBankTransaction(-30000);
       const prepayVoucher = await prepaymentService.createSupplierPrepayment(
         txn.id,
+        supplierId,
       );
 
       const invoiceVoucherId = await seedExpenseVoucher(50000, '2025-01-20');
+      await bindExpense(invoiceVoucherId, supplierId, 50000);
 
       const drawDown = await prepaymentService.drawDownPrepayment(
         prepayVoucher.id,
@@ -831,9 +1134,11 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('rejects supplier prepayment drawn against AR invoice', async () => {
+      const supplierId = await seedEntity('supplier', 'Supp A');
       const txn = await seedBankTransaction(-30000);
       const prepayVoucher = await prepaymentService.createSupplierPrepayment(
         txn.id,
+        supplierId,
       );
 
       const arVoucherId = await seedSalesInvoiceVoucher(50000, '2025-01-20');
@@ -848,12 +1153,804 @@ describe('PrepaymentService (integration)', () => {
     });
   });
 
+  // ── Issue #201: advance isolation, ownership and allocation ────────
+
+  describe('advance isolation (#201)', () => {
+    it('leaves an unrelated advance untouched when another is drawn down', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txnA = await seedBankTransaction(10000);
+      const advanceA = await prepaymentService.createCustomerPrepayment(
+        txnA.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+      const txnB = await seedBankTransaction(10000);
+      const advanceB = await prepaymentService.createCustomerPrepayment(
+        txnB.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+
+      await prepaymentService.drawDownPrepayment(
+        advanceA.id,
+        invoiceVoucherId,
+        1000,
+      );
+
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      const a = outstanding.find((p) => p.voucherId === advanceA.id)!;
+      const b = outstanding.find((p) => p.voucherId === advanceB.id)!;
+
+      expect(a.drawnDown).toBe(1000);
+      expect(a.remaining).toBe(9000);
+      // B has never been used: before #201 it reported 9000 too.
+      expect(b.drawnDown).toBe(0);
+      expect(b.remaining).toBe(10000);
+
+      // The draw-down voucher's own prepayment leg is not an advance.
+      expect(
+        outstanding.some(
+          (p) => p.voucherId !== advanceA.id && p.voucherId !== advanceB.id,
+        ),
+      ).toBe(false);
+    });
+
+    it('keeps supplier advances independent of each other', async () => {
+      const supplierId = await seedEntity('supplier', 'Supp A');
+      const txnA = await seedBankTransaction(-10000);
+      const advanceA = await prepaymentService.createSupplierPrepayment(
+        txnA.id,
+        supplierId,
+      );
+      const txnB = await seedBankTransaction(-10000);
+      const advanceB = await prepaymentService.createSupplierPrepayment(
+        txnB.id,
+        supplierId,
+      );
+
+      const billVoucherId = await seedExpenseVoucher(10000, '2025-01-20');
+      await bindExpense(billVoucherId, supplierId, 10000);
+
+      await prepaymentService.drawDownPrepayment(
+        advanceA.id,
+        billVoucherId,
+        2500,
+      );
+
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      expect(
+        outstanding.find((p) => p.voucherId === advanceA.id)!.remaining,
+      ).toBe(7500);
+      expect(
+        outstanding.find((p) => p.voucherId === advanceB.id)!.remaining,
+      ).toBe(10000);
+    });
+
+    it('refuses a cross-counterparty allocation', async () => {
+      const owner = await seedEntity('customer', 'Cust A');
+      const other = await seedEntity('customer', 'Cust B');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        owner,
+        DEPOSIT_RECEIPT,
+      );
+
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, other, 10000);
+
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          advance.id,
+          invoiceVoucherId,
+          1000,
+        ),
+      ).rejects.toThrow('Cross-counterparty');
+    });
+
+    it('refuses an invoice whose counterparty cannot be resolved', async () => {
+      const owner = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        owner,
+        DEPOSIT_RECEIPT,
+      );
+
+      // A raw AR voucher with no SalesInvoice behind it names nobody.
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          advance.id,
+          invoiceVoucherId,
+          1000,
+        ),
+      ).rejects.toThrow('no resolved counterparty');
+    });
+
+    it('refuses a customer advance owned by a supplier entity', async () => {
+      const supplierId = await seedEntity('supplier', 'Supp A');
+      const txn = await seedBankTransaction(10000);
+
+      await expect(
+        prepaymentService.createCustomerPrepayment(
+          txn.id,
+          supplierId,
+          DEPOSIT_RECEIPT,
+        ),
+      ).rejects.toThrow("role 'supplier'");
+    });
+
+    it('resolves the owner from the bank line, and blocks the advance when it cannot', async () => {
+      const customerId = await seedEntity('customer', 'Cust IBAN');
+      await db
+        .insertInto('entity_identifier')
+        .values({
+          entity_id: customerId,
+          kind: 'iban',
+          value: 'IE29AIBK93115212345678',
+          confirmed: 1,
+        })
+        .execute();
+
+      const known = await seedBankTransaction(
+        10000,
+        'open',
+        'IE29AIBK93115212345678',
+      );
+      const resolved = await prepaymentService.createCustomerPrepayment(
+        known.id,
+        undefined,
+        DEPOSIT_RECEIPT,
+      );
+
+      const unknown = await seedBankTransaction(10000);
+      const unresolved = await prepaymentService.createCustomerPrepayment(
+        unknown.id,
+        undefined,
+        DEPOSIT_RECEIPT,
+      );
+
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      const ok = outstanding.find((p) => p.voucherId === resolved.id)!;
+      expect(ok.entityId).toBe(customerId);
+      expect(ok.allocatable).toBe(true);
+
+      const blocked = outstanding.find((p) => p.voucherId === unresolved.id)!;
+      expect(blocked.entityId).toBeNull();
+      expect(blocked.allocatable).toBe(false);
+      expect(blocked.unresolvedReason).toBe('unknown_counterparty');
+
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          unresolved.id,
+          invoiceVoucherId,
+          1000,
+        ),
+      ).rejects.toThrow('no resolved counterparty');
+    });
+
+    it('lets exactly one of two concurrent draw-downs win, and rolls the other back', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+
+      const invoiceA = await seedSalesInvoiceVoucher(10000, '2025-01-20');
+      await bindSalesInvoice(invoiceA, customerId, 10000);
+      const invoiceB = await seedSalesInvoiceVoucher(10000, '2025-01-21');
+      await bindSalesInvoice(invoiceB, customerId, 10000);
+
+      // Both ask for the WHOLE advance against different invoices, so neither
+      // is clamped by the other's target.
+      const results = await Promise.allSettled([
+        prepaymentService.drawDownPrepayment(advance.id, invoiceA, 10000),
+        prepaymentService.drawDownPrepayment(advance.id, invoiceB, 10000),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      expect(fulfilled).toHaveLength(1);
+
+      // The loser wrote nothing: one allocation, and the advance is exactly
+      // exhausted rather than overdrawn.
+      const allocations = await db
+        .selectFrom('prepayment_allocation')
+        .selectAll()
+        .execute();
+      expect(allocations).toHaveLength(1);
+
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      expect(
+        outstanding.find((p) => p.voucherId === advance.id),
+      ).toBeUndefined();
+    });
+
+    it('releases only the reversed allocation, on either side', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+
+      const first = await prepaymentService.drawDownPrepayment(
+        advance.id,
+        invoiceVoucherId,
+        3000,
+      );
+      const second = await prepaymentService.drawDownPrepayment(
+        advance.id,
+        invoiceVoucherId,
+        2000,
+      );
+
+      await reverseVoucher(first.id);
+
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      const record = outstanding.find((p) => p.voucherId === advance.id)!;
+      // Only the reversed 3000 came back; the untouched 2000 is still spent.
+      expect(record.drawnDown).toBe(2000);
+      expect(record.remaining).toBe(8000);
+
+      // The invoice regained exactly the reversed relief too.
+      const invoiceBalance = await (
+        prepaymentService as unknown as {
+          getInvoiceBalance: (
+            id: number,
+          ) => Promise<{ accountCode: string; remaining: number } | null>;
+        }
+      ).getInvoiceBalance(invoiceVoucherId);
+      expect(invoiceBalance!.remaining).toBe(8000);
+
+      // And the released credit can be drawn again.
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          advance.id,
+          invoiceVoucherId,
+          8000,
+        ),
+      ).resolves.toBeDefined();
+      expect(second.id).toBeGreaterThan(0);
+    });
+
+    it('refuses to draw down an advance whose own voucher was reversed', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+
+      await reverseVoucher(advance.id);
+
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          advance.id,
+          invoiceVoucherId,
+          1000,
+        ),
+      ).rejects.toThrow('reversed');
+
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      const record = outstanding.find((p) => p.voucherId === advance.id)!;
+      expect(record.allocatable).toBe(false);
+      expect(record.unresolvedReason).toBe('advance_reversed');
+    });
+
+    it('does not let a cash settlement re-settle what an allocation relieved', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(4000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+
+      await prepaymentService.drawDownPrepayment(
+        advance.id,
+        invoiceVoucherId,
+        4000,
+      );
+
+      // 10000 invoice − 4000 allocated = 6000 left for cash, through the SAME
+      // canonical outstanding the reconciliation engine reads.
+      await expect(
+        outstandingVoucherService.getRemainingVoucherBalance(invoiceVoucherId),
+      ).resolves.toBe(6000);
+
+      // Settle that 6000 in cash, then a further draw-down has nothing to take.
+      await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: txn.id,
+          voucher_id: invoiceVoucherId,
+          match_type: 'exact',
+          amount_matched: 6000,
+          status: 'active',
+          signal: 'manual',
+          fx_voucher_id: null,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
+      await expect(
+        outstandingVoucherService.getRemainingVoucherBalance(invoiceVoucherId),
+      ).resolves.toBe(0);
+
+      const second = await seedBankTransaction(4000);
+      const advance2 = await prepaymentService.createCustomerPrepayment(
+        second.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          advance2.id,
+          invoiceVoucherId,
+          1000,
+        ),
+      ).rejects.toThrow('no remaining balance');
+    });
+  });
+
+  // ── Issue #201: operator repair of unresolved advances ─────────────
+
+  describe('resolveAdvanceOwnership (#201)', () => {
+    it('registers an unregistered prepayment voucher and blocks it until resolved', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        10000,
+        'EUR',
+        '2025-01-15',
+      );
+
+      const before = await prepaymentService.listOutstandingPrepayments();
+      const unregistered = before.find((p) => p.voucherId === prepayVoucherId)!;
+      expect(unregistered.unresolvedReason).toBe('no_advance_record');
+      expect(unregistered.remaining).toBeNull();
+      expect(unregistered.allocatable).toBe(false);
+
+      const resolved = await prepaymentService.resolveAdvanceOwnership(
+        prepayVoucherId,
+        { entityId: customerId },
+      );
+      expect(resolved.entityId).toBe(customerId);
+      expect(resolved.remaining).toBe(10000);
+      // Owned, but still HELD (issue #213): a customer receipt registered from
+      // the ledger says nothing about what it was for, and an unclassified
+      // receipt is never spent as if it had been a non-taxable deposit.
+      expect(resolved.allocatable).toBe(false);
+      expect(resolved.unresolvedReason).toBe('unclassified_tax_treatment');
+
+      const classified = await prepaymentService.classifyAdvance(
+        prepayVoucherId,
+        DEPOSIT_RECEIPT,
+      );
+      expect(classified.allocatable).toBe(true);
+      expect(classified.remaining).toBe(10000);
+    });
+
+    it('treats a multi-leg advance voucher as ONE advance for its full amount', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      // One legal advance voucher whose prepayment credit arrives in two legs.
+      const posted = await postingService.postVoucher({
+        tax_point_date: '2025-01-15',
+        lines: [
+          {
+            account_code: 'BANK_EUR',
+            amount: 10000,
+            currency: 'EUR',
+            base_amount: 10000,
+            fx_rate: 1.0,
+            is_debit: true,
+          },
+          {
+            account_code: 'CUSTOMER_PREPAYMENTS',
+            amount: 6000,
+            currency: 'EUR',
+            base_amount: 6000,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+          {
+            account_code: 'CUSTOMER_PREPAYMENTS',
+            amount: 4000,
+            currency: 'EUR',
+            base_amount: 4000,
+            fx_rate: 1.0,
+            is_debit: false,
+          },
+        ],
+      });
+
+      const listed = (
+        await prepaymentService.listOutstandingPrepayments()
+      ).filter((p) => p.voucherId === posted.id);
+      expect(listed).toHaveLength(1);
+      expect(listed[0].originalAmount).toBe(10000);
+
+      const resolved = await prepaymentService.resolveAdvanceOwnership(
+        posted.id,
+        { entityId: customerId },
+      );
+      expect(resolved.originalAmount).toBe(10000);
+      expect(resolved.remaining).toBe(10000);
+    });
+
+    it('refuses to re-point a resolved advance at a different counterparty', async () => {
+      const owner = await seedEntity('customer', 'Cust A');
+      const other = await seedEntity('customer', 'Cust B');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        owner,
+        DEPOSIT_RECEIPT,
+      );
+
+      await expect(
+        prepaymentService.resolveAdvanceOwnership(advance.id, {
+          entityId: other,
+        }),
+      ).rejects.toThrow('already belongs to entity');
+    });
+
+    it('lets the same owner come back and finish a flagged repair', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        10000,
+        'EUR',
+        '2025-01-15',
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+      // An unlinked historical draw-down: the advance's balance is unknown.
+      const clearingId = await seedClearingVoucher(invoiceVoucherId, 4000);
+
+      // First call: owner assigned, but the flag stays up because the
+      // draw-down is still unattributed — and the advance stays blocked.
+      const firstPass = await prepaymentService.resolveAdvanceOwnership(
+        prepayVoucherId,
+        { entityId: customerId },
+      );
+      expect(firstPass.entityId).toBe(customerId);
+      expect(firstPass.unresolvedReason).toBe('balance_unverified');
+      expect(firstPass.allocatable).toBe(false);
+      await expect(
+        prepaymentService.drawDownPrepayment(
+          prepayVoucherId,
+          invoiceVoucherId,
+          1000,
+        ),
+      ).rejects.toThrow('unverified remaining balance');
+
+      // Second call by the SAME owner finishes the repair with the evidence.
+      const finished = await prepaymentService.resolveAdvanceOwnership(
+        prepayVoucherId,
+        {
+          entityId: customerId,
+          drawDowns: [{ allocationVoucherId: clearingId, invoiceVoucherId }],
+        },
+      );
+      expect(finished.entityId).toBe(customerId);
+      // The balance is verified again; what is still missing is the tax
+      // treatment of the receipt itself (issue #213).
+      expect(finished.unresolvedReason).toBe('unclassified_tax_treatment');
+      expect(finished.drawnDown).toBe(4000);
+      expect(finished.remaining).toBe(6000);
+      const classifiedRepair = await prepaymentService.classifyAdvance(
+        prepayVoucherId,
+        DEPOSIT_RECEIPT,
+      );
+      expect(classifiedRepair.unresolvedReason).toBeNull();
+      await expect(
+        outstandingVoucherService.getRemainingVoucherBalance(invoiceVoucherId),
+      ).resolves.toBe(6000);
+    });
+
+    it('refuses a link that overdraws an advance its active allocations already spent', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const txn = await seedBankTransaction(10000);
+      const advance = await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
+      const invoiceA = await seedSalesInvoiceVoucher(10000, '2025-01-20');
+      await bindSalesInvoice(invoiceA, customerId, 10000);
+
+      // 7000 of the 10000 advance is already allocated and live.
+      const live = await prepaymentService.drawDownPrepayment(
+        advance.id,
+        invoiceA,
+        7000,
+      );
+
+      // A historical 6000 draw-down cannot also have come from it.
+      const invoiceB = await seedSalesInvoiceVoucher(10000, '2025-01-21');
+      await bindSalesInvoice(invoiceB, customerId, 10000);
+      const clearingId = await seedClearingVoucher(invoiceB, 6000);
+
+      await expect(
+        prepaymentService.resolveAdvanceOwnership(advance.id, {
+          entityId: customerId,
+          drawDowns: [
+            { allocationVoucherId: clearingId, invoiceVoucherId: invoiceB },
+          ],
+        }),
+      ).rejects.toThrow('exceed the remaining balance');
+
+      // The live allocation and the owner are untouched.
+      const rows = await db
+        .selectFrom('prepayment_allocation')
+        .selectAll()
+        .execute();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].allocation_voucher_id).toBe(live.id);
+      const outstanding = await prepaymentService.listOutstandingPrepayments();
+      const record = outstanding.find((p) => p.voucherId === advance.id)!;
+      expect(record.entityId).toBe(customerId);
+      expect(record.remaining).toBe(3000);
+    });
+
+    it('refuses an owner that a BACKFILLED allocation already contradicts', async () => {
+      const owner = await seedEntity('customer', 'Cust A');
+      const other = await seedEntity('customer', 'Cust B');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        10000,
+        'EUR',
+        '2025-01-15',
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      // The already-recorded history relieved an invoice of ANOTHER customer.
+      await bindSalesInvoice(invoiceVoucherId, other, 10000);
+      const clearingId = await seedClearingVoucher(invoiceVoucherId, 4000);
+
+      const advanceId = await db
+        .insertInto('prepayment_advance')
+        .values({
+          voucher_id: prepayVoucherId,
+          kind: 'customer',
+          account_code: 'CUSTOMER_PREPAYMENTS',
+          entity_id: null,
+          bank_transaction_id: null,
+          original_base_amount: 10000,
+          currency: 'EUR',
+          needs_review: 0,
+          origin: 'backfill',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      // A backfilled allocation carries no counterparty of its own.
+      await db
+        .insertInto('prepayment_allocation')
+        .values({
+          advance_id: advanceId.id,
+          invoice_voucher_id: invoiceVoucherId,
+          entity_id: null,
+          base_amount: 4000,
+          currency: 'EUR',
+          allocation_voucher_id: clearingId,
+          origin: 'backfill',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
+      // Naming an owner is also a claim about that history, and it does not hold.
+      await expect(
+        prepaymentService.resolveAdvanceOwnership(prepayVoucherId, {
+          entityId: owner,
+        }),
+      ).rejects.toThrow(`belongs to entity ${other}`);
+
+      const advance = await db
+        .selectFrom('prepayment_advance')
+        .select('entity_id')
+        .where('id', '=', advanceId.id)
+        .executeTakeFirstOrThrow();
+      expect(advance.entity_id).toBeNull();
+    });
+
+    it('links a historical draw-down by evidence and lifts the unverified flag', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        10000,
+        'EUR',
+        '2025-01-15',
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 10000);
+      const clearingId = await seedClearingVoucher(invoiceVoucherId, 4000);
+
+      // The unlinked clearing voucher makes the balance unverifiable.
+      const registered = await db
+        .insertInto('prepayment_advance')
+        .values({
+          voucher_id: prepayVoucherId,
+          kind: 'customer',
+          account_code: 'CUSTOMER_PREPAYMENTS',
+          entity_id: null,
+          bank_transaction_id: null,
+          original_base_amount: 10000,
+          currency: 'EUR',
+          needs_review: 1,
+          origin: 'backfill',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      expect(registered.id).toBeGreaterThan(0);
+
+      const unverified = (
+        await prepaymentService.listOutstandingPrepayments()
+      ).find((p) => p.voucherId === prepayVoucherId)!;
+      expect(unverified.unresolvedReason).toBe('balance_unverified');
+      expect(unverified.remaining).toBeNull();
+
+      const resolved = await prepaymentService.resolveAdvanceOwnership(
+        prepayVoucherId,
+        {
+          entityId: customerId,
+          drawDowns: [
+            {
+              allocationVoucherId: clearingId,
+              invoiceVoucherId,
+            },
+          ],
+        },
+      );
+
+      expect(resolved.remaining).toBe(6000);
+      expect(resolved.drawnDown).toBe(4000);
+      // The invoice is relieved by exactly the linked amount.
+      await expect(
+        outstandingVoucherService.getRemainingVoucherBalance(invoiceVoucherId),
+      ).resolves.toBe(6000);
+    });
+
+    it('refuses a link that would over-relieve its target invoice', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        10000,
+        'EUR',
+        '2025-01-15',
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        3000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 3000);
+      // A 4000 clearing voucher cannot belong to a 3000 invoice.
+      const clearingId = await seedClearingVoucher(invoiceVoucherId, 4000);
+
+      await expect(
+        prepaymentService.resolveAdvanceOwnership(prepayVoucherId, {
+          entityId: customerId,
+          drawDowns: [{ allocationVoucherId: clearingId, invoiceVoucherId }],
+        }),
+      ).rejects.toThrow('exceeds the remaining balance of invoice');
+    });
+
+    it('refuses links that exceed the advance, writing nothing', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        5000,
+        'EUR',
+        '2025-01-15',
+      );
+      const invoiceA = await seedSalesInvoiceVoucher(10000, '2025-01-20');
+      await bindSalesInvoice(invoiceA, customerId, 10000);
+      const invoiceB = await seedSalesInvoiceVoucher(10000, '2025-01-21');
+      await bindSalesInvoice(invoiceB, customerId, 10000);
+      const clearingA = await seedClearingVoucher(invoiceA, 4000);
+      const clearingB = await seedClearingVoucher(invoiceB, 4000);
+
+      await expect(
+        prepaymentService.resolveAdvanceOwnership(prepayVoucherId, {
+          entityId: customerId,
+          drawDowns: [
+            { allocationVoucherId: clearingA, invoiceVoucherId: invoiceA },
+            { allocationVoucherId: clearingB, invoiceVoucherId: invoiceB },
+          ],
+        }),
+      ).rejects.toThrow('exceed the remaining balance');
+
+      // Atomic: neither link, nor the owner, was written.
+      await expect(
+        db.selectFrom('prepayment_allocation').selectAll().execute(),
+      ).resolves.toEqual([]);
+      const advance = await db
+        .selectFrom('prepayment_advance')
+        .select('entity_id')
+        .where('voucher_id', '=', prepayVoucherId)
+        .executeTakeFirst();
+      expect(advance?.entity_id ?? null).toBeNull();
+    });
+
+    it('refuses to confirm a history that names another counterparty', async () => {
+      const owner = await seedEntity('customer', 'Cust A');
+      const other = await seedEntity('customer', 'Cust B');
+      const prepayVoucherId = await seedForeignCustomerPrepaymentVoucher(
+        10000,
+        'EUR',
+        '2025-01-15',
+      );
+      const invoiceVoucherId = await seedSalesInvoiceVoucher(
+        10000,
+        '2025-01-20',
+      );
+      await bindSalesInvoice(invoiceVoucherId, other, 10000);
+      const clearingId = await seedClearingVoucher(invoiceVoucherId, 4000);
+
+      await expect(
+        prepaymentService.resolveAdvanceOwnership(prepayVoucherId, {
+          entityId: owner,
+          drawDowns: [{ allocationVoucherId: clearingId, invoiceVoucherId }],
+        }),
+      ).rejects.toThrow(`belongs to entity ${other}`);
+    });
+  });
+
   // ── List outstanding prepayments ───────────────────────────────────
 
   describe('listOutstandingPrepayments', () => {
     it('returns outstanding customer prepayments', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(50000);
-      await prepaymentService.createCustomerPrepayment(txn.id);
+      await prepaymentService.createCustomerPrepayment(
+        txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
+      );
 
       const outstanding = await prepaymentService.listOutstandingPrepayments();
 
@@ -865,11 +1962,13 @@ describe('PrepaymentService (integration)', () => {
       expect(prepay!.originalAmount).toBe(50000);
       expect(prepay!.remaining).toBe(50000);
       expect(prepay!.drawnDown).toBe(0);
+      expect(prepay!.entityId).toBe(customerId);
     });
 
     it('returns outstanding supplier prepayments', async () => {
+      const supplierId = await seedEntity('supplier', 'Supp A');
       const txn = await seedBankTransaction(-25000);
-      await prepaymentService.createSupplierPrepayment(txn.id);
+      await prepaymentService.createSupplierPrepayment(txn.id, supplierId);
 
       const outstanding = await prepaymentService.listOutstandingPrepayments();
 
@@ -882,15 +1981,19 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('does NOT return fully drawn-down prepayments', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(30000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         50000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 50000);
 
       // Draw down the full amount.
       await prepaymentService.drawDownPrepayment(
@@ -906,15 +2009,19 @@ describe('PrepaymentService (integration)', () => {
     });
 
     it('shows reduced remaining after partial draw-down', async () => {
+      const customerId = await seedEntity('customer', 'Cust A');
       const txn = await seedBankTransaction(40000);
       const prepayVoucher = await prepaymentService.createCustomerPrepayment(
         txn.id,
+        customerId,
+        DEPOSIT_RECEIPT,
       );
 
       const invoiceVoucherId = await seedSalesInvoiceVoucher(
         50000,
         '2025-01-20',
       );
+      await bindSalesInvoice(invoiceVoucherId, customerId, 50000);
 
       await prepaymentService.drawDownPrepayment(
         prepayVoucher.id,
@@ -952,10 +2059,31 @@ describe('PrepaymentService — cross-currency bank account', () => {
     CountryPlugin,
     'getReferenceRate' | 'getDefaultBaseCurrency'
   > = {
-    getReferenceRate(from: string, to: string): number {
-      if (from === to) return 1.0;
-      if (from === 'USD' && to === 'EUR') return 0.9;
-      throw new Error(`Unexpected pair ${from} → ${to}`);
+    // A deterministic fixture rate with real provenance (issue #203): the
+    // pair, the publication date it came from and who published it. The
+    // numeric scenario is unchanged — 100 USD still books as 90 EUR.
+    getReferenceRate(
+      from: string,
+      to: string,
+      date: string,
+    ): Promise<ResolvedFxRate> {
+      if (from === to) {
+        return Promise.resolve({
+          rate: 1.0,
+          rateDate: date,
+          source: 'fixture',
+        });
+      }
+      if (from === 'USD' && to === 'EUR') {
+        return Promise.resolve({
+          rate: 0.9,
+          rateDate: date,
+          source: 'fixture',
+        });
+      }
+      return Promise.reject(
+        new FxRateUnavailableError(from, to, date, 'not in this fixture'),
+      );
     },
     getDefaultBaseCurrency: () => 'EUR',
   };
@@ -989,9 +2117,14 @@ describe('PrepaymentService — cross-currency bank account', () => {
         OrganizationService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         CurrencyService,
         OrgContextResolver,
+        EntitiesService,
+        LedgerBalanceService,
+        OutstandingVoucherService,
+        PrepaymentAllocationRepository,
         PrepaymentService,
       ],
     })
@@ -1024,7 +2157,11 @@ describe('PrepaymentService — cross-currency bank account', () => {
     });
     const txn = stmt.transactions[0];
 
-    const voucher = await prepaymentService.createCustomerPrepayment(txn.id);
+    const voucher = await prepaymentService.createCustomerPrepayment(
+      txn.id,
+      undefined,
+      DEPOSIT_RECEIPT,
+    );
 
     const debitLine = voucher.lines.find((l) => l.is_debit)!;
     const creditLine = voucher.lines.find((l) => !l.is_debit)!;
@@ -1073,7 +2210,11 @@ describe('PrepaymentService — cross-currency bank account', () => {
     });
     const txn = stmt.transactions[0];
 
-    const voucher = await prepaymentService.createSupplierPrepayment(txn.id);
+    const voucher = await prepaymentService.createSupplierPrepayment(
+      txn.id,
+      undefined,
+      DEPOSIT_RECEIPT,
+    );
 
     const debitLine = voucher.lines.find((l) => l.is_debit)!;
     const creditLine = voucher.lines.find((l) => !l.is_debit)!;

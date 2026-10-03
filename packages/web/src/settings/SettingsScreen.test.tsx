@@ -44,9 +44,13 @@ beforeEach(() => {
     country: 'EE',
     base_currency: null,
     vat_registered: true,
+    vat_registration_kind: 'ordinary',
+    input_vat_entitlement: 'full',
+    input_vat_deduction_permille: null,
     org_type: 'company',
     created_at: 0,
     name: 'Acme OÜ',
+    registry_code: null,
     vat_registration_number: 'EE123456789',
     iban: null,
   } as never);

@@ -1,3 +1,6 @@
+import type { AdvanceTaxPointDecision } from '../plugins/advance-tax-point.types';
+import { fxTestProviders } from '../../test/fx-fixtures';
+import { FxRateUnavailableError, ResolvedFxRate } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -313,6 +316,9 @@ describe('DividendsService (integration)', () => {
 
     /** Mock plugin with 27% withholding tax (Danish-style). */
     class MockWithholdingPlugin implements CountryPlugin {
+      resolveInputVatEntitlement() {
+        return { numerator: 1, denominator: 1, basis: 'full' as const };
+      }
       getName(): string {
         return 'mock-withholding';
       }
@@ -338,10 +344,23 @@ describe('DividendsService (integration)', () => {
       getReferenceRate(
         fromCurrency: string,
         toCurrency: string,
-        _date: string,
-      ): number {
-        if (fromCurrency === toCurrency) return 1.0;
-        throw new Error('Cross-currency not supported');
+        date: string,
+      ): Promise<ResolvedFxRate> {
+        if (fromCurrency === toCurrency) {
+          return Promise.resolve({
+            rate: 1.0,
+            rateDate: date,
+            source: 'fixture',
+          });
+        }
+        return Promise.reject(
+          new FxRateUnavailableError(
+            fromCurrency,
+            toCurrency,
+            date,
+            'this fixture quotes no cross-currency pair',
+          ),
+        );
       }
       roundToBaseMinorUnits(amount: number): number {
         return Math.round(amount);
@@ -409,6 +428,7 @@ describe('DividendsService (integration)', () => {
       classifyKmd(_vatCode: string): KmdBaseClassification {
         return {
           outputBaseRow: null,
+          outputSubRow: null,
           acquisitionRow: null,
           vdCode: null,
           review: null,
@@ -445,6 +465,24 @@ describe('DividendsService (integration)', () => {
       }
       getAllowanceAccount(_type: AllowanceType): string {
         return 'EXPENSE_OTHER';
+      }
+      getHealthAllowanceRules(_date: string): null {
+        return null;
+      }
+      resolveAdvanceTaxPoint(): AdvanceTaxPointDecision {
+        return {
+          supported: false,
+          code: 'no_jurisdiction_rule',
+          message: 'This test plugin defines no advance taxation.',
+          howToResolve: 'Leave the receipt unclassified for review.',
+        };
+      }
+      resolveFringeBenefitTax(
+        _benefitValue: number,
+        _date: string,
+        _orgContext: OrgContext,
+      ): null {
+        return null;
       }
     }
 
@@ -555,6 +593,9 @@ describe('DividendsService (integration)', () => {
      *   - assertDistributable always true (cap enforced externally in real EE plugin)
      */
     class MockDistributionTaxPlugin implements CountryPlugin {
+      resolveInputVatEntitlement() {
+        return { numerator: 1, denominator: 1, basis: 'full' as const };
+      }
       getName(): string {
         return 'mock-dist-tax';
       }
@@ -580,10 +621,23 @@ describe('DividendsService (integration)', () => {
       getReferenceRate(
         fromCurrency: string,
         toCurrency: string,
-        _date: string,
-      ): number {
-        if (fromCurrency === toCurrency) return 1.0;
-        throw new Error('Cross-currency not supported');
+        date: string,
+      ): Promise<ResolvedFxRate> {
+        if (fromCurrency === toCurrency) {
+          return Promise.resolve({
+            rate: 1.0,
+            rateDate: date,
+            source: 'fixture',
+          });
+        }
+        return Promise.reject(
+          new FxRateUnavailableError(
+            fromCurrency,
+            toCurrency,
+            date,
+            'this fixture quotes no cross-currency pair',
+          ),
+        );
       }
       roundToBaseMinorUnits(amount: number): number {
         return Math.round(amount);
@@ -651,6 +705,7 @@ describe('DividendsService (integration)', () => {
       classifyKmd(_vatCode: string): KmdBaseClassification {
         return {
           outputBaseRow: null,
+          outputSubRow: null,
           acquisitionRow: null,
           vdCode: null,
           review: null,
@@ -690,6 +745,24 @@ describe('DividendsService (integration)', () => {
       }
       getAllowanceAccount(_type: AllowanceType): string {
         return 'EXPENSE_OTHER';
+      }
+      getHealthAllowanceRules(_date: string): null {
+        return null;
+      }
+      resolveAdvanceTaxPoint(): AdvanceTaxPointDecision {
+        return {
+          supported: false,
+          code: 'no_jurisdiction_rule',
+          message: 'This test plugin defines no advance taxation.',
+          howToResolve: 'Leave the receipt unclassified for review.',
+        };
+      }
+      resolveFringeBenefitTax(
+        _benefitValue: number,
+        _date: string,
+        _orgContext: OrgContext,
+      ): null {
+        return null;
       }
     }
 
@@ -819,6 +892,7 @@ describe('DividendsService (integration)', () => {
           // Real PluginLoader with real plugins — no stubs.
           NullCountryPlugin,
           EstoniaCountryPlugin,
+          ...fxTestProviders(),
           PluginLoader,
           CurrencyService,
           OrgContextResolver,

@@ -137,7 +137,7 @@ tests:
             && typeof sp.create_email === 'string' && sp.create_email.includes('billing@example.ee')
             && typeof sp.create_phone === 'string' && /\d/.test(sp.create_phone);
 
-  - description: Citybee EE car-sharing invoice with reg key EE102139798 → existing-supplier match
+  - description: Citybee EE car-sharing invoice with reg key EE102139798 → create proposal when no lookup context is supplied
     vars:
       markdown: |
         Citybee OÜ

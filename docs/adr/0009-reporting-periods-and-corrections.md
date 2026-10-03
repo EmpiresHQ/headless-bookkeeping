@@ -28,3 +28,52 @@ This is **not currently observable**: `NullCountryPlugin.getReferenceRate` retur
 - **Open-period-date rate** — makes the voucher internally consistent (stated date and rate agree), at the cost of revaluing the corrected leg.
 
 **Decision deferred** to whichever country plugin first needs date-sensitive FX. Whoever picks it up should add a non-EUR locked-period correction test against a date-varying rate plugin and choose explicitly; the kernel should not hardcode the answer (ADR-0002).
+
+## Amendment (issue #207, 2026-09-20): two timelines on one period model
+
+A single non-overlapping period timeline cannot express a normal tax calendar
+AND a financial year: creating the year was rejected as an overlap of its own
+months, so annual accounts could only ever be produced for a VAT period — with
+the nearest earlier *month* as the comparative column.
+
+`reporting_period.kind` splits the timeline in two: `vat` (the tax calendar this
+ADR describes, and what every pre-existing row is) and `annual` (a **financial
+year**). The decisions above are unchanged for the VAT calendar; the additions
+are:
+
+- **The overlap guard applies WITHIN a timeline**, not across them. A financial
+  year is *supposed* to span the VAT periods inside it. Two months may still not
+  overlap, and neither may two financial years — each answer ("which period is
+  this date's return", "which financial year is this") must stay unique.
+- **A financial year carries no VAT declaration.** Filing (`lock`), snapshot
+  reconciliation, the KMD and the statutory export all refuse an annual id
+  rather than minting a second return for turnover the monthly periods already
+  declared. A year is closed by `closeFinancialYear`, which only flips the
+  status: no `vat_report`, no filing payload, no submission event.
+- **Filing order is per timeline.** An open financial year never blocks a
+  monthly filing (the year is normally closed months after its last month is
+  filed), and an open month never blocks the annual close.
+- **A closed financial year locks its whole span.** The locked-period rule reads
+  both timelines, so after the close nothing posts anywhere inside the year, even
+  where a month is still open. The correction/late-document redirect
+  correspondingly skips an open month that lies inside a closed year — it would
+  only move the item from one wall to the next.
+- **Year-end adjustments have exactly one route into an already filed month.**
+  The annual depreciation charge is dated on the year's last day, which by the
+  time a year is closed normally sits inside a filed VAT period; reopening that
+  return is forbidden (ADR-0012) and moving the charge out of its year would be
+  wrong. The close therefore declares an `annual-close` posting capability for
+  the year it is closing. The declaration authorizes nothing by itself: the
+  accounts (a depreciation-only whitelist), the VAT metadata (none permitted),
+  the year (must exist, be annual and be OPEN) and the date (must be inside it)
+  are all validated first, and only a locked **VAT** period is ever relaxed.
+  Public text on the voucher, a "system-generated" flag and a zero VAT amount
+  grant nothing.
+- **A filed return is never rewritten to accommodate one.** The resulting
+  voucher is stamped server-side (`voucher.annual_close_period_id`, immutable
+  once posted), and a VAT report excludes the stamped vouchers from its boxes and
+  from its covered-voucher Merkle commitment. The frozen December snapshot
+  therefore keeps matching the ledger: no drift warning, no supersession, no
+  parandusdeklaratsioon. The adjustment's own integrity is carried by the voucher
+  hash chain (ADR-0013) and by the annual accounts it was posted for, and its use
+  of the route is recorded as an audit finding.

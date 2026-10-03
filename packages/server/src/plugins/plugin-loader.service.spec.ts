@@ -1,3 +1,5 @@
+import { unusedFxRateService } from '../../test/fx-fixtures';
+import { FxRateUnavailableError } from '../fx/fx-rate.types';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import Database from 'better-sqlite3';
@@ -111,30 +113,44 @@ describe('NullCountryPlugin', () => {
   });
 
   describe('getReferenceRate', () => {
-    it('should return 1.0 when the two currencies are the same (EUR→EUR)', () => {
-      expect(plugin.getReferenceRate('EUR', 'EUR', '2026-03-15')).toBe(1.0);
+    it('returns the identity for the same currency (EUR→EUR), with provenance', async () => {
+      await expect(
+        plugin.getReferenceRate('EUR', 'EUR', '2026-03-15'),
+      ).resolves.toEqual({
+        rate: 1.0,
+        rateDate: '2026-03-15',
+        source: 'identity',
+      });
     });
 
-    it('should return 1.0 when the two currencies are the same (DKK→DKK)', () => {
-      expect(plugin.getReferenceRate('DKK', 'DKK', '2026-03-15')).toBe(1.0);
+    it('returns the identity for the same currency (DKK→DKK)', async () => {
+      await expect(
+        plugin.getReferenceRate('DKK', 'DKK', '2026-03-15'),
+      ).resolves.toMatchObject({ rate: 1.0 });
     });
 
-    it('should throw for cross-currency (EUR→DKK)', () => {
-      expect(() => plugin.getReferenceRate('EUR', 'DKK', '2026-03-15')).toThrow(
-        'Cross-currency FX not supported in null plugin: EUR → DKK',
-      );
+    it('refuses cross-currency (EUR→DKK) — it names no rate authority', async () => {
+      await expect(
+        plugin.getReferenceRate('EUR', 'DKK', '2026-03-15'),
+      ).rejects.toThrow(FxRateUnavailableError);
     });
 
-    it('should throw for cross-currency (USD→EUR)', () => {
-      expect(() => plugin.getReferenceRate('USD', 'EUR', '2026-03-15')).toThrow(
-        'Cross-currency FX not supported in null plugin: USD → EUR',
-      );
+    it('refuses cross-currency (USD→EUR)', async () => {
+      await expect(
+        plugin.getReferenceRate('USD', 'EUR', '2026-03-15'),
+      ).rejects.toThrow(/declares no rate authority/);
     });
 
-    it('should return 1.0 for same-currency regardless of date', () => {
-      // The date parameter is accepted but ignored by the null plugin
-      expect(plugin.getReferenceRate('EUR', 'EUR', '2020-01-01')).toBe(1.0);
-      expect(plugin.getReferenceRate('EUR', 'EUR', '2030-12-31')).toBe(1.0);
+    it('the identity holds on any date, and reports THAT date as its own', async () => {
+      // The identity needs no publication, so it is never date-dependent —
+      // but the date it was asked about is still recorded, so an identity
+      // line is distinguishable from a line with unknown provenance (#203).
+      await expect(
+        plugin.getReferenceRate('EUR', 'EUR', '2020-01-01'),
+      ).resolves.toMatchObject({ rate: 1.0, rateDate: '2020-01-01' });
+      await expect(
+        plugin.getReferenceRate('EUR', 'EUR', '2030-12-31'),
+      ).resolves.toMatchObject({ rate: 1.0, rateDate: '2030-12-31' });
     });
   });
 
@@ -193,7 +209,17 @@ describe('PluginLoader', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [NullCountryPlugin, EstoniaCountryPlugin, PluginLoader],
+      providers: [
+        NullCountryPlugin,
+        // This suite is about resolution, not conversion: the EE plugin is
+        // supplied with a rate service that fails loudly if anything asks it
+        // for a rate (#203).
+        {
+          provide: EstoniaCountryPlugin,
+          useValue: new EstoniaCountryPlugin(unusedFxRateService()),
+        },
+        PluginLoader,
+      ],
     }).compile();
 
     loader = module.get<PluginLoader>(PluginLoader);

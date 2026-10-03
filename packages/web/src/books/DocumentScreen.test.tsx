@@ -24,6 +24,7 @@ import {
   openSignedDocument,
   type DocumentArchiveRow,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const ROW: DocumentArchiveRow = {
   id: 9,
@@ -68,13 +69,15 @@ function mountAt(row: Partial<typeof ROW> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/documents/9']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/documents/:id" element={<DocumentScreen />} />
-          <Route path="/books" element={<div>ARCHIVE</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <MemoryRouter initialEntries={['/books/documents/9']}>
+          <AppToaster />
+          <Routes>
+            <Route path="/books/documents/:id" element={<DocumentScreen />} />
+            <Route path="/books" element={<div>ARCHIVE</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -92,7 +95,7 @@ describe('DocumentScreen', () => {
     expect(await screen.findByText('rent')).toBeInTheDocument();
     expect(screen.getByText('650.00 € (VAT 117.21 €)')).toBeInTheDocument();
     // OCR collapsible:
-    await userEvent.click(screen.getByText(/OCR text/));
+    await userEvent.click(screen.getByText(/Text read from the file/));
     expect(screen.getByText('# Arve 183')).toBeInTheDocument();
   });
 
@@ -109,7 +112,7 @@ describe('DocumentScreen', () => {
   });
 
   it('opens the preview in a lightbox and keeps the original file behind an explicit action', async () => {
-    vi.mocked(openSignedDocument).mockResolvedValue(undefined);
+    vi.mocked(openSignedDocument).mockResolvedValue('opened');
     mountAt();
     await userEvent.click(await screen.findByText('Source document'));
     expect(
@@ -120,7 +123,9 @@ describe('DocumentScreen', () => {
     await userEvent.click(
       screen.getByRole('button', { name: 'Open original' }),
     );
-    await waitFor(() => expect(openSignedDocument).toHaveBeenCalledWith(9));
+    await waitFor(() =>
+      expect(openSignedDocument).toHaveBeenCalledWith(9, expect.anything()),
+    );
   });
 
   it('delete is REPLACED by the guard explanation when the linked expense is posted', async () => {
@@ -128,7 +133,7 @@ describe('DocumentScreen', () => {
     await screen.findByText('arve-183.pdf');
     expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull();
     expect(
-      screen.getByText(/evidence for a posted expense/i),
+      screen.getByText(/kept as evidence for the posted expense/i),
     ).toBeInTheDocument();
   });
 

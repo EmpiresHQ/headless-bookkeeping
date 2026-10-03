@@ -1,3 +1,5 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
+import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -17,6 +19,9 @@ import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
 import { OrganizationService } from '../organization/organization.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StatutorySubmissionService } from '../statutory-submission/statutory-submission.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { ApiTokenService } from '../auth/api-token.service';
@@ -54,13 +59,18 @@ describe('AdminController (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         ReportingPeriodsService,
         VatReportService,
+        PrepaymentAllocationRepository,
         LedgerBalanceService,
         NullCountryPlugin,
         EstoniaCountryPlugin,
+        ...fxTestProviders(),
         PluginLoader,
         OrganizationService,
         AuditLogService,
         StatutorySubmissionService,
+        StatutoryReportService,
+        AuditFindingsService,
+        OrgContextResolver,
         AdminService,
         ApiTokenService,
         {

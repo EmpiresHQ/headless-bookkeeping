@@ -37,6 +37,9 @@ import {
   listApprovals,
   postExpense,
 } from '../api';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import { RESULT_LOG_KEY, ResultLogProvider } from '../lib/resultLog';
+import { setToken } from '../auth';
 
 const DETAIL = {
   id: 12,
@@ -80,6 +83,7 @@ function mountAt(
       country: 'EE',
       name: 'AS Merko Ehitus',
       goods_vs_services: null,
+      tax_status: null,
     },
   ] as never);
   vi.mocked(getDocuments).mockResolvedValue([
@@ -91,13 +95,17 @@ function mountAt(
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/books/expenses/12']}>
-        <AppToaster />
-        <Routes>
-          <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
-          <Route path="/books" element={<div>BOOKS LIST</div>} />
-        </Routes>
-      </MemoryRouter>
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <ResultLogProvider>
+          <MemoryRouter initialEntries={['/books/expenses/12']}>
+            <AppToaster />
+            <Routes>
+              <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+              <Route path="/books" element={<div>BOOKS LIST</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ResultLogProvider>
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return { ...utils, qc };
@@ -122,7 +130,9 @@ describe('ExpenseScreen', () => {
     expect(screen.getByText('🏦 Reconciled')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Reconciled/ })).toBeNull();
     // Posted state: read-only ADR-0009 hint, no Delete.
-    expect(screen.getByText(/only through a correction/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/change it with a correction/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull();
   });
 
@@ -176,11 +186,13 @@ describe('ExpenseScreen', () => {
     expect(await screen.findByText('BOOKS LIST')).toBeInTheDocument();
   });
 
-  it('a corrected (reversed) expense explains one-shot corrections and shows the corrected marker', async () => {
+  it('a corrected (reversed) expense explains it can be corrected only once and shows the corrected marker', async () => {
     mountAt({ status: 'reversed' }, 'reversed');
     expect(await screen.findByText('corrected')).toBeInTheDocument();
     expect(
-      screen.getByText(/Already corrected — corrections are one-shot/),
+      screen.getByText(
+        /Already corrected — a posted expense can be corrected only once/,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -201,6 +213,8 @@ describe('ExpenseScreen', () => {
     fireEvent.change(reason, { target: { value: 'wrong VAT rate' } });
     expect(reason).toHaveValue('wrong VAT rate');
     fireEvent.keyDown(document, { key: 'Escape' });
+    // Dirty: the guard asks first (issue #250) — discard it.
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
     await waitFor(() =>
       expect(screen.queryByPlaceholderText('Why this correction…')).toBeNull(),
     );
@@ -275,6 +289,20 @@ describe('ExpenseScreen', () => {
     expect(screen.queryByText(/Held for approval/)).toBeNull();
   });
 
+  it('states a non-EUR expense in its own currency on hero, VAT fact and posting toast (no conversion)', async () => {
+    vi.mocked(postExpense).mockResolvedValue({
+      expense: { id: 12, status: 'posted' },
+      policy: { action: 'auto-post' },
+    } as never);
+    mountAt({ status: 'draft', currency: 'USD' }, 'draft');
+    expect(await screen.findByText('−650.00 USD')).toBeInTheDocument();
+    expect(screen.getByText('117.21 USD (22%)')).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Submit for posting' }),
+    );
+    expect(await screen.findByText('Posted · −650.00 USD')).toBeInTheDocument();
+  });
+
   it('Bank fact shows "—" while the bank list query is still loading — never a false "Not matched"', async () => {
     vi.mocked(getExpense).mockResolvedValue(DETAIL as never);
     // Never resolves — pins listQ in the pending state for the assertion.
@@ -286,6 +314,7 @@ describe('ExpenseScreen', () => {
         country: 'EE',
         name: 'AS Merko Ehitus',
         goods_vs_services: null,
+        tax_status: null,
       },
     ] as never);
     vi.mocked(getDocuments).mockResolvedValue([
@@ -298,11 +327,13 @@ describe('ExpenseScreen', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter initialEntries={['/books/expenses/12']}>
-          <Routes>
-            <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
-          </Routes>
-        </MemoryRouter>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
+          <MemoryRouter initialEntries={['/books/expenses/12']}>
+            <Routes>
+              <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+            </Routes>
+          </MemoryRouter>
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     expect(await screen.findByText('A-183')).toBeInTheDocument();
@@ -322,14 +353,71 @@ describe('ExpenseScreen', () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter initialEntries={['/books/expenses/12']}>
-          <Routes>
-            <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
-          </Routes>
-        </MemoryRouter>
+        <UnsavedChangesProvider onUnauthorized={() => undefined}>
+          <MemoryRouter initialEntries={['/books/expenses/12']}>
+            <Routes>
+              <Route path="/books/expenses/:id" element={<ExpenseScreen />} />
+            </Routes>
+          </MemoryRouter>
+        </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
     await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  describe('durable receipts (issue #259)', () => {
+    const stored = (): {
+      entries: { outcome: string; tone: string; links: { to: string }[] }[];
+    } => JSON.parse(sessionStorage.getItem(RESULT_LOG_KEY) ?? '{"entries":[]}');
+    beforeEach(() => {
+      sessionStorage.clear();
+      setToken('t');
+    });
+
+    it('a held post is recorded as waiting for approval, linking the expense (its card leads to the exact approval)', async () => {
+      vi.mocked(postExpense).mockResolvedValue({
+        expense: { id: 12, status: 'pending' },
+        policy: {
+          action: 'hold-for-approval',
+          reason: 'Voucher amount 65000 exceeds ceiling 5000',
+        },
+      } as never);
+      mountAt({ status: 'draft' }, 'draft');
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Submit for posting' }),
+      );
+      await waitFor(() => expect(stored().entries).toHaveLength(1));
+      const [rec] = stored().entries;
+      expect(rec.tone).toBe('pending');
+      expect(rec.outcome).toMatch(
+        /^Held for approval — .*Not posted until approved\.$/,
+      );
+      expect(rec.links.map((l) => l.to)).toEqual(['/books/expenses/12']);
+    });
+
+    it('an unconfirmed post is recorded as such; the retry supersedes it', async () => {
+      vi.mocked(postExpense)
+        .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+        .mockResolvedValueOnce({
+          expense: { id: 12, status: 'posted' },
+          policy: { action: 'auto-post', reason: 'ok' },
+        } as never);
+      mountAt({ status: 'draft' }, 'draft');
+      const submit = await screen.findByRole('button', {
+        name: 'Submit for posting',
+      });
+      await userEvent.click(submit);
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('error'));
+      expect(stored().entries[0].outcome).toMatch(
+        /Submitting for posting was not confirmed \(503 Service Unavailable\)/,
+      );
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Submit for posting' }),
+      );
+      await waitFor(() => expect(stored().entries[0]?.tone).toBe('ok'));
+      expect(stored().entries).toHaveLength(1);
+      expect(stored().entries[0].outcome).toMatch(/^Posted · /);
+    });
   });
 });

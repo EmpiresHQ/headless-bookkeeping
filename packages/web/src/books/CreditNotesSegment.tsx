@@ -4,19 +4,26 @@ import {
   type Expense,
   type SalesInvoice,
 } from '../api';
-import {
-  entityName,
-  groupByMonth,
-  shortDate,
-  useCreditNotes,
-} from '../queries/books';
+import { entityName, shortDate, useCreditNotes } from '../queries/books';
 import { useEntities, useExpenses, useInvoices } from '../queries/shared';
 import { AmountText } from '../ui/AmountText';
-import { EmptyState, SkeletonRows } from '../ui/Feedback';
+import { SkeletonRows } from '../ui/Feedback';
 import { LinkButton } from '../ui/LinkButton';
-import { ListGroup, ListRow } from '../ui/List';
+import { ListGroup } from '../ui/List';
 import { LoadError } from '../ui/LoadError';
-import { statusChip } from './chips';
+import { BooksEmpty, effectiveDateFilter } from './BooksEmpty';
+import { useReturnPosition } from '../lib/listPosition';
+import { BooksColumnsHeader, BooksRow, type BooksColumns } from './BooksRow';
+import { ActiveFilters, statusChip } from './chips';
+import { BOOKS_RESET_NAME, BOOKS_SEARCH, useResetWithFocus } from './filters';
+import {
+  formatTotals,
+  inRange,
+  orderSections,
+  totalsByCurrency,
+  DEFAULT_ORDER,
+  type BooksOrderState,
+} from './listOrder';
 
 export interface CreditedContext {
   expenses: Expense[];
@@ -29,7 +36,14 @@ export interface CreditedContext {
 export function creditNoteDisplay(
   n: CreditNote,
   ctx: CreditedContext,
-): { title: string; subtitle: string; objectRoute: string | null } {
+): {
+  title: string;
+  subtitle: string;
+  /** The subtitle's parts, as the desktop columns show them (#283). */
+  kind: string;
+  date: string;
+  objectRoute: string | null;
+} {
   if (n.credits_object_type === 'sales_invoice') {
     const inv = ctx.invoices.find((i) => i.id === n.credits_object_id);
     const customer = inv ? entityName(ctx.entities, inv.customer_id) : null;
@@ -40,6 +54,8 @@ export function creditNoteDisplay(
           : `Invoice ${inv.invoice_number}`
         : n.credit_note_number,
       subtitle: `${n.credit_note_number} · credits invoice · ${shortDate(n.tax_point_date)}`,
+      kind: 'credits invoice',
+      date: shortDate(n.tax_point_date),
       objectRoute: inv ? `/books/invoices/${inv.id}` : null,
     };
   }
@@ -52,6 +68,8 @@ export function creditNoteDisplay(
         : `Expense ${e.category}`
       : n.credit_note_number,
     subtitle: `${n.credit_note_number} · credits expense · ${shortDate(n.tax_point_date)}`,
+    kind: 'credits expense',
+    date: shortDate(n.tax_point_date),
     objectRoute: e ? `/books/expenses/${e.id}` : null,
   };
 }
@@ -61,8 +79,27 @@ export function creditNoteDisplay(
 export const creditNoteSign = (n: CreditNote): number =>
   n.credits_object_type === 'sales_invoice' ? -n.gross_amount : n.gross_amount;
 
-export function CreditNotesSegment({ q }: { q: string }) {
+/** Desktop columns (xl, issue #283). */
+export const CREDIT_NOTE_COLUMNS: BooksColumns = {
+  grid: 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_7.5rem_5.5rem_minmax(9rem,1.1fr)_5.5rem_0.75rem]',
+  labels: ['Credits', 'Note no.', 'Type', 'Tax point', 'Amount', 'Status'],
+  amountAt: 4,
+};
+
+export function CreditNotesSegment({
+  q,
+  order = DEFAULT_ORDER,
+}: {
+  q: string;
+  order?: BooksOrderState;
+}) {
+  // No status filters here: the search, the date range and the order
+  // (#279) are the restrictions. With only a search applied, the button
+  // says what it does — Clear search; otherwise it is the Books Reset.
+  const { rootRef, onReset } = useResetWithFocus('credit-notes');
   const notesQ = useCreditNotes();
+  // Back from a row lands on that row again, once the rows are here (#283).
+  useReturnPosition(rootRef, notesQ.isSuccess);
   const expensesQ = useExpenses();
   const invoicesQ = useInvoices();
   const entitiesQ = useEntities();
@@ -72,22 +109,51 @@ export function CreditNotesSegment({ q }: { q: string }) {
     entities: entitiesQ.data ?? [],
   };
 
-  if (notesQ.isPending) return <SkeletonRows count={4} />;
+  const activeFilters = (result?: {
+    shown: number;
+    total: number;
+    noun: string;
+    totals?: string;
+  }) => (
+    <ActiveFilters
+      filters={order.labels}
+      q={q}
+      searchScope={BOOKS_SEARCH['credit-notes'].scope}
+      result={result}
+      onReset={onReset}
+      {...(order.labels.length === 0
+        ? { resetLabel: 'Clear search', resetName: 'Clear search' }
+        : { resetName: BOOKS_RESET_NAME })}
+    />
+  );
+
+  if (notesQ.isPending) {
+    return (
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <SkeletonRows count={4} />
+      </div>
+    );
+  }
   if (notesQ.isError) {
     return (
-      <LoadError
-        message={
-          notesQ.error instanceof Error
-            ? notesQ.error.message
-            : 'Failed to load credit notes'
-        }
-        onRetry={() => void notesQ.refetch()}
-      />
+      <div ref={rootRef} tabIndex={-1} className="outline-none">
+        {activeFilters()}
+        <LoadError
+          message={
+            notesQ.error instanceof Error
+              ? notesQ.error.message
+              : 'Failed to load credit notes'
+          }
+          onRetry={() => void notesQ.refetch()}
+        />
+      </div>
     );
   }
 
   const needle = q.trim().toLowerCase();
   const rows = (notesQ.data ?? []).filter((n) => {
+    if (!inRange(n.tax_point_date, order)) return false;
     if (needle === '') return true;
     const d = creditNoteDisplay(n, ctx);
     return (
@@ -95,46 +161,106 @@ export function CreditNotesSegment({ q }: { q: string }) {
       n.credit_note_number.toLowerCase().includes(needle)
     );
   });
-  const groups = groupByMonth(rows);
+  // Amount order ranks the note's face value (gross_amount), whichever side
+  // it credits, one ranking per currency; totals are the signed net.
+  const sections = orderSections(rows, order.order, (n) => ({
+    id: n.id,
+    day: n.tax_point_date,
+    amount: n.gross_amount,
+    currency: n.currency,
+  }));
+
+  const total = (notesQ.data ?? []).length;
 
   return (
-    <div>
-      <div className="px-4 pb-3">
-        <LinkButton
-          to="/books/credit-notes/new"
-          variant="secondary"
-          className="w-full"
-        >
-          New credit note
-        </LinkButton>
-      </div>
-      {groups.length === 0 && (
-        <EmptyState
+    <div ref={rootRef} tabIndex={-1} className="outline-none">
+      {activeFilters({
+        shown: rows.length,
+        total,
+        noun: 'credit notes',
+        totals:
+          rows.length > 0
+            ? `net ${formatTotals(
+                totalsByCurrency(rows, creditNoteSign, (n) => n.currency),
+              )}`
+            : undefined,
+      })}
+      {/* With nothing issued yet the link is the empty state's action
+        (#280) — shown once, not twice. */}
+      {total > 0 && (
+        <div className="px-4 pb-3">
+          <LinkButton
+            to="/books/credit-notes/new"
+            variant="secondary"
+            className="w-full"
+          >
+            New credit note
+          </LinkButton>
+        </div>
+      )}
+      {sections.length === 0 && (
+        <BooksEmpty
           icon="🧾"
-          title="No credit notes"
-          hint="Issue one from a posted invoice or expense detail"
+          noun="credit notes"
+          total={total}
+          q={q}
+          scope={BOOKS_SEARCH['credit-notes'].scope}
+          filters={effectiveDateFilter(order, order.labels[0])}
+          // The note's own number is on the row; the credited invoice or
+          // expense and its counterparty come from these reads.
+          lookups={[
+            { label: 'invoices', query: invoicesQ },
+            { label: 'expenses', query: expensesQ },
+            { label: 'counterparty names', query: entitiesQ },
+          ]}
+          onReset={onReset}
+          restricted={order.labels.length > 0 || q.trim() !== ''}
+          initialHint="Issue one here, or from a posted invoice or expense."
+          initialAction={
+            <LinkButton
+              to="/books/credit-notes/new"
+              variant="secondary"
+              className="min-h-11"
+            >
+              New credit note
+            </LinkButton>
+          }
         />
       )}
-      {groups.map((g) => (
-        <ListGroup key={g.month} label={g.label}>
+      {sections.map((g) => (
+        <ListGroup key={g.key} label={g.label}>
+          <BooksColumnsHeader columns={CREDIT_NOTE_COLUMNS} />
           {g.rows.map((n) => {
             const d = creditNoteDisplay(n, ctx);
             return (
-              <ListRow
+              <BooksRow
                 key={n.id}
                 to={`/books/credit-notes/${n.id}`}
+                columns={CREDIT_NOTE_COLUMNS}
                 title={d.title}
-                subtitle={d.subtitle}
-                trailing={
-                  <div className="flex-none">
-                    <AmountText
-                      cents={creditNoteSign(n)}
-                      showSign
-                      className="block text-[14px]"
-                    />
-                    <div className="mt-0.5">{statusChip(n.status)}</div>
-                  </div>
+                titleXl={
+                  d.objectRoute === null ? 'Credited item not found' : undefined
                 }
+                cells={[
+                  // Titled by its own number when the credited object is
+                  // not found; the column keeps it.
+                  {
+                    key: 'number',
+                    value: n.credit_note_number,
+                    xlOnly: d.objectRoute === null,
+                  },
+                  { key: 'kind', value: d.kind },
+                  { key: 'date', value: d.date },
+                ]}
+                amount={
+                  <AmountText
+                    cents={creditNoteSign(n)}
+                    currency={n.currency}
+                    showSign
+                    className="block text-[14px]"
+                  />
+                }
+                status={statusChip(n.status)}
               />
             );
           })}

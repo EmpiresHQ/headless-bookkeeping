@@ -1,0 +1,356 @@
+{
+ "label": "rep1",
+ "N": 25,
+ "startedAt": "2026-09-24T07:37:13.292Z",
+ "widths": [
+  {
+   "width": 1440,
+   "height": 900,
+   "frames": 742,
+   "iters": [
+    {
+     "i": 0,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 1,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 2,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 3,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 4,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 5,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 6,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 7,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 8,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 9,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 10,
+     "thumbPainted": [],
+     "lgPainted": [
+      [
+       167,
+       24
+      ]
+     ],
+     "wrong": 0
+    },
+    {
+     "i": 11,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 12,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 13,
+     "thumbPainted": [],
+     "lgPainted": [
+      [
+       167,
+       24
+      ]
+     ],
+     "wrong": 0
+    },
+    {
+     "i": 14,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 15,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 16,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 17,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 18,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 19,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 20,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 21,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 22,
+     "thumbPainted": [],
+     "lgPainted": [
+      [
+       167,
+       24
+      ]
+     ],
+     "wrong": 0
+    },
+    {
+     "i": 23,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 24,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    }
+   ],
+   "thumbItersWithPaintedBroken": 0,
+   "lgItersWithPaintedBroken": 3,
+   "wrongObject": 0,
+   "pageErrors": [],
+   "writes": []
+  },
+  {
+   "width": 1920,
+   "height": 1080,
+   "frames": 804,
+   "iters": [
+    {
+     "i": 0,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 1,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 2,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 3,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 4,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 5,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 6,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 7,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 8,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 9,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 10,
+     "thumbPainted": [
+      [
+       36,
+       48
+      ]
+     ],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 11,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 12,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 13,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 14,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 15,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 16,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 17,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 18,
+     "thumbPainted": [
+      [
+       36,
+       48
+      ]
+     ],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 19,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 20,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 21,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 22,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 23,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    },
+    {
+     "i": 24,
+     "thumbPainted": [],
+     "lgPainted": [],
+     "wrong": 0
+    }
+   ],
+   "thumbItersWithPaintedBroken": 2,
+   "lgItersWithPaintedBroken": 0,
+   "wrongObject": 0,
+   "pageErrors": [],
+   "writes": []
+  }
+ ]
+}

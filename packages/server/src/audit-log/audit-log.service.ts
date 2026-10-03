@@ -16,9 +16,17 @@ export class AuditLogService {
     return Math.floor(Date.now() / 1000);
   }
 
-  /** The sole write path into the append-only audit_log (ADR-0026). */
-  async record(entry: AuditEntry): Promise<void> {
-    await this.db
+  /**
+   * The sole write path into the append-only audit_log (ADR-0026).
+   *
+   * `executor` lets a caller enlist the entry in its own transaction, so an
+   * act and its audit trail commit or roll back together.
+   */
+  async record(
+    entry: AuditEntry,
+    executor: Kysely<Database> = this.db,
+  ): Promise<void> {
+    await executor
       .insertInto('audit_log')
       .values({
         occurred_at: this.now(),

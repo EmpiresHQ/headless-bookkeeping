@@ -1,6 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import {
   getExpense,
+  getMatchFacts,
   getNeedsTriageItems,
   getPendingApprovals,
   type Approval,
@@ -37,6 +38,7 @@ export const inboxKeys = {
   reclassify: (id: number) => ['inbox', 'doc', id, 'reclassify'] as const,
   pendingDraft: (id: number) => ['inbox', 'doc', id, 'pending-draft'] as const,
   approvalExpense: (id: number) => ['inbox', 'approval-expense', id] as const,
+  approvalMatch: (id: number) => ['inbox', 'approval-match', id] as const,
 };
 
 const oldestFirst = <T extends { created_at: number }>(rows: T[]): T[] =>
@@ -52,14 +54,46 @@ export function useNeedsTriage(opts: { poll?: boolean } = {}) {
   });
 }
 
-/** Pending approvals, FIFO. */
-export function usePendingApprovals(opts: { poll?: boolean } = {}) {
+/** Pending approvals, FIFO. `enabled`/`refetchOnMount`/`staleTime` let a
+ *  scoped reader (the period drill-down, issue #261) fetch only where it
+ *  joins, and re-check when it becomes enabled after mount. */
+export function usePendingApprovals(
+  opts: {
+    poll?: boolean;
+    enabled?: boolean;
+    refetchOnMount?: 'always';
+    staleTime?: number;
+  } = {},
+) {
   return useQuery({
     queryKey: inboxKeys.approvals,
     queryFn: getPendingApprovals,
     select: oldestFirst,
     refetchInterval: inboxRefetchInterval(opts.poll === true),
+    enabled: opts.enabled ?? true,
+    ...(opts.refetchOnMount ? { refetchOnMount: opts.refetchOnMount } : {}),
+    ...(opts.staleTime !== undefined ? { staleTime: opts.staleTime } : {}),
   });
+}
+
+/**
+ * The PENDING approval of exactly one object. `object_id` is the object's
+ * own ID, never an approval ID, and IDs are per type: expense 12, sales
+ * invoice 12 and bank match 12 are different objects — the typed pair must
+ * match. Several pending for one object (should not happen): the newest.
+ */
+export function pendingApprovalFor(
+  object: { object_type: string; object_id: number },
+  approvals: Approval[],
+): Approval | null {
+  const found = approvals.filter(
+    (a) =>
+      a.status === 'pending' &&
+      a.object_type === object.object_type &&
+      a.object_id === object.object_id,
+  );
+  if (found.length === 0) return null;
+  return found.reduce((a, b) => (b.id > a.id ? b : a));
 }
 
 /** Single-expense facts for the approval detail. */
@@ -68,6 +102,17 @@ export function useExpenseDetail(id: number | null) {
     queryKey: inboxKeys.approvalExpense(id ?? -1),
     queryFn: () => getExpense(id as number),
     enabled: id !== null,
+  });
+}
+
+/** The exact line/object pair of a reconciliation_match approval (#256).
+ *  Raw (`unknown`) on purpose: the screen validates the shape before it may
+ *  enable a decision. */
+export function useMatchFacts(matchId: number | null) {
+  return useQuery({
+    queryKey: inboxKeys.approvalMatch(matchId ?? -1),
+    queryFn: () => getMatchFacts(matchId as number),
+    enabled: matchId !== null,
   });
 }
 

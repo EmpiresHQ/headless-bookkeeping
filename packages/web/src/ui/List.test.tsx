@@ -20,6 +20,29 @@ describe('ListRow', () => {
     expect(screen.getByText('›')).toBeInTheDocument();
   });
 
+  it('keeps `leading` outside the link so it may hold its own control', () => {
+    const onPreview = vi.fn();
+    render(
+      <MemoryRouter>
+        <ListRow
+          to="/inbox/doc/1"
+          leading={
+            <button type="button" onClick={onPreview}>
+              Preview
+            </button>
+          }
+          title="invoice-1.pdf"
+        />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: /invoice-1\.pdf/ });
+    const button = screen.getByRole('button', { name: 'Preview' });
+    expect(link).not.toContainElement(button);
+    expect(button.closest('a')).toBeNull();
+    // Link and leading share the row container (stretched-link layout).
+    expect(link.parentElement).toBe(button.parentElement?.parentElement);
+  });
+
   it('renders a button when `onClick` is set and fires it', () => {
     const onClick = vi.fn();
     render(<ListRow onClick={onClick} title="Retry" />);

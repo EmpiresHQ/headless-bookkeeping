@@ -1,0 +1,5117 @@
+{
+ "before-de159d2": [
+  {
+   "vp": "320x844",
+   "screen": "create",
+   "maxScroll": 123,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 59,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 333.8,
+     "b": 378.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 521.3,
+     "b": 585.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 585.3,
+     "b": 648.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 672.3,
+     "b": 718.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 791.6,
+     "b": 835.6,
+     "scrollY": 0,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "tabbar": 25
+     }
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "keyboardProxy": {
+    "input": {
+     "active": "INPUT#:r9:-f-vat",
+     "inputTop": 333.8,
+     "inputBottom": 378.3,
+     "abTop": 381,
+     "ih": 508,
+     "scrollY": 0,
+     "inputCoveredByBar": false
+    },
+    "typed": "5,00"
+   },
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "matched",
+   "maxScroll": 1024,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "staged",
+   "maxScroll": 541,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 310,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 298.8,
+     "b": 344.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "candidates",
+   "maxScroll": 844,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 254.8,
+     "b": 320.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 320.3,
+     "b": 385.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 385.8,
+     "b": 451.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 451.3,
+     "b": 516.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 516.8,
+     "b": 582.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 582.3,
+     "b": 647.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 647.8,
+     "b": 713.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 713.3,
+     "b": 778.8,
+     "scrollY": 0,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 778.8,
+     "b": 844.3,
+     "scrollY": 0,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 389.3,
+     "b": 454.8,
+     "scrollY": 455,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 454.8,
+     "b": 520.3,
+     "scrollY": 455,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 520.3,
+     "b": 585.8,
+     "scrollY": 455,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 585.8,
+     "b": 651.3,
+     "scrollY": 455,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 651.3,
+     "b": 716.8,
+     "scrollY": 455,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 716.8,
+     "b": 781.3,
+     "scrollY": 455,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 455,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 669.1,
+     "b": 713.1,
+     "scrollY": 844,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 844,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 844,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "create",
+   "maxScroll": 85,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 36,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 333.8,
+     "b": 378.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 483.3,
+     "b": 547.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 547.3,
+     "b": 610.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 634.3,
+     "b": 680.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 753.6,
+     "b": 797.6,
+     "scrollY": 0,
+     "hiddenPct": 20,
+     "coveredBy": {
+      "tabbar": 5
+     }
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "keyboardProxy": {
+    "input": {
+     "active": "INPUT#:r9:-f-vat",
+     "inputTop": 333.8,
+     "inputBottom": 378.3,
+     "abTop": 381,
+     "ih": 508,
+     "scrollY": 0,
+     "inputCoveredByBar": false
+    },
+    "typed": "5,00"
+   },
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "matched",
+   "maxScroll": 740,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "staged",
+   "maxScroll": 462,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 262,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 264,
+     "b": 310,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "candidates",
+   "maxScroll": 796,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 238.8,
+     "b": 304.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 304.3,
+     "b": 369.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 369.8,
+     "b": 435.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 435.3,
+     "b": 500.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 500.8,
+     "b": 566.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 566.3,
+     "b": 631.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 631.8,
+     "b": 697.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 697.3,
+     "b": 762.8,
+     "scrollY": 0,
+     "hiddenPct": 80,
+     "coveredBy": {
+      "actionbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 762.8,
+     "b": 828.3,
+     "scrollY": 0,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 10,
+      "tabbar": 15
+     }
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 778.3,
+     "b": 843.8,
+     "scrollY": 50,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 778.8,
+     "b": 844.3,
+     "scrollY": 115,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 389.3,
+     "b": 454.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 454.8,
+     "b": 520.3,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 520.3,
+     "b": 585.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 585.8,
+     "b": 650.3,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 669,
+     "b": 713,
+     "scrollY": 796,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 796,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 796,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "create",
+   "maxScroll": 399,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 224,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 333.8,
+     "b": 378.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 504.3,
+     "b": 568.3,
+     "scrollY": 17,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 252.3,
+     "b": 315.3,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 339.3,
+     "b": 385.3,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 458.6,
+     "b": 502.6,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 333,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "matched",
+   "maxScroll": 1300,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "staged",
+   "maxScroll": 817,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 298.8,
+     "b": 344.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "candidates",
+   "maxScroll": 1120,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 254.8,
+     "b": 320.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 320.3,
+     "b": 385.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 385.8,
+     "b": 451.3,
+     "scrollY": 0,
+     "hiddenPct": 20,
+     "coveredBy": {
+      "actionbar": 5
+     }
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 451.3,
+     "b": 516.8,
+     "scrollY": 0,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 502.8,
+     "b": 568.3,
+     "scrollY": 14,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 251.3,
+     "b": 316.8,
+     "scrollY": 331,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 316.8,
+     "b": 382.3,
+     "scrollY": 331,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 382.3,
+     "b": 447.8,
+     "scrollY": 331,
+     "hiddenPct": 20,
+     "coveredBy": {
+      "actionbar": 5
+     }
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 447.8,
+     "b": 513.3,
+     "scrollY": 331,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 502.3,
+     "b": 567.8,
+     "scrollY": 342,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 502.8,
+     "b": 568.3,
+     "scrollY": 407,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 5,
+      "tabbar": 20
+     }
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 251.3,
+     "b": 316.8,
+     "scrollY": 724,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 316.8,
+     "b": 382.3,
+     "scrollY": 724,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 382.3,
+     "b": 447.8,
+     "scrollY": 724,
+     "hiddenPct": 20,
+     "coveredBy": {
+      "actionbar": 5
+     }
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 447.8,
+     "b": 512.3,
+     "scrollY": 724,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 724,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 393.1,
+     "b": 437.1,
+     "scrollY": 1120,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 1120,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 1120,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "create",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 13,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 135.8,
+     "b": 176.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 209.8,
+     "b": 251.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 296.3,
+     "b": 340.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 445.8,
+     "b": 509.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 509.8,
+     "b": 572.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 596.8,
+     "b": 642.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 701.4,
+     "b": 745.4,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "matched",
+   "maxScroll": 410,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 246,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 8,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 840,
+     "b": 886,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "staged",
+   "maxScroll": 280,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 168,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 8,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 840,
+     "b": 886,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 840,
+     "b": 886,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 8,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 210.5,
+     "b": 256.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "candidates",
+   "maxScroll": 599,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 350,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 201.3,
+     "b": 266.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 266.8,
+     "b": 332.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 332.3,
+     "b": 397.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 397.8,
+     "b": 463.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 463.3,
+     "b": 528.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 528.8,
+     "b": 594.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 594.3,
+     "b": 659.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 659.8,
+     "b": 725.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 725.3,
+     "b": 790.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 790.8,
+     "b": 856.3,
+     "scrollY": 0,
+     "hiddenPct": 40,
+     "coveredBy": {
+      "actionbar": 10
+     }
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 834.3,
+     "b": 899.8,
+     "scrollY": 22,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 834.8,
+     "b": 900.3,
+     "scrollY": 87,
+     "hiddenPct": 100,
+     "coveredBy": {
+      "actionbar": 25
+     }
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 417.3,
+     "b": 482.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 482.8,
+     "b": 548.3,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 548.3,
+     "b": 612.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 720.8,
+     "b": 766.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 825.4,
+     "b": 869.4,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1300\"",
+     "y": 135.8,
+     "b": 201.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 201.3,
+     "b": 266.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  }
+ ],
+ "after-fix": [
+  {
+   "vp": "320x844",
+   "screen": "create",
+   "maxScroll": 123,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 59,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 333.8,
+     "b": 378.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 521.3,
+     "b": 585.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 585.3,
+     "b": 648.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 671.3,
+     "b": 717.3,
+     "scrollY": 1,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 668.6,
+     "b": 712.6,
+     "scrollY": 123,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 123,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 123,
+     "hiddenPct": 0
+    }
+   ],
+   "keyboardProxy": {
+    "input": {
+     "active": "INPUT#:r9:-f-vat",
+     "inputTop": 333.8,
+     "inputBottom": 378.3,
+     "abTop": 381,
+     "ih": 508,
+     "scrollY": 0,
+     "inputCoveredByBar": false
+    },
+    "typed": "5,00"
+   },
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "matched",
+   "maxScroll": 1024,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 394,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 394,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 394,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "staged",
+   "maxScroll": 541,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 310,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 394,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 627.3,
+     "b": 673.3,
+     "scrollY": 541,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 541,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 541,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 298.8,
+     "b": 344.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x844",
+   "screen": "candidates",
+   "maxScroll": 844,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 254.8,
+     "b": 320.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 320.3,
+     "b": 385.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 385.8,
+     "b": 451.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 451.3,
+     "b": 516.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 516.8,
+     "b": 582.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 582.3,
+     "b": 647.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 647.8,
+     "b": 713.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 651.3,
+     "b": 716.8,
+     "scrollY": 62,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 651.8,
+     "b": 717.3,
+     "scrollY": 127,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 325.3,
+     "b": 390.8,
+     "scrollY": 519,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 390.8,
+     "b": 456.3,
+     "scrollY": 519,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 456.3,
+     "b": 521.8,
+     "scrollY": 519,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 521.8,
+     "b": 587.3,
+     "scrollY": 519,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 587.3,
+     "b": 652.8,
+     "scrollY": 519,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 652.8,
+     "b": 717.3,
+     "scrollY": 519,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 535,
+     "b": 581,
+     "scrollY": 844,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 669.1,
+     "b": 713.1,
+     "scrollY": 844,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 844,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 844,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "create",
+   "maxScroll": 85,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 36,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 333.8,
+     "b": 378.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 483.3,
+     "b": 547.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 547.3,
+     "b": 610.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 634.3,
+     "b": 680.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 668.6,
+     "b": 712.6,
+     "scrollY": 85,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 85,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 85,
+     "hiddenPct": 0
+    }
+   ],
+   "keyboardProxy": {
+    "input": {
+     "active": "INPUT#:r9:-f-vat",
+     "inputTop": 333.8,
+     "inputBottom": 378.3,
+     "abTop": 381,
+     "ih": 508,
+     "scrollY": 0,
+     "inputCoveredByBar": false
+    },
+    "typed": "5,00"
+   },
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "matched",
+   "maxScroll": 740,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 729,
+     "b": 775,
+     "scrollY": 394,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 394,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 394,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "staged",
+   "maxScroll": 462,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 262,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 696,
+     "b": 742,
+     "scrollY": 394,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 671,
+     "b": 717,
+     "scrollY": 419,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 419,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 419,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 264,
+     "b": 310,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "390x844",
+   "screen": "candidates",
+   "maxScroll": 796,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 238.8,
+     "b": 304.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 304.3,
+     "b": 369.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 369.8,
+     "b": 435.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 435.3,
+     "b": 500.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 500.8,
+     "b": 566.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 566.3,
+     "b": 631.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 631.8,
+     "b": 697.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 651.3,
+     "b": 716.8,
+     "scrollY": 46,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 651.8,
+     "b": 717.3,
+     "scrollY": 111,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 325.3,
+     "b": 390.8,
+     "scrollY": 503,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 390.8,
+     "b": 456.3,
+     "scrollY": 503,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 456.3,
+     "b": 521.8,
+     "scrollY": 503,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 521.8,
+     "b": 587.3,
+     "scrollY": 503,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 587.3,
+     "b": 652.8,
+     "scrollY": 503,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 652.8,
+     "b": 717.3,
+     "scrollY": 503,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 549.6,
+     "b": 595.6,
+     "scrollY": 796,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 669,
+     "b": 713,
+     "scrollY": 796,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 796,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 792,
+     "b": 836,
+     "scrollY": 796,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "create",
+   "maxScroll": 399,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 224,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 333.8,
+     "b": 378.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 188.3,
+     "b": 252.3,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 252.3,
+     "b": 315.3,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 339.3,
+     "b": 385.3,
+     "scrollY": 333,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 392.6,
+     "b": 436.6,
+     "scrollY": 399,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 399,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 399,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "matched",
+   "maxScroll": 1300,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 256,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 256,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 256,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "staged",
+   "maxScroll": 817,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 256,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 453,
+     "b": 499,
+     "scrollY": 512,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 512,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 512,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 298.8,
+     "b": 344.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x568",
+   "screen": "candidates",
+   "maxScroll": 1120,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 254.8,
+     "b": 320.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 320.3,
+     "b": 385.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 375.8,
+     "b": 441.3,
+     "scrollY": 10,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 187.3,
+     "b": 252.8,
+     "scrollY": 264,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 252.8,
+     "b": 318.3,
+     "scrollY": 264,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 318.3,
+     "b": 383.8,
+     "scrollY": 264,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 375.8,
+     "b": 441.3,
+     "scrollY": 272,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 187.3,
+     "b": 252.8,
+     "scrollY": 526,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 252.8,
+     "b": 318.3,
+     "scrollY": 526,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 318.3,
+     "b": 383.8,
+     "scrollY": 526,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 375.8,
+     "b": 441.3,
+     "scrollY": 534,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 187.3,
+     "b": 252.8,
+     "scrollY": 788,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 252.8,
+     "b": 318.3,
+     "scrollY": 788,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 318.3,
+     "b": 383.8,
+     "scrollY": 788,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 376.8,
+     "b": 441.3,
+     "scrollY": 795,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 328,
+     "b": 374,
+     "scrollY": 1051,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 393.1,
+     "b": 437.1,
+     "scrollY": 1120,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 1120,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 516,
+     "b": 560,
+     "scrollY": 1120,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "create",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 13,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 135.8,
+     "b": 176.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 209.8,
+     "b": 251.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 296.3,
+     "b": 340.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 445.8,
+     "b": 509.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 509.8,
+     "b": 572.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 596.8,
+     "b": 642.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 701.4,
+     "b": 745.4,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "matched",
+   "maxScroll": 410,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 246,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 8,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 769.8,
+     "b": 815.8,
+     "scrollY": 410,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 410,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "staged",
+   "maxScroll": 280,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 168,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 8,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 769.5,
+     "b": 815.5,
+     "scrollY": 280,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 769.5,
+     "b": 815.5,
+     "scrollY": 280,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 280,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 8,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 210.5,
+     "b": 256.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "1440x900",
+   "screen": "candidates",
+   "maxScroll": 599,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 350,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 201.3,
+     "b": 266.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 266.8,
+     "b": 332.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 332.3,
+     "b": 397.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 397.8,
+     "b": 463.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 463.3,
+     "b": 528.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 528.8,
+     "b": 594.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 594.3,
+     "b": 659.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 659.8,
+     "b": 725.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 725.3,
+     "b": 790.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 762.8,
+     "b": 828.3,
+     "scrollY": 28,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 381.3,
+     "b": 446.8,
+     "scrollY": 475,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 446.8,
+     "b": 512.3,
+     "scrollY": 475,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 512.3,
+     "b": 577.8,
+     "scrollY": 475,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 577.8,
+     "b": 643.3,
+     "scrollY": 475,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 643.3,
+     "b": 707.8,
+     "scrollY": 475,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 781.8,
+     "b": 827.8,
+     "scrollY": 509,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 796.4,
+     "b": 840.4,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 58,
+     "b": 93.5,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 95.5,
+     "b": 131,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Bank\"",
+     "y": 133,
+     "b": 168.5,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Reports\"",
+     "y": 170.5,
+     "b": 206,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Settings\"",
+     "y": 208,
+     "b": 243.5,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Sign out\"",
+     "y": 851,
+     "b": 888,
+     "scrollY": 599,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1300\"",
+     "y": 135.8,
+     "b": 201.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 201.3,
+     "b": 266.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  }
+ ],
+ "after-fix-extra-viewports": [
+  {
+   "vp": "320x480",
+   "screen": "create",
+   "maxScroll": 487,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 277,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 173.3,
+     "b": 213.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 247.3,
+     "b": 289.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 308.8,
+     "b": 353.3,
+     "scrollY": 25,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 144.3,
+     "b": 208.3,
+     "scrollY": 377,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 208.3,
+     "b": 271.3,
+     "scrollY": 377,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 295.3,
+     "b": 341.3,
+     "scrollY": 377,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 304.6,
+     "b": 348.6,
+     "scrollY": 487,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 487,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 487,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x480",
+   "screen": "matched",
+   "maxScroll": 1388,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 365,
+     "b": 411,
+     "scrollY": 212,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 212,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 212,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x480",
+   "screen": "staged",
+   "maxScroll": 905,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 365,
+     "b": 411,
+     "scrollY": 212,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 365,
+     "b": 411,
+     "scrollY": 424,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 424,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 424,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x480",
+   "screen": "incoming",
+   "maxScroll": 7,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 296.8,
+     "b": 342.8,
+     "scrollY": 2,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 2,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 2,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "320x480",
+   "screen": "candidates",
+   "maxScroll": 1208,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 254.8,
+     "b": 320.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 287.3,
+     "b": 352.8,
+     "scrollY": 33,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 287.8,
+     "b": 353.3,
+     "scrollY": 98,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 143.3,
+     "b": 208.8,
+     "scrollY": 308,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 208.8,
+     "b": 274.3,
+     "scrollY": 308,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 274.3,
+     "b": 339.8,
+     "scrollY": 308,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 287.8,
+     "b": 353.3,
+     "scrollY": 360,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 143.3,
+     "b": 208.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 208.8,
+     "b": 274.3,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 274.3,
+     "b": 339.8,
+     "scrollY": 570,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 287.8,
+     "b": 353.3,
+     "scrollY": 622,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 143.3,
+     "b": 208.8,
+     "scrollY": 832,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 208.8,
+     "b": 274.3,
+     "scrollY": 832,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 274.3,
+     "b": 339.8,
+     "scrollY": 832,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 288.8,
+     "b": 353.3,
+     "scrollY": 883,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 284,
+     "b": 330,
+     "scrollY": 1095,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 305.1,
+     "b": 349.1,
+     "scrollY": 1208,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 1208,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 428,
+     "b": 472,
+     "scrollY": 1208,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "844x390",
+   "screen": "create",
+   "maxScroll": 486,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 277,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 135.8,
+     "b": 176.3,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 209.8,
+     "b": 251.8,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 109.3,
+     "b": 153.8,
+     "scrollY": 187,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 198.8,
+     "b": 262.8,
+     "scrollY": 247,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 199.8,
+     "b": 262.8,
+     "scrollY": 310,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 119.8,
+     "b": 165.8,
+     "scrollY": 477,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 219.4,
+     "b": 263.4,
+     "scrollY": 482,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 482,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 482,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "844x390",
+   "screen": "matched",
+   "maxScroll": 991,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 275,
+     "b": 321,
+     "scrollY": 167,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 167,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 167,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "844x390",
+   "screen": "staged",
+   "maxScroll": 864,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 275,
+     "b": 321,
+     "scrollY": 167,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 275,
+     "b": 321,
+     "scrollY": 334,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 334,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 334,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "844x390",
+   "screen": "incoming",
+   "maxScroll": 0,
+   "sweep": {
+    "samples": 1,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 0,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 210.5,
+     "b": 256.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 0,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "844x390",
+   "screen": "candidates",
+   "maxScroll": 1180,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 197.3,
+     "b": 262.8,
+     "scrollY": 4,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 197.8,
+     "b": 263.3,
+     "scrollY": 69,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 98.3,
+     "b": 163.8,
+     "scrollY": 234,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 163.8,
+     "b": 229.3,
+     "scrollY": 234,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 197.3,
+     "b": 262.8,
+     "scrollY": 266,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 197.8,
+     "b": 263.3,
+     "scrollY": 331,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 98.3,
+     "b": 163.8,
+     "scrollY": 496,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 163.8,
+     "b": 229.3,
+     "scrollY": 496,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 197.3,
+     "b": 262.8,
+     "scrollY": 528,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 197.8,
+     "b": 263.3,
+     "scrollY": 593,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 98.3,
+     "b": 163.8,
+     "scrollY": 758,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 163.8,
+     "b": 229.3,
+     "scrollY": 758,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 197.3,
+     "b": 262.8,
+     "scrollY": 790,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 197.8,
+     "b": 263.3,
+     "scrollY": 855,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 99.3,
+     "b": 163.8,
+     "scrollY": 1019,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 110.8,
+     "b": 156.8,
+     "scrollY": 1180,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 215.4,
+     "b": 259.4,
+     "scrollY": 1180,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 1180,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 338,
+     "b": 382,
+     "scrollY": 1180,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "667x375",
+   "screen": "create",
+   "maxScroll": 520,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 297,
+    "newWrites": 0,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": true
+   },
+   "keyboardCta": {
+    "tabs": 7,
+    "newWrites": 0,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+     "y": 154.5,
+     "b": 195,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+     "y": 205.5,
+     "b": 247.5,
+     "scrollY": 23,
+     "hiddenPct": 0
+    },
+    {
+     "el": "input#:r9:-f-vat \"22.26\"",
+     "y": 102,
+     "b": 146.5,
+     "scrollY": 213,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"📎Receipt coming laterAttach\"",
+     "y": 91.5,
+     "b": 155.5,
+     "scrollY": 373,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"🚫No receiptThe line is the \"",
+     "y": 155.5,
+     "b": 218.5,
+     "scrollY": 373,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Create & match · −123.45 €\"",
+     "y": 201.5,
+     "b": 247.5,
+     "scrollY": 414,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 200.2,
+     "b": 244.2,
+     "scrollY": 520,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 520,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 520,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "667x375",
+   "screen": "matched",
+   "maxScroll": 1025,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 260,
+     "b": 306,
+     "scrollY": 159,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 159,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 159,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "667x375",
+   "screen": "staged",
+   "maxScroll": 898,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Confirm match\"",
+     "y": 260,
+     "b": 306,
+     "scrollY": 159,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Unmatch\"",
+     "y": 260,
+     "b": 306,
+     "scrollY": 318,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 318,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 318,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "667x375",
+   "screen": "incoming",
+   "maxScroll": 32,
+   "sweep": {
+    "samples": 8,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 4,
+    "newWrites": 0,
+    "dialog": true,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 2,
+    "newWrites": 0,
+    "dialog": true,
+    "afterEscape": {
+     "dialog": false,
+     "active": "Record prepayment · +500.00 €",
+     "onCta": true
+    }
+   },
+   "tabWalk": [
+    {
+     "el": "a \"‹ Back\"",
+     "y": 10,
+     "b": 32.5,
+     "scrollY": 0,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Record prepayment · +500.00 \"",
+     "y": 201.9,
+     "b": 247.9,
+     "scrollY": 26,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 26,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 26,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  },
+  {
+   "vp": "667x375",
+   "screen": "candidates",
+   "maxScroll": 1229,
+   "sweep": {
+    "samples": 9,
+    "bad": 0
+   },
+   "tap": {
+    "scrollY": 335,
+    "newWrites": 1,
+    "dialog": false,
+    "stayed": true,
+    "categoryError": false
+   },
+   "keyboardCta": {
+    "tabs": 16,
+    "newWrites": 1,
+    "dialog": false
+   },
+   "tabWalk": [
+    {
+     "el": "button \"Expense #1301\"",
+     "y": 182,
+     "b": 247.5,
+     "scrollY": 38,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1302\"",
+     "y": 182.5,
+     "b": 248,
+     "scrollY": 103,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1303\"",
+     "y": 91,
+     "b": 156.5,
+     "scrollY": 260,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1304\"",
+     "y": 156.5,
+     "b": 222,
+     "scrollY": 260,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1305\"",
+     "y": 182,
+     "b": 247.5,
+     "scrollY": 300,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1306\"",
+     "y": 182.5,
+     "b": 248,
+     "scrollY": 365,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1307\"",
+     "y": 91,
+     "b": 156.5,
+     "scrollY": 522,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1308\"",
+     "y": 156.5,
+     "b": 222,
+     "scrollY": 522,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1309\"",
+     "y": 182,
+     "b": 247.5,
+     "scrollY": 562,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1310\"",
+     "y": 182.5,
+     "b": 248,
+     "scrollY": 627,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1311\"",
+     "y": 91,
+     "b": 156.5,
+     "scrollY": 784,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1312\"",
+     "y": 156.5,
+     "b": 222,
+     "scrollY": 784,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1313\"",
+     "y": 182,
+     "b": 247.5,
+     "scrollY": 824,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1314\"",
+     "y": 182.5,
+     "b": 248,
+     "scrollY": 889,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Expense #1315\"",
+     "y": 92,
+     "b": 156.5,
+     "scrollY": 1045,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Match 156.25 €\"",
+     "y": 105.5,
+     "b": 151.5,
+     "scrollY": 1204,
+     "hiddenPct": 0
+    },
+    {
+     "el": "button \"Personal · Bank fee · Prepay\"",
+     "y": 203.9,
+     "b": 247.9,
+     "scrollY": 1225,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Inbox43\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 1225,
+     "hiddenPct": 0
+    },
+    {
+     "el": "a \"Books\"",
+     "y": 323,
+     "b": 367,
+     "scrollY": 1225,
+     "hiddenPct": 0
+    }
+   ],
+   "errors": 0
+  }
+ ]
+}

@@ -3,6 +3,28 @@
 @tailwind utilities;
 
 @layer base {
+  /* Mobile tab bar geometry (shell/TabBar). Sticky action bars offset by
+     --tabbar-h so they rest ABOVE the fixed bar instead of under it; the
+     bar is lg:hidden, so the offset collapses to 0 on desktop. The 47px
+     row is the 1px border + pt-0.5 + a 44px-tall link (issue #273 touch
+     minimum) holding the 22px icon + the 9.5px label. */
+  :root {
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --tabbar-row-h: 47px;
+    --tabbar-h: calc(var(--tabbar-row-h) + max(var(--safe-bottom), 8px));
+  }
+  @media (min-width: theme('screens.lg')) {
+    :root {
+      --tabbar-h: 0px;
+    }
+  }
+  /* Keyboard focus must not come to rest behind the fixed TabBar or a
+     sticky ActionBar (QA-012, #305; WCAG 2.4.11). The browser honours
+     scroll-padding when it scrolls a newly focused element into view.
+     --actionbar-h is set by ui/ActionBar while one is mounted. */
+  html {
+    scroll-padding-bottom: calc(var(--tabbar-h) + var(--actionbar-h, 0px));
+  }
   body {
     @apply bg-bg text-ink antialiased;
     font-family:
@@ -11,28 +33,27 @@
   }
 }
 
-/* Route transitions (react-router viewTransition). Basic cross-slide;
-   directional pop refinement comes with the Inbox plan. */
-@media (prefers-reduced-motion: no-preference) {
-  ::view-transition-old(root) {
-    animation: 90ms ease both vt-fade-out;
+/* Busy kit Button (ui/Button, issue #281): an indeterminate bar along the
+   bottom edge, drawn as a background so the button's box never changes. */
+@layer components {
+  button[data-pending] {
+    cursor: progress;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-size: 35% 3px;
+    background-position: -40% 100%;
+    animation: button-pending 1.1s ease-in-out infinite;
   }
-  ::view-transition-new(root) {
-    animation: 180ms ease both vt-slide-in;
+  @keyframes button-pending {
+    to {
+      background-position: 140% 100%;
+    }
   }
-}
-@keyframes vt-slide-in {
-  from {
-    opacity: 0.6;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes vt-fade-out {
-  to {
-    opacity: 0.4;
+  @media (prefers-reduced-motion: reduce) {
+    button[data-pending] {
+      animation: none;
+      background-size: 100% 3px;
+      background-position: 0 100%;
+    }
   }
 }

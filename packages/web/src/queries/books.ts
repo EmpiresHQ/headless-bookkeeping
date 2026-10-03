@@ -29,6 +29,8 @@ export const booksKeys = {
   creditNotes: ['books', 'credit-notes'] as const,
   creditNote: (id: number) => ['books', 'credit-notes', id] as const,
   expense: (id: number) => ['books', 'expense', id] as const,
+  attachable: (expenseId: number) =>
+    ['books', 'expense', expenseId, 'attachable'] as const,
   rejection: (objectType: 'expense' | 'sales_invoice', objectId: number) =>
     ['books', 'rejection', objectType, objectId] as const,
 };
@@ -189,6 +191,12 @@ export function matchesStatus(
 
 const norm = (s: string) => s.toLowerCase();
 
+/** A supplier invoice number as searched (issue #277): case-insensitive,
+ *  outer whitespace trimmed and every internal whitespace run (tab, NBSP…)
+ *  read as one space. Punctuation and the spaces themselves are kept — no
+ *  OCR or duplicate-detection folding. */
+const normNumber = (s: string) => norm(s).trim().replace(/\s+/g, ' ');
+
 export function expenseMatchesQuery(
   row: Expense,
   q: string,
@@ -196,8 +204,12 @@ export function expenseMatchesQuery(
 ): boolean {
   const needle = norm(q.trim());
   if (needle === '') return true;
-  return [supplierName ?? '', row.category, fmtCents(row.gross_amount)].some(
-    (hay) => norm(hay).includes(needle),
+  const number = normNumber(row.supplier_invoice_number ?? '');
+  return (
+    [supplierName ?? '', row.category, fmtCents(row.gross_amount)].some((hay) =>
+      norm(hay).includes(needle),
+    ) ||
+    (number !== '' && number.includes(normNumber(q)))
   );
 }
 

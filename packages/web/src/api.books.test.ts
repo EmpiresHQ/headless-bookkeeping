@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setToken } from './auth';
 import {
+  attachExpenseDocument,
   correctExpense,
+  listAttachableDocuments,
   getCreditNote,
   listApprovals,
   postInvoice,
@@ -122,5 +124,39 @@ describe('books api additions', () => {
     await uploadDocument(file);
     const body2 = fetchMock.mock.calls[1][1]?.body as FormData;
     expect(body2.get('claimant_id')).toBeNull();
+  });
+
+  it('attachExpenseDocument sends a multipart file OR a JSON document_id — never both', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () =>
+        ok({ outcome: 'attached', expense: {}, document: {} }),
+      );
+    const file = new File(['x'], 'r.pdf', { type: 'application/pdf' });
+
+    await attachExpenseDocument(12, { file });
+    const [url1, init1] = fetchMock.mock.calls[0];
+    expect(url1).toBe('/api/expenses/12/attach-document');
+    expect(init1?.method).toBe('POST');
+    const form = init1?.body as FormData;
+    expect([...form.keys()]).toEqual(['file']);
+    expect(new Headers(init1?.headers).get('content-type')).toBeNull();
+
+    await attachExpenseDocument(12, { documentId: 44 });
+    const [, init2] = fetchMock.mock.calls[1];
+    expect(init2?.body).toBe('{"document_id":44}');
+    expect(new Headers(init2?.headers).get('content-type')).toBe(
+      'application/json',
+    );
+  });
+
+  it('listAttachableDocuments unwraps the server-owned candidate list', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(ok({ documents: [{ id: 44 }] }));
+    expect(await listAttachableDocuments(12)).toEqual([{ id: 44 }]);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/expenses/12/attachable-documents',
+    );
   });
 });

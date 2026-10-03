@@ -61,6 +61,7 @@ describe('shared hooks', () => {
         country: 'EE',
         name: 'Wolt',
         goods_vs_services: null,
+        tax_status: null,
       },
       {
         id: 2,
@@ -68,6 +69,7 @@ describe('shared hooks', () => {
         country: 'EE',
         name: 'Nordic',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     const { client, wrapper } = makeWrapper();

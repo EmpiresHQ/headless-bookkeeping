@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api', async (importOriginal) => ({
@@ -85,5 +85,72 @@ describe('DocThumb', () => {
       expect(screen.getByTestId('custom-fallback')).toBeInTheDocument(),
     );
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  // Issue #304 (QA-011, D1): bytes that download but do not decode must not
+  // leave a broken image in the archive row.
+  it('falls back to the glyph when the preview bytes fail to decode', async () => {
+    vi.mocked(api.fetchDocumentPreviewObjectUrl).mockResolvedValue(
+      'blob:undecodable',
+    );
+    const { container } = render(<DocThumb id={7} />);
+
+    const img = await waitFor(() => {
+      const el = container.querySelector('img');
+      expect(el).not.toBeNull();
+      return el as HTMLImageElement;
+    });
+    fireEvent.error(img);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('span[aria-hidden]')).toHaveClass('bg-line');
+  });
+
+  it('uses the provided fallback for undecodable bytes too', async () => {
+    vi.mocked(api.fetchDocumentPreviewObjectUrl).mockResolvedValue(
+      'blob:undecodable',
+    );
+    const { container } = render(
+      <DocThumb id={7} fallback={<span data-testid="custom-fallback" />} />,
+    );
+
+    const img = await waitFor(() => {
+      const el = container.querySelector('img');
+      expect(el).not.toBeNull();
+      return el as HTMLImageElement;
+    });
+    fireEvent.error(img);
+
+    expect(screen.getByTestId('custom-fallback')).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('never shows the previous id’s image while the new one loads', async () => {
+    let resolveNext: (url: string) => void = () => undefined;
+    vi.mocked(api.fetchDocumentPreviewObjectUrl)
+      .mockResolvedValueOnce('blob:doc-7')
+      .mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          resolveNext = resolve;
+        }),
+      );
+    const { container, rerender } = render(<DocThumb id={7} />);
+    await waitFor(() =>
+      expect(container.querySelector('img')).toHaveAttribute(
+        'src',
+        'blob:doc-7',
+      ),
+    );
+
+    rerender(<DocThumb id={8} />);
+    expect(container.querySelector('img')).toBeNull();
+
+    resolveNext('blob:doc-8');
+    await waitFor(() =>
+      expect(container.querySelector('img')).toHaveAttribute(
+        'src',
+        'blob:doc-8',
+      ),
+    );
   });
 });

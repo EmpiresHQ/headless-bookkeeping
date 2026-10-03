@@ -1,0 +1,7922 @@
+[
+ {
+  "vp": "320x844",
+  "screen": "create",
+  "txId": 501,
+  "maxScroll": 123,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     660.3,
+     732.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 672.3,
+      "b": 718.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 18,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     642.3,
+     714.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 654.3,
+      "b": 700.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 35,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     625.3,
+     697.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 637.3,
+      "b": 683.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 53,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     607.3,
+     679.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 619.3,
+      "b": 665.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 70,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     590.3,
+     662.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 602.3,
+      "b": 648.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 88,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     572.3,
+     644.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 584.3,
+      "b": 630.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 105,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     555.3,
+     627.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 567.3,
+      "b": 613.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 123,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     537.3,
+     609.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 549.3,
+      "b": 595.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 59,
+   "maxScroll": 123,
+   "ih": 844,
+   "ab": [
+    601.3,
+    673.3,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Create & match · −123.45 €",
+     "y": 613.3,
+     "b": 659.3,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 636,
+   "scrollY": 59
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/501",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": true,
+   "newWrites": 0,
+   "active": "Select category…OfficeSoftwareTravelRent"
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 173.3,
+    "b": 213.8,
+    "h": 40.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 247.3,
+    "b": 289.3,
+    "h": 42,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "input#:r9:-f-vat \"22.26\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 333.8,
+    "b": 378.3,
+    "h": 44.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "button \"📎Receipt coming laterAttach\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 521.3,
+    "b": 585.3,
+    "h": 64,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"🚫No receiptThe line is the \"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 585.3,
+    "b": 648.3,
+    "h": 63,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Create & match · −123.45 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 672.3,
+    "b": 718.3,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 791.6,
+    "b": 835.6,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "tabbar": 25
+    }
+   },
+   {
+    "i": 8,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 9,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 7,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     660.3,
+     732.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 672.3,
+      "b": 718.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/501",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": true,
+    "newWrites": 0,
+    "active": "Select category…OfficeSoftwareTravelRent"
+   }
+  },
+  "keyboardProxy": {
+   "before": {
+    "active": "INPUT",
+    "scrollY": 0
+   },
+   "shrunkTo": 508,
+   "input": {
+    "active": "INPUT#:r9:-f-vat",
+    "inputTop": 333.8,
+    "inputBottom": 378.3,
+    "abTop": 381,
+    "ih": 508,
+    "scrollY": 0,
+    "inputCoveredByBar": false
+   },
+   "bar": {
+    "scrollY": 0,
+    "maxScroll": 459,
+    "ih": 508,
+    "ab": [
+     381,
+     453,
+     "55px"
+    ],
+    "tabbarTop": 453,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 393,
+      "b": 439,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "typed": "5,00",
+   "restored": {
+    "scrollY": 0,
+    "maxScroll": 123,
+    "ih": 844,
+    "ab": [
+     660.3,
+     732.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 672.3,
+      "b": 718.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x844",
+  "screen": "matched",
+  "txId": 502,
+  "maxScroll": 1024,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 146,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 293,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 439,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 585,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 731,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 878,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 1024,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     615.8,
+     687.8,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 627.8,
+      "b": 673.8,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 1024,
+   "ih": 844,
+   "ab": [
+    717,
+    789,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Unmatch",
+     "y": 729,
+     "b": 775,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 752,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/502",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "DELETE /api/bank-statements/1/matches/7001"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 1024,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/502",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x844",
+  "screen": "staged",
+  "txId": 503,
+  "maxScroll": 541,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 77,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 155,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 232,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 309,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 386,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 464,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     692.3,
+     764.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 704.3,
+      "b": 750.3,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 704.3,
+      "b": 750.3,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 541,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     615.3,
+     687.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 627.3,
+      "b": 673.3,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 627.3,
+      "b": 673.3,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 310,
+   "maxScroll": 541,
+   "ih": 844,
+   "ab": [
+    717,
+    789,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Confirm match",
+     "y": 729,
+     "b": 775,
+     "x": 16,
+     "w": 139,
+     "vis": true,
+     "hits": 5
+    },
+    {
+     "t": "Unmatch",
+     "y": 729,
+     "b": 775,
+     "x": 165,
+     "w": 139,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 86,
+   "y": 752,
+   "scrollY": 310
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "alsoTapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/approvals/96001/approve",
+   "DELETE /api/bank-statements/1/matches/7018"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Confirm match\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 541,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/503",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x844",
+  "screen": "incoming",
+  "txId": 504,
+  "maxScroll": 0,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 844,
+    "ab": [
+     286.8,
+     368.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 298.8,
+      "b": 344.8,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 0,
+   "maxScroll": 0,
+   "ih": 844,
+   "ab": [
+    286.8,
+    368.3,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Record prepayment · +500.00 €",
+     "y": 298.8,
+     "b": 344.8,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 322,
+   "scrollY": 0
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/504",
+   "stayed": true,
+   "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+   "categoryError": false,
+   "newWrites": 0,
+   "active": ""
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Record prepayment · +500.00 \"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 298.8,
+    "b": 344.8,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 844,
+    "ab": [
+     286.8,
+     368.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 298.8,
+      "b": 344.8,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/504",
+    "stayed": true,
+    "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+    "categoryError": false,
+    "newWrites": 0,
+    "active": ""
+   },
+   "focusInSheet": {
+    "inDialog": true,
+    "label": "Close"
+   },
+   "afterEscape": {
+    "dialog": false,
+    "active": "Record prepayment · +500.00 €",
+    "onCta": true
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x844",
+  "screen": "candidates",
+  "txId": 505,
+  "maxScroll": 844,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 121,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 241,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 362,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 482,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 603,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 723,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     644,
+     716,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 656,
+      "b": 702,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 844,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     523,
+     595,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 535,
+      "b": 581,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 844,
+   "ih": 844,
+   "ab": [
+    717,
+    789,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Match 156.25 €",
+     "y": 729,
+     "b": 775,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 752,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/505",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/bank-statements/1/match"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "button \"Expense #1301\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 254.8,
+    "b": 320.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Expense #1302\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 320.3,
+    "b": 385.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Expense #1303\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 385.8,
+    "b": 451.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "button \"Expense #1304\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 451.3,
+    "b": 516.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "button \"Expense #1305\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 516.8,
+    "b": 582.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Expense #1306\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 582.3,
+    "b": 647.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Expense #1307\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 647.8,
+    "b": 713.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Expense #1308\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 713.3,
+    "b": 778.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 8,
+    "el": "button \"Expense #1309\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 778.8,
+    "b": 844.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 9,
+    "el": "button \"Expense #1310\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 389.3,
+    "b": 454.8,
+    "h": 65.5,
+    "scrollY": 455,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 10,
+    "el": "button \"Expense #1311\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 454.8,
+    "b": 520.3,
+    "h": 65.5,
+    "scrollY": 455,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 11,
+    "el": "button \"Expense #1312\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 520.3,
+    "b": 585.8,
+    "h": 65.5,
+    "scrollY": 455,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 12,
+    "el": "button \"Expense #1313\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 585.8,
+    "b": 651.3,
+    "h": 65.5,
+    "scrollY": 455,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 13,
+    "el": "button \"Expense #1314\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 651.3,
+    "b": 716.8,
+    "h": 65.5,
+    "scrollY": 455,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 14,
+    "el": "button \"Expense #1315\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 716.8,
+    "b": 781.3,
+    "h": 64.5,
+    "scrollY": 455,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 15,
+    "el": "button \"Match 156.25 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 455,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 16,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 669.1,
+    "b": 713.1,
+    "h": 44,
+    "scrollY": 844,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 17,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 844,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 18,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 844,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 16,
+   "atFocus": {
+    "scrollY": 455,
+    "maxScroll": 844,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/505",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "390x844",
+  "screen": "create",
+  "txId": 501,
+  "maxScroll": 85,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     622.3,
+     694.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 634.3,
+      "b": 680.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 12,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     610.3,
+     682.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 622.3,
+      "b": 668.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 24,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     598.3,
+     670.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 610.3,
+      "b": 656.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 36,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     586.3,
+     658.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 598.3,
+      "b": 644.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 49,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     573.3,
+     645.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 585.3,
+      "b": 631.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 61,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     561.3,
+     633.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 573.3,
+      "b": 619.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 73,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     549.3,
+     621.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 561.3,
+      "b": 607.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 85,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     537.3,
+     609.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 549.3,
+      "b": 595.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 36,
+   "maxScroll": 85,
+   "ih": 844,
+   "ab": [
+    586.3,
+    658.3,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Create & match · −123.45 €",
+     "y": 598.3,
+     "b": 644.3,
+     "x": 16,
+     "w": 358,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 195,
+   "y": 621,
+   "scrollY": 36
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/501",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": true,
+   "newWrites": 0,
+   "active": "Select category…OfficeSoftwareTravelRent"
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 173.3,
+    "b": 213.8,
+    "h": 40.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 247.3,
+    "b": 289.3,
+    "h": 42,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "input#:r9:-f-vat \"22.26\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 333.8,
+    "b": 378.3,
+    "h": 44.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "button \"📎Receipt coming laterAttach\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 483.3,
+    "b": 547.3,
+    "h": 64,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"🚫No receiptThe line is the \"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 547.3,
+    "b": 610.3,
+    "h": 63,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Create & match · −123.45 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 634.3,
+    "b": 680.3,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 753.6,
+    "b": 797.6,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 20,
+    "coveredBy": {
+     "tabbar": 5
+    }
+   },
+   {
+    "i": 8,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 9,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 7,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     622.3,
+     694.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 634.3,
+      "b": 680.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/501",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": true,
+    "newWrites": 0,
+    "active": "Select category…OfficeSoftwareTravelRent"
+   }
+  },
+  "keyboardProxy": {
+   "before": {
+    "active": "INPUT",
+    "scrollY": 0
+   },
+   "shrunkTo": 508,
+   "input": {
+    "active": "INPUT#:r9:-f-vat",
+    "inputTop": 333.8,
+    "inputBottom": 378.3,
+    "abTop": 381,
+    "ih": 508,
+    "scrollY": 0,
+    "inputCoveredByBar": false
+   },
+   "bar": {
+    "scrollY": 0,
+    "maxScroll": 421,
+    "ih": 508,
+    "ab": [
+     381,
+     453,
+     "55px"
+    ],
+    "tabbarTop": 453,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 393,
+      "b": 439,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "typed": "5,00",
+   "restored": {
+    "scrollY": 0,
+    "maxScroll": 85,
+    "ih": 844,
+    "ab": [
+     622.3,
+     694.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 634.3,
+      "b": 680.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "390x844",
+  "screen": "matched",
+  "txId": 502,
+  "maxScroll": 740,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 106,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 211,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 317,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 423,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 529,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 634,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 740,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     615.3,
+     687.3,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 627.3,
+      "b": 673.3,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 740,
+   "ih": 844,
+   "ab": [
+    717,
+    789,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Unmatch",
+     "y": 729,
+     "b": 775,
+     "x": 16,
+     "w": 358,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 195,
+   "y": 752,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/502",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "DELETE /api/bank-statements/1/matches/7001"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 740,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/502",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "390x844",
+  "screen": "staged",
+  "txId": 503,
+  "maxScroll": 462,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 66,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 132,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 198,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 264,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 330,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 396,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     682,
+     754,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 694,
+      "b": 740,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 694,
+      "b": 740,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 462,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     616,
+     688,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 628,
+      "b": 674,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 628,
+      "b": 674,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 262,
+   "maxScroll": 462,
+   "ih": 844,
+   "ab": [
+    717,
+    789,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Confirm match",
+     "y": 729,
+     "b": 775,
+     "x": 16,
+     "w": 174,
+     "vis": true,
+     "hits": 5
+    },
+    {
+     "t": "Unmatch",
+     "y": 729,
+     "b": 775,
+     "x": 200,
+     "w": 174,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 103,
+   "y": 752,
+   "scrollY": 262
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "alsoTapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/approvals/96001/approve",
+   "DELETE /api/bank-statements/1/matches/7018"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Confirm match\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 462,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 729,
+      "b": 775,
+      "x": 200,
+      "w": 174,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/503",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "390x844",
+  "screen": "incoming",
+  "txId": 504,
+  "maxScroll": 0,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 844,
+    "ab": [
+     252,
+     324,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 264,
+      "b": 310,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 0,
+   "maxScroll": 0,
+   "ih": 844,
+   "ab": [
+    252,
+    324,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Record prepayment · +500.00 €",
+     "y": 264,
+     "b": 310,
+     "x": 16,
+     "w": 358,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 195,
+   "y": 287,
+   "scrollY": 0
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/504",
+   "stayed": true,
+   "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+   "categoryError": false,
+   "newWrites": 0,
+   "active": ""
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Record prepayment · +500.00 \"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 264,
+    "b": 310,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 844,
+    "ab": [
+     252,
+     324,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 264,
+      "b": 310,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/504",
+    "stayed": true,
+    "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+    "categoryError": false,
+    "newWrites": 0,
+    "active": ""
+   },
+   "focusInSheet": {
+    "inDialog": true,
+    "label": "Close"
+   },
+   "afterEscape": {
+    "dialog": false,
+    "active": "Record prepayment · +500.00 €",
+    "onCta": true
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "390x844",
+  "screen": "candidates",
+  "txId": 505,
+  "maxScroll": 796,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 114,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 227,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 341,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 455,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 569,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 682,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     651.6,
+     723.6,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 663.6,
+      "b": 709.6,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 796,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     537.6,
+     609.6,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 549.6,
+      "b": 595.6,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 390,
+   "docScrollW": 390,
+   "bodyScrollW": 390,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 796,
+   "ih": 844,
+   "ab": [
+    717,
+    789,
+    "55px"
+   ],
+   "tabbarTop": 789,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Match 156.25 €",
+     "y": 729,
+     "b": 775,
+     "x": 16,
+     "w": 358,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 195,
+   "y": 752,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/505",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/bank-statements/1/match"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "button \"Expense #1301\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 238.8,
+    "b": 304.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Expense #1302\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 304.3,
+    "b": 369.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Expense #1303\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 369.8,
+    "b": 435.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "button \"Expense #1304\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 435.3,
+    "b": 500.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "button \"Expense #1305\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 500.8,
+    "b": 566.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Expense #1306\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 566.3,
+    "b": 631.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Expense #1307\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 631.8,
+    "b": 697.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Expense #1308\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 697.3,
+    "b": 762.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 80,
+    "coveredBy": {
+     "actionbar": 20
+    }
+   },
+   {
+    "i": 8,
+    "el": "button \"Expense #1309\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 762.8,
+    "b": 828.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 10,
+     "tabbar": 15
+    }
+   },
+   {
+    "i": 9,
+    "el": "button \"Expense #1310\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 778.3,
+    "b": 843.8,
+    "h": 65.5,
+    "scrollY": 50,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 10,
+    "el": "button \"Expense #1311\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 778.8,
+    "b": 844.3,
+    "h": 65.5,
+    "scrollY": 115,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 11,
+    "el": "button \"Expense #1312\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 389.3,
+    "b": 454.8,
+    "h": 65.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 12,
+    "el": "button \"Expense #1313\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 454.8,
+    "b": 520.3,
+    "h": 65.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 13,
+    "el": "button \"Expense #1314\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 520.3,
+    "b": 585.8,
+    "h": 65.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 14,
+    "el": "button \"Expense #1315\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 585.8,
+    "b": 650.3,
+    "h": 64.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 15,
+    "el": "button \"Match 156.25 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 729,
+    "b": 775,
+    "h": 46,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 16,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 669,
+    "b": 713,
+    "h": 44,
+    "scrollY": 796,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 17,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 796,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 18,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 792,
+    "b": 836,
+    "h": 44,
+    "scrollY": 796,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 16,
+   "atFocus": {
+    "scrollY": 570,
+    "maxScroll": 796,
+    "ih": 844,
+    "ab": [
+     717,
+     789,
+     "55px"
+    ],
+    "tabbarTop": 789,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 729,
+      "b": 775,
+      "x": 16,
+      "w": 358,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/505",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x568",
+  "screen": "create",
+  "txId": 501,
+  "maxScroll": 399,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 57,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 114,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 171,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 228,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     432.3,
+     504.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 444.3,
+      "b": 490.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 285,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     375.3,
+     447.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 387.3,
+      "b": 433.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 342,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     318.3,
+     390.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 330.3,
+      "b": 376.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     310.3,
+     382.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 322.3,
+      "b": 368.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 399,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     261.3,
+     333.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 273.3,
+      "b": 319.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 224,
+   "maxScroll": 399,
+   "ih": 568,
+   "ab": [
+    436.3,
+    508.3,
+    "55px"
+   ],
+   "tabbarTop": 513,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Create & match · −123.45 €",
+     "y": 448.3,
+     "b": 494.3,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 471,
+   "scrollY": 224
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/501",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": true,
+   "newWrites": 0,
+   "active": "Select category…OfficeSoftwareTravelRent"
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 173.3,
+    "b": 213.8,
+    "h": 40.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 247.3,
+    "b": 289.3,
+    "h": 42,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "input#:r9:-f-vat \"22.26\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 333.8,
+    "b": 378.3,
+    "h": 44.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "button \"📎Receipt coming laterAttach\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 504.3,
+    "b": 568.3,
+    "h": 64,
+    "scrollY": 17,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 5,
+    "el": "button \"🚫No receiptThe line is the \"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 252.3,
+    "b": 315.3,
+    "h": 63,
+    "scrollY": 333,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Create & match · −123.45 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 339.3,
+    "b": 385.3,
+    "h": 46,
+    "scrollY": 333,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 458.6,
+    "b": 502.6,
+    "h": 44,
+    "scrollY": 333,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 8,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 333,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 9,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 333,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 7,
+   "atFocus": {
+    "scrollY": 333,
+    "maxScroll": 399,
+    "ih": 568,
+    "ab": [
+     327.3,
+     399.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 339.3,
+      "b": 385.3,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/501",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": true,
+    "newWrites": 0,
+    "active": "Select category…OfficeSoftwareTravelRent"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x568",
+  "screen": "matched",
+  "txId": 502,
+  "maxScroll": 1300,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 186,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 371,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 557,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 743,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 929,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 1114,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 1300,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     339.8,
+     411.8,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 351.8,
+      "b": 397.8,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 1300,
+   "ih": 568,
+   "ab": [
+    441,
+    513,
+    "55px"
+   ],
+   "tabbarTop": 513,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Unmatch",
+     "y": 453,
+     "b": 499,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 476,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/502",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "DELETE /api/bank-statements/1/matches/7001"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 453,
+    "b": 499,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 1300,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/502",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x568",
+  "screen": "staged",
+  "txId": 503,
+  "maxScroll": 817,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 117,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 233,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 467,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 584,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 700,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 817,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     339.3,
+     411.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 351.3,
+      "b": 397.3,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 351.3,
+      "b": 397.3,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 817,
+   "ih": 568,
+   "ab": [
+    441,
+    513,
+    "55px"
+   ],
+   "tabbarTop": 513,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Confirm match",
+     "y": 453,
+     "b": 499,
+     "x": 16,
+     "w": 139,
+     "vis": true,
+     "hits": 5
+    },
+    {
+     "t": "Unmatch",
+     "y": 453,
+     "b": 499,
+     "x": 165,
+     "w": 139,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 86,
+   "y": 476,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "alsoTapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/approvals/96001/approve",
+   "DELETE /api/bank-statements/1/matches/7018"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Confirm match\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 453,
+    "b": 499,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 453,
+    "b": 499,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 817,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 453,
+      "b": 499,
+      "x": 165,
+      "w": 139,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/503",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x568",
+  "screen": "incoming",
+  "txId": 504,
+  "maxScroll": 0,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 568,
+    "ab": [
+     286.8,
+     368.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 298.8,
+      "b": 344.8,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 0,
+   "maxScroll": 0,
+   "ih": 568,
+   "ab": [
+    286.8,
+    368.3,
+    "55px"
+   ],
+   "tabbarTop": 513,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Record prepayment · +500.00 €",
+     "y": 298.8,
+     "b": 344.8,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 322,
+   "scrollY": 0
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/504",
+   "stayed": true,
+   "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+   "categoryError": false,
+   "newWrites": 0,
+   "active": ""
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Record prepayment · +500.00 \"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 298.8,
+    "b": 344.8,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 2,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 568,
+    "ab": [
+     286.8,
+     368.3,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 298.8,
+      "b": 344.8,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/504",
+    "stayed": true,
+    "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+    "categoryError": false,
+    "newWrites": 0,
+    "active": ""
+   },
+   "focusInSheet": {
+    "inDialog": true,
+    "label": "Close"
+   },
+   "afterEscape": {
+    "dialog": false,
+    "active": "Record prepayment · +500.00 €",
+    "onCta": true
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "320x568",
+  "screen": "candidates",
+  "txId": 505,
+  "maxScroll": 1120,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 160,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 320,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 480,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 640,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 800,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 960,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     407,
+     479,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 419,
+      "b": 465,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 1120,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     247,
+     319,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 259,
+      "b": 305,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 320,
+   "docScrollW": 320,
+   "bodyScrollW": 320,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 335,
+   "maxScroll": 1120,
+   "ih": 568,
+   "ab": [
+    441,
+    513,
+    "55px"
+   ],
+   "tabbarTop": 513,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Match 156.25 €",
+     "y": 453,
+     "b": 499,
+     "x": 16,
+     "w": 288,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 160,
+   "y": 476,
+   "scrollY": 335
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/505",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/bank-statements/1/match"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "button \"Expense #1301\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 254.8,
+    "b": 320.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Expense #1302\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 320.3,
+    "b": 385.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Expense #1303\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 385.8,
+    "b": 451.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 20,
+    "coveredBy": {
+     "actionbar": 5
+    }
+   },
+   {
+    "i": 3,
+    "el": "button \"Expense #1304\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 451.3,
+    "b": 516.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 4,
+    "el": "button \"Expense #1305\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 502.8,
+    "b": 568.3,
+    "h": 65.5,
+    "scrollY": 14,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 5,
+    "el": "button \"Expense #1306\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 251.3,
+    "b": 316.8,
+    "h": 65.5,
+    "scrollY": 331,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Expense #1307\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 316.8,
+    "b": 382.3,
+    "h": 65.5,
+    "scrollY": 331,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Expense #1308\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 382.3,
+    "b": 447.8,
+    "h": 65.5,
+    "scrollY": 331,
+    "hiddenPct": 20,
+    "coveredBy": {
+     "actionbar": 5
+    }
+   },
+   {
+    "i": 8,
+    "el": "button \"Expense #1309\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 447.8,
+    "b": 513.3,
+    "h": 65.5,
+    "scrollY": 331,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 9,
+    "el": "button \"Expense #1310\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 502.3,
+    "b": 567.8,
+    "h": 65.5,
+    "scrollY": 342,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 10,
+    "el": "button \"Expense #1311\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 502.8,
+    "b": 568.3,
+    "h": 65.5,
+    "scrollY": 407,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 5,
+     "tabbar": 20
+    }
+   },
+   {
+    "i": 11,
+    "el": "button \"Expense #1312\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 251.3,
+    "b": 316.8,
+    "h": 65.5,
+    "scrollY": 724,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 12,
+    "el": "button \"Expense #1313\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 316.8,
+    "b": 382.3,
+    "h": 65.5,
+    "scrollY": 724,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 13,
+    "el": "button \"Expense #1314\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 382.3,
+    "b": 447.8,
+    "h": 65.5,
+    "scrollY": 724,
+    "hiddenPct": 20,
+    "coveredBy": {
+     "actionbar": 5
+    }
+   },
+   {
+    "i": 14,
+    "el": "button \"Expense #1315\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 447.8,
+    "b": 512.3,
+    "h": 64.5,
+    "scrollY": 724,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 15,
+    "el": "button \"Match 156.25 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 453,
+    "b": 499,
+    "h": 46,
+    "scrollY": 724,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 16,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 393.1,
+    "b": 437.1,
+    "h": 44,
+    "scrollY": 1120,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 17,
+    "el": "a \"Inbox43\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 1120,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 18,
+    "el": "a \"Books\"",
+    "inTabbar": true,
+    "inActionBar": false,
+    "y": 516,
+    "b": 560,
+    "h": 44,
+    "scrollY": 1120,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 16,
+   "atFocus": {
+    "scrollY": 724,
+    "maxScroll": 1120,
+    "ih": 568,
+    "ab": [
+     441,
+     513,
+     "55px"
+    ],
+    "tabbarTop": 513,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 453,
+      "b": 499,
+      "x": 16,
+      "w": 288,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/505",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "1440x900",
+  "screen": "create",
+  "txId": 501,
+  "maxScroll": 0,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 900,
+    "ab": [
+     584.8,
+     656.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 596.8,
+      "b": 642.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 0,
+   "maxScroll": 0,
+   "ih": 900,
+   "ab": [
+    584.8,
+    656.8,
+    "0px"
+   ],
+   "tabbarTop": null,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Create & match · −123.45 €",
+     "y": 596.8,
+     "b": 642.8,
+     "x": 464,
+     "w": 736,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 832,
+   "y": 620,
+   "scrollY": 0
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/501",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": true,
+   "newWrites": 0,
+   "active": "Select category…OfficeSoftwareTravelRent"
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "a \"Books\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 95.5,
+    "b": 131,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Bank\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 133,
+    "b": 168.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Reports\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 170.5,
+    "b": 206,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Settings\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 208,
+    "b": 243.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Sign out\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 851,
+    "b": 888,
+    "h": 37,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button#:r9:-f-supplier \"SupplierChoose or create ›\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 135.8,
+    "b": 176.3,
+    "h": 40.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 8,
+    "el": "select#:r9:-f-category \"Select category…OfficeSoftwa\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 209.8,
+    "b": 251.8,
+    "h": 42,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 9,
+    "el": "input#:r9:-f-vat \"22.26\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 296.3,
+    "b": 340.8,
+    "h": 44.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 10,
+    "el": "button \"📎Receipt coming laterAttach\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 445.8,
+    "b": 509.8,
+    "h": 64,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 11,
+    "el": "button \"🚫No receiptThe line is the \"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 509.8,
+    "b": 572.8,
+    "h": 63,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 12,
+    "el": "button \"Create & match · −123.45 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 596.8,
+    "b": 642.8,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 13,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 701.4,
+    "b": 745.4,
+    "h": 44,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 14,
+    "el": "body"
+   },
+   {
+    "i": 15,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 13,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 900,
+    "ab": [
+     584.8,
+     656.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Create & match · −123.45 €",
+      "y": 596.8,
+      "b": 642.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/501",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": true,
+    "newWrites": 0,
+    "active": "Select category…OfficeSoftwareTravelRent"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "1440x900",
+  "screen": "matched",
+  "txId": 502,
+  "maxScroll": 410,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 59,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 117,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 176,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 234,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 293,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     817.8,
+     889.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 829.8,
+      "b": 875.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 351,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     816.8,
+     888.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 828.8,
+      "b": 874.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 410,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     757.8,
+     829.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 769.8,
+      "b": 815.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 246,
+   "maxScroll": 410,
+   "ih": 900,
+   "ab": [
+    828,
+    900,
+    "0px"
+   ],
+   "tabbarTop": null,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Unmatch",
+     "y": 840,
+     "b": 886,
+     "x": 464,
+     "w": 736,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 832,
+   "y": 863,
+   "scrollY": 246
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/502",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "DELETE /api/bank-statements/1/matches/7001"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "a \"Books\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 95.5,
+    "b": 131,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Bank\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 133,
+    "b": 168.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Reports\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 170.5,
+    "b": 206,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Settings\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 208,
+    "b": 243.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Sign out\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 851,
+    "b": 888,
+    "h": 37,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 840,
+    "b": 886,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 8,
+    "el": "body"
+   },
+   {
+    "i": 9,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 8,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 410,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/502",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "1440x900",
+  "screen": "staged",
+  "txId": 503,
+  "maxScroll": 280,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 40,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 80,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 120,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 160,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 200,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 240,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     797.5,
+     869.5,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 809.5,
+      "b": 855.5,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 809.5,
+      "b": 855.5,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 280,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     757.5,
+     829.5,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 769.5,
+      "b": 815.5,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 769.5,
+      "b": 815.5,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 168,
+   "maxScroll": 280,
+   "ih": 900,
+   "ab": [
+    828,
+    900,
+    "0px"
+   ],
+   "tabbarTop": null,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Confirm match",
+     "y": 840,
+     "b": 886,
+     "x": 464,
+     "w": 363,
+     "vis": true,
+     "hits": 5
+    },
+    {
+     "t": "Unmatch",
+     "y": 840,
+     "b": 886,
+     "x": 837,
+     "w": 363,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 646,
+   "y": 863,
+   "scrollY": 168
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "alsoTapEffect": {
+   "path": "/bank/statements/1/tx/503",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/approvals/96001/approve",
+   "DELETE /api/bank-statements/1/matches/7018"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "a \"Books\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 95.5,
+    "b": 131,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Bank\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 133,
+    "b": 168.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Reports\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 170.5,
+    "b": 206,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Settings\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 208,
+    "b": 243.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Sign out\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 851,
+    "b": 888,
+    "h": 37,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Confirm match\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 840,
+    "b": 886,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 8,
+    "el": "button \"Unmatch\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 840,
+    "b": 886,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 9,
+    "el": "body"
+   },
+   {
+    "i": 10,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 8,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 280,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Confirm match",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     },
+     {
+      "t": "Unmatch",
+      "y": 840,
+      "b": 886,
+      "x": 837,
+      "w": 363,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/503",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "1440x900",
+  "screen": "incoming",
+  "txId": 504,
+  "maxScroll": 0,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 900,
+    "ab": [
+     198.5,
+     270.5,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 210.5,
+      "b": 256.5,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 0,
+   "maxScroll": 0,
+   "ih": 900,
+   "ab": [
+    198.5,
+    270.5,
+    "0px"
+   ],
+   "tabbarTop": null,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Record prepayment · +500.00 €",
+     "y": 210.5,
+     "b": 256.5,
+     "x": 464,
+     "w": 736,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 832,
+   "y": 233,
+   "scrollY": 0
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/504",
+   "stayed": true,
+   "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+   "categoryError": false,
+   "newWrites": 0,
+   "active": ""
+  },
+  "writesTouchPhase": [],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "a \"Books\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 95.5,
+    "b": 131,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "a \"Bank\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 133,
+    "b": 168.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "a \"Reports\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 170.5,
+    "b": 206,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "a \"Settings\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 208,
+    "b": 243.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Sign out\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 851,
+    "b": 888,
+    "h": 37,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Record prepayment · +500.00 \"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 210.5,
+    "b": 256.5,
+    "h": 46,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 8,
+    "el": "body"
+   },
+   {
+    "i": 9,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 8,
+   "atFocus": {
+    "scrollY": 0,
+    "maxScroll": 0,
+    "ih": 900,
+    "ab": [
+     198.5,
+     270.5,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Record prepayment · +500.00 €",
+      "y": 210.5,
+      "b": 256.5,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/504",
+    "stayed": true,
+    "dialog": "Record prepaymentLaekumine klient Nordic Consulting Oy arve ",
+    "categoryError": false,
+    "newWrites": 0,
+    "active": ""
+   },
+   "focusInSheet": {
+    "inDialog": true,
+    "label": "Close"
+   },
+   "afterEscape": {
+    "dialog": false,
+    "active": "Record prepayment · +500.00 €",
+    "onCta": true
+   }
+  },
+  "errors": []
+ },
+ {
+  "vp": "1440x900",
+  "screen": "candidates",
+  "txId": 505,
+  "maxScroll": 599,
+  "sweep": [
+   {
+    "scrollY": 0,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 86,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 171,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 257,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 342,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 350,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 428,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     828,
+     900,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 840,
+      "b": 886,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 513,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     765.8,
+     837.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 777.8,
+      "b": 823.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   {
+    "scrollY": 599,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     679.8,
+     751.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 691.8,
+      "b": 737.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   }
+  ],
+  "overflow": {
+   "vw": 1440,
+   "docScrollW": 1440,
+   "bodyScrollW": 1440,
+   "scrollX": 0,
+   "offenders": []
+  },
+  "afterGesture": {
+   "scrollY": 350,
+   "maxScroll": 599,
+   "ih": 900,
+   "ab": [
+    828,
+    900,
+    "0px"
+   ],
+   "tabbarTop": null,
+   "overlap": 0,
+   "btns": [
+    {
+     "t": "Match 156.25 €",
+     "y": 840,
+     "b": 886,
+     "x": 464,
+     "w": 736,
+     "vis": true,
+     "hits": 5
+    }
+   ]
+  },
+  "tapAt": {
+   "x": 832,
+   "y": 863,
+   "scrollY": 350
+  },
+  "tapEffect": {
+   "path": "/bank/statements/1/tx/505",
+   "stayed": true,
+   "dialog": null,
+   "categoryError": false,
+   "newWrites": 1,
+   "active": "booksInbox43BooksBankReportsSettingsSign"
+  },
+  "writesTouchPhase": [
+   "POST /api/bank-statements/1/match"
+  ],
+  "tabWalk": [
+   {
+    "i": 0,
+    "el": "button \"Expense #1301\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 201.3,
+    "b": 266.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 1,
+    "el": "button \"Expense #1302\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 266.8,
+    "b": 332.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 2,
+    "el": "button \"Expense #1303\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 332.3,
+    "b": 397.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 3,
+    "el": "button \"Expense #1304\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 397.8,
+    "b": 463.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 4,
+    "el": "button \"Expense #1305\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 463.3,
+    "b": 528.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 5,
+    "el": "button \"Expense #1306\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 528.8,
+    "b": 594.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 6,
+    "el": "button \"Expense #1307\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 594.3,
+    "b": 659.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 7,
+    "el": "button \"Expense #1308\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 659.8,
+    "b": 725.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 8,
+    "el": "button \"Expense #1309\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 725.3,
+    "b": 790.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 9,
+    "el": "button \"Expense #1310\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 790.8,
+    "b": 856.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 40,
+    "coveredBy": {
+     "actionbar": 10
+    }
+   },
+   {
+    "i": 10,
+    "el": "button \"Expense #1311\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 834.3,
+    "b": 899.8,
+    "h": 65.5,
+    "scrollY": 22,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 11,
+    "el": "button \"Expense #1312\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 834.8,
+    "b": 900.3,
+    "h": 65.5,
+    "scrollY": 87,
+    "hiddenPct": 100,
+    "coveredBy": {
+     "actionbar": 25
+    }
+   },
+   {
+    "i": 12,
+    "el": "button \"Expense #1313\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 417.3,
+    "b": 482.8,
+    "h": 65.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 13,
+    "el": "button \"Expense #1314\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 482.8,
+    "b": 548.3,
+    "h": 65.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 14,
+    "el": "button \"Expense #1315\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 548.3,
+    "b": 612.8,
+    "h": 64.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 15,
+    "el": "button \"Match 156.25 €\"",
+    "inTabbar": false,
+    "inActionBar": true,
+    "y": 720.8,
+    "b": 766.8,
+    "h": 46,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 16,
+    "el": "button \"Personal · Bank fee · Prepay\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 825.4,
+    "b": 869.4,
+    "h": 44,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 17,
+    "el": "body"
+   },
+   {
+    "i": 18,
+    "el": "a \"Inbox43\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 58,
+    "b": 93.5,
+    "h": 35.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 19,
+    "el": "a \"Books\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 95.5,
+    "b": 131,
+    "h": 35.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 20,
+    "el": "a \"Bank\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 133,
+    "b": 168.5,
+    "h": 35.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 21,
+    "el": "a \"Reports\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 170.5,
+    "b": 206,
+    "h": 35.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 22,
+    "el": "a \"Settings\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 208,
+    "b": 243.5,
+    "h": 35.5,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 23,
+    "el": "button \"Sign out\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 851,
+    "b": 888,
+    "h": 37,
+    "scrollY": 570,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 24,
+    "el": "a \"‹ Back\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 10,
+    "b": 32.5,
+    "h": 22.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 25,
+    "el": "button \"Expense #1300\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 135.8,
+    "b": 201.3,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   },
+   {
+    "i": 26,
+    "el": "button \"Expense #1301\"",
+    "inTabbar": false,
+    "inActionBar": false,
+    "y": 201.3,
+    "b": 266.8,
+    "h": 65.5,
+    "scrollY": 0,
+    "hiddenPct": 0,
+    "coveredBy": null
+   }
+  ],
+  "keyboardCta": {
+   "tabs": 16,
+   "atFocus": {
+    "scrollY": 570,
+    "maxScroll": 599,
+    "ih": 900,
+    "ab": [
+     708.8,
+     780.8,
+     "0px"
+    ],
+    "tabbarTop": null,
+    "overlap": 0,
+    "btns": [
+     {
+      "t": "Match 156.25 €",
+      "y": 720.8,
+      "b": 766.8,
+      "x": 464,
+      "w": 736,
+      "vis": true,
+      "hits": 5
+     }
+    ]
+   },
+   "effect": {
+    "path": "/bank/statements/1/tx/505",
+    "stayed": true,
+    "dialog": null,
+    "categoryError": false,
+    "newWrites": 1,
+    "active": "booksInbox43BooksBankReportsSettingsSign"
+   }
+  },
+  "errors": []
+ }
+]

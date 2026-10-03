@@ -1,0 +1,45 @@
+{ samples: 136, btnChecks: 170, bad: 0 }
+320x844   create     max  123 | y0 672.3-718.3 ab=660.3-732.3 tb=789 | mid y 70 602.3-648.3 ab=590.3-662.3 tb=789 | max 549.3-595.3 ab=537.3-609.3 tb=789 | tab steps 10 100%hidden 1 partial 0 | kbTabs 7 focusCTAvisible true
+320x844   matched    max 1024 | y0 729-775 ab=717-789 tb=789 | mid y 439 729-775 ab=717-789 tb=789 | max 627.8-673.8 ab=615.8-687.8 tb=789 | tab steps 4 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+320x844   staged     max  541 | y0 729-775|729-775 ab=717-789 tb=789 | mid y 309 729-775|729-775 ab=717-789 tb=789 | max 627.3-673.3|627.3-673.3 ab=615.3-687.3 tb=789 | tab steps 5 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+320x844   incoming   max    0 | y0 298.8-344.8 ab=286.8-368.3 tb=789 | mid y 0 298.8-344.8 ab=286.8-368.3 tb=789 | max 298.8-344.8 ab=286.8-368.3 tb=789 | tab steps 4 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+320x844   candidates max  844 | y0 729-775 ab=717-789 tb=789 | mid y 362 729-775 ab=717-789 tb=789 | max 535-581 ab=523-595 tb=789 | tab steps 19 100%hidden 3 partial 0 | kbTabs 16 focusCTAvisible true
+390x844   create     max   85 | y0 634.3-680.3 ab=622.3-694.3 tb=789 | mid y 49 585.3-631.3 ab=573.3-645.3 tb=789 | max 549.3-595.3 ab=537.3-609.3 tb=789 | tab steps 10 100%hidden 0 partial 1 | kbTabs 7 focusCTAvisible true
+390x844   matched    max  740 | y0 729-775 ab=717-789 tb=789 | mid y 350 729-775 ab=717-789 tb=789 | max 627.3-673.3 ab=615.3-687.3 tb=789 | tab steps 4 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+390x844   staged     max  462 | y0 729-775|729-775 ab=717-789 tb=789 | mid y 264 729-775|729-775 ab=717-789 tb=789 | max 628-674|628-674 ab=616-688 tb=789 | tab steps 5 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+390x844   incoming   max    0 | y0 264-310 ab=252-324 tb=789 | mid y 0 264-310 ab=252-324 tb=789 | max 264-310 ab=252-324 tb=789 | tab steps 4 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+390x844   candidates max  796 | y0 729-775 ab=717-789 tb=789 | mid y 350 729-775 ab=717-789 tb=789 | max 549.6-595.6 ab=537.6-609.6 tb=789 | tab steps 19 100%hidden 3 partial 1 | kbTabs 16 focusCTAvisible true
+320x568   create     max  399 | y0 453-499 ab=441-513 tb=513 | mid y 228 444.3-490.3 ab=432.3-504.3 tb=513 | max 273.3-319.3 ab=261.3-333.3 tb=513 | tab steps 10 100%hidden 1 partial 0 | kbTabs 7 focusCTAvisible true
+320x568   matched    max 1300 | y0 453-499 ab=441-513 tb=513 | mid y 557 453-499 ab=441-513 tb=513 | max 351.8-397.8 ab=339.8-411.8 tb=513 | tab steps 4 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+320x568   staged     max  817 | y0 453-499|453-499 ab=441-513 tb=513 | mid y 467 453-499|453-499 ab=441-513 tb=513 | max 351.3-397.3|351.3-397.3 ab=339.3-411.3 tb=513 | tab steps 5 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+320x568   incoming   max    0 | y0 298.8-344.8 ab=286.8-368.3 tb=513 | mid y 0 298.8-344.8 ab=286.8-368.3 tb=513 | max 298.8-344.8 ab=286.8-368.3 tb=513 | tab steps 4 100%hidden 0 partial 0 | kbTabs 2 focusCTAvisible true
+320x568   candidates max 1120 | y0 453-499 ab=441-513 tb=513 | mid y 480 453-499 ab=441-513 tb=513 | max 259-305 ab=247-319 tb=513 | tab steps 19 100%hidden 6 partial 3 | kbTabs 16 focusCTAvisible true
+1440x900  create     max    0 | y0 596.8-642.8 ab=584.8-656.8 tb=- | mid y 0 596.8-642.8 ab=584.8-656.8 tb=- | max 596.8-642.8 ab=584.8-656.8 tb=- | tab steps 16 100%hidden 0 partial 0 | kbTabs 13 focusCTAvisible true
+1440x900  matched    max  410 | y0 840-886 ab=828-900 tb=- | mid y 234 840-886 ab=828-900 tb=- | max 769.8-815.8 ab=757.8-829.8 tb=- | tab steps 10 100%hidden 0 partial 0 | kbTabs 8 focusCTAvisible true
+1440x900  staged     max  280 | y0 840-886|840-886 ab=828-900 tb=- | mid y 160 840-886|840-886 ab=828-900 tb=- | max 769.5-815.5|769.5-815.5 ab=757.5-829.5 tb=- | tab steps 11 100%hidden 0 partial 0 | kbTabs 8 focusCTAvisible true
+1440x900  incoming   max    0 | y0 210.5-256.5 ab=198.5-270.5 tb=- | mid y 0 210.5-256.5 ab=198.5-270.5 tb=- | max 210.5-256.5 ab=198.5-270.5 tb=- | tab steps 10 100%hidden 0 partial 0 | kbTabs 8 focusCTAvisible true
+1440x900  candidates max  599 | y0 840-886 ab=828-900 tb=- | mid y 342 840-886 ab=828-900 tb=- | max 691.8-737.8 ab=679.8-751.8 tb=- | tab steps 27 100%hidden 2 partial 1 | kbTabs 16 focusCTAvisible true
+320x844 {"active":"INPUT#:r9:-f-vat","inputTop":333.8,"inputBottom":378.3,"abTop":381,"ih":508,"scrollY":0,"inputCoveredByBar":false} 5,00 {"x":16,"y":672.3,"w":288,"h":46,"b":718.3}
+390x844 {"active":"INPUT#:r9:-f-vat","inputTop":333.8,"inputBottom":378.3,"abTop":381,"ih":508,"scrollY":0,"inputCoveredByBar":false} 5,00 {"x":16,"y":634.3,"w":358,"h":46,"b":680.3}
+  320x844 create button "Personal · Bank fee · Prepay" y 791.6 scrollY 0 100% {"tabbar":25}
+  320x844 candidates button "Expense #1308" y 713.3 scrollY 0 100% {"actionbar":25}
+  320x844 candidates button "Expense #1309" y 778.8 scrollY 0 100% {"actionbar":5,"tabbar":20}
+  320x844 candidates button "Expense #1315" y 716.8 scrollY 455 100% {"actionbar":25}
+  390x844 create button "Personal · Bank fee · Prepay" y 753.6 scrollY 0 20% {"tabbar":5}
+  390x844 candidates button "Expense #1308" y 697.3 scrollY 0 80% {"actionbar":20}
+  390x844 candidates button "Expense #1309" y 762.8 scrollY 0 100% {"actionbar":10,"tabbar":15}
+  390x844 candidates button "Expense #1310" y 778.3 scrollY 50 100% {"actionbar":5,"tabbar":20}
+  390x844 candidates button "Expense #1311" y 778.8 scrollY 115 100% {"actionbar":5,"tabbar":20}
+  320x568 create button "📎Receipt coming laterAttach" y 504.3 scrollY 17 100% {"actionbar":5,"tabbar":20}
+  320x568 candidates button "Expense #1303" y 385.8 scrollY 0 20% {"actionbar":5}
+  320x568 candidates button "Expense #1304" y 451.3 scrollY 0 100% {"actionbar":25}
+  320x568 candidates button "Expense #1305" y 502.8 scrollY 14 100% {"actionbar":5,"tabbar":20}
+  320x568 candidates button "Expense #1308" y 382.3 scrollY 331 20% {"actionbar":5}
+  320x568 candidates button "Expense #1309" y 447.8 scrollY 331 100% {"actionbar":25}
+  320x568 candidates button "Expense #1310" y 502.3 scrollY 342 100% {"actionbar":5,"tabbar":20}
+  320x568 candidates button "Expense #1311" y 502.8 scrollY 407 100% {"actionbar":5,"tabbar":20}
+  320x568 candidates button "Expense #1314" y 382.3 scrollY 724 20% {"actionbar":5}
+  320x568 candidates button "Expense #1315" y 447.8 scrollY 724 100% {"actionbar":25}
+  1440x900 candidates button "Expense #1310" y 790.8 scrollY 0 40% {"actionbar":10}
+  1440x900 candidates button "Expense #1311" y 834.3 scrollY 22 100% {"actionbar":25}
+  1440x900 candidates button "Expense #1312" y 834.8 scrollY 87 100% {"actionbar":25}

@@ -9,7 +9,7 @@ import {
   unmappedNonzeroCodes,
 } from '../../plugins/estonia-annual-accounts/rtj-mapping';
 
-describe('migration 066 — tax accounts', () => {
+describe('migration 081 — tax accounts', () => {
   let db: Kysely<Database>;
   let migrator: Migrator;
 
@@ -24,7 +24,7 @@ describe('migration 066 — tax accounts', () => {
       provider: { getMigrations: () => Promise.resolve(migrations) },
     });
     const { error } = await migrator.migrateTo(
-      '065_add_audit_finding_reason_type',
+      '080_add_document_classification_snapshot',
     );
     if (error) throw error;
   });
@@ -36,7 +36,7 @@ describe('migration 066 — tax accounts', () => {
   it('upgrades the chart without changing existing accounts and exposes tax assets through the account service', async () => {
     const service = new AccountService(db);
     const before = await service.getAccounts();
-    const { error } = await migrator.migrateTo('066_add_tax_accounts');
+    const { error } = await migrator.migrateTo('081_add_tax_accounts');
     if (error) throw error;
     const codes = [
       'INCOME_TAX_RECEIVABLE',
@@ -56,11 +56,11 @@ describe('migration 066 — tax accounts', () => {
         parent_id: null,
       });
     }
-    const rerun = await migrator.migrateTo('066_add_tax_accounts');
+    const rerun = await migrator.migrateTo('081_add_tax_accounts');
     expect(rerun.error).toBeUndefined();
     expect(await service.getAccounts()).toHaveLength(before.length + 3);
     const rollback = await migrator.migrateTo(
-      '065_add_audit_finding_reason_type',
+      '080_add_document_classification_snapshot',
     );
     if (rollback.error) throw rollback.error;
     expect(await service.getAccounts()).toEqual(before);

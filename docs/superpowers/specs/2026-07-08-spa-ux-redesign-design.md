@@ -124,6 +124,9 @@ expense missing an invoice number. Every one is a real route navigation.
 - **View transitions**: react-router `viewTransition` links; directional
   slide for push/pop + one shared-element transition (list→detail);
   `prefers-reduced-motion` disables them. Graceful no-op on old browsers.
+  *Superseded (issues #252, #282):* route navigation is now deliberately
+  instant, with no `viewTransition` opt-ins and no route-level transition CSS.
+  See `packages/web/DESIGN.md` §6.
 - Rule of thumb: *object with identity → push route; action on an object →
   bottom sheet (vaul); irreversible → confirm dialog.*
 

@@ -1,0 +1,199 @@
+== 320x844 inbox-lightbox-a4
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":4113,"after":4113,"stillOpen":true}
+   pinch {"vv":{"scale":5,"left":59,"top":136,"w":64,"h":169,"scrollY":4113},"lb":{"open":true,"img":{"natural":[1131,1600],"shown":[296,418.7],"x":12,"y":242.6,"scale":0.262,"inViewport":true},"imgBoxScroll":{"sw":320,"cw":320,"sh":784,"ch":784},"close":{"x":268,"y":1
+   closeWhileZoomed {"reachable":false}
+   unpinch {"scale":1,"left":0,"top":0,"w":320,"h":844,"scrollY":4113}
+   closeX {"open":false,"path":"/inbox","scrollY":4113,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":4113,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[160,681],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":4113,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":4113,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 320x844 inbox-lightbox-receipt
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":4245,"after":4245,"stillOpen":true}
+   pinch {"vv":{"scale":5,"left":59,"top":136,"w":64,"h":169,"scrollY":4245},"lb":{"open":true,"img":{"natural":[213,1600],"shown":[101.2,760],"x":109.4,"y":72,"scale":0.475,"inViewport":true},"imgBoxScroll":{"sw":320,"cw":320,"sh":784,"ch":784},"close":{"x":268,"y":10
+   closeWhileZoomed {"reachable":false}
+   unpinch {"scale":1,"left":0,"top":0,"w":320,"h":844,"scrollY":4245}
+   closeX {"open":false,"path":"/inbox","scrollY":4245,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":4245,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[8,422],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":4245,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":4245,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 320x844 inbox-lightbox-wide
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":4377,"after":4377,"stillOpen":true}
+   pinch {"vv":{"scale":5,"left":59,"top":136,"w":64,"h":169,"scrollY":4377},"lb":{"open":true,"img":{"natural":[1600,400],"shown":[296,74],"x":12,"y":415,"scale":0.185,"inViewport":true},"imgBoxScroll":{"sw":320,"cw":320,"sh":784,"ch":784},"close":{"x":268,"y":10,"w":
+   closeWhileZoomed {"reachable":false}
+   unpinch {"scale":1,"left":0,"top":0,"w":320,"h":844,"scrollY":4377}
+   closeX {"open":false,"path":"/inbox","scrollY":4377,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":4377,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[160,509],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":4377,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":4377,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 320x844 triage-row-lightbox-receipt
+   close_x {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_escape {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_back {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_backdrop {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   errors []
+   writes []
+== 320x844 source-pane-pdf
+   fit {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":"Page 1 of 12","zoom":"100%","drawnPage":"1","media":{"tag":"CANVAS","css":[304,430],"backing":[608,860]},"scroller":{"sw":320,"cw":320,"sh":534,"ch":534,"sl":0,"st"
+   zoom300 {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[911,1290],"backing":[1823,2581]},"scroller":{"sw":927,"cw":320,"sh":1306,"ch":534,"sl":0,
+   zoomInDisabledAtMax true
+   panned {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[911,1290],"backing":[1823,2581]},"scroller":{"sw":927,"cw":320,"sh":1306,"ch":534,"sl":0,
+   swipeDownAtTop {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[911,1290],"backing":[1823,2581]},"scroller":{"sw":927,"cw":320,"sh":1306,"ch":534,"sl":0,
+   pages [{"k":2,"label":"Page 2 of 12","drawn":"2","css":[911,1290],"backing":[1823,2581],"st":0,"sw":927,"cw":320},{"k":3,"label":"Page 3 of 12","drawn":"3","css":[911,1290],"backing":[1823,2581],"st":0,"sw":927,"cw":320},{"k":4,"label":"Page 4 of 12","drawn":"4","cs
+   fitAtEnd {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":"Page 12 of 12","zoom":"100%","drawnPage":"12","media":{"tag":"CANVAS","css":[304,430],"backing":[608,860]},"scroller":{"sw":320,"cw":320,"sh":534,"ch":534,"sl":0,"s
+   closeEscape {"sheet":false,"path":"/inbox/doc/31004","scrollY":0,"focus":"Choose category"}
+   closeBack {"sheet":false,"path":"/inbox/doc/31004","scrollY":0}
+   closeX {"sheet":false,"path":"/inbox/doc/31004","scrollY":0,"focus":"Choose category"}
+   errors []
+   writes []
+== 320x844 source-pane-photo
+   fit {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":null,"zoom":"100%","drawnPage":null,"media":{"tag":"IMG","css":[304,405],"backing":[3024,4032]},"scroller":{"sw":320,"cw":320,"sh":534,"ch":534,"sl":0,"st":0},"tools
+   zoom300 {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[912,1216],"backing":[3024,4032]},"scroller":{"sw":928,"cw":320,"sh":1232,"ch":534,"sl":0,"st":0},"too
+   zoomInDisabledAtMax true
+   panned {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[912,1216],"backing":[3024,4032]},"scroller":{"sw":928,"cw":320,"sh":1232,"ch":534,"sl":0,"st":238},"t
+   swipeDownAtTop {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":320,"h":646},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[912,1216],"backing":[3024,4032]},"scroller":{"sw":928,"cw":320,"sh":1232,"ch":534,"sl":0,"st":0},"too
+   closeEscape {"sheet":false,"path":"/inbox/doc/31005","scrollY":0,"focus":"Review extracted data"}
+   closeBack {"sheet":false,"path":"/inbox/doc/31005","scrollY":0}
+   closeX {"sheet":false,"path":"/inbox/doc/31005","scrollY":0,"focus":"Review extracted data"}
+   errors []
+   writes []
+== 390x844 inbox-lightbox-a4
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":3396,"after":3396,"stillOpen":true}
+   pinch {"vv":{"scale":5,"left":67,"top":115,"w":78,"h":169,"scrollY":3396},"lb":{"open":true,"img":{"natural":[1131,1600],"shown":[366,517.8],"x":12,"y":193.1,"scale":0.324,"inViewport":true},"imgBoxScroll":{"sw":390,"cw":390,"sh":784,"ch":784},"close":{"x":338,"y":1
+   closeWhileZoomed {"reachable":false}
+   unpinch {"scale":1,"left":0,"top":0,"w":390,"h":844,"scrollY":3396}
+   closeX {"open":false,"path":"/inbox","scrollY":3396,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":3396,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[195,731],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":3396,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":3396,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 390x844 inbox-lightbox-receipt
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":3506,"after":3506,"stillOpen":true}
+   pinch {"vv":{"scale":5,"left":70,"top":141,"w":78,"h":169,"scrollY":3506},"lb":{"open":true,"img":{"natural":[213,1600],"shown":[101.2,760],"x":144.4,"y":72,"scale":0.475,"inViewport":true},"imgBoxScroll":{"sw":390,"cw":390,"sh":784,"ch":784},"close":{"x":338,"y":10
+   closeWhileZoomed {"reachable":false}
+   unpinch {"scale":1,"left":0,"top":0,"w":390,"h":844,"scrollY":3506}
+   closeX {"open":false,"path":"/inbox","scrollY":3506,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":3506,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[8,422],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":3506,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":3506,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 390x844 inbox-lightbox-wide
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":3616,"after":3616,"stillOpen":true}
+   pinch {"vv":{"scale":5,"left":55,"top":117,"w":78,"h":169,"scrollY":3616},"lb":{"open":true,"img":{"natural":[1600,400],"shown":[366,91.5],"x":12,"y":406.3,"scale":0.229,"inViewport":true},"imgBoxScroll":{"sw":390,"cw":390,"sh":784,"ch":784},"close":{"x":338,"y":10,
+   closeWhileZoomed {"reachable":false}
+   unpinch {"scale":1,"left":0,"top":0,"w":390,"h":844,"scrollY":3616}
+   closeX {"open":false,"path":"/inbox","scrollY":3616,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":3616,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[195,518],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":3616,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":3616,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 390x844 triage-row-lightbox-receipt
+   close_x {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_escape {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_back {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_backdrop {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   errors []
+   writes []
+== 390x844 source-pane-pdf
+   fit {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":"Page 1 of 12","zoom":"100%","drawnPage":"1","media":{"tag":"CANVAS","css":[374,529],"backing":[748,1058]},"scroller":{"sw":390,"cw":390,"sh":545,"ch":534,"sl":0,"st
+   zoom300 {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[1122,1587],"backing":[2244,3175]},"scroller":{"sw":1138,"cw":390,"sh":1603,"ch":534,"sl":
+   zoomInDisabledAtMax true
+   panned {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[1122,1587],"backing":[2244,3175]},"scroller":{"sw":1138,"cw":390,"sh":1603,"ch":534,"sl":
+   swipeDownAtTop {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[1122,1587],"backing":[2244,3175]},"scroller":{"sw":1138,"cw":390,"sh":1603,"ch":534,"sl":
+   pages [{"k":2,"label":"Page 2 of 12","drawn":"2","css":[1122,1587],"backing":[2244,3175],"st":0,"sw":1138,"cw":390},{"k":3,"label":"Page 3 of 12","drawn":"3","css":[1122,1587],"backing":[2244,3175],"st":0,"sw":1138,"cw":390},{"k":4,"label":"Page 4 of 12","drawn":"4"
+   fitAtEnd {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":"Page 12 of 12","zoom":"100%","drawnPage":"12","media":{"tag":"CANVAS","css":[374,529],"backing":[748,1058]},"scroller":{"sw":390,"cw":390,"sh":545,"ch":534,"sl":0,"
+   closeEscape {"sheet":false,"path":"/inbox/doc/31004","scrollY":0,"focus":"Choose category"}
+   closeBack {"sheet":false,"path":"/inbox/doc/31004","scrollY":0}
+   closeX {"sheet":false,"path":"/inbox/doc/31004","scrollY":0,"focus":"Choose category"}
+   errors []
+   writes []
+== 390x844 source-pane-photo
+   fit {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":null,"zoom":"100%","drawnPage":null,"media":{"tag":"IMG","css":[374,499],"backing":[3024,4032]},"scroller":{"sw":390,"cw":390,"sh":534,"ch":534,"sl":0,"st":0},"tools
+   zoom300 {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[1122,1496],"backing":[3024,4032]},"scroller":{"sw":1138,"cw":390,"sh":1512,"ch":534,"sl":0,"st":0},"t
+   zoomInDisabledAtMax true
+   panned {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[1122,1496],"backing":[3024,4032]},"scroller":{"sw":1138,"cw":390,"sh":1512,"ch":534,"sl":0,"st":238},
+   swipeDownAtTop {"present":true,"sheet":true,"visible":true,"paneRect":{"x":0,"y":186,"w":390,"h":646},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[1122,1496],"backing":[3024,4032]},"scroller":{"sw":1138,"cw":390,"sh":1512,"ch":534,"sl":0,"st":0},"t
+   closeEscape {"sheet":false,"path":"/inbox/doc/31005","scrollY":0,"focus":"Review extracted data"}
+   closeBack {"sheet":false,"path":"/inbox/doc/31005","scrollY":0}
+   closeX {"sheet":false,"path":"/inbox/doc/31005","scrollY":0,"focus":"Review extracted data"}
+   errors []
+   writes []
+== 1440x900 inbox-lightbox-a4
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":2787,"after":2787,"stillOpen":true}
+   closeX {"open":false,"path":"/inbox","scrollY":2787,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":2787,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[8,450],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":2787,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":2787,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 1440x900 inbox-lightbox-receipt
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":2879,"after":2879,"stillOpen":true}
+   closeX {"open":false,"path":"/inbox","scrollY":2879,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":2879,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[8,450],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":2879,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":2879,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 1440x900 inbox-lightbox-wide
+   tabCycle [{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true},{"el":"Open original","inDialog":true},{"el":"Close preview","inDialog":true}]
+   scrollLock {"before":2970,"after":2970,"stillOpen":true}
+   closeX {"open":false,"path":"/inbox","scrollY":2970,"focusOnOpener":true,"focus":"Open document preview"}
+   keyboardOpenFocus "Close preview"
+   closeEscape {"open":false,"path":"/inbox","scrollY":2970,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBackdrop {"at":[720,677],"target":"DIV.flex min-h-0 flex-1 items-cent","open":false,"path":"/inbox","scrollY":2970,"focusOnOpener":true,"focus":"Open document preview"}
+   closeBack {"historyLenBefore":3,"open":false,"path":"/inbox","scrollY":2970,"focusOnOpener":true,"focus":"Open document preview"}
+   errors []
+   writes []
+== 1440x900 triage-row-lightbox-receipt
+   close_x {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_escape {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_back {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   close_backdrop {"open":false,"path":"/inbox/doc/31002","scrollY":0,"focus":"Source documentTap to preview›"}
+   errors []
+   writes []
+== 1440x900 source-pane-pdf
+   fit {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":"Page 1 of 12","zoom":"100%","drawnPage":"1","media":{"tag":"CANVAS","css":[579,819],"backing":[579,819]},"scroller":{"sw":595,"cw":595,"sh":835,"ch":658,"sl":0,"s
+   zoom300 {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[1737,2458],"backing":[1737,2458]},"scroller":{"sw":1753,"cw":595,"sh":2474,"ch":658,"sl
+   zoomInDisabledAtMax true
+   panned {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":"Page 1 of 12","zoom":"300%","drawnPage":"1","media":{"tag":"CANVAS","css":[1737,2458],"backing":[1737,2458]},"scroller":{"sw":1753,"cw":595,"sh":2474,"ch":658,"sl
+   pages [{"k":2,"label":"Page 2 of 12","drawn":"2","css":[1737,2458],"backing":[1737,2458],"st":0,"sw":1753,"cw":595},{"k":3,"label":"Page 3 of 12","drawn":"3","css":[1737,2458],"backing":[1737,2458],"st":0,"sw":1753,"cw":595},{"k":4,"label":"Page 4 of 12","drawn":"4"
+   fitAtEnd {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":"Page 12 of 12","zoom":"100%","drawnPage":"12","media":{"tag":"CANVAS","css":[579,819],"backing":[579,819]},"scroller":{"sw":595,"cw":595,"sh":835,"ch":658,"sl":0,
+   closeEscape {"sheet":false,"path":"/inbox/doc/31004","scrollY":0,"focus":"Choose category"}
+   closeBack {"sheet":false,"path":"/inbox/doc/31004","scrollY":0}
+   closeX {"sheet":false,"path":"/inbox/doc/31004","scrollY":0,"focus":"Choose category"}
+   errors []
+   writes []
+== 1440x900 source-pane-photo
+   fit {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":null,"zoom":"100%","drawnPage":null,"media":{"tag":"IMG","css":[594,792],"backing":[3024,4032]},"scroller":{"sw":610,"cw":610,"sh":808,"ch":658,"sl":0,"st":0},"too
+   zoom300 {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[1782,2376],"backing":[3024,4032]},"scroller":{"sw":1798,"cw":610,"sh":2392,"ch":658,"sl":0,"st":0},
+   zoomInDisabledAtMax true
+   panned {"present":true,"sheet":true,"visible":true,"paneRect":{"x":101,"y":135,"w":610,"h":752},"label":null,"zoom":"300%","drawnPage":null,"media":{"tag":"IMG","css":[1782,2376],"backing":[3024,4032]},"scroller":{"sw":1798,"cw":610,"sh":2392,"ch":658,"sl":300,"st":4
+   closeEscape {"sheet":false,"path":"/inbox/doc/31005","scrollY":0,"focus":"Review extracted data"}
+   closeBack {"sheet":false,"path":"/inbox/doc/31005","scrollY":0}
+   closeX {"sheet":false,"path":"/inbox/doc/31005","scrollY":0,"focus":"Review extracted data"}
+   errors []
+   writes []

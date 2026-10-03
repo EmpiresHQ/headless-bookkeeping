@@ -1,0 +1,52 @@
+QA-010 / issue #303 — desktop realistic data.
+
+== Re-run on main 2f22cab (2026-09-24, afternoon) — report docs/qa/2026-09-24-desktop-realistic-data-rerun.md
+All committed. Builds were deleted after the run (6.4 MB each); their identity:
+  before (main 2f22cab, unmodified)  index.html sha256 3f66409be4c1823dc9916890f3dae148ff1a54c0118acc025c7c0388e7b71ed6
+                                     assets/index-taGO50VM.js sha256 ac8bf1d22923c645729743eb836e3d26b52418fb6c70d47a6553824eb737b738
+  after  (2f22cab + SearchInput fix) index.html sha256 42d6c0f1f2ef4ff398fb7348a28f4aef93ff970c6e9c9bb210d2465e728759c8
+                                     assets/index-D69fk3zR.js sha256 50be9bff89fce5a727ddb59bb3d90a2110d63a5fcd28598ba6594779dc369c58
+  (the after build used `sent.current.at(-1)`; the committed source uses the equivalent
+   `sent.current[sent.current.length - 1]` for the ES2021 lib — same behaviour)
+
+  h/fixtures.mjs        seed-303 in-memory fixtures + in-page mock (non-GET held, never answered)
+  h/serve.mjs           static SPA server for a dist/ (no /api proxy)
+  h/probe.mjs           fixture sanity probe (row counts, 0 unhandled)
+  h/typing.mjs          keystroke-integrity matrix (field and ?q= vs typed word)
+  h/blank.mjs           single-key probe: per-frame DOM value of the field after one key
+  h/run.mjs             main matrix: landmarks, loads, geometry, repeat nav, Books filters,
+                        Books open→Back, Bank, #302 held-submit focus (STEPS= filters steps)
+
+  blank-before.json     single-key probe, before build (1440/1920 × full/small × 3 screens × 3)
+  blank-after.json/.log single-key probe, after build
+  typing-before-probe.json  first sighting at 1440 (60 ms + jitter), before build
+  typing-before.log     before-build matrix; crashed at row 68 (harness waitFor timeout after a
+                        6.8 s stall), 67 rows; typing-before.json holds the 1440 part only
+  typing-before-fill.json/.log  before-build fill-in: 1920 × full/small × 0/60/jitter
+  typing-after.json/.log  after-build full matrix, 180/180 rows
+  run-results.json/run.log  main matrix, after build (1920 booksOpenBack = harness race, see report)
+  openback-results.json/openback.log  booksOpenBack re-run (about:blank before each goto)
+
+Untracked, kept locally: shots/{books,inbox,bank}-{1440,1920}.png, shots/fail-booksOpenBack-1920.png
+
+== Earlier run on main f83cee8 (morning) — report docs/qa/2026-09-24-desktop-realistic-data.md
+
+COMMITTED (compact evidence)
+  MANIFEST              this file
+  final-results.json    final run.mjs results, 1440+1920 (timings, counts, layout probes, request counts)
+  final.log             final runner output (4/10; failures classified in the report)
+  initial.log           initial runner output (2/10; harness radio-click + first keystroke-loss sighting)
+  typing.log            typing matrix, stopped early on request at 78/120 result rows (log ends with the kill trace) (1920 small-data rows missing)
+
+UNTRACKED (kept locally, not committed)
+  harness  fixtures.mjs sha256 a10211f95c1795ac3b90033cd987108b48148ac940958de7b4bcf5935de67258
+           run.mjs      sha256 d26dd33f3669a7cff44a36017f1601335a14d4b981a22327f5a4fa94761186a0
+           typing.mjs   sha256 136d222858aed915c96787f58bfea559bdc6c90eff8185a4b7c87000c0823381
+  results  initial-results.json, run2-results.json, run2.log
+  shots    books-expenses-{1440,1920}.png, inbox-{1440,1920}.png, bank-statement-{1440,1920}.png, fail-*.png
+  debug    probe.mjs/probe.log, probe2.mjs/probe2.log, dbg.mjs, dbg2.mjs, dbg3.mjs (Book-button DOM check)
+  build    dist/ (6.4 MB; index.html sha256 008824569d1b416abcd43515d0a3b4df2f80c8be69db8ddc5972be39179ef430,
+           assets/index-B89dC_Y3.js sha256 3a68762e95178d8b0a529da418073226501e3b59c4ff1efb09daa76cac2137fb), build.log
+  preview  preview.log, preview.pid (vite preview PID 571437 on 127.0.0.1:5371, stopped)
+
+Fixtures are generated in memory from seed 303 (buildData in fixtures.mjs); no fixture files were written.

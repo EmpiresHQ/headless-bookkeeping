@@ -18,9 +18,18 @@ export class AccountService {
     return rows.map((r) => this.mapRow(r));
   }
 
-  async getAccountsByCodes(codes: string[]): Promise<Account[]> {
+  /**
+   * @param executor - read handle. Pass an open transaction when resolving
+   *   account codes from inside one: the SQLite dialect holds a single
+   *   connection, so a read off the root `db` while a transaction is open
+   *   deadlocks.
+   */
+  async getAccountsByCodes(
+    codes: string[],
+    executor?: Kysely<Database>,
+  ): Promise<Account[]> {
     if (codes.length === 0) return [];
-    const rows = await this.db
+    const rows = await (executor ?? this.db)
       .selectFrom('account')
       .selectAll()
       .where('code', 'in', codes)

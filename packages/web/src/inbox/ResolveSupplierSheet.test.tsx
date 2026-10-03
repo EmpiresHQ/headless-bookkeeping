@@ -12,6 +12,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { ResolveSupplierSheet } from './ResolveSupplierSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const OUTCOME = { kind: 'expense', document_id: 12, expense_id: 500 } as const;
 
@@ -21,12 +22,14 @@ function renderSheet(onDone = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <ResolveSupplierSheet
-        documentId={12}
-        open
-        onOpenChange={() => undefined}
-        onDone={onDone}
-      />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <ResolveSupplierSheet
+          documentId={12}
+          open
+          onOpenChange={() => undefined}
+          onDone={onDone}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onDone;
@@ -63,6 +66,7 @@ describe('ResolveSupplierSheet', () => {
         country: 'EE',
         name: 'Wolt Eesti OÜ',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.resolveSupplier).mockResolvedValue(OUTCOME);
@@ -87,6 +91,7 @@ describe('ResolveSupplierSheet', () => {
       country: 'EE',
       name: 'Circle K Eesti AS',
       goods_vs_services: null,
+      tax_status: null,
     });
     const onDone = renderSheet();
     fireEvent.click(
@@ -108,6 +113,38 @@ describe('ResolveSupplierSheet', () => {
     expect(onDone).toHaveBeenCalledWith(OUTCOME);
   });
 
+  it('partial success: a created supplier is never created again — retry only resolves (#251)', async () => {
+    vi.mocked(api.onboardEntity).mockResolvedValue({
+      id: 9,
+      role: 'supplier',
+      country: 'EE',
+      name: 'Circle K Eesti AS',
+      goods_vs_services: null,
+      tax_status: null,
+    });
+    vi.mocked(api.resolveSupplier)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValueOnce(OUTCOME as never);
+    const onDone = renderSheet();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Create supplier & book · −48.20 €',
+      }),
+    );
+    const retry = await screen.findByRole('button', {
+      name: 'Retry booking with the created supplier',
+    });
+    expect(
+      screen.getByText(/already exists on the server/),
+    ).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(OUTCOME));
+    expect(api.onboardEntity).toHaveBeenCalledTimes(1);
+    expect(api.resolveSupplier).toHaveBeenCalledTimes(2);
+    expect(api.resolveSupplier).toHaveBeenLastCalledWith(12, 9);
+  });
+
   it('requires the registration key for create', async () => {
     renderSheet();
     const regKey = await screen.findByDisplayValue('EE100511246');
@@ -119,9 +156,14 @@ describe('ResolveSupplierSheet', () => {
 
   it('picks an existing supplier via search', async () => {
     const onDone = renderSheet();
-    fireEvent.change(await screen.findByPlaceholderText(/search suppliers/i), {
-      target: { value: 'wolt' },
-    });
+    fireEvent.change(
+      await screen.findByRole('searchbox', {
+        name: 'Search existing suppliers',
+      }),
+      {
+        target: { value: 'wolt' },
+      },
+    );
     fireEvent.click(screen.getByRole('button', { name: /Wolt Eesti OÜ/ }));
     await waitFor(() =>
       expect(api.resolveSupplier).toHaveBeenCalledWith(12, 3),

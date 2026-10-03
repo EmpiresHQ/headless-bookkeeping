@@ -13,6 +13,7 @@ vi.mock('../api', async (importOriginal) => ({
   getCategories: vi.fn(),
   getEntities: vi.fn(),
   getExpenses: vi.fn(),
+  getExpense: vi.fn(),
   completeDocument: vi.fn(),
   retryDocument: vi.fn(),
   deleteDocument: vi.fn(),
@@ -31,6 +32,8 @@ import * as api from '../api';
 import type { Entity, NeedsTriageItem } from '../api';
 import { invalidateInbox } from '../queries/inbox';
 import { TriageDocScreen } from './TriageDocScreen';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
+import type { QueueRun } from './queueRun';
 
 const ITEM = (over: Partial<NeedsTriageItem> = {}): NeedsTriageItem => ({
   id: 12,
@@ -47,6 +50,7 @@ const SUPPLIER: Entity = {
   country: 'EE',
   name: 'Circle K Eesti AS',
   goods_vs_services: null,
+  tax_status: null,
 };
 
 /** Persisted-details payload keyed by document id — lets one
@@ -96,7 +100,15 @@ async function openClassifyPickSupplierAndSubmit(grossDisplay: string) {
   await waitFor(() => expect(invalidateInbox).toHaveBeenCalled());
 }
 
-function renderAt(path: string) {
+/** The queue run these tests process in (issue #253): opened from the
+ *  triage list, in its rendered order. `null` = single-item entry (deep link,
+ *  Books). */
+const QUEUE: QueueRun = {
+  seg: 'triage',
+  members: ['/inbox/doc/13', '/inbox/doc/12'],
+};
+
+function renderAt(path: string, run: QueueRun | null = QUEUE) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -106,11 +118,15 @@ function renderAt(path: string) {
       { path: '/inbox/doc/:id', element: <TriageDocScreen /> },
       { path: '/inbox/approval/:id', element: <p>approval detail</p> },
     ],
-    { initialEntries: [path] },
+    {
+      initialEntries: [{ pathname: path, state: run ? { hbkRun: run } : null }],
+    },
   );
   render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return router;
@@ -149,6 +165,67 @@ describe('TriageDocScreen', () => {
     vi.mocked(api.fetchDocumentPreviewObjectUrl).mockRejectedValue(
       new Error('no preview'),
     );
+  });
+
+  it('renders document 195 with a possible-duplicate reason and allows review without booking', async () => {
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        id: 195,
+        reason_type: 'possible_duplicate',
+        reason:
+          'possible duplicate of expense #113: same supplier and invoice number 2AUEKTA3 0002.',
+      }),
+    ]);
+    vi.mocked(api.getExpense).mockResolvedValue({
+      id: 113,
+      document_id: 194,
+      supplier_id: 51,
+      category: 'software',
+      gross_amount: 400,
+      vat_amount: 0,
+      currency: 'EUR',
+      tax_point_date: '2026-09-10',
+      status: 'posted',
+      supplier_invoice_number: '2AUEKTA3 0002',
+      ai_confidence: null,
+      claimant_id: null,
+      created_at: 100,
+    });
+    renderAt('/inbox/doc/195');
+    expect(
+      await screen.findByRole('heading', {
+        name: 'This purchase may already be booked',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Archive without booking' }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review possible duplicate' }),
+    );
+    await waitFor(() =>
+      expect(api.getDocumentDetails).toHaveBeenCalledWith(195),
+    );
+    expect(
+      await screen.findByRole('link', { name: 'Open existing expense' }),
+    ).toHaveAttribute('href', '/books/expenses/113');
+    expect(
+      screen.getByRole('link', { name: 'Open existing document' }),
+    ).toHaveAttribute('href', '/books/documents/194');
+    expect(screen.getByText('Expense #113 · posted')).toBeInTheDocument();
+    expect(screen.getByText('4.00 EUR')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Create expense/ }),
+    ).not.toBeInTheDocument();
+    expect(api.getDocumentReclassify).not.toHaveBeenCalled();
+    expect(api.manualClassify).not.toHaveBeenCalled();
+    expect(api.resolveSupplier).not.toHaveBeenCalled();
+    expect(api.completeDocument).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Archive this duplicate' }),
+    );
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(api.completeDocument).not.toHaveBeenCalled();
   });
 
   it('leads with the semantic decision, keeps the raw reason as collapsed technical detail, and shows persisted facts', async () => {
@@ -453,6 +530,10 @@ describe('TriageDocScreen', () => {
 
   it('remounts the classify sheet per document — fresh fields and a live submit after advancing', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    // The prefilled category must be one the list offers (#260).
+    vi.mocked(api.getCategories).mockResolvedValue([
+      { key: 'fuel', label: 'Fuel', accountCode: '5000' },
+    ]);
     vi.mocked(api.getDocumentDetails).mockImplementation((id) =>
       id === 12
         ? Promise.resolve(DETAILS(12, 4820, 867))
@@ -552,6 +633,10 @@ describe('TriageDocScreen', () => {
 
   it('unknown outcome stays on the document and reopening gets a fresh, non-busy sheet', async () => {
     vi.mocked(api.getEntities).mockResolvedValue([SUPPLIER]);
+    // The prefilled category must be one the list offers (#260).
+    vi.mocked(api.getCategories).mockResolvedValue([
+      { key: 'fuel', label: 'Fuel', accountCode: '5000' },
+    ]);
     vi.mocked(api.manualClassify).mockResolvedValue({
       kind: 'unknown',
       document_id: 12,
@@ -572,5 +657,207 @@ describe('TriageDocScreen', () => {
         name: 'Create expense · −48.20 €',
       }),
     ).toBeInTheDocument();
+  });
+
+  describe('processing context (issue #253)', () => {
+    const TRIAGE_RUN = (...ids: number[]): QueueRun => ({
+      seg: 'triage',
+      members: ids.map((id) => `/inbox/doc/${id}`),
+    });
+    const runOf = (router: ReturnType<typeof renderAt>) =>
+      (router.state.location.state as { hbkRun?: unknown } | null)?.hbkRun;
+
+    async function archive() {
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Archive without booking' }),
+      );
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Archive document' }),
+      );
+      await waitFor(() =>
+        expect(api.completeDocument).toHaveBeenCalledWith(12),
+      );
+    }
+
+    beforeEach(() => {
+      vi.mocked(api.completeDocument).mockResolvedValue({
+        id: 12,
+        status: 'processed',
+      });
+    });
+
+    it('deep link is a single item: no queue count, and a decision never advances into the queue', async () => {
+      const router = renderAt('/inbox/doc/12', null);
+      expect(
+        await screen.findByText('Single item · returns to Inbox'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('‹ Back').parentElement).toHaveTextContent(
+        /^‹ BackDocument$/,
+      );
+      expect(screen.queryByText(/\d+ of \d+/)).not.toBeInTheDocument();
+      await archive();
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox'),
+      );
+    });
+
+    it('a run from a non-first row advances within the run and carries it without the decided item', async () => {
+      vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+        ITEM({ id: 11, filename: 'first.pdf', created_at: 50 }),
+        ITEM(),
+        ITEM({ id: 13, filename: 'later.pdf', created_at: 200 }),
+      ]);
+      const router = renderAt('/inbox/doc/12', TRIAGE_RUN(11, 12, 13));
+      expect(
+        await screen.findByText('Triage queue · next item follows'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('2 of 3')).toBeInTheDocument();
+      await archive();
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+      );
+      expect(runOf(router)).toEqual(TRIAGE_RUN(11, 13));
+    });
+
+    it('a task that arrived after the snapshot joins neither the count nor the next action', async () => {
+      vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+        ITEM(),
+        ITEM({ id: 13, filename: 'later.pdf', created_at: 200 }),
+        ITEM({ id: 14, filename: 'new.pdf', created_at: 900 }),
+      ]);
+      const router = renderAt('/inbox/doc/13', TRIAGE_RUN(12, 13));
+      expect(await screen.findByText('2 of 2')).toBeInTheDocument();
+      expect(
+        screen.getByText('Triage queue · next item follows'),
+      ).toBeInTheDocument();
+      vi.mocked(api.completeDocument).mockResolvedValue({
+        id: 13,
+        status: 'processed',
+      });
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Archive without booking' }),
+      );
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Archive document' }),
+      );
+      // The previous run member — never the newer doc 14.
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox/doc/12'),
+      );
+    });
+
+    it('a live reorder keeps the snapshot order for the next action', async () => {
+      // Live (newest first): 13, 14, 12. Snapshot: 12, 13, 14.
+      vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+        ITEM(),
+        ITEM({ id: 13, filename: 'later.pdf', created_at: 300 }),
+        ITEM({ id: 14, filename: 'mid.pdf', created_at: 200 }),
+      ]);
+      const router = renderAt('/inbox/doc/12', TRIAGE_RUN(12, 13, 14));
+      expect(await screen.findByText('1 of 3')).toBeInTheDocument();
+      await archive();
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+      );
+    });
+
+    it('members handled elsewhere drop out: the last live member returns to its segment', async () => {
+      vi.mocked(api.getNeedsTriageItems).mockResolvedValue([ITEM()]);
+      const router = renderAt('/inbox/doc/12', TRIAGE_RUN(12, 13));
+      expect(await screen.findByText('1 of 1')).toBeInTheDocument();
+      expect(
+        screen.getByText('Triage queue · returns to Triage'),
+      ).toBeInTheDocument();
+      await archive();
+      await waitFor(() =>
+        expect(
+          router.state.location.pathname + router.state.location.search,
+        ).toBe('/inbox?seg=triage'),
+      );
+    });
+
+    it.each([
+      ['failing', () => Promise.reject(new Error('approvals down'))],
+      ['loading', () => new Promise<never>(() => undefined)],
+    ])(
+      'a triage run ignores the unrelated approvals list while it is %s',
+      async (_, approvals) => {
+        vi.mocked(api.getPendingApprovals).mockImplementation(approvals);
+        const router = renderAt('/inbox/doc/12', TRIAGE_RUN(12, 13));
+        expect(await screen.findByText('1 of 2')).toBeInTheDocument();
+        await archive();
+        await waitFor(() =>
+          expect(router.state.location.pathname).toBe('/inbox/doc/13'),
+        );
+      },
+    );
+
+    it('an "all" run cannot be evaluated without the approvals list: no count, returns instead of guessing', async () => {
+      vi.mocked(api.getPendingApprovals).mockRejectedValue(
+        new Error('approvals down'),
+      );
+      const router = renderAt('/inbox/doc/12', {
+        seg: 'all',
+        members: ['/inbox/doc/12', '/inbox/approval/7', '/inbox/doc/13'],
+      });
+      expect(
+        await screen.findByText('Inbox queue · returns to Inbox'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/\d+ of \d+/)).not.toBeInTheDocument();
+      await archive();
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/inbox'),
+      );
+    });
+
+    it('malformed run state is a single item', async () => {
+      const router = createMemoryRouter(
+        [
+          { path: '/inbox', element: <p>queue</p> },
+          { path: '/inbox/doc/:id', element: <TriageDocScreen /> },
+        ],
+        {
+          initialEntries: [
+            {
+              pathname: '/inbox/doc/12',
+              // An approval in a triage run.
+              state: {
+                hbkRun: {
+                  seg: 'triage',
+                  members: ['/inbox/doc/12', '/inbox/approval/13'],
+                },
+              },
+            },
+          ],
+        },
+      );
+      render(
+        <QueryClientProvider
+          client={
+            new QueryClient({ defaultOptions: { queries: { retry: false } } })
+          }
+        >
+          <UnsavedChangesProvider onUnauthorized={() => undefined}>
+            <RouterProvider router={router} />
+          </UnsavedChangesProvider>
+        </QueryClientProvider>,
+      );
+      expect(
+        await screen.findByText('Single item · returns to Inbox'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/\d+ of \d+/)).not.toBeInTheDocument();
+    });
+
+    it("an item gone from a run points header Back and the empty state at the run's segment", async () => {
+      renderAt('/inbox/doc/404', TRIAGE_RUN(404, 12));
+      expect(await screen.findByText('Already handled')).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: /back to inbox/i }),
+      ).toHaveAttribute('href', '/inbox?seg=triage');
+      expect(screen.getByRole('link', { name: '‹ Back' })).toHaveAttribute(
+        'href',
+        '/inbox?seg=triage',
+      );
+    });
   });
 });

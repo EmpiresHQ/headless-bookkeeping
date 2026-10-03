@@ -1,3 +1,5 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
+import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
@@ -6,6 +8,9 @@ import { migrations } from '../database/migrations';
 import { ApiTokenService } from '../auth/api-token.service';
 import { OrganizationService } from '../organization/organization.service';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -71,21 +76,48 @@ describe('admin CLI (yargs)', () => {
     const { error } = await migrator.migrateToLatest();
     if (error)
       throw error instanceof Error ? error : new Error('Migration failed');
+    const cliPluginLoader = new PluginLoader(
+      new NullCountryPlugin(),
+      new EstoniaCountryPlugin(unusedFxRateService()),
+    );
     deps = {
       tokens: new ApiTokenService(db),
-      organization: new OrganizationService(db),
-      periods: new ReportingPeriodsService(
-        db,
-        new VatReportService(
+      organization: new OrganizationService(db, cliPluginLoader),
+      periods: (() => {
+        const pluginLoader = cliPluginLoader;
+        const organizationService = new OrganizationService(db, pluginLoader);
+        const ledgerBalance = new LedgerBalanceService(db);
+        const vatReportService = new VatReportService(
           db,
-          new LedgerBalanceService(db),
-          new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
-          new OrganizationService(db),
-        ),
-        new OrganizationService(db),
-        new PluginLoader(new NullCountryPlugin(), new EstoniaCountryPlugin()),
-        new StatutorySubmissionService(db, new AuditLogService(db)),
-      ),
+          ledgerBalance,
+          pluginLoader,
+          organizationService,
+          new PrepaymentAllocationRepository(db),
+        );
+        const submissions = new StatutorySubmissionService(
+          db,
+          new AuditLogService(db),
+        );
+        const auditFindings = new AuditFindingsService(db);
+        return new ReportingPeriodsService(
+          db,
+          vatReportService,
+          organizationService,
+          pluginLoader,
+          submissions,
+          new StatutoryReportService(
+            db,
+            ledgerBalance,
+            vatReportService,
+            new OrgContextResolver(organizationService, pluginLoader),
+            auditFindings,
+            submissions,
+            pluginLoader,
+            new PrepaymentAllocationRepository(db),
+          ),
+          auditFindings,
+        );
+      })(),
       expenses: new ExpensesService(
         db,
         noProjection,

@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
@@ -11,10 +13,17 @@ import { VoucherProjectionService } from '../ledger/projection/voucher-projectio
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { CategoryService } from '../categories/category.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import { Expense, CreateExpenseDto, ExpenseStatus } from './types';
 import {
+  Expense,
+  CreateExpenseDto,
+  ExpenseStatus,
+  PatchExpenseDraftInput,
+} from './types';
+import {
+  DuplicateCandidate,
   DuplicateDetection,
   findDuplicateExpense,
+  normalizeInvoiceNumber,
 } from './duplicate-detection';
 import { DuplicateExpenseException } from './duplicate-expense.exception';
 
@@ -38,12 +47,14 @@ export class ExpensesService {
    * candidate with no supplier is not comparable at all.
    */
   private async detectDuplicate(
-    dto: CreateExpenseDto,
+    candidate: DuplicateCandidate,
+    executor: Kysely<Database> = this.db,
+    excludeExpenseId?: number,
   ): Promise<DuplicateDetection | null> {
-    const supplierId = dto.supplier_id;
+    const supplierId = candidate.supplier_id;
     if (supplierId == null) return null;
 
-    const peers = await this.db
+    let peersQuery = executor
       .selectFrom('expense')
       .select([
         'id',
@@ -57,17 +68,21 @@ export class ExpensesService {
         'ai_document_type',
       ])
       .where('supplier_id', '=', supplierId)
-      .where('status', '!=', 'reversed')
-      .execute();
+      .where('status', '!=', 'reversed');
+    // A draft being edited is never its own duplicate (issue #247).
+    if (excludeExpenseId !== undefined) {
+      peersQuery = peersQuery.where('id', '!=', excludeExpenseId);
+    }
+    const peers = await peersQuery.execute();
 
     return findDuplicateExpense(
       {
         supplier_id: supplierId,
-        supplier_invoice_number: dto.supplier_invoice_number,
-        currency: dto.currency,
-        gross_amount: dto.gross_amount,
-        tax_point_date: dto.tax_point_date,
-        claimant_id: dto.claimant_id ?? null,
+        supplier_invoice_number: candidate.supplier_invoice_number,
+        currency: candidate.currency,
+        gross_amount: candidate.gross_amount,
+        tax_point_date: candidate.tax_point_date,
+        claimant_id: candidate.claimant_id ?? null,
       },
       peers,
     );
@@ -139,6 +154,24 @@ export class ExpensesService {
     }
 
     return this.mapRow(result);
+  }
+
+  /** Only accepted, non-reversed purchases inform classification history. */
+  async getPostedCategoryHistory(
+    supplierId: number,
+  ): Promise<{ category: string; count: number }[]> {
+    const rows = await this.db
+      .selectFrom('expense')
+      .select(['category', (eb) => eb.fn.count<number>('id').as('count')])
+      .where('supplier_id', '=', supplierId)
+      .where('status', '=', 'posted')
+      .groupBy('category')
+      .orderBy('category')
+      .execute();
+    return rows.map((row) => ({
+      category: row.category,
+      count: Number(row.count),
+    }));
   }
 
   async getExpenses(): Promise<(Expense & { reconciled: boolean })[]> {
@@ -244,8 +277,9 @@ export class ExpensesService {
    * balanced draft Voucher (Dr category / Dr VAT_RECEIVABLE / Cr AP).
    *
    * When the expense names a supplier we also hand the projection the supplier's
-   * country + goods/services nature so the plugin can resolve cross-border
-   * treatment (e.g. an imported service → reverse charge). Without a supplier the
+   * country, goods/services nature AND tax status so the plugin can resolve
+   * cross-border treatment — including WHERE a reverse-charged acquisition came
+   * from, which decides KMD row 6 vs row 7 (issue #210). Without a supplier the
    * facts are omitted and the projection assumes a domestic counterparty.
    */
   private async buildDraftVoucher(expense: Expense): Promise<DraftVoucher> {
@@ -253,7 +287,7 @@ export class ExpensesService {
       expense.supplier_id !== null
         ? await this.db
             .selectFrom('entity')
-            .select(['country', 'goods_vs_services'])
+            .select(['country', 'goods_vs_services', 'tax_status'])
             .where('id', '=', expense.supplier_id)
             .executeTakeFirst()
         : undefined;
@@ -270,6 +304,7 @@ export class ExpensesService {
           goodsVsServices: this.normalizeGoodsVsServices(
             supplier.goods_vs_services,
           ),
+          taxStatus: this.normalizeTaxStatus(supplier.tax_status),
         }),
         claimantId: expense.claimant_id ?? null,
         companyAddressedReceipt:
@@ -288,6 +323,102 @@ export class ExpensesService {
     value: string | null,
   ): 'goods' | 'services' | 'unknown' {
     return value === 'goods' || value === 'services' ? value : 'unknown';
+  }
+
+  /**
+   * Map the supplier's stored tax status onto the plugin enum. A NULL column
+   * (never recorded) and a literal 'unknown' mean the same thing, and neither
+   * is 'non_taxable': the plugin refuses on unknown rather than deciding the
+   * acquisition's origin — or whether a reverse charge is due at all — for us.
+   */
+  private normalizeTaxStatus(
+    value: string | null,
+  ): 'taxable_business' | 'non_taxable' | 'unknown' {
+    return value === 'taxable_business' || value === 'non_taxable'
+      ? value
+      : 'unknown';
+  }
+
+  /**
+   * A fingerprint of every fact the draft voucher for this expense is derived
+   * from — the expense's own amounts/currency/tax point/category, the supplier
+   * facts that decide its VAT treatment and its KMD acquisition row (issue
+   * #210), and the organisation's VAT facts that decide how much of its input
+   * VAT is deductible (issue #211).
+   *
+   * Taken before the draft is generated and re-checked inside the posting
+   * transaction, it closes the reverse-order race: generate a draft → edit the
+   * expense or the supplier → post. Mirrors the sales side (issue #209);
+   * `status` is deliberately NOT part of it, because the transition claims that
+   * separately.
+   */
+  async draftFactsFingerprint(
+    id: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<string> {
+    const expense = await executor
+      .selectFrom('expense')
+      .select([
+        'id',
+        'supplier_id',
+        'category',
+        'gross_amount',
+        'vat_amount',
+        'currency',
+        'tax_point_date',
+        'claimant_id',
+        'company_addressed_receipt',
+      ])
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!expense) {
+      throw new NotFoundException(`Expense ${id} not found`);
+    }
+    const supplier =
+      expense.supplier_id !== null
+        ? await executor
+            .selectFrom('entity')
+            .select(['id', 'country', 'goods_vs_services', 'tax_status'])
+            .where('id', '=', expense.supplier_id)
+            .executeTakeFirst()
+        : undefined;
+    // The organisation's OWN VAT facts now decide how much of the expense's
+    // input VAT is deductible, and therefore what the legs are (issue #211).
+    // A settings change between generating a draft and posting it moves the
+    // entry, so it belongs in the fingerprint alongside the supplier's facts.
+    const org = await executor
+      .selectFrom('organization')
+      .select([
+        'vat_registered',
+        'vat_registration_kind',
+        'input_vat_entitlement',
+        'input_vat_deduction_permille',
+      ])
+      .executeTakeFirst();
+    return JSON.stringify([expense, supplier ?? null, org ?? null]);
+  }
+
+  /**
+   * Refuse the write when the facts moved under an already-generated draft.
+   * Runs on the posting transaction's executor, so the comparison and the write
+   * see one consistent state.
+   */
+  async assertDraftFactsUnchangedTx(
+    trx: Kysely<Database>,
+    id: number,
+    expected: string,
+  ): Promise<void> {
+    const actual = await this.draftFactsFingerprint(id, trx);
+    if (actual !== expected) {
+      throw new ConflictException(
+        `Expense ${id} was changed while it was being posted (its own amounts, ` +
+          `the supplier facts that decide its VAT treatment and KMD ` +
+          `acquisition row, or the organisation's VAT facts that decide its ` +
+          `input-VAT deduction), so the prepared entry no longer matches it. ` +
+          `Nothing was posted or held — post it again and the entry is ` +
+          `recomputed from the current facts.`,
+      );
+    }
   }
 
   /**
@@ -330,47 +461,171 @@ export class ExpensesService {
       .execute();
   }
 
+  /**
+   * Edit a draft (or pending) expense's economic facts in place (issue #247).
+   *
+   * The same SAME-object remedy the sales side has (issue #209): a rejected or
+   * mistyped draft is fixed here and submitted again, keeping its source
+   * document, its AI facts and its approval history. Also the draft/pending
+   * branch of the corrections flow, which sends amounts/category only.
+   *
+   * Everything that decides whether the write is allowed — the state check,
+   * the merged-amount check, the entity checks, the duplicate key — runs inside
+   * ONE transaction, and the UPDATE claims the row conditionally
+   * (`status IN (draft, pending) AND voucher_id IS NULL`). A status read taken
+   * before the transaction would be a TOCTOU window in which a post landing in
+   * between leaves this UPDATE rewriting an already-POSTED expense's facts
+   * underneath its immutable voucher (same shape as the sales-invoice patch).
+   * Saving never posts: submitting stays a separate, deliberate act.
+   */
   async updateDraft(
     id: number,
-    patch: {
-      gross_amount?: number;
-      vat_amount?: number;
-      category?: string;
-    },
+    patch: PatchExpenseDraftInput,
   ): Promise<Expense> {
+    // Category validity is a plugin rule read through OrganizationService on
+    // the root connection, so it is checked BEFORE the transaction opens (the
+    // single SQLite connection is held by the transaction once it does).
     if (patch.category !== undefined) {
       await this.categoryService.assertValid(patch.category);
-    }
-    const expense = await this.getExpenseById(id);
-    if (expense.status !== 'draft' && expense.status !== 'pending') {
-      throw new Error(
-        `Cannot update draft: expense ${id} is ${expense.status}`,
-      );
     }
 
     const now = Math.floor(Date.now() / 1000);
     const row = await this.db.transaction().execute(async (trx) => {
+      const current = await trx
+        .selectFrom('expense')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!current) {
+        throw new NotFoundException(`Expense ${id} not found`);
+      }
+      this.assertEditable(id, current.status);
+
+      const next = {
+        category: patch.category ?? current.category,
+        supplier_id:
+          patch.supplier_id !== undefined
+            ? patch.supplier_id
+            : current.supplier_id,
+        gross_amount: patch.gross_amount ?? current.gross_amount,
+        vat_amount: patch.vat_amount ?? current.vat_amount,
+        currency: patch.currency ?? current.currency,
+        tax_point_date: patch.tax_point_date ?? current.tax_point_date,
+        supplier_invoice_number:
+          patch.supplier_invoice_number !== undefined
+            ? patch.supplier_invoice_number
+            : current.supplier_invoice_number,
+        claimant_id:
+          patch.claimant_id !== undefined
+            ? patch.claimant_id
+            : current.claimant_id,
+        company_addressed_receipt:
+          patch.company_addressed_receipt !== undefined
+            ? patch.company_addressed_receipt === null
+              ? null
+              : patch.company_addressed_receipt
+                ? 1
+                : 0
+            : current.company_addressed_receipt,
+      };
+
+      this.assertMergedAmounts(id, next.gross_amount, next.vat_amount);
+      // An entity is checked only when the edit CHANGES it: an unchanged
+      // reference was accepted when the draft was made and must not block a
+      // category or VAT fix.
+      if (
+        next.supplier_id !== current.supplier_id &&
+        next.supplier_id !== null
+      ) {
+        await this.assertEntityRole(trx, 'supplier_id', next.supplier_id, [
+          'supplier',
+        ]);
+      }
+      if (
+        next.claimant_id !== current.claimant_id &&
+        next.claimant_id !== null
+      ) {
+        await this.assertEntityRole(trx, 'claimant_id', next.claimant_id, [
+          'employee',
+          'director',
+        ]);
+      }
+
+      // Duplicate guard (issue #195) — re-run only when the edit changes a
+      // VALUE the key is made of, so an already-accepted (possibly
+      // operator-allowed) duplicate can still have its category or VAT fixed.
+      const keyChanged =
+        next.supplier_id !== current.supplier_id ||
+        normalizeInvoiceNumber(next.supplier_invoice_number) !==
+          normalizeInvoiceNumber(current.supplier_invoice_number) ||
+        next.currency !== current.currency ||
+        next.gross_amount !== current.gross_amount ||
+        next.tax_point_date !== current.tax_point_date ||
+        (next.claimant_id ?? null) !== (current.claimant_id ?? null);
+      const duplicate = keyChanged
+        ? await this.detectDuplicate(next, trx, id)
+        : null;
+      if (duplicate && patch.allow_duplicate !== true) {
+        throw new DuplicateExpenseException(duplicate);
+      }
+
       const updated = await trx
         .updateTable('expense')
         .set({
-          ...(patch.gross_amount !== undefined && {
-            gross_amount: patch.gross_amount,
-          }),
-          ...(patch.vat_amount !== undefined && {
-            vat_amount: patch.vat_amount,
-          }),
-          ...(patch.category !== undefined && { category: patch.category }),
-          ...(expense.status === 'pending' && {
+          ...next,
+          ...(current.status === 'pending' && {
             status: 'draft',
             voucher_id: null,
           }),
           updated_at: now,
         })
         .where('id', '=', id)
+        // The claim: only an editable, voucher-less row is touched. Zero rows
+        // means the state changed under us — nothing is written.
+        .where('status', 'in', ['draft', 'pending'])
+        .where('voucher_id', 'is', null)
         .returningAll()
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
 
-      if (expense.status === 'pending') {
+      if (!updated) {
+        const actual = await trx
+          .selectFrom('expense')
+          .select(['status', 'voucher_id'])
+          .where('id', '=', id)
+          .executeTakeFirst();
+        throw new ConflictException(
+          `Cannot update draft: expense ${id} is ` +
+            `${actual?.status ?? 'gone'} (voucher ${String(actual?.voucher_id)}) ` +
+            `— it changed while this edit was being applied, so nothing was changed.`,
+        );
+      }
+
+      // The override trace commits with the edit it allowed, or not at all
+      // (audit_log is append-only, ADR-0026).
+      if (duplicate) {
+        await this.auditLog.record(
+          {
+            actor: 'operator',
+            action: 'expense.duplicate_guard.override',
+            outcome: 'allowed',
+            target_type: 'expense',
+            target_id: id,
+            detail: {
+              duplicate_of_expense_id: duplicate.existingExpenseId,
+              matched_on: duplicate.matchedOn,
+              supplier_id: next.supplier_id,
+              supplier_invoice_number: next.supplier_invoice_number,
+              reason: duplicate.reason,
+              via: 'draft_edit',
+            },
+          },
+          trx,
+        );
+      }
+
+      // Only once the editable row is actually claimed does the pending
+      // approval it was holding get superseded — never on a row we did not win.
+      if (current.status === 'pending') {
         const approval = await trx
           .updateTable('approval')
           .set({
@@ -404,6 +659,65 @@ export class ExpensesService {
     });
 
     return this.mapRow(row);
+  }
+
+  /** Only a draft (or a pending expense, whose approval is then superseded) is editable. */
+  private assertEditable(id: number, status: string): void {
+    if (status !== 'draft' && status !== 'pending') {
+      throw new ConflictException(
+        `Cannot update draft: expense ${id} is ${status} ` +
+          `(a posted voucher is immutable — correct it via POST ` +
+          `/api/expenses/${id}/correct)`,
+      );
+    }
+  }
+
+  /** Validate the amounts the expense will HAVE after a partial patch merges. */
+  private assertMergedAmounts(id: number, gross: number, vat: number): void {
+    if (!Number.isInteger(gross) || !Number.isInteger(vat)) {
+      throw new BadRequestException(
+        `Expense ${id}: amounts must be integer minor units (cents)`,
+      );
+    }
+    if (gross <= 0) {
+      throw new BadRequestException(
+        `Expense ${id}: gross_amount must be positive (would be ${gross})`,
+      );
+    }
+    if (vat < 0) {
+      throw new BadRequestException(
+        `Expense ${id}: vat_amount cannot be negative (would be ${vat})`,
+      );
+    }
+    if (vat > gross) {
+      throw new BadRequestException(
+        `Expense ${id}: vat_amount ${vat} would exceed gross_amount ` +
+          `${gross} — the net would be negative.`,
+      );
+    }
+  }
+
+  private async assertEntityRole(
+    trx: Kysely<Database>,
+    field: string,
+    entityId: number,
+    roles: string[],
+  ): Promise<void> {
+    const entity = await trx
+      .selectFrom('entity')
+      .select(['id', 'role'])
+      .where('id', '=', entityId)
+      .executeTakeFirst();
+    if (!entity) {
+      throw new UnprocessableEntityException(
+        `${field}: entity ${entityId} does not exist`,
+      );
+    }
+    if (!roles.includes(entity.role)) {
+      throw new UnprocessableEntityException(
+        `${field}: entity ${entityId} is a ${entity.role}, expected ${roles.join(' or ')}`,
+      );
+    }
   }
 
   async patchAmounts(

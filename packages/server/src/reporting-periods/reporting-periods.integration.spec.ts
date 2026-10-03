@@ -1,9 +1,14 @@
+import { PrepaymentAllocationRepository } from '../reconciliation/prepayment-allocation.repository';
+import { unusedFxRateService } from '../../test/fx-fixtures';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { ReportingPeriodsService } from './reporting-periods.service';
+import { StatutoryReportService } from '../statutory-report/statutory-report.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { OrgContextResolver } from '../organization/org-context.resolver';
 import { VatReportService } from '../vat-report/vat-report.service';
 import { LedgerBalanceService } from '../ledger/account/ledger-balance.service';
 import { PluginLoader } from '../plugins/plugin-loader.service';
@@ -54,23 +59,40 @@ describe('ReportingPeriodsService (integration)', () => {
     // with manual token override, but here we inject the Kysely instance
     // directly via the constructor to avoid DI resolution issues with the
     // nestjs-kysely token in a minimal module.
-    const organizationService = new OrganizationService(db);
     const pluginLoader = new PluginLoader(
       new NullCountryPlugin(),
-      new EstoniaCountryPlugin(),
+      new EstoniaCountryPlugin(unusedFxRateService()),
     );
+    const organizationService = new OrganizationService(db, pluginLoader);
     const vatReportService = new VatReportService(
       db,
       new LedgerBalanceService(db),
       pluginLoader,
       organizationService,
+      new PrepaymentAllocationRepository(db),
     );
+    const submissions = new StatutorySubmissionService(
+      db,
+      new AuditLogService(db),
+    );
+    const auditFindings = new AuditFindingsService(db);
     service = new ReportingPeriodsService(
       db,
       vatReportService,
       organizationService,
       pluginLoader,
-      new StatutorySubmissionService(db, new AuditLogService(db)),
+      submissions,
+      new StatutoryReportService(
+        db,
+        new LedgerBalanceService(db),
+        vatReportService,
+        new OrgContextResolver(organizationService, pluginLoader),
+        auditFindings,
+        submissions,
+        pluginLoader,
+        new PrepaymentAllocationRepository(db),
+      ),
+      auditFindings,
     );
   });
 

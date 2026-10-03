@@ -122,6 +122,19 @@ export const ENTITY_SEGMENTS = [
 ] as const;
 export type EntitySegment = (typeof ENTITY_SEGMENTS)[number];
 
+/** Role an Add opened from each segment starts with (issue #264): the
+ *  segment's own role; Team → employee (director stays selectable). All has
+ *  no role of its own, so it keeps supplier as a DOCUMENTED default — the
+ *  sheet shows ALL_SEGMENT_ROLE_HINT under the Role field. */
+export const SEGMENT_DEFAULT_ROLE: Record<EntitySegment, EntityRole> = {
+  all: 'supplier',
+  suppliers: 'supplier',
+  customers: 'customer',
+  team: 'employee',
+};
+export const ALL_SEGMENT_ROLE_HINT =
+  'Defaults to Supplier — change it for a customer, employee or director.';
+
 export function segmentEntities(
   entities: Entity[],
   seg: EntitySegment,

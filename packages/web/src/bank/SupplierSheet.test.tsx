@@ -27,6 +27,7 @@ vi.mock('../api', async (importOriginal) => ({
 
 import * as api from '../api';
 import { SupplierSheet } from './SupplierSheet';
+import { UnsavedChangesProvider } from '../lib/unsavedChanges';
 
 const TX = {
   id: 9,
@@ -46,12 +47,14 @@ function renderSheet(onPick = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <SupplierSheet
-        open
-        onOpenChange={vi.fn()}
-        tx={TX as never}
-        onPick={onPick}
-      />
+      <UnsavedChangesProvider onUnauthorized={() => undefined}>
+        <SupplierSheet
+          open
+          onOpenChange={vi.fn()}
+          tx={TX as never}
+          onPick={onPick}
+        />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
   return onPick;
@@ -67,6 +70,7 @@ describe('SupplierSheet', () => {
         country: 'EE',
         name: 'Wolt Eesti OÜ',
         goods_vs_services: null,
+        tax_status: null,
       },
       {
         id: 13,
@@ -74,6 +78,7 @@ describe('SupplierSheet', () => {
         country: 'EE',
         name: 'Nordic Consulting OÜ',
         goods_vs_services: null,
+        tax_status: null,
       },
     ]);
     vi.mocked(api.getOrganization).mockResolvedValue({
@@ -81,9 +86,13 @@ describe('SupplierSheet', () => {
       country: 'EE',
       base_currency: 'EUR',
       vat_registered: true,
+      vat_registration_kind: 'ordinary',
+      input_vat_entitlement: 'full',
+      input_vat_deduction_permille: null,
       org_type: 'company',
       created_at: 0,
       name: null,
+      registry_code: null,
       vat_registration_number: null,
       iban: null,
     });
@@ -93,9 +102,17 @@ describe('SupplierSheet', () => {
     const onPick = renderSheet();
     expect(await screen.findByText('Wolt Eesti OÜ')).toBeInTheDocument();
     expect(screen.queryByText('Nordic Consulting OÜ')).toBeNull();
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search suppliers' }),
+      { target: { value: 'wolt' } },
+    );
+    expect(
+      screen.getByRole('searchbox', { name: 'Search suppliers' }),
+    ).toHaveValue('wolt');
     fireEvent.click(screen.getByText('Wolt Eesti OÜ'));
     expect(onPick).toHaveBeenCalledWith(
       expect.objectContaining({ id: 12, name: 'Wolt Eesti OÜ' }),
+      false,
     );
   });
 
@@ -106,6 +123,7 @@ describe('SupplierSheet', () => {
       country: 'EE',
       name: 'Partner Grupp OÜ',
       goods_vs_services: null,
+      tax_status: null,
     });
     vi.mocked(api.addEntityAlias).mockResolvedValue({} as never);
     const onPick = renderSheet();
@@ -144,7 +162,10 @@ describe('SupplierSheet', () => {
       }),
     );
     await waitFor(() =>
-      expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 40 })),
+      expect(onPick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 40 }),
+        true,
+      ),
     );
   });
 });
