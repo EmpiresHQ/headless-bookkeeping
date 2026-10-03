@@ -159,6 +159,7 @@ export const ACCOUNT_TO_LINE: Readonly<Record<string, string>> = {
   EXPENSE_MEALS: 'otherOperatingExpenses',
   EXPENSE_INSURANCE: 'otherOperatingExpenses',
   EXPENSE_EDUCATION: 'otherOperatingExpenses',
+  EXPENSE_OFFICE_SUPPLIES: 'otherOperatingExpenses',
   EXPENSE_OTHER: 'otherOperatingExpenses',
   FX_GAIN_LOSS: 'otherOperatingExpenses',
   BAD_DEBT_EXPENSE: 'otherOperatingExpenses',

@@ -58,6 +58,7 @@ const CATEGORY_ACCOUNTS: Readonly<Record<string, string>> = {
   meals: 'EXPENSE_MEALS',
   insurance: 'EXPENSE_INSURANCE',
   education: 'EXPENSE_EDUCATION',
+  office_supplies: 'EXPENSE_OFFICE_SUPPLIES',
   vehicle: 'FIXED_ASSETS_VEHICLES',
   it_equipment: 'FIXED_ASSETS_IT',
   machinery: 'FIXED_ASSETS_EQUIPMENT',
@@ -107,7 +108,7 @@ export class NullCountryPlugin implements CountryPlugin {
   getCategories(): CategoryDef[] {
     return Object.entries(CATEGORY_ACCOUNTS).map(([key, accountCode]) => ({
       key,
-      label: labelFor(key),
+      label: key === 'office_supplies' ? 'Office Supplies' : labelFor(key),
       accountCode,
     }));
   }

@@ -36,7 +36,7 @@ describe('migration 066 — tax accounts', () => {
   it('upgrades the chart without changing existing accounts and exposes tax assets through the account service', async () => {
     const service = new AccountService(db);
     const before = await service.getAccounts();
-    const { error } = await migrator.migrateToLatest();
+    const { error } = await migrator.migrateTo('066_add_tax_accounts');
     if (error) throw error;
     const codes = [
       'INCOME_TAX_RECEIVABLE',
@@ -56,7 +56,7 @@ describe('migration 066 — tax accounts', () => {
         parent_id: null,
       });
     }
-    const rerun = await migrator.migrateToLatest();
+    const rerun = await migrator.migrateTo('066_add_tax_accounts');
     expect(rerun.error).toBeUndefined();
     expect(await service.getAccounts()).toHaveLength(before.length + 3);
     const rollback = await migrator.migrateTo(

@@ -372,6 +372,7 @@ describe('NullCountryPlugin real-DI against seeded chart', () => {
       'meals',
       'insurance',
       'education',
+      'office_supplies',
     ];
 
     for (const category of categories) {
