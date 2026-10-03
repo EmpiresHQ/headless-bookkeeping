@@ -120,6 +120,8 @@ export const ACCOUNT_TO_LINE: Readonly<Record<string, string>> = {
   BANK_USD: 'cashAndBankAccounts',
   AR: 'receivablesAndPrepayments',
   VAT_RECEIVABLE: 'receivablesAndPrepayments',
+  INCOME_TAX_RECEIVABLE: 'receivablesAndPrepayments',
+  TAX_PREPAYMENTS: 'receivablesAndPrepayments',
   SUPPLIER_PREPAYMENTS: 'receivablesAndPrepayments',
   RECEIVABLE_FROM_OWNER: 'receivablesAndPrepayments',
   FIXED_ASSETS_VEHICLES: 'tangibleFixedAssets',
@@ -134,6 +136,7 @@ export const ACCOUNT_TO_LINE: Readonly<Record<string, string>> = {
   AP: 'payablesAndPrepayments',
   CUSTOMER_PREPAYMENTS: 'payablesAndPrepayments',
   VAT_PAYABLE: 'payablesAndPrepayments',
+  INCOME_TAX_PAYABLE: 'payablesAndPrepayments',
   DIVIDEND_PAYABLE: 'payablesAndPrepayments',
   DIVIDEND_WITHHOLDING_TAX_PAYABLE: 'payablesAndPrepayments',
   // Equity
