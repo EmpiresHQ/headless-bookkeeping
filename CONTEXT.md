@@ -30,6 +30,38 @@ _Avoid_: Exchange difference (when ambiguous with unrealized)
 A user-facing semantic label for what an expense or income *is* (`software`, `transport`, `rent`, …). NOT an accounting account. A country plugin maps a Category to an **Account** + **VAT code** at posting time.
 _Avoid_: Account, chart-of-account name
 
+### Bank imports
+
+The following terms describe the required bank-import model in [issue #399](https://github.com/EmpiresHQ/headless-bookkeeping/issues/399).
+
+**Bank account**:
+A company's single-currency account with a bank or payment provider, on which money movements occur. Distinct from an **Account**, which is a node in the chart of accounts; accounts at the same bank may share a statement mapping.
+_Avoid_: Account (when the banking identity is intended)
+
+**Bank transaction**:
+One money movement on a **Bank account**, which may appear in several overlapping **Bank statements**. A transfer between two bank accounts produces a separate movement on each account.
+_Avoid_: Voucher, statement row (when referring to the movement itself)
+
+**Bank statement**:
+A source record of bank-account activity for a period. Several statements may report the same **Bank transaction**.
+_Avoid_: Transaction journal
+
+**Bank transaction journal**:
+The accumulated set of distinct **Bank transactions** for a **Bank account**, independent of which statements reported them. It is distinct from the accounting ledger of **Vouchers**.
+_Avoid_: Ledger (when referring to imported bank activity)
+
+**Statement row**:
+An occurrence of an operation in a source **Bank statement**. Rows in different statements may represent the same **Bank transaction**.
+_Avoid_: Bank transaction (when referring specifically to source evidence)
+
+**Bank statement mapping**:
+Reusable rules for interpreting a bank's statement format, including the meaning of its identifiers. A mapping belongs to a bank and may serve several of its bank accounts and currencies; it does not identify the destination bank account.
+_Avoid_: Bank account mapping (when referring to statement-format rules)
+
+**Card authorization hold**:
+A reservation of funds for a card payment, distinct from an actual bank-booked movement. It is not a **Bank transaction** in the bank transaction journal.
+_Avoid_: Booked transaction, payment settlement
+
 ### Intake & corrections
 
 **Document**:

@@ -1,5 +1,7 @@
 # Bank-statement ingestion via LLM-inferred mapping applied deterministically
 
+> Partially superseded by [ADR-0041](0041-canonical-bank-journal-and-llm-identity.md): reuse persisted bank-specific mappings, retain applied-rule snapshots, and validate import integrity before activating operations. The fresh-inference/no-mapping-storage decisions below describe the original design. Deterministic application of LLM-inferred rules remains in effect.
+
 `POST /api/bank-statements` accepts an already-parsed `CreateStatementInput`:
 an `account_code` (a `BANK_*` account) plus `transactions[]` in the kernel schema
 (signed cents, currency, counterparty IBAN/descriptor, reference, disposition
