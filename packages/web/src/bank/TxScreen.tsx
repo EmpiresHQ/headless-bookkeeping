@@ -1,13 +1,11 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPrepayment, fmtCents, markPersonal } from '../api';
 import type { AdvanceTaxInput } from '../api';
 import type { BankTransaction } from '../api';
 import {
-  createExpenseFromLine,
   invalidateStatement,
-  newFromLineProgress,
   undoMatches,
   useAdvanceVatTreatments,
   useBankTransactions,
@@ -28,11 +26,7 @@ import {
   recordedAt,
   useReceipt,
   useRecordedFor,
-  useResultLog,
-  writeChain,
-  type ChainSlot,
   type ResultHandle,
-  type ResultInit,
   type ResultTone,
 } from '../lib/resultLog';
 import { useSheet } from '../lib/useSheet';
@@ -44,12 +38,8 @@ import { ScreenHeader } from '../shell/Headers';
 import { useCompletionNavigation } from '../lib/returnNavigation';
 import { formatTxDate, txTitle } from './format';
 import { LoadError } from './LoadError';
-import {
-  fromLineRecord,
-  lineLinks,
-  lineSubject,
-  undoIncomplete,
-} from './lineResults';
+import { lineLinks, lineSubject, undoIncomplete } from './lineResults';
+import { useBankExpense } from './bankExpense';
 import { routeTxState } from './txState';
 import { TxCandidates } from './TxCandidates';
 import { TxCreateExpense } from './TxCreateExpense';
@@ -154,14 +144,11 @@ function TxScreenFor({
   const op = usePendingOperation('Bank line');
   const sessionTask = useSessionTask();
   const busy = op.pending;
-  // Stages of the bank-fee chain the server already accepted (issue #251):
-  // choosing "Bank fee" again resumes, never creates a second expense.
-  const feeProgress = useRef(newFromLineProgress());
-  // Durable records (#259): the fee chain's, superseded by every stage and
-  // retry; and this line's newest record, shown again after a reload.
-  const log = useResultLog();
-  const feeRecord = useRef<ChainSlot['current']>(null);
-  const feeFinished = useRef<CreateFromLineResult | null>(null);
+  // The bank-fee chain's confirmed progress, finished result, receipt and
+  // refresh live in the module (ADR-0040); choosing "Bank fee" again
+  // resumes, never creating a second expense. This instance keeps the
+  // TxScreen lifetime (the ordinary form has its own for its form lifetime).
+  const { run: runBankExpense } = useBankExpense({ statementId, tx, op });
   const recorded = useRecordedFor(lineSubject(statementId, txId));
   // Only a record from BEFORE this screen opened (a reload, a return) is
   // repeated here — this screen's own failures show their own notice.
@@ -378,68 +365,32 @@ function TxScreenFor({
       supplierId: null,
     };
     const amount = tx.amount;
-    const describe = (
-      extra: Pick<
-        Parameters<typeof fromLineRecord>[0],
-        'result' | 'error' | 'matchStaged'
-      >,
-    ) =>
-      fromLineRecord({
-        action: 'Bank fee',
-        lineTitle: txTitle(tx),
-        statementId,
-        txId,
-        amount: `${fmtCents(amount)} €`,
-        progress: feeProgress.current,
-        ...extra,
-      });
-    const write = (rec: ResultInit | null, live?: () => boolean) => {
-      if (rec === null) return;
-      writeChain(feeRecord, log.record, rec, live);
-    };
-    op.run(
-      async (ctx) => {
-        const r = await createExpenseFromLine(
-          input,
-          feeProgress.current,
-          ctx.check,
-          (_p, matchStaged) => write(describe({ matchStaged }), ctx.live),
+    runBankExpense({
+      input,
+      kind: 'bank-fee',
+      onSuccess: (r) => {
+        setOtherOpen(false);
+        if (r.outcome === 'matched') {
+          toastOk(`Bank fee recorded · ${fmtCents(amount)} €`);
+        } else {
+          toastOk(`Bank fee held for approval: ${r.reason}`);
+        }
+        leaveToStatement();
+      },
+      onError: ({ error: e, progress: p }) => {
+        // The chain can land its first stages then fail: say what is
+        // already on the books. The module records the partial outcome and
+        // refetches the line (fee refreshes on every handled error, Q10).
+        const message = e instanceof Error ? e.message : String(e);
+        toastErr(
+          p.expenseId === null
+            ? message
+            : p.stagedMatchIds !== null
+              ? `Bank-fee expense #${p.expenseId} is posted and its match is staged but not approved (${message}) — confirm it on the statement.`
+              : `Bank-fee expense #${p.expenseId} is already ${p.posted === null ? 'created' : 'posted'} (${message}) — choosing Bank fee again finishes it, without a second expense.`,
         );
-        feeFinished.current = r;
-        write(describe({ result: r }), ctx.live);
-        ctx.check();
-        await invalidateStatement(qc, statementId);
-        return r;
       },
-      {
-        onSuccess: (r) => {
-          setOtherOpen(false);
-          if (r.outcome === 'matched') {
-            toastOk(`Bank fee recorded · ${fmtCents(amount)} €`);
-          } else {
-            toastOk(`Bank fee held for approval: ${r.reason}`);
-          }
-          leaveToStatement();
-        },
-        onError: (e) => {
-          // The chain can land its first stages then fail: say what is
-          // already on the books, and refetch so the line reflects it.
-          const p = feeProgress.current;
-          write(
-            describe({ result: feeFinished.current ?? undefined, error: e }),
-          );
-          const message = e instanceof Error ? e.message : String(e);
-          toastErr(
-            p.expenseId === null
-              ? message
-              : p.stagedMatchIds !== null
-                ? `Bank-fee expense #${p.expenseId} is posted and its match is staged but not approved (${message}) — confirm it on the statement.`
-                : `Bank-fee expense #${p.expenseId} is already ${p.posted === null ? 'created' : 'posted'} (${message}) — choosing Bank fee again finishes it, without a second expense.`,
-          );
-          void invalidateStatement(qc, statementId);
-        },
-      },
-    );
+    });
   };
 
   const title =

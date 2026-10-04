@@ -1,17 +1,11 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fmtCents, type BankTransaction } from '../api';
 import { HttpError } from '../auth';
 import {
-  BookingPartialError,
-  createExpenseFromLine,
-  invalidateStatement,
-  newFromLineProgress,
   useCategories,
   useSuppliers,
   type CreateFromLineResult,
-  type FromLineProgress,
 } from '../queries/bank';
 import {
   amountError,
@@ -20,7 +14,6 @@ import {
   vatFromGross,
 } from '../lib/money';
 import type { PendingOperation } from '../lib/pendingOperation';
-import { useResultLog, writeChain, type ChainSlot } from '../lib/resultLog';
 import { useUnsavedChanges } from '../lib/unsavedChanges';
 import { useSheet } from '../lib/useSheet';
 import { ActionBar } from '../ui/ActionBar';
@@ -43,8 +36,8 @@ import {
   useEntityPick,
 } from '../ui/Lookup';
 import { toastErr } from '../ui/toast';
-import { STANDARD_VAT_RATE_PCT, txTitle } from './format';
-import { fromLineRecord } from './lineResults';
+import { STANDARD_VAT_RATE_PCT } from './format';
+import { useBankExpense } from './bankExpense';
 import { SupplierSheet } from './SupplierSheet';
 
 function fmtDate(iso: string): string {
@@ -90,18 +83,14 @@ export function TxCreateExpense({
   const [vatInput, setVatInput] = useState(() =>
     centsToEuroInput(vatFromGross(absCents, STANDARD_VAT_RATE_PCT)),
   );
-  const qc = useQueryClient();
   const busy = op.pending;
-  // What the server already accepted (issue #251): a retry resumes after
-  // it, never creates or posts a second expense. Rendered from `landed`, a
-  // snapshot taken when an attempt fails.
-  const progress = useRef<FromLineProgress>(newFromLineProgress());
-  const [landed, setLanded] = useState<FromLineProgress | null>(null);
-  // The chain's durable record (#259): created with its first accepted
-  // stage, superseded by every later stage and by a retry's outcome.
-  const log = useResultLog();
-  const record = useRef<ChainSlot['current']>(null);
-  const finished = useRef<CreateFromLineResult | null>(null);
+  // The chain's confirmed progress, finished result, receipt and refresh
+  // live in the module (ADR-0040); its state keeps this form's lifetime.
+  const { run: runBankExpense, landed } = useBankExpense({
+    statementId,
+    tx,
+    op,
+  });
   // Once the expense exists its facts are the server's: the form locks,
   // and there is no unsaved input left to lose.
   const locked = landed !== null && landed.expenseId !== null;
@@ -192,82 +181,37 @@ export function TxCreateExpense({
       taxPointDate: tx.transaction_date,
       supplierId: supplier?.id ?? null,
     };
-    const describe = (
-      extra: Pick<
-        Parameters<typeof fromLineRecord>[0],
-        'result' | 'error' | 'matchStaged'
-      >,
-    ) =>
-      fromLineRecord({
-        action: 'Create & match',
-        lineTitle: txTitle(tx),
-        statementId,
-        txId: tx.id,
-        amount: `${fmtCents(tx.amount)} €`,
-        progress: progress.current,
-        ...extra,
-      });
-    const write = (
-      rec: ReturnType<typeof fromLineRecord>,
-      live?: () => boolean,
-    ) => {
-      if (rec === null) return;
-      writeChain(record, log.record, rec, live);
-    };
-    op.run(
-      async (ctx) => {
-        const result = await createExpenseFromLine(
-          input,
-          progress.current,
-          ctx.check,
-          (_p, matchStaged) => write(describe({ matchStaged }), ctx.live),
-        );
-        finished.current = result;
-        write(describe({ result }), ctx.live);
-        ctx.check();
-        await invalidateStatement(qc, statementId);
-        return result;
+    runBankExpense({
+      input,
+      kind: 'create',
+      onSuccess: (result) => {
+        guard.release();
+        onDone(result);
       },
-      {
-        onSuccess: (result) => {
-          guard.release();
-          onDone(result);
-        },
-        onError: (e) => {
-          // A failed refresh AFTER the chain finished keeps its outcome.
-          write(describe({ result: finished.current ?? undefined, error: e }));
-          const p = { ...progress.current };
-          setLanded(p);
-          toastErr(e instanceof Error ? e.message : String(e));
-          // Stated in the form too (issue #265) — truthfully per stage: a
-          // refused CREATE maps to the fields; after it, the expense exists
-          // and nothing is mapped (its facts are no longer the form's).
-          if (p.expenseId === null) {
-            v.failed(
-              e,
-              sent,
-              e instanceof HttpError &&
-                e.validation === null &&
-                [400, 409, 422].includes(e.status)
-                ? 'Not created — the server refused this expense. Your input is kept.'
-                : undefined,
-            );
-          } else {
-            v.failed(
-              e,
-              null,
-              `Expense #${p.expenseId} is already saved, but a later step did not complete — see above. Retrying finishes the remaining steps for that expense.`,
-            );
-          }
-          // A staged-but-unapproved match (or any landed stage) changes
-          // the line: refetch — a staged match routes the line to its
-          // Confirm recovery.
-          if (p.expenseId !== null || e instanceof BookingPartialError) {
-            void invalidateStatement(qc, statementId);
-          }
-        },
+      onError: ({ error: e, progress: p, createConfirmed }) => {
+        toastErr(e instanceof Error ? e.message : String(e));
+        // Stated in the form too (issue #265) — truthfully per stage: a
+        // refused CREATE maps to the fields; after it, the expense exists
+        // and nothing is mapped (its facts are no longer the form's).
+        if (!createConfirmed) {
+          v.failed(
+            e,
+            sent,
+            e instanceof HttpError &&
+              e.validation === null &&
+              [400, 409, 422].includes(e.status)
+              ? 'Not created — the server refused this expense. Your input is kept.'
+              : undefined,
+          );
+        } else {
+          v.failed(
+            e,
+            null,
+            `Expense #${p.expenseId} is already saved, but a later step did not complete — see above. Retrying finishes the remaining steps for that expense.`,
+          );
+        }
       },
-    );
+    });
   };
 
   return (
