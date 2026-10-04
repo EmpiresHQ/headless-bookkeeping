@@ -36,6 +36,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { bankKeys } from '../queries/bank';
 import { AppToaster } from '../ui/toast';
 import { TxScreen } from './TxScreen';
 import { UnsavedChangesProvider } from '../lib/unsavedChanges';
@@ -126,7 +127,7 @@ function renderTx(path = '/bank/statements/3/tx/9') {
       </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
-  return router;
+  return { router, client };
 }
 
 describe('TxScreen state composition', () => {
@@ -203,7 +204,7 @@ describe('TxScreen state composition', () => {
       approvals: [{ id: 12, matchId: 91 }],
     });
     vi.mocked(api.approveApproval).mockResolvedValue({ approval: {} } as never);
-    const router = renderTx();
+    const { router } = renderTx();
     // Proposal-backed candidate is preselected → button ready.
     fireEvent.click(
       await screen.findByRole('button', { name: 'Match 300.00 €' }),
@@ -228,7 +229,7 @@ describe('TxScreen state composition', () => {
   it('personal flows through the explanation sheet and calls markPersonal', async () => {
     mockLine();
     vi.mocked(api.markPersonal).mockResolvedValue({});
-    const router = renderTx();
+    const { router } = renderTx();
     fireEvent.click(
       await screen.findByText(/Personal · Bank fee · Prepayment/),
     );
@@ -300,6 +301,23 @@ describe('TxScreen state composition', () => {
     );
   });
 
+  it('a bank-fee error with no Expense id still refreshes the line (Q10, fee rule)', async () => {
+    mockLine({ amount: -800, description: 'SEB hooldustasu' });
+    vi.mocked(api.createExpense).mockRejectedValue(
+      new Error('502 Bad Gateway'),
+    );
+    const { client } = renderTx();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    fireEvent.click(
+      await screen.findByText(/Personal · Bank fee · Prepayment/),
+    );
+    fireEvent.click(await screen.findByText('Bank fee'));
+    await waitFor(() => expect(api.createExpense).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(spy).toHaveBeenCalledWith({ queryKey: bankKeys.statement(3) }),
+    );
+  });
+
   it('keeps the line protected until the awaited refresh settles — no duplicate, then one success (#251)', async () => {
     mockLine();
     // The statement refresh is part of the operation (issue #251): while
@@ -362,7 +380,7 @@ describe('TxScreen state composition', () => {
       return { records: [{ id: 88 }], approvals: [{ id: 12, matchId: 88 }] };
     });
     vi.mocked(api.approveApproval).mockResolvedValue({ approval: {} } as never);
-    const router = renderTx();
+    const { router } = renderTx();
     await screen.findByText('Meals');
     fireEvent.change(screen.getByLabelText('Category'), {
       target: { value: 'meals' },
@@ -397,7 +415,7 @@ describe('TxScreen state composition', () => {
   it('holds an incoming prepayment nobody classified, and says so (#213)', async () => {
     mockLine({ amount: 50000, description: 'ETTEMAKS Baltic Trade' });
     vi.mocked(api.createPrepayment).mockResolvedValue({} as never);
-    const router = renderTx();
+    const { router } = renderTx();
     fireEvent.click(
       await screen.findByRole('button', {
         name: 'Record prepayment · +500.00 €',
@@ -515,7 +533,7 @@ describe('TxScreen state composition', () => {
 
   it('renders a not-found state for an unknown txId deep link, with a link back to the statement', async () => {
     mockLine();
-    const router = renderTx('/bank/statements/3/tx/999');
+    const { router } = renderTx('/bank/statements/3/tx/999');
     expect(await screen.findByText('Line not found')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Back to statement' }));
     expect(router.state.location.pathname).toBe('/bank/statements/3');
