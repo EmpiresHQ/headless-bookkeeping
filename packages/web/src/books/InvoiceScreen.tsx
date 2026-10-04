@@ -3,10 +3,8 @@ import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { deleteInvoice, fmtCents, postInvoice } from '../api';
 import { absoluteDate, absoluteDateFromIso, vatRatePct } from '../inbox/format';
-import { humanizePolicyReason } from '../inbox/reason';
 import { signedEuros } from '../lib/money';
-import { errorMessage, usePendingOperation } from '../lib/pendingOperation';
-import { useReceipt } from '../lib/resultLog';
+import { usePendingOperation } from '../lib/pendingOperation';
 import { useSheet } from '../lib/useSheet';
 import {
   entityName,
@@ -28,6 +26,7 @@ import { statusChip } from './chips';
 import { CorrectSheet } from './CorrectSheet';
 import { InvoiceEditSheet } from './EditDraftSheet';
 import { PendingApproval } from './PendingApproval';
+import { usePosting } from './posting';
 import { useScreenEntry } from '../lib/screenEntry';
 
 /** /books/invoices/:id — facts come from the LIST row (no single-invoice
@@ -58,7 +57,7 @@ export function InvoiceScreen() {
   const editSheet = useSheet();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const op = usePendingOperation('Invoice');
-  const receipt = useReceipt();
+  const posting = usePosting(op);
   const busy = op.pending;
   useScreenEntry(!invoicesQ.isPending);
   // Opened from a period drill-down list (issue #261): say so, offer the
@@ -124,65 +123,21 @@ export function InvoiceScreen() {
 
   const onSubmitForPosting = () => {
     const { id, gross_amount } = inv;
-    // Only the post's own failure is "not confirmed" — a failed refresh
-    // after an accepted post keeps its recorded outcome.
-    let accepted = false;
-    op.run(
-      async (ctx) => {
-        const res = await postInvoice(id);
-        accepted = true;
-        ctx.check();
-        // Recorded before the cache refresh: the post is accepted (#259).
-        const held = res.policy.action === 'hold-for-approval';
-        receipt(
-          `post:${id}`,
+    posting.submit({
+      request: () => postInvoice(id),
+      refresh: () => invalidateBooks(qc),
+      copy: {
+        key: `post:${id}`,
+        title: `Invoice ${inv.invoice_number}`,
+        links: [
           {
-            action: 'Submit for posting',
-            title: `Invoice ${inv.invoice_number}`,
-            outcome: held
-              ? `Held for approval — ${humanizePolicyReason(res.policy.reason)}. Not posted until approved.`
-              : `Posted · ${signedEuros(gross_amount)}`,
-            tone: held ? 'pending' : 'ok',
-            links: [
-              {
-                label: `Invoice ${inv.invoice_number}`,
-                to: `/books/invoices/${id}`,
-              },
-            ],
+            label: `Invoice ${inv.invoice_number}`,
+            to: `/books/invoices/${id}`,
           },
-          ctx.live,
-        );
-        await invalidateBooks(qc);
-        return res;
+        ],
+        amount: signedEuros(gross_amount),
       },
-      {
-        onSuccess: (res) => {
-          if (res.policy.action === 'hold-for-approval') {
-            toastOk(
-              `Held for approval — ${humanizePolicyReason(res.policy.reason)}`,
-            );
-          } else {
-            toastOk(`Posted · ${signedEuros(gross_amount)}`);
-          }
-        },
-        onError: (e) => {
-          toastErr(errorMessage(e));
-          if (accepted) return;
-          receipt(`post:${id}`, {
-            action: 'Submit for posting',
-            title: `Invoice ${inv.invoice_number}`,
-            outcome: `Submitting for posting was not confirmed (${errorMessage(e)}). Open it for its current state before trying again.`,
-            tone: 'error',
-            links: [
-              {
-                label: `Invoice ${inv.invoice_number}`,
-                to: `/books/invoices/${id}`,
-              },
-            ],
-          });
-        },
-      },
-    );
+    });
   };
 
   const onDelete = () => {

@@ -26,6 +26,7 @@ vi.mock('../api', async (importOriginal) => ({
 }));
 
 import * as api from '../api';
+import { bankKeys } from '../queries/bank';
 import { TxCreateExpense } from './TxCreateExpense';
 import { MemoryRouter } from 'react-router-dom';
 import { usePendingOperation } from '../lib/pendingOperation';
@@ -64,7 +65,7 @@ function renderForm(onDone = vi.fn()) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  return onDone;
+  return { onDone, client };
 }
 
 describe('TxCreateExpense', () => {
@@ -196,9 +197,7 @@ describe('TxCreateExpense', () => {
     vi.mocked(api.approveApproval).mockResolvedValue({
       approval: {},
     } as never);
-    const onDone = renderForm();
-    // Wait for the categories query to populate the <option>s — the label
-    // is present on mount, but the options only exist once the query settles.
+    const { onDone } = renderForm();
     await screen.findByText('Meals');
     fireEvent.change(screen.getByLabelText('Category'), {
       target: { value: 'meals' },
@@ -232,7 +231,7 @@ describe('TxCreateExpense', () => {
         expense: { id: 24, status: 'posted' },
         policy: { action: 'hold-for-approval', reason: 'over ceiling' },
       } as never);
-    const onDone = renderForm();
+    const { onDone } = renderForm();
     await screen.findByText('Meals');
     fireEvent.change(screen.getByLabelText('Category'), {
       target: { value: 'meals' },
@@ -310,7 +309,7 @@ describe('TxCreateExpense', () => {
     vi.mocked(api.approveApproval).mockResolvedValue({
       approval: {},
     } as never);
-    const onDone = renderForm();
+    const { onDone } = renderForm();
     await screen.findByText('Meals');
     fireEvent.change(screen.getByLabelText('Category'), {
       target: { value: 'meals' },
@@ -341,7 +340,7 @@ describe('TxCreateExpense', () => {
       expense: { id: 56, status: 'pending' },
       policy: { action: 'hold-for-approval', reason: 'over ceiling' },
     } as never);
-    const onDone = renderForm();
+    const { onDone } = renderForm();
     await screen.findByText('Meals');
     fireEvent.change(screen.getByLabelText('Category'), {
       target: { value: 'meals' },
@@ -355,6 +354,43 @@ describe('TxCreateExpense', () => {
         expenseId: 56,
         reason: 'over ceiling',
       }),
+    );
+  });
+
+  it('a refused create with no Expense id does NOT refresh the statement (Q10, form rule)', async () => {
+    vi.mocked(api.createExpense).mockRejectedValue(
+      new Error('502 Bad Gateway'),
+    );
+    const { client } = renderForm();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    await screen.findByText(/That did not complete/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('a failed post after a confirmed create refreshes the statement (Q10, form rule)', async () => {
+    vi.mocked(api.createExpense).mockResolvedValue({ id: 24 } as never);
+    vi.mocked(api.postExpense).mockRejectedValue(
+      new Error('503 Service Unavailable'),
+    );
+    const { client } = renderForm();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    await screen.findByText('Meals');
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'meals' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create & match · −18.60 €' }),
+    );
+    await screen.findByRole('button', { name: 'Finish · expense #24' });
+    await waitFor(() =>
+      expect(spy).toHaveBeenCalledWith({ queryKey: bankKeys.statement(3) }),
     );
   });
 });
