@@ -4,6 +4,7 @@ import {
   enrichmentFromContext,
   triageEvidenceSchema,
   triageContextSchema,
+  triageRelevanceSchema,
   TriageEvidence,
   TriageContext,
 } from './triage-context';
@@ -15,8 +16,44 @@ import {
   Pass2Enrichment,
 } from '../triage/types';
 import { OrgIdentityContext } from './triage-instructions';
+
+/** A validated gate rejection: the normal not_a_document classification the
+ *  workflow routes to needs_triage with the standard human reason. Built via
+ *  parse so every safely-defaultable field (currency, outgoing_signals,
+ *  document_type) carries the same defaults as a model-produced rejection. */
+function gateRejectedResult(): TriageResult {
+  return triageResultSchema.parse({
+    kind: 'not_a_document',
+    gross_amount: 0,
+    vat_amount: 0,
+    tax_point_date: '',
+    category: '',
+  });
+}
+
 const MAX_RETRIES = 3;
 const ENRICHMENT_MAX_ATTEMPTS = 2;
+
+/**
+ * Finish reasons that mean the model REFUSED to process the input — a
+ * model-level event, not an intake fault (issue #406). `tripwire` is the
+ * @mastra/core TripWire shape (any processor may abort processing with it);
+ * `content-filter` is the AI SDK provider refusal shape. Any other value is
+ * an ordinary generation outcome and flows through the existing validation.
+ */
+const REFUSAL_FINISH_REASONS = new Set(['tripwire', 'content-filter']);
+
+function isModelRefusal(finishReason: unknown): boolean {
+  return (
+    typeof finishReason === 'string' && REFUSAL_FINISH_REASONS.has(finishReason)
+  );
+}
+
+/** Plain-language operator reason for a refused generation. Never carries
+ *  validation-stack or finish-reason detail — the operator can only retry once
+ *  (the intake Retry AI path) or archive the file as not a business document. */
+const MODEL_REFUSAL_DETAIL =
+  'The AI model declined to read this file, so automatic classification did not run';
 
 /** Legacy enrichment categories remain readable for persisted intake findings. */
 export type Pass2FailureCategory =
@@ -25,6 +62,7 @@ export type Pass2FailureCategory =
   | 'enrichment-incomplete'
   | 'enrichment-tool-not-called'
   | 'evidence-invalid'
+  | 'model-refusal'
   | 'context-failed'
   | 'invalid-output'
   | 'transient';
@@ -72,6 +110,18 @@ export class Pass2AgentService {
     const orgIdentityContext: OrgIdentityContext | undefined = ctx
       ? { ...ctx.orgContext, directionHint: ctx.directionHint }
       : undefined;
+    // ── Cheap application-owned relevance gate (issue #406) ───────
+    // Run BEFORE the expensive enrichment/classification pipeline so obvious
+    // non-business files (privacy policies, terms of sale, marketing — the
+    // production documents 272/273 class of input) never reach it. Only a
+    // VALIDATED explicit `not_a_document` rejection short-circuits with the
+    // normal not_a_document routing; anything else (accepted, ambiguous,
+    // refused, failed gate) proceeds to the full pipeline, so the gate can
+    // never fabricate a classification and order/proforma/non-postable routing
+    // invariants are preserved downstream.
+    if ((await this.relevanceGate(markdown, orgIdentityContext)) === 'reject') {
+      return { ok: true, result: gateRejectedResult() };
+    }
     let extractionAgent: Awaited<
       ReturnType<MastraService['buildTriageEnrichmentAgent']>
     >;
@@ -101,6 +151,21 @@ export class Pass2AgentService {
             abortSignal: AbortSignal.timeout(180_000),
           },
         );
+        // A recognized refusal takes PRECEDENCE over parsing and error
+        // handling (issue #406): a refused generation must never become
+        // accepted evidence, and must not be flattened into a provider
+        // error or a schema-validation failure. No retry — it will refuse
+        // again.
+        if (isModelRefusal(response.finishReason)) {
+          this.logger.warn(
+            `Evidence extraction refused by the model (finishReason=${response.finishReason})`,
+          );
+          return {
+            ok: false,
+            category: 'model-refusal',
+            detail: MODEL_REFUSAL_DETAIL,
+          };
+        }
         if (response.error) throw response.error;
         const parsed = triageEvidenceSchema.safeParse(response.object);
         if (parsed.success) {
@@ -177,6 +242,20 @@ export class Pass2AgentService {
             abortSignal: AbortSignal.timeout(180_000),
           },
         );
+        // Same precedence as extraction: a refusal in the final phase is a
+        // typed, plain-language outcome before any schema/throw handling —
+        // a refused final response must never become an accepted proposal
+        // nor an invalid-output retry (issue #406).
+        if (isModelRefusal(response.finishReason)) {
+          this.logger.warn(
+            `Final classification refused by the model (finishReason=${response.finishReason})`,
+          );
+          return {
+            ok: false,
+            category: 'model-refusal',
+            detail: MODEL_REFUSAL_DETAIL,
+          };
+        }
         if (response.error) throw response.error;
         const parsed = triageResultSchema.safeParse(response.object);
         if (!parsed.success) {
@@ -287,5 +366,47 @@ export class Pass2AgentService {
     }
     this.logger.warn(failure.detail);
     return failure;
+  }
+
+  /**
+   * The cheap relevance pass BEFORE enrichment (issue #406). The gate is
+   * ADVISORY: only a validated explicit `not_a_document` answer short-circuits
+   * ("reject"). Every other outcome — accepted, ambiguous, refused, invalid
+   * or failed output, even an unavailable gate — returns "proceed" so the
+   * full, schema-validated pipeline runs unchanged. The gate therefore can
+   * never fabricate not_a_document, and a junk file whose gate answer is
+   * missing still gets the ordinary refusal/evidence handling downstream.
+   */
+  private async relevanceGate(
+    markdown: string,
+    orgIdentityContext: OrgIdentityContext | undefined,
+  ): Promise<'reject' | 'proceed'> {
+    try {
+      const agent =
+        await this.mastraService.buildTriageRelevanceAgent(orgIdentityContext);
+      const response = await agent.generate(markdown, {
+        structuredOutput: { schema: triageRelevanceSchema },
+        modelSettings: { temperature: 0, maxOutputTokens: 512 },
+        abortSignal: AbortSignal.timeout(60_000),
+      });
+      // A refused gate is never trusted — even a residual object that looks
+      // like a rejection must not become the gate's decision (issue #406
+      // root review): fall through to the full pipeline.
+      if (isModelRefusal(response.finishReason)) return 'proceed';
+      if (response.error) return 'proceed';
+      const parsed = triageRelevanceSchema.safeParse(response.object);
+      if (parsed.success && parsed.data.kind === 'not_a_document') {
+        this.logger.warn(
+          'Relevance gate rejected the file as not a business document — skipping enrichment',
+        );
+        return 'reject';
+      }
+      return 'proceed';
+    } catch (error) {
+      this.logger.debug(
+        `Relevance gate unavailable — proceeding with the full pipeline: ${String(error)}`,
+      );
+      return 'proceed';
+    }
   }
 }

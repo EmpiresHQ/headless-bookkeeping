@@ -143,6 +143,15 @@ export function TriageDocScreen() {
     });
   };
 
+  // The operator's Retry AI path (issue #406): re-queue the document for a
+  // fresh intake run. Shared by the decision panel's refusal branch and the
+  // screen's own retry button so both offer the same action.
+  const retryAi = () =>
+    runAction(
+      () => retryDocument(docId),
+      'Queued for a fresh AI run — the queue updates as it lands',
+    );
+
   const title =
     position !== null ? `${position.pos} of ${position.total}` : 'Document';
 
@@ -205,35 +214,37 @@ export function TriageDocScreen() {
         op={op}
         onOpen={setSheet}
         onArchive={() => setConfirm('dismiss')}
+        onRetry={retryAi}
         onResolved={finishTriage}
       />
       <DocPreviewRow documentId={docId} />
       <TriageDocumentContext details={detailsQ.data} />
 
       <div className="mx-3.5 mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-line pt-3">
-        <button
-          type="button"
-          disabled={busy}
-          className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
-          onClick={() =>
-            runAction(
-              () => retryDocument(docId),
-              'Queued for a fresh AI run — the queue updates as it lands',
-            )
-          }
-        >
-          <RefreshCw className="size-4" /> Retry AI
-        </button>
-        {item.reason_type !== 'not_a_document' && (
+        {/* A model refusal (issue #406): the decision panel above already
+            offers the single Retry AI + Archive without booking pair — hide the
+            footer duplicates so each intent appears exactly once. */}
+        {item.reason_type !== 'classification_refused' && (
           <button
             type="button"
             disabled={busy}
-            className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-ink-2 disabled:opacity-50"
-            onClick={() => setConfirm('dismiss')}
+            className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
+            onClick={retryAi}
           >
-            <Archive className="size-4" /> Archive without booking
+            <RefreshCw className="size-4" /> Retry AI
           </button>
         )}
+        {item.reason_type !== 'not_a_document' &&
+          item.reason_type !== 'classification_refused' && (
+            <button
+              type="button"
+              disabled={busy}
+              className="flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-ink-2 disabled:opacity-50"
+              onClick={() => setConfirm('dismiss')}
+            >
+              <Archive className="size-4" /> Archive without booking
+            </button>
+          )}
         {item.reason_type === 'not_a_document' && (
           <button
             type="button"

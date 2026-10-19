@@ -39,6 +39,7 @@ describe('failureToReasonType (pure helper)', () => {
     'unreadable',
     'transient',
   ];
+  const PASS2_REFUSAL_CATEGORIES: Pass2FailureCategory[] = ['model-refusal'];
   const PASS2_CATEGORIES: Pass2FailureCategory[] = [
     'agent-unavailable',
     'enrichment-failed',
@@ -57,10 +58,18 @@ describe('failureToReasonType (pure helper)', () => {
   );
 
   it.each(PASS2_CATEGORIES)(
-    'maps every Pass-2 failure category (%s) to classification_failed',
+    'maps every ordinary Pass-2 failure category (%s) to classification_failed',
     (category) => {
       const failure: IntakeFailure = { pass: 'classify', category };
       expect(failureToReasonType(failure)).toBe('classification_failed');
+    },
+  );
+
+  it.each(PASS2_REFUSAL_CATEGORIES)(
+    'maps a model refusal (%s) to the typed classification_refused reason — machine-readable, not prose-parsed',
+    (category) => {
+      const failure: IntakeFailure = { pass: 'classify', category };
+      expect(failureToReasonType(failure)).toBe('classification_refused');
     },
   );
 });
@@ -1403,6 +1412,44 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain('strict classification');
         expect(result.reason).not.toContain('enrichment phase');
       }
+    });
+
+    it('routes needs_triage with a plain-language reason for a model refusal — no validation-stack detail, no draft, no 500', async () => {
+      // Issue #406: an LLM refusal (finishReason=tripwire) is a classified
+      // outcome the operator can act on (Retry AI once / archive), not a
+      // cryptic evidence-validation error.
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'model-refusal',
+        detail: 'The AI model declined to read this file',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'model-refusal',
+        });
+        expect(result.reason).toContain('declined to read');
+        expect(result.reason).not.toMatch(
+          /Invalid extracted evidence|finishReason=/,
+        );
+        expect(result.reason).not.toContain('evidence-invalid');
+        expect(result.reason).toMatch(/retry/i);
+        expect(result.finding.finding_type).toBe('needs_triage');
+        // Machine-readable refusal routing (review follow-up): the finding's
+        // persisted reason_type must be the typed refusal, not generic
+        // classification_failed, so the SPA renders refusal copy from the type.
+        expect(result.finding.reason_type).toBe('classification_refused');
+      }
+      // The operator's existing retry path stays intact and no draft was
+      // created from refused output.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
     });
 
     it('routes needs_triage and surfaces transient', async () => {

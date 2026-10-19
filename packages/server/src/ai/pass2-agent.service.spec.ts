@@ -380,3 +380,234 @@ describe('Pass2 application-owned context', () => {
     });
   });
 });
+
+// ── Issue #406: model refusal (finishReason=tripwire) & relevance gate ──
+describe('Pass2 model refusal and the application-owned relevance gate', () => {
+  const extract = jest.fn();
+  const classify = jest.fn();
+  const relevance = jest.fn();
+  const lookup = jest.fn();
+  const factory = {
+    buildTriageRelevanceAgent: jest.fn(),
+    buildTriageEnrichmentAgent: jest.fn(),
+    buildTriageClassificationAgent: jest.fn(),
+    resolveTriageContext: lookup,
+  };
+  let service: Pass2AgentService;
+  beforeEach(() => {
+    jest.resetAllMocks();
+    // The gate accepts by default: existing enrichment/classification flows
+    // run unchanged behind an accepted gate.
+    relevance.mockResolvedValue({ object: { kind: 'business_document' } });
+    factory.buildTriageRelevanceAgent.mockResolvedValue({
+      generate: relevance,
+    });
+    factory.buildTriageEnrichmentAgent.mockResolvedValue({
+      generate: extract,
+    });
+    factory.buildTriageClassificationAgent.mockResolvedValue({
+      generate: classify,
+    });
+    lookup.mockResolvedValue(context);
+    extract.mockResolvedValue({ object: evidence });
+    classify.mockResolvedValue({ object: classification });
+    service = new Pass2AgentService(factory as unknown as MastraService);
+  });
+
+  it('a validated gate rejection skips enrichment entirely: a privacy-policy PDF never reaches a refusing enrichment model', async () => {
+    relevance.mockResolvedValue({ object: { kind: 'not_a_document' } });
+    // The enrichment model WOULD refuse this file (issue #406 production
+    // documents 272/273) — the gate rejection must route around it.
+    extract.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    const outcome = await service.classify('Privacy policy PDF text');
+    expect(outcome).toMatchObject({
+      ok: true,
+      result: {
+        kind: 'not_a_document',
+        gross_amount: 0,
+        vat_amount: 0,
+        category: '',
+      },
+    });
+    expect(relevance).toHaveBeenCalledTimes(1);
+    expect(extract).not.toHaveBeenCalled();
+    expect(classify).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('a refusal on a gate-accepted document is a typed, plain-language outcome — never evidence validation detail — and is not retried internally', async () => {
+    extract.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    const outcome = await service.classify(
+      'A genuine business invoice which the model declines to read',
+    );
+    expect(outcome).toMatchObject({
+      ok: false,
+      category: 'model-refusal',
+    });
+    if (!outcome.ok) {
+      expect(outcome.detail).not.toMatch(
+        /Invalid extracted evidence|finishReason=/,
+      );
+      expect(outcome.detail).toContain('declined to read');
+    }
+    // A refusal will refuse again: no internal retry loop burns a second call.
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(classify).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('recognizes the provider content-filter refusal shape like the Mastra tripwire shape', async () => {
+    extract.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: undefined,
+    });
+    expect(await service.classify('A business invoice')).toMatchObject({
+      ok: false,
+      category: 'model-refusal',
+    });
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  it('a refusal in the final classification phase is typed as model-refusal too, distinct from invalid-output', async () => {
+    classify.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    const outcome = await service.classify('A genuine business invoice');
+    expect(outcome).toMatchObject({ ok: false, category: 'model-refusal' });
+    if (!outcome.ok) expect(outcome.detail).toContain('declined to read');
+    expect(classify).toHaveBeenCalledTimes(1);
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  it('a gate refusal or ambiguous gate answer must NOT fabricate not_a_document — safe validated processing continues', async () => {
+    // The gate itself refuses: fall through to the ordinary pipeline, where
+    // the enrichment refusal is reported as the typed model-refusal outcome.
+    relevance.mockResolvedValue({
+      finishReason: 'tripwire',
+      object: undefined,
+    });
+    extract.mockResolvedValue({ finishReason: 'tripwire', object: undefined });
+    expect(await service.classify('Terms of sale PDF text')).toMatchObject({
+      ok: false,
+      category: 'model-refusal',
+    });
+    expect(relevance).toHaveBeenCalledTimes(1);
+    expect(extract).toHaveBeenCalledTimes(1);
+
+    // An ambiguous gate answer is equally not a rejection: enrich normally.
+    relevance.mockResolvedValue({ object: { kind: 'unknown' } });
+    extract.mockResolvedValue({ object: evidence });
+    expect(await service.classify('A genuine business invoice')).toMatchObject({
+      ok: true,
+      result: { kind: 'new_expense' },
+    });
+  });
+
+  it('keeps ordinary malformed evidence and provider failures distinguishable from refusals', async () => {
+    extract.mockResolvedValue({ object: {} });
+    expect(await service.classify('receipt')).toMatchObject({
+      ok: false,
+      category: 'evidence-invalid',
+    });
+    extract.mockResolvedValue({
+      object: undefined,
+      error: new Error('provider timeout'),
+    });
+    expect(await service.classify('receipt')).toMatchObject({
+      ok: false,
+      category: 'enrichment-failed',
+    });
+  });
+
+  it('a gate-accepted preliminary document keeps its order_confirmation routing — the coarse gate must not junk it', async () => {
+    // Order confirmations/proformas are business_document for the gate and
+    // not_a_document for the final classification; the workflow routes them
+    // via the specific non-postable hold, NOT the generic junk reason.
+    relevance.mockResolvedValue({ object: { kind: 'business_document' } });
+    classify.mockResolvedValue({
+      object: {
+        ...classification,
+        kind: 'not_a_document',
+        category: '',
+        document_type: 'order_confirmation',
+        supplier_proposal: undefined,
+      },
+    });
+    const outcome = await service.classify('Order confirmation T42');
+    expect(outcome).toMatchObject({
+      ok: true,
+      result: { kind: 'not_a_document', document_type: 'order_confirmation' },
+    });
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it('refusal takes precedence over a provider error and over valid-looking output in every phase', async () => {
+    // Root-review regressions: a recognized refusal is checked FIRST — a
+    // refused generation must never become accepted evidence/proposal, and
+    // must not be flattened into a provider error or retried.
+    // (a) tripwire + valid evidence object → refusal, not accepted evidence.
+    extract.mockResolvedValue({ finishReason: 'tripwire', object: evidence });
+    expect(await service.classify('invoice')).toMatchObject({
+      ok: false,
+      category: 'model-refusal',
+    });
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(classify).not.toHaveBeenCalled();
+
+    // (b) content-filter + valid final proposal → refusal, not an accepted
+    // proposal.
+    extract.mockResolvedValue({ object: evidence });
+    classify.mockResolvedValue({
+      finishReason: 'content-filter',
+      object: classification,
+    });
+    expect(await service.classify('invoice')).toMatchObject({
+      ok: false,
+      category: 'model-refusal',
+    });
+    expect(classify).toHaveBeenCalledTimes(1);
+
+    // (c) tripwire + embedded provider error → classified refusal, never
+    // enrichment-failed, never retried.
+    extract.mockResolvedValue({
+      finishReason: 'tripwire',
+      object: undefined,
+      error: new Error('provider timeout'),
+    });
+    extract.mockClear();
+    const outcome = await service.classify('invoice');
+    expect(outcome).toMatchObject({ ok: false, category: 'model-refusal' });
+    if (!outcome.ok) expect(outcome.detail).toContain('declined to read');
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  it('a refused gate answer with a residual not_a_document object is never trusted as a rejection', async () => {
+    relevance.mockResolvedValue({
+      finishReason: 'tripwire',
+      object: { kind: 'not_a_document' },
+    });
+    extract.mockResolvedValue({ object: evidence });
+    expect(await service.classify('Terms of sale PDF text')).toMatchObject({
+      ok: true,
+      result: { kind: 'new_expense' },
+    });
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards organization/direction context to the relevance gate', async () => {
+    relevance.mockResolvedValue({ object: { kind: 'not_a_document' } });
+    await service.classify('Terms of sale PDF text', {
+      orgContext: {
+        name: 'Buyer',
+        vatNumber: 'EE100000002',
+        iban: null,
+      },
+      directionHint: 'outgoing',
+    });
+    expect(factory.buildTriageRelevanceAgent).toHaveBeenCalledWith({
+      name: 'Buyer',
+      vatNumber: 'EE100000002',
+      iban: null,
+      directionHint: 'outgoing',
+    });
+  });
+});

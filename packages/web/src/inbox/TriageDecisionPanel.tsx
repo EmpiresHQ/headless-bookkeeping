@@ -4,6 +4,7 @@ import {
   Archive,
   FileSearch,
   FileUp,
+  RefreshCw,
   ReceiptText,
 } from 'lucide-react';
 import {
@@ -28,6 +29,8 @@ interface Props {
   op: PendingOperation;
   onOpen: (sheet: SheetKind) => void;
   onArchive: () => void;
+  /** Retry AI on the same document (the screen's reprocess path, issue #406). */
+  onRetry: () => void;
   /** Synchronous continuation (issue #251). */
   onResolved: (outcome: TriageOutcome) => void;
 }
@@ -56,6 +59,10 @@ const COPY = {
   classification_failed: [
     'AI classification failed',
     'The file was read fine, but the AI could not classify it. Retry the AI run or classify it manually.',
+  ],
+  classification_refused: [
+    'The AI model declined to read this file',
+    'The model refused to read the file, so it was not classified automatically. Retry the AI run once, or archive the file without booking if it is not a business document.',
   ],
   not_a_document: [
     'No booking is needed',
@@ -161,6 +168,9 @@ function GenericDecision(
     outgoing_invoice: ['Review sales invoice', 'invoice', ReceiptText],
     ocr_failed: ['Replace or retry file', 'ocr', FileUp],
     classification_failed: ['Classify manually', 'classify', FileSearch],
+    // Unreachable: handled by the dedicated refusal branch above (kept so
+    // the action record stays total over every reason type).
+    classification_refused: ['Retry AI', 'classify', FileSearch],
     possible_duplicate: ['Review possible duplicate', 'duplicate', FileSearch],
     non_postable_document: ['Review document type', 'classify', FileSearch],
     unimplemented: ['Classify manually', 'classify', FileSearch],
@@ -180,6 +190,29 @@ function GenericDecision(
     );
   }
   if (props.reasonType === 'supplier_unresolved') return null;
+  // A model refusal (issue #406): the operator path is the existing Retry AI
+  // reprocess + archive-without-booking, offered directly on the decision
+  // panel — no classify sheet (there is nothing extracted to review).
+  if (props.reasonType === 'classification_refused') {
+    return (
+      <div className="mx-3.5 mb-3 flex gap-2">
+        <Button
+          className="flex flex-1 items-center justify-center gap-2"
+          disabled={props.op.pending}
+          onClick={props.onRetry}
+        >
+          <RefreshCw className="size-4" /> Retry AI
+        </Button>
+        <Button
+          className="flex flex-1 items-center justify-center gap-2"
+          disabled={props.op.pending}
+          onClick={props.onArchive}
+        >
+          <Archive className="size-4" /> Archive without booking
+        </Button>
+      </div>
+    );
+  }
   const [label, sheet, Icon] = actions[props.reasonType];
   return (
     <div className="mx-3.5 mb-3">

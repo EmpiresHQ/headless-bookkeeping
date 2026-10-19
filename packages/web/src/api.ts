@@ -164,6 +164,7 @@ export type TriageReasonType =
   | 'category_unresolved'
   | 'ocr_failed'
   | 'classification_failed'
+  | 'classification_refused'
   | 'unimplemented'
   | 'not_a_document'
   | 'non_postable_document'

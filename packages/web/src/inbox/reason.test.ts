@@ -71,6 +71,23 @@ describe('triageSubtitle', () => {
       'Does not look like a business document',
     );
   });
+  it('conveys a model refusal distinctly from a generic classification failure (typed reason_type)', () => {
+    // Issue #406 follow-up: the refusal is machine-readable via the typed
+    // classification_refused reason — the frontend must NOT parse prose.
+    expect(
+      triageSubtitle({
+        reason:
+          'The AI model declined to read this file, so automatic classification did not run. Retry AI classification once, or archive the file without booking.',
+        reason_type: 'classification_refused',
+      }),
+    ).toBe(
+      'AI model declined to read the file — retry once or archive without booking',
+    );
+    expect(
+      triageSubtitle({ reason: 'x', reason_type: 'classification_failed' }),
+    ).toBe('AI classification failed — retry or classify manually');
+    expect(triageChipLabel('classification_refused')).toBe('retry');
+  });
   it('shows the server sentence for unknown types', () => {
     expect(
       triageSubtitle({

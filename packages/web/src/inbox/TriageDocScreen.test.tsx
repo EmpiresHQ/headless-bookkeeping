@@ -276,6 +276,38 @@ describe('TriageDocScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('routes a model refusal to the panel retry/archive pair — typed copy visible, one action per intent', async () => {
+    // Issue #406 follow-up: the typed classification_refused reason drives
+    // refusal-specific copy on the decision screen, and the operator path
+    // (Retry AI once / archive) appears exactly once each — the footer
+    // duplicates are hidden behind the panel's own pair.
+    vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
+      ITEM({
+        reason_type: 'classification_refused',
+        reason:
+          'The AI model declined to read this file, so automatic classification did not run. Retry AI classification once, or archive the file without booking if it is not a business document. Held for human review.',
+      }),
+    ]);
+    renderAt('/inbox/doc/12');
+    expect(
+      await screen.findByRole('heading', {
+        name: 'The AI model declined to read this file',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'AI classification failed' }),
+    ).not.toBeInTheDocument();
+    // One Retry AI and one Archive without booking — the panel pair, with the
+    // footer duplicates suppressed.
+    expect(screen.getAllByRole('button', { name: 'Retry AI' })).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', { name: 'Archive without booking' }),
+    ).toHaveLength(1);
+    // Retry AI re-queues the document (the existing operator path).
+    fireEvent.click(screen.getByRole('button', { name: 'Retry AI' }));
+    await waitFor(() => expect(api.retryDocument).toHaveBeenCalledWith(12));
+  });
+
   it('routes supplier_unresolved to the resolve sheet', async () => {
     vi.mocked(api.getNeedsTriageItems).mockResolvedValue([
       ITEM({

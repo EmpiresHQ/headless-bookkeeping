@@ -16,6 +16,7 @@ import { normalizeIdentifier } from '../entities/identifier-normalization';
 import {
   EVIDENCE_CONTRACT,
   CLASSIFICATION_CONTEXT_CONTRACT,
+  RELEVANCE_GATE_CONTRACT,
   TriageEvidence,
   TriageContext,
   triageContextSchema,
@@ -87,6 +88,38 @@ export class MastraService {
       classificationMemory: await this.expensesService.getPostedCategoryHistory(
         entity.id,
       ),
+    });
+  }
+
+  /**
+   * Build the cheap application-owned relevance-gate agent (issue #406):
+   * tool-less, tiny structured output, reusing the operator's classification
+   * MODEL choice only. The PROMPT is deliberately NOT the classification
+   * prompt: that prompt demands the full TriageResult shape and pre-judges
+   * preliminary documents, which contradicts the gate's kind-only contract.
+   * The gate carries only compatible context: the org identity line (so it can
+   * recognize the org's own outgoing invoices) and RELEVANCE_GATE_CONTRACT —
+   * no category list, no country document-type guidance, no direction-based
+   * field instructions.
+   */
+  async buildTriageRelevanceAgent(
+    orgContext?: OrgIdentityContext,
+  ): Promise<Agent> {
+    const model = await this.config.resolveModelConfig('triage_classification');
+    const base =
+      'You are the relevance gate of a bookkeeping system. ' +
+      'Answer with ONE enum value — nothing else. ' +
+      'Do not extract fields, do not pick a document type, do not propose anything.';
+    const orgIdentity = orgContext
+      ? `\n\nYOUR ORGANIZATION: name="${orgContext.name ?? 'unknown'}", VAT="${orgContext.vatNumber ?? 'unknown'}", IBAN="${orgContext.iban ?? 'unknown'}".` +
+        '\nBusiness documents ISSUED by this organization (its outgoing invoices) are business_document.'
+      : '';
+
+    return new Agent({
+      id: 'triage-relevance-agent',
+      name: 'Triage Relevance Agent',
+      instructions: base + orgIdentity + '\n\n' + RELEVANCE_GATE_CONTRACT,
+      model,
     });
   }
 
