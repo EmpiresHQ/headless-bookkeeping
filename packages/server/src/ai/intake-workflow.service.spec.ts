@@ -39,13 +39,13 @@ describe('failureToReasonType (pure helper)', () => {
     'unreadable',
     'transient',
   ];
+  const PASS2_REFUSAL_CATEGORIES: Pass2FailureCategory[] = ['model-refusal'];
   const PASS2_CATEGORIES: Pass2FailureCategory[] = [
     'agent-unavailable',
     'enrichment-failed',
     'enrichment-incomplete',
     'enrichment-tool-not-called',
     'invalid-output',
-    'model-refusal',
     'transient',
   ];
 
@@ -58,10 +58,18 @@ describe('failureToReasonType (pure helper)', () => {
   );
 
   it.each(PASS2_CATEGORIES)(
-    'maps every Pass-2 failure category (%s) to classification_failed',
+    'maps every ordinary Pass-2 failure category (%s) to classification_failed',
     (category) => {
       const failure: IntakeFailure = { pass: 'classify', category };
       expect(failureToReasonType(failure)).toBe('classification_failed');
+    },
+  );
+
+  it.each(PASS2_REFUSAL_CATEGORIES)(
+    'maps a model refusal (%s) to the typed classification_refused reason — machine-readable, not prose-parsed',
+    (category) => {
+      const failure: IntakeFailure = { pass: 'classify', category };
+      expect(failureToReasonType(failure)).toBe('classification_refused');
     },
   );
 });
@@ -1432,6 +1440,10 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).not.toContain('evidence-invalid');
         expect(result.reason).toMatch(/retry/i);
         expect(result.finding.finding_type).toBe('needs_triage');
+        // Machine-readable refusal routing (review follow-up): the finding's
+        // persisted reason_type must be the typed refusal, not generic
+        // classification_failed, so the SPA renders refusal copy from the type.
+        expect(result.finding.reason_type).toBe('classification_refused');
       }
       // The operator's existing retry path stays intact and no draft was
       // created from refused output.

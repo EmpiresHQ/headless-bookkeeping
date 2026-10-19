@@ -34,10 +34,6 @@ export function humanizePolicyReason(policyReason: string | null): string {
 /** Needs-triage one-liner: the reason as a human question/instruction,
  *  keeping the numbers where the server sentence carries them. */
 const TRIAGE_CONFIDENCE_RE = /confidence ([\d.]+) below threshold ([\d.]+)/i;
-/** Issue #406: the server persists a plain refusal reason with the stable
- *  marker "declined to read" (see pass2FailureReason's model-refusal case);
- *  the subtitle must surface it, not bury it under the generic line. */
-const MODEL_REFUSAL_RE = /declined to read/i;
 
 export function triageSubtitle(
   item: Pick<NeedsTriageItem, 'reason' | 'reason_type'>,
@@ -57,10 +53,12 @@ export function triageSubtitle(
       return 'Category not recognized — pick one';
     case 'ocr_failed':
       return 'OCR could not read the file — retry or replace';
+    case 'classification_refused':
+      // Machine-readable refusal (issue #406): the typed reason drives the
+      // copy — the frontend never parses the reason prose.
+      return 'AI model declined to read the file — retry once or archive without booking';
     case 'classification_failed':
-      return MODEL_REFUSAL_RE.test(item.reason)
-        ? 'AI model declined to read the file — retry once or archive without booking'
-        : 'AI classification failed — retry or classify manually';
+      return 'AI classification failed — retry or classify manually';
     case 'possible_duplicate':
       return 'May already be booked — compare with the existing expense';
     case 'non_postable_document':
@@ -85,6 +83,9 @@ export function triageChipLabel(rt: TriageReasonType | null): string {
     case 'outgoing_invoice':
       return 'invoice';
     case 'ocr_failed':
+      return 'retry';
+    case 'classification_refused':
+      // The refusal action is retry once or archive — same verb as OCR.
       return 'retry';
     case 'not_a_document':
       return 'junk';

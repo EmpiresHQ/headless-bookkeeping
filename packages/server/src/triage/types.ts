@@ -283,6 +283,7 @@ export type TriageReasonType =
   | 'category_unresolved'
   | 'ocr_failed'
   | 'classification_failed'
+  | 'classification_refused'
   | 'unimplemented'
   | 'not_a_document'
   | 'non_postable_document'
@@ -304,6 +305,7 @@ export const TRIAGE_REASON_TYPES: readonly TriageReasonType[] = [
   'category_unresolved',
   'ocr_failed',
   'classification_failed',
+  'classification_refused',
   'unimplemented',
   'not_a_document',
   'non_postable_document',
@@ -360,6 +362,13 @@ export function classifyReasonType(description: string): TriageReasonType {
   // text intentionally interpolates "same supplier" details.
   if (description.toLowerCase().includes('possible duplicate of'))
     return 'possible_duplicate';
+  // A Pass-2 MODEL REFUSAL (issue #406) — the model declined to read the
+  // file. Checked BEFORE the classification-failed bucket: refusal rows
+  // (written before the typed reason existed, with a NULL reason_type) carry
+  // the stable "declined to read" marker, and the refusal is a distinct,
+  // machine-readable outcome the SPA renders refusal copy for.
+  if (description.toLowerCase().includes('declined to read'))
+    return 'classification_refused';
   // A Pass-2 (AI classification/enrichment) failure — the file and OCR are
   // fine, only the agent classification failed. Checked BEFORE the supplier /
   // OCR buckets because pass2FailureReason details interpolate raw error text

@@ -65,6 +65,20 @@ describe('classifyReasonType', () => {
       ),
     ).toBe('classification_failed');
   });
+  it('maps the plain refusal reason to classification_refused (legacy NULL reason_type rows)', () => {
+    // Rows persisted before the typed refusal reason existed carry only the
+    // free-text description; the stable "declined to read" marker buckets
+    // them to the typed refusal so the SPA renders refusal copy.
+    expect(
+      classifyReasonType(
+        'The AI model declined to read this file, so automatic classification did not run. Retry AI classification once, or archive the file without booking if it is not a business document. Held for human review.',
+      ),
+    ).toBe('classification_refused');
+    // Ordinary classification failures keep their own bucket — unchanged.
+    expect(
+      classifyReasonType('AI classification failed (timeout): transient'),
+    ).toBe('classification_failed');
+  });
   it('maps unimplemented kinds', () => {
     expect(
       classifyReasonType("Triage kind 'correction' is not yet implemented"),

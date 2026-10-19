@@ -56,6 +56,7 @@ function renderPanel(
 ) {
   const onOpen = vi.fn();
   const onArchive = vi.fn();
+  const onRetry = vi.fn();
   const onResolved = vi.fn<(outcome: import('../api').TriageOutcome) => void>();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -68,13 +69,14 @@ function renderPanel(
           item={ITEM()}
           onOpen={onOpen}
           onArchive={onArchive}
+          onRetry={onRetry}
           onResolved={onResolved}
           {...props}
         />
       </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
-  return { onOpen, onArchive, onResolved };
+  return { onOpen, onArchive, onRetry, onResolved };
 }
 
 describe('TriageDecisionPanel', () => {
@@ -106,6 +108,38 @@ describe('TriageDecisionPanel', () => {
       expect(onOpen).toHaveBeenCalledWith('classify');
     },
   );
+
+  describe('classification_refused', () => {
+    const refusedItem = ITEM({
+      reason_type: 'classification_refused',
+      reason:
+        'The AI model declined to read this file, so automatic classification did not run. Retry AI classification once, or archive the file without booking if it is not a business document. Held for human review.',
+    });
+
+    it('shows refusal-specific copy on the decision screen — not the generic classification-failed panel — with the operator retry/archive path', () => {
+      const { onRetry, onArchive } = renderPanel({ item: refusedItem });
+      // Refusal-specific title and explanation, visible without expanding
+      // the technical details (issue #406 review follow-up).
+      expect(
+        screen.getByRole('heading', {
+          name: 'The AI model declined to read this file',
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByText(/declined to read this file/i).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.queryByRole('heading', { name: 'AI classification failed' }),
+      ).not.toBeInTheDocument();
+      // The existing operator path, directly on the decision panel.
+      fireEvent.click(screen.getByRole('button', { name: /Retry AI/i }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Archive without booking' }),
+      );
+      expect(onArchive).toHaveBeenCalledTimes(1);
+    });
+  });
 
   describe('supplier_unresolved', () => {
     const supplierItem = ITEM({
