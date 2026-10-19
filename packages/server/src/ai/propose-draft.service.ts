@@ -18,6 +18,7 @@ import {
 import { CreateExpenseDto } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { DuplicateExpenseException } from '../expenses/duplicate-expense.exception';
 import { CategoryService } from '../categories/category.service';
 import {
@@ -293,6 +294,7 @@ export class ProposeDraftService {
     private readonly config: AgentConfigService,
     private readonly categoryService: CategoryService,
     private readonly salesInvoicesService: SalesInvoicesService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -391,6 +393,14 @@ export class ProposeDraftService {
     }
     const resolvedSupplierId = resolved.supplierId;
 
+    // Legacy recovery (issue #405 follow-up): withdraw the pre-fix junk
+    // drafts a failed extraction left on THIS document before the healthy
+    // one is created — otherwise the junk row stays the document's EARLIEST
+    // draft and the idempotency replay / details() keep preferring it over
+    // the recovered healthy draft. Doc-local, protected and audited; see
+    // {@link withdrawInvalidPurchaseDrafts}.
+    await this.withdrawInvalidPurchaseDrafts(documentId);
+
     // Step 1: Create the Expense via ExpensesService. The duplicate gate lives
     // THERE (issue #195), at the single choke point every creation path goes
     // through, so no path — auto, explicit-supplier or manual — can slip past
@@ -478,6 +488,97 @@ export class ProposeDraftService {
       expenseId: expense.id,
       pipelineResult,
     };
+  }
+
+  /**
+   * Withdraw the invalid unposted AI purchase drafts a pre-fix failed
+   * extraction left on a document (issue #405 follow-up, legacy recovery).
+   *
+   * Scope — deliberately narrow, all conditions required:
+   * - SAME document only (nothing global);
+   * - AI PURCHASE provenance only (`ai_kind = 'new_expense'` with an
+   *   invoice/receipt `ai_document_type`) — exactly the metadata the
+   *   pre-fix proposeDraft persisted, so a manually entered incomplete
+   *   draft (`ai_kind` null) or any other provenance is never touched;
+   * - `status = 'draft'` AND `voucher_id IS NULL` — posted, pending and
+   *   reversed expenses are never touched (a posted voucher is immutable;
+   *   correct via reversal; reject an approval first), and an expense that
+   *   already minted a voucher is out of reach;
+   * - no open approval references the row (a pending approval must not be
+   *   orphaned);
+   * - an INVALID gross (not a positive whole minor-unit amount — the same
+   *   validity rule as the extraction seam).
+   *
+   * Called on BOTH outcomes of a retry: when a healthy proposal creates the
+   * recovered draft (proposeDraft) AND when the retry fails again
+   * (the workflow's evidence-invalid routes) — a failed extraction must not
+   * leave or prefer a junk invalid draft for this document either way.
+   * No blind migration: production junk rows are only ever removed through
+   * this operator-driven retry path, one document at a time.
+   *
+   * One transaction; every withdrawal writes an audit_log entry (ADR-0026)
+   * so the act and its trace commit or roll back together.
+   */
+  async withdrawInvalidPurchaseDrafts(
+    documentId: number | null | undefined,
+  ): Promise<void> {
+    if (documentId == null) return;
+    await this.db.transaction().execute(async (trx) => {
+      const drafts = await trx
+        .selectFrom('expense')
+        .select([
+          'id',
+          'gross_amount',
+          'supplier_invoice_number',
+          'ai_kind',
+          'ai_document_type',
+        ])
+        .where('document_id', '=', documentId)
+        .where('status', '=', 'draft')
+        .where('voucher_id', 'is', null)
+        .execute();
+      for (const row of drafts) {
+        // Only the AI purchase path's own rows — the metadata the pre-fix
+        // proposeDraft persisted. Manual or otherwise-sourced drafts stay.
+        if (row.ai_kind !== 'new_expense') continue;
+        if (
+          row.ai_document_type !== 'invoice' &&
+          row.ai_document_type !== 'receipt'
+        ) {
+          continue;
+        }
+        if (isValidExtractedGross(row.gross_amount)) continue;
+        // A pending approval references the row — it must not be orphaned.
+        const approval = await trx
+          .selectFrom('approval')
+          .select('id')
+          .where('object_type', '=', 'expense')
+          .where('object_id', '=', row.id)
+          .where('status', '=', 'pending')
+          .executeTakeFirst();
+        if (approval) continue;
+        await trx.deleteFrom('expense').where('id', '=', row.id).execute();
+        await this.auditLog.record(
+          {
+            actor: 'system',
+            action: 'expense.invalid_purchase_draft.withdrawn',
+            outcome: 'allowed',
+            target_type: 'expense',
+            target_id: row.id,
+            detail: {
+              document_id: documentId,
+              gross_amount: row.gross_amount,
+              supplier_invoice_number: row.supplier_invoice_number,
+              reason:
+                'pre-fix failed AI extraction left an unbookable invalid-gross ' +
+                'draft on this document; withdrawn when the document was ' +
+                'retried (issue #405)',
+            },
+          },
+          trx,
+        );
+      }
+    });
   }
 
   /**

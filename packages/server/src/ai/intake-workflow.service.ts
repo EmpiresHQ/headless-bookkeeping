@@ -571,6 +571,16 @@ export class IntakeWorkflowService {
         this.logger.warn(
           `Pass 2 failed for document ${documentId}: category=${pass2.category}`,
         );
+        // A failed PURCHASE TOTAL retry (issue #405 follow-up): withdraw the
+        // pre-fix junk drafts the earlier failure left on this document — a
+        // failed retry must not leave or prefer an invalid legacy draft any
+        // more than a successful one does.
+        if (
+          pass2.category === 'evidence-invalid' &&
+          pass2.cause === 'purchase-total'
+        ) {
+          await this.proposeDraft.withdrawInvalidPurchaseDrafts(documentId);
+        }
         return this.routeNeedsTriage(
           documentId,
           pass2FailureReason(pass2.category, pass2.detail, pass2.cause),
@@ -760,6 +770,11 @@ export class IntakeWorkflowService {
             `new_expense for document ${documentId} has an invalid extracted gross ` +
               `${triageResult.gross_amount} — routing to needs_triage (evidence-invalid)`,
           );
+          // Failed retry (issue #405 follow-up): withdraw the pre-fix junk
+          // drafts an earlier failed extraction left on this document —
+          // handled identically to a successful recovery so a failed retry
+          // cannot leave or prefer an invalid legacy draft either.
+          await this.proposeDraft.withdrawInvalidPurchaseDrafts(documentId);
           return this.routeNeedsTriage(
             documentId,
             invalidPurchaseEvidenceReason(triageResult),
@@ -813,6 +828,10 @@ export class IntakeWorkflowService {
             this.logger.warn(
               `new_expense for document ${documentId} has invalid extracted evidence: ${outcome.reason}`,
             );
+            // Failed retry (issue #405 follow-up): same withdrawal as the
+            // pre-confidence guard above (the evidence failed AFTER supplier
+            // resolution on this branch).
+            await this.proposeDraft.withdrawInvalidPurchaseDrafts(documentId);
             return this.routeNeedsTriage(documentId, outcome.reason, {
               pass: 'classify',
               category: 'evidence-invalid',
@@ -1120,6 +1139,9 @@ export class IntakeWorkflowService {
       this.logger.warn(
         `Replayed triage result for document ${documentId} has invalid extracted evidence: ${outcome.reason}`,
       );
+      // Failed replayed retry (issue #405 follow-up): same withdrawal so the
+      // invalid legacy draft is not left preferred for this document.
+      await this.proposeDraft.withdrawInvalidPurchaseDrafts(documentId);
       return this.routeNeedsTriage(documentId, outcome.reason, {
         pass: 'classify',
         category: 'evidence-invalid',

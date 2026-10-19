@@ -115,6 +115,7 @@ describe('IntakeWorkflowService', () => {
 
   const mockProposeDraft = {
     proposeDraft: jest.fn(),
+    withdrawInvalidPurchaseDrafts: jest.fn(),
     findExistingDraft: jest.fn(),
     proposeSalesInvoiceDraft: jest.fn(),
     findExistingInvoiceDraft: jest.fn(),
@@ -260,6 +261,7 @@ describe('IntakeWorkflowService', () => {
     mockOcrService.transcribe.mockReset();
     mockPass2Agent.classify.mockReset();
     mockProposeDraft.proposeDraft.mockReset();
+    mockProposeDraft.withdrawInvalidPurchaseDrafts.mockReset();
     mockProposeDraft.findExistingDraft.mockReset();
     mockProposeDraft.proposeSalesInvoiceDraft.mockReset();
     mockProposeDraft.findExistingInvoiceDraft.mockReset();
@@ -580,8 +582,13 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain('0.00 EUR');
         expect(result.reason).not.toMatch(/confidence|threshold/i);
       }
-      // No draft, no proposeDraft call, nothing booked.
+      // No draft, no proposeDraft call, nothing booked. The legacy
+      // recovery seam runs on the failed retry too (issue #405 follow-up):
+      // a pre-fix junk draft on this document must not stay preferred.
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+      expect(
+        mockProposeDraft.withdrawInvalidPurchaseDrafts,
+      ).toHaveBeenCalledWith(docId);
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('needs_triage');
     });
@@ -1596,6 +1603,10 @@ describe('IntakeWorkflowService', () => {
         expect(result.reason).toContain(
           'could not extract a usable purchase total',
         );
+        // Same legacy-recovery withdrawal on the failed retry (follow-up).
+        expect(
+          mockProposeDraft.withdrawInvalidPurchaseDrafts,
+        ).toHaveBeenCalledWith(docId);
       }
     });
 
