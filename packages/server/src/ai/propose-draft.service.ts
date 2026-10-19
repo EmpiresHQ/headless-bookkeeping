@@ -31,6 +31,50 @@ export type PipelineRunResult = Awaited<
 >;
 
 /**
+ * A valid AI-extracted gross: a positive, whole minor-unit amount (issue
+ * #405). The kernel's own guard (`assertCoherentPurchaseAmounts`) keeps the
+ * same shape at posting; this earlier seam parks the failure BEFORE an
+ * Expense row exists instead of faulting on an already-persisted junk draft.
+ * Exported because the WORKFLOW's routing runs the same validation BEFORE its
+ * confidence gate (a zero-total low-confidence extraction is still failed
+ * evidence, not mere low confidence).
+ */
+export function isValidExtractedGross(gross: number): boolean {
+  return Number.isSafeInteger(gross) && gross > 0;
+}
+
+/**
+ * The operator-facing reason for failed PURCHASE amount evidence (issue
+ * #405): WHAT was read and WHY it cannot be booked, in money terms — backend
+ * field names stay out of the primary sentence. Shared by proposeDraft's
+ * pre-creation guard and the workflow's pre-confidence routing guard so both
+ * seams say exactly the same thing.
+ */
+export function invalidPurchaseEvidenceReason(
+  triage: Pick<
+    TriageResult,
+    | 'gross_amount'
+    | 'vat_amount'
+    | 'currency'
+    | 'tax_point_date'
+    | 'supplier_invoice_number'
+  >,
+): string {
+  const total = Number.isFinite(triage.gross_amount)
+    ? `${(triage.gross_amount / 100).toFixed(2)} ${triage.currency}`
+    : `${triage.gross_amount} ${triage.currency}`;
+  return (
+    `AI purchase extraction is invalid: nothing was booked. The AI read ` +
+    `a total of ${total} for this invoice (date ` +
+    `${triage.tax_point_date || 'none'}, document number ` +
+    `${triage.supplier_invoice_number ?? 'none'}), and a purchase total ` +
+    `must be a positive amount of money, so it cannot be booked ` +
+    `automatically. The document layout may differ from what the ` +
+    `extraction expected — check the document and classify it manually.`
+  );
+}
+
+/**
  * A marker the idempotency replay returns instead of re-running the pipeline:
  * the draft already exists and was already posted/held on the original pass.
  */
@@ -122,12 +166,29 @@ export interface ReceiptMatchedResult {
  * triage" signal, or an explicit "possible duplicate, route to triage" signal
  * from the duplicate gate.
  */
+/**
+ * Returned when the AI's purchase extraction failed in a way the schema
+ * could not see (issue #405): the gross amount is zero, negative, non-finite
+ * or not a whole minor unit — the columnar-layout failure that extracted the
+ * gross as 0 and the next field's value as the invoice number. This is an
+ * EXTRACTED-EVIDENCE failure, not an unexpected fault: it is validated
+ * BEFORE the Expense row is created, so no junk draft is persisted and no
+ * level-50 pipeline fault fires. The caller routes the document to
+ * needs_triage with the typed evidence-invalid failure; nothing was booked.
+ */
+export interface EvidenceInvalidResult {
+  outcome: 'evidence-invalid';
+  /** Operator-facing: says WHAT was extracted and WHAT failed. */
+  reason: string;
+}
+
 export type ProposeDraftOutcome =
   | ProposeDraftResult
   | SupplierUnresolvedResult
   | CategoryUnresolvedResult
   | PossibleDuplicateResult
-  | ReceiptMatchedResult;
+  | ReceiptMatchedResult
+  | EvidenceInvalidResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -277,6 +338,31 @@ export class ProposeDraftService {
           `Routing is owned by IntakeWorkflowService; other kinds (correction, ` +
           `duplicate, unknown) will be wired in Task 43.`,
       );
+    }
+
+    // Extracted-evidence validation BEFORE any Expense row exists (issue
+    // #405). The strict schema cannot see a failed extraction that still
+    // parses: a columnar layout made the model anchor on labels and take the
+    // FOLLOWING token, so the gross came out 0 (and the next field's value
+    // became the invoice number). Letting that through created a junk
+    // zero-amount draft and then faulted at the pipeline as an "unexpected"
+    // level-50 error; the kernel's positive-gross guard stays in place — this
+    // is the earlier, typed seam so nothing is persisted and no fault fires.
+    // It runs for EVERY caller of proposeDraft, covering a fresh Pass-2
+    // classification AND a replayed/cached proposal (resolveSupplier), since
+    // both go through this one choke point.
+    if (!isValidExtractedGross(triageResult.gross_amount)) {
+      // Operator-facing (issue #405): WHAT was read and WHY it cannot be
+      // booked, in money terms — backend field names stay out of the primary
+      // sentence. The stable "AI purchase extraction is invalid" marker at
+      // the start makes classifyReasonType persist the typed
+      // `evidence_invalid` reason at write time (the same marker-based
+      // pattern the supplier/duplicate routes use), so the SPA renders this
+      // outcome's copy from the TYPE, never from parsing this prose.
+      return {
+        outcome: 'evidence-invalid',
+        reason: invalidPurchaseEvidenceReason(triageResult),
+      };
     }
 
     // Category guard: the model is given the closed category set (Task 4) but

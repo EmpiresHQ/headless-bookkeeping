@@ -801,6 +801,15 @@ describe('Expense document attach (integration)', () => {
               kind: 'new_expense',
               confidence: 0.99,
               document_type: 'receipt',
+              // A well-formed validated result (issue #405: the routing seam
+              // now validates the extracted gross before the confidence gate
+              // and routes a missing/zero total to needs_triage instead of
+              // proposing a draft — this race fixture wants a healthy draft).
+              gross_amount: 12300,
+              vat_amount: 0,
+              currency: 'EUR',
+              tax_point_date: '2026-02-01',
+              category: 'software',
             },
           }),
         } as never,

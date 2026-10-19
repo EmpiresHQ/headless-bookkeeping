@@ -72,6 +72,30 @@ describe('failureToReasonType (pure helper)', () => {
       expect(failureToReasonType(failure)).toBe('classification_refused');
     },
   );
+
+  it('evidence-invalid maps to evidence_invalid ONLY with the typed purchase-total cause (issue #405)', () => {
+    // The typed amount path: what total was read is surfaced on the panel.
+    expect(
+      failureToReasonType({
+        pass: 'classify',
+        category: 'evidence-invalid',
+        cause: 'purchase-total',
+      }),
+    ).toBe('evidence_invalid');
+    // A GENERIC evidence-schema failure (malformed supplier/country
+    // extraction) keeps the ordinary hidden-details presentation — it is
+    // not a money/total problem, and its Zod/finishReason detail must not be
+    // promoted to the visible panel.
+    expect(
+      failureToReasonType({ pass: 'classify', category: 'evidence-invalid' }),
+    ).toBe('classification_failed');
+    expect(
+      failureToReasonType({
+        pass: 'classify',
+        category: 'enrichment-failed',
+      }),
+    ).toBe('classification_failed');
+  });
 });
 
 describe('IntakeWorkflowService', () => {
@@ -522,6 +546,76 @@ describe('IntakeWorkflowService', () => {
       expect(doc.status).toBe('triaged');
       // processing_since is cleared after successful completion.
       expect(doc.processing_since).toBeNull();
+    });
+
+    it('routes a zero-total new_expense as typed evidence-invalid BEFORE the confidence gate — not mere low confidence (issue #405)', async () => {
+      // The issue #405 symptom, low-confidence arm: a valid-shaped invoice
+      // whose extraction read the total as 0 used to land in the generic
+      // low-confidence park, never reaching the typed evidence-invalid seam.
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({
+          confidence: 0.2,
+          gross_amount: 0,
+          vat_amount: 0,
+          supplier_invoice_number: '02.10.2026',
+        }),
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'evidence-invalid',
+          cause: 'purchase-total',
+        });
+        // The finding's persisted reason_type is the machine-readable
+        // evidence_invalid outcome (SPA copy comes from the type).
+        expect(result.finding.reason_type).toBe('evidence_invalid');
+        // The operator reason says WHAT total was read and why it cannot be
+        // booked — not a confidence sentence.
+        expect(result.reason).toContain('0.00 EUR');
+        expect(result.reason).not.toMatch(/confidence|threshold/i);
+      }
+      // No draft, no proposeDraft call, nothing booked.
+      expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('parks a confident new_expense whose proposeDraft outcome is evidence-invalid with the typed failure (issue #405)', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ confidence: 0.94 }),
+      });
+      mockProposeDraft.proposeDraft.mockResolvedValueOnce({
+        outcome: 'evidence-invalid',
+        reason:
+          'AI purchase extraction is invalid: nothing was booked. The AI read ' +
+          'a total of 0.00 EUR for this invoice (date 2026-03-15, document ' +
+          'number 5001799762), and a purchase total must be a positive amount ' +
+          'of money, so it cannot be booked automatically. Check the document ' +
+          'and classify it manually.',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'evidence-invalid',
+          cause: 'purchase-total',
+        });
+        expect(result.finding.reason_type).toBe('evidence_invalid');
+        expect(result.reason).toContain('total of 0.00 EUR');
+      }
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
     });
 
     it('parks a confident new_expense that proposeDraft flags as a possible duplicate, instead of posting', async () => {
@@ -1450,6 +1544,59 @@ describe('IntakeWorkflowService', () => {
       expect(mockProposeDraft.proposeDraft).not.toHaveBeenCalled();
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('needs_triage');
+    });
+
+    it('keeps a GENERIC evidence-invalid failure on the ordinary classification-failed presentation (issue #405)', async () => {
+      // A malformed supplier/country extraction is NOT a money/total problem:
+      // no typed purchase-total cause, so the old classification_failed
+      // reason_type and the truthful generic sentence keep the old
+      // collapsed-details presentation (no reason promotion to the panel).
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'evidence-invalid',
+        detail: 'Invalid supplier country in extracted evidence',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'evidence-invalid',
+        });
+        expect(result.finding.reason_type).toBe('classification_failed');
+        expect(result.reason).toContain('extracted evidence is not valid');
+        expect(result.reason).toContain('Invalid supplier country');
+        // Never a money/total claim for a non-amount failure.
+        expect(result.reason).not.toMatch(/purchase total/i);
+      }
+    });
+
+    it('routes a failed PURCHASE TOTAL from Pass 2 to the typed evidence_invalid outcome (issue #405)', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: false,
+        category: 'evidence-invalid',
+        cause: 'purchase-total',
+        detail: 'the model produced no usable purchase total for this document',
+      });
+
+      const result = await service.process(docId);
+
+      expect(result.status).toBe('needs_triage');
+      if (result.status === 'needs_triage') {
+        expect(result.failure).toEqual({
+          pass: 'classify',
+          category: 'evidence-invalid',
+          cause: 'purchase-total',
+        });
+        expect(result.finding.reason_type).toBe('evidence_invalid');
+        expect(result.reason).toContain(
+          'could not extract a usable purchase total',
+        );
+      }
     });
 
     it('routes needs_triage and surfaces transient', async () => {

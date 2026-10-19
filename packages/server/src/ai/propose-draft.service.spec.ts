@@ -346,6 +346,77 @@ describe('ProposeDraftService (integration)', () => {
       );
     });
 
+    describe('failed AI purchase extraction (issue #405)', () => {
+      /** Count the expense rows that survived in the real database. */
+      const expenseRows = () =>
+        db.selectFrom('expense').select(['id', 'gross_amount']).execute();
+
+      it('parks a ZERO gross as evidence-invalid and persists NO junk Expense row', async () => {
+        // The issue #405 symptom: the columnar layout extracted the gross as
+        // 0 and the DATE as the invoice number, and the pass faulted at the
+        // pipeline AFTER a zero-gross draft had already been written.
+        const triage: TriageResult = {
+          ...sampleTriageResult(),
+          document_type: 'invoice',
+          gross_amount: 0,
+          vat_amount: 0,
+          supplier_invoice_number: '02.10.2026',
+        };
+
+        const outcome = await service.proposeDraft(triage);
+
+        expect(outcome.outcome).toBe('evidence-invalid');
+        if (outcome.outcome === 'evidence-invalid') {
+          // The operator reason must say WHAT was read (total, date, number)
+          // and WHY it cannot be booked — in money terms, not backend keys.
+          expect(outcome.reason).toContain('a total of 0.00 EUR');
+          expect(outcome.reason).toContain('02.10.2026');
+          expect(outcome.reason).toContain('2026-03-15');
+          expect(outcome.reason).not.toMatch(/gross_amount|minor units/i);
+        }
+        // No junk row, no draft, nothing to withdraw later.
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('parks a NEGATIVE gross as evidence-invalid with no Expense row', async () => {
+        const outcome = await service.proposeDraft({
+          ...sampleTriageResult(),
+          gross_amount: -1525,
+          vat_amount: -285,
+        });
+        expect(outcome.outcome).toBe('evidence-invalid');
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('parks a non-finite gross as evidence-invalid with no Expense row', async () => {
+        const outcome = await service.proposeDraft({
+          ...sampleTriageResult(),
+          gross_amount: Number.NaN,
+        });
+        expect(outcome.outcome).toBe('evidence-invalid');
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('parks a fractional minor-unit gross as evidence-invalid with no Expense row', async () => {
+        const outcome = await service.proposeDraft({
+          ...sampleTriageResult(),
+          gross_amount: 15.25,
+        });
+        expect(outcome.outcome).toBe('evidence-invalid');
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('still drafts a healthy positive-gross extraction (control)', async () => {
+        const result = expectDraft(
+          await service.proposeDraft(sampleTriageResult()),
+        );
+        const rows = await expenseRows();
+        expect(rows).toHaveLength(1);
+        expect(rows[0].gross_amount).toBe(1525);
+        void result;
+      });
+    });
+
     it('holds for approval when confidence is below threshold (0.5)', async () => {
       // This test proves the AI-confidence gate specifically, not the
       // auto_post_enabled master switch (which defaults to false and would

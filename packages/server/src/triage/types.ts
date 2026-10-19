@@ -284,6 +284,7 @@ export type TriageReasonType =
   | 'ocr_failed'
   | 'classification_failed'
   | 'classification_refused'
+  | 'evidence_invalid'
   | 'unimplemented'
   | 'not_a_document'
   | 'non_postable_document'
@@ -306,6 +307,7 @@ export const TRIAGE_REASON_TYPES: readonly TriageReasonType[] = [
   'ocr_failed',
   'classification_failed',
   'classification_refused',
+  'evidence_invalid',
   'unimplemented',
   'not_a_document',
   'non_postable_document',
@@ -369,6 +371,15 @@ export function classifyReasonType(description: string): TriageReasonType {
   // machine-readable outcome the SPA renders refusal copy for.
   if (description.toLowerCase().includes('declined to read'))
     return 'classification_refused';
+  // An INVALID AI PURCHASE EXTRACTION (issue #405): the pass read the
+  // document but its amounts do not make bookable sense (the zero-total
+  // columnar-layout failure). Checked BEFORE the classification-failed and
+  // supplier buckets: the reason text carries the stable "AI purchase
+  // extraction is invalid" marker, and the typed evidence_invalid outcome
+  // gets its own operator-facing SPA copy (the visible amounts), not the
+  // generic hidden-details classification-failed branch.
+  if (description.startsWith('AI purchase extraction is invalid'))
+    return 'evidence_invalid';
   // A Pass-2 (AI classification/enrichment) failure — the file and OCR are
   // fine, only the agent classification failed. Checked BEFORE the supplier /
   // OCR buckets because pass2FailureReason details interpolate raw error text

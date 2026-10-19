@@ -18,6 +18,8 @@ import {
   ProposeDraftService,
   DraftReplayResult,
   ReceiptMatchedResult,
+  invalidPurchaseEvidenceReason,
+  isValidExtractedGross,
 } from './propose-draft.service';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -94,7 +96,21 @@ export function nonPostableReason(docType: string): string {
  */
 export type IntakeFailure =
   | { pass: 'ocr'; category: OcrFailureCategory }
-  | { pass: 'classify'; category: Pass2FailureCategory };
+  | {
+      pass: 'classify';
+      category: Pass2FailureCategory;
+      /**
+       * Typed sub-cause for category `evidence-invalid` (issue #405): a failed
+       * PURCHASE TOTAL — the model read the document but its total is
+       * missing/empty/zero. Without this, EVERY evidence-schema failure
+       * (malformed supplier/country extraction) would land in the amount-
+       * specific evidence_invalid UI with its reason promoted to the visible
+       * panel; with it, only the amount path does, and ordinary evidence
+       * failures keep the generic hidden-details presentation. Never
+       * prose-sniffed — set by the typed seams that observed the failure.
+       */
+      cause?: 'purchase-total';
+    };
 
 /** Map a typed pass failure to its persisted TriageReasonType: Pass 1 (OCR)
  * failures are ocr_failed regardless of category (none of the OCR categories
@@ -102,17 +118,33 @@ export type IntakeFailure =
  * failure); Pass 2 failures are classification_failed — EXCEPT a model
  * refusal (issue #406), which is its own machine-readable
  * classification_refused outcome so the SPA renders refusal copy from the
- * type, never from prose-parsing the reason. */
+ * type, never from prose-parsing the reason. Failed PURCHASE amount
+ * evidence (issue #405) is its own machine-readable evidence_invalid outcome
+ * for the same reason. */
 export function failureToReasonType(failure: IntakeFailure): TriageReasonType {
   if (failure.pass === 'ocr') return 'ocr_failed';
-  return failure.category === 'model-refusal'
-    ? 'classification_refused'
-    : 'classification_failed';
+  if (failure.pass === 'classify') {
+    if (failure.category === 'model-refusal') return 'classification_refused';
+    // Failed PURCHASE TOTAL evidence (issue #405): the model read the document
+    // but its total is missing/empty/zero — a typed machine-readable outcome
+    // so the SPA shows what total was read and why it cannot be booked, instead
+    // of the generic hidden-details classification-failed branch. Evidence
+    // failures WITHOUT the typed purchase-total cause keep the ordinary
+    // classification_failed presentation (they are not money/total problems).
+    if (
+      failure.category === 'evidence-invalid' &&
+      failure.cause === 'purchase-total'
+    ) {
+      return 'evidence_invalid';
+    }
+  }
+  return 'classification_failed';
 }
 
 export function pass2FailureReason(
   category: Pass2FailureCategory,
   detail: string,
+  cause?: 'purchase-total',
 ): string {
   switch (category) {
     case 'model-refusal':
@@ -121,6 +153,15 @@ export function pass2FailureReason(
       // never a validation-stack-shaped detail.
       return 'The AI model declined to read this file, so automatic classification did not run. Retry AI classification once, or archive the file without booking if it is not a business document. Held for human review.';
     case 'evidence-invalid':
+      // Issue #405: with the typed purchase-total cause, the plain amount
+      // sentence (visible on the evidence_invalid panel). WITHOUT it, the
+      // truthful GENERIC phrasing — the category also covers malformed
+      // supplier/country evidence, which must not be mislabeled as a money/
+      // total problem, and its technical detail keeps the ordinary collapsed
+      // classification-failed presentation.
+      return cause === 'purchase-total'
+        ? 'The AI read this document but could not extract a usable purchase total, so nothing was booked automatically. Check the document and classify it manually.'
+        : `The AI read this document but its extracted evidence is not valid, so nothing was booked automatically. Check the document and classify it manually. (${detail})`;
     case 'context-failed':
     case 'enrichment-failed':
     case 'enrichment-incomplete':
@@ -532,8 +573,14 @@ export class IntakeWorkflowService {
         );
         return this.routeNeedsTriage(
           documentId,
-          pass2FailureReason(pass2.category, pass2.detail),
-          { pass: 'classify', category: pass2.category },
+          pass2FailureReason(pass2.category, pass2.detail, pass2.cause),
+          {
+            pass: 'classify',
+            category: pass2.category,
+            ...(pass2.cause === 'purchase-total'
+              ? { cause: 'purchase-total' as const }
+              : {}),
+          },
         );
       }
 
@@ -698,6 +745,31 @@ export class IntakeWorkflowService {
 
     switch (triageResult.kind) {
       case 'new_expense':
+        // Failed PURCHASE amount evidence BEFORE the confidence gate (issue
+        // #405): a zero/empty total is failed extraction, not mere low
+        // confidence — a low-confidence extraction with an invalid total must
+        // park with the typed evidence-invalid failure (what total was read,
+        // why it cannot be booked), not the generic low-confidence reason.
+        // proposeDraft keeps the same validation for every caller (fresh
+        // Pass-2 AND replayed proposals); this guard keeps the low-confidence
+        // route from swallowing the failure first. Non-postable proforma /
+        // not_a_document documents never reach this case — they are not
+        // attempted purchases.
+        if (!isValidExtractedGross(triageResult.gross_amount)) {
+          this.logger.warn(
+            `new_expense for document ${documentId} has an invalid extracted gross ` +
+              `${triageResult.gross_amount} — routing to needs_triage (evidence-invalid)`,
+          );
+          return this.routeNeedsTriage(
+            documentId,
+            invalidPurchaseEvidenceReason(triageResult),
+            {
+              pass: 'classify',
+              category: 'evidence-invalid',
+              cause: 'purchase-total',
+            },
+          );
+        }
         if (triageResult.confidence >= threshold) {
           this.logger.log(
             `Confident new_expense (confidence=${triageResult.confidence} >= ${threshold}), proposing draft for document ${documentId}`,
@@ -730,6 +802,22 @@ export class IntakeWorkflowService {
               enrichment,
             );
             return this.routeNeedsTriage(documentId, outcome.reason);
+          }
+          if (outcome.outcome === 'evidence-invalid') {
+            // Issue #405: the AI read the document but its amounts do not make
+            // bookable sense (the columnar zero-total failure). A typed park,
+            // NOT an unexpected fault: nothing was booked, no junk draft was
+            // persisted, and the typed evidence-invalid failure persists the
+            // `evidence_invalid` reason_type so the SPA shows what total was
+            // read instead of hiding it in technical details.
+            this.logger.warn(
+              `new_expense for document ${documentId} has invalid extracted evidence: ${outcome.reason}`,
+            );
+            return this.routeNeedsTriage(documentId, outcome.reason, {
+              pass: 'classify',
+              category: 'evidence-invalid',
+              cause: 'purchase-total',
+            });
           }
           if (outcome.outcome === 'category-unresolved') {
             this.logger.warn(
@@ -1020,6 +1108,23 @@ export class IntakeWorkflowService {
       throw new Error(
         `proposeDraft returned category-unresolved for document ${documentId} during supplier resolution: ${outcome.reason}`,
       );
+    }
+    if (outcome.outcome === 'evidence-invalid') {
+      // Issue #405, REPLAY path: the cached/replayed triage result is validated
+      // by the same proposeDraft seam as a fresh Pass-2 classification, so an
+      // invalid zero-total proposal parked before this fix cannot book a junk
+      // draft on operator supplier resolution either. It parks back to
+      // needs_triage with the typed evidence_invalid reason for manual
+      // classification — nothing is booked and the pending proposal is kept
+      // so the operator can still read what the AI extracted.
+      this.logger.warn(
+        `Replayed triage result for document ${documentId} has invalid extracted evidence: ${outcome.reason}`,
+      );
+      return this.routeNeedsTriage(documentId, outcome.reason, {
+        pass: 'classify',
+        category: 'evidence-invalid',
+        cause: 'purchase-total',
+      });
     }
     if (outcome.outcome === 'possible-duplicate') {
       // The operator just chose this supplier explicitly, and against it the

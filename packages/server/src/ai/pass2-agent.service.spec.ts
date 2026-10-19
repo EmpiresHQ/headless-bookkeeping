@@ -32,6 +32,114 @@ const classification = {
   supplier_proposal: { mode: 'match', match_entity_id: 705731 },
 };
 
+describe('failed purchase amount evidence (issue #405)', () => {
+  const extract = jest.fn();
+  const classify = jest.fn();
+  const lookup = jest.fn();
+  const factory = {
+    buildTriageEnrichmentAgent: jest.fn(),
+    buildTriageClassificationAgent: jest.fn(),
+    resolveTriageContext: lookup,
+  };
+  let service: Pass2AgentService;
+  beforeEach(() => {
+    jest.resetAllMocks();
+    extract.mockResolvedValue({ object: evidence });
+    classify.mockResolvedValue({ object: classification });
+    lookup.mockResolvedValue(context);
+    factory.buildTriageEnrichmentAgent.mockResolvedValue({ generate: extract });
+    factory.buildTriageClassificationAgent.mockResolvedValue({
+      generate: classify,
+    });
+    service = new Pass2AgentService(factory as unknown as MastraService);
+  });
+
+  it.each([undefined, null, ''])(
+    'classifies a missing/empty model purchase total (%p) as evidence-invalid, not invalid-output',
+    async (gross) => {
+      classify.mockResolvedValue({
+        object: { ...classification, gross_amount: gross },
+      });
+      const outcome = await service.classify(
+        'A real purchase invoice whose total the model could not read',
+      );
+      expect(outcome).toMatchObject({
+        ok: false,
+        category: 'evidence-invalid',
+        cause: 'purchase-total',
+      });
+      // Plain observed/failed-total reason, not validation-stack detail.
+      if (!outcome.ok) {
+        expect(outcome.detail).not.toMatch(
+          /expected number|Invalid input|path/i,
+        );
+        expect(outcome.detail).toMatch(/purchase total/i);
+      }
+    },
+  );
+
+  it('keeps GENERIC evidence-schema failures cause-less (ordinary presentation)', async () => {
+    // A malformed supplier/country extraction is not a money/total problem:
+    // no typed purchase-total cause, so it keeps the ordinary
+    // classification-failed presentation downstream.
+    extract.mockResolvedValue({
+      object: {
+        ...evidence,
+        evidence: { ...evidence.evidence, country: 'EU' },
+      },
+    });
+    const outcome = await service.classify('receipt');
+    expect(outcome).toMatchObject({ ok: false, category: 'evidence-invalid' });
+    if (!outcome.ok) {
+      expect(outcome.cause).toBeUndefined();
+    }
+  });
+
+  it('keeps ordinary malformed output in ANOTHER field as invalid-output with retry semantics', async () => {
+    classify.mockResolvedValue({
+      object: { ...classification, tax_point_date: 12345 },
+    });
+    const outcome = await service.classify('invoice');
+    expect(outcome).toMatchObject({ ok: false, category: 'invalid-output' });
+  });
+
+  it('feeds BOTH model phases the canonical label/value view for glued value-before-label text', async () => {
+    // The issue #405 columnar invoice: every value glued to the label that
+    // FOLLOWS it in one text run. Both the evidence agent input and the
+    // final classification prompt must carry the canonical association
+    // BEFORE the preserved raw text (a label-anchored reader takes the first
+    // `label:` it meets).
+    const raw =
+      '5001799762Arve number:\n' +
+      '02.10.2026Kuupäev:\n' +
+      '6221000702446172Viitenumber:\n' +
+      '91,00Kokku:';
+    await service.classify(raw);
+
+    const evidenceDoc = JSON.parse(extract.mock.calls[0][0] as string)
+      .document as string;
+    expect(evidenceDoc).toContain('Arve number: 5001799762');
+    expect(evidenceDoc).toContain('Kokku: 91,00');
+    expect(evidenceDoc.endsWith(raw)).toBe(true);
+
+    const promptDoc = JSON.parse(classify.mock.calls[0][0] as string)
+      .document as string;
+    expect(promptDoc.indexOf('Arve number: 5001799762')).toBeLessThan(
+      promptDoc.indexOf('5001799762Arve number:'),
+    );
+    expect(promptDoc.endsWith(raw)).toBe(true);
+  });
+
+  it('passes plain text through byte-for-byte when no glued junction exists', async () => {
+    await service.classify('Arve number: 5001799763\nKokku: 91,00');
+    expect(extract.mock.calls[0][0]).toBe(
+      JSON.stringify({
+        document: 'Arve number: 5001799763\nKokku: 91,00',
+      }),
+    );
+  });
+});
+
 describe('Pass2 application-owned context', () => {
   const extract = jest.fn();
   const classify = jest.fn();
