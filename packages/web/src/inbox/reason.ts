@@ -34,6 +34,10 @@ export function humanizePolicyReason(policyReason: string | null): string {
 /** Needs-triage one-liner: the reason as a human question/instruction,
  *  keeping the numbers where the server sentence carries them. */
 const TRIAGE_CONFIDENCE_RE = /confidence ([\d.]+) below threshold ([\d.]+)/i;
+/** Issue #406: the server persists a plain refusal reason with the stable
+ *  marker "declined to read" (see pass2FailureReason's model-refusal case);
+ *  the subtitle must surface it, not bury it under the generic line. */
+const MODEL_REFUSAL_RE = /declined to read/i;
 
 export function triageSubtitle(
   item: Pick<NeedsTriageItem, 'reason' | 'reason_type'>,
@@ -54,7 +58,9 @@ export function triageSubtitle(
     case 'ocr_failed':
       return 'OCR could not read the file — retry or replace';
     case 'classification_failed':
-      return 'AI classification failed — retry or classify manually';
+      return MODEL_REFUSAL_RE.test(item.reason)
+        ? 'AI model declined to read the file — retry once or archive without booking'
+        : 'AI classification failed — retry or classify manually';
     case 'possible_duplicate':
       return 'May already be booked — compare with the existing expense';
     case 'non_postable_document':

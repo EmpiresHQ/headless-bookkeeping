@@ -1,4 +1,4 @@
-import { TriageEvidence } from './triage-context';
+import { RELEVANCE_GATE_CONTRACT, TriageEvidence } from './triage-context';
 import { fxTestProviders } from '../../test/fx-fixtures';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
@@ -307,6 +307,60 @@ describe('MastraService', () => {
       // Default seeded organization is country="IE", which has no dedicated
       // plugin and falls back to NullCountryPlugin's hints.
       expect(await agent.getInstructions()).toContain('DOCUMENT-TYPE GUIDANCE');
+    });
+  });
+
+  describe('buildTriageRelevanceAgent', () => {
+    it('uses a dedicated kind-only gate prompt — never the incompatible full classification instructions', async () => {
+      const agent = await service.buildTriageRelevanceAgent();
+      const instructions = await agent.getInstructions();
+      // The gate's own contract is present verbatim.
+      expect(instructions).toContain(RELEVANCE_GATE_CONTRACT);
+      // It must NOT inherit the classification prompt's full-TriageResult
+      // demand, its category vocabulary, or the country document-type
+      // guidance — all of which contradict the kind-only gate contract
+      // (issue #406 gate review).
+      expect(instructions).not.toMatch(
+        /gross_amount|supplier_proposal|customer_proposal/,
+      );
+      expect(instructions).not.toContain('DOCUMENT-TYPE GUIDANCE');
+      expect(instructions).not.toMatch(
+        /Always return structured output with kind, document_type/,
+      );
+      // Tool-less like the other triage agents.
+      expect(Object.keys((await agent.listTools()) ?? {})).toHaveLength(0);
+    });
+
+    it('carries only the compatible org identity line — no direction-based field instructions', async () => {
+      const agent = await service.buildTriageRelevanceAgent({
+        name: 'Buyer',
+        vatNumber: 'EE100000002',
+        iban: null,
+        directionHint: 'outgoing',
+      });
+      const instructions = await agent.getInstructions();
+      expect(instructions).toContain(
+        'YOUR ORGANIZATION: name="Buyer", VAT="EE100000002", IBAN="unknown"',
+      );
+      // withOrgIdentity's full text (kind=new_sales_invoice, customer_proposal
+      // extraction, outgoing_signals) contradicts the kind-only gate contract
+      // and must not leak into it.
+      expect(instructions).not.toMatch(
+        /new_sales_invoice|customer_proposal|outgoing_signals/,
+      );
+    });
+
+    it('reuses the operator classification model choice', async () => {
+      await db
+        .insertInto('setting')
+        .values({
+          key: 'ai_model.triage_classification',
+          value: 'openai/gpt-4o',
+          updated_at: 0,
+        })
+        .execute();
+      const agent = await service.buildTriageRelevanceAgent();
+      expect(agent.model).toBe('openai/gpt-4o');
     });
   });
 });

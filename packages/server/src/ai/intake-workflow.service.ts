@@ -109,6 +109,11 @@ export function pass2FailureReason(
   detail: string,
 ): string {
   switch (category) {
+    case 'model-refusal':
+      // Plain-language, actionable (issue #406): a refusal is a classified
+      // outcome — the operator retries once (Retry AI) or archives the file —
+      // never a validation-stack-shaped detail.
+      return 'The AI model declined to read this file, so automatic classification did not run. Retry AI classification once, or archive the file without booking if it is not a business document. Held for human review.';
     case 'evidence-invalid':
     case 'context-failed':
     case 'enrichment-failed':
