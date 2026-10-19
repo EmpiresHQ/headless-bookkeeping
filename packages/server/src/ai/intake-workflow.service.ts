@@ -1337,7 +1337,24 @@ export class IntakeWorkflowService {
       finding = { ...finding, description: reason, reason_type: reasonType };
     }
 
-    await this.transitionDocument(documentId, 'needs_triage');
+    try {
+      await this.transitionDocument(documentId, 'needs_triage');
+    } catch (error) {
+      // Uncoordinated-deletion compensation (issue #407): a deletion that
+      // removed the document during this route may have missed this finding
+      // (created or reused above), leaving it to outlive its document as a
+      // dead link in the operator queue. transitionDocument's getById now
+      // 404s — close the finding idempotently: `resolveIfLive` no-ops when
+      // the deletion already resolved it, so the ORIGINAL failure is
+      // preserved and no competing transition audit is overwritten.
+      if (error instanceof NotFoundException) {
+        await this.auditFindings.resolveIfLive(finding.id, {
+          by: 'system',
+          reason: 'document deleted while routing to triage',
+        });
+      }
+      throw error;
+    }
 
     return { status: 'needs_triage', reason, finding, failure };
   }

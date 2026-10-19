@@ -33,6 +33,13 @@ export function computeSha256(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
 }
 
+/**
+ * Transition reason recorded when a document's findings are resolved by the
+ * operator document delete (issue #407). Referenced by the regression tests
+ * so the recorded audit trail stays stable.
+ */
+export const DOCUMENT_DELETED_FINDING_REASON = 'document deleted by operator';
+
 export interface PendingTriageReplay {
   readonly triageResult: TriageResult;
   readonly enrichment: Pass2Enrichment | null;
@@ -767,12 +774,39 @@ export class DocumentsService {
   /**
    * Delete a document and its owned dependents (sources, OCR/artifact rows, the
    * internal OCR conversation, and the stored files). Atomic. The SPA is the
-   * operator's admin surface, so the only block is data integrity: a document
-   * that is still evidence for an expense is refused (409) — detach/reverse the
-   * expense first. Real user threads (Telegram/email) are UNLINKED, not deleted.
-   * Throws 404 if the document does not exist.
+   * operator's admin surface, so the blocks are data integrity and an
+   * in-flight processing run: a document that is still evidence for an
+   * expense is refused (409) — detach/reverse the expense first — and a
+   * delete racing an in-flight intake run is refused (409) via the
+   * per-document exclusion (issue #248), so it cannot interleave with the
+   * workflow's finding creation and status transitions (issue #407). Real
+   * user threads (Telegram/email) are UNLINKED, not deleted. Throws 404 if
+   * the document does not exist.
+   *
+   * The delete also resolves the document's open/snoozed AuditFindings
+   * ATOMICALLY with the row delete (issue #407): a finding must never outlive
+   * its document — an orphaned needs_triage item leaves a dead link in the
+   * operator queue that 404s on open. Already-resolved findings keep their
+   * original transition audit (the `status IN ('open','snoozed')` guard
+   * matches only live findings).
    */
   async deleteDocument(id: number): Promise<void> {
+    // An operator delete must not queue behind a minutes-long OCR run, and
+    // must not interleave with one either: hold the document's exclusion for
+    // the whole transaction so the intake workflow (which holds the same
+    // exclusion for its route/status transitions) can never leave a finding
+    // behind on a document this delete is about to remove.
+    return this.tryRunExclusive(
+      id,
+      () => this.deleteDocumentTxn(id),
+      () =>
+        new ConflictException(
+          `Document ${id} is currently being processed — retry the delete once processing completes`,
+        ),
+    );
+  }
+
+  private async deleteDocumentTxn(id: number): Promise<void> {
     const filePaths = await this.db.transaction().execute(async (trx) => {
       const doc = await trx
         .selectFrom('document')
@@ -870,6 +904,24 @@ export class DocumentsService {
       await trx
         .deleteFrom('document_source')
         .where('document_id', '=', id)
+        .execute();
+      // Resolve the document's live findings atomically WITH the delete,
+      // BEFORE the document row goes away, so a mid-transaction failure
+      // rolls the resolution back with everything else. This is a lifecycle
+      // transition per FINDING_TRANSITIONS (open|snoozed -> resolved), recorded
+      // through the transition audit columns rather than a blind UPDATE.
+      const now = Math.floor(Date.now() / 1000);
+      await trx
+        .updateTable('audit_finding')
+        .set({
+          status: 'resolved',
+          resolved_at: now,
+          transitioned_by: 'system',
+          transition_reason: DOCUMENT_DELETED_FINDING_REASON,
+        })
+        .where('referenced_object_type', '=', 'document')
+        .where('referenced_object_id', '=', id)
+        .where('status', 'in', ['open', 'snoozed'])
         .execute();
       await trx.deleteFrom('document').where('id', '=', id).execute();
       return paths;
