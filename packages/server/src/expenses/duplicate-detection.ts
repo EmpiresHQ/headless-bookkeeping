@@ -90,6 +90,16 @@ export function normalizeInvoiceNumber(
   value: string | null | undefined,
 ): string | null {
   if (value == null) return null;
+  // A date-shaped value is not an invoice number (issue #405): when a
+  // columnar layout extraction anchors on a label and takes the following
+  // token, it reads the NEXT field's value (a date) as this field's number.
+  // Such a pseudo number identifies nothing — two sibling invoices extracted
+  // the same date-shaped key and false-positive duplicate-gated each other —
+  // so it is treated exactly like an absent number (which routes to the
+  // amount+date fallback instead of pretending to identify the document).
+  // Only separator-delimited full dates match: a real number that merely
+  // contains digits (`5001799762`, `RI7USPNX0014`) is never date-shaped.
+  if (isDateShapedInvoiceNumber(value)) return null;
   const folded = value
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
@@ -99,11 +109,44 @@ export function normalizeInvoiceNumber(
 }
 
 /**
+ * `D.M.Y` / `Y-M-D` style printed dates (any of `.`, `-`, `/` as separator)
+ * with PLAUSIBLE day (01–31) and month (01–12) components and a full 2- or
+ * 4-digit year: what a label-anchored extraction reads when it takes the
+ * FOLLOWING token's value as an invoice number (issue #405: `02.10.2026`).
+ * The full-year/plausible-component structure keeps ordinary structured
+ * serial numbers (`1-2-3`, `1234-56-7890`) as real keys — two separators
+ * alone are not enough to call a printed number a date.
+ */
+const DATE_SHAPED_DMY =
+  /^(?:0?[1-9]|[12]\d|3[01])[.\-/](?:0?[1-9]|1[0-2])[.\-/](?:\d{4}|\d{2})$/;
+const DATE_SHAPED_YMD =
+  /^(?:\d{4}|\d{2})[.\-/](?:0?[1-9]|1[0-2])[.\-/](?:0?[1-9]|[12]\d|3[01])$/;
+
+function isDateShapedInvoiceNumber(value: string): boolean {
+  const trimmed = value.trim();
+  return DATE_SHAPED_DMY.test(trimmed) || DATE_SHAPED_YMD.test(trimmed);
+}
+
+/**
+ * A gross amount usable as a duplicate key (issue #405): finite and
+ * positive. A failed extraction persists zero/NaN junk drafts whose key
+ * would otherwise block the very valid invoices it was extracted from; and
+ * an invalid candidate cannot be recognised as a duplicate of anything.
+ */
+function isUsableAmount(gross: number): boolean {
+  return Number.isFinite(gross) && gross > 0;
+}
+
+/**
  * A `reversed` expense is void: the reversal exists precisely so the document
  * can be re-entered, so it must never block creation.
+ *
+ * An expense whose amount never survived extraction (issue #405's zero-gross
+ * junk drafts) is equally void as a KEY: it identifies no purchase, so it can
+ * neither block a valid invoice nor anchor the amount+date fallback.
  */
 function blocks(row: DuplicateExpenseRow): boolean {
-  return row.status !== 'reversed';
+  return row.status !== 'reversed' && isUsableAmount(row.gross_amount);
 }
 
 /**
@@ -119,12 +162,24 @@ export function findDuplicateExpense(
 ): DuplicateDetection | null {
   const supplierId = candidate.supplier_id;
   // A NULL supplier groups nothing: without a counterparty the key has no
-  // discriminating power and would collapse unrelated expenses.
+  // discriminating power and would collapse unrelated expenses. The same
+  // holds for a candidate whose own extraction failed (issue #405): a
+  // zero/NaN gross is not a purchase, so it can be nobody's duplicate.
   if (supplierId == null) return null;
+  if (!isUsableAmount(candidate.gross_amount)) return null;
 
   const candidateNumber = normalizeInvoiceNumber(
     candidate.supplier_invoice_number,
   );
+  // A date-shaped pseudo number is a FAILED extraction, not an absent one
+  // (issue #405 root review). The incoming document DID print something in the
+  // number field, so it must not fall back to the weaker amount/date key
+  // that ADR-0010 reserves for genuinely numberless documents — that would
+  // false-positive the very next healthy invoice of the same amount and day.
+  // It is simply not identifiable: no number match, and no fallback either.
+  const printedJunkNumber =
+    candidate.supplier_invoice_number != null &&
+    isDateShapedInvoiceNumber(candidate.supplier_invoice_number);
   const peers = [...existing]
     .filter((row) => row.supplier_id === supplierId && blocks(row))
     .sort((a, b) => a.id - b.id);
@@ -147,11 +202,12 @@ export function findDuplicateExpense(
     }
   }
 
-  // Rule 2 — fallback, ONLY when the INCOMING document prints no number. A
-  // candidate that does print one is identified by it; it must not fall back
-  // against peers that merely lack one, or the first row whose number the OCR
-  // dropped would refuse every numbered invoice sharing its amount and date.
-  if (candidateNumber !== null) return null;
+  // Rule 2 — fallback, ONLY when the INCOMING document prints no number at
+  // all. A candidate that does print one — a real number, OR a date-shaped
+  // pseudo number from a failed extraction — is identified by nothing weaker
+  // than that printed number: falling back would collapse the first healthy
+  // invoice sharing the junk draft's amount and date into a false duplicate.
+  if (candidateNumber !== null || printedJunkNumber) return null;
 
   const candidateClaimant = candidate.claimant_id ?? null;
   const fallback = peers.find(

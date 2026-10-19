@@ -57,6 +57,10 @@ export function triageSubtitle(
       // Machine-readable refusal (issue #406): the typed reason drives the
       // copy — the frontend never parses the reason prose.
       return 'AI model declined to read the file — retry once or archive without booking';
+    case 'evidence_invalid':
+      // Machine-readable failed-extraction outcome (issue #405): the typed
+      // reason drives the copy; the specific facts ride the reason text.
+      return 'AI read it, but the extracted facts are not bookable — check what was read';
     case 'classification_failed':
       return 'AI classification failed — retry or classify manually';
     case 'possible_duplicate':
@@ -87,6 +91,9 @@ export function triageChipLabel(rt: TriageReasonType | null): string {
     case 'classification_refused':
       // The refusal action is retry once or archive — same verb as OCR.
       return 'retry';
+    case 'evidence_invalid':
+      // The extracted facts are shown for review; classify manually.
+      return 'classify';
     case 'not_a_document':
       return 'junk';
     default:

@@ -109,6 +109,53 @@ describe('TriageDecisionPanel', () => {
     },
   );
 
+  describe('evidence_invalid (issue #405)', () => {
+    const invalidItem = ITEM({
+      reason_type: 'evidence_invalid',
+      reason:
+        'AI purchase extraction is invalid: nothing was booked. The AI read a total of 0.00 EUR for this invoice (date 2026-10-02, document number 02.10.2026), and a purchase total must be a positive amount of money, so it cannot be booked automatically. Check the document and classify it manually.',
+    });
+
+    it('shows failed-extraction copy with the specific facts VISIBLE — not only in collapsed technical details', () => {
+      const { onOpen } = renderPanel({ item: invalidItem });
+      // The typed outcome gets its own decision-panel copy…
+      expect(
+        screen.getByRole('heading', {
+          name: 'The extracted facts are not usable',
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'AI classification failed' }),
+      ).not.toBeInTheDocument();
+      // …and what total was read and why it cannot be booked is visible
+      // outside the collapsed details (the #405 P2: the specific server
+      // reason must not hide in Technical details).
+      const copies = screen.getAllByText(/a total of 0\.00 EUR/);
+      expect(copies.some((el) => el.closest('details') === null)).toBe(true);
+      // The manual classification action is offered directly.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Classify manually' }),
+      );
+      expect(onOpen).toHaveBeenCalledWith('classify');
+    });
+
+    it('keeps the ORDINARY classification-failed reason collapsed in technical details (control)', () => {
+      renderPanel({
+        item: ITEM({
+          reason_type: 'classification_failed',
+          reason:
+            'AI classification failed during strict classification (invalid-output): Zod validation failed at gross_amount',
+        }),
+      });
+      expect(
+        screen.getByRole('heading', { name: 'AI classification failed' }),
+      ).toBeInTheDocument();
+      // The validation-stack detail stays ONLY under the collapsed details.
+      const copies = screen.getAllByText(/Zod validation/);
+      expect(copies.every((el) => el.closest('details') !== null)).toBe(true);
+    });
+  });
+
   describe('classification_refused', () => {
     const refusedItem = ITEM({
       reason_type: 'classification_refused',

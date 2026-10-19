@@ -346,6 +346,309 @@ describe('ProposeDraftService (integration)', () => {
       );
     });
 
+    describe('failed AI purchase extraction (issue #405)', () => {
+      /** Count the expense rows that survived in the real database. */
+      const expenseRows = () =>
+        db.selectFrom('expense').select(['id', 'gross_amount']).execute();
+
+      it('parks a ZERO gross as evidence-invalid and persists NO junk Expense row', async () => {
+        // The issue #405 symptom: the columnar layout extracted the gross as
+        // 0 and the DATE as the invoice number, and the pass faulted at the
+        // pipeline AFTER a zero-gross draft had already been written.
+        const triage: TriageResult = {
+          ...sampleTriageResult(),
+          document_type: 'invoice',
+          gross_amount: 0,
+          vat_amount: 0,
+          supplier_invoice_number: '02.10.2026',
+        };
+
+        const outcome = await service.proposeDraft(triage);
+
+        expect(outcome.outcome).toBe('evidence-invalid');
+        if (outcome.outcome === 'evidence-invalid') {
+          // The operator reason must say WHAT was read (total, date, number)
+          // and WHY it cannot be booked — in money terms, not backend keys.
+          expect(outcome.reason).toContain('a total of 0.00 EUR');
+          expect(outcome.reason).toContain('02.10.2026');
+          expect(outcome.reason).toContain('2026-03-15');
+          expect(outcome.reason).not.toMatch(/gross_amount|minor units/i);
+        }
+        // No junk row, no draft, nothing to withdraw later.
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('parks a NEGATIVE gross as evidence-invalid with no Expense row', async () => {
+        const outcome = await service.proposeDraft({
+          ...sampleTriageResult(),
+          gross_amount: -1525,
+          vat_amount: -285,
+        });
+        expect(outcome.outcome).toBe('evidence-invalid');
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('parks a non-finite gross as evidence-invalid with no Expense row', async () => {
+        const outcome = await service.proposeDraft({
+          ...sampleTriageResult(),
+          gross_amount: Number.NaN,
+        });
+        expect(outcome.outcome).toBe('evidence-invalid');
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('parks a fractional minor-unit gross as evidence-invalid with no Expense row', async () => {
+        const outcome = await service.proposeDraft({
+          ...sampleTriageResult(),
+          gross_amount: 15.25,
+        });
+        expect(outcome.outcome).toBe('evidence-invalid');
+        expect(await expenseRows()).toHaveLength(0);
+      });
+
+      it('still drafts a healthy positive-gross extraction (control)', async () => {
+        const result = expectDraft(
+          await service.proposeDraft(sampleTriageResult()),
+        );
+        const rows = await expenseRows();
+        expect(rows).toHaveLength(1);
+        expect(rows[0].gross_amount).toBe(1525);
+        void result;
+      });
+    });
+
+    describe('legacy invalid-draft recovery (issue #405 follow-up)', () => {
+      /** Seed a document row (FK target) and return its id. */
+      const seedDocumentRow = async (hash: string): Promise<number> =>
+        db
+          .insertInto('document')
+          .values({
+            hash,
+            filename: `${hash}.pdf`,
+            mime_type: 'application/pdf',
+            size_bytes: 1,
+            status: 'needs_triage',
+            claimant_id: null,
+            created_at: Math.floor(Date.now() / 1000),
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+          .then((r) => r.id);
+
+      /** Seed an expense row linked to a document. */
+      const seedExpense = (
+        docId: number,
+        over: Partial<{
+          gross_amount: number;
+          status: string;
+          supplier_invoice_number: string | null;
+          voucher_id: number | null;
+          supplier_id: number | null;
+        }>,
+      ) =>
+        db
+          .insertInto('expense')
+          .values({
+            document_id: docId,
+            supplier_id: null,
+            category: 'transport',
+            gross_amount: 0,
+            vat_amount: 0,
+            currency: 'EUR',
+            tax_point_date: '2026-10-02',
+            document_vat_marking: null,
+            supplier_invoice_number: '02.10.2026',
+            status: 'draft',
+            voucher_id: null,
+            claimant_id: null,
+            ai_confidence: null,
+            ai_document_type: 'invoice',
+            ai_kind: 'new_expense',
+            created_at: Math.floor(Date.now() / 1000),
+            updated_at: Math.floor(Date.now() / 1000),
+            ...over,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+          .then((r) => r.id);
+
+      it('withdraws a pre-fix zero-gross junk draft and replays the recovered healthy draft', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Legacy Junk Supplier',
+          registrationKey: 'IE405LEGACY1',
+          goodsVsServices: 'services',
+        });
+        const docId = await seedDocumentRow('legacy-junk-405');
+        const junkId = await seedExpense(docId, {});
+
+        const outcome = expectDraft(
+          await service.proposeDraft(
+            {
+              ...sampleTriageResult(),
+              document_type: 'invoice',
+              gross_amount: 9100,
+              vat_amount: 0,
+              supplier_invoice_number: '5001799762',
+              supplier_proposal: {
+                mode: 'match',
+                match_entity_id: supplier.id,
+              },
+            },
+            docId,
+            supplier.id,
+          ),
+        );
+
+        // The junk row is GONE, not merely shadowed by a younger draft…
+        const rows = await db
+          .selectFrom('expense')
+          .select(['id', 'gross_amount', 'status'])
+          .where('document_id', '=', docId)
+          .execute();
+        expect(rows.map((r) => r.id)).not.toContain(junkId);
+        expect(rows).toHaveLength(1);
+        expect(rows[0].gross_amount).toBe(9100);
+        // …so the idempotency replay prefers the recovered healthy draft.
+        const replay = await service.findExistingDraft(docId);
+        expect(replay?.expenseId).toBe(outcome.expenseId);
+        expect(replay?.expenseId).toBe(rows[0].id);
+
+        // The withdrawal left an audit trail (ADR-0026).
+        const audit = await db
+          .selectFrom('audit_log')
+          .selectAll()
+          .where('target_type', '=', 'expense')
+          .where('target_id', '=', junkId)
+          .execute();
+        expect(audit).toHaveLength(1);
+        expect(audit[0].action).toContain('withdraw');
+        expect(audit[0].actor).toBe('system');
+      });
+
+      it('keeps a healthy existing draft untouched (idempotency preserved)', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Legacy Healthy Supplier',
+          registrationKey: 'IE405LEGACY2',
+          goodsVsServices: 'services',
+        });
+        const docId = await seedDocumentRow('legacy-healthy-405');
+        const healthyId = await seedExpense(docId, {
+          gross_amount: 9100,
+          supplier_invoice_number: '5001799763',
+          // Same supplier as the re-run proposal so the duplicate gate
+          // (supplier-scoped, ADR-0010) recognizes the healthy re-submission.
+          supplier_id: supplier.id,
+        });
+
+        const outcome = await service.proposeDraft(
+          {
+            ...sampleTriageResult(),
+            document_type: 'invoice',
+            gross_amount: 9100,
+            vat_amount: 0,
+            supplier_invoice_number: '5001799763',
+            supplier_proposal: {
+              mode: 'match',
+              match_entity_id: supplier.id,
+            },
+          },
+          docId,
+          supplier.id,
+        );
+
+        // The duplicate gate still blocks the re-run… (healthy draft row kept)
+        expect(outcome.outcome).toBe('possible-duplicate');
+        const row = await db
+          .selectFrom('expense')
+          .select(['id', 'gross_amount'])
+          .where('id', '=', healthyId)
+          .executeTakeFirst();
+        expect(row?.gross_amount).toBe(9100);
+        const count = await db
+          .selectFrom('expense')
+          .select((eb) => eb.fn.countAll<number>().as('count'))
+          .where('document_id', '=', docId)
+          .executeTakeFirst();
+        expect(Number(count?.count)).toBe(1);
+      });
+
+      it('never touches protected records: posted, reversed, approval-pending, manual provenance', async () => {
+        const entitiesService = module.get(EntitiesService);
+        const supplier = await entitiesService.onboard({
+          role: 'supplier',
+          country: 'IE',
+          name: 'Legacy Protected Supplier',
+          registrationKey: 'IE405LEGACY3',
+          goodsVsServices: 'services',
+        });
+        const docId = await seedDocumentRow('legacy-protected-405');
+        const posted = await seedExpense(docId, { status: 'posted' });
+        const reversed = await seedExpense(docId, { status: 'reversed' });
+        const approvalPending = await seedExpense(docId, {});
+        // A manually entered incomplete zero draft (no AI provenance) must
+        // survive — this seam withdraws only the AI purchase path's own junk.
+        const manual = await seedExpense(docId, {
+          supplier_invoice_number: null,
+        });
+        await db
+          .updateTable('expense')
+          .set({ ai_kind: null, ai_document_type: null })
+          .where('id', '=', manual)
+          .execute();
+        await db
+          .insertInto('approval')
+          .values({
+            object_type: 'expense',
+            object_id: approvalPending,
+            status: 'pending',
+            requested_by: 'policy',
+            approved_by: null,
+            rejected_reason: null,
+            policy_reason: 'Unknown supplier requires approval',
+            superseded_by: null,
+            created_at: Math.floor(Date.now() / 1000),
+            resolved_at: null,
+          })
+          .execute();
+
+        expectDraft(
+          await service.proposeDraft(
+            {
+              ...sampleTriageResult(),
+              document_type: 'invoice',
+              gross_amount: 9100,
+              vat_amount: 0,
+              supplier_invoice_number: '5001799764',
+              supplier_proposal: {
+                mode: 'match',
+                match_entity_id: supplier.id,
+              },
+            },
+            docId,
+            supplier.id,
+          ),
+        );
+
+        // All three protected zero-gross rows survive the recovery run.
+        const surviving = await db
+          .selectFrom('expense')
+          .select(['id', 'status'])
+          .where('document_id', '=', docId)
+          .execute();
+        const ids = surviving.map((r) => r.id);
+        expect(ids).toContain(posted);
+        expect(ids).toContain(reversed);
+        expect(ids).toContain(approvalPending);
+        expect(ids).toContain(manual);
+      });
+    });
+
     it('holds for approval when confidence is below threshold (0.5)', async () => {
       // This test proves the AI-confidence gate specifically, not the
       // auto_post_enabled master switch (which defaults to false and would

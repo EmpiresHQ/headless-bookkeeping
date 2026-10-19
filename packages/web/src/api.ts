@@ -165,6 +165,7 @@ export type TriageReasonType =
   | 'ocr_failed'
   | 'classification_failed'
   | 'classification_refused'
+  | 'evidence_invalid'
   | 'unimplemented'
   | 'not_a_document'
   | 'non_postable_document'

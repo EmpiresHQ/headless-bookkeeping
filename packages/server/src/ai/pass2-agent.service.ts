@@ -1,4 +1,5 @@
 import { normalizeIdentifier } from '../entities/identifier-normalization';
+import { withCanonicalLabelValueView } from '../intake/label-value-view';
 import {
   classificationPrompt,
   enrichmentFromContext,
@@ -49,6 +50,42 @@ function isModelRefusal(finishReason: unknown): boolean {
   );
 }
 
+/**
+ * A strict-schema validation failure that is EXACTLY a failed purchase
+ * total (issue #405): the raw object is an explicit attempted INCOMING
+ * PURCHASE (`kind: 'new_expense'`, a postable purchase `document_type` —
+ * invoice or receipt) whose `gross_amount` is missing/empty (undefined, null
+ * or empty string), with NO other shape errors. Only that narrow shape is
+ * failed extracted AMOUNT evidence — a typed `evidence-invalid` with a plain
+ * reason. Everything else — `{}`, a non-purchase kind, a non-postable
+ * proforma/order confirmation, a nonempty-but-wrong value, or a missing
+ * total WITH other shape errors — keeps the ordinary invalid-output bounded
+ * retries, and refusals keep their own precedence above.
+ */
+function isFailedPurchaseTotal(
+  object: unknown,
+  issues: readonly { path: readonly PropertyKey[]; code: string }[],
+): boolean {
+  if (typeof object !== 'object' || object === null) return false;
+  const {
+    kind,
+    document_type: documentType,
+    gross_amount: gross,
+  } = object as Record<string, unknown>;
+  if (kind !== 'new_expense') return false;
+  if (documentType !== 'invoice' && documentType !== 'receipt') return false;
+  if (gross !== undefined && gross !== null && gross !== '') return false;
+  return (
+    issues.length > 0 &&
+    issues.every(
+      (issue) =>
+        issue.path.length === 1 &&
+        issue.path[0] === 'gross_amount' &&
+        issue.code === 'invalid_type',
+    )
+  );
+}
+
 /** Plain-language operator reason for a refused generation. Never carries
  *  validation-stack or finish-reason detail — the operator can only retry once
  *  (the intake Retry AI path) or archive the file as not a business document. */
@@ -80,6 +117,13 @@ export interface Pass2Failure {
   category: Pass2FailureCategory;
   /** Human-readable detail (last error message, if any). */
   detail: string;
+  /**
+   * Typed sub-cause for category `evidence-invalid` (issue #405): a failed
+   * PURCHASE TOTAL. Set only by the amount-observing seam; the workflow
+   * threads it into the IntakeFailure so only the amount path lands in the
+   * typed evidence_invalid UI, never generic evidence-schema failures.
+   */
+  cause?: 'purchase-total';
 }
 
 /** Discriminated outcome of a Pass-2 classification attempt. */
@@ -107,6 +151,15 @@ export class Pass2AgentService {
   constructor(private readonly mastraService: MastraService) {}
 
   async classify(markdown: string, ctx?: Pass2Context): Promise<Pass2Outcome> {
+    // Layout-tolerant document view (issue #405): a columnar PDF text layer
+    // glues each field's value to the label that FOLLOWS it in one text run
+    // (`5001799762Arve number:`), so a label-anchored extraction takes the
+    // NEXT field's value (the date) as the invoice number and reads no total.
+    // The canonical view re-associates every glued value with its own label
+    // and PRECEDES the preserved raw text, and BOTH model phases consume it —
+    // the raw OCR artifact stays persisted untouched (ADR-0024). Text with no
+    // glued junction is passed through byte-for-byte.
+    const documentText = withCanonicalLabelValueView(markdown);
     const orgIdentityContext: OrgIdentityContext | undefined = ctx
       ? { ...ctx.orgContext, directionHint: ctx.directionHint }
       : undefined;
@@ -144,7 +197,7 @@ export class Pass2AgentService {
     for (let attempt = 0; attempt < ENRICHMENT_MAX_ATTEMPTS; attempt++) {
       try {
         const response = await extractionAgent.generate(
-          JSON.stringify({ document: markdown }),
+          JSON.stringify({ document: documentText }),
           {
             structuredOutput: { schema: triageEvidenceSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
@@ -235,7 +288,7 @@ export class Pass2AgentService {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const response = await agent.generate(
-          classificationPrompt(markdown, evidence, context),
+          classificationPrompt(documentText, evidence, context),
           {
             structuredOutput: { schema: triageResultSchema },
             modelSettings: { temperature: 0, maxOutputTokens: 4096 },
@@ -259,6 +312,25 @@ export class Pass2AgentService {
         if (response.error) throw response.error;
         const parsed = triageResultSchema.safeParse(response.object);
         if (!parsed.success) {
+          // Issue #405, model-validation seam: EXACTLY a failed purchase
+          // total — an explicit attempted purchase (invoice/receipt) whose
+          // total is missing/empty and nothing else is malformed. That is
+          // failed AMOUNT evidence, typed evidence-invalid with a plain
+          // reason a human can act on; every other malformed shape keeps the
+          // ordinary invalid-output bounded retries, and refusals keep their
+          // own precedence above (checked before this parse).
+          if (isFailedPurchaseTotal(response.object, parsed.error.issues)) {
+            this.logger.warn(
+              'Final classification produced no usable purchase total — routing as evidence-invalid',
+            );
+            return {
+              ok: false,
+              category: 'evidence-invalid',
+              cause: 'purchase-total',
+              detail:
+                'the model produced no usable purchase total for this document',
+            };
+          }
           failure = {
             ok: false,
             category: 'invalid-output',

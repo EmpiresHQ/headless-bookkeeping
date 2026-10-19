@@ -18,6 +18,7 @@ import {
 import { CreateExpenseDto } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { DuplicateExpenseException } from '../expenses/duplicate-expense.exception';
 import { CategoryService } from '../categories/category.service';
 import {
@@ -29,6 +30,50 @@ import {
 export type PipelineRunResult = Awaited<
   ReturnType<typeof PostingPipelineService.prototype.runPipeline>
 >;
+
+/**
+ * A valid AI-extracted gross: a positive, whole minor-unit amount (issue
+ * #405). The kernel's own guard (`assertCoherentPurchaseAmounts`) keeps the
+ * same shape at posting; this earlier seam parks the failure BEFORE an
+ * Expense row exists instead of faulting on an already-persisted junk draft.
+ * Exported because the WORKFLOW's routing runs the same validation BEFORE its
+ * confidence gate (a zero-total low-confidence extraction is still failed
+ * evidence, not mere low confidence).
+ */
+export function isValidExtractedGross(gross: number): boolean {
+  return Number.isSafeInteger(gross) && gross > 0;
+}
+
+/**
+ * The operator-facing reason for failed PURCHASE amount evidence (issue
+ * #405): WHAT was read and WHY it cannot be booked, in money terms — backend
+ * field names stay out of the primary sentence. Shared by proposeDraft's
+ * pre-creation guard and the workflow's pre-confidence routing guard so both
+ * seams say exactly the same thing.
+ */
+export function invalidPurchaseEvidenceReason(
+  triage: Pick<
+    TriageResult,
+    | 'gross_amount'
+    | 'vat_amount'
+    | 'currency'
+    | 'tax_point_date'
+    | 'supplier_invoice_number'
+  >,
+): string {
+  const total = Number.isFinite(triage.gross_amount)
+    ? `${(triage.gross_amount / 100).toFixed(2)} ${triage.currency}`
+    : `${triage.gross_amount} ${triage.currency}`;
+  return (
+    `AI purchase extraction is invalid: nothing was booked. The AI read ` +
+    `a total of ${total} for this invoice (date ` +
+    `${triage.tax_point_date || 'none'}, document number ` +
+    `${triage.supplier_invoice_number ?? 'none'}), and a purchase total ` +
+    `must be a positive amount of money, so it cannot be booked ` +
+    `automatically. The document layout may differ from what the ` +
+    `extraction expected — check the document and classify it manually.`
+  );
+}
 
 /**
  * A marker the idempotency replay returns instead of re-running the pipeline:
@@ -122,12 +167,29 @@ export interface ReceiptMatchedResult {
  * triage" signal, or an explicit "possible duplicate, route to triage" signal
  * from the duplicate gate.
  */
+/**
+ * Returned when the AI's purchase extraction failed in a way the schema
+ * could not see (issue #405): the gross amount is zero, negative, non-finite
+ * or not a whole minor unit — the columnar-layout failure that extracted the
+ * gross as 0 and the next field's value as the invoice number. This is an
+ * EXTRACTED-EVIDENCE failure, not an unexpected fault: it is validated
+ * BEFORE the Expense row is created, so no junk draft is persisted and no
+ * level-50 pipeline fault fires. The caller routes the document to
+ * needs_triage with the typed evidence-invalid failure; nothing was booked.
+ */
+export interface EvidenceInvalidResult {
+  outcome: 'evidence-invalid';
+  /** Operator-facing: says WHAT was extracted and WHAT failed. */
+  reason: string;
+}
+
 export type ProposeDraftOutcome =
   | ProposeDraftResult
   | SupplierUnresolvedResult
   | CategoryUnresolvedResult
   | PossibleDuplicateResult
-  | ReceiptMatchedResult;
+  | ReceiptMatchedResult
+  | EvidenceInvalidResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -232,6 +294,7 @@ export class ProposeDraftService {
     private readonly config: AgentConfigService,
     private readonly categoryService: CategoryService,
     private readonly salesInvoicesService: SalesInvoicesService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -279,6 +342,31 @@ export class ProposeDraftService {
       );
     }
 
+    // Extracted-evidence validation BEFORE any Expense row exists (issue
+    // #405). The strict schema cannot see a failed extraction that still
+    // parses: a columnar layout made the model anchor on labels and take the
+    // FOLLOWING token, so the gross came out 0 (and the next field's value
+    // became the invoice number). Letting that through created a junk
+    // zero-amount draft and then faulted at the pipeline as an "unexpected"
+    // level-50 error; the kernel's positive-gross guard stays in place — this
+    // is the earlier, typed seam so nothing is persisted and no fault fires.
+    // It runs for EVERY caller of proposeDraft, covering a fresh Pass-2
+    // classification AND a replayed/cached proposal (resolveSupplier), since
+    // both go through this one choke point.
+    if (!isValidExtractedGross(triageResult.gross_amount)) {
+      // Operator-facing (issue #405): WHAT was read and WHY it cannot be
+      // booked, in money terms — backend field names stay out of the primary
+      // sentence. The stable "AI purchase extraction is invalid" marker at
+      // the start makes classifyReasonType persist the typed
+      // `evidence_invalid` reason at write time (the same marker-based
+      // pattern the supplier/duplicate routes use), so the SPA renders this
+      // outcome's copy from the TYPE, never from parsing this prose.
+      return {
+        outcome: 'evidence-invalid',
+        reason: invalidPurchaseEvidenceReason(triageResult),
+      };
+    }
+
     // Category guard: the model is given the closed category set (Task 4) but
     // Zod admits any string. If the emitted category is not in the active
     // plugin's set, return an explicit signal so the caller routes to
@@ -304,6 +392,14 @@ export class ProposeDraftService {
       return resolved;
     }
     const resolvedSupplierId = resolved.supplierId;
+
+    // Legacy recovery (issue #405 follow-up): withdraw the pre-fix junk
+    // drafts a failed extraction left on THIS document before the healthy
+    // one is created — otherwise the junk row stays the document's EARLIEST
+    // draft and the idempotency replay / details() keep preferring it over
+    // the recovered healthy draft. Doc-local, protected and audited; see
+    // {@link withdrawInvalidPurchaseDrafts}.
+    await this.withdrawInvalidPurchaseDrafts(documentId);
 
     // Step 1: Create the Expense via ExpensesService. The duplicate gate lives
     // THERE (issue #195), at the single choke point every creation path goes
@@ -392,6 +488,97 @@ export class ProposeDraftService {
       expenseId: expense.id,
       pipelineResult,
     };
+  }
+
+  /**
+   * Withdraw the invalid unposted AI purchase drafts a pre-fix failed
+   * extraction left on a document (issue #405 follow-up, legacy recovery).
+   *
+   * Scope — deliberately narrow, all conditions required:
+   * - SAME document only (nothing global);
+   * - AI PURCHASE provenance only (`ai_kind = 'new_expense'` with an
+   *   invoice/receipt `ai_document_type`) — exactly the metadata the
+   *   pre-fix proposeDraft persisted, so a manually entered incomplete
+   *   draft (`ai_kind` null) or any other provenance is never touched;
+   * - `status = 'draft'` AND `voucher_id IS NULL` — posted, pending and
+   *   reversed expenses are never touched (a posted voucher is immutable;
+   *   correct via reversal; reject an approval first), and an expense that
+   *   already minted a voucher is out of reach;
+   * - no open approval references the row (a pending approval must not be
+   *   orphaned);
+   * - an INVALID gross (not a positive whole minor-unit amount — the same
+   *   validity rule as the extraction seam).
+   *
+   * Called on BOTH outcomes of a retry: when a healthy proposal creates the
+   * recovered draft (proposeDraft) AND when the retry fails again
+   * (the workflow's evidence-invalid routes) — a failed extraction must not
+   * leave or prefer a junk invalid draft for this document either way.
+   * No blind migration: production junk rows are only ever removed through
+   * this operator-driven retry path, one document at a time.
+   *
+   * One transaction; every withdrawal writes an audit_log entry (ADR-0026)
+   * so the act and its trace commit or roll back together.
+   */
+  async withdrawInvalidPurchaseDrafts(
+    documentId: number | null | undefined,
+  ): Promise<void> {
+    if (documentId == null) return;
+    await this.db.transaction().execute(async (trx) => {
+      const drafts = await trx
+        .selectFrom('expense')
+        .select([
+          'id',
+          'gross_amount',
+          'supplier_invoice_number',
+          'ai_kind',
+          'ai_document_type',
+        ])
+        .where('document_id', '=', documentId)
+        .where('status', '=', 'draft')
+        .where('voucher_id', 'is', null)
+        .execute();
+      for (const row of drafts) {
+        // Only the AI purchase path's own rows — the metadata the pre-fix
+        // proposeDraft persisted. Manual or otherwise-sourced drafts stay.
+        if (row.ai_kind !== 'new_expense') continue;
+        if (
+          row.ai_document_type !== 'invoice' &&
+          row.ai_document_type !== 'receipt'
+        ) {
+          continue;
+        }
+        if (isValidExtractedGross(row.gross_amount)) continue;
+        // A pending approval references the row — it must not be orphaned.
+        const approval = await trx
+          .selectFrom('approval')
+          .select('id')
+          .where('object_type', '=', 'expense')
+          .where('object_id', '=', row.id)
+          .where('status', '=', 'pending')
+          .executeTakeFirst();
+        if (approval) continue;
+        await trx.deleteFrom('expense').where('id', '=', row.id).execute();
+        await this.auditLog.record(
+          {
+            actor: 'system',
+            action: 'expense.invalid_purchase_draft.withdrawn',
+            outcome: 'allowed',
+            target_type: 'expense',
+            target_id: row.id,
+            detail: {
+              document_id: documentId,
+              gross_amount: row.gross_amount,
+              supplier_invoice_number: row.supplier_invoice_number,
+              reason:
+                'pre-fix failed AI extraction left an unbookable invalid-gross ' +
+                'draft on this document; withdrawn when the document was ' +
+                'retried (issue #405)',
+            },
+          },
+          trx,
+        );
+      }
+    });
   }
 
   /**

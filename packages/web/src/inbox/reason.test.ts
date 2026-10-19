@@ -88,6 +88,23 @@ describe('triageSubtitle', () => {
     ).toBe('AI classification failed — retry or classify manually');
     expect(triageChipLabel('classification_refused')).toBe('retry');
   });
+  it('conveys a typed failed-extraction outcome distinctly from a generic classification failure (issue #405)', () => {
+    // Machine-readable via the typed evidence_invalid reason — the frontend
+    // never parses the reason prose; the specific facts ride the reason text.
+    expect(
+      triageSubtitle({
+        reason:
+          'AI purchase extraction is invalid: nothing was booked. The AI read a total of 0.00 EUR…',
+        reason_type: 'evidence_invalid',
+      }),
+    ).toBe(
+      'AI read it, but the extracted facts are not bookable — check what was read',
+    );
+    expect(
+      triageSubtitle({ reason: 'x', reason_type: 'classification_failed' }),
+    ).toBe('AI classification failed — retry or classify manually');
+    expect(triageChipLabel('evidence_invalid')).toBe('classify');
+  });
   it('shows the server sentence for unknown types', () => {
     expect(
       triageSubtitle({

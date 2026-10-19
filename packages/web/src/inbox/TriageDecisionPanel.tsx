@@ -64,6 +64,10 @@ const COPY = {
     'The AI model declined to read this file',
     'The model refused to read the file, so it was not classified automatically. Retry the AI run once, or archive the file without booking if it is not a business document.',
   ],
+  evidence_invalid: [
+    'The extracted facts are not usable',
+    'The AI read this document, but what it extracted does not make a purchase that can be booked automatically. The specific facts are shown below — review them and classify the document manually.',
+  ],
   not_a_document: [
     'No booking is needed',
     'This file does not appear to be an accounting document.',
@@ -130,6 +134,15 @@ export function TriageDecisionPanel(props: Props) {
             <p className="mt-0.5 text-[13px] leading-snug text-warn">
               {subtitle}
             </p>
+            {/* Issue #405: failed extracted evidence — the SPECIFIC facts
+                (what total was read, why it cannot be booked) are visible on
+                the panel, not collapsed into technical details. The typed
+                reason_type drives this branch; the prose is never parsed. */}
+            {reasonType === 'evidence_invalid' && (
+              <p className="mt-1 text-[12px] leading-snug text-warn-deep">
+                {props.item.reason}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -171,6 +184,9 @@ function GenericDecision(
     // Unreachable: handled by the dedicated refusal branch above (kept so
     // the action record stays total over every reason type).
     classification_refused: ['Retry AI', 'classify', FileSearch],
+    // Issue #405: failed extracted evidence — the document was read, but the
+    // extracted facts (e.g. a zero total) are not bookable; classify manually.
+    evidence_invalid: ['Classify manually', 'classify', FileSearch],
     possible_duplicate: ['Review possible duplicate', 'duplicate', FileSearch],
     non_postable_document: ['Review document type', 'classify', FileSearch],
     unimplemented: ['Classify manually', 'classify', FileSearch],

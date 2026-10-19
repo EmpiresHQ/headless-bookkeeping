@@ -499,4 +499,193 @@ describe('duplicate-detection', () => {
       expect(hit?.existingDocumentType).toBe('receipt');
     });
   });
+
+  describe('invalid-amount and date-shaped keys (issue #405)', () => {
+    const SUPPLIER_ANOMALY_405 = 11;
+
+    const row = (
+      over: Partial<DuplicateExpenseRow> & { id: number },
+    ): DuplicateExpenseRow => ({
+      supplier_id: SUPPLIER_ANOMALY_405,
+      currency: 'EUR',
+      supplier_invoice_number: null,
+      gross_amount: 1600,
+      tax_point_date: '2026-05-31',
+      status: 'draft',
+      claimant_id: null,
+      ai_document_type: 'invoice',
+      ...over,
+    });
+
+    /** The issue #405 columnar-layout symptom, as it landed in production. */
+    const DATE_SHAPED_NUMBER = '02.10.2026';
+
+    it('normalizes a date-shaped pseudo invoice number to null (not an identity key)', () => {
+      expect(normalizeInvoiceNumber(DATE_SHAPED_NUMBER)).toBeNull();
+      expect(normalizeInvoiceNumber('2026-10-02')).toBeNull();
+      expect(normalizeInvoiceNumber('02/10/2026')).toBeNull();
+      // A real number that merely contains digits is NOT date-shaped.
+      expect(normalizeInvoiceNumber('5001799762')).toBe('5001799762');
+      expect(normalizeInvoiceNumber('RI7USPNX0014')).toBe('R17USPNX0014');
+    });
+
+    it('ordinary structured serial numbers keep strong identity (not dates)', () => {
+      // Root review control: two separators alone do not make a date — only a
+      // plausible full day/month/year structure does.
+      expect(normalizeInvoiceNumber('1-2-3')).toBe('123');
+      expect(normalizeInvoiceNumber('1234-56-7890')).toBe('1234567890');
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: '1234-56-7890',
+            currency: 'EUR',
+            gross_amount: 2000,
+            tax_point_date: '2026-10-02',
+          },
+          [row({ id: 179, supplier_invoice_number: '1234-56-7890' })],
+        )?.existingExpenseId,
+      ).toBe(179);
+    });
+
+    it('a date-shaped pseudo incoming number does NOT activate the weaker amount/date fallback (ADR-0010)', () => {
+      // The incoming document DID print something in its number field — a
+      // failed extraction, not an absent number — so it is identified by
+      // nothing weaker than that printed number, healthy peer or not.
+      const existing = [row({ id: 180, supplier_invoice_number: 'INV-123' })];
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: DATE_SHAPED_NUMBER,
+            currency: 'EUR',
+            gross_amount: 1600,
+            tax_point_date: '2026-05-31',
+          },
+          existing,
+        ),
+      ).toBeNull();
+    });
+
+    it('a zero-amount junk draft cannot block a valid invoice (production expense #174)', () => {
+      const existing = [
+        row({
+          id: 174,
+          supplier_invoice_number: 'INV-123',
+          gross_amount: 0,
+        }),
+      ];
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: 'INV-123',
+            currency: 'EUR',
+            gross_amount: 1000,
+            tax_point_date: '2026-10-02',
+          },
+          existing,
+        ),
+      ).toBeNull();
+    });
+
+    it('a date-shaped pseudo invoice number cannot be a collision key', () => {
+      const existing = [
+        row({
+          id: 174,
+          supplier_invoice_number: DATE_SHAPED_NUMBER,
+          gross_amount: 1000,
+        }),
+      ];
+      // Same glued garbage key on both sides must NOT read as one purchase.
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: DATE_SHAPED_NUMBER,
+            currency: 'EUR',
+            gross_amount: 2000,
+            tax_point_date: '2026-10-02',
+          },
+          existing,
+        ),
+      ).toBeNull();
+    });
+
+    it('an invalid zero-gross candidate is never treated as a duplicate of anything', () => {
+      const existing = [row({ id: 175, supplier_invoice_number: 'INV-123' })];
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: 'INV-123',
+            currency: 'EUR',
+            gross_amount: 0,
+            tax_point_date: '2026-10-02',
+          },
+          existing,
+        ),
+      ).toBeNull();
+    });
+
+    it('distinct legitimate sibling invoice numbers remain independent (documents 258 / 259)', () => {
+      const existing = [
+        row({ id: 176, supplier_invoice_number: '5001799762' }),
+      ];
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: '5001799763',
+            currency: 'EUR',
+            gross_amount: 9100,
+            tax_point_date: '2026-10-02',
+          },
+          existing,
+        ),
+      ).toBeNull();
+    });
+
+    it('a date-shaped stored number does not shield its expense from the amount/date fallback', () => {
+      // ADR-0010 fallback: a peer whose stored "number" is a date-shaped
+      // pseudo number prints no REAL number, so an incoming numberless
+      // document of the same amount/date is still surfaced to a human.
+      const existing = [
+        row({
+          id: 177,
+          supplier_invoice_number: DATE_SHAPED_NUMBER,
+          gross_amount: 1600,
+          tax_point_date: '2026-05-31',
+        }),
+      ];
+      const hit = findDuplicateExpense(
+        {
+          supplier_id: SUPPLIER_ANOMALY_405,
+          supplier_invoice_number: null,
+          currency: 'EUR',
+          gross_amount: 1600,
+          tax_point_date: '2026-05-31',
+        },
+        existing,
+      );
+      expect(hit?.existingExpenseId).toBe(177);
+      expect(hit?.matchedOn).toBe('amount_and_date');
+    });
+
+    it('a healthy same-number duplicate still blocks (control)', () => {
+      const existing = [row({ id: 178, supplier_invoice_number: 'INV-123' })];
+      expect(
+        findDuplicateExpense(
+          {
+            supplier_id: SUPPLIER_ANOMALY_405,
+            supplier_invoice_number: 'INV-123',
+            currency: 'EUR',
+            gross_amount: 1000,
+            tax_point_date: '2026-10-02',
+          },
+          existing,
+        )?.existingExpenseId,
+      ).toBe(178);
+    });
+  });
 });
