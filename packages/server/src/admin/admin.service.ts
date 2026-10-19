@@ -3,6 +3,8 @@ import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../database/types';
 import { ReportingPeriodsService } from '../reporting-periods/reporting-periods.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
+import { FINDING_STATUSES } from '../audit-findings/types';
 import {
   DuplicateExpenseRow,
   DuplicateMatchKind,
@@ -14,6 +16,7 @@ export class AdminService {
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly reportingPeriodsService: ReportingPeriodsService,
+    private readonly auditFindings: AuditFindingsService,
   ) {}
 
   /**
@@ -107,14 +110,34 @@ export class AdminService {
   }
 
   /**
-   * List audit findings, optionally filtered by status.
+   * List audit findings, optionally filtered by status — the ADMIN surface of
+   * the findings queue (issue #407). Delegates to the orphan-aware domain
+   * reads instead of a raw SELECT: `open` is the actionable worklist, where a
+   * legacy orphan (finding whose document is missing) would be a dead link —
+   * it is excluded (warn-logged by the domain service). Every other view is
+   * history: all statuses stay visible, orphans included, but explicitly
+   * marked `referenced_object_missing: true`.
+   *
+   * Prior outcome contract preserved: an absent/EMPTY status means no filter,
+   * and an unknown non-empty status returns an empty list — never a 400.
    */
   async getFindings(status?: string) {
-    let query = this.db.selectFrom('audit_finding').selectAll();
-    if (status) {
-      query = query.where('status', '=', status);
+    if (!status) {
+      return this.auditFindings.listByStatus();
     }
-    return query.orderBy('created_at', 'desc').execute();
+    const matched = FINDING_STATUSES.find((candidate) => candidate === status);
+    if (!matched) {
+      return [];
+    }
+    if (matched === 'open') {
+      // Preserve the admin worklist's pre-#407 newest-first order: reuse the
+      // orphan-marked history reader (created_at DESC, id DESC) and drop the
+      // legacy orphans, rather than delegating to the SecretaryAgent's
+      // severity-ranked getOpenFindings() ordering.
+      const marked = await this.auditFindings.listByStatus('open');
+      return marked.filter((f) => !f.referenced_object_missing);
+    }
+    return this.auditFindings.listByStatus(matched);
   }
 
   /**

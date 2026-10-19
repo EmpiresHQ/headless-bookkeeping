@@ -7,6 +7,7 @@ import { Database as DBType } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AuditFindingsController } from './audit-findings.controller';
 import { AuditFindingsService } from './audit-findings.service';
+import type { FindingSeverity } from './types';
 
 describe('AuditFindingsController (real-DI)', () => {
   let controller: AuditFindingsController;
@@ -90,6 +91,36 @@ describe('AuditFindingsController (real-DI)', () => {
       const result = await controller.list('high');
       expect(result.findings).toHaveLength(1);
       expect(result.findings[0].severity).toBe('high');
+    });
+
+    it('treats an EMPTY severity query as unfiltered (issue #407 shared-reader refactor)', async () => {
+      await controller.create({
+        finding_type: 'missing_receipt',
+        severity: 'low',
+        description: 'Finding A',
+      });
+      await controller.create({
+        finding_type: 'deadline_approaching',
+        severity: 'high',
+        description: 'Finding B',
+      });
+
+      // GET /api/audit-findings?severity= arrives as the empty string —
+      // the pre-#407 behavior (unfiltered history) must be preserved.
+      const result = await controller.list('' as FindingSeverity);
+      expect(result.findings).toHaveLength(2);
+    });
+
+    it('still rejects a non-empty invalid severity (validation unchanged)', async () => {
+      await controller.create({
+        finding_type: 'missing_receipt',
+        severity: 'low',
+        description: 'Finding A',
+      });
+
+      await expect(controller.list('bogus' as FindingSeverity)).rejects.toThrow(
+        'Invalid severity "bogus"',
+      );
     });
   });
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely, sql } from 'kysely';
 import { Database } from '../database/types';
@@ -25,6 +25,7 @@ import {
 
 @Injectable()
 export class AuditFindingsService {
+  private readonly logger = new Logger(AuditFindingsService.name);
   constructor(@InjectKysely() private readonly db: Kysely<Database>) {}
 
   // ── Validation guards ───────────────────────────────────────────
@@ -101,11 +102,42 @@ export class AuditFindingsService {
    * List AuditFindings, optionally filtered by severity.
    */
   async list(severity?: FindingSeverity): Promise<AuditFinding[]> {
-    let query = this.db.selectFrom('audit_finding').selectAll();
+    // Preserve the pre-#407 normalization at this public seam: an EMPTY
+    // severity string (GET /api/audit-findings?severity=) previously fell
+    // through `if (severity)` as unfiltered history — it must not start
+    // throwing after the shared-reader refactor. Non-empty invalid values
+    // still fail validation unchanged.
+    return this.selectOrphanMarked({ severity: severity || undefined });
+  }
 
-    if (severity) {
-      this.assertSeverity(severity);
-      query = query.where('severity', '=', severity);
+  /**
+   * List AuditFindings, optionally filtered by status (the admin history
+   * surface, issue #407): every status stays visible — document-referenced
+   * legacy orphans included — but explicitly marked
+   * (`referenced_object_missing: true`) so they cannot masquerade as
+   * actionable items.
+   */
+  async listByStatus(status?: FindingStatus): Promise<AuditFinding[]> {
+    return this.selectOrphanMarked({ status });
+  }
+
+  /**
+   * The shared orphan-aware read behind `list`/`listByStatus`: optional
+   * severity/status filters, newest first, then document-reference existence
+   * marking via {@link markDocumentOrphans}.
+   */
+  private async selectOrphanMarked(
+    filter: { severity?: FindingSeverity; status?: FindingStatus } = {},
+  ): Promise<AuditFinding[]> {
+    if (filter.severity !== undefined) this.assertSeverity(filter.severity);
+    if (filter.status !== undefined) this.assertStatus(filter.status);
+
+    let query = this.db.selectFrom('audit_finding').selectAll();
+    if (filter.severity !== undefined) {
+      query = query.where('severity', '=', filter.severity);
+    }
+    if (filter.status !== undefined) {
+      query = query.where('status', '=', filter.status);
     }
 
     const rows = await query
@@ -113,7 +145,20 @@ export class AuditFindingsService {
       .orderBy('id', 'desc')
       .execute();
 
-    return rows.map((row: Record<string, unknown>) => this.mapRow(row));
+    // History surface: a legacy orphan stays VISIBLE for admin review, but
+    // explicitly marked so it cannot masquerade as an actionable item (issue
+    // #407).
+    return this.markDocumentOrphans(
+      rows.map((row: Record<string, unknown>) => this.mapRow(row)),
+    );
+  }
+
+  private assertStatus(status: FindingStatus): void {
+    if (!FINDING_STATUSES.includes(status)) {
+      throw new Error(
+        `Invalid status "${status}". Must be one of: ${FINDING_STATUSES.join(', ')}`,
+      );
+    }
   }
 
   /**
@@ -125,6 +170,50 @@ export class AuditFindingsService {
   ): Promise<AuditFinding> {
     const now = Math.floor(Date.now() / 1000);
     return this.transition(id, 'resolved', ctx, { resolved_at: now });
+  }
+
+  /**
+   * Resolve a finding if it is still live (open or snoozed); a NO-OP when it
+   * is already resolved. The guarded-idempotent form of `resolve()`: used
+   * where a competing writer may have resolved the same finding
+   * concurrently — e.g. the document-deletion lifecycle racing the intake
+   * routing compensation (issue #407) — so the compensation neither masks the
+   * original failure with `InvalidFindingTransitionError` nor overwrites
+   * the competing writer's transition audit. A guarded UPDATE (rows updated
+   * = 0 means terminal already) rather than read-then-transition, so the
+   * check and the write are one atomic statement.
+   */
+  async resolveIfLive(
+    id: number,
+    ctx: TransitionContext = {},
+  ): Promise<AuditFinding> {
+    const now = Math.floor(Date.now() / 1000);
+    const result = await this.db
+      .updateTable('audit_finding')
+      .set({
+        status: 'resolved',
+        resolved_at: now,
+        transitioned_by: ctx.by ?? null,
+        transition_reason: ctx.reason ?? null,
+      })
+      .where('id', '=', id)
+      .where('status', 'in', ['open', 'snoozed'])
+      .returningAll()
+      .executeTakeFirst();
+    if (result) {
+      return this.mapRow(result);
+    }
+    // Zero rows updated: the finding is terminal (resolved) — nothing to
+    // do, and the existing transition audit must be preserved. Read the row
+    // back so the caller still gets the finding; unknown ids still throw.
+    const current = await this.db
+      .selectFrom('audit_finding')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirstOrThrow(
+        () => new Error(`AuditFinding with id ${id} not found`),
+      );
+    return this.mapRow(current);
   }
 
   /**
@@ -266,7 +355,66 @@ export class AuditFindingsService {
       .orderBy('created_at', 'asc')
       .execute();
 
-    return rows.map((row: Record<string, unknown>) => this.mapRow(row));
+    const flagged = await this.markDocumentOrphans(
+      rows.map((row: Record<string, unknown>) => this.mapRow(row)),
+    );
+
+    // Work-queue surface: a finding whose document is missing is a dead link
+    // — the queue must not offer it as actionable. New deletes resolve
+    // findings atomically (DocumentsService.deleteDocument, issue #407), so
+    // anything filtered here is a LEGACY orphan; keep it visible (warn) for
+    // admin review via list().
+    const orphans = flagged.filter((f) => f.referenced_object_missing);
+    if (orphans.length > 0) {
+      this.logger.warn(
+        `getOpenFindings: excluding ${orphans.length} legacy orphan finding(s) whose document is missing ` +
+          `(ids: ${orphans.map((f) => f.id).join(', ')}) — resolve them via the findings list`,
+      );
+    }
+    return flagged.filter((f) => !f.referenced_object_missing);
+  }
+
+  /**
+   * Mark document-referenced findings whose document row is missing (legacy
+   * orphans, issue #407): `referenced_object_missing: true`. Non-document
+   * references are marked `false` — existence is not assessed for other object
+   * types here (follow-up if a deletion path for them ever orphans findings).
+   */
+  private async markDocumentOrphans(
+    findings: AuditFinding[],
+  ): Promise<AuditFinding[]> {
+    const existingIds = await this.existingDocumentIds(findings);
+    return findings.map((f) =>
+      f.referenced_object_type === 'document' &&
+      f.referenced_object_id !== null &&
+      !existingIds.has(f.referenced_object_id)
+        ? { ...f, referenced_object_missing: true }
+        : { ...f, referenced_object_missing: false },
+    );
+  }
+
+  /** The set of document ids that exist among `findings`' document references. */
+  private async existingDocumentIds(
+    findings: AuditFinding[],
+  ): Promise<Set<number>> {
+    const docIds = [
+      ...new Set(
+        findings
+          .filter(
+            (f) =>
+              f.referenced_object_type === 'document' &&
+              f.referenced_object_id !== null,
+          )
+          .map((f) => f.referenced_object_id as number),
+      ),
+    ];
+    if (docIds.length === 0) return new Set();
+    const rows = await this.db
+      .selectFrom('document')
+      .select('id')
+      .where('id', 'in', docIds)
+      .execute();
+    return new Set(rows.map((r) => r.id));
   }
 
   private mapRow(row: Record<string, unknown>): AuditFinding {

@@ -1,12 +1,17 @@
 import { NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Kysely, SqliteDialect } from 'kysely';
+import { Kysely, SqliteDialect, sql } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import { KYSELY_MODULE_CONNECTION_TOKEN } from 'nestjs-kysely';
 import SqliteDb from 'better-sqlite3';
 import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
-import { DocumentsService, computeSha256 } from './documents.service';
+import {
+  DocumentsService,
+  computeSha256,
+  DOCUMENT_DELETED_FINDING_REASON,
+} from './documents.service';
+import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import {
   DocumentStorageService,
   DOCUMENT_STORAGE_ROOT,
@@ -18,6 +23,7 @@ import { join } from 'path';
 
 describe('DocumentsService (unit)', () => {
   let service: DocumentsService;
+  let moduleRef: TestingModule;
   let db: Kysely<Database>;
   let storageRoot: string;
   // Stub returned by default: render returns null (no-op, non-fatal).
@@ -53,10 +59,12 @@ describe('DocumentsService (unit)', () => {
           useValue: { render: renderMock },
         },
         DocumentsService,
+        AuditFindingsService,
       ],
     }).compile();
 
     service = module.get(DocumentsService);
+    moduleRef = module;
   });
 
   afterEach(async () => {
@@ -1797,6 +1805,212 @@ describe('DocumentsService (unit)', () => {
       );
       expect(hydrated.sources[0].captured_at).toBeNull();
       expect(hydrated.sources[0].precheck_json).toBeNull();
+    });
+  });
+
+  // Issue #407: an open needs_triage AuditFinding must never outlive its
+  // document. Deleting a document resolves its findings atomically with the
+  // delete, so the operator queue can never offer a dead link that 404s.
+  describe('deleteDocument × audit finding lifecycle (issue #407)', () => {
+    let findingsService: AuditFindingsService;
+
+    beforeEach(() => {
+      findingsService = moduleRef.get(AuditFindingsService);
+    });
+
+    const upload407 = (buffer = 'issue407') =>
+      service.upload({
+        buffer: Buffer.from(buffer),
+        filename: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+
+    const seedFinding = async (
+      documentId: number | null,
+      referencedObjectType: 'document' | 'expense' = 'document',
+    ) =>
+      findingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'requires review',
+        ...(referencedObjectType === 'document'
+          ? {
+              referenced_object_type: 'document' as const,
+              referenced_object_id: documentId ?? undefined,
+            }
+          : {
+              referenced_object_type: 'expense' as const,
+              referenced_object_id: 1,
+            }),
+      });
+
+    const fetchFinding = async (id: number) =>
+      db
+        .selectFrom('audit_finding')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+
+    it('resolves open and snoozed document findings atomically with an explicit reason and transition audit', async () => {
+      const { document } = await upload407();
+      const open = await seedFinding(document.id);
+      const snoozed = await seedFinding(document.id);
+      await findingsService.snooze(snoozed.id, {
+        by: 'operator',
+        reason: 'later',
+      });
+
+      await service.deleteDocument(document.id);
+
+      const openRow = await fetchFinding(open.id);
+      expect(openRow.status).toBe('resolved');
+      expect(openRow.resolved_at).not.toBeNull();
+      expect(openRow.transitioned_by).toBe('system');
+      expect(openRow.transition_reason).toBe(DOCUMENT_DELETED_FINDING_REASON);
+
+      const snoozedRow = await fetchFinding(snoozed.id);
+      expect(snoozedRow.status).toBe('resolved');
+      expect(snoozedRow.resolved_at).not.toBeNull();
+      expect(snoozedRow.transition_reason).toBe(
+        DOCUMENT_DELETED_FINDING_REASON,
+      );
+
+      // The work queue no longer lists the deleted document.
+      const queue = await findingsService.getOpenFindings();
+      expect(queue.some((f) => f.id === open.id)).toBe(false);
+      expect(queue.some((f) => f.id === snoozed.id)).toBe(false);
+    });
+
+    it('leaves already-resolved findings and unrelated findings untouched', async () => {
+      const { document } = await upload407();
+      const other = await upload407('issue407-other');
+      const resolvedEarlier = await seedFinding(document.id);
+      await findingsService.resolve(resolvedEarlier.id, {
+        by: 'operator',
+        reason: 'handled',
+      });
+      const otherDocFinding = await seedFinding(other.document.id);
+      const expenseFinding = await seedFinding(document.id, 'expense');
+
+      await service.deleteDocument(document.id);
+
+      // Already-resolved finding keeps its original transition audit.
+      const resolvedRow = await fetchFinding(resolvedEarlier.id);
+      expect(resolvedRow.status).toBe('resolved');
+      expect(resolvedRow.transitioned_by).toBe('operator');
+      expect(resolvedRow.transition_reason).toBe('handled');
+      expect(resolvedRow.resolved_at).not.toBeNull();
+
+      // Findings not referencing THIS document are untouched.
+      const otherRow = await fetchFinding(otherDocFinding.id);
+      expect(otherRow.status).toBe('open');
+      expect(otherRow.transition_reason).toBeNull();
+      const expenseRow = await fetchFinding(expenseFinding.id);
+      expect(expenseRow.status).toBe('open');
+      expect(expenseRow.transition_reason).toBeNull();
+    });
+
+    it('keeps findings open when the delete is refused (409, evidence for a posted expense)', async () => {
+      const { document } = await upload407();
+      const finding = await seedFinding(document.id);
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: null,
+          category: 'transport',
+          gross_amount: 1000,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-05-01',
+          status: 'posted',
+          voucher_id: null,
+          document_vat_marking: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .execute();
+
+      await expect(service.deleteDocument(document.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+
+      const row = await fetchFinding(finding.id);
+      expect(row.status).toBe('open');
+      expect(row.resolved_at).toBeNull();
+      expect(row.transition_reason).toBeNull();
+      // Document row still present.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+    });
+
+    it('rolls back the finding resolution when the transaction fails mid-way', async () => {
+      const { document } = await upload407();
+      const finding = await seedFinding(document.id);
+
+      // Force a failure AFTER the finding-resolution step but BEFORE the
+      // document delete commits, so the whole transaction (resolution
+      // included) must roll back.
+      await sql
+        .raw(
+          'CREATE TRIGGER force_delete_failure BEFORE DELETE ON document ' +
+            "BEGIN SELECT RAISE(ABORT, 'forced failure for #407 rollback'); END",
+        )
+        .execute(db);
+
+      try {
+        // The raw better-sqlite3 trigger error is not recognized as an Error
+        // by `toThrow` across Jest's module realms, so match the rejection
+        // shape explicitly: the exact RAISE(ABORT) message plus the SQLite
+        // trigger-constraint code. A resolved promise still fails this.
+        await expect(service.deleteDocument(document.id)).rejects.toMatchObject(
+          {
+            message: 'forced failure for #407 rollback',
+            code: 'SQLITE_CONSTRAINT_TRIGGER',
+          },
+        );
+      } finally {
+        await sql.raw('DROP TRIGGER force_delete_failure').execute(db);
+      }
+
+      // Nothing partially applied: the document, its sources, and the OPEN
+      // finding all survive untouched.
+      await expect(service.getById(document.id)).resolves.toBeTruthy();
+      const sources = await db
+        .selectFrom('document_source')
+        .selectAll()
+        .where('document_id', '=', document.id)
+        .execute();
+      expect(sources).toHaveLength(1);
+      const row = await fetchFinding(finding.id);
+      expect(row.status).toBe('open');
+      expect(row.resolved_at).toBeNull();
+      expect(row.transition_reason).toBeNull();
+    });
+
+    it('rejects (409) the delete while another path holds the document processing exclusion', async () => {
+      const { document } = await upload407();
+      const finding = await seedFinding(document.id);
+
+      let releaseLock!: () => void;
+      const held = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      const inFlight = service.runExclusive(document.id, () => held);
+      try {
+        await expect(
+          service.deleteDocument(document.id),
+        ).rejects.toBeInstanceOf(ConflictException);
+        // Nothing was applied while the delete was refused.
+        await expect(service.getById(document.id)).resolves.toBeTruthy();
+        const row = await fetchFinding(finding.id);
+        expect(row.status).toBe('open');
+      } finally {
+        releaseLock();
+        await inFlight;
+      }
     });
   });
 });

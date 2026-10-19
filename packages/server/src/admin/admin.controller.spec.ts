@@ -493,6 +493,217 @@ describe('AdminController (integration)', () => {
     expect(openFindings.length).toBe(1);
     expect(openFindings[0].status).toBe('open');
   });
+
+  // ── GET /admin/findings × orphaned document references (issue #407) ─────
+
+  describe('GET /admin/findings × orphaned references (issue #407)', () => {
+    /** Seed a document row and return its id. */
+    async function seedDocument(): Promise<number> {
+      const now = Math.floor(Date.now() / 1000);
+      const doc = await db
+        .insertInto('document')
+        .values({
+          hash: `hash-${Math.random()}`,
+          filename: 'receipt.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'pending',
+          created_at: now,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      return doc.id;
+    }
+
+    /** Seed a document-referenced open needs_triage finding. */
+    async function seedFinding(documentId: number): Promise<void> {
+      const now = Math.floor(Date.now() / 1000);
+      await db
+        .insertInto('audit_finding')
+        .values({
+          finding_type: 'needs_triage',
+          severity: 'medium',
+          description: 'requires review',
+          referenced_object_type: 'document',
+          referenced_object_id: documentId,
+          status: 'open',
+          created_at: now,
+        })
+        .execute();
+    }
+
+    it('GET /admin/findings/open excludes a legacy orphan whose document is missing', async () => {
+      const docId = await seedDocument();
+      await seedFinding(docId);
+      // Legacy orphan: references a document row that does not exist.
+      await seedFinding(99999);
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/findings/open')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+
+      const findings =
+        jsonBody<Array<{ referenced_object_id: number | null }>>(res);
+      expect(findings).toHaveLength(1);
+      expect(findings[0].referenced_object_id).toBe(docId);
+    });
+
+    it('GET /admin/findings?status=open excludes the legacy orphan too (same worklist)', async () => {
+      const docId = await seedDocument();
+      await seedFinding(docId);
+      await seedFinding(99999);
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/findings?status=open')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+
+      const findings =
+        jsonBody<Array<{ referenced_object_id: number | null }>>(res);
+      expect(findings).toHaveLength(1);
+      expect(findings[0].referenced_object_id).toBe(docId);
+    });
+
+    it('GET /admin/findings history keeps the orphan visible but explicitly marked', async () => {
+      const docId = await seedDocument();
+      await seedFinding(docId);
+      await seedFinding(99999);
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/findings')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+
+      const findings = jsonBody<
+        Array<{
+          referenced_object_id: number | null;
+          referenced_object_missing?: boolean;
+        }>
+      >(res);
+      expect(findings).toHaveLength(2);
+      const byRef = new Map(findings.map((f) => [f.referenced_object_id, f]));
+      expect(byRef.get(docId)?.referenced_object_missing).toBe(false);
+      expect(byRef.get(99999)?.referenced_object_missing).toBe(true);
+    });
+
+    it('status filtering stays intact on the orphan-aware reads', async () => {
+      const docId = await seedDocument();
+      const now = Math.floor(Date.now() / 1000);
+      await seedFinding(docId);
+      await db
+        .insertInto('audit_finding')
+        .values({
+          finding_type: 'needs_triage',
+          severity: 'medium',
+          description: 'handled',
+          referenced_object_type: 'document',
+          referenced_object_id: docId,
+          status: 'resolved',
+          resolved_at: now,
+          created_at: now,
+        })
+        .execute();
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/findings?status=resolved')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+
+      const findings = jsonBody<Array<{ status: string }>>(res);
+      expect(findings).toHaveLength(1);
+      expect(findings[0].status).toBe('resolved');
+    });
+
+    it('GET /admin/findings/open keeps the pre-#407 newest-first order (older critical after newer low)', async () => {
+      const docId = await seedDocument();
+      const now = Math.floor(Date.now() / 1000);
+      // Older, higher-severity live finding vs a newer low one: the admin
+      // worklist stays newest-first — NOT the SecretaryAgent's severity rank.
+      for (const [description, severity, age] of [
+        ['older critical', 'critical', 100],
+        ['newer low', 'low', 0],
+      ] as const) {
+        await db
+          .insertInto('audit_finding')
+          .values({
+            finding_type: 'needs_triage',
+            severity,
+            description,
+            referenced_object_type: 'document',
+            referenced_object_id: docId,
+            status: 'open',
+            created_at: now - age,
+          })
+          .execute();
+      }
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/findings/open')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+
+      const findings = jsonBody<Array<{ description: string }>>(res);
+      expect(findings).toHaveLength(2);
+      expect(findings[0].description).toBe('newer low');
+      expect(findings[1].description).toBe('older critical');
+    });
+
+    it('GET /admin/findings?status=open keeps the same newest-first order', async () => {
+      const docId = await seedDocument();
+      const now = Math.floor(Date.now() / 1000);
+      for (const [description, severity, age] of [
+        ['older critical', 'critical', 100],
+        ['newer low', 'low', 0],
+      ] as const) {
+        await db
+          .insertInto('audit_finding')
+          .values({
+            finding_type: 'needs_triage',
+            severity,
+            description,
+            referenced_object_type: 'document',
+            referenced_object_id: docId,
+            status: 'open',
+            created_at: now - age,
+          })
+          .execute();
+      }
+
+      const res = await request(app.getHttpServer())
+        .get('/admin/findings?status=open')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+
+      const findings = jsonBody<Array<{ description: string }>>(res);
+      expect(findings).toHaveLength(2);
+      expect(findings[0].description).toBe('newer low');
+      expect(findings[1].description).toBe('older critical');
+    });
+
+    it('preserves the prior empty/unknown-status outcomes (no 400, no filter change)', async () => {
+      const docId = await seedDocument();
+      await seedFinding(docId);
+
+      // Empty status ⇒ no filter: the full history is returned.
+      const emptyRes = await request(app.getHttpServer())
+        .get('/admin/findings?status=')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200);
+      const unfiltered = jsonBody<Array<{ status: string }>>(emptyRes);
+      expect(unfiltered).toHaveLength(1);
+
+      // Unknown non-empty status ⇒ empty list (the pre-#407 outcome).
+      await request(app.getHttpServer())
+        .get('/admin/findings?status=bogus')
+        .set('Authorization', `Bearer ${apiToken}`)
+        .expect(200)
+        .expect((res) => {
+          expect(jsonBody<unknown[]>(res)).toEqual([]);
+        });
+    });
+  });
   // ── GET /admin/duplicate-candidates ─────────────────────────────────
 
   describe('GET /admin/duplicate-candidates (issue #195)', () => {

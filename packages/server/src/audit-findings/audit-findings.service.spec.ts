@@ -379,4 +379,88 @@ describe('AuditFindingsService (real-DI)', () => {
       expect(openFindings).toEqual([]);
     });
   });
+
+  // Issue #407: a finding must never outlive its referenced document. New
+  // deletes resolve findings atomically (DocumentsService.deleteDocument),
+  // but LEGACY orphan rows can still exist — queue reads must not surface
+  // them as actionable items with dead links.
+  describe('orphaned document references (issue #407)', () => {
+    const seedDocumentRow = async (id?: number) => {
+      const now = Math.floor(Date.now() / 1000);
+      return db
+        .insertInto('document')
+        .values({
+          ...(id !== undefined ? { id } : {}),
+          hash: `hash-${Math.random()}`,
+          filename: 'receipt.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 100,
+          storage_path: null,
+          status: 'pending',
+          created_at: now,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+    };
+
+    it('getOpenFindings() excludes findings whose referenced document is missing', async () => {
+      const doc = await seedDocumentRow();
+      const live = await service.create(
+        createFindingDto({
+          finding_type: 'needs_triage',
+          referenced_object_type: 'document',
+          referenced_object_id: doc.id,
+        }),
+      );
+      // Legacy orphan: references a document row that does not exist.
+      const orphan = await service.create(
+        createFindingDto({
+          finding_type: 'needs_triage',
+          referenced_object_type: 'document',
+          referenced_object_id: 99999,
+        }),
+      );
+      // Non-document reference: must never be treated as an orphan.
+      const approvalFinding = await service.create(
+        createFindingDto({ referenced_object_type: 'approval' }),
+      );
+
+      const openFindings = await service.getOpenFindings();
+
+      expect(openFindings.map((f) => f.id)).toContain(live.id);
+      expect(openFindings.map((f) => f.id)).toContain(approvalFinding.id);
+      expect(openFindings.map((f) => f.id)).not.toContain(orphan.id);
+    });
+
+    it('list() visibly marks orphaned findings instead of hiding them', async () => {
+      const doc = await seedDocumentRow();
+      const live = await service.create(
+        createFindingDto({
+          finding_type: 'needs_triage',
+          referenced_object_type: 'document',
+          referenced_object_id: doc.id,
+        }),
+      );
+      const orphan = await service.create(
+        createFindingDto({
+          finding_type: 'needs_triage',
+          referenced_object_type: 'document',
+          referenced_object_id: 99999,
+        }),
+      );
+      const nonDocument = await service.create(
+        createFindingDto({ referenced_object_type: 'expense' }),
+      );
+
+      const findings = await service.list();
+      const byId = new Map(findings.map((f) => [f.id, f]));
+
+      // The orphan stays visible for admin review, explicitly marked.
+      expect(byId.get(orphan.id)?.status).toBe('open');
+      expect(byId.get(orphan.id)?.referenced_object_missing).toBe(true);
+      // Live and non-document findings are marked intact.
+      expect(byId.get(live.id)?.referenced_object_missing).toBe(false);
+      expect(byId.get(nonDocument.id)?.referenced_object_missing).toBe(false);
+    });
+  });
 });

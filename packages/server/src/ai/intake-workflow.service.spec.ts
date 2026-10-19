@@ -1,4 +1,5 @@
 import { FxRateUnavailableError } from '../fx/fx-rate.types';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -2438,6 +2439,174 @@ describe('IntakeWorkflowService', () => {
 
       const doc = await documentsService.getById(docId);
       expect(doc.processing_since).toBeNull();
+    });
+  });
+
+  // Issue #407: the finding-creation vs document-deletion race. A delete
+  // transaction that read the findings BEFORE routeNeedsTriage's CREATE —
+  // but commits AFTER it — removes the document without resolving the new
+  // finding; the workflow must compensate so the finding never outlives its
+  // document.
+  describe('needs_triage vs concurrent document deletion (issue #407)', () => {
+    it('resolves the just-created finding when the document disappears mid-route', async () => {
+      const docId = await seedDocument();
+      const triageResult = sampleTriageResult({ confidence: 0.5 });
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: triageResult,
+      });
+
+      // Simulate a delete transaction that read the findings BEFORE the
+      // finding existed but commits AFTER the create (the classic
+      // read-then-act interleaving the per-document exclusion cannot cover
+      // when the delete started before this run): on the second getById for
+      // this document — the one transitionDocument makes AFTER the finding
+      // was created — the document row disappears without the finding being
+      // resolved, and the real getById's NotFoundException is thrown.
+      const realGetById = documentsService.getById.bind(documentsService);
+      let calls = 0;
+      documentsService.getById = async (id: number) => {
+        if (id === docId && ++calls === 2) {
+          await db.deleteFrom('document').where('id', '=', docId).execute();
+          throw new NotFoundException(`Document ${docId} not found`);
+        }
+        return realGetById(id);
+      };
+
+      try {
+        await expect(service.process(docId)).rejects.toThrow(
+          `Document ${docId} not found`,
+        );
+
+        // The finding created mid-route was resolved by the compensation —
+        // no open finding outlives the deleted document.
+        const row = await db
+          .selectFrom('audit_finding')
+          .selectAll()
+          .where('referenced_object_type', '=', 'document')
+          .where('referenced_object_id', '=', docId)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe('resolved');
+        expect(row.resolved_at).not.toBeNull();
+        expect(row.transition_reason).toContain('deleted');
+
+        const openFindings = await auditFindingsService.getOpenFindings();
+        expect(
+          openFindings.some(
+            (f) =>
+              f.referenced_object_type === 'document' &&
+              f.referenced_object_id === docId,
+          ),
+        ).toBe(false);
+      } finally {
+        documentsService.getById = realGetById;
+      }
+    });
+
+    it('keeps the original 404 when a competing deletion already resolved the just-created finding', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ confidence: 0.5 }),
+      });
+
+      // A deletion that saw the freshly created finding resolves it and
+      // removes the document; transitionDocument's getById then 404s. The
+      // compensation must no-op on the terminal finding instead of masking
+      // the original 404 with InvalidFindingTransitionError, and must not
+      // overwrite the competing deletion's transition audit.
+      const realGetById = documentsService.getById.bind(documentsService);
+      let calls = 0;
+      documentsService.getById = async (id: number) => {
+        if (id === docId && ++calls === 2) {
+          await db
+            .updateTable('audit_finding')
+            .set({
+              status: 'resolved',
+              resolved_at: Math.floor(Date.now() / 1000),
+              transitioned_by: 'system',
+              transition_reason: 'competing delete',
+            })
+            .where('referenced_object_type', '=', 'document')
+            .where('referenced_object_id', '=', docId)
+            .execute();
+          await db.deleteFrom('document').where('id', '=', docId).execute();
+          throw new NotFoundException(`Document ${docId} not found`);
+        }
+        return realGetById(id);
+      };
+
+      try {
+        // The ORIGINAL 404 must surface — not a lifecycle-transition error.
+        await expect(service.process(docId)).rejects.toThrow(
+          `Document ${docId} not found`,
+        );
+
+        const row = await db
+          .selectFrom('audit_finding')
+          .selectAll()
+          .where('referenced_object_type', '=', 'document')
+          .where('referenced_object_id', '=', docId)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe('resolved');
+        // The competing deletion's transition audit is preserved.
+        expect(row.transition_reason).toBe('competing delete');
+      } finally {
+        documentsService.getById = realGetById;
+      }
+    });
+
+    it('resolves a REUSED live finding when the document disappears mid-route', async () => {
+      const docId = await seedDocument();
+      mockPass2Agent.classify.mockResolvedValue({
+        ok: true,
+        result: sampleTriageResult({ confidence: 0.5 }),
+      });
+      // An earlier route left an open needs_triage finding; the document was
+      // re-queued (status back to pending), so this retry REUSES the finding
+      // instead of creating one.
+      const reused = await auditFindingsService.create({
+        finding_type: 'needs_triage',
+        severity: 'medium',
+        description: 'prior route reason',
+        referenced_object_type: 'document',
+        referenced_object_id: docId,
+      });
+
+      // An uncoordinated deletion removes the document without resolving
+      // the finding (it never saw it): the reused finding must not outlive
+      // its document.
+      const realGetById = documentsService.getById.bind(documentsService);
+      let calls = 0;
+      documentsService.getById = async (id: number) => {
+        if (id === docId && ++calls === 2) {
+          await db.deleteFrom('document').where('id', '=', docId).execute();
+          throw new NotFoundException(`Document ${docId} not found`);
+        }
+        return realGetById(id);
+      };
+
+      try {
+        await expect(service.process(docId)).rejects.toThrow(
+          `Document ${docId} not found`,
+        );
+
+        const row = await db
+          .selectFrom('audit_finding')
+          .selectAll()
+          .where('id', '=', reused.id)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe('resolved');
+        expect(row.resolved_at).not.toBeNull();
+        expect(row.transition_reason).toBe(
+          'document deleted while routing to triage',
+        );
+
+        const openFindings = await auditFindingsService.getOpenFindings();
+        expect(openFindings.some((f) => f.id === reused.id)).toBe(false);
+      } finally {
+        documentsService.getById = realGetById;
+      }
     });
   });
 });

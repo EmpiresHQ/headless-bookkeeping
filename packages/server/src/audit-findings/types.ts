@@ -129,6 +129,14 @@ export interface AuditFinding {
   transition_reason: string | null;
   /** Persisted write-time triage reason classification (migration 065); null for non-triage findings and legacy rows. */
   reason_type: TriageReasonType | null;
+  /**
+   * True when the referenced document row is missing — a legacy orphan
+   * (issue #407). Set by queue/history reads (`list`, `getOpenFindings`);
+   * `false` when the reference is intact or is not a document reference
+   * (existence is not assessed for other object types). Absent on rows that
+   * never passed through those reads.
+   */
+  referenced_object_missing?: boolean;
 }
 
 /** Optional attribution for a guarded lifecycle transition. */
