@@ -1,3 +1,5 @@
+import type { FinancialPatch } from '../corrections/types';
+import { euVatFactsSchema } from '../plugins/eu-vat';
 import {
   Injectable,
   NotFoundException,
@@ -18,6 +20,7 @@ import {
   CreateExpenseDto,
   ExpenseStatus,
   PatchExpenseDraftInput,
+  patchExpenseDraftSchema,
 } from './types';
 import {
   DuplicateCandidate,
@@ -258,6 +261,8 @@ export class ExpensesService {
             ? null
             : (dto.service_place_rule ?? null),
         place_of_supply_country: dto.place_of_supply_country ?? null,
+        eu_vat_facts:
+          dto.eu_vat_facts == null ? null : JSON.stringify(dto.eu_vat_facts),
         ai_confidence: dto.ai_confidence ?? null,
         ai_document_type: dto.ai_document_type ?? null,
         ai_kind: dto.ai_kind ?? null,
@@ -936,14 +941,23 @@ export class ExpensesService {
    */
   async previewPatchedDraft(
     expenseId: number,
-    patch: { gross_amount?: number; vat_amount?: number; category?: string },
+    patch: FinancialPatch,
   ): Promise<DraftVoucher> {
     if (patch.category !== undefined) {
       await this.categoryService.assertValid(patch.category);
     }
     const expense = await this.getExpenseById(expenseId);
+    if (Object.keys(patch).length > 0) {
+      const parsed = patchExpenseDraftSchema.safeParse(patch);
+      if (!parsed.success)
+        throw new BadRequestException({
+          message: 'Invalid expense correction facts',
+          issues: parsed.error.issues,
+        });
+    }
     const patched: Expense = {
       ...expense,
+      ...patch,
       ...(patch.gross_amount !== undefined && {
         gross_amount: patch.gross_amount,
       }),
@@ -1022,6 +1036,10 @@ export class ExpensesService {
         }),
         ...(settlement?.kind === 'unresolved' && {
           settlementFxUnresolved: settlement.reason,
+        }),
+        euVatFacts: expense.eu_vat_facts ?? undefined,
+        ...(expense.eu_vat_facts?.supplyType && {
+          supplyType: expense.eu_vat_facts.supplyType,
         }),
         ...(expense.service_place_rule != null && {
           servicePlaceRule: expense.service_place_rule,
@@ -1715,6 +1733,7 @@ export class ExpensesService {
         // guard the supplier facts already get.
         'service_place_rule',
         'place_of_supply_country',
+        'eu_vat_facts',
       ])
       .where('id', '=', id)
       .executeTakeFirst();
@@ -2004,6 +2023,12 @@ export class ExpensesService {
               ? null
               : patch.service_place_rule
             : current.service_place_rule,
+        eu_vat_facts:
+          patch.eu_vat_facts === undefined
+            ? current.eu_vat_facts
+            : patch.eu_vat_facts === null
+              ? null
+              : JSON.stringify(patch.eu_vat_facts),
         place_of_supply_country:
           patch.place_of_supply_country !== undefined
             ? patch.place_of_supply_country
@@ -2231,14 +2256,7 @@ export class ExpensesService {
     }
   }
 
-  async patchAmounts(
-    id: number,
-    patch: {
-      gross_amount?: number;
-      vat_amount?: number;
-      category?: string;
-    },
-  ): Promise<Expense> {
+  async patchAmounts(id: number, patch: FinancialPatch): Promise<Expense> {
     const now = Math.floor(Date.now() / 1000);
     const row = await this.db
       .updateTable('expense')
@@ -2250,6 +2268,18 @@ export class ExpensesService {
           vat_amount: patch.vat_amount,
         }),
         ...(patch.category !== undefined && { category: patch.category }),
+        ...(patch.service_place_rule !== undefined && {
+          service_place_rule: patch.service_place_rule,
+        }),
+        ...(patch.place_of_supply_country !== undefined && {
+          place_of_supply_country: patch.place_of_supply_country,
+        }),
+        ...(patch.eu_vat_facts !== undefined && {
+          eu_vat_facts:
+            patch.eu_vat_facts === null
+              ? null
+              : JSON.stringify(euVatFactsSchema.parse(patch.eu_vat_facts)),
+        }),
         updated_at: now,
       })
       .where('id', '=', id)
@@ -2267,7 +2297,7 @@ export class ExpensesService {
   async patchAmountsTx(
     trx: Kysely<Database>,
     id: number,
-    patch: { gross_amount?: number; vat_amount?: number; category?: string },
+    patch: FinancialPatch,
   ): Promise<void> {
     // INVARIANT: patch.category is validated by the caller
     // (previewPatchedDraft -> CategoryService.assertValid) BEFORE this
@@ -2285,6 +2315,18 @@ export class ExpensesService {
           vat_amount: patch.vat_amount,
         }),
         ...(patch.category !== undefined && { category: patch.category }),
+        ...(patch.service_place_rule !== undefined && {
+          service_place_rule: patch.service_place_rule,
+        }),
+        ...(patch.place_of_supply_country !== undefined && {
+          place_of_supply_country: patch.place_of_supply_country,
+        }),
+        ...(patch.eu_vat_facts !== undefined && {
+          eu_vat_facts:
+            patch.eu_vat_facts === null
+              ? null
+              : JSON.stringify(euVatFactsSchema.parse(patch.eu_vat_facts)),
+        }),
         updated_at: now,
       })
       .where('id', '=', id)
@@ -2323,6 +2365,7 @@ export class ExpensesService {
     company_addressed_receipt?: number | null;
     service_place_rule?: string | null;
     place_of_supply_country?: string | null;
+    eu_vat_facts?: string | null;
     ai_confidence?: number | null;
     ai_document_type?: string | null;
     ai_kind?: string | null;
@@ -2356,6 +2399,10 @@ export class ExpensesService {
           ? null
           : (row.service_place_rule as Expense['service_place_rule']),
       place_of_supply_country: row.place_of_supply_country ?? null,
+      eu_vat_facts:
+        row.eu_vat_facts == null
+          ? null
+          : euVatFactsSchema.parse(JSON.parse(row.eu_vat_facts)),
       ai_confidence: row.ai_confidence ?? null,
       ai_document_type: row.ai_document_type ?? null,
       ai_kind: row.ai_kind ?? null,

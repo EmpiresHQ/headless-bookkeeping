@@ -24,6 +24,8 @@ export interface StatutoryDocLine {
   creditsInvoiceNumber: string | null; // set for credit notes
   date: string; // tax-point YYYY-MM-DD
   vatCode: string; // booked code, authoritative
+  /** Original rate date, present only in newly assembled payloads; older filings retain their original rendering. */
+  vatRateDate?: string;
   netAmount: number; // EUR minor units, signed — the LEDGER's taxable-base legs
   vatAmount: number; // EUR minor units, signed — the VAT actually DEDUCTED
   /**

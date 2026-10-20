@@ -339,7 +339,7 @@ describe('Reverse-charge acquisition origin (issue #210)', () => {
     expect(d.row6_7_unresolved_acquisition).toBe(0);
     expect(d.unresolved_acquisition_vouchers).toEqual([]);
     // Both are self-assessed supplies: one row-1 base each, not three per leg.
-    expect(d.row1_base_24).toBe(35000);
+    expect(d.row1_base_22).toBe(35000);
     expect(d.row4_output_vat).toBe(8400);
     expect(d.row5_input_vat).toBe(8400);
     expect(d.net_vat_due).toBe(0);
@@ -373,7 +373,7 @@ describe('Reverse-charge acquisition origin (issue #210)', () => {
     const d = await vatReports.buildDeclaration(PERIOD_ID);
     expect(d.row6_intra_eu_acquisition).toBe(0);
     expect(d.row7_other_acquisition).toBe(25000);
-    expect(d.row1_base_24).toBe(25000);
+    expect(d.row1_base_22).toBe(25000);
   });
 
   // ── the legacy code: unresolved, per voucher ──────────────────────────────

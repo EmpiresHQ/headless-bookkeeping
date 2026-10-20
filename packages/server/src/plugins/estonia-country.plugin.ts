@@ -1,3 +1,5 @@
+import { estonianStandardVatRate } from './estonia-vat-rates';
+import { decideEuVat, EuVatFacts } from './eu-vat';
 import { Injectable } from '@nestjs/common';
 import { FxLookupPolicy, FxRateService } from '../fx/fx-rate.service';
 import type {
@@ -117,6 +119,8 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     EE_OUTPUT_9: 0.09,
     EE_INPUT_9: 0.09,
     EE_ZERO: 0,
+    EE_INPUT_PASSENGER_ZERO: 0,
+    EE_INPUT_ONBOARD_ZERO: 0,
     // LEGACY reverse-charge code (pre-#210). It collapsed an intra-EU
     // acquisition and a third-country one into a single code, so a voucher
     // carrying it does not say which KMD acquisition row (6 or 7) its base
@@ -639,7 +643,11 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     // state VAT, not Estonian input VAT: no deduction right exists for it in
     // an Estonian return (KMS §29 lg 4), whatever the registration. The tax
     // folds into the cost leg.
-    if (_context.treatment === 'foreign_cost') {
+    if (
+      _context.treatment === 'foreign_cost' ||
+      _context.businessPurpose === false ||
+      _context.buyerEvidence === false
+    ) {
       return NO_ENTITLEMENT('none');
     }
     if (
@@ -691,11 +699,17 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     orgContext: OrgContext,
     context: {
       vatCharged: boolean;
+      taxPointDate?: string;
+      euVatFacts?: EuVatFacts;
       supplyType?: 'goods' | 'services';
       servicePlaceRule?: ServicePlaceRule;
       placeOfSupplyCountry?: string;
     },
   ): CrossBorderResolution {
+    // All real dated purchase projections use the composed EU classifier.
+    // Undated callers retain the legacy interface; no dated posting may use it.
+    if (context.taxPointDate)
+      return this.resolveEuPurchase(supplierFacts, orgContext, context);
     const supplier = supplierFacts.country;
 
     if (supplier === orgContext.country) {
@@ -742,6 +756,283 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     }
 
     return this.resolveThirdCountryAcquisition(supplierFacts);
+  }
+
+  private resolveEuPurchase(
+    supplier: SupplierFacts,
+    org: OrgContext,
+    context: {
+      vatCharged: boolean;
+      supplyType?: 'goods' | 'services';
+      servicePlaceRule?: ServicePlaceRule;
+      placeOfSupplyCountry?: string;
+      taxPointDate?: string;
+      euVatFacts?: EuVatFacts;
+    },
+  ): CrossBorderResolution {
+    const f = context.euVatFacts ?? {};
+    const type = f.supplyType ?? context.supplyType ?? supplier.goodsVsServices;
+    const rule = context.servicePlaceRule ?? 'general';
+    // #403's already-recorded physical restaurant declaration predates the
+    // onboard discriminator. Its explicit physical country remains evidence.
+    const facts: EuVatFacts = {
+      ...f,
+      ...(rule === 'restaurant_catering' &&
+      f.onboard === undefined &&
+      context.placeOfSupplyCountry
+        ? { onboard: false }
+        : {}),
+    };
+    // Same-country ordinary receipts retain domestic treatment. Special rules
+    // always run first, even for an Estonian supplier selling a foreign journey.
+    if (
+      supplier.country === org.country &&
+      rule === 'general' &&
+      !context.euVatFacts
+    )
+      return { treatment: 'domestic', vatCode: 'EE_INPUT_24' };
+    if (supplier.country !== org.country && rule === 'general') {
+      if (type === 'unknown' && !EstoniaCountryPlugin.EU.has(supplier.country))
+        this.resolveThirdCountryAcquisition(supplier);
+      if (type === 'services' && supplier.taxStatus !== 'taxable_business') {
+        if (EstoniaCountryPlugin.EU.has(supplier.country))
+          this.resolveIntraCommunityAcquisition(supplier);
+        else this.resolveThirdCountryAcquisition(supplier);
+      }
+    }
+    const decision = decideEuVat({
+      date: context.taxPointDate!,
+      supplyType: type,
+      rule,
+      location: context.placeOfSupplyCountry,
+      supplierCountry: supplier.country,
+      supplierTaxStatus: supplier.taxStatus,
+      recipientVatRegistered: org.vatRegistered,
+      recipientCountry: org.country,
+      facts,
+    });
+    const refuse = (
+      code: string,
+      required: string[],
+      message: string,
+    ): never => {
+      throw new UnresolvedVatTreatmentError({
+        code,
+        message,
+        missingFacts: required.map((k) =>
+          k.startsWith('placeOfSupplyCountry')
+            ? 'expense.place_of_supply_country'
+            : k.startsWith('supplier.')
+              ? k
+              : `expense.eu_vat_facts.${k}`,
+        ),
+        howToResolve:
+          code.includes('unsupported') ||
+          code.includes('review') ||
+          code === 'virtual_admission_before_2025'
+            ? 'Have an accountant determine the named national treatment and use the normal explicit voucher/approval path, or correct inconsistent facts with PATCH /api/expenses/{id}. Do not substitute the general rule for a special service.'
+            : 'PATCH /api/expenses/{id} with the named facts and evidence references; placeOfSupplyCountry is recorded as place_of_supply_country. For a posted expense use POST /api/expenses/{id}/correct with kind=financial, reason and patch. No automatic historical correction is performed.',
+      });
+    };
+    if ('hold' in decision) {
+      if (
+        decision.ruleId === 'supply_type_unknown' &&
+        !EstoniaCountryPlugin.EU.has(supplier.country)
+      )
+        this.resolveThirdCountryAcquisition(supplier);
+      return refuse(decision.ruleId, decision.requiredFacts, decision.hold);
+    }
+    if (
+      supplier.country !== org.country &&
+      (!facts.documentTaxTreatment || context.vatCharged) &&
+      (rule === 'immovable_property' ||
+        (rule === 'restaurant_catering' && !facts.onboard))
+    ) {
+      const local = this.resolveDeclaredLocalForeignSupply(
+        supplier,
+        org,
+        context,
+      );
+      if (local) return { ...local, decision };
+    }
+    const resolved = (
+      treatment: CrossBorderResolution['treatment'],
+      vatCode: string | null,
+    ): CrossBorderResolution => ({
+      treatment,
+      vatCode,
+      decision: {
+        ...decision,
+        nationalRate: vatCode
+          ? this.getVatRate(vatCode, context.taxPointDate)
+          : undefined,
+      },
+    });
+    if (decision.ruleId === 'Art48') {
+      const route = facts.route!;
+      if (
+        route.every(
+          (j) => j.from !== j.to && (j.from === 'EE' || j.to === 'EE'),
+        ) &&
+        route.some((j) => j.from === 'EE' || j.to === 'EE')
+      ) {
+        if (context.vatCharged)
+          return refuse(
+            'passenger_zero_tax_conflict',
+            ['route', 'document tax marking'],
+            'An EE international passenger ticket should bear no Estonian VAT; resolve the printed tax separately.',
+          );
+        return {
+          ...resolved('domestic', 'EE_INPUT_PASSENGER_ZERO'),
+          decision: {
+            ...decision,
+            nationalTreatment: 'zero_rated',
+            nationalRuleId: 'EE-KMS-15(4)(13)',
+            nationalRate: 0,
+          },
+        };
+      }
+      if (route.every((j) => j.from === 'EE' && j.to === 'EE')) {
+        if (supplier.country === 'EE')
+          return resolved('domestic', 'EE_INPUT_24');
+        return refuse(
+          'domestic_passenger_liability',
+          ['supplier Estonian VAT registration/establishment'],
+          'Domestic passenger carriage uses the dated domestic rate; a foreign supplier requires its EE liability and invoice evidence.',
+        );
+      }
+      return refuse(
+        'passenger_apportionment_review',
+        ['route distances and national passenger treatment'],
+        'Article48 apportions transport by distance; this route requires national treatment outside the supported EE international journey.',
+      );
+    }
+    if (
+      decision.ruleId === 'Art57' &&
+      decision.jurisdiction === 'EE' &&
+      facts.internationalJourney === true &&
+      (facts.transportMode === 'ship' || facts.transportMode === 'aircraft')
+    ) {
+      if (context.vatCharged)
+        return refuse(
+          'onboard_zero_tax_conflict',
+          ['document tax marking'],
+          'Qualifying international ship/aircraft onboard services are zero-rated in Estonia; resolve the printed VAT.',
+        );
+      return resolved('domestic', 'EE_INPUT_ONBOARD_ZERO');
+    }
+    if (decision.ruleId.startsWith('goods_')) {
+      if (facts.goodsDestinationCountry !== 'EE')
+        return refuse(
+          'goods_destination_review',
+          ['movement/customs evidence'],
+          'This goods movement does not end in Estonia.',
+        );
+      if (decision.ruleId === 'goods_import') {
+        if (
+          context.vatCharged &&
+          (facts.importVatEvidence !== true ||
+            facts.businessPurpose === undefined ||
+            facts.buyerEvidence === undefined ||
+            !facts.evidence?.some((e) => e.fact === 'importVatEvidence'))
+        )
+          return refuse(
+            'import_vat_documentary_evidence_missing',
+            [
+              'importVatEvidence',
+              'businessPurpose',
+              'buyerEvidence',
+              'customs document reference',
+            ],
+            'Supplier invoice VAT is not proof of Estonian import VAT; record the customs assessment and buyer evidence before any deduction.',
+          );
+        return resolved('import', 'EE_INPUT_24');
+      }
+      if (decision.ruleId === 'goods_domestic' && supplier.country === 'EE')
+        return resolved('domestic', 'EE_INPUT_24');
+      if (
+        decision.ruleId === 'goods_intra_community' &&
+        EstoniaCountryPlugin.EU.has(supplier.country) &&
+        supplier.country !== 'EE'
+      )
+        return { ...this.resolveIntraCommunityAcquisition(supplier), decision };
+      return refuse(
+        'goods_movement_conflict',
+        ['supplier establishment', 'goodsMovement'],
+        'The recorded goods movement conflicts with the supplier facts.',
+      );
+    }
+    if (
+      decision.ruleId === 'Art44' &&
+      decision.jurisdiction === 'EE' &&
+      decision.liability === 'article196'
+    ) {
+      if (supplier.taxStatus !== 'taxable_business') {
+        // Preserve the existing supplier onboarding remedy and stable codes.
+        if (EstoniaCountryPlugin.EU.has(supplier.country))
+          this.resolveIntraCommunityAcquisition(supplier);
+        else this.resolveThirdCountryAcquisition(supplier);
+      }
+      if (
+        facts.businessPurpose === undefined ||
+        facts.buyerEvidence === undefined
+      )
+        return refuse(
+          'input_deduction_evidence_missing',
+          ['businessPurpose', 'buyerEvidence'],
+          'Output liability and deduction are separate; record business purpose and buyer evidence before determining input entitlement.',
+        );
+      const origin = facts.supplierEstablishmentCountry;
+      if (!origin)
+        return refuse(
+          'acquisition_establishment_missing',
+          ['supplierEstablishmentCountry'],
+          'KMD6/7 follows the relevant supplier establishment, not a VAT-prefix or postal address.',
+        );
+      if (origin === 'EE')
+        return refuse(
+          'supplier_establishment_conflict',
+          ['supplierEstablishmentCountry', 'supplierNonEstablishedInPlace'],
+          'The supplier establishment contradicts recorded non-establishment in Estonia.',
+        );
+      return resolved(
+        'reverse_charge',
+        EstoniaCountryPlugin.EU.has(origin)
+          ? 'EE_REVERSE_CHARGE_EU'
+          : 'EE_REVERSE_CHARGE_3RD_COUNTRY',
+      );
+    }
+    if (decision.jurisdiction !== 'EE') {
+      if (context.vatCharged)
+        return {
+          ...resolved('foreign_cost', null),
+          decision: { ...decision, nationalTreatment: 'foreign_vat' },
+        };
+      if (
+        facts.documentTaxTreatment &&
+        facts.documentTaxTreatment !== 'foreign_vat' &&
+        facts.evidence?.some((e) => e.fact === 'documentTaxTreatment')
+      )
+        return {
+          ...resolved('foreign_cost', null),
+          decision: {
+            ...decision,
+            nationalTreatment: facts.documentTaxTreatment,
+          },
+        };
+      return refuse(
+        'foreign_national_treatment_review',
+        ['foreign VAT/zero/exempt treatment evidence'],
+        `Place of supply is ${decision.jurisdiction} under ${decision.ruleId}; no Estonian reverse charge applies, but zero tax alone does not establish the foreign treatment.`,
+      );
+    }
+    if (supplier.country === 'EE' && decision.ruleId === 'Art45')
+      return resolved('domestic', 'EE_INPUT_24');
+    return refuse(
+      'national_special_treatment_review',
+      ['national rate/exemption and person liable'],
+      `${decision.ruleId} places this service in Estonia; resolve its specific national treatment and supplier liability rather than applying ordinary Art196.`,
+    );
   }
 
   /**
@@ -855,6 +1146,8 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     orgContext: OrgContext,
     context: {
       vatCharged: boolean;
+      taxPointDate?: string;
+      euVatFacts?: EuVatFacts;
       supplyType?: 'goods' | 'services';
       servicePlaceRule?: ServicePlaceRule;
       placeOfSupplyCountry?: string;
@@ -1076,15 +1369,6 @@ export class EstoniaCountryPlugin implements CountryPlugin {
    *
    * Newest first; the first entry whose `from` is on or before the date wins.
    */
-  private static readonly STANDARD_RATE_HISTORY: ReadonlyArray<{
-    from: string;
-    rate: number;
-  }> = [
-    { from: '2025-07-01', rate: 0.24 },
-    { from: '2024-01-01', rate: 0.22 },
-    { from: '0000-01-01', rate: 0.2 },
-  ];
-
   /** The codes whose rate IS the standard rate, and therefore moves with it. */
   private static readonly STANDARD_RATE_CODES = new Set([
     'EE_OUTPUT_24',
@@ -1096,10 +1380,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
 
   getVatRate(vatCode: string, onDate?: string): number {
     if (onDate && EstoniaCountryPlugin.STANDARD_RATE_CODES.has(vatCode)) {
-      const era = EstoniaCountryPlugin.STANDARD_RATE_HISTORY.find(
-        (e) => e.from <= onDate,
-      );
-      if (era) return era.rate;
+      return estonianStandardVatRate(onDate);
     }
     return EstoniaCountryPlugin.VAT_RATES[vatCode] ?? 0;
   }
@@ -1642,9 +1923,17 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       vdCode: null,
       review: null,
     };
+    const datedRate =
+      context?.recordedVatRate !== undefined || context?.taxPointDate
+        ? {
+            outputBaseRate:
+              context.recordedVatRate ??
+              this.getVatRate(vatCode, context.taxPointDate),
+          }
+        : {};
     switch (vatCode) {
       case 'EE_OUTPUT_24':
-        return { ...none, outputBaseRow: 1 };
+        return { ...none, ...datedRate, outputBaseRow: 1 };
       case 'EE_OUTPUT_13':
       case 'EE_OUTPUT_9':
         return { ...none, outputBaseRow: 2 };
@@ -1664,6 +1953,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
         // it is also part of. The origin was decided from recorded facts at
         // posting time, so nothing here needs an accountant's review.
         return {
+          ...datedRate,
           outputBaseRow: 1,
           outputSubRow: null,
           acquisitionRow: 6,
@@ -1673,6 +1963,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
       case 'EE_REVERSE_CHARGE_3RD_COUNTRY':
         // Reverse-charged acquisition that is not intra-Community — row 7.
         return {
+          ...datedRate,
           outputBaseRow: 1,
           outputSubRow: null,
           acquisitionRow: 7,
@@ -1690,6 +1981,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
           // (ADR-0009); its replacement carries the resolved origin into
           // row 6 or 7 on its own.
           return {
+            ...datedRate,
             outputBaseRow: 1,
             outputSubRow: null,
             acquisitionRow: 7,
@@ -1710,6 +2002,7 @@ export class EstoniaCountryPlugin implements CountryPlugin {
         // row. It is reported as unresolved: visible in the declaration, named
         // in a review flag, and blocking a FINAL return until it is corrected.
         return {
+          ...datedRate,
           outputBaseRow: 1,
           outputSubRow: null,
           acquisitionRow: 'unresolved',

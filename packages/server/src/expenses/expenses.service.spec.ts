@@ -711,6 +711,21 @@ describe('ExpensesService (integration)', () => {
         currency: 'EUR',
         tax_point_date: '2026-05-31',
         supplier_id: supplier.id,
+        eu_vat_facts: {
+          recipientStatus: 'taxable_business',
+          receivingEstablishmentCountry: 'EE',
+          supplierEstablishmentCountry: 'US',
+          supplierNonEstablishedInPlace: true,
+          businessPurpose: true,
+          buyerEvidence: true,
+          evidence: [
+            {
+              fact: 'supplierNonEstablishedInPlace',
+              reference: 'synthetic contract',
+              source: 'document',
+            },
+          ],
+        },
       });
 
       const draft = await service.generateDraftVoucher(expense.id);

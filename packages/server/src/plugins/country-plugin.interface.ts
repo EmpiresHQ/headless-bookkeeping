@@ -1,3 +1,4 @@
+import type { EuVatFacts, EuVatDecision } from './eu-vat';
 import type {
   AdvanceTaxPointContext,
   AdvanceTaxPointDecision,
@@ -213,6 +214,7 @@ export type CrossBorderTreatment =
  * Provides the treatment classification and the applicable VAT code (if any).
  */
 export interface CrossBorderResolution {
+  decision?: EuVatDecision;
   treatment: CrossBorderTreatment;
   vatCode: VATCode | null;
 }
@@ -461,6 +463,8 @@ export interface CountryPlugin extends CountryPluginRetrieval {
     orgContext: OrgContext,
     context: {
       vatCharged: boolean;
+      taxPointDate?: string;
+      euVatFacts?: EuVatFacts;
       supplyType?: 'goods' | 'services';
       servicePlaceRule?: ServicePlaceRule;
       placeOfSupplyCountry?: string;

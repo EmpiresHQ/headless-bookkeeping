@@ -1,3 +1,4 @@
+import { euVatFactsSchema, EuVatFacts } from '../plugins/eu-vat';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { BusinessObjectStatus } from '../common/types/business-object-status';
@@ -38,6 +39,7 @@ export interface Expense {
   // …and WHERE the rule's location physically is (ISO country). A declared
   // exception without a country is incomplete — held, never guessed.
   place_of_supply_country: string | null;
+  eu_vat_facts?: EuVatFacts | null;
   // LLM classification facts preserved from triage (ADR-0039).
   ai_confidence: number | null;
   ai_document_type: string | null;
@@ -80,6 +82,7 @@ export const createExpenseSchema = z.object({
       'other_special',
     ])
     .optional(),
+  eu_vat_facts: euVatFactsSchema.nullable().optional(),
   place_of_supply_country: z
     .string()
     .regex(/^[A-Z]{2}$/)
@@ -139,6 +142,7 @@ export const EXPENSE_DRAFT_EDITABLE_FIELDS = [
   'company_addressed_receipt',
   'service_place_rule',
   'place_of_supply_country',
+  'eu_vat_facts',
 ] as const;
 
 /**
@@ -201,6 +205,7 @@ export const patchExpenseDraftSchema = draftEditObject(
         'other_special',
       ])
       .optional(),
+    eu_vat_facts: euVatFactsSchema.nullable().optional(),
     place_of_supply_country: z
       .string()
       .regex(/^[A-Z]{2}$/)

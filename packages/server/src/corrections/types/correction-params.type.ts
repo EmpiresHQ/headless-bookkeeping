@@ -4,11 +4,7 @@ import type { CorrectionRequest } from '../types';
 import type { DraftVoucher } from '../../ledger/voucher/types';
 import type { BusinessObjectStatus } from '../../common/types/business-object-status';
 
-type AmountPatch = {
-  gross_amount?: number;
-  vat_amount?: number;
-  category?: string;
-};
+type AmountPatch = import('../types').FinancialPatch;
 
 export type CorrectionParams = {
   objectType: 'expense' | 'sales_invoice';

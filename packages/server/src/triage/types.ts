@@ -1,3 +1,4 @@
+import { euVatFactsSchema } from '../plugins/eu-vat';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -187,6 +188,7 @@ export const triageResultSchema = z.object({
   // (issue #403): surfaced by the details view so a REOPENED manual-classify
   // sheet prefills the SAVED declaration instead of defaulting to General
   // and silently clearing it. Null rule ⇒ the residual general rule.
+  eu_vat_facts: euVatFactsSchema.nullable().optional(),
   service_place_rule: z
     .enum([
       'general',
@@ -502,6 +504,7 @@ export const manualClassifyExpenseSchema = z.object({
    * An exception without a country is an incomplete declaration — the kernel
    * holds with the fact named rather than guessing the location.
    */
+  eu_vat_facts: euVatFactsSchema.nullable().optional(),
   service_place_rule: z
     .enum([
       'general',

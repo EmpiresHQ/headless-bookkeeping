@@ -31,6 +31,7 @@ export interface ExpenseTreatmentPreview {
  * A field is null when the base does not feed that kind of row.
  */
 export interface KmdBaseClassification {
+  outputBaseRate?: number;
   /** Output käive row the base feeds (EE: 1 = 24%, 2 = 9%, 3 = 0%). */
   outputBaseRow: number | null;
   /**
@@ -66,6 +67,8 @@ export interface KmdBaseClassification {
  * FACTS only — the row they imply stays the plugin's decision.
  */
 export interface KmdClassificationContext {
+  taxPointDate?: string;
+  recordedVatRate?: number;
   /**
    * This line reverses a voucher whose own period was already FILED under a
    * payload frozen before the acquisition origin was recorded. The removal

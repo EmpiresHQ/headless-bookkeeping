@@ -1,3 +1,4 @@
+import { EuVatFacts, euVatFactsSchema } from '../plugins/eu-vat';
 import {
   Injectable,
   BadRequestException,
@@ -188,6 +189,7 @@ export type ChainPurchaseDraft =
       tax_point_date: string;
       document_vat_marking: string | null;
       supplier_invoice_number: string | null;
+      eu_vat_facts: string | null;
       ai_confidence: number | null;
       ai_document_type: string | null;
     }
@@ -487,10 +489,34 @@ export class ProposeDraftService {
         currency: triageResult.currency,
         tax_point_date: triageResult.tax_point_date,
         supplier_invoice_number: triageResult.supplier_invoice_number,
+        service_place_rule: triageResult.service_place_rule ?? undefined,
+        place_of_supply_country:
+          triageResult.place_of_supply_country ?? undefined,
+        eu_vat_facts: triageResult.eu_vat_facts
+          ? {
+              ...triageResult.eu_vat_facts,
+              evidence: triageResult.eu_vat_facts.evidence?.map((e) => ({
+                fact: e.fact,
+                reference: e.reference,
+                source: 'document' as const,
+              })),
+            }
+          : undefined,
         claimant_id: claimantId ?? null,
         company_addressed_receipt:
           triageResult.company_addressed_receipt ?? null,
       };
+      // A probabilistic retry cannot erase attributable human confirmations.
+      if (
+        chain.eu_vat_facts &&
+        euVatFactsSchema
+          .parse(JSON.parse(chain.eu_vat_facts))
+          .evidence?.some((e) => e.source === 'human')
+      ) {
+        patch.eu_vat_facts = undefined;
+        patch.service_place_rule = undefined;
+        patch.place_of_supply_country = undefined;
+      }
       let resumed;
       try {
         resumed = await this.expensesService.updateDraft(chain.id, patch);
@@ -548,6 +574,19 @@ export class ProposeDraftService {
       tax_point_date: triageResult.tax_point_date,
       document_vat_marking: triageResult.document_vat_marking,
       supplier_invoice_number: triageResult.supplier_invoice_number,
+      service_place_rule: triageResult.service_place_rule ?? undefined,
+      place_of_supply_country:
+        triageResult.place_of_supply_country ?? undefined,
+      eu_vat_facts: triageResult.eu_vat_facts
+        ? {
+            ...triageResult.eu_vat_facts,
+            evidence: triageResult.eu_vat_facts.evidence?.map((e) => ({
+              fact: e.fact,
+              reference: e.reference,
+              source: 'document' as const,
+            })),
+          }
+        : undefined,
       claimant_id: claimantId ?? null,
       company_addressed_receipt: triageResult.company_addressed_receipt ?? null,
       // Persist LLM classification facts so Details (Task 8) can render them
@@ -940,6 +979,7 @@ export class ProposeDraftService {
         | 'electronically_supplied_to_consumer'
         | 'other_special';
       place_of_supply_country?: string | null;
+      eu_vat_facts?: EuVatFacts | null;
       allow_duplicate?: boolean;
     },
   ): Promise<
@@ -964,6 +1004,9 @@ export class ProposeDraftService {
         tax_point_date: dto.tax_point_date,
         ...(dto.supplier_invoice_number !== undefined
           ? { supplier_invoice_number: dto.supplier_invoice_number }
+          : {}),
+        ...(dto.eu_vat_facts !== undefined
+          ? { eu_vat_facts: dto.eu_vat_facts }
           : {}),
         ...(dto.service_place_rule !== undefined
           ? { service_place_rule: dto.service_place_rule }
@@ -1022,6 +1065,7 @@ export class ProposeDraftService {
       document_vat_marking: dto.document_vat_marking,
       supplier_invoice_number: dto.supplier_invoice_number ?? null,
       // The operator's explicit place-of-supply declaration (issue #403).
+      eu_vat_facts: dto.eu_vat_facts,
       service_place_rule: dto.service_place_rule ?? undefined,
       place_of_supply_country: dto.place_of_supply_country ?? undefined,
       // Operator override for the duplicate guard (issue #195). Unlike
@@ -1202,6 +1246,7 @@ export class ProposeDraftService {
         'tax_point_date',
         'document_vat_marking',
         'supplier_invoice_number',
+        'eu_vat_facts',
         'ai_confidence',
         'ai_document_type',
         'status',

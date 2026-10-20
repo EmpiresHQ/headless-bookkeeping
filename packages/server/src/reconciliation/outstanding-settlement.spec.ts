@@ -545,6 +545,17 @@ describe('outstanding balance across every linked settlement (#202)', () => {
       currency,
       tax_point_date: '2026-05-15',
       supplier_invoice_number: `SUP-FX-${invoiceCounter}`,
+      eu_vat_facts: {
+        goodsMovement: 'intra_community',
+        goodsDestinationCountry: 'EE',
+        evidence: [
+          {
+            fact: 'goodsMovement',
+            reference: 'synthetic delivery note',
+            source: 'document',
+          },
+        ],
+      },
     });
     const draft = await expenses.generateDraftVoucher(expense.id);
     const posted = await posting.postVoucher(draft);

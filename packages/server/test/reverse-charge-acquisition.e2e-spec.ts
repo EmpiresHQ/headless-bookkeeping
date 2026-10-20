@@ -146,6 +146,14 @@ describe('Reverse-charge acquisition origin (E2E)', () => {
   }
 
   async function createExpense(body: Record<string, unknown>): Promise<number> {
+    const supplier =
+      typeof body.supplier_id === 'number'
+        ? await db
+            .selectFrom('entity')
+            .select('country')
+            .where('id', '=', body.supplier_id)
+            .executeTakeFirst()
+        : undefined;
     const res = await request(app.getHttpServer())
       .post('/api/expenses')
       .set(auth())
@@ -153,6 +161,23 @@ describe('Reverse-charge acquisition origin (E2E)', () => {
         category: 'software',
         currency: 'EUR',
         tax_point_date: TAX_POINT,
+        eu_vat_facts: {
+          recipientStatus: 'taxable_business',
+          receivingEstablishmentCountry: 'EE',
+          supplierEstablishmentCountry: supplier?.country,
+          supplierNonEstablishedInPlace: true,
+          businessPurpose: true,
+          buyerEvidence: true,
+          evidence: [
+            {
+              fact: 'supplierNonEstablishedInPlace',
+              reference: 'synthetic contract and recipient verification',
+              source: 'human',
+              confirmedBy: 'fixture',
+              confirmedAt: '2026-10-20T00:00:00Z',
+            },
+          ],
+        },
         ...body,
       })
       .expect(201);
@@ -539,15 +564,13 @@ describe('Reverse-charge acquisition origin (E2E)', () => {
         0,
       );
 
-      // Posting again recomputes from the CURRENT facts: a third-country
-      // acquisition now, row 7 — not the intra-EU entry that was prepared.
+      // The changed postal country does not overwrite the independently recorded
+      // FI supplying establishment; its verified acquisition origin stays row 6.
       await postExpense(id).expect(201);
-      expect(await expenseVatCodes(id)).toEqual([
-        'EE_REVERSE_CHARGE_3RD_COUNTRY',
-      ]);
+      expect(await expenseVatCodes(id)).toEqual(['EE_REVERSE_CHARGE_EU']);
       const d = await declaration();
-      expect(d.row7_other_acquisition).toBe(10000);
-      expect(d.row6_intra_eu_acquisition).toBe(0);
+      expect(d.row7_other_acquisition).toBe(0);
+      expect(d.row6_intra_eu_acquisition).toBe(10000);
     }
   });
 
@@ -596,14 +619,12 @@ describe('Reverse-charge acquisition origin (E2E)', () => {
       .send({ approved_by: 'operator' })
       .expect(201);
 
-    // The approval re-derives the entry, so the posted acquisition carries the
-    // corrected origin — row 7 — and nothing of the stale one survives.
-    expect(await expenseVatCodes(id)).toEqual([
-      'EE_REVERSE_CHARGE_3RD_COUNTRY',
-    ]);
+    // Approval re-derives from explicit establishment evidence. A country/address
+    // edit alone cannot replace the independently verified FI establishment.
+    expect(await expenseVatCodes(id)).toEqual(['EE_REVERSE_CHARGE_EU']);
     const d = await declaration();
-    expect(d.row7_other_acquisition).toBe(500000);
-    expect(d.row6_intra_eu_acquisition).toBe(0);
+    expect(d.row7_other_acquisition).toBe(0);
+    expect(d.row6_intra_eu_acquisition).toBe(500000);
   });
 
   // ── The legacy code: blocked, then recovered through the documented API ──
@@ -744,5 +765,268 @@ describe('Reverse-charge acquisition origin (E2E)', () => {
       valid: true,
       errors: [],
     });
+  });
+  it.each([
+    ['SAS / labelled synthetic ticket date', 55487, 'DK'],
+    ['Wizz DWAM-52511504 / labelled synthetic ticket date', 111940, 'AL'],
+  ])(
+    'corrects passenger %s once, preserving cost/AP and decision history',
+    async (name, gross, destination) => {
+      const supplier = await addSupplier({
+        country: 'DK',
+        name,
+        registrationKey: `TEST398-${destination}`,
+        goodsVsServices: 'services',
+        taxStatus: 'taxable_business',
+      });
+      // Intentionally book an ordinary service first, reproducing the faulty
+      // historical classification without touching the live books.
+      const id = await createExpense({
+        supplier_id: supplier,
+        gross_amount: gross,
+        vat_amount: 0,
+        supplier_invoice_number: `398-${destination}`,
+      });
+      await postExpense(id).expect(201);
+      const pending = await db
+        .selectFrom('approval')
+        .select('id')
+        .where('object_type', '=', 'expense')
+        .where('object_id', '=', id)
+        .where('status', '=', 'pending')
+        .execute();
+      for (const a of pending)
+        await request(app.getHttpServer())
+          .post(`/api/approvals/${a.id}/approve`)
+          .set(auth())
+          .send({ approved_by: 'fixture' })
+          .expect(201);
+      const original = await db
+        .selectFrom('expense')
+        .select('voucher_id')
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      const bankAccount = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'BANK_EUR')
+        .executeTakeFirstOrThrow();
+      const statement = await db
+        .insertInto('bank_statement')
+        .values({
+          account_id: bankAccount.id,
+          start_date: TAX_POINT,
+          end_date: TAX_POINT,
+          uploaded_at: 1,
+          file_path: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const bank = await db
+        .insertInto('bank_transaction')
+        .values({
+          statement_id: statement.id,
+          account_id: bankAccount.id,
+          transaction_date: TAX_POINT,
+          amount: -gross,
+          currency: 'EUR',
+          status: 'open',
+          created_at: 1,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const allocation = await db
+        .insertInto('reconciliation_match')
+        .values({
+          bank_transaction_id: bank.id,
+          voucher_id: original.voucher_id!,
+          match_type: 'exact',
+          amount_matched: gross,
+          status: 'active',
+          created_at: 1,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const before = await db
+        .selectFrom('voucher')
+        .select('vat_decision')
+        .where('id', '=', original.voucher_id!)
+        .executeTakeFirstOrThrow();
+      const correctedFacts = {
+        supplyType: 'services',
+        route: [
+          { from: 'EE', to: destination },
+          { from: destination, to: 'EE' },
+        ],
+        evidence: [
+          {
+            fact: 'route',
+            reference: name,
+            source: 'human',
+            confirmedBy: 'fixture',
+            confirmedAt: '2026-10-20T00:00:00Z',
+          },
+        ],
+      };
+      const correction = {
+        kind: 'financial',
+        reason:
+          'Verified ticketed international passenger carriage; synthetic regression',
+        patch: {
+          service_place_rule: 'passenger_transport',
+          eu_vat_facts: correctedFacts,
+        },
+      };
+      await request(app.getHttpServer())
+        .post(`/api/expenses/${id}/correct`)
+        .set(auth())
+        .send(correction)
+        .expect(201);
+      const d = await declaration();
+      expect([
+        d.row1_base_24,
+        d.row3_base_zero,
+        d.row4_output_vat,
+        d.row5_input_vat,
+        d.row6_intra_eu_acquisition,
+        d.row7_other_acquisition,
+      ]).toEqual([0, 0, 0, 0, 0, 0]);
+      const lines = await db
+        .selectFrom('voucher_line as l')
+        .innerJoin('account as a', 'a.id', 'l.account_id')
+        .select(['a.code', 'l.base_amount', 'l.is_debit'])
+        .execute();
+      const net = (code: string) =>
+        lines
+          .filter((l) => l.code === code)
+          .reduce((sum, l) => sum + l.base_amount * (l.is_debit ? 1 : -1), 0);
+      expect(net('EXPENSE_SOFTWARE')).toBe(gross);
+      expect(net('AP')).toBe(-gross);
+      const vouchers = await db.selectFrom('voucher').selectAll().execute();
+      expect(vouchers).toHaveLength(3);
+      const carried = await db
+        .selectFrom('reconciliation_match')
+        .selectAll()
+        .where('id', '=', allocation.id)
+        .executeTakeFirstOrThrow();
+      expect(carried).toMatchObject({
+        status: 'active',
+        amount_matched: gross,
+        bank_transaction_id: bank.id,
+        voucher_id: vouchers.find((v) => v.corrects_object_id === id)!.id,
+      });
+
+      expect(vouchers.find((v) => v.reverses_id !== null)?.vat_decision).toBe(
+        before.vat_decision,
+      );
+      expect(
+        JSON.parse(
+          vouchers.find((v) => v.corrects_object_id === id)!.vat_decision!,
+        ),
+      ).toMatchObject({
+        ruleId: 'Art48',
+        inputs: { facts: correctedFacts },
+        nationalTreatment: 'zero_rated',
+      });
+      const repeated = await request(app.getHttpServer())
+        .post(`/api/expenses/${id}/correct`)
+        .set(auth())
+        .send(correction)
+        .expect(201);
+      expect(repeated.body).toMatchObject({ outcome: 'unsupported_status' });
+      expect(
+        await db.selectFrom('voucher').select('id').execute(),
+      ).toHaveLength(3);
+    },
+  );
+  it('a linked zero-net legacy compensating chain permits final export and lock (#398)', async () => {
+    const supplier = await addSupplier({
+      country: 'DK',
+      name: 'Synthetic compensated Wizz case',
+      registrationKey: 'TEST398-COMP',
+      goodsVsServices: 'services',
+      taxStatus: 'taxable_business',
+    });
+    const expenseId = await createExpense({
+      supplier_id: supplier,
+      gross_amount: 111940,
+      vat_amount: 0,
+    });
+    const accounts = await db
+      .selectFrom('account')
+      .select(['id', 'code'])
+      .execute();
+    const accountId = (code: string) =>
+      accounts.find((a) => a.code === code)!.id;
+    const seed = async (
+      number: string,
+      correctionId: number | null,
+      entries: [string, number, number, string | null][],
+    ) => {
+      const v = await db
+        .insertInto('voucher')
+        .values({
+          voucher_number: number,
+          tax_point_date: TAX_POINT,
+          posted_at: 1,
+          previous_hash: null,
+          reverses_id: null,
+          corrects_object_type: correctionId === null ? null : 'expense',
+          corrects_object_id: correctionId,
+          reason: 'synthetic historical compensation; no production access',
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      for (const [code, amount, debit, vatCode] of entries)
+        await db
+          .insertInto('voucher_line')
+          .values({
+            voucher_id: v.id,
+            account_id: accountId(code),
+            amount,
+            base_amount: amount,
+            currency: 'EUR',
+            fx_rate: 1,
+            is_debit: debit,
+            vat_code: vatCode,
+          })
+          .execute();
+      return v.id;
+    };
+    const original = await seed('398-original', null, [
+      ['EXPENSE_SOFTWARE', 111940, 1, 'EE_REVERSE_CHARGE'],
+      ['VAT_RECEIVABLE', 26866, 1, 'EE_REVERSE_CHARGE'],
+      ['AP', 111940, 0, null],
+      ['VAT_PAYABLE', 26866, 0, 'EE_REVERSE_CHARGE'],
+    ]);
+    await db
+      .updateTable('expense')
+      .set({ status: 'posted', voucher_id: original })
+      .where('id', '=', expenseId)
+      .execute();
+    expect((await declaration()).unresolved_acquisition_vouchers).toEqual([
+      '398-original',
+    ]);
+    await seed('398-compensation', expenseId, [
+      ['EXPENSE_SOFTWARE', 111940, 0, 'EE_REVERSE_CHARGE'],
+      ['EXPENSE_SOFTWARE', 111940, 1, null],
+      ['VAT_RECEIVABLE', 26866, 0, 'EE_REVERSE_CHARGE'],
+      ['VAT_PAYABLE', 26866, 1, 'EE_REVERSE_CHARGE'],
+    ]);
+    const d = await declaration();
+    expect(d.row6_7_unresolved_acquisition).toBe(0);
+    expect(d.unresolved_acquisition_vouchers).toEqual([]);
+    expect(d.review_flags).toEqual([]);
+    await request(app.getHttpServer())
+      .post('/api/reporting-periods/1/lock')
+      .set(auth())
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/reporting-periods/${await periodId()}/lock`)
+      .set(auth())
+      .expect(201);
+    const xml = await kmdXml();
+    expect(xml).not.toContain('acquisitionOtherGoodsAndServicesTotal');
+    expect(xml).not.toContain('euAcquisitionsGoodsAndServicesTotal');
   });
 });

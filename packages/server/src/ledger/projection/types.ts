@@ -1,3 +1,4 @@
+import type { EuVatFacts } from '../../plugins/eu-vat';
 import type {
   CounterpartyTaxStatus,
   ServicePlaceRule,
@@ -54,6 +55,7 @@ export interface EconomicFacts {
    * residual general rule.
    */
   servicePlaceRule?: ServicePlaceRule;
+  euVatFacts?: EuVatFacts;
   /**
    * The ISO country where the declared rule's location physically is (the
    * supply's performance country / the property's country) — recorded

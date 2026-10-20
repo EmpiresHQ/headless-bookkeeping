@@ -1,3 +1,4 @@
+import * as m088 from './088_add_expense_eu_vat_facts';
 import * as m080 from './080_add_document_classification_snapshot';
 import { Migration } from 'kysely/migration';
 import * as m001 from './001_create_organization';
@@ -172,4 +173,5 @@ export const migrations: Record<string, Migration> = {
   '085_add_expense_place_of_supply_facts': m085,
   '086_add_bank_transaction_fx_rate_decimals': m086,
   '087_canonical_bank_journal': m087,
+  '088_add_expense_eu_vat_facts': m088,
 };

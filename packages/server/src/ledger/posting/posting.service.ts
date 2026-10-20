@@ -524,6 +524,9 @@ export class PostingService {
         // (issue #211). Written from the draft, never recomputed later: an
         // organisation's settings change, and a posted voucher must keep saying
         // what it was posted on.
+        vat_decision: draft.vat_decision
+          ? JSON.stringify(draft.vat_decision)
+          : null,
         input_vat_entitlement_basis: draft.input_vat_entitlement?.basis ?? null,
         input_vat_deduction_numerator:
           draft.input_vat_entitlement?.numerator ?? null,

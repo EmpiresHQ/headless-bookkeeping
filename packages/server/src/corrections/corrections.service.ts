@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
@@ -105,6 +106,15 @@ export class CorrectionsService {
     id: number,
     request: CorrectionRequest,
   ): Promise<CorrectionResult> {
+    if (
+      request.patch &&
+      ['eu_vat_facts', 'service_place_rule', 'place_of_supply_country'].some(
+        (k) => k in request.patch!,
+      )
+    )
+      throw new BadRequestException(
+        'Purchase VAT facts belong to expense corrections',
+      );
     const invoice = await this.salesInvoicesService.getInvoiceById(id);
     return this.correctBusinessObject({
       objectType: 'sales_invoice',
@@ -517,6 +527,9 @@ export class CorrectionsService {
       // takes back exactly what was posted; if the organisation's entitlement
       // has changed since, that change belongs to the replacement entry, not to
       // the undoing of the old one.
+      vat_decision: original.vat_decision
+        ? JSON.parse(original.vat_decision)
+        : undefined,
       input_vat_entitlement:
         original.input_vat_deduction_numerator !== null &&
         original.input_vat_deduction_denominator !== null &&

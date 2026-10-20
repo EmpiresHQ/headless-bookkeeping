@@ -61,8 +61,8 @@ function renderKmd6Row(
     'FALSE', // sumPerPartnerSales
     'FALSE', // sumPerPartnerPurchases
     t24 !== 0 ? eur(t24) : '', // transactions24
-    '', // transactions22
-    '', // transactions20
+    amount(d.row1_base_22 ?? 0), // transactions22
+    amount(d.row1_base_20 ?? 0), // transactions20
     t9 !== 0 ? eur(t9) : '', // transactions9
     '', // transactions5
     t13 !== 0 ? eur(t13) : '', // transactions13

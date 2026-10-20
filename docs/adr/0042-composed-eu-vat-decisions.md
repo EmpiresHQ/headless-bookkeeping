@@ -1,0 +1,7 @@
+# Compose EU supply decisions into the country plugin
+
+Issue #398 revises ADR-0002's rejection of shared cross-country VAT logic: EU place-of-supply and Article196 liability are shared legal questions and run before national treatment. The country plugin composes a pure EU classifier; it remains the sole resolver of national VAT codes, rates, deduction and reporting. A shared EU superclass or kernel VAT-code vocabulary would couple those independent responsibilities.
+
+Transaction facts carry document/registry references and explicit human confirmations. Dated expense projection refuses missing facts and unsupported national treatments with actionable holds; undated advisory callers retain the legacy interface. The decision snapshot is persisted with each new Voucher, and a reversal copies its original snapshot. Historical vouchers remain unchanged. Ordinary foreign services now require recorded recipient/receiving establishment and supplier non-establishment facts; foreign address and merchant identity cannot supply these facts.
+
+Reporting resolves legacy acquisition uncertainty per connected correction chain inside the selected reporting period, retaining zero-base bridge members. Reversal links and explicit correction-object links establish relatedness; unrelated equal opposite bases remain unresolved. Frozen reports and locked periods keep their existing correction semantics. Legal evidence and the unexecuted historical review plan are in [the dated research note](../research/issue-398-eu-vat.md).

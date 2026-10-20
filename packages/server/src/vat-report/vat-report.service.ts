@@ -39,6 +39,7 @@ export interface FreezeResult {
 interface AmbiguousVoucher {
   voucherNumber: string;
   reversesId: number | null;
+  correctionObject?: string;
   base: number;
 }
 
@@ -523,14 +524,20 @@ export class VatReportService {
       .selectFrom('voucher_line as vl')
       .innerJoin('voucher as v', 'v.id', 'vl.voucher_id')
       .innerJoin('account as a', 'a.id', 'vl.account_id')
+      .leftJoin('voucher as original', 'original.id', 'v.reverses_id')
       .select([
         'vl.vat_code',
         'vl.base_amount',
         'vl.is_debit',
         'a.code as account_code',
         'v.id as voucher_id',
+        'v.tax_point_date',
+        'v.vat_decision',
+        'original.tax_point_date as original_tax_point_date',
         'v.voucher_number',
         'v.reverses_id',
+        'v.corrects_object_type',
+        'v.corrects_object_id',
       ])
       .where('v.tax_point_date', '>=', period.start_date)
       .where('v.tax_point_date', '<=', period.end_date)
@@ -580,7 +587,33 @@ export class VatReportService {
       executor,
     );
 
+    const owners =
+      lines.length === 0
+        ? []
+        : await executor
+            .selectFrom('expense')
+            .select(['id', 'voucher_id'])
+            .where('voucher_id', 'in', [
+              ...new Set(lines.map((l) => l.voucher_id)),
+            ])
+            .execute();
+    const ownerByVoucher = new Map(
+      owners.map((e) => [e.voucher_id, `expense:${e.id}`]),
+    );
+    // Include zero-base bridge vouchers: correction/reversal links are evidence
+    // even when that member no longer carries the legacy VAT code.
     for (const line of lines) {
+      if (!legacyByVoucher.has(line.voucher_id))
+        legacyByVoucher.set(line.voucher_id, {
+          voucherNumber: line.voucher_number,
+          reversesId: line.reverses_id,
+          correctionObject:
+            line.corrects_object_type !== null &&
+            line.corrects_object_id !== null
+              ? `${line.corrects_object_type}:${line.corrects_object_id}`
+              : ownerByVoucher.get(line.voucher_id),
+          base: 0,
+        });
       // An untagged line is not VAT activity (issue #395): a settlement of
       // a prior-period VAT refund or liability must not move rows 4/5. The
       // same inclusion rule compute() applies; coded corrections keep their sign.
@@ -600,7 +633,12 @@ export class VatReportService {
       }
 
       if (!line.vat_code) continue;
+      const snapshot: { nationalRate?: number } | null = line.vat_decision
+        ? JSON.parse(line.vat_decision)
+        : null;
       const k = plugin.classifyKmd(line.vat_code, {
+        taxPointDate: line.original_tax_point_date ?? line.tax_point_date,
+        recordedVatRate: snapshot?.nationalRate,
         reversesVoucherFiledWithoutAcquisitionOrigin:
           line.reverses_id !== null && filedWithoutOrigin.has(line.reverses_id),
       });
@@ -612,11 +650,15 @@ export class VatReportService {
       // An acquisition whose ROW the plugin cannot decide is still an
       // acquisition (hence debit-positive above): it lands in its own bucket
       // rather than in whichever row happens to be the default (issue #210).
-      if (k.review) flags.add(k.review);
+      if (k.review && k.acquisitionRow !== 'unresolved') flags.add(k.review);
 
       switch (k.outputBaseRow) {
         case 1:
-          d.row1_base_24 += base;
+          if (k.outputBaseRate === 0.22)
+            d.row1_base_22 = (d.row1_base_22 ?? 0) + base;
+          else if (k.outputBaseRate === 0.2)
+            d.row1_base_20 = (d.row1_base_20 ?? 0) + base;
+          else d.row1_base_24 += base;
           break;
         case 2:
           d.row2_base_reduced += base;
@@ -723,7 +765,7 @@ export class VatReportService {
    * actually part of says anything about it.
    *
    * So the vouchers are grouped into CONNECTED COMPONENTS over their
-   * `reverses_id` links, and a component clears only when it is neutral as a
+   * `reverses_id` and explicit correction-object links (including the source expense voucher), and a component clears only when it is neutral as a
    * whole — its legacy bases sum to zero. That is the one honest reading: a
    * component that nets out declares nothing, so no row has to be chosen for
    * it, and no replacement voucher is needed merely to cancel. Anything else
@@ -749,9 +791,7 @@ export class VatReportService {
   private unresolvedAcquisitionVouchers(
     legacyByVoucher: Map<number, AmbiguousVoucher>,
   ): string[] {
-    const nodes = new Map(
-      [...legacyByVoucher.entries()].filter(([, v]) => v.base !== 0),
-    );
+    const nodes = legacyByVoucher;
 
     // Undirected adjacency over the reversal links that stay inside this set.
     const neighbours = new Map<number, number[]>();
@@ -759,7 +799,13 @@ export class VatReportService {
       neighbours.set(a, [...(neighbours.get(a) ?? []), b]);
       neighbours.set(b, [...(neighbours.get(b) ?? []), a]);
     };
+    const byObject = new Map<string, number>();
     for (const [id, v] of nodes) {
+      if (v.correctionObject) {
+        const previous = byObject.get(v.correctionObject);
+        if (previous !== undefined) link(id, previous);
+        byObject.set(v.correctionObject, id);
+      }
       if (v.reversesId !== null && nodes.has(v.reversesId))
         link(id, v.reversesId);
     }
@@ -788,7 +834,8 @@ export class VatReportService {
       );
       if (net === 0) continue;
       for (const id of component) {
-        ambiguous.push((nodes.get(id) as AmbiguousVoucher).voucherNumber);
+        if ((nodes.get(id) as AmbiguousVoucher).base !== 0)
+          ambiguous.push((nodes.get(id) as AmbiguousVoucher).voucherNumber);
       }
     }
 

@@ -219,7 +219,7 @@ describe('StatutoryReportService.generate (integration)', () => {
     expect(xml).toContain('CN-');
     // A sales credit note must carry a NEGATIVE invoiceSum (mirror voucher, net < 0).
     expect(xml).toMatch(/<invoiceSum>-/);
-    expect(xml).toContain('<transactions24>1000.00</transactions24>');
+    expect(xml).toContain('<transactions22>1000.00</transactions22>');
   });
 
   it('hard-blocks final generation when the declarant reg number is missing', async () => {

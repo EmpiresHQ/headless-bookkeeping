@@ -381,6 +381,7 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
   });
 
   it('keeps the statutory hold for a zero-VAT general-rule foreign service even with matching bank evidence (the SaaS counterexample)', async () => {
+    await organization.updateOrganization({ vat_registered: true });
     await seedBankLine({
       date: '2026-06-19',
       debit: 811,
@@ -406,7 +407,16 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       vat_amount: 0,
       currency: 'DKK',
       tax_point_date: '2026-06-19',
-      // No place-of-supply declaration: the GENERAL rule governs.
+      eu_vat_facts: {
+        supplyType: 'services',
+        recipientStatus: 'taxable_business',
+        receivingEstablishmentCountry: 'EE',
+        supplierEstablishmentCountry: 'DK',
+        supplierNonEstablishedInPlace: true,
+        businessPurpose: true,
+        buyerEvidence: true,
+      },
+      // Explicit general B2B evidence; a bank rate cannot value its RC base.
     });
     await expect(service.generateDraftVoucher(expense.id)).rejects.toThrow(
       FxRateUnavailableError,
@@ -1793,4 +1803,66 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       /claimant-paid purchase|out-of-pocket/i,
     );
   });
+  it.each([
+    ['SAS issue398 / synthetic date and ticket evidence', 55487, 'DK'],
+    ['Wizz DWAM-52511504 / synthetic date and ticket evidence', 111940, 'AL'],
+  ])(
+    'international passenger %s preserves expense/AP and repeats identically',
+    async (name, amount, destination) => {
+      const supplier = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name,
+        registrationKey: `TEST398-${destination}`,
+        goodsVsServices: 'services',
+        taxStatus: 'taxable_business',
+      });
+      const expense = await service.createExpense({
+        supplier_id: supplier.id,
+        category: 'transport',
+        gross_amount: amount,
+        vat_amount: 0,
+        currency: 'EUR',
+        tax_point_date: '2026-06-10',
+        service_place_rule: 'passenger_transport',
+        eu_vat_facts: {
+          supplyType: 'services',
+          route: [
+            { from: 'EE', to: destination },
+            { from: destination, to: 'EE' },
+          ],
+          evidence: [
+            {
+              fact: 'route',
+              reference: name,
+              source: 'human',
+              confirmedBy: 'fixture',
+              confirmedAt: '2026-10-20T00:00:00Z',
+            },
+          ],
+        },
+      });
+      const draft = await service.generateDraftVoucher(expense.id);
+      expect(draft.lines).toHaveLength(2);
+      expect(
+        draft.lines.map((l) => [l.account_code, l.amount, l.is_debit]),
+      ).toEqual([
+        ['EXPENSE_TRANSPORT', amount, true],
+        ['AP', amount, false],
+      ]);
+      expect(draft.lines[0].vat_code).toBe('EE_INPUT_PASSENGER_ZERO');
+      expect(draft.vat_decision).toMatchObject({
+        ruleId: 'Art48',
+        nationalTreatment: 'zero_rated',
+      });
+      expect(await service.generateDraftVoucher(expense.id)).toEqual(draft);
+      expect(
+        (await service.getExpenseById(expense.id)).eu_vat_facts?.evidence?.[0]
+          .confirmedBy,
+      ).toBe('fixture');
+      expect(await db.selectFrom('voucher').selectAll().execute()).toHaveLength(
+        0,
+      );
+    },
+  );
 });

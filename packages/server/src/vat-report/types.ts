@@ -29,6 +29,9 @@ export interface KmdDeclaration {
   end_date: string;
   /** Row 1 — 24% taxable supply base (incl. self-assessed reverse-charge supply). */
   row1_base_24: number;
+  /** Dated standard-rate bases; optional in older frozen snapshots. */
+  row1_base_22?: number;
+  row1_base_20?: number;
   /** Row 2 — 9%/13% reduced-rate taxable supply base. */
   row2_base_reduced: number;
   /** Separate reduced-rate bases required by the KMD XML format. */
