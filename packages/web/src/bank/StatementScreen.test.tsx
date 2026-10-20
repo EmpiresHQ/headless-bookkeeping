@@ -218,6 +218,61 @@ describe('StatementScreen', () => {
     expect(screen.getByText('Matched')).toBeInTheDocument();
   });
 
+  // ── Issue #399: many-source provenance in the statement view ────────
+
+  it('marks a canonical movement shared when ANOTHER statement evidences it (distinct statement ids)', async () => {
+    vi.mocked(api.listBankTransactions).mockResolvedValue([
+      {
+        ...TXNS[0],
+        sources: [
+          {
+            statement_id: 3,
+            source_row_number: 1,
+            external_id: 'SYN-1',
+            archive_ref: 'A',
+          },
+          {
+            statement_id: 7,
+            source_row_number: 4,
+            external_id: 'SYN-1',
+            archive_ref: 'A',
+          },
+        ],
+      },
+    ] as never);
+    renderAt();
+    expect(await screen.findByText('WOLT 220627')).toBeInTheDocument();
+    expect(
+      screen.getByText(/shared with 1 other statement/i),
+    ).toBeInTheDocument();
+  });
+
+  it('does NOT mark a movement shared when several source ROWS come from the SAME statement (a within-file repeat)', async () => {
+    vi.mocked(api.listBankTransactions).mockResolvedValue([
+      {
+        ...TXNS[0],
+        sources: [
+          // Two source ROWS, one statement: provenance rows, not statements.
+          {
+            statement_id: 3,
+            source_row_number: 1,
+            external_id: 'SYN-1',
+            archive_ref: 'A',
+          },
+          {
+            statement_id: 3,
+            source_row_number: 2,
+            external_id: 'SYN-1',
+            archive_ref: 'A',
+          },
+        ],
+      },
+    ] as never);
+    renderAt();
+    expect(await screen.findByText('WOLT 220627')).toBeInTheDocument();
+    expect(screen.queryByText(/shared with/i)).toBeNull();
+  });
+
   it('navigates to the tx screen when a decide row is clicked', async () => {
     const router = renderAt();
     fireEvent.click(await screen.findByText('WOLT 220627'));

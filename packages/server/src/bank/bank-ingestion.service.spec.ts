@@ -6,6 +6,7 @@ import { migrations } from '../database/migrations';
 import { BankImportJobRepository } from './bank-import-job.repository';
 import { BankIngestionService } from './bank-ingestion.service';
 import type { CreateStatementInput } from './bank-statement.types';
+import { sourceFingerprint } from './apply-rules';
 import type { BankStatementService } from './bank-statement.service';
 import type { MastraService } from '../ai/mastra.service';
 import type { DocumentStorageService } from '../documents/document-storage.service';
@@ -48,7 +49,17 @@ describe('BankIngestionService (integration)', () => {
 
     jobs = new BankImportJobRepository(db);
 
-    createStatement = jest.fn().mockResolvedValue({ statement: { id: 99 } });
+    createStatement = jest.fn().mockResolvedValue({
+      statement: { id: 99 },
+      summary: {
+        newCount: 0,
+        newTransactionIds: [],
+        knownCount: 0,
+        knownTransactionIds: [],
+        conflictCount: 0,
+        conflicts: [],
+      },
+    });
     statements = {
       createStatement,
     } as unknown as BankStatementService;
@@ -125,6 +136,9 @@ describe('BankIngestionService (integration)', () => {
     // own namespace (never the documents namespace a real document owns).
     expect(createStatement).toHaveBeenCalledWith({
       ...forcedInput,
+      // The authoritative raw-source fingerprint (issue #399): the FULL raw
+      // rows, not the mapped projection.
+      source_fingerprint: sourceFingerprint('csv-text'),
       file_path: `bank-statements/${jobId}/statement.csv`,
     });
     // The ORIGINAL bytes were saved verbatim, once, under the job's id —
@@ -156,11 +170,88 @@ describe('BankIngestionService (integration)', () => {
     }
     expect(createStatement).toHaveBeenCalledWith({
       ...forcedInput,
+      source_fingerprint: sourceFingerprint('csv-text'),
       file_path: `bank-statements/${jobId}/statement.csv`,
     });
     expect(savedRawSources).toEqual([
       { id: jobId, filename: 'statement.csv', bytes: 'csv-text' },
     ]);
+  });
+
+  // ── Issue #399: authoritative raw-source replay identity ──────────
+
+  it('gives two exports that MAP identically but differ in raw bytes DIFFERENT source fingerprints — never one silent replay (issue #399)', async () => {
+    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+
+    // Two INDEPENDENT exports of the same movements: same mapped rows, but
+    // the raw sources differ in an unmapped memo value. They are different
+    // sources — the fingerprint must say so.
+    const exportA =
+      'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export A memo\n';
+    const exportB =
+      'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export B memo\n';
+    expect(sourceFingerprint(exportA)).not.toBe(sourceFingerprint(exportB));
+
+    const { jobId: jobA } = await service.startImport(
+      { text: exportA, buffer: Buffer.from(exportA), filename: 'a.csv' },
+      'BANK_EUR',
+    );
+    const { jobId: jobB } = await service.startImport(
+      { text: exportB, buffer: Buffer.from(exportB), filename: 'b.csv' },
+      'BANK_EUR',
+    );
+    for (let i = 0; i < 10; i++) {
+      if ((await jobs.get(jobA))?.status !== 'running') break;
+      await flush();
+    }
+    for (let i = 0; i < 10; i++) {
+      if ((await jobs.get(jobB))?.status !== 'running') break;
+      await flush();
+    }
+
+    expect((await jobs.get(jobA))?.status).toBe('done');
+    expect((await jobs.get(jobB))?.status).toBe('done');
+    // Both imports ran with their OWN fingerprints and archived their OWN
+    // byte-exact raw source — neither was collapsed into the other.
+    const calls = createStatement.mock.calls.map((c) => c[0]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].source_fingerprint).toBe(sourceFingerprint(exportA));
+    expect(calls[1].source_fingerprint).toBe(sourceFingerprint(exportB));
+    expect(calls[0].source_fingerprint).not.toBe(calls[1].source_fingerprint);
+    expect(savedRawSources).toEqual([
+      { id: jobA, filename: 'a.csv', bytes: exportA },
+      { id: jobB, filename: 'b.csv', bytes: exportB },
+    ]);
+  });
+
+  it('gives an EXACT re-upload (same bytes, renamed) the SAME fingerprint — a true replay (issue #399)', async () => {
+    jest.spyOn(service, 'runWorkflow').mockResolvedValue(forcedInput);
+    const exportA =
+      'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export A memo\n';
+    const { jobId: jobA } = await service.startImport(
+      { text: exportA, buffer: Buffer.from(exportA), filename: 'a.csv' },
+      'BANK_EUR',
+    );
+    const { jobId: jobB } = await service.startImport(
+      {
+        text: exportA,
+        buffer: Buffer.from(exportA),
+        filename: 'renamed-export.csv',
+      },
+      'BANK_EUR',
+    );
+    for (let i = 0; i < 10; i++) {
+      if ((await jobs.get(jobA))?.status !== 'running') break;
+      await flush();
+    }
+    for (let i = 0; i < 10; i++) {
+      if ((await jobs.get(jobB))?.status !== 'running') break;
+      await flush();
+    }
+    const calls = createStatement.mock.calls.map((c) => c[0]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].source_fingerprint).toBe(sourceFingerprint(exportA));
+    expect(calls[1].source_fingerprint).toBe(sourceFingerprint(exportA));
   });
 
   it('marks the job failed with the error message when runWorkflow rejects', async () => {

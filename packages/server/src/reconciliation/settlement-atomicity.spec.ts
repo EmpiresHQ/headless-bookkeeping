@@ -8,6 +8,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingService } from '../ledger/posting/posting.service';
@@ -73,6 +74,7 @@ describe('settlement atomicity and legacy repair (#202)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         EntitiesService,
         LedgerValidationService,

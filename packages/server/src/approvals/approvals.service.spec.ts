@@ -426,6 +426,9 @@ describe('ApprovalsService (integration)', () => {
             .insertInto('bank_transaction')
             .values({
               statement_id: stmt,
+              // Canonical account link (issue #399) — same as a migrated
+              // import row (legacy rows are backfilled by migration 087).
+              account_id: account.id,
               transaction_date: '2026-06-19',
               description: 'Next House Copenhagen DKK 60 again',
               amount: -830,

@@ -13,6 +13,7 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { OrganizationService } from '../organization/organization.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
@@ -69,6 +70,7 @@ describe('PrepaymentService (integration)', () => {
         PostingService,
         PeriodLockService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,
@@ -98,11 +100,18 @@ describe('PrepaymentService (integration)', () => {
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
+  let seedCounter = 0;
+
   async function seedBankTransaction(
     amount: number,
     status = 'open',
     counterpartyIban?: string,
   ) {
+    // Each seeded movement is a DISTINCT source (issue #399): without bank
+    // transaction ids, an identical re-import is (correctly) recognised as a
+    // source REPLAY — a unique per-seed marker keeps genuine separate
+    // movements separate, as the isolation tests intend.
+    const seq = ++seedCounter;
     const stmt = await bankStatementService.createStatement({
       account_code: 'BANK_EUR',
       start_date: '2025-01-01',
@@ -111,7 +120,9 @@ describe('PrepaymentService (integration)', () => {
         {
           transaction_date: '2025-01-15',
           description:
-            amount > 0 ? 'Customer payment received' : 'Supplier payment sent',
+            (amount > 0
+              ? 'Customer payment received'
+              : 'Supplier payment sent') + ` (seed ${seq})`,
           amount,
           currency: 'EUR',
           counterparty_iban: counterpartyIban ?? null,
@@ -2113,6 +2124,7 @@ describe('PrepaymentService — cross-currency bank account', () => {
         PostingService,
         PeriodLockService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,

@@ -210,6 +210,67 @@ describe('ImportScreen', () => {
     ).toBeDisabled();
   });
 
+  // ── Issue #399: the import's new/known/conflict summary ─────────
+
+  it('a done job shows its new/known/conflict summary truthfully (issue #399)', async () => {
+    vi.mocked(api.importBankStatement).mockResolvedValue({ jobId: 9 });
+    vi.mocked(api.getBankImportStatus).mockResolvedValue(
+      job(9, 'done', {
+        statement_id: 12,
+        summary: {
+          newCount: 15,
+          knownCount: 8,
+          conflictCount: 2,
+          conflicts: [
+            {
+              id: 1,
+              kind: 'amount_mismatch',
+              external_id: 'SYN-TXN-121',
+              statement_id: 12,
+              source_row_number: 3,
+            },
+            {
+              id: 2,
+              kind: 'ambiguous_overlap',
+              external_id: 'weak:12:4',
+              statement_id: 12,
+              source_row_number: 4,
+            },
+          ],
+        },
+      }),
+    );
+    renderScreen();
+    upload();
+    await screen.findByRole('link', { name: /open statement/i });
+    expect(screen.getByText('Import summary')).toBeInTheDocument();
+    expect(screen.getByText(/^15$/)).toBeInTheDocument();
+    expect(screen.getByText(/^8$/)).toBeInTheDocument();
+    expect(screen.getByText(/^2$/)).toBeInTheDocument();
+    // A rejected same-identity conflict: the canonical row was not changed.
+    expect(
+      screen.getByText(/the conflicting row was not imported/i),
+    ).toBeInTheDocument();
+    // An ambiguous overlap is NOT a rejection: BOTH movements stand.
+    expect(screen.getByText(/both operations are kept/i)).toBeInTheDocument();
+  });
+
+  it('a legacy done job without a summary says so — no invented zero-count success (issue #399)', async () => {
+    vi.mocked(api.importBankStatement).mockResolvedValue({ jobId: 30 });
+    vi.mocked(api.getBankImportStatus).mockResolvedValue(
+      // A job persisted before the canonical journal: summary is null.
+      job(30, 'done', { statement_id: 12, summary: null }),
+    );
+    renderScreen();
+    upload();
+    await screen.findByRole('link', { name: /open statement/i });
+    expect(
+      screen.getByText(/not available for imports made before/i),
+    ).toBeInTheDocument();
+    // No invented zero counts anywhere.
+    expect(screen.queryByText(/^0$/)).toBeNull();
+  });
+
   it('a status-check failure is not an import failure: no ✕, no Start over, no re-upload path', async () => {
     vi.mocked(api.importBankStatement).mockResolvedValue({ jobId: 9 });
     vi.mocked(api.getBankImportStatus).mockRejectedValue(

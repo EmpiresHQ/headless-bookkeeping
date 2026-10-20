@@ -9,6 +9,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingService } from '../ledger/posting/posting.service';
@@ -68,6 +69,7 @@ describe('FXRealizedService (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         EntitiesService,
         LedgerValidationService,
@@ -934,6 +936,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         EntitiesService,
         LedgerValidationService,
@@ -1053,6 +1056,7 @@ describe('FXRealizedService — foreign bank account base conversion', () => {
       .insertInto('bank_transaction')
       .values({
         statement_id: statement.id,
+        account_id: usdAccount.id,
         transaction_date: '2025-01-12',
         description: 'Foreign payment received (USD account)',
         amount: 10_000, // 10 000 USD incoming

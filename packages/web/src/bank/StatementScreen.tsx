@@ -21,7 +21,7 @@ import {
   type ResultHandle,
   type ResultInit,
 } from '../lib/resultLog';
-import type { MatchProposalView, MatchRowView } from '../api';
+import type { BankTransaction, MatchProposalView, MatchRowView } from '../api';
 import {
   BookingPartialError,
   bankKeys,
@@ -88,6 +88,28 @@ function opener(line: LineView, id?: string) {
   };
 }
 
+/**
+ * Many-source provenance note (issue #399): this canonical movement is
+ * also evidenced by another imported statement — visibly shared state,
+ * not a private copy of whichever statement the operator is looking at.
+ * Null when this statement is the only source.
+ */
+function SharedSourceNote({ tx }: { tx: BankTransaction }) {
+  // Distinct STATEMENTS, not source rows: the same statement can evidence a
+  // movement through several source rows (a within-file repeat import) —
+  // that is one statement, not several (issue #399).
+  const otherStatements =
+    new Set((tx.sources ?? []).map((s) => s.statement_id)).size - 1;
+  if (otherStatements < 1) return null;
+  return (
+    <span className="text-ink-2">
+      {' '}
+      · shared with {otherStatements} other statement
+      {otherStatements !== 1 ? 's' : ''}
+    </span>
+  );
+}
+
 /** Line amount + date, right-aligned, never wrapping. */
 function LineTrailing({ line, muted }: { line: LineView; muted?: boolean }) {
   return (
@@ -122,6 +144,7 @@ function DecideRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
             {partial
               ? `Partially matched · ${fmtCents(line.recon?.remaining ?? 0)} € left`
               : 'No AI match — decide'}
+            <SharedSourceNote tx={line.tx} />
           </div>
         </div>
         <LineTrailing line={line} />
@@ -191,6 +214,7 @@ function ProposalRow({
                   </div>
                   <div className="text-[12.5px] text-ink-2">
                     → {p.objectLabel} <Chip tone="warn">{p.confidence}</Chip>
+                    <SharedSourceNote tx={line.tx} />
                   </div>
                 </div>
                 <LineTrailing line={line} />
@@ -214,6 +238,7 @@ function ProposalRow({
                 </div>
                 <div className="text-[12.5px] text-ink-2">
                   → {m.objectLabel} <Chip tone="warn">staged</Chip>
+                  <SharedSourceNote tx={line.tx} />
                 </div>
               </div>
               <LineTrailing line={line} />
@@ -268,6 +293,7 @@ function DoneRow({ line, onOpen }: { line: LineView; onOpen: () => void }) {
           ) : (
             <div className="text-[12.5px] text-ink-2">
               → {line.active.map((m) => m.objectLabel).join(' · ')}
+              <SharedSourceNote tx={line.tx} />
             </div>
           )}
         </div>

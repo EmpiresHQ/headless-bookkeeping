@@ -6,6 +6,7 @@ import { BankIngestionService } from './bank-ingestion.service';
 import { BankStatementController } from './bank-statement.controller';
 import { BankIngestionController } from './bank-ingestion.controller';
 import { AccountModule } from '../ledger/account/account.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { AiModule } from '../ai/ai.module';
 import { ReconciliationModule } from '../reconciliation/reconciliation.module';
@@ -16,6 +17,7 @@ import { ReconciliationModule } from '../reconciliation/reconciliation.module';
   //   ReconciliationModule ↔ BankModule: auto-stage on import
   imports: [
     AccountModule,
+    AuditLogModule,
     DocumentsModule,
     forwardRef(() => AiModule),
     forwardRef(() => ReconciliationModule),

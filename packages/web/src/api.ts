@@ -1256,6 +1256,19 @@ export interface BankImportJob {
   account_code: string;
   statement_id: number | null;
   error: string | null;
+  /** The import's new/known/conflict summary (issue #399). */
+  summary?: {
+    newCount: number;
+    knownCount: number;
+    conflictCount: number;
+    conflicts: {
+      id: number;
+      kind: string;
+      external_id: string;
+      statement_id: number;
+      source_row_number: number | null;
+    }[];
+  } | null;
 }
 
 export const importBankStatement = (file: File, accountCode: string) => {
@@ -1367,6 +1380,19 @@ export interface BankTransaction {
   conversion_fee?: number | null;
   /** The bank's booking date when distinguished from the value date. */
   booking_date?: string | null;
+  /** The bank's own transaction id for this movement (issue #399); null =
+   *  the source carried none (unknown identity, never merged). */
+  external_id?: string | null;
+  /** The bank's archive/document reference (issue #399). */
+  archive_ref?: string | null;
+  /** Every imported source row that resolved to this canonical movement —
+   *  many-source provenance (issue #399). */
+  sources?: {
+    statement_id: number;
+    source_row_number: number | null;
+    external_id: string | null;
+    archive_ref: string | null;
+  }[];
 }
 
 export const listBankStatements = () =>

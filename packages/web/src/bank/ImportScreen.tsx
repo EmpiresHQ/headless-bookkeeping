@@ -390,20 +390,90 @@ function ImportJobView({ jobId }: { jobId: number }) {
         </div>
       )}
       {view === 'done' && (
-        <div className="space-y-2 px-4 pt-4">
-          {job?.statement_id != null && (
-            <LinkButton
-              to={`/bank/statements/${job.statement_id}`}
-              onClick={acknowledge}
-              className="block"
-            >
-              Open statement
-            </LinkButton>
+        <>
+          {/* The import's new/known/conflict summary (issue #399): what the
+              canonical journal actually did with this source, told plainly. */}
+          {job?.summary ? (
+            <div className="mx-3.5 mt-3 rounded-2xl bg-surface px-4 py-3.5 text-[12.5px]">
+              <p className="text-[13px] font-semibold">Import summary</p>
+              <ul className="mt-1.5 space-y-1 text-ink-2">
+                <li>
+                  <span className="font-semibold text-ink">
+                    {job.summary.newCount}
+                  </span>{' '}
+                  new operations in the account journal
+                </li>
+                <li>
+                  <span className="font-semibold text-ink">
+                    {job.summary.knownCount}
+                  </span>{' '}
+                  already-known operations (from an earlier statement)
+                </li>
+                <li>
+                  <span className="font-semibold text-ink">
+                    {job.summary.conflictCount}
+                  </span>{' '}
+                  unresolved conflicts
+                </li>
+              </ul>
+              {job.summary.conflicts.length > 0 && (
+                <div
+                  role="alert"
+                  className="mt-2 rounded-xl bg-warn-bg px-3 py-2 text-[12.5px] text-ink-2"
+                >
+                  <p className="font-semibold text-warn">
+                    Conflicts need review
+                  </p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    {job.summary.conflicts.map((c) => (
+                      <li key={c.id}>
+                        Row {c.source_row_number ?? '?'} ·{' '}
+                        {c.kind.split('_').join(' ')} on external id{' '}
+                        <span className="select-all">{c.external_id}</span>:{' '}
+                        {c.kind === 'ambiguous_overlap'
+                          ? // An ambiguous overlap is NOT a rejection: BOTH
+                            // movements stand (identity is unknown); only the
+                            // overlap is flagged for a human to review.
+                            'both operations are kept — the overlap is flagged for review because neither row carries a bank transaction id.'
+                          : // A same-identity conflict IS a rejection: the
+                            // conflicting row was not imported and the
+                            // canonical operation was not changed.
+                            'the conflicting row was not imported and the canonical operation was not changed.'}{' '}
+                        An administrator reviews it via the admin API.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            // A job persisted before the canonical journal (issue #399) has
+            // no summary: say so — never invent a zero-count "success".
+            <div className="mx-3.5 mt-3 rounded-2xl bg-surface px-4 py-3.5 text-[12.5px] text-ink-2">
+              <p className="text-[13px] font-semibold text-ink">
+                Import summary
+              </p>
+              <p className="mt-1.5">
+                Not available for imports made before the account journal was
+                introduced. Open the statement to see its operations.
+              </p>
+            </div>
           )}
-          <Button variant="secondary" className="w-full" onClick={newImport}>
-            New import
-          </Button>
-        </div>
+          <div className="space-y-2 px-4 pt-4">
+            {job?.statement_id != null && (
+              <LinkButton
+                to={`/bank/statements/${job.statement_id}`}
+                onClick={acknowledge}
+                className="block"
+              >
+                Open statement
+              </LinkButton>
+            )}
+            <Button variant="secondary" className="w-full" onClick={newImport}>
+              New import
+            </Button>
+          </div>
+        </>
       )}
     </>
   );

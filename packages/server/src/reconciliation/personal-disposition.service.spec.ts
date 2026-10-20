@@ -14,6 +14,7 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { OrganizationService } from '../organization/organization.service';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
 import { EstoniaCountryPlugin } from '../plugins/estonia-country.plugin';
@@ -59,6 +60,7 @@ describe('PersonalDispositionService (integration)', () => {
         PostingService,
         PeriodLockService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,
@@ -331,6 +333,7 @@ describe('PersonalDispositionService — cross-currency bank account', () => {
         PostingService,
         PeriodLockService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,

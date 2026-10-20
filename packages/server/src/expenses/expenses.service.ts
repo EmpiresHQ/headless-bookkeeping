@@ -125,6 +125,27 @@ function meaningfulNameTokens(s: string): string[] {
 
 @Injectable()
 export class ExpensesService {
+  /**
+   * The bank line's source statement for audit/provenance references
+   * (issues #399/#403): its ORIGIN statement when that still exists, else
+   * the earliest remaining statement that co-evidences the canonical row
+   * (an origin may have been detached while the movement survives). Never
+   * an invented 0 and never a rewrite of the historical audit entries.
+   */
+  private async resolveSourceStatementId(txn: {
+    id: number;
+    statement_id: number | null;
+  }): Promise<number | null> {
+    if (txn.statement_id !== null) return txn.statement_id;
+    const row = await this.db
+      .selectFrom('bank_transaction_source')
+      .select('statement_id')
+      .where('bank_transaction_id', '=', txn.id)
+      .orderBy('statement_id')
+      .executeTakeFirst();
+    return row ? row.statement_id : null;
+  }
+
   constructor(
     @InjectKysely() private readonly db: Kysely<Database>,
     private readonly projection: VoucherProjectionService,
@@ -456,12 +477,7 @@ export class ExpensesService {
     // to a real BANK_* asset account.
     const account = await this.db
       .selectFrom('bank_transaction')
-      .innerJoin(
-        'bank_statement',
-        'bank_statement.id',
-        'bank_transaction.statement_id',
-      )
-      .innerJoin('account', 'account.id', 'bank_statement.account_id')
+      .innerJoin('account', 'account.id', 'bank_transaction.account_id')
       .select(['account.code as code', 'account.type as type'])
       .where('bank_transaction.id', '=', bankTransactionId)
       .executeTakeFirstOrThrow();
@@ -674,7 +690,7 @@ export class ExpensesService {
           target_id: expenseId,
           detail: {
             bank_transaction_id: bankTransactionId,
-            bank_statement_id: txn.statement_id,
+            bank_statement_id: await this.resolveSourceStatementId(txn),
             transaction_date: txn.transaction_date,
             tax_point_date: expense.tax_point_date,
             source_currency: txn.source_currency,
@@ -1158,7 +1174,7 @@ export class ExpensesService {
             kind: 'link',
             link: {
               bankTransactionId: selected.id,
-              statementId: selected.statement_id,
+              statementId: await this.resolveSourceStatementId(selected),
               supplierId: expense.supplier_id,
               bookingDate: selected.booking_date,
               transactionDate: selected.transaction_date,
@@ -1345,7 +1361,7 @@ export class ExpensesService {
       kind: 'link',
       link: {
         bankTransactionId: txn.id,
-        statementId: txn.statement_id,
+        statementId: await this.resolveSourceStatementId(txn),
         supplierId: expense.supplier_id,
         bookingDate: txn.booking_date,
         transactionDate: txn.transaction_date,

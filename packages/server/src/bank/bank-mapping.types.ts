@@ -45,6 +45,29 @@ export const mappingRulesetSchema = z.object({
   counterparty_iban_column: z.string().nullable(),
   counterparty_descriptor_column: z.string().nullable(),
   reference_column: z.string().nullable(),
+  /**
+   * The bank, as this import asserts it (issue #399) — e.g. 'LHV'. Part of
+   * the canonical identity scope; the deterministic transformer normalises
+   * it (trimmed, uppercased). NULL/absent = unknown provider — conservative:
+   * the import's rows never merge across statements.
+   */
+  provider_code: z.string().min(1).nullable().optional(),
+  /**
+   * Where the statement carries the bank's own account reference (IBAN /
+   * account number) per row (issue #399). Part of the canonical identity
+   * scope. NULL/absent = unknown source account — rows never merge.
+   */
+  source_account: fxEvidenceTargetSchema.nullable().optional(),
+  /**
+   * The bank's own transaction id per row (issue #399) — the canonical
+   * movement identity when provider + source account are also known.
+   */
+  external_id: fxEvidenceTargetSchema.nullable().optional(),
+  /**
+   * The bank's archive/document reference per row (issue #399), kept
+   * independently of the transaction id and the payment reference.
+   */
+  archive_id: fxEvidenceTargetSchema.nullable().optional(),
   // Settlement-FX evidence targets (issue #403). All optional: a statement in
   // the account's own currency has none, and absent targets leave the
   // corresponding transaction fields NULL (absent evidence, not zero).

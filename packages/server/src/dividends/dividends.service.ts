@@ -253,12 +253,7 @@ export class DividendsService {
     // services — never assume the bank line is already in base currency).
     const bankAccount = await this.db
       .selectFrom('bank_transaction')
-      .innerJoin(
-        'bank_statement',
-        'bank_statement.id',
-        'bank_transaction.statement_id',
-      )
-      .innerJoin('account', 'account.id', 'bank_statement.account_id')
+      .innerJoin('account', 'account.id', 'bank_transaction.account_id')
       .select('account.code as account_code')
       .where('bank_transaction.id', '=', bankTransactionId)
       .executeTakeFirstOrThrow();

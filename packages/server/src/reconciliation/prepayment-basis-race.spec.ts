@@ -12,6 +12,7 @@ import { PostingService } from '../ledger/posting/posting.service';
 import { PeriodLockService } from '../reporting-periods/period-lock.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { OrganizationService } from '../organization/organization.service';
 import { OrgContextResolver } from '../organization/org-context.resolver';
 import { NullCountryPlugin } from '../plugins/null-country.plugin';
@@ -91,6 +92,7 @@ describe('Prepayment measurement basis race (issue #215)', () => {
         PostingService,
         PeriodLockService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         OrganizationService,
         NullCountryPlugin,
