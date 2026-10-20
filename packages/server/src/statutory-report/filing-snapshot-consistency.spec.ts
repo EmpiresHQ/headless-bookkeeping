@@ -43,8 +43,8 @@ const xsd = readFileSync(
  * frozen at the close, and reproducible afterwards.
  *
  * Real-DI against in-memory SQLite with the real migrations, services and
- * country plugin. The migration seeds reporting_period 1 = 2024-Q1 (open); the
- * EE plugin is made active by setting org.country = 'EE'.
+ * country plugin. Re-date the seeded period to February 2026 so the 24%
+ * fixtures agree with the dated EE rate; historical measurement has its own test.
  */
 describe('Filing-state consistency (issue #200)', () => {
   let db: Kysely<Database>;
@@ -55,6 +55,7 @@ describe('Filing-state consistency (issue #200)', () => {
   let organization: OrganizationService;
   let salesInvoices: SalesInvoicesService;
   let posting: PostingService;
+  let ee: EstoniaCountryPlugin;
 
   const PERIOD_ID = 1;
 
@@ -109,6 +110,17 @@ describe('Filing-state consistency (issue #200)', () => {
     organization = module.get(OrganizationService);
     salesInvoices = module.get(SalesInvoicesService);
     posting = module.get(PostingService);
+    ee = module.get(EstoniaCountryPlugin);
+
+    await db
+      .updateTable('reporting_period')
+      .set({
+        name: '2026-02',
+        start_date: '2026-02-01',
+        end_date: '2026-02-28',
+      })
+      .where('id', '=', PERIOD_ID)
+      .execute();
 
     await organization.updateOrganization({
       country: 'EE',
@@ -169,7 +181,7 @@ describe('Filing-state consistency (issue #200)', () => {
       gross_amount: net + vat,
       vat_amount: vat,
       currency: 'EUR',
-      tax_point_date: '2024-02-15',
+      tax_point_date: '2026-02-15',
       due_date: null,
     });
     const draft = await salesInvoices.generateDraftVoucher(inv.id);
@@ -193,7 +205,7 @@ describe('Filing-state consistency (issue #200)', () => {
       .insertInto('voucher')
       .values({
         voucher_number: 'SYNTHETIC-395',
-        tax_point_date: '2024-02-20',
+        tax_point_date: '2026-02-20',
         posted_at: 1,
         previous_hash: null,
         reverses_id: null,
@@ -302,6 +314,112 @@ describe('Filing-state consistency (issue #200)', () => {
     const state = await submissions.getState(PERIOD_ID);
     expect(state.currentSnapshotId).toBe(frozen.id);
     expect(state.currentPayloadId).not.toBeNull();
+  });
+
+  it('files an original 22% measurement at a 24%-era date without remeasuring or changing its frozen replay', async () => {
+    // A redirected/corrected acquisition keeps its original dated decision.
+    // Filing membership is February 2026; measurement remains February 2024.
+    const decision = ee.resolveCrossBorderTreatment(
+      {
+        country: 'DK',
+        goodsVsServices: 'services',
+        classificationMemory: [],
+        taxStatus: 'taxable_business',
+      },
+      { country: 'EE', vatRegistered: true, baseCurrency: null },
+      {
+        vatCharged: false,
+        taxPointDate: '2024-02-15',
+        euVatFacts: {
+          supplyType: 'services',
+          recipientStatus: 'taxable_business',
+          receivingEstablishmentCountry: 'EE',
+          supplierEstablishmentCountry: 'DK',
+          supplierNonEstablishedInPlace: true,
+          businessPurpose: true,
+          buyerEvidence: true,
+        },
+      },
+    ).decision;
+    expect(decision).toMatchObject({
+      supplyDate: '2024-02-15',
+      nationalRate: 0.22,
+    });
+    const measured = await posting.postVoucher({
+      tax_point_date: '2026-02-15',
+      vat_decision: decision,
+      lines: [
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: 10000,
+          is_debit: true,
+          vat_code: 'EE_REVERSE_CHARGE_EU',
+        },
+        {
+          account_code: 'VAT_RECEIVABLE',
+          amount: 2200,
+          is_debit: true,
+          vat_code: 'EE_REVERSE_CHARGE_EU',
+        },
+        { account_code: 'AP', amount: 10000, is_debit: false, vat_code: null },
+        {
+          account_code: 'VAT_PAYABLE',
+          amount: 2200,
+          is_debit: false,
+          vat_code: 'EE_REVERSE_CHARGE_EU',
+        },
+      ].map((line) => ({
+        ...line,
+        base_amount: line.amount,
+        currency: 'EUR',
+        fx_rate: 1,
+      })),
+    });
+    const original = await db
+      .selectFrom('voucher')
+      .selectAll()
+      .where('id', '=', measured.id)
+      .executeTakeFirstOrThrow();
+    const declaration = await vatReports.buildDeclaration(PERIOD_ID);
+    expect(declaration).toMatchObject({
+      row1_base_22: 10000,
+      row1_base_24: 0,
+      row4_output_vat: 2200,
+      row5_input_vat: 2200,
+    });
+    const draft = await statutory.generate(PERIOD_ID, { formats: ['xml'] });
+    expect(draft.artifacts[0].content).toContain(
+      '<transactions22>100.00</transactions22>',
+    );
+    expect(draft.artifacts[0].content).not.toContain('<transactions24>');
+    expect(await countRows('vat_report')).toBe(0);
+    expect(await countRows('statutory_filing_snapshot')).toBe(0);
+
+    const live = await vatReports.preview(PERIOD_ID);
+    const locked = await periods.lock(PERIOD_ID);
+    const frozen = await vatReports.getById(
+      locked.vat_report_snapshot_id as number,
+    );
+    expect(frozen.voucher_ids).toEqual([measured.id]);
+    expect(frozen.merkle_root).toBe(live.merkle_root);
+    expect(frozen.total_output_vat).toBe(2200);
+    const filed = await statutory.generate(PERIOD_ID, { formats: ['xml'] });
+    expect(filed.artifacts[0].content).toContain(
+      '<transactions22>100.00</transactions22>',
+    );
+    expect(filed.artifacts[0].content).not.toContain('<transactions24>');
+
+    // A later national-rate lookup changes, but replay uses the committed payload.
+    jest.spyOn(ee, 'getVatRate').mockReturnValue(0.24);
+    const replayed = await statutory.generate(PERIOD_ID, { formats: ['xml'] });
+    expect(replayed.artifacts[0].content).toBe(filed.artifacts[0].content);
+    expect(
+      await db
+        .selectFrom('voucher')
+        .selectAll()
+        .where('id', '=', measured.id)
+        .executeTakeFirstOrThrow(),
+    ).toEqual(original);
   });
 
   // ── Legacy: a prematurely frozen snapshot is superseded, never reused ────
@@ -745,7 +863,7 @@ describe('Filing-state consistency (issue #200)', () => {
       gross_amount: 10000,
       vat_amount: 0,
       currency: 'EUR',
-      tax_point_date: '2024-02-15',
+      tax_point_date: '2026-02-15',
       supply_type: 'services',
     });
     const euDraft = await salesInvoices.generateDraftVoucher(euInvoice.id);
