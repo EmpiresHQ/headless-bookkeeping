@@ -834,6 +834,14 @@ export class EstoniaCountryPlugin implements CountryPlugin {
             : 'PATCH /api/expenses/{id} with the named facts and evidence references; placeOfSupplyCountry is recorded as place_of_supply_country. For a posted expense use POST /api/expenses/{id}/correct with kind=financial, reason and patch. No automatic historical correction is performed.',
       });
     };
+    if ('hold' in decision) {
+      if (
+        decision.ruleId === 'supply_type_unknown' &&
+        !EstoniaCountryPlugin.EU.has(supplier.country)
+      )
+        this.resolveThirdCountryAcquisition(supplier);
+      return refuse(decision.ruleId, decision.requiredFacts, decision.hold);
+    }
     if (
       supplier.country !== org.country &&
       (!facts.documentTaxTreatment || context.vatCharged) &&
@@ -846,14 +854,6 @@ export class EstoniaCountryPlugin implements CountryPlugin {
         context,
       );
       if (local) return { ...local, decision };
-    }
-    if ('hold' in decision) {
-      if (
-        decision.ruleId === 'supply_type_unknown' &&
-        !EstoniaCountryPlugin.EU.has(supplier.country)
-      )
-        this.resolveThirdCountryAcquisition(supplier);
-      return refuse(decision.ruleId, decision.requiredFacts, decision.hold);
     }
     const resolved = (
       treatment: CrossBorderResolution['treatment'],

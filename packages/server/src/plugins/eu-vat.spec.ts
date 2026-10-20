@@ -1,4 +1,5 @@
 import { decideEuVat, EuVatFacts, EuVatInput } from './eu-vat';
+import { UnresolvedVatTreatmentError } from './vat-treatment.errors';
 import { EstoniaCountryPlugin } from './estonia-country.plugin';
 import { unusedFxRateService } from '../../test/fx-fixtures';
 import { OrgContext, ServicePlaceRule } from './country-plugin.interface';
@@ -59,6 +60,49 @@ const resolve = (
   });
 
 describe('composed EU VAT decisions (#398)', () => {
+  describe.each([
+    ['immovable_property', 'Art47'],
+    ['restaurant_catering', 'Art55'],
+  ] as const)('EE adapter local foreign %s hold priority', (rule, ruleId) => {
+    const localPurchase = (specialCase?: EuVatFacts['specialCase']) =>
+      plugin.resolveCrossBorderTreatment({ ...supplier, country: 'DK' }, org, {
+        vatCharged: true,
+        taxPointDate: '2026-06-10',
+        servicePlaceRule: rule,
+        placeOfSupplyCountry: 'DK',
+        euVatFacts: { supplyType: 'services', onboard: false, specialCase },
+      });
+
+    it.each([
+      'margin_scheme',
+      'use_and_enjoyment',
+      'transitional_rate',
+    ] as const)(
+      'refuses %s before the legacy foreign-cost fallback',
+      (specialCase) => {
+        expect(() => localPurchase(specialCase)).toThrow(
+          expect.objectContaining<Partial<UnresolvedVatTreatmentError>>({
+            code: `${specialCase}_unsupported`,
+            missingFacts: expect.arrayContaining([
+              expect.stringContaining(specialCase),
+            ]),
+            howToResolve: expect.stringContaining('accountant'),
+          }),
+        );
+      },
+    );
+
+    it('preserves supported #403 foreign-cost classification', () => {
+      const result = localPurchase();
+      expect(result).toMatchObject({
+        treatment: 'foreign_cost',
+        vatCode: null,
+        decision: { ruleId, jurisdiction: 'DK' },
+      });
+      expect(result.decision).not.toHaveProperty('hold');
+    });
+  });
+
   it('general B2B and B2C have independent establishment criteria', () => {
     expect(decideEuVat(input())).toMatchObject({
       ruleId: 'Art44',
