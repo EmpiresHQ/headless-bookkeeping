@@ -354,6 +354,14 @@ export class BankTransactionRepository {
     bankTransactionId: number,
     executor: Dbx = this.db,
   ): Promise<boolean> {
+    // Dispositions can post bank legs without a reconciliation_match
+    // (personal), so their status itself is protected financial history.
+    const transaction = await executor
+      .selectFrom('bank_transaction')
+      .select('status')
+      .where('id', '=', bankTransactionId)
+      .executeTakeFirst();
+    if (transaction && transaction.status !== 'open') return true;
     const match = await executor
       .selectFrom('reconciliation_match')
       .select('id')

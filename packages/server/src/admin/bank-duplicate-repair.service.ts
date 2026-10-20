@@ -125,6 +125,8 @@ export interface RepairExpectedState {
   survivorActiveMatchCount: number;
   survivorDraftMatchCount: number;
   survivorSettlementClaimExpenseId: number | null;
+  survivorStatus: string;
+  survivorAdvanceFunded: boolean;
   duplicateActiveMatchCount: number;
   duplicateDraftMatchCount: number;
   duplicateSettlementClaimExpenseId: number | null;
@@ -199,7 +201,9 @@ export class BankDuplicateRepairService {
       // resolve to. Ties fall back to the oldest row (lowest id).
       const financial = rows.filter(
         (r) =>
+          r.status !== 'open' ||
           r.activeMatchCount > 0 ||
+          r.draftMatchCount > 0 ||
           r.settlementClaimExpenseId !== null ||
           r.advanceFunded,
       );
@@ -227,6 +231,7 @@ export class BankDuplicateRepairService {
       // are unambiguous duplicates wherever they came from.
       const retainStatements = new Set(recommended?.statement_ids ?? []);
       const financialFree = (r: DuplicatePreviewRow) =>
+        r.status === 'open' &&
         r.activeMatchCount === 0 &&
         r.draftMatchCount === 0 &&
         r.settlementClaimExpenseId === null &&
@@ -251,6 +256,7 @@ export class BankDuplicateRepairService {
           financial.length >= 2 ||
           compatible.some(
             (r) =>
+              r.status !== 'open' ||
               r.activeMatchCount > 0 ||
               r.draftMatchCount > 0 ||
               r.settlementClaimExpenseId !== null ||
@@ -388,10 +394,20 @@ export class BankDuplicateRepairService {
       // operator chose this pair from the preview; the audit entry records it.
 
       // Revalidate the previewed state atomically (stale preview → 409).
-      const dupFacts = await this.financialFacts(trx, duplicateId);
-      const surFacts = await this.financialFacts(trx, survivorId);
+      const dupFacts = await this.financialFacts(
+        trx,
+        duplicateId,
+        duplicate.status,
+      );
+      const surFacts = await this.financialFacts(
+        trx,
+        survivorId,
+        survivor.status,
+      );
       const e = args.expected;
       const stale =
+        survivor.status !== e.survivorStatus ||
+        surFacts.advanceFunded !== e.survivorAdvanceFunded ||
         surFacts.activeMatchCount !== e.survivorActiveMatchCount ||
         surFacts.draftMatchCount !== e.survivorDraftMatchCount ||
         surFacts.settlementClaimExpenseId !==
@@ -415,7 +431,7 @@ export class BankDuplicateRepairService {
         const bothFinancial = surFacts.hasFinancial;
         throw new ConflictException(
           bothFinancial
-            ? 'both rows carry financial references (matches/settlement claims/advance funding) — resolve through the normal reversal/unmatch flows; a merge never sums or deletes financial history'
+            ? 'both rows carry financial references (dispositions/matches/settlement claims/advance funding) — resolve through the normal reversal/unmatch flows; a merge never sums or deletes financial history'
             : 'the duplicate carries financial references — pick the financially-referenced row as the survivor, or resolve the duplicate through the normal flows first',
         );
       }
@@ -520,7 +536,11 @@ export class BankDuplicateRepairService {
     });
   }
 
-  private async financialFacts(trx: Kysely<Database>, txnId: number) {
+  private async financialFacts(
+    trx: Kysely<Database>,
+    txnId: number,
+    status: string,
+  ) {
     const matchRows = await trx
       .selectFrom('reconciliation_match')
       .select(['status'])
@@ -549,7 +569,10 @@ export class BankDuplicateRepairService {
       settlementClaimExpenseId: usage ? usage.expense_id : null,
       advanceFunded: advance !== undefined,
       hasFinancial:
-        matchRows.length > 0 || usage !== undefined || advance !== undefined,
+        status !== 'open' ||
+        matchRows.length > 0 ||
+        usage !== undefined ||
+        advance !== undefined,
     };
   }
 
@@ -570,7 +593,7 @@ export class BankDuplicateRepairService {
       .execute();
     const result: DuplicatePreviewRow[] = [];
     for (const r of rows) {
-      const facts = await this.financialFacts(this.db, r.id);
+      const facts = await this.financialFacts(this.db, r.id, r.status);
       const sources = await this.db
         .selectFrom('bank_transaction_source')
         .select('statement_id')

@@ -38,6 +38,8 @@ const repairBankDuplicateSchema = z.object({
     survivorActiveMatchCount: z.number().int(),
     survivorDraftMatchCount: z.number().int(),
     survivorSettlementClaimExpenseId: z.number().int().nullable(),
+    survivorStatus: z.string(),
+    survivorAdvanceFunded: z.boolean(),
     duplicateActiveMatchCount: z.number().int(),
     duplicateDraftMatchCount: z.number().int(),
     duplicateSettlementClaimExpenseId: z.number().int().nullable(),
