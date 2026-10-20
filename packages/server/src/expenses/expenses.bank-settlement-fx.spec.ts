@@ -120,6 +120,9 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
         source_currency: line.sourceCurrency,
         source_amount: line.sourceAmount,
         fx_rate: line.fxRate,
+        // The printed quote's precision, as a CSV-sourced import retains it
+        // (issue #403); null when the line has no printed rate at all.
+        fx_rate_decimals: line.fxRate === null ? null : 7,
         conversion_fee: line.fee,
         counterparty_iban: null,
         counterparty_descriptor: line.descriptor,
@@ -217,6 +220,13 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
     const detail = JSON.parse(audits[0].detail!) as Record<string, unknown>;
     expect(detail.conversion_fee).toBe(8);
     expect(detail.rate_direction).toBe('EUR per 1 DKK');
+    // The calculation precision, rounding rule and consistency tolerance
+    // actually applied, persisted with the valuation (issue #403).
+    expect(detail.rate_calculation_precision).toContain(
+      'bank-printed to 7 decimals',
+    );
+    expect(detail.rounding_rule).toContain('Math.round');
+    expect(String(detail.consistency_tolerance)).toContain('exact');
     expect(detail.transaction_date).toBe('2026-06-19');
     expect(detail.tax_point_date).toBe('2026-06-19');
     expect(String(detail.valuation_policy)).toContain('RTJ1');
@@ -527,6 +537,114 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
     );
   });
 
+  it('refuses a same-amount descriptor of a DIFFERENT merchant differing in one significant token (Circle K vs Circle X, issue #403)', async () => {
+    await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'CIRCLE K', // one-letter tokens are significant: K ≠ X
+    });
+    const supplier = await entities.onboard({
+      role: 'supplier',
+      country: 'DK',
+      name: 'Circle X',
+      registrationKey: 'DK403CIRCLEX',
+      goodsVsServices: 'services',
+      taxStatus: 'taxable_business',
+    });
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    const thrown = await service
+      .generateDraftVoucher(expense.id)
+      .catch((e: unknown) => e as FxRateUnavailableError);
+    expect(thrown).toBeInstanceOf(FxRateUnavailableError);
+    expect((thrown as FxRateUnavailableError).message).toMatch(
+      /do not identify this supplier/i,
+    );
+    expect(
+      await db.selectFrom('bank_settlement_usage').selectAll().execute(),
+    ).toHaveLength(0);
+  });
+
+  it('refuses a descriptor whose repeated tokens are not the supplier’s (PIZZA PIZZA is not PIZZA EXPRESS, issue #403)', async () => {
+    await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'PIZZA PIZZA', // token multiplicity is identity
+    });
+    const supplier = await entities.onboard({
+      role: 'supplier',
+      country: 'DK',
+      name: 'Pizza Express',
+      registrationKey: 'DK403PIZZAEXPRESS',
+      goodsVsServices: 'services',
+      taxStatus: 'taxable_business',
+    });
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'restaurant_catering',
+      place_of_supply_country: 'DK',
+    });
+    await expect(service.generateDraftVoucher(expense.id)).rejects.toThrow(
+      FxRateUnavailableError,
+    );
+    expect(
+      await db.selectFrom('bank_settlement_usage').selectAll().execute(),
+    ).toHaveLength(0);
+  });
+
+  it('refuses a legal-form-suffix-only descriptor (an AS names no particular merchant)', async () => {
+    await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'AS',
+    });
+    const supplier = await nextHouseSupplier(); // '... AS' style name would match a bare 'AS'
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    await expect(service.generateDraftVoucher(expense.id)).rejects.toThrow(
+      FxRateUnavailableError,
+    );
+    expect(
+      await db.selectFrom('bank_settlement_usage').selectAll().execute(),
+    ).toHaveLength(0);
+  });
+
   it('keeps the statutory hold when the counterparty descriptor does not identify the supplier', async () => {
     await seedBankLine({
       date: '2026-06-19',
@@ -572,12 +690,12 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       sourceAmount: 2450,
       fxRate: 0.13387755102040816,
       fee: 3,
-      descriptor: 'NEXT HOUSE COPENHAGEN MINI',
+      descriptor: 'NEXT HOUSE COPENHAGEN',
     });
     const supplier = await entities.onboard({
       role: 'supplier',
       country: 'DK',
-      name: 'Next House Copenhagen Mini',
+      name: 'Next House Copenhagen',
       registrationKey: 'DK403NHMINI',
       goodsVsServices: 'services',
       taxStatus: 'taxable_business',

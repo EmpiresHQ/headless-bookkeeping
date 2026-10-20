@@ -417,6 +417,12 @@ export class IntakeWorkflowService {
             'tax_point_date',
             'document_vat_marking',
             'supplier_invoice_number',
+            // The recorded place-of-supply facts (issue #403): the details
+            // view is the AUTHORITY a reopened manual-classify sheet prefills
+            // from — omitting them would make the sheet default to General and
+            // a resume silently clear a saved local treatment.
+            'service_place_rule',
+            'place_of_supply_country',
             'ai_confidence',
             'ai_document_type',
             'ai_kind',
@@ -481,6 +487,13 @@ export class IntakeWorkflowService {
           category: expense.category,
           document_vat_marking: expense.document_vat_marking,
           supplier_invoice_number: expense.supplier_invoice_number,
+          // The recorded place-of-supply facts (issue #403): prefilled by the
+          // reopened manual sheet so an UNTOUCHED form re-sends the SAVED
+          // declaration (an explicit 'General' choice is the only clear).
+          // NULL rule ⇒ the residual general rule.
+          service_place_rule: (expense.service_place_rule ??
+            'general') as TriageResult['service_place_rule'],
+          place_of_supply_country: expense.place_of_supply_country,
           // Fields not stored on the Expense — supply safe defaults.
           outgoing_signals: {
             org_name_is_issuer: false,

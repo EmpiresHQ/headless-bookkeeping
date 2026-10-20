@@ -125,12 +125,60 @@ describe('applyRules', () => {
     expect(t.description).toContain('ECB reference rate 0.1337864');
   });
 
+  it('retains the PRINTED rate’s quoted decimal precision before numeric coercion (issue #403)', () => {
+    const withDecimals: MappingRuleset = {
+      ...lhvLike,
+      amount: { mode: 'signed', column: 'Amount' },
+      fx_rate: { column: 'Rate' },
+    };
+    // A dedicated column: '0.133833300' — 9 printed decimals.
+    const dot = applyRules(
+      withDecimals,
+      'Date,Amount,Currency,Rate\n2026-06-19,-8.11,EUR,0.133833300',
+    );
+    expect(dot.transactions[0].fx_rate_decimals).toBe(9);
+    // European decimal comma: '0,133833300' — still 9 printed decimals
+    // (a quoted CSV cell, so the comma survives the column split).
+    const comma = applyRules(
+      withDecimals,
+      'Date,Amount,Currency,Rate\n2026-06-19,-8.11,EUR,"0,133833300"',
+    );
+    expect(comma.transactions[0].fx_rate_decimals).toBe(9);
+    // An embedded description extraction: 'bank rate 0.1338333' — 7 decimals.
+    const embedded: MappingRuleset = {
+      ...lhvLike,
+      amount: { mode: 'signed', column: 'Amount' },
+      fx_rate: {
+        column: 'Explanation',
+        pattern: 'bank rate ([\\d.]+)',
+      },
+    };
+    const emb = applyRules(
+      embedded,
+      'Date,Amount,Currency,Explanation\n2026-06-19,-8.11,EUR,DKK 60; bank rate 0.1338333',
+    );
+    expect(emb.transactions[0].fx_rate_decimals).toBe(7);
+    // A printed integer rate quotes 0 decimals; an exponent form carries no
+    // plain printed precision — none fabricated.
+    const integer = applyRules(
+      withDecimals,
+      'Date,Amount,Currency,Rate\n2026-06-19,-8.00,EUR,1',
+    );
+    expect(integer.transactions[0].fx_rate_decimals).toBe(0);
+    const exponent = applyRules(
+      withDecimals,
+      'Date,Amount,Currency,Rate\n2026-06-19,-8.11,EUR,1.338333e-1',
+    );
+    expect(exponent.transactions[0].fx_rate_decimals).toBeNull();
+  });
+
   it('leaves absent evidence targets NULL (absent evidence, not zero)', () => {
     const out = applyRules(lhvLike, csv);
     const t = out.transactions[0];
     expect(t.source_currency).toBeNull();
     expect(t.source_amount).toBeNull();
     expect(t.fx_rate).toBeNull();
+    expect(t.fx_rate_decimals).toBeNull();
     expect(t.conversion_fee).toBeNull();
     expect(t.booking_date).toBeNull();
   });

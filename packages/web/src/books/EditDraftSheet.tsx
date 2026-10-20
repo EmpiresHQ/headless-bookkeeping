@@ -16,6 +16,11 @@ import { useCategories, useEntities } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
+import {
+  declaredPlaceRule,
+  normalizePlaceCountry,
+  PlaceOfSupplyControls,
+} from '../ui/PlaceOfSupplyControls';
 import { toastOk } from '../ui/toast';
 
 /**
@@ -31,32 +36,6 @@ import { toastOk } from '../ui/toast';
  * pressed again; a failed lookup (categories/entities) is shown, and the
  * current value always stays selectable so it is never lost.
  */
-
-/** The place-of-supply declaration to SEND (issue #403): the chosen
- *  local-consumption exception, or 'general' as the explicit CLEAR. A
- *  stored rule the select does not offer (an unimplemented special rule,
- *  e.g. passenger_transport) is PRESERVED untouched on an unrelated edit —
- *  silently re-declaring it as 'general' would enable a general-rule
- *  reverse charge the stored declaration contradicts. Only the operator's
- *  explicit 'General' selection clears it. */
-function declaredPlaceRule(
-  placeRule: string,
-  storedRule: ServicePlaceRule | null | undefined,
-): ServicePlaceRule {
-  // Untouched means the select still shows the STORED rule — the operator
-  // never changed it. An EMPTY value can only be an explicit 'General'
-  // selection (or no stored rule at all), and BOTH mean 'general': an empty
-  // selection must CLEAR, never silently preserve, a stored exception
-  // (issue #403).
-  const untouched =
-    storedRule != null && storedRule !== 'general' && placeRule === storedRule;
-  if (untouched) return storedRule;
-  return placeRule === 'immovable_property'
-    ? 'immovable_property'
-    : placeRule === 'restaurant_catering'
-      ? 'restaurant_catering'
-      : 'general';
-}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CURRENCY = /^[A-Z]{3}$/;
@@ -370,7 +349,7 @@ export function ExpenseEditSheet({
       ),
       place_of_supply_country:
         placeRule !== '' && placeCountry.trim() !== ''
-          ? placeCountry.trim().toUpperCase()
+          ? normalizePlaceCountry(placeCountry)
           : null,
       ...(allowDuplicate ? { allow_duplicate: true } : {}),
     };
@@ -492,58 +471,13 @@ export function ExpenseEditSheet({
             </SelectInput>
           </Field>
         )}
-        <div className="flex gap-2.5">
-          <div className="flex-1">
-            <Field
-              label="Place-of-supply rule"
-              hint="declare only for local foreign purchases (e.g. a hotel or a restaurant bill)"
-            >
-              <SelectInput
-                aria-label="Place-of-supply rule"
-                value={placeRule}
-                onChange={(e) => setPlaceRule(e.target.value)}
-              >
-                <option value="">General (default)</option>
-                <option value="immovable_property">
-                  Accommodation — immovable property (Art 47)
-                </option>
-                <option value="restaurant_catering">
-                  Restaurant &amp; catering (Art 55)
-                </option>
-                {/* A stored rule the select does not offer stays VISIBLE and
-                    actionable — never silently swapped for another choice
-                    (issue #403). */}
-                {detail.service_place_rule != null &&
-                  detail.service_place_rule !== 'general' &&
-                  detail.service_place_rule !== 'immovable_property' &&
-                  detail.service_place_rule !== 'restaurant_catering' && (
-                    <option value={detail.service_place_rule}>
-                      {detail.service_place_rule} (recorded — kept)
-                    </option>
-                  )}
-              </SelectInput>
-            </Field>
-          </div>
-          <div className="flex-1">
-            <Field
-              label="Supplied in country"
-              hint="ISO code where the supply physically took place"
-              error={
-                placeRule !== '' && placeCountry.trim() === ''
-                  ? 'Enter the country the supply took place in (e.g. DK)'
-                  : null
-              }
-            >
-              <TextInput
-                aria-label="Supplied in country"
-                value={placeCountry}
-                onChange={(e) => setPlaceCountry(e.target.value)}
-                placeholder={placeRule === '' ? '—' : 'DK'}
-                disabled={placeRule === ''}
-              />
-            </Field>
-          </div>
-        </div>
+        <PlaceOfSupplyControls
+          placeRule={placeRule}
+          onPlaceRuleChange={setPlaceRule}
+          placeCountry={placeCountry}
+          onPlaceCountryChange={setPlaceCountry}
+          storedRule={detail.service_place_rule}
+        />
       </fieldset>
       <LookupRetry queries={[categoriesQ, entitiesQ]} disabled={busy} />
 

@@ -22,6 +22,7 @@ const nextHouse = (over?: Partial<BankSettlementLink>): BankSettlementLink => ({
   settledCurrency: 'EUR',
   settledAmount: -811,
   fxRate: 0.1338333,
+  fxRateDecimals: 7,
   conversionFee: 8,
   bankReferenceRate: null,
   ...over,

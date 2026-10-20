@@ -6,6 +6,7 @@ import {
   manualClassify,
   onboardEntity,
   type TriageOutcome,
+  type ServicePlaceRule,
 } from '../api';
 import { STANDARD_VAT_RATE_PCT } from '../bank/format';
 import {
@@ -40,6 +41,11 @@ import {
 } from '../ui/Lookup';
 import { SearchInput } from '../ui/SearchInput';
 import { Sheet } from '../ui/Sheet';
+import {
+  declaredPlaceRule,
+  normalizePlaceCountry,
+  PlaceOfSupplyControls,
+} from '../ui/PlaceOfSupplyControls';
 import { DocumentSourcePane } from './DocumentSourcePane';
 
 const CURRENCIES = ['EUR', 'DKK', 'USD', 'GBP', 'SEK', 'NOK'] as const;
@@ -50,22 +56,6 @@ const VAT_MARKINGS = [
   { value: 'E', label: 'E — Exempt' },
 ] as const;
 
-/**
- * The place-of-supply declaration to SEND (issue #403): a supported
- * local-consumption exception as chosen, or 'general' — the server's
- * explicit CLEAR — so a reclassification that goes back to the general rule
- * never silently keeps an obsolete local classification on a held draft.
- */
-function declaredPlaceRule(
-  placeRule: string,
-): 'general' | 'immovable_property' | 'restaurant_catering' {
-  return placeRule === 'immovable_property'
-    ? 'immovable_property'
-    : placeRule === 'restaurant_catering'
-      ? 'restaurant_catering'
-      : 'general';
-}
-
 const EMPTY_CLASSIFY = {
   supplierId: null as number | null,
   category: '',
@@ -75,6 +65,8 @@ const EMPTY_CLASSIFY = {
   date: '',
   vatMarking: '',
   invoiceNumber: '',
+  placeRule: null as string | null,
+  placeCountry: null as string | null,
   newName: '',
   newCountry: '',
   newRegKey: '',
@@ -135,8 +127,19 @@ export function ClassifyExpenseSheet({
   // (accommodation, a restaurant meal) carries the supplier's own VAT; the
   // operator declares WHICH rule governs it and WHERE it physically took
   // place. Default: the general rule (no declaration).
-  const [placeRule, setPlaceRule] = useState('');
-  const [placeCountry, setPlaceCountry] = useState('');
+  // Null-sentinel untouch tracking (the same reason `currencyChoice` uses
+  // null): '' must be able to mean an EXPLICIT 'General' selection, so
+  // 'untouched' is null — a late authoritative prefill fills ONLY a null
+  // value and never stomps an explicit operator choice (issue #403).
+  const [placeRule, setPlaceRule] = useState<string | null>(null);
+  const [placeCountry, setPlaceCountry] = useState<string | null>(null);
+  // The RECORDED declaration of the persisted classification (issue #403):
+  // the authoritative prefill source — an untouched form keeps it (even a
+  // rule the select does not offer); only an explicit choice changes it.
+  const [prefilledRecordedRule, setPrefilledRecordedRule] = useState(
+    null as ServicePlaceRule | null,
+  );
+  const [prefilledCountry, setPrefilledCountry] = useState<string | null>(null);
   const [showAllCats, setShowAllCats] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
   // One operation for the sheet (issue #251): classifying and creating a
@@ -184,6 +187,21 @@ export function ClassifyExpenseSheet({
       setInvoiceNumber((cur) =>
         cur === '' ? (c.result.supplier_invoice_number ?? '') : cur,
       );
+      // The RECORDED place-of-supply declaration (issue #403): a reopened
+      // manual-classify form prefills the SAVED declaration, so an
+      // untouched submit re-sends it (an explicit 'General' choice is the
+      // only clear). Untouched-only, like every other prefill here.
+      // Null-sentinel (issue #403): ONLY an untouched (null) value is
+      // prefilled — an explicit '' (a deliberate 'General' selection) or any
+      // other operator choice survives the late authoritative prefill.
+      setPlaceRule((cur) =>
+        cur === null ? (c.result.service_place_rule ?? '') : cur,
+      );
+      setPrefilledRecordedRule(c.result.service_place_rule ?? null);
+      setPrefilledCountry(c.result.place_of_supply_country ?? null);
+      setPlaceCountry((cur) =>
+        cur === null ? (c.result.place_of_supply_country ?? '') : cur,
+      );
       // Seed the inline "New supplier…" create fields too — untouched-only,
       // same functional-update pattern, so a field the operator already typed
       // into (or the search-text fallback below) is never clobbered.
@@ -202,6 +220,8 @@ export function ClassifyExpenseSheet({
         date: c.result.tax_point_date,
         vatMarking: c.result.document_vat_marking ?? '',
         invoiceNumber: c.result.supplier_invoice_number ?? '',
+        placeRule: c.result.service_place_rule ?? '',
+        placeCountry: c.result.place_of_supply_country ?? '',
         newName: ex?.name ?? '',
         newCountry: ex?.country ?? '',
         newRegKey: ex?.registration_key ?? '',
@@ -230,6 +250,8 @@ export function ClassifyExpenseSheet({
       date,
       vatMarking,
       invoiceNumber,
+      placeRule,
+      placeCountry,
       newName,
       newCountry,
       newRegKey,
@@ -395,13 +417,20 @@ export function ClassifyExpenseSheet({
       // The declaration is ALWAYS sent (issue #403): 'general' is the
       // server's explicit CLEAR of an earlier held draft's declared exception
       // (a reclassification that goes back to the general rule must not
-      // silently keep the old local classification).
-      service_place_rule: declaredPlaceRule(placeRule),
+      // silently keep the old local classification); an UNTOUCHED prefilled
+      // recorded rule — including one the select does not offer — is
+      // re-sent as recorded.
+      service_place_rule: declaredPlaceRule(
+        placeRule ?? prefilledRecordedRule ?? '',
+        prefilledRecordedRule,
+      ),
       // An exception without a country is an incomplete declaration — the
-      // server holds with the fact named; require it here first.
+      // server holds with the fact named; require it here first. Untouched
+      // (null) place fields send the RECORDED declaration.
       place_of_supply_country:
-        placeRule !== '' && placeCountry.trim() !== ''
-          ? placeCountry.trim().toUpperCase()
+        (placeRule ?? prefilledRecordedRule ?? '') !== '' &&
+        (placeCountry ?? prefilledCountry ?? '').trim() !== ''
+          ? normalizePlaceCountry(placeCountry ?? prefilledCountry ?? '')
           : null,
     };
     const started = op.run(() => manualClassify(documentId, req), {
@@ -728,47 +757,13 @@ export function ClassifyExpenseSheet({
           </div>
         </div>
 
-        <div className="flex gap-2.5">
-          <div className="flex-1">
-            <Field
-              label="Place-of-supply rule"
-              hint="declare only for local foreign purchases (e.g. a hotel or a restaurant bill)"
-            >
-              <SelectInput
-                aria-label="Place-of-supply rule"
-                value={placeRule}
-                onChange={(e) => setPlaceRule(e.target.value)}
-              >
-                <option value="">General (default)</option>
-                <option value="immovable_property">
-                  Accommodation — immovable property (Art 47)
-                </option>
-                <option value="restaurant_catering">
-                  Restaurant &amp; catering (Art 55)
-                </option>
-              </SelectInput>
-            </Field>
-          </div>
-          <div className="flex-1">
-            <Field
-              label="Supplied in country"
-              hint="ISO code where the supply physically took place"
-              error={
-                placeRule !== '' && placeCountry.trim() === ''
-                  ? 'Enter the country the supply took place in (e.g. DK)'
-                  : null
-              }
-            >
-              <TextInput
-                aria-label="Supplied in country"
-                value={placeCountry}
-                onChange={(e) => setPlaceCountry(e.target.value)}
-                placeholder={placeRule === '' ? '—' : 'DK'}
-                disabled={placeRule === ''}
-              />
-            </Field>
-          </div>
-        </div>
+        <PlaceOfSupplyControls
+          placeRule={placeRule ?? prefilledRecordedRule ?? ''}
+          onPlaceRuleChange={setPlaceRule}
+          placeCountry={placeCountry ?? prefilledCountry ?? ''}
+          onPlaceCountryChange={setPlaceCountry}
+          storedRule={prefilledRecordedRule}
+        />
 
         <Field
           label="Category"

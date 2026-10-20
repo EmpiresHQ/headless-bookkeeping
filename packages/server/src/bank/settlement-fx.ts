@@ -61,6 +61,12 @@ export interface BankSettlementLink {
   /** The bank's explicit conversion rate (base per source unit), if printed. */
   fxRate: number | null;
   /**
+   * Decimal places in the bank's PRINTED rate, when the source presented it
+   * as text; NULL = precision unknown (numeric-only/legacy input — never
+   * fabricated) or the rate is derived (issue #403).
+   */
+  fxRateDecimals: number | null;
+  /**
    * The bank's separately charged conversion fee, in settled-currency minor
    * units. NULL means the statement did not evidence a fee — it is NOT a
    * default zero (issue #403); 0 asserts the bank charged nothing.
@@ -93,6 +99,12 @@ export type SettlementFxRateOrigin =
 export interface SettlementFxEvidence {
   /** The bank transaction the evidence came from. */
   bankTransactionId: number;
+  /**
+   * The calculation precision of `rate`: the bank's PRINTED decimal places
+   * when the rate was printed, or NULL when the rate was DERIVED (full
+   * division precision) or the printed precision is unknown (issue #403).
+   */
+  rateDecimals: number | null;
   /** The bank's booking date when the statement distinguishes it; null = not. */
   bookingDate: string | null;
   /** Its statement (row provenance; the raw source stays there). */
@@ -219,6 +231,7 @@ export function deriveSettlementFx(
           feeAmount: fee,
           feeOrigin: 'explicit',
           rate,
+          rateDecimals: link.fxRateDecimals,
           rateOrigin: 'bank_statement',
         },
       };
@@ -249,6 +262,7 @@ export function deriveSettlementFx(
         feeAmount: 0,
         feeOrigin: 'not_stated',
         rate,
+        rateDecimals: link.fxRateDecimals,
         rateOrigin: 'bank_statement',
       },
     };
@@ -293,6 +307,9 @@ export function deriveSettlementFx(
       feeAmount: fee,
       feeOrigin: 'explicit',
       rate,
+      // A derived rate carries no printed precision — full division
+      // precision, recorded as such (never a fabricated decimal count).
+      rateDecimals: null,
       rateOrigin: 'derived_principal',
     },
   };

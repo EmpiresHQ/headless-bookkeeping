@@ -118,6 +118,17 @@ export function applyRules(
         }
         return n;
       })(),
+      fx_rate_decimals: (() => {
+        // The QUOTED precision, retained before the numeric coercion eats it:
+        // how many decimals the bank actually printed ('0.1338333' → 7).
+        // NULL when the rate itself is absent or carries no printed precision
+        // (a bare integer, an exponent form — none fabricated, issue #403).
+        const v = fxEvidenceCell(row, ruleset.fx_rate);
+        if (v === null) return null;
+        const cleaned = v.replace(/\s/g, '').replace(',', '.');
+        if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
+        return cleaned.includes('.') ? cleaned.split('.')[1].length : 0;
+      })(),
       conversion_fee: (() => {
         const v = fxEvidenceCell(row, ruleset.conversion_fee);
         return v === null ? null : toCents(v);

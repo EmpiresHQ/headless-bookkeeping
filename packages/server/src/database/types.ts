@@ -398,6 +398,10 @@ export interface BankTransactionTable {
   // EXPLICITLY UNVERIFIED evidence, never a statutory provenance or a
   // valuation input (issue #403, ADR-0004). NULL = not reported.
   bank_reference_rate: number | null;
+  // Decimal places in the bank's PRINTED fx_rate when the source presented
+  // it as text; NULL = precision unknown (numeric-only input — never
+  // fabricated) (issue #403).
+  fx_rate_decimals: number | null;
   counterparty_iban: string | null;
   counterparty_descriptor: string | null;
   reference: string | null;

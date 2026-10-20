@@ -38,6 +38,11 @@ export const createTransactionSchema = z.object({
   /** The bank's actual conversion rate. */
   fx_rate: z.number().nullable().optional(),
   /**
+   * Decimal places in the PRINTED rate, when the source presented it as
+   * text; NULL = precision unknown (numeric-only input) (issue #403).
+   */
+  fx_rate_decimals: z.number().int().min(0).nullable().optional(),
+  /**
    * The bank's separately charged conversion fee, in `currency` minor
    * units. NULL means the statement did not evidence a fee — it is NOT a
    * default zero (issue #403); 0 asserts the bank charged nothing.
@@ -106,6 +111,8 @@ export interface BankTransactionRecord {
   source_currency: string | null;
   source_amount: number | null;
   fx_rate: number | null;
+  /** Decimal places in the PRINTED rate when presented as text; NULL = unknown. */
+  fx_rate_decimals: number | null;
   /** Separately charged conversion fee (currency minor units); NULL = not evidenced. */
   conversion_fee: number | null;
   /** The bank's booking date when distinguished from the value date; NULL = not distinguished. */

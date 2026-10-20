@@ -183,6 +183,28 @@ export const triageResultSchema = z.object({
   // addressed to the org)? True → VAT is recoverable (company-addressed);
   // false/null → personal receipt, VAT not recoverable (NULL_VAT_CODE path).
   company_addressed_receipt: z.boolean().nullable().optional(),
+  // The recorded place-of-supply facts of an expense-backed classification
+  // (issue #403): surfaced by the details view so a REOPENED manual-classify
+  // sheet prefills the SAVED declaration instead of defaulting to General
+  // and silently clearing it. Null rule ⇒ the residual general rule.
+  service_place_rule: z
+    .enum([
+      'general',
+      'immovable_property',
+      'passenger_transport',
+      'cultural_artistic_sporting_admission',
+      'restaurant_catering',
+      'short_term_hire_of_means_of_transport',
+      'electronically_supplied_to_consumer',
+      'other_special',
+    ])
+    .nullable()
+    .optional(),
+  place_of_supply_country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable()
+    .optional(),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;

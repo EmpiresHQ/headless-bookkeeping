@@ -38,23 +38,89 @@ type BankSettlementResolution =
   | { kind: 'unresolved'; reason: string };
 
 /**
+ * Common legal-form suffixes across the jurisdictions we book for. A token
+ * that is ONLY a legal-form suffix does not distinguish one merchant from
+ * another ('AS', 'OÜ', 'LTD', …), so a descriptor consisting solely of such
+ * tokens cannot establish identity (issue #403: 'UNRELATED AS' must not match
+ * every '-AS' supplier).
+ */
+const LEGAL_FORM_SUFFIXES = new Set([
+  'as',
+  'asa',
+  'aps',
+  'oü',
+  'ou',
+  'oy',
+  'ab',
+  'a/s',
+  'ag',
+  'gmbh',
+  'sa',
+  'nv',
+  'bv',
+  'ltd',
+  'llc',
+  'plc',
+  'inc',
+  'spa',
+  'srl',
+  'kk',
+  'kg',
+]);
+
+/**
  * Deterministic counterparty-identity rule (issue #403): every normalized
  * token of the bank's merchant descriptor/IBAN must appear among the tokens
  * of a supplier identity value (its name, a merchant_descriptor / name_alias /
  * IBAN identifier). Case- and punctuation-blind, order-blind, never fuzzy —
  * a descriptor naming a DIFFERENT merchant does not match.
+ *
+ * ONE-CHARACTER tokens are SIGNIFICANT and retained ('CIRCLE K' vs 'CIRCLE X'
+ * turns on the K/X: dropping short tokens made those two the same merchant
+ * and let an unrelated bank line value the wrong purchase). And a descriptor
+ * whose every token is a legal-form suffix establishes nothing.
  */
-function descriptorTokensWithin(descriptor: string, identity: string): boolean {
-  const norm = (s: string): string[] =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .filter((t) => t.length > 1);
-  const d = norm(descriptor);
-  const id = norm(identity);
-  return d.length > 0 && d.every((t) => id.includes(t));
+function descriptorMatchesIdentity(
+  descriptor: string,
+  identity: string,
+): boolean {
+  const d = meaningfulNameTokens(descriptor);
+  if (d.length === 0) return false;
+  const id = meaningfulNameTokens(identity);
+  // The FULL meaningful name, as a token set — a subset match would let a
+  // descriptor naming one merchant ('CIRCLE K') claim a longer, different
+  // one ('CIRCLE K OFFICE SERVICES AS'); only the same full merchant name
+  // (or a RECORDED alias/IBAN identifier, matched the same way) links.
+  // Multiset equality, not subset-includes: token MULTIPLICITY is identity
+  // ('PIZZA PIZZA' is not 'PIZZA EXPRESS' — two pizzas vs a pizza and an
+  // express), so the sorted token sequences must match element-wise.
+  const ds = [...d].sort();
+  const is = [...id].sort();
+  return ds.length === is.length && ds.every((t, i) => t === is[i]);
+}
+
+/** The meaningful name tokens of a merchant identity value: Unicode-folded,
+ *  punctuation-free, legal-form suffixes removed consistently from BOTH
+ *  sides of any comparison ('CIRCLE K A/S' ≡ 'Circle K As' ≡ [circle, k]).
+ *  One-character tokens ARE significant ('CIRCLE K' ≠ 'CIRCLE X'). */
+function meaningfulNameTokens(s: string): string[] {
+  const folded = s
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    // Slashed legal forms, merged before tokenizing so they hit the suffix
+    // set ('A/S' → 'as') instead of fragmenting into bare letters.
+    .replace(/a\/p\/s/g, 'aps')
+    .replace(/a\/s/g, 'as')
+    .replace(/s\/a/g, 'sa')
+    .replace(/n\/v/g, 'nv')
+    .replace(/b\/v/g, 'bv');
+  return folded
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length > 0)
+    .filter((t) => !LEGAL_FORM_SUFFIXES.has(t));
 }
 
 @Injectable()
@@ -606,7 +672,9 @@ export class ExpensesService {
     const linked = candidates.filter((c) => {
       const descriptor = c.counterparty_descriptor ?? c.counterparty_iban;
       if (descriptor == null) return false;
-      return identityValues.some((v) => descriptorTokensWithin(descriptor, v));
+      return identityValues.some((v) =>
+        descriptorMatchesIdentity(descriptor, v),
+      );
     });
 
     // Exclusivity, fast path: a bank line already CLAIMED by another expense
@@ -652,6 +720,7 @@ export class ExpensesService {
         settledCurrency: txn.currency,
         settledAmount: txn.amount,
         fxRate: txn.fx_rate,
+        fxRateDecimals: txn.fx_rate_decimals,
         conversionFee: txn.conversion_fee,
         bankReferenceRate: txn.bank_reference_rate,
       },
@@ -766,6 +835,21 @@ export class ExpensesService {
           link.fxRate !== null
             ? 'bank_statement (the bank printed its rate)'
             : 'derived from the fee-separated principal (|debit| - evidenced fee) / original amount',
+        // The calculation precision, rounding rule and consistency
+        // tolerance actually applied (issue #403): the bank's PRINTED
+        // decimal places when it printed a rate (null = unknown or derived),
+        // half-up rounding to base minor units, and the exact-consistency
+        // check the figures had to satisfy before anything posted.
+        rate_calculation_precision:
+          link.fxRate !== null
+            ? link.fxRateDecimals !== null
+              ? `bank-printed to ${link.fxRateDecimals} decimals`
+              : 'bank rate, printed precision unknown (numeric-only input)'
+            : 'derived full-precision division ((debit - evidenced fee) / original amount)',
+        rounding_rule: 'Math.round (half-up) to base-currency minor units',
+        consistency_tolerance:
+          'exact — the charged (fee-separated) principal must equal the ' +
+          "bank's own rounded rate × original amount (0 tolerance)",
         valuation_policy:
           'same-day bank settlement rate as the transaction-date rate ' +
           '(RTJ1 §93, SME IFRS 30.6/30.7), used only because no statutory ' +

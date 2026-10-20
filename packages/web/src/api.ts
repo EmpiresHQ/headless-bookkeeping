@@ -347,6 +347,12 @@ export interface DebugTriageResult {
   category: string;
   document_vat_marking: string | null;
   supplier_invoice_number: string | null;
+  /** The recorded place-of-supply facts of an expense-backed classification
+   *  (issue #403): prefilled by a reopened manual-classify sheet so an
+   *  untouched form re-sends the SAVED declaration. Optional (older
+   *  fixtures), null rule ⇒ the residual general rule. */
+  service_place_rule?: ServicePlaceRule | null;
+  place_of_supply_country?: string | null;
   confidence: number;
 }
 
