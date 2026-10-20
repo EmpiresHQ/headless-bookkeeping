@@ -1610,15 +1610,27 @@ export class IntakeWorkflowService {
     if (doc.status === 'triaged' || doc.status === 'processed') {
       const replay = await this.replayDraftProposed(documentId);
       if (replay) {
-        return this.confirmReplayResult(documentId, fact, value, replay);
+        return this.confirmReplayResult(
+          documentId,
+          chain?.supplier_id ?? null,
+          fact,
+          value,
+          replay,
+        );
       }
       const invoiceReplay =
         await this.proposeDraft.findExistingInvoiceDraft(documentId);
       if (invoiceReplay) {
-        return this.confirmReplayResult(documentId, fact, value, {
-          status: 'draft_proposed_invoice',
-          invoiceId: invoiceReplay.invoiceId,
-        });
+        return this.confirmReplayResult(
+          documentId,
+          chain?.supplier_id ?? null,
+          fact,
+          value,
+          {
+            status: 'draft_proposed_invoice',
+            invoiceId: invoiceReplay.invoiceId,
+          },
+        );
       }
       throw new ConflictException(
         `Document ${documentId} is not awaiting triage (status=${doc.status})`,
@@ -1761,29 +1773,35 @@ export class IntakeWorkflowService {
   /** Assemble the idempotent-replay confirm result: the outcome stands; the
    * fact is reported saved only if the chain's supplier currently carries
    * exactly that value (an operation result — it stays true). */
+  /** Assemble the idempotent-replay confirm result: the outcome stands;
+   * nothing is re-run or written. The receipt is attributed to the
+   * AUTHORITATIVE chain supplier captured above by the command — the same
+   * supplier the stale-view guard validated, never a separate raw
+   * earliest-row lookup (which could attribute it to an older editable
+   * row's supplier) and never the client's unvalidated id where the chain
+   * carries no supplier (an invoice replay, a no-chain document — the
+   * receipt stays null/not-saved there, exactly as before). The fact is
+   * reported saved only if that supplier currently carries exactly this
+   * value (an operation result — it stays true). */
   private async confirmReplayResult(
     documentId: number,
+    chainSupplierId: number | null,
     fact: MissingEntityFact,
     value: string,
     outcome: IntakeWorkflowResult,
   ): Promise<ConfirmEntityFactResult> {
-    const chain = await this.db
-      .selectFrom('expense')
-      .select('supplier_id')
-      .where('document_id', '=', documentId)
-      .orderBy('id', 'asc')
-      .executeTakeFirst();
     let entityId: number | null = null;
     let factSaved = false;
-    if (chain?.supplier_id != null) {
-      entityId = chain.supplier_id;
+    if (chainSupplierId != null) {
       try {
-        const entity = await this.entities.findById(chain.supplier_id);
+        const entity = await this.entities.findById(chainSupplierId);
+        entityId = entity.id;
         const current =
           fact === 'taxStatus' ? entity.tax_status : entity.goods_vs_services;
         factSaved = current === value;
       } catch {
-        entityId = null;
+        // A stale entity (deleted since the hold) — nothing derivable; the
+        // receipt stays honest (not saved) while the outcome stands.
       }
     }
     return {

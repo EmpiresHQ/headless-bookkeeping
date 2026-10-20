@@ -847,6 +847,129 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
     });
   });
 
+  describe('review follow-up: the replay receipt is attributed to the commanded supplier', () => {
+    it("attributes entity_id/fact_saved to the chain's CURRENT protected supplier, never an older editable row's supplier", async () => {
+      // Root's real fixture: an editable AI Expense (supplier A) plus a
+      // LATER MANUAL Expense (supplier B) posted through the normal
+      // controller/policy. The chain's protected supplier is B — the
+      // confirmation of B must be attributed to B, and its fact_saved must
+      // read B's facts, never supplier A's (an earliest-row lookup would
+      // attribute it to A).
+      const supplierA = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Receipt A',
+        registrationKey: 'DKROOT404RECEIPTA',
+        goodsVsServices: 'services',
+      });
+      const supplierB = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Receipt B',
+        registrationKey: 'DKROOT404RECEIPTB',
+        goodsVsServices: 'services',
+        taxStatus: 'taxable_business',
+      });
+      const { document } = await documents.upload({
+        buffer: Buffer.from('receipt404'),
+        filename: 'receipt404.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      proposal = sampleProposal(supplierA.id, 'DK');
+      await workflow.process(document.id);
+      const firstId = (await draftRows(document.id))[0].id;
+
+      // The later MANUAL row for supplier B, posted through the NORMAL
+      // controller + kernel (auto-post enabled), leaving the hold stale.
+      const manualId = await db
+        .insertInto('expense')
+        .values({
+          document_id: document.id,
+          supplier_id: supplierB.id,
+          category: 'software',
+          gross_amount: 15100,
+          vat_amount: 0,
+          currency: 'EUR',
+          tax_point_date: '2026-10-02',
+          document_vat_marking: null,
+          supplier_invoice_number: 'RECEIPT-404-B',
+          claimant_id: null,
+          company_addressed_receipt: null,
+          ai_confidence: null,
+          ai_document_type: null,
+          ai_kind: null,
+          status: 'draft',
+          voucher_id: null,
+          created_at: Math.floor(Date.now() / 1000),
+          updated_at: Math.floor(Date.now() / 1000),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+      await module.get(PolicyService).updateConfig({ auto_post_enabled: true });
+      const controller = new ExpensesController(
+        module.get(ExpensesService),
+        module.get(PostingPipelineService),
+        {
+          registerFromVoucher: async () => undefined,
+        } as unknown as FixedAssetRegistrarService,
+      );
+      await controller.postExpense(String(manualId));
+      expect(
+        (await module.get(ExpensesService).getExpenseById(manualId)).status,
+      ).toBe('posted');
+
+      // Retry surfaces the chain's actual protected record (supplier B's
+      // posted expense) and settles the document on it.
+      await documents.reprocessDocument(document.id);
+      const retried = await workflow.process(document.id);
+      expect(retried.status).toBe('draft_proposed');
+      if (retried.status === 'draft_proposed') {
+        expect(retried.draft.expenseId).toBe(manualId);
+      }
+
+      // Idempotent confirmation bound to B (B already carries the value —
+      // no write): the receipt is attributed to B, fact_saved TRUE.
+      const confirmed = await workflow.confirmEntityFact(
+        document.id,
+        supplierB.id,
+        'taxStatus',
+        'taxable_business',
+      );
+      expect(confirmed.entity_id).toBe(supplierB.id);
+      expect(confirmed.fact_saved).toBe(true);
+
+      // Differing value, with only the OLDER editable row's supplier (A)
+      // changed to match it: the receipt must still read B's facts —
+      // fact_saved FALSE (B remains taxable), never A's.
+      await entities.update(supplierA.id, { taxStatus: 'non_taxable' });
+      const again = await workflow.confirmEntityFact(
+        document.id,
+        supplierB.id,
+        'taxStatus',
+        'non_taxable',
+      );
+      expect(again.entity_id).toBe(supplierB.id);
+      expect(again.fact_saved).toBe(false);
+      expect((await entities.findById(supplierB.id)).tax_status).toBe(
+        'taxable_business',
+      );
+      expect((await entities.findById(supplierA.id)).tax_status).toBe(
+        'non_taxable',
+      );
+      // The outcome still replays the chain's protected expense; nothing
+      // new was minted or posted.
+      expect((await draftRows(document.id)).map((r) => r.id).sort()).toEqual(
+        [firstId, manualId].sort(),
+      );
+      expect(
+        (await db.selectFrom('voucher').select('id').execute()).length,
+      ).toBe(1);
+    });
+  });
+
   describe('already-affected production chains (legacy rows)', () => {
     it('resumes the first draft of a chain that already carries a pre-fix second draft', async () => {
       const supplier = await entities.onboard({
