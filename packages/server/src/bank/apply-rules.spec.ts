@@ -66,4 +66,112 @@ describe('applyRules', () => {
       ),
     ).toThrow();
   });
+
+  // ── Settlement-FX evidence targets (issue #403) ─────────────────────────
+  // The issue's own case, synthetic: a converted card settlement whose
+  // original amount, rate and fee sit in dedicated columns.
+  it('maps dedicated settlement-FX evidence columns through the ruleset (issue #403)', () => {
+    const ruleset: MappingRuleset = {
+      ...lhvLike,
+      amount: { mode: 'signed', column: 'Amount' },
+      source_currency: { column: 'SourceCurrency' },
+      source_amount: { column: 'SourceAmount' },
+      fx_rate: { column: 'Rate' },
+      conversion_fee: { column: 'Fee' },
+      booking_date: { column: 'BookingDate' },
+    };
+    const fx = `Date,Amount,Currency,Explanation,SourceCurrency,SourceAmount,Rate,Fee,BookingDate
+2026-06-19,-8.11,EUR,Next House Copenhagen,DKK,60.00,0.1338333,0.08,2026-06-20`;
+    const out = applyRules(ruleset, fx);
+    const t = out.transactions[0];
+    expect(t.source_currency).toBe('DKK');
+    expect(t.source_amount).toBe(6000);
+    expect(t.fx_rate).toBeCloseTo(0.1338333, 12);
+    expect(t.conversion_fee).toBe(8);
+    expect(t.booking_date).toBe('2026-06-20');
+  });
+
+  it('extracts settlement-FX evidence embedded in a description cell via an explicit mapping pattern (ADR-0031: rules, not rows)', () => {
+    const ruleset: MappingRuleset = {
+      ...lhvLike,
+      amount: { mode: 'signed', column: 'Amount' },
+      source_currency: {
+        column: 'Explanation',
+        pattern: '(?:^|;\\s)([A-Z]{3}) \\d',
+      },
+      source_amount: {
+        column: 'Explanation',
+        pattern: '[A-Z]{3} ([\\d.]+)',
+      },
+      fx_rate: {
+        column: 'Explanation',
+        pattern: 'bank rate ([\\d.]+) [A-Z]{3}/[A-Z]{3}',
+      },
+      conversion_fee: {
+        column: 'Explanation',
+        pattern: 'conversion fee ([\\d.]+) [A-Z]{3}',
+      },
+    };
+    const fx = `Date,Amount,Currency,Explanation
+2026-06-19,-8.11,EUR,"DKK 60.00; conversion fee 0.08 EUR; bank rate 0.1338333 EUR/DKK; ECB reference rate 0.1337864 EUR/DKK"`;
+    const out = applyRules(ruleset, fx);
+    const t = out.transactions[0];
+    expect(t.source_currency).toBe('DKK');
+    expect(t.source_amount).toBe(6000);
+    expect(t.fx_rate).toBeCloseTo(0.1338333, 12);
+    expect(t.conversion_fee).toBe(8);
+    // The raw description — including the bank's ECB-rate OBSERVATION — is
+    // preserved verbatim as evidence, never parsed into statutory provenance.
+    expect(t.description).toContain('ECB reference rate 0.1337864');
+  });
+
+  it('leaves absent evidence targets NULL (absent evidence, not zero)', () => {
+    const out = applyRules(lhvLike, csv);
+    const t = out.transactions[0];
+    expect(t.source_currency).toBeNull();
+    expect(t.source_amount).toBeNull();
+    expect(t.fx_rate).toBeNull();
+    expect(t.conversion_fee).toBeNull();
+    expect(t.booking_date).toBeNull();
+  });
+
+  it('leaves a non-matching evidence pattern NULL rather than guessing a value', () => {
+    const ruleset: MappingRuleset = {
+      ...lhvLike,
+      source_amount: { column: 'Explanation', pattern: 'NOK ([\\d.]+)' },
+    };
+    const out = applyRules(ruleset, csv);
+    expect(out.transactions[0].source_amount).toBeNull();
+  });
+
+  it('throws on a malformed evidence pattern (the run fails loudly, ADR-0031)', () => {
+    const ruleset: MappingRuleset = {
+      ...lhvLike,
+      fx_rate: { column: 'Explanation', pattern: '([\\d.+' },
+    };
+    expect(() => applyRules(ruleset, csv)).toThrow(/pattern/i);
+  });
+
+  it('throws on a non-numeric or non-positive extracted amount/rate/fee', () => {
+    const badAmount: MappingRuleset = {
+      ...lhvLike,
+      source_amount: { column: 'Explanation' },
+    };
+    expect(() => applyRules(badAmount, csv)).toThrow();
+    const badRate: MappingRuleset = {
+      ...lhvLike,
+      fx_rate: { column: 'Explanation' },
+    };
+    expect(() => applyRules(badRate, csv)).toThrow();
+    const negativeRate: MappingRuleset = {
+      ...lhvLike,
+      fx_rate: { column: 'Explanation', pattern: '(-[\\d.]+)' },
+    };
+    const negativeCsv =
+      'Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference\n' +
+      '2026-05-08,10.00,D,EUR,rate -0.5,,';
+    expect(() => applyRules(negativeRate, negativeCsv)).toThrow(
+      /usable fx rate/i,
+    );
+  });
 });

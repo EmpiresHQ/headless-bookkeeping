@@ -50,6 +50,22 @@ const VAT_MARKINGS = [
   { value: 'E', label: 'E — Exempt' },
 ] as const;
 
+/**
+ * The place-of-supply declaration to SEND (issue #403): a supported
+ * local-consumption exception as chosen, or 'general' — the server's
+ * explicit CLEAR — so a reclassification that goes back to the general rule
+ * never silently keeps an obsolete local classification on a held draft.
+ */
+function declaredPlaceRule(
+  placeRule: string,
+): 'general' | 'immovable_property' | 'restaurant_catering' {
+  return placeRule === 'immovable_property'
+    ? 'immovable_property'
+    : placeRule === 'restaurant_catering'
+      ? 'restaurant_catering'
+      : 'general';
+}
+
 const EMPTY_CLASSIFY = {
   supplierId: null as number | null,
   category: '',
@@ -115,6 +131,12 @@ export function ClassifyExpenseSheet({
   const [date, setDate] = useState('');
   const [vatMarking, setVatMarking] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
+  // Place-of-supply declaration (issue #403): a local foreign purchase
+  // (accommodation, a restaurant meal) carries the supplier's own VAT; the
+  // operator declares WHICH rule governs it and WHERE it physically took
+  // place. Default: the general rule (no declaration).
+  const [placeRule, setPlaceRule] = useState('');
+  const [placeCountry, setPlaceCountry] = useState('');
   const [showAllCats, setShowAllCats] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
   // One operation for the sheet (issue #251): classifying and creating a
@@ -360,7 +382,7 @@ export function ClassifyExpenseSheet({
   const submit = () => {
     if (blocker !== null || !v.attempt()) return;
     if (supplier === null || grossCents === null || vatCents === null) return;
-    const sent = fieldValues;
+    const sent = { ...fieldValues, placeRule, placeCountry };
     const req = {
       supplier_id: supplier.id,
       category,
@@ -370,6 +392,17 @@ export function ClassifyExpenseSheet({
       currency,
       tax_point_date: date,
       supplier_invoice_number: invoiceNumber !== '' ? invoiceNumber : null,
+      // The declaration is ALWAYS sent (issue #403): 'general' is the
+      // server's explicit CLEAR of an earlier held draft's declared exception
+      // (a reclassification that goes back to the general rule must not
+      // silently keep the old local classification).
+      service_place_rule: declaredPlaceRule(placeRule),
+      // An exception without a country is an incomplete declaration — the
+      // server holds with the fact named; require it here first.
+      place_of_supply_country:
+        placeRule !== '' && placeCountry.trim() !== ''
+          ? placeCountry.trim().toUpperCase()
+          : null,
     };
     const started = op.run(() => manualClassify(documentId, req), {
       onSuccess: (outcome) => {
@@ -691,6 +724,48 @@ export function ClassifyExpenseSheet({
                   </option>
                 ))}
               </SelectInput>
+            </Field>
+          </div>
+        </div>
+
+        <div className="flex gap-2.5">
+          <div className="flex-1">
+            <Field
+              label="Place-of-supply rule"
+              hint="declare only for local foreign purchases (e.g. a hotel or a restaurant bill)"
+            >
+              <SelectInput
+                aria-label="Place-of-supply rule"
+                value={placeRule}
+                onChange={(e) => setPlaceRule(e.target.value)}
+              >
+                <option value="">General (default)</option>
+                <option value="immovable_property">
+                  Accommodation — immovable property (Art 47)
+                </option>
+                <option value="restaurant_catering">
+                  Restaurant &amp; catering (Art 55)
+                </option>
+              </SelectInput>
+            </Field>
+          </div>
+          <div className="flex-1">
+            <Field
+              label="Supplied in country"
+              hint="ISO code where the supply physically took place"
+              error={
+                placeRule !== '' && placeCountry.trim() === ''
+                  ? 'Enter the country the supply took place in (e.g. DK)'
+                  : null
+              }
+            >
+              <TextInput
+                aria-label="Supplied in country"
+                value={placeCountry}
+                onChange={(e) => setPlaceCountry(e.target.value)}
+                placeholder={placeRule === '' ? '—' : 'DK'}
+                disabled={placeRule === ''}
+              />
             </Field>
           </div>
         </div>

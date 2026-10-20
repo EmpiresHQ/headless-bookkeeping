@@ -229,6 +229,10 @@ describe('ClassifyExpenseSheet', () => {
         currency: 'EUR',
         tax_point_date: '2026-07-10',
         supplier_invoice_number: null,
+        // The explicit-clear declaration (issue #403): a General (default)
+        // choice is SENT as 'general' — the server's clear — not omitted.
+        service_place_rule: 'general',
+        place_of_supply_country: null,
       }),
     );
     expect(onDone).toHaveBeenCalled();
@@ -526,6 +530,8 @@ describe('ClassifyExpenseSheet', () => {
         currency: 'EUR',
         tax_point_date: '2026-07-01',
         supplier_invoice_number: null,
+        service_place_rule: 'general',
+        place_of_supply_country: null,
       }),
     );
     expect(onDone).toHaveBeenCalledWith({

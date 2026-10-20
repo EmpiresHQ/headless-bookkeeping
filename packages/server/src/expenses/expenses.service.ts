@@ -26,6 +26,36 @@ import {
   normalizeInvoiceNumber,
 } from './duplicate-detection';
 import { DuplicateExpenseException } from './duplicate-expense.exception';
+import {
+  BANK_STATEMENT_RATE_SOURCE,
+  FxRateUnavailableError,
+} from '../fx/fx-rate.types';
+import type { BankSettlementLink } from '../bank/settlement-fx';
+
+/** The deterministic outcome of a bank-settlement link attempt (issue #403). */
+type BankSettlementResolution =
+  | { kind: 'link'; link: BankSettlementLink }
+  | { kind: 'unresolved'; reason: string };
+
+/**
+ * Deterministic counterparty-identity rule (issue #403): every normalized
+ * token of the bank's merchant descriptor/IBAN must appear among the tokens
+ * of a supplier identity value (its name, a merchant_descriptor / name_alias /
+ * IBAN identifier). Case- and punctuation-blind, order-blind, never fuzzy —
+ * a descriptor naming a DIFFERENT merchant does not match.
+ */
+function descriptorTokensWithin(descriptor: string, identity: string): boolean {
+  const norm = (s: string): string[] =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter((t) => t.length > 1);
+  const d = norm(descriptor);
+  const id = norm(identity);
+  return d.length > 0 && d.every((t) => id.includes(t));
+}
 
 @Injectable()
 export class ExpensesService {
@@ -136,6 +166,11 @@ export class ExpensesService {
             : dto.company_addressed_receipt === false
               ? 0
               : null,
+        service_place_rule:
+          dto.service_place_rule === 'general'
+            ? null
+            : (dto.service_place_rule ?? null),
+        place_of_supply_country: dto.place_of_supply_country ?? null,
         ai_confidence: dto.ai_confidence ?? null,
         ai_document_type: dto.ai_document_type ?? null,
         ai_kind: dto.ai_kind ?? null,
@@ -257,7 +292,117 @@ export class ExpensesService {
 
   async generateDraftVoucher(expenseId: number): Promise<DraftVoucher> {
     const expense = await this.getExpenseById(expenseId);
-    return this.buildDraftVoucher(expense);
+    const { draft, settlementLink } = await this.buildDraftVoucher(expense);
+    if (
+      settlementLink &&
+      draft.lines.some((l) => l.fx_rate_source === BANK_STATEMENT_RATE_SOURCE)
+    ) {
+      // The draft actually BOOKED the bank rate (the projection may still have
+      // preferred an available statutory rate). CLAIM the bank line for this
+      // expense — atomically, so a concurrent draft generation for a different
+      // expense cannot also post against it — and write the human-readable
+      // audit entry once.
+      await this.claimBankSettlementUsage(expense, settlementLink);
+      await this.auditBankSettlementFxOnce(expense, settlementLink, draft);
+    }
+    return draft;
+  }
+
+  /**
+   * Atomically claim the bank settlement line for THIS expense (issue #403).
+   *
+   * The claim table's UNIQUE index on `bank_transaction_id` is the guard: one
+   * bank line values one purchase, whatever the interleaving of concurrent
+   * draft generations. An insert conflict for the SAME expense is the
+   * idempotent retry case (its own claim, kept); a conflict for a DIFFERENT
+   * expense is a typed refusal — this expense cannot be valued from a bank
+   * line that already values another one, so the statutory path (and its
+   * hold) stands, and nothing is posted against a double-used settlement.
+   */
+  private async claimBankSettlementUsage(
+    expense: Expense,
+    link: BankSettlementLink,
+  ): Promise<void> {
+    // The claim is ATOMIC at the database level and backend-agnostic: the
+    // UNIQUE index on bank_transaction_id does the guarding, an ON CONFLICT
+    // DO NOTHING turns a racing claim into "read who won", and the
+    // authoritative owner read decides the outcome. No error-code sniffing —
+    // a UNIQUE violation and any other fault keep distinct shapes.
+    //
+    // The claim is also FACTS-VALIDATED atomically (issue #403): the expense
+    // row is re-read INSIDE the claim transaction and must still carry the
+    // facts the link values — an edit can legitimately land between the draft
+    // generation's FX wait and this claim, and an unvalidated claim would
+    // reserve the OLD bank line for the EDITED purchase (a stale draft
+    // posting against evidence that no longer describes it). A mismatch is a
+    // typed refusal: nothing is claimed, the stale draft is not posted, and
+    // the next generation claims against the current facts.
+    const now = Math.floor(Date.now() / 1000);
+    await this.db.transaction().execute(async (trx) => {
+      const current = await trx
+        .selectFrom('expense')
+        .select([
+          'supplier_id',
+          'claimant_id',
+          'currency',
+          'gross_amount',
+          'tax_point_date',
+        ])
+        .where('id', '=', expense.id)
+        .executeTakeFirst();
+      // The COMPLETE identity/link facts, compared against the link: the
+      // supplier whose identity the bank line matched (not merely "some
+      // supplier exists"), no claimant contradiction, and the same original
+      // currency/amount/date the link values.
+      if (
+        !current ||
+        current.supplier_id !== link.supplierId ||
+        current.claimant_id != null ||
+        current.currency !== link.sourceCurrency ||
+        current.gross_amount !== link.sourceAmount ||
+        current.tax_point_date !== link.transactionDate
+      ) {
+        throw new FxRateUnavailableError(
+          link.sourceCurrency,
+          link.settledCurrency,
+          link.transactionDate,
+          `the purchase was edited or removed while its draft was being ` +
+            `valued, so the bank settlement evidence no longer describes it; ` +
+            `nothing was claimed or posted — post it again and the entry is ` +
+            `recomputed from the current facts`,
+          'no_rate_for_date',
+        );
+      }
+      await trx
+        .insertInto('bank_settlement_usage')
+        .values({
+          bank_transaction_id: link.bankTransactionId,
+          expense_id: expense.id,
+          created_at: now,
+        })
+        .onConflict((oc) => oc.column('bank_transaction_id').doNothing())
+        .execute();
+    });
+    const owner = await this.db
+      .selectFrom('bank_settlement_usage')
+      .select(['expense_id'])
+      .where('bank_transaction_id', '=', link.bankTransactionId)
+      .executeTakeFirst();
+    if (owner && owner.expense_id !== expense.id) {
+      // The race was lost to a DIFFERENT expense: a typed refusal, so this
+      // expense's valuation falls back to the statutory path (and its hold)
+      // instead of posting against a double-used settlement.
+      throw new FxRateUnavailableError(
+        link.sourceCurrency,
+        link.settledCurrency,
+        link.transactionDate,
+        `bank settlement line ${link.bankTransactionId} already values ` +
+          `expense ${owner.expense_id}`,
+        'no_rate_for_date',
+      );
+    }
+    // Our own claim from an earlier generation (or the one just inserted) —
+    // idempotent, kept.
   }
 
   /**
@@ -282,7 +427,9 @@ export class ExpensesService {
       ...(patch.vat_amount !== undefined && { vat_amount: patch.vat_amount }),
       ...(patch.category !== undefined && { category: patch.category }),
     };
-    return this.buildDraftVoucher(patched);
+    // Preview only: no audit entry is written for a draft nobody has booked.
+    const { draft } = await this.buildDraftVoucher(patched);
+    return draft;
   }
 
   /**
@@ -296,17 +443,37 @@ export class ExpensesService {
    * from, which decides KMD row 6 vs row 7 (issue #210). Without a supplier the
    * facts are omitted and the projection assumes a domestic counterparty.
    */
-  private async buildDraftVoucher(expense: Expense): Promise<DraftVoucher> {
+  private async buildDraftVoucher(expense: Expense): Promise<{
+    draft: DraftVoucher;
+    settlementLink: BankSettlementLink | null;
+    settlementUnresolved: string | null;
+  }> {
     const supplier =
       expense.supplier_id !== null
         ? await this.db
             .selectFrom('entity')
-            .select(['country', 'goods_vs_services', 'tax_status'])
+            .select(['country', 'name', 'goods_vs_services', 'tax_status'])
             .where('id', '=', expense.supplier_id)
             .executeTakeFirst()
         : undefined;
 
-    return this.projection.project(
+    // ── Bank-settlement FX link (issue #403) ─────────────────────
+    // A purchase may be valuably evidenced by the bank line that settled it
+    // the SAME DAY (RTJ1 §93's transaction-date rate). Resolved
+    // deterministically HERE — the adapter that owns the purchase row — and
+    // validated/used ONLY as the projection's narrow fallback (see
+    // settlementFxFallback and the ADR-0004 amendment). It is attempted for
+    // every purchase with a recorded supplier: WHICH treatments may use it
+    // (a `foreign_cost` local purchase whose foreign VAT folds into the cost,
+    // or a VAT-free one) is decided by the projection from the RESOLVED
+    // treatment, never from the stated vat_amount alone — a local foreign
+    // receipt may carry positive foreign VAT.
+    const settlement = await this.resolveBankSettlementLink(
+      expense,
+      supplier?.name ?? null,
+    );
+
+    const draft = await this.projection.project(
       {
         category: expense.category,
         grossAmount: expense.gross_amount,
@@ -327,9 +494,285 @@ export class ExpensesService {
               ? null
               : Boolean(expense.company_addressed_receipt)
             : undefined,
+        ...(settlement?.kind === 'link' && {
+          settlementFx: settlement.link,
+        }),
+        ...(settlement?.kind === 'unresolved' && {
+          settlementFxUnresolved: settlement.reason,
+        }),
+        ...(expense.service_place_rule != null && {
+          servicePlaceRule: expense.service_place_rule,
+        }),
+        ...(expense.place_of_supply_country != null && {
+          placeOfSupplyCountry: expense.place_of_supply_country,
+        }),
       },
       'purchase',
     );
+    return {
+      draft,
+      settlementLink: settlement?.kind === 'link' ? settlement.link : null,
+      settlementUnresolved:
+        settlement?.kind === 'unresolved' ? settlement.reason : null,
+    };
+  }
+
+  /**
+   * Resolve the bank settlement line that paid a VAT-free purchase —
+   * deterministically, or not at all (issue #403).
+   *
+   * The link is NEVER amount alone. Every candidate must satisfy ALL of:
+   *   - the SAME DAY as the purchase (the transaction-date rate, RTJ1 §93);
+   *   - the SAME original currency AND original amount (the purchase's own
+   *     foreign figure, exactly);
+   *   - a COUNTERPARTY identity link to the supplier — the bank's merchant
+   *     descriptor/IBAN matches the supplier's name or a recorded identifier
+   *     (deterministic normalized-token rule, never fuzzy); and
+   *   - exclusivity: the bank line is not already another expense's evidence.
+   *
+   * Ambiguity (two lines surviving every check), a line already used by a
+   * different expense, or a claimant-paid purchase matched against the
+   * ORGANISATION's bank line (the approver confirmed the claimant paid out of
+   * pocket — an org-account settlement contradicts that) are EXPLICIT
+   * unresolved outcomes, surfaced by the projection's fallback as the reason
+   * the statutory hold stands. Nothing is guessed and nothing matches on
+   * amount alone.
+   */
+  private async resolveBankSettlementLink(
+    expense: Pick<
+      Expense,
+      | 'id'
+      | 'supplier_id'
+      | 'claimant_id'
+      | 'currency'
+      | 'gross_amount'
+      | 'tax_point_date'
+    >,
+    supplierName: string | null,
+  ): Promise<BankSettlementResolution> {
+    if (expense.supplier_id == null) {
+      return {
+        kind: 'unresolved',
+        reason: 'no supplier recorded to link a bank line against',
+      };
+    }
+    if (expense.claimant_id != null) {
+      // The approver confirmed this purchase was paid by the CLAIMANT out of
+      // pocket; an organisation-account settlement would contradict that, so
+      // no org bank line is used as its valuation evidence.
+      return {
+        kind: 'unresolved',
+        reason:
+          'claimant-paid purchase: an organisation bank settlement would ' +
+          'contradict the confirmed out-of-pocket payment',
+      };
+    }
+
+    const candidates = await this.db
+      .selectFrom('bank_transaction')
+      .selectAll()
+      .where('source_currency', '=', expense.currency)
+      .where('transaction_date', '=', expense.tax_point_date)
+      .where('source_amount', '=', expense.gross_amount)
+      .where('amount', '<', 0)
+      .where('status', '=', 'open')
+      .execute();
+
+    if (candidates.length === 0) {
+      return {
+        kind: 'unresolved',
+        reason:
+          `no same-day bank settlement line carries this purchase's ` +
+          `original ${expense.currency} ${expense.gross_amount} amount`,
+      };
+    }
+
+    // Counterparty identity: the descriptor's normalized tokens must all
+    // appear in the supplier's name or a recorded merchant_descriptor /
+    // name_alias / IBAN identifier — deterministic, case/punctuation-blind.
+    const identifiers = await this.db
+      .selectFrom('entity_identifier')
+      .select(['kind', 'value'])
+      .where('entity_id', '=', expense.supplier_id)
+      .execute();
+    const identityValues = [
+      ...(supplierName ? [supplierName] : []),
+      ...identifiers
+        .filter((i) =>
+          ['merchant_descriptor', 'name_alias', 'iban'].includes(i.kind),
+        )
+        .map((i) => i.value),
+    ];
+    const linked = candidates.filter((c) => {
+      const descriptor = c.counterparty_descriptor ?? c.counterparty_iban;
+      if (descriptor == null) return false;
+      return identityValues.some((v) => descriptorTokensWithin(descriptor, v));
+    });
+
+    // Exclusivity, fast path: a bank line already CLAIMED by another expense
+    // is not evidence for this one (a retry of the same expense keeps its own
+    // claim). The atomic guarantee is the UNIQUE claim insert at draft time
+    // (claimBankSettlementUsage); this pre-read only avoids building a draft
+    // that the claim would immediately refuse.
+    const usage = await this.bankSettlementUsage();
+    const free = linked.filter(
+      (c) => !(c.id in usage) || usage[c.id] === expense.id,
+    );
+
+    if (free.length === 0) {
+      return {
+        kind: 'unresolved',
+        reason:
+          linked.length > 0
+            ? 'the matching bank settlement line(s) already evidence another expense'
+            : 'the same-day bank lines with this amount do not identify this supplier as counterparty',
+      };
+    }
+    if (free.length > 1) {
+      return {
+        kind: 'unresolved',
+        reason:
+          `multiple bank settlement lines (${free
+            .map((c) => c.id)
+            .join(', ')}) match this purchase on currency, original amount, ` +
+          `date and counterparty; the link is ambiguous`,
+      };
+    }
+    const txn = free[0];
+    return {
+      kind: 'link',
+      link: {
+        bankTransactionId: txn.id,
+        statementId: txn.statement_id,
+        supplierId: expense.supplier_id,
+        bookingDate: txn.booking_date,
+        transactionDate: txn.transaction_date,
+        sourceCurrency: txn.source_currency ?? '',
+        sourceAmount: txn.source_amount ?? 0,
+        settledCurrency: txn.currency,
+        settledAmount: txn.amount,
+        fxRate: txn.fx_rate,
+        conversionFee: txn.conversion_fee,
+        bankReferenceRate: txn.bank_reference_rate,
+      },
+    };
+  }
+
+  /**
+   * Which expense has CLAIMED each bank settlement line (issue #403): the
+   * `bank_settlement_usage` claim table, keyed by bank transaction id →
+   * expense id. The UNIQUE index on the claim makes one bank line unable to
+   * value two purchases; this read is only the fast path — the insert itself
+   * is the atomic guard.
+   */
+  private async bankSettlementUsage(): Promise<Record<number, number>> {
+    const rows = await this.db
+      .selectFrom('bank_settlement_usage')
+      .select(['bank_transaction_id', 'expense_id'])
+      .execute();
+    const usage: Record<number, number> = {};
+    for (const row of rows) {
+      usage[row.bank_transaction_id] = row.expense_id;
+    }
+    return usage;
+  }
+
+  /**
+   * Audit the valuation of a draft actually booked from bank-settlement
+   * evidence (issue #403 acceptance): the source statement and transaction,
+   * the rate (its direction and origin), the fee, the dates, and the valuation
+   * policy — written ONCE per expense (append-only log, ADR-0026, deduped by
+   * the action + expense target).
+   */
+  private async auditBankSettlementFxOnce(
+    expense: Expense,
+    link: BankSettlementLink,
+    draft: DraftVoucher,
+  ): Promise<void> {
+    if (
+      !draft.lines.some((l) => l.fx_rate_source === BANK_STATEMENT_RATE_SOURCE)
+    ) {
+      return;
+    }
+    // Append-only, deduped per VALUATION (issue #403): an entry exists for
+    // THIS (expense, bank line) pair — a retry of the same state is the same
+    // valuation and writes nothing. A draft EDIT that re-valued the purchase
+    // on a DIFFERENT bank line is a NEW valuation: a NEW entry, appended —
+    // the original entry stays untouched, so the audit trail shows every
+    // valuation the purchase actually went through.
+    const priorRows = await this.db
+      .selectFrom('audit_log')
+      .select(['detail'])
+      .where('action', '=', 'expense.bank_settlement_fx')
+      .where('target_type', '=', 'expense')
+      .where('target_id', '=', expense.id)
+      .execute();
+    const priorTxns = new Set(
+      priorRows
+        .map((r) => {
+          try {
+            const detail = JSON.parse(r.detail ?? '{}') as {
+              bank_transaction_id?: number;
+            };
+            return typeof detail.bank_transaction_id === 'number'
+              ? detail.bank_transaction_id
+              : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter((v): v is number => v !== null),
+    );
+    if (priorTxns.has(link.bankTransactionId)) return;
+
+    await this.auditLog.record({
+      actor: 'system',
+      action: 'expense.bank_settlement_fx',
+      outcome: 'valued',
+      target_type: 'expense',
+      target_id: expense.id,
+      detail: {
+        bank_transaction_id: link.bankTransactionId,
+        bank_statement_id: link.statementId,
+        booking_date: link.bookingDate,
+        transaction_date: link.transactionDate,
+        tax_point_date: expense.tax_point_date,
+        source_currency: link.sourceCurrency,
+        source_amount: link.sourceAmount,
+        settled_currency: link.settledCurrency,
+        debit_amount: Math.abs(link.settledAmount),
+        // The bank's OWN printed reference-rate observation, retained
+        // UNVERIFIED — evidence of what the bank REPORTS, never verified
+        // statutory provenance and never a valuation input (ADR-0004).
+        ...(link.bankReferenceRate !== null && {
+          bank_reference_rate_observation: link.bankReferenceRate,
+        }),
+        principal_amount: Math.round(
+          link.fxRate !== null
+            ? link.fxRate * link.sourceAmount
+            : Math.abs(link.settledAmount) - (link.conversionFee ?? 0),
+        ),
+        conversion_fee: link.conversionFee,
+        full_debit_reconciliation:
+          'the fee is evidenced separately on the bank line; the purchase ' +
+          'voucher books the fee-separated principal, and the fee remains on ' +
+          'the statement line (and its reconciliation remainder) to be ' +
+          'booked separately — never folded into the purchase and never ' +
+          'duplicated',
+        booked_fx_rate: draft.lines[0]?.fx_rate ?? null,
+        booked_fx_rate_date: draft.lines[0]?.fx_rate_date ?? null,
+        rate_direction: `${link.settledCurrency} per 1 ${link.sourceCurrency}`,
+        rate_origin:
+          link.fxRate !== null
+            ? 'bank_statement (the bank printed its rate)'
+            : 'derived from the fee-separated principal (|debit| - evidenced fee) / original amount',
+        valuation_policy:
+          'same-day bank settlement rate as the transaction-date rate ' +
+          '(RTJ1 §93, SME IFRS 30.6/30.7), used only because no statutory ' +
+          'reference rate is available for the pair/date; no VAT legs exist on ' +
+          'this purchase, so no statutory VAT-base conversion was substituted',
+      },
+    });
   }
 
   /** Map the entity's free-form goods/services column onto the projection enum. */
@@ -382,6 +825,12 @@ export class ExpensesService {
         'tax_point_date',
         'claimant_id',
         'company_addressed_receipt',
+        // The place-of-supply facts (issue #403) are VALUATION facts: they
+        // decide the cross-border treatment, so an edit between generating a
+        // draft and posting it must refuse the stale draft (409) — the same
+        // guard the supplier facts already get.
+        'service_place_rule',
+        'place_of_supply_country',
       ])
       .where('id', '=', id)
       .executeTakeFirst();
@@ -541,7 +990,49 @@ export class ExpensesService {
                 ? 1
                 : 0
             : current.company_addressed_receipt,
+        // The place-of-supply facts (issue #403) — operator-editable on a
+        // draft, NULL ≡ the residual general rule / no declared location.
+        service_place_rule:
+          patch.service_place_rule !== undefined
+            ? patch.service_place_rule === 'general'
+              ? null
+              : patch.service_place_rule
+            : current.service_place_rule,
+        place_of_supply_country:
+          patch.place_of_supply_country !== undefined
+            ? patch.place_of_supply_country
+            : current.place_of_supply_country,
       };
+
+      // ── Abandoned bank-settlement reservations (issue #403) ────────────
+      // A draft edit that changes a fact the receipt→bank link is made of
+      // (supplier, currency, original amount, date, or the claimant
+      // contradiction) ABANDONS whatever bank line the unposted draft had
+      // claimed: the reservation is released here, inside the same guarded
+      // transaction, so a genuinely distinct purchase can use that line
+      // instead of being told it "already evidences another expense". The
+      // next valuation claims its own line. Unposted-only by the update's
+      // own WHERE guard (draft/pending, voucher-less), so a posted or
+      // voucher-bearing valuation keeps its claim for good.
+      const linkKeyChanged =
+        next.supplier_id !== current.supplier_id ||
+        next.currency !== current.currency ||
+        next.gross_amount !== current.gross_amount ||
+        next.tax_point_date !== current.tax_point_date ||
+        (next.claimant_id ?? null) !== (current.claimant_id ?? null);
+      const abandonedClaim =
+        linkKeyChanged &&
+        (await trx
+          .selectFrom('bank_settlement_usage')
+          .select('bank_transaction_id')
+          .where('expense_id', '=', id)
+          .executeTakeFirst()) != null;
+      if (abandonedClaim) {
+        await trx
+          .deleteFrom('bank_settlement_usage')
+          .where('expense_id', '=', id)
+          .execute();
+      }
 
       this.assertMergedAmounts(id, next.gross_amount, next.vat_amount);
       // An entity is checked only when the edit CHANGES it: an unchanged
@@ -824,6 +1315,8 @@ export class ExpensesService {
     asset_residual_value_minor: number | null;
     claimant_id?: number | null;
     company_addressed_receipt?: number | null;
+    service_place_rule?: string | null;
+    place_of_supply_country?: string | null;
     ai_confidence?: number | null;
     ai_document_type?: string | null;
     ai_kind?: string | null;
@@ -852,6 +1345,11 @@ export class ExpensesService {
         row.company_addressed_receipt === undefined
           ? null
           : Boolean(row.company_addressed_receipt),
+      service_place_rule:
+        row.service_place_rule === 'general' || row.service_place_rule == null
+          ? null
+          : (row.service_place_rule as Expense['service_place_rule']),
+      place_of_supply_country: row.place_of_supply_country ?? null,
       ai_confidence: row.ai_confidence ?? null,
       ai_document_type: row.ai_document_type ?? null,
       ai_kind: row.ai_kind ?? null,

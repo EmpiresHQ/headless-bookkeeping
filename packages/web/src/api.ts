@@ -270,6 +270,9 @@ export interface ExpenseDetail {
   /** Only meaningful with a claimant (ADR-0036); null ⇒ not recorded.
    *  Always sent by the server; optional so older fixtures stay valid. */
   company_addressed_receipt?: boolean | null;
+  /** The recorded place-of-supply facts (issue #403): null rule ⇒ general. */
+  service_place_rule?: ServicePlaceRule | null;
+  place_of_supply_country?: string | null;
   created_at: number;
 }
 
@@ -620,6 +623,9 @@ export interface ExpenseDraftPatch {
   supplier_invoice_number?: string | null;
   claimant_id?: number | null;
   company_addressed_receipt?: boolean | null;
+  /** The operator's explicit place-of-supply declaration (issue #403). */
+  service_place_rule?: ServicePlaceRule;
+  place_of_supply_country?: string | null;
   /** Deliberate override when the edit collides with another expense (409). */
   allow_duplicate?: boolean;
 }
@@ -984,6 +990,11 @@ export interface ManualClassifyBody {
   currency: string;
   tax_point_date: string; // YYYY-MM-DD
   supplier_invoice_number?: string | null;
+  /** The operator's explicit place-of-supply declaration (issue #403):
+   *  which rule governs the purchase's services ('general' by omission) and
+   *  the ISO country the rule's location physically is in. */
+  service_place_rule?: ServicePlaceRule;
+  place_of_supply_country?: string | null;
 }
 
 export const manualClassify = (id: number, body: ManualClassifyBody) =>
@@ -1339,6 +1350,17 @@ export interface BankTransaction {
   counterparty_descriptor: string | null;
   reference: string | null;
   status: string;
+  /** The original currency the bank converted (issue #403); null = none. */
+  source_currency?: string | null;
+  /** The original amount in the source currency (minor units). */
+  source_amount?: number | null;
+  /** The bank's explicit conversion rate (base per source unit). */
+  fx_rate?: number | null;
+  /** The bank's separately evidenced conversion fee (currency minor units);
+   *  null = not evidenced (NOT a default zero). */
+  conversion_fee?: number | null;
+  /** The bank's booking date when distinguished from the value date. */
+  booking_date?: string | null;
 }
 
 export const listBankStatements = () =>
@@ -1589,6 +1611,15 @@ export const getAdvanceVatTreatments = (receiptDate: string) =>
 
 export const markPersonal = (bankTransactionId: number) =>
   apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/personal`, {
+    method: 'POST',
+  });
+
+/** POST /bank-transactions/:id/bank-fee (issue #403) — book the line's
+ *  explicitly evidenced conversion fee as its own bank-fee cost and
+ *  reconcile its portion of the line's debit. Refused when the line carries
+ *  no evidenced fee or is already disposed. */
+export const markBankFee = (bankTransactionId: number) =>
+  apiFetch<unknown>(`/api/bank-transactions/${bankTransactionId}/bank-fee`, {
     method: 'POST',
   });
 

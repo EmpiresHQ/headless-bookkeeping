@@ -32,6 +32,32 @@ import { toastOk } from '../ui/toast';
  * current value always stays selectable so it is never lost.
  */
 
+/** The place-of-supply declaration to SEND (issue #403): the chosen
+ *  local-consumption exception, or 'general' as the explicit CLEAR. A
+ *  stored rule the select does not offer (an unimplemented special rule,
+ *  e.g. passenger_transport) is PRESERVED untouched on an unrelated edit —
+ *  silently re-declaring it as 'general' would enable a general-rule
+ *  reverse charge the stored declaration contradicts. Only the operator's
+ *  explicit 'General' selection clears it. */
+function declaredPlaceRule(
+  placeRule: string,
+  storedRule: ServicePlaceRule | null | undefined,
+): ServicePlaceRule {
+  // Untouched means the select still shows the STORED rule — the operator
+  // never changed it. An EMPTY value can only be an explicit 'General'
+  // selection (or no stored rule at all), and BOTH mean 'general': an empty
+  // selection must CLEAR, never silently preserve, a stored exception
+  // (issue #403).
+  const untouched =
+    storedRule != null && storedRule !== 'general' && placeRule === storedRule;
+  if (untouched) return storedRule;
+  return placeRule === 'immovable_property'
+    ? 'immovable_property'
+    : placeRule === 'restaurant_catering'
+      ? 'restaurant_catering'
+      : 'general';
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CURRENCY = /^[A-Z]{3}$/;
 
@@ -258,6 +284,13 @@ export function ExpenseEditSheet({
         ? 'yes'
         : 'no',
   );
+  // Place-of-supply declaration (issue #403): a local foreign purchase
+  // (accommodation, a restaurant meal) carries the supplier's own VAT; the
+  // operator declares WHICH rule governs it and WHERE it took place.
+  const [placeRule, setPlaceRule] = useState(detail.service_place_rule ?? '');
+  const [placeCountry, setPlaceCountry] = useState(
+    detail.place_of_supply_country ?? '',
+  );
   // Both the duplicate refusal and the operator's "save anyway" consent are
   // bound to the exact duplicate-key VALUES they were given for (server:
   // supplier, invoice no., currency, gross, date, claimant). Change any of
@@ -277,6 +310,8 @@ export function ExpenseEditSheet({
     invoiceNo,
     claimantId,
     receipt,
+    placeRule,
+    placeCountry,
   };
   // Seeded once from `detail` (initializers above) — frozen alike.
   const [baseline] = useState(values);
@@ -322,6 +357,21 @@ export function ExpenseEditSheet({
       claimant_id: claimantId === '' ? null : Number(claimantId),
       company_addressed_receipt:
         receipt === '' ? null : receipt === 'yes' ? true : false,
+      // The declaration is ALWAYS sent (issue #403): 'general' is the
+      // server's explicit CLEAR of a previously declared exception — omitting
+      // the fields would silently preserve an obsolete local classification
+      // on a re-edited draft.
+      // Always sent — 'general' is the explicit CLEAR of an obsolete
+      // declared exception (issue #403); an unrelated edit PRESERVES a
+      // stored rule the select does not offer.
+      service_place_rule: declaredPlaceRule(
+        placeRule,
+        detail.service_place_rule,
+      ),
+      place_of_supply_country:
+        placeRule !== '' && placeCountry.trim() !== ''
+          ? placeCountry.trim().toUpperCase()
+          : null,
       ...(allowDuplicate ? { allow_duplicate: true } : {}),
     };
     const started = op.run(
@@ -442,6 +492,58 @@ export function ExpenseEditSheet({
             </SelectInput>
           </Field>
         )}
+        <div className="flex gap-2.5">
+          <div className="flex-1">
+            <Field
+              label="Place-of-supply rule"
+              hint="declare only for local foreign purchases (e.g. a hotel or a restaurant bill)"
+            >
+              <SelectInput
+                aria-label="Place-of-supply rule"
+                value={placeRule}
+                onChange={(e) => setPlaceRule(e.target.value)}
+              >
+                <option value="">General (default)</option>
+                <option value="immovable_property">
+                  Accommodation — immovable property (Art 47)
+                </option>
+                <option value="restaurant_catering">
+                  Restaurant &amp; catering (Art 55)
+                </option>
+                {/* A stored rule the select does not offer stays VISIBLE and
+                    actionable — never silently swapped for another choice
+                    (issue #403). */}
+                {detail.service_place_rule != null &&
+                  detail.service_place_rule !== 'general' &&
+                  detail.service_place_rule !== 'immovable_property' &&
+                  detail.service_place_rule !== 'restaurant_catering' && (
+                    <option value={detail.service_place_rule}>
+                      {detail.service_place_rule} (recorded — kept)
+                    </option>
+                  )}
+              </SelectInput>
+            </Field>
+          </div>
+          <div className="flex-1">
+            <Field
+              label="Supplied in country"
+              hint="ISO code where the supply physically took place"
+              error={
+                placeRule !== '' && placeCountry.trim() === ''
+                  ? 'Enter the country the supply took place in (e.g. DK)'
+                  : null
+              }
+            >
+              <TextInput
+                aria-label="Supplied in country"
+                value={placeCountry}
+                onChange={(e) => setPlaceCountry(e.target.value)}
+                placeholder={placeRule === '' ? '—' : 'DK'}
+                disabled={placeRule === ''}
+              />
+            </Field>
+          </div>
+        </div>
       </fieldset>
       <LookupRetry queries={[categoriesQ, entitiesQ]} disabled={busy} />
 
@@ -556,7 +658,7 @@ export function InvoiceEditSheet({
       due_date: dueDate === '' ? null : dueDate,
       supply_type:
         supplyType === '' ? null : (supplyType as 'goods' | 'services'),
-      service_place_rule: placeRule,
+      service_place_rule: placeRule as ServicePlaceRule,
     };
     const started = op.run(
       async (ctx) => {

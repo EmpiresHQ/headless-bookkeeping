@@ -1397,8 +1397,16 @@ describe('IntakeWorkflowService', () => {
 
       const res = await service.process(docId);
 
+      // The file contract (issue #403): the document's exact stored bytes
+      // (buffer) alongside the parsed text and its filename. The import
+      // archives its OWN byte-exact bank-owned copy of these bytes — the
+      // document's lifetime never governs the statement's raw source.
       expect(mockBankIngestion.startImport).toHaveBeenCalledWith(
-        expect.any(String),
+        {
+          text: expect.any(String),
+          buffer: expect.any(Buffer),
+          filename: expect.any(String),
+        },
         'EE382200221020145685',
       );
       expect(res.status).toBe('bank_import_started');
@@ -2543,6 +2551,41 @@ describe('IntakeWorkflowService', () => {
 
       expect(res.status).toBe('needs_triage');
       // Still parked — not triaged.
+      const doc = await documentsService.getById(docId);
+      expect(doc.status).toBe('needs_triage');
+    });
+
+    it('parks a missing-rate manual classify with the typed actionable hold instead of a 500 (issue #403)', async () => {
+      const docId = await seedNeedsTriage();
+      // The real draft generator throws this from the projection when no
+      // authoritative rate governs the document's currency/date; the manual
+      // path used to let it escape as an opaque 500.
+      mockProposeDraft.manualClassifyDraft.mockRejectedValue(
+        new FxRateUnavailableError(
+          'DKK',
+          'EUR',
+          '2026-06-19',
+          'fixture authority does not quote DKK',
+          'unsupported_pair',
+        ),
+      );
+
+      const res = await service.manualClassify(docId, {
+        supplier_id: 3,
+        category: 'travel',
+        document_vat_marking: null,
+        gross_amount: 6000,
+        vat_amount: 1200,
+        currency: 'DKK',
+        tax_point_date: '2026-06-19',
+      });
+
+      expect(res.status).toBe('needs_triage');
+      expect((res as { reason: string }).reason).toMatch(
+        /no authoritative DKK→EUR reference rate governs 2026-06-19/i,
+      );
+      // Still parked, nothing settled — the operator can retry once the
+      // missing evidence (a rate source or bank-settlement evidence) exists.
       const doc = await documentsService.getById(docId);
       expect(doc.status).toBe('needs_triage');
     });

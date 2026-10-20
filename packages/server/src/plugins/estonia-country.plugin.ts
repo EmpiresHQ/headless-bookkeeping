@@ -635,6 +635,13 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     orgContext: OrgContext,
     _context: InputVatEntitlementContext,
   ): InputVatEntitlement {
+    // A foreign-cost purchase (issue #403) carries the SUPPLIER'S member
+    // state VAT, not Estonian input VAT: no deduction right exists for it in
+    // an Estonian return (KMS §29 lg 4), whatever the registration. The tax
+    // folds into the cost leg.
+    if (_context.treatment === 'foreign_cost') {
+      return NO_ENTITLEMENT('none');
+    }
     if (
       orgContext.vatRegistered &&
       orgContext.vatRegistrationKind === 'limited'
@@ -682,7 +689,12 @@ export class EstoniaCountryPlugin implements CountryPlugin {
   resolveCrossBorderTreatment(
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
-    _context: { vatCharged: boolean },
+    context: {
+      vatCharged: boolean;
+      supplyType?: 'goods' | 'services';
+      servicePlaceRule?: ServicePlaceRule;
+      placeOfSupplyCountry?: string;
+    },
   ): CrossBorderResolution {
     const supplier = supplierFacts.country;
 
@@ -691,6 +703,35 @@ export class EstoniaCountryPlugin implements CountryPlugin {
     }
 
     if (EstoniaCountryPlugin.EU.has(supplier)) {
+      // ── A LOCAL foreign purchase (issue #403) ───────────────────────
+      // A LOCAL purchase made in another member state is taxed THERE and
+      // carries that state's own VAT on the document — it is not an
+      // intra-Community acquisition, has no self-assessment duty, and its
+      // printed VAT is not Estonian input VAT (it cannot be deducted from an
+      // Estonian return, KMS §29 lg 4; its recovery path is the member-state
+      // refund scheme, Directive 2008/9/EE — a separate flow, out of scope).
+      // Booked as `foreign_cost`: whole gross is cost, no VAT leg, no EE code.
+      //
+      // The evidence is EXPLICIT RECORDED FACTS — never the merchant's name,
+      // the category, or the amount:
+      //   1. a DECLARED local-consumption place-of-supply rule on the
+      //      purchase — 'immovable_property' (Art 47: taxed where the
+      //      property stands, e.g. accommodation) or 'restaurant_catering'
+      //      (Art 55: taxed where physically carried out); a general rule
+      //      (the residual default) keeps the reverse charge below, whatever
+      //      the supplier printed (KMS §10);
+      //   2. the recorded COUNTRY the rule's location is in — the rule names
+      //      the CRITERION, not the place (a Danish supplier may operate a
+      //      hotel in Tallinn or cater in Estonia), so the physical supply
+      //      country is recorded separately and must be a FOREIGN one;
+      //   3. a positive VAT amount printed on the document — the supply was
+      //      taxed in that state.
+      const local = this.resolveDeclaredLocalForeignSupply(
+        supplierFacts,
+        orgContext,
+        context,
+      );
+      if (local) return local;
       return this.resolveIntraCommunityAcquisition(supplierFacts);
     }
 
@@ -800,6 +841,144 @@ export class EstoniaCountryPlugin implements CountryPlugin {
    * received from a taxable person of another member state, so the answer does
    * not move a figure.
    */
+  /**
+   * A DECLARED local foreign supply (issue #403): `foreign_cost` when the
+   * recorded facts — a declared local-consumption place-of-supply rule, the
+   * recorded foreign country the rule's location is in, and a positive VAT
+   * amount printed on the document — evidence a supply made and taxed in
+   * another member state. Returns null (no evidence ⇒ the general
+   * intra-Community rules decide) or throws a typed hold when the declared
+   * evidence is INCOMPLETE or self-contradictory — never guessed.
+   */
+  private resolveDeclaredLocalForeignSupply(
+    supplierFacts: SupplierFacts,
+    orgContext: OrgContext,
+    context: {
+      vatCharged: boolean;
+      supplyType?: 'goods' | 'services';
+      servicePlaceRule?: ServicePlaceRule;
+      placeOfSupplyCountry?: string;
+    },
+  ): CrossBorderResolution | null {
+    const placeRule = context.servicePlaceRule ?? 'general';
+    if (placeRule === 'general') return null;
+
+    // A place-of-supply exception is a statement about a SERVICE. On a supply
+    // that is not known to be a service the declaration cannot be honoured —
+    // the same refusal the sales side makes (issue #209).
+    const supplyType = context.supplyType ?? supplierFacts.goodsVsServices;
+    if (supplyType !== 'services') {
+      throw new UnresolvedVatTreatmentError({
+        code: 'service_place_rule_without_service_supply',
+        message:
+          `The purchase declares the service place-of-supply rule ` +
+          `'${placeRule}' but its supply is '${supplyType}', so the rule ` +
+          `cannot apply and must not be ignored.`,
+        missingFacts: [
+          `expense.service_place_rule=${placeRule} with a services supply`,
+        ],
+        howToResolve:
+          'Patch the draft with service_place_rule="general" if the declared ' +
+          'exception does not apply, or record the supply as services.',
+      });
+    }
+
+    // The only rules whose PLACE is the supply's physical location — the
+    // only ones this purchase-side path implements: 'immovable_property'
+    // (Art 47) and 'restaurant_catering' (Art 55). Any OTHER declared special
+    // rule (passenger transport, admissions, short-term hire, electronically
+    // supplied, other special) is a DECLARATION the plugin does not implement
+    // — silently treating it as 'general' would book the reverse charge the
+    // declaration contradicts. Refused with the rule named and the accountant
+    // pointed at it, exactly as the sales side refuses (issue #209); the
+    // general rule still governs wherever NOTHING is declared.
+    const localRule =
+      placeRule === 'immovable_property' || placeRule === 'restaurant_catering';
+    if (!localRule) {
+      throw new UnresolvedVatTreatmentError({
+        code: 'service_place_rule_unsupported',
+        message:
+          `The purchase declares the service place-of-supply rule ` +
+          `'${placeRule}', which has its own place of supply under KMS §10 ` +
+          `and is not auto-classified by the EE plugin.`,
+        missingFacts: [`expense.service_place_rule=${placeRule}`],
+        howToResolve:
+          'Determine the treatment for this rule with your accountant and ' +
+          'book it explicitly, or set service_place_rule="general" on the ' +
+          'draft if the general rule in fact applies.',
+      });
+    }
+
+    // The rule names the CRITERION, not the place: the physical supply country
+    // must be recorded. An exception declared without it is INCOMPLETE — hold
+    // with the fact named, never guess the location.
+    const place = context.placeOfSupplyCountry ?? null;
+    if (place == null) {
+      throw new UnresolvedVatTreatmentError({
+        code: 'local_supply_country_missing',
+        message:
+          `The purchase declares the local-consumption place-of-supply rule ` +
+          `'${placeRule}' (Directive 2006/112/EC Art 47/55) but the country ` +
+          `the supply physically took place in is not recorded, and it decides ` +
+          `where the supply is taxed.`,
+        missingFacts: ['expense.place_of_supply_country'],
+        howToResolve:
+          'PATCH the draft with the ISO country the supply took place in ' +
+          '(e.g. "DK"), then post again.',
+      });
+    }
+
+    // The recorded location is THIS country: the supply is taxed here, and
+    // foreign VAT printed on the document contradicts that — a treatment this
+    // plugin does not auto-classify. Held for a human, never booked as either
+    // an EE acquisition or a foreign cost.
+    if (place === orgContext.country) {
+      throw new UnresolvedVatTreatmentError({
+        code: 'domestic_local_supply_unsupported',
+        message:
+          `The purchase's place of supply is recorded as ${place} (this ` +
+          `organisation's country) under the rule '${placeRule}', so the ` +
+          `foreign VAT printed on the document contradicts the recorded ` +
+          `location — a treatment the EE plugin does not auto-classify.`,
+        missingFacts: [
+          `expense.place_of_supply_country=${place} (domestic) with foreign document VAT`,
+        ],
+        howToResolve:
+          'Correct the recorded place of supply, or book the document ' +
+          'manually with your accountant.',
+      });
+    }
+
+    // No printed VAT: the declared rule and the recorded foreign location
+    // together already decide the supply is taxed THERE — a general-rule
+    // reverse charge here would contradict both — but the document evidences
+    // no foreign tax to fold into the cost and no EE tax to self-assess, so
+    // neither treatment is supported by the recorded facts. Held with the
+    // missing fact named, never guessed and never silently re-classified as
+    // a general B2B acquisition (issue #403).
+    if (!context.vatCharged) {
+      throw new UnresolvedVatTreatmentError({
+        code: 'local_foreign_supply_without_tax_evidence',
+        message:
+          `The purchase declares the local place-of-supply rule ` +
+          `'${placeRule}' with the supply recorded in ${place}, but the ` +
+          `document prints no VAT amount: neither a foreign_cost purchase ` +
+          `(which books the supplier state's printed tax into the cost) nor ` +
+          `a reverse-charge acquisition (the declared place contradicts it) ` +
+          `is supported by the recorded facts.`,
+        missingFacts: [
+          `expense.vat_amount under service_place_rule=${placeRule}, ` +
+            `place_of_supply_country=${place}`,
+        ],
+        howToResolve:
+          'Record the VAT amount printed on the source document, or book ' +
+          'the purchase manually with your accountant.',
+      });
+    }
+
+    return { treatment: 'foreign_cost', vatCode: null };
+  }
+
   private resolveIntraCommunityAcquisition(
     supplierFacts: SupplierFacts,
   ): CrossBorderResolution {

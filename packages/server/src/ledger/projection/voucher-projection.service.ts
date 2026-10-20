@@ -9,6 +9,7 @@ import { DraftVoucher, DraftVoucherLine } from '../voucher/types';
 import { EconomicFacts, Direction } from './types';
 import type {
   CountryPlugin,
+  CrossBorderResolution,
   CrossBorderTreatment,
   OrgContext,
 } from '../../plugins/country-plugin.interface';
@@ -19,7 +20,12 @@ import {
   assertValidEntitlement,
   splitInputVat,
 } from '../../plugins/input-vat-entitlement.types';
-import { ResolvedFxRate } from '../../fx/fx-rate.types';
+import {
+  BANK_STATEMENT_RATE_SOURCE,
+  FxRateUnavailableError,
+  ResolvedFxRate,
+} from '../../fx/fx-rate.types';
+import { deriveSettlementFx } from '../../bank/settlement-fx';
 
 /**
  * VoucherProjectionService — the single deep module that projects a business
@@ -126,6 +132,33 @@ export class VoucherProjectionService {
         supplyFacts,
       });
     }
+    // Cross-border treatment is a purchase-side concern (the supplier's VAT
+    // territory). A reverse-charge acquisition (intra-EU service, or an imported
+    // non-EU service under KMS §10) is self-assessed: we owe the supplier only
+    // the net, and book the output VAT we owe on it — plus whatever part of
+    // that tax we are ENTITLED to deduct (issue #211), which is not always all
+    // of it and is not always any of it.
+    //
+    // It is resolved BEFORE the rate is fetched (issue #403): the resolved
+    // treatment decides whether the purchase needs the statutory reference
+    // rate at all — a reverse-charge acquisition self-assesses a VAT base the
+    // plugin must value at the prescribed rate even when the document shows
+    // vat 0, so such a purchase may NEVER fall back to a bank-settlement
+    // rate. Resolving treatment first makes that decision a fact, not a guess.
+    const crossTreatment: CrossBorderResolution | null =
+      direction === 'purchase'
+        ? plugin.resolveCrossBorderTreatment(supplierFacts, orgContext, {
+            vatCharged: facts.vatAmount > 0,
+            supplyType: facts.supplyType,
+            ...(facts.servicePlaceRule != null && {
+              servicePlaceRule: facts.servicePlaceRule,
+            }),
+            ...(facts.placeOfSupplyCountry != null && {
+              placeOfSupplyCountry: facts.placeOfSupplyCountry,
+            }),
+          })
+        : null;
+
     // Single owner of currency→base conversion (ADR-0004): one uniform rate per
     // draft, sourced from the country plugin, rounded by the currency module.
     // We take the rate from the same place we book it.
@@ -134,13 +167,34 @@ export class VoucherProjectionService {
     // voucher records the rate it was booked at *and* why that rate governs —
     // a Saturday tax point legitimately carrying Friday's publication is then
     // visible as such, instead of looking like a date-blind constant.
-    const fx: ResolvedFxRate = await this.currencyService
-      .toBase(netAmount, facts.currency, facts.taxPointDate)
-      .then((c) => ({
-        rate: c.rate,
-        rateDate: c.rateDate,
-        source: c.rateSource,
-      }));
+    //
+    // Narrow fallback (issue #403, ADR-0004 amendment): when the authority
+    // genuinely has no rate for this pair/date — NOT a transient outage — and
+    // the purchase is a same-day-settled VAT-free purchase with consistent
+    // bank settlement evidence, the bank's OWN transaction-date rate is the
+    // rate in force on the transaction date (RTJ1 §93, SME IFRS 30.6/30.7).
+    // A statutory VAT-base conversion is never substituted: the fallback is
+    // refused for any reverse-charge treatment and any stated VAT, so the
+    // prescribed reference rate stays the sole rate where it is required.
+    let fx: ResolvedFxRate;
+    try {
+      const c = await this.currencyService.toBase(
+        netAmount,
+        facts.currency,
+        facts.taxPointDate,
+      );
+      fx = { rate: c.rate, rateDate: c.rateDate, source: c.rateSource };
+    } catch (err) {
+      const fallback = this.settlementFxFallback(
+        err,
+        facts,
+        direction,
+        crossTreatment?.treatment ?? null,
+        org.base_currency ?? plugin.getDefaultBaseCurrency(),
+      );
+      if (fallback === null) throw err;
+      fx = fallback;
+    }
     // Round each leg to base-currency minor units via the active plugin's rule
     // (ADR-0002: rounding is a jurisdiction rule). The plugin is the same one
     // resolved above; CurrencyService owns the multiply, the plugin the round.
@@ -150,17 +204,25 @@ export class VoucherProjectionService {
       );
 
     // Cross-border treatment is a purchase-side concern (the supplier's VAT
-    // territory). A reverse-charge acquisition (intra-EU service, or an imported
-    // non-EU service under KMS §10) is self-assessed: we owe the supplier only
+    // territory), already resolved above (issue #403 ordering). A
+    // reverse-charge acquisition is self-assessed: we owe the supplier only
     // the net, and book the output VAT we owe on it — plus whatever part of
-    // that tax we are ENTITLED to deduct (issue #211), which is not always all
-    // of it and is not always any of it.
+    // that tax we are ENTITLED to deduct (issue #211).
     if (direction === 'purchase') {
-      const cross = plugin.resolveCrossBorderTreatment(
-        supplierFacts,
-        orgContext,
-        { vatCharged: facts.vatAmount > 0 },
-      );
+      // Never null on the purchase path (resolved above); the re-resolution
+      // is a defensive fallback for the type, not a second decision.
+      const cross: CrossBorderResolution =
+        crossTreatment ??
+        plugin.resolveCrossBorderTreatment(supplierFacts, orgContext, {
+          vatCharged: facts.vatAmount > 0,
+          supplyType: facts.supplyType,
+          ...(facts.servicePlaceRule != null && {
+            servicePlaceRule: facts.servicePlaceRule,
+          }),
+          ...(facts.placeOfSupplyCountry != null && {
+            placeOfSupplyCountry: facts.placeOfSupplyCountry,
+          }),
+        });
       if (cross.treatment === 'reverse_charge') {
         const rcCode = cross.vatCode ?? mapping.vatCode;
         const entitlement = this.resolveEntitlement(
@@ -201,7 +263,14 @@ export class VoucherProjectionService {
         tax_point_date: facts.taxPointDate,
         measured_basis,
         input_vat_entitlement: entitlement,
-        lines: this.purchaseLines(facts, mapping, entitlement, fx, baseAmount),
+        lines: this.purchaseLines(
+          facts,
+          mapping,
+          entitlement,
+          fx,
+          baseAmount,
+          cross.treatment,
+        ),
       };
     }
 
@@ -240,6 +309,126 @@ export class VoucherProjectionService {
           `it. Correct the document's amounts; nothing was posted.`,
       );
     }
+  }
+
+  /**
+   * The narrow bank-settlement rate fallback (issue #403, ADR-0004
+   * amendment) — or `null`, meaning "no fallback: rethrow".
+   *
+   * Every condition is load-bearing, and each refuses for a stated reason:
+   *
+   *   - The error must be a MISSING reference rate that will not resolve by
+   *     retrying (`unsupported_pair` / `no_rate_for_date`). A transient
+   *     `upstream_unavailable` outage is NOT permission to substitute — the
+   *     authority may still answer, so the hold-and-retry stands.
+   *   - The direction must be `purchase` and the VAT treatment must have
+   *     resolved WITHOUT an EE statutory VAT base: a reverse-charge
+   *     acquisition self-assesses a base the prescribed rate governs even
+   *     with a zero stated VAT (the issue #403 counterexample: a foreign SaaS
+   *     subscription), and a domestic/import purchase with a stated VAT
+   *     amount needs the prescribed conversion for its VAT leg. The one
+   *     treatment that never creates an EE statutory VAT base is
+   *     `foreign_cost` — a LOCAL foreign purchase whose printed foreign VAT
+   *     belongs to the supplier's member state and folds into the cost
+   *     (issue #403; ADR-0004 amendment). A statutory VAT-base conversion is
+   *     never silently replaced by a bank rate (ADR-0004).
+   *   - The evidence must agree with the facts it values — same currency, same
+   *     original amount, and a settlement in the effective base currency — or
+   *     it is ignored and the statutory path (and its hold) stands.
+   *   - The rate itself is RTJ1 §93's "tehingupäeval kehtiv valuutakurs" (SME
+   *     IFRS 30.6/30.7): the bank's own same-day settlement rate, recorded with
+   *     `BANK_STATEMENT_RATE_SOURCE` so no line can masquerade as an ECB
+   *     observation.
+   *
+   * Returns `null` when NO substitution may happen — the caller rethrows the
+   * statutory error (and its hold) untouched. It THROWS its own typed
+   * `FxRateUnavailableError` when a linked bank line EXISTS but its figures
+   * are conflicting/unusable: that diagnosis is worth more to the operator
+   * than "no authoritative rate", so it replaces the statutory error's text
+   * (same typed hold shape) rather than being swallowed.
+   */
+  private settlementFxFallback(
+    err: unknown,
+    facts: EconomicFacts,
+    direction: Direction,
+    treatment: CrossBorderTreatment | null,
+    baseCurrency: string,
+  ): ResolvedFxRate | null {
+    if (!(err instanceof FxRateUnavailableError)) return null;
+    // Only the two MISSING-rate reasons may be substituted. A retryable
+    // `upstream_unavailable` outage is a hold, not a substitution (the
+    // authority may still answer), and a `misconfigured` wiring failure is an
+    // OPERATOR fault that must surface, not be papered over with a bank rate.
+    if (
+      err.reason !== 'unsupported_pair' &&
+      err.reason !== 'no_rate_for_date'
+    ) {
+      return null;
+    }
+    if (direction !== 'purchase') return null;
+    // Any reverse-charge treatment needs the statutory rate — even a
+    // zero-VAT acquisition self-assesses a VAT base (issue #403 counterexample:
+    // a foreign SaaS subscription).
+    if (treatment === 'reverse_charge') return null;
+    // A domestic/import purchase with a STATED VAT amount needs the
+    // prescribed reference-rate conversion for its EE VAT leg. A
+    // `foreign_cost` purchase never has one: the printed foreign VAT belongs
+    // to the supplier's member state and folds into the cost, whatever its
+    // amount (issue #403).
+    if (treatment !== 'foreign_cost' && facts.vatAmount !== 0) return null;
+    // A link that could not be resolved — ambiguous, claimed by another
+    // expense, contradicted by a claimant payment, no same-day line — is an
+    // EXPLICIT diagnosis, worth more to the operator than the statutory
+    // "no authoritative rate": it replaces the statutory error's text (same
+    // typed hold shape) instead of being swallowed (issue #403 acceptance:
+    // ambiguous/partial/contradictory cases get explicit outcomes).
+    if (!facts.settlementFx && facts.settlementFxUnresolved) {
+      // The diagnosis ADDS to the statutory reason — it never replaces it:
+      // the pair/date classification (unsupported_pair vs no_rate_for_date,
+      // retryability) is the authority's, and the HTTP contract depends on
+      // it (issue #203's e2e semantics).
+      throw new FxRateUnavailableError(
+        facts.currency,
+        baseCurrency,
+        facts.taxPointDate,
+        `${err.detail}; bank settlement evidence could not be linked to ` +
+          `this purchase: ${facts.settlementFxUnresolved}`,
+        err.reason,
+      );
+    }
+    const link = facts.settlementFx;
+    if (!link) return null;
+    // The link must value THIS purchase's own original amount — checked here
+    // (the trust boundary), not just trusted from whoever assembled the facts.
+    if (
+      link.sourceCurrency !== facts.currency ||
+      link.sourceAmount !== facts.grossAmount ||
+      link.transactionDate !== facts.taxPointDate
+    ) {
+      return null;
+    }
+    // Derive and validate the bank's own figures (fee separation, explicit
+    // rate consistency, refusal of unexplained residuals) — pure arithmetic,
+    // refused loudly when the statement's numbers do not add up.
+    const derived = deriveSettlementFx(link, baseCurrency);
+    if (derived.outcome !== 'evidence') {
+      // A conflicting/unavailable link is NOT silent: surface it as the
+      // reason the statutory path (and its hold) still stands, so the operator
+      // sees the bank data is unusable rather than merely "no rate".
+      throw new FxRateUnavailableError(
+        facts.currency,
+        baseCurrency,
+        facts.taxPointDate,
+        `${err.detail}; bank settlement evidence for transaction ` +
+          `${link.bankTransactionId} is ${derived.outcome}: ${derived.reason}`,
+        err.reason,
+      );
+    }
+    return {
+      rate: derived.evidence.rate,
+      rateDate: derived.evidence.transactionDate,
+      source: BANK_STATEMENT_RATE_SOURCE,
+    };
   }
 
   /**
@@ -420,6 +609,7 @@ export class VoucherProjectionService {
     entitlement: InputVatEntitlement,
     fx: ResolvedFxRate,
     baseAmount: (amount: number) => number,
+    treatment: CrossBorderTreatment,
   ): DraftVoucherLine[] {
     const { deductible } = splitInputVat(facts.vatAmount, entitlement);
     // Cost = everything owed that we cannot reclaim. Derived by subtraction
@@ -434,10 +624,14 @@ export class VoucherProjectionService {
     // purchase we may not reclaim still bore the tax it bore, so the code
     // stays — which also keeps it subject to the plugin's own VAT-code
     // validation instead of quietly exempting every non-deductible line from
-    // it. The one case that does clear it is the DOCUMENTARY restriction: a
-    // receipt not addressed to us evidences no VAT treatment of ours at all.
+    // it. Two cases do clear it: the DOCUMENTARY restriction (a receipt not
+    // addressed to us evidences no VAT treatment of ours at all), and a
+    // `foreign_cost` purchase (issue #403) — the printed VAT belongs to the
+    // supplier's member state, so an EE code on the leg would declare a
+    // taxable base an Estonian return does not contain.
     const effectiveVatCode =
-      entitlement.basis === 'receipt_not_company_addressed'
+      entitlement.basis === 'receipt_not_company_addressed' ||
+      treatment === 'foreign_cost'
         ? null
         : mapping.vatCode;
 

@@ -4,6 +4,7 @@ import { BankStatementService } from './bank-statement.service';
 import { BankImportJobRepository } from './bank-import-job.repository';
 import { buildBankIngestionWorkflow } from './bank-ingestion.workflow';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
+import { DocumentStorageService } from '../documents/document-storage.service';
 import type { CreateStatementInput } from './bank-statement.types';
 
 @Injectable()
@@ -12,6 +13,14 @@ export class BankIngestionService {
     private readonly mastra: MastraService,
     private readonly statements: BankStatementService,
     private readonly jobs: BankImportJobRepository,
+    // Durable raw-source storage (issue #403): the SAME storage seam document
+    // intake uses — the raw CSV is saved BYTE-EXACT under the BANK'S OWN
+    // namespace (`bank-statements/{jobId}/{filename}`, root-relative), so an
+    // import job's id can never collide with a real document's id and existing
+    // document bytes stay immutable, whichever root this seam owns. Linked
+    // from the imported statement's `file_path` — never merely held in
+    // workflow memory or a parsed description.
+    private readonly storage: DocumentStorageService,
     // Optional so a bank-only test harness need not wire reconciliation; the
     // forwardRef breaks the Bank↔Reconciliation module cycle.
     @Optional()
@@ -37,23 +46,45 @@ export class BankIngestionService {
   }
 
   async startImport(
-    csvText: string,
+    // The uploaded CSV: its text (what the workflow parses) AND its ORIGINAL
+    // buffer, so the raw source is preserved durably BYTE-EXACT (issue #403:
+    // re-encoding the text would mutate the archive — a non-UTF8 byte in an
+    // unmapped column must survive verbatim). The import ALWAYS archives its
+    // own bank-owned copy — an intake document's lifetime must never govern
+    // an imported statement's raw source.
+    file: { text: string; buffer: Buffer; filename?: string },
     accountHint: string,
   ): Promise<{ jobId: number }> {
     const job = await this.jobs.create(accountHint);
     // Fire-and-forget: run in the background, never reject the caller.
-    void this.process(job.id, csvText, accountHint);
+    void this.process(job.id, file, accountHint);
     return { jobId: job.id };
   }
 
   private async process(
     jobId: number,
-    csvText: string,
+    file: { text: string; buffer: Buffer; filename?: string },
     accountHint: string,
   ): Promise<void> {
     try {
-      const input = await this.runWorkflow(csvText, accountHint);
-      const { statement } = await this.statements.createStatement(input);
+      const input = await this.runWorkflow(file.text, accountHint);
+      // The durable raw source: a BYTE-EXACT, BANK-OWNED archive of the
+      // original upload, saved in the bank's own namespace and linked from
+      // the statement row. Always the import's own copy — including when the
+      // upload arrived as an intake document whose bytes are already stored
+      // elsewhere: that document's lifetime is its own (it can be deleted
+      // mid-import or after), and the imported statement's raw source must
+      // survive it (issue #403's preserve-raw-source acceptance).
+      const storagePath = await this.storage.saveNamespacedFile(
+        'bank-statements',
+        jobId,
+        file.filename || 'statement.csv',
+        file.buffer,
+      );
+      const { statement } = await this.statements.createStatement({
+        ...input,
+        file_path: storagePath,
+      });
       await this.jobs.markDone(jobId, statement.id);
 
       // Best-effort: auto-stage unambiguous high-confidence matches as drafts

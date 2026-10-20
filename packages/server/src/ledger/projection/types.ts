@@ -2,6 +2,7 @@ import type {
   CounterpartyTaxStatus,
   ServicePlaceRule,
 } from '../../plugins/country-plugin.interface';
+import type { BankSettlementLink } from '../../bank/settlement-fx';
 
 /**
  * The economic facts of a business object, expressed in the language a Voucher
@@ -54,6 +55,14 @@ export interface EconomicFacts {
    */
   servicePlaceRule?: ServicePlaceRule;
   /**
+   * The ISO country where the declared rule's location physically is (the
+   * supply's performance country / the property's country) — recorded
+   * separately from the RULE because the rule names the criterion, not the
+   * place (issue #403): a Danish supplier may cater in Estonia. Absent ⇒
+   * unknown; a plugin that needs it holds with the fact named.
+   */
+  placeOfSupplyCountry?: string;
+  /**
    * When set, the credit leg posts to CLAIMANT_PAYABLE instead of AP.
    * Null (or absent) → AP (normal supplier expense).
    */
@@ -64,6 +73,25 @@ export interface EconomicFacts {
    * Only meaningful for claimant-paid expenses; absent → treated as true.
    */
   companyAddressedReceipt?: boolean | null;
+  /**
+   * A deterministically linked bank settlement line for this PAID purchase
+   * (issue #403): the bank transaction that settled the purchase's own
+   * original-currency amount, RAW as the bank recorded it. The projection —
+   * which owns conversion and knows the effective base currency — derives and
+   * validates the evidence, and uses it ONLY as a narrow fallback: when the
+   * statutory reference rate genuinely cannot be had AND the purchase carries
+   * no VAT treatment that needs it (see project()'s fallback note and the
+   * ADR-0004 amendment). Absent/undefined → nothing changes.
+   */
+  settlementFx?: BankSettlementLink;
+  /**
+   * WHY no link could be resolved for a purchase that needs one (issue #403):
+   * ambiguous candidates, a line claimed by another expense, a claimant-paid
+   * contradiction, no same-day line. Surfaced by the fallback as the reason
+   * the statutory hold stands — an explicit, actionable outcome, never a
+   * guess. Absent/undefined → nothing changes.
+   */
+  settlementFxUnresolved?: string;
 }
 
 /**

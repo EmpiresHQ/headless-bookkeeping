@@ -41,6 +41,29 @@ export class DocumentStorageService {
     return join(String(id), filename);
   }
 
+  /**
+   * Save a file under a NAMESPACED directory — `{root}/{namespace}/{id}/{filename}`.
+   *
+   * For evidence that is NOT a document but is stored on the same seam (a
+   * bank import's raw CSV, issue #403): the namespace separates its ids from
+   * the document namespace entirely — a document id is always a bare numeric
+   * segment, so a non-numeric namespace can never collide with — or
+   * overwrite — a stored document's bytes, whichever root this service owns.
+   * Returns the root-relative path.
+   */
+  async saveNamespacedFile(
+    namespace: string,
+    id: number,
+    filename: string,
+    buffer: Buffer,
+  ): Promise<string> {
+    const storagePath = join(namespace, String(id), filename);
+    const filePath = join(this.root, storagePath);
+    await fs.mkdir(dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, buffer);
+    return storagePath;
+  }
+
   async readFile(storagePath: string): Promise<Buffer> {
     const filePath = join(this.root, storagePath);
     return fs.readFile(filePath);

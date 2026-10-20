@@ -471,6 +471,23 @@ curl -H "$H" -H "$J" -X POST $B/api/bank-transactions/<txnId>/prepayment \
 # Nothing stated → the money is still recorded, and the advance is HELD.
 curl -H "$H" -X POST $B/api/bank-transactions/<txnId>/prepayment
 
+### Bank conversion fees (issue #403)
+
+A converted card settlement often charges its FX fee on the SAME line as the
+purchase it paid for (`source_currency`/`source_amount` on the line, an
+explicitly evidenced `conversion_fee`). The purchase voucher books the
+FEE-SEPARATED principal; the fee books separately, as its own bank-fee cost,
+LAST — the fee disposition must complete the line's unallocated CASH
+remainder, so the purchase's settlement match must exist first:
+
+```bash
+# Books Dr EXPENSE_BANK_FEE / Cr <the line's bank account> for the line's
+# EXPLICITLY EVIDENCED conversion_fee (NULL fee = refused, never derived),
+# and reconciles the fee portion of the line's debit. Refused (409) while the
+# line's principal is still unallocated — reconcile the purchase first.
+curl -H "$H" -X POST $B/api/bank-transactions/<txnId>/bank-fee
+```
+
 # Which treatments a receipt on a given date may declare (the country plugin
 # answers; the rate in force is part of the answer).
 curl -H "$H" "$B/api/prepayments/advance-vat-treatments?receipt_date=2026-02-10"

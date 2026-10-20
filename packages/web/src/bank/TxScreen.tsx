@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { createPrepayment, fmtCents, markPersonal } from '../api';
+import { createPrepayment, fmtCents, markBankFee, markPersonal } from '../api';
 import type { AdvanceTaxInput } from '../api';
 import type { BankTransaction } from '../api';
 import {
@@ -275,6 +275,43 @@ function TxScreenFor({
     leaveToStatement();
   };
 
+  const onConversionFee = () => {
+    let accepted = false;
+    op.run(
+      async (ctx) => {
+        await markBankFee(txId);
+        accepted = true;
+        ctx.check();
+        simpleRecord(
+          'Bank fee',
+          `Booked evidenced conversion fee · ${fmtCents(tx?.conversion_fee ?? 0)} ${tx?.currency ?? 'EUR'}`,
+          'ok',
+          ctx.live,
+        );
+        await invalidateStatement(qc, statementId);
+      },
+      {
+        onSuccess: () => {
+          toastOk('Conversion fee booked as a bank fee');
+          setOtherOpen(false);
+          leaveToStatement();
+        },
+        onError: (e) => {
+          const message = e instanceof Error ? e.message : String(e);
+          toastErr(message);
+          if (!accepted)
+            simpleRecord(
+              'Bank fee',
+              notConfirmed('Booking the conversion fee', e),
+              'error',
+            );
+          setOtherOpen(false);
+          void invalidateStatement(qc, statementId);
+        },
+      },
+    );
+  };
+
   const onPersonal = () => {
     let accepted = false;
     op.run(
@@ -353,7 +390,18 @@ function TxScreenFor({
   };
 
   const onFee = () => {
-    if (!tx || !feeCategory) return;
+    if (!tx) return;
+    // A converted settlement line that carries an EXPLICITLY EVIDENCED
+    // conversion fee books the FEE ALONE (issue #403): the purchase principal
+    // was already valued and reconciled separately, and the fee disposition
+    // books the bank's own stated fee as its own cost — never the whole
+    // mixed debit, never a derived residual. Lines without evidenced fee
+    // keep the whole-line bank-fee expense flow.
+    if (tx.source_currency != null && tx.conversion_fee != null) {
+      onConversionFee();
+      return;
+    }
+    if (!feeCategory) return;
     const input = {
       statementId,
       bankTransactionId: txId,
@@ -558,7 +606,14 @@ function TxScreenFor({
             onOpenChange={setOtherOpen}
             tx={tx}
             hasMatches={state.kind === 'matched'}
-            feeAvailable={feeCategory !== undefined}
+            // The Bank fee action is available for the whole-line flow
+            // (needs a fee category) OR an evidenced conversion fee
+            // (issue #403 — books the bank's own stated fee alone, offered
+            // whether or not the line's principal is already matched).
+            feeAvailable={
+              feeCategory !== undefined ||
+              (tx?.source_currency != null && tx.conversion_fee != null)
+            }
             busy={busy}
             onPersonal={() => {
               setOtherOpen(false);
