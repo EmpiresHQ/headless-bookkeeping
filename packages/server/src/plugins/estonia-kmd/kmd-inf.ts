@@ -1,3 +1,4 @@
+import { estonianStandardVatRate } from '../estonia-vat-rates';
 import { StatutoryDocLine, StatutoryWarning } from '../statutory-report.types';
 
 /** Rates that appear on INF; others (zero, reverse-charge) are excluded. */
@@ -136,7 +137,11 @@ export function buildInfPart(
       invoiceNumber: l.invoiceNumber,
       creditsInvoiceNumber: l.creditsInvoiceNumber,
       date: l.date,
-      ratePercent: EE_RATE_BY_CODE[l.vatCode],
+      ratePercent:
+        l.vatRateDate &&
+        (l.vatCode === 'EE_OUTPUT_24' || l.vatCode === 'EE_INPUT_24')
+          ? estonianStandardVatRate(l.vatRateDate) * 100
+          : EE_RATE_BY_CODE[l.vatCode],
       netAmount: docNetOf(l),
       vatAmount: docVatOf(l),
       vatInPeriod: l.vatAmount,

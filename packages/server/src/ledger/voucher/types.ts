@@ -1,3 +1,4 @@
+import type { EuVatDecision } from '../../plugins/eu-vat';
 import type { OrganizationBasisRow } from '../../organization/ledger-basis';
 
 export interface VoucherLine {
@@ -37,6 +38,7 @@ export interface Voucher {
    * records no input-VAT decision (a sale, a system entry, anything posted
    * before the columns existed).
    */
+  vat_decision?: string | null;
   input_vat_entitlement_basis: string | null;
   input_vat_deduction_numerator: number | null;
   input_vat_deduction_denominator: number | null;
@@ -62,6 +64,7 @@ export interface DraftVoucherLine {
 }
 
 export interface DraftVoucher {
+  vat_decision?: EuVatDecision;
   /** Optional — the posting service mints the gapless sequential number at post time. */
   voucher_number?: string;
   /**

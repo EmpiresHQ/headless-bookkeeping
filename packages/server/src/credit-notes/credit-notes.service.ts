@@ -119,6 +119,14 @@ export class CreditNotesService {
       creditNoteNumber: dto.credit_note_number,
     });
 
+    const measurement = await this.db
+      .selectFrom('voucher')
+      .select('vat_decision')
+      .where('id', '=', original.voucher_id)
+      .executeTakeFirstOrThrow();
+    if (measurement.vat_decision)
+      draft.vat_decision = JSON.parse(measurement.vat_decision);
+
     // 5. Post the voucher + insert the credit_note row atomically.
     const kind: CreditNoteKind =
       table === 'sales_invoice' ? 'sales' : 'purchase';

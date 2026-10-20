@@ -168,10 +168,43 @@ describe('Input-VAT entitlement (E2E)', () => {
   }
 
   async function createExpense(body: Record<string, unknown>): Promise<number> {
+    const supplier =
+      typeof body.supplier_id === 'number'
+        ? await db
+            .selectFrom('entity')
+            .select('country')
+            .where('id', '=', body.supplier_id)
+            .executeTakeFirst()
+        : undefined;
     const res = await http()
       .post('/api/expenses')
       .set(auth())
-      .send({ currency: 'EUR', tax_point_date: TAX_POINT, ...body })
+      .send({
+        currency: 'EUR',
+        tax_point_date: TAX_POINT,
+        ...(supplier && supplier.country !== 'EE'
+          ? {
+              eu_vat_facts: {
+                recipientStatus: 'taxable_business',
+                receivingEstablishmentCountry: 'EE',
+                supplierEstablishmentCountry: supplier.country,
+                supplierNonEstablishedInPlace: true,
+                businessPurpose: true,
+                buyerEvidence: true,
+                evidence: [
+                  {
+                    fact: 'supplierNonEstablishedInPlace',
+                    reference: 'synthetic contract',
+                    source: 'human',
+                    confirmedBy: 'fixture',
+                    confirmedAt: '2026-10-20T00:00:00Z',
+                  },
+                ],
+              },
+            }
+          : {}),
+        ...body,
+      })
       .expect(201);
     return (res.body as { id: number }).id;
   }
@@ -381,7 +414,10 @@ describe('Input-VAT entitlement (E2E)', () => {
       });
 
     it('registers the asset at 124 when none of the self-assessed VAT is recoverable', async () => {
-      await putOrg({ vat_registered: false }).expect(200);
+      await putOrg({
+        vat_registered: true,
+        vat_registration_kind: 'limited',
+      }).expect(200);
       const supplier = await euSupplier();
 
       const id = await createExpense({

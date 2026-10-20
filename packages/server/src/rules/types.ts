@@ -1,3 +1,4 @@
+import type { EuVatDecision } from '../plugins/eu-vat';
 import { ValidatableLine } from '../ledger/validation/types';
 import { SupplierFacts, OrgContext } from '../plugins/country-plugin.interface';
 
@@ -99,4 +100,5 @@ export interface SemanticValidationContext {
    * Defaults to false when unknown (conservative: no foreign VAT reclaimed).
    */
   vatCharged?: boolean;
+  vatDecision?: EuVatDecision;
 }

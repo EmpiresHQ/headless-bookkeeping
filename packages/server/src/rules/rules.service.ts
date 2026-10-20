@@ -213,12 +213,14 @@ export class RulesService {
     // Approval by Policy (conservative default: book gross as a cost). It lives
     // in the semantic tier because cross-border treatment is a country-plugin
     // decision, and the Rules→Policy split keeps the HOLD in Policy.
-    const crossBorder = plugin.resolveCrossBorderTreatment(
-      context.supplierFacts,
-      context.orgContext,
-      { vatCharged: context.vatCharged ?? false },
-    );
-    if (crossBorder.treatment === 'unresolvable') {
+    const crossBorder = context.vatDecision
+      ? null
+      : plugin.resolveCrossBorderTreatment(
+          context.supplierFacts,
+          context.orgContext,
+          { vatCharged: context.vatCharged ?? false },
+        );
+    if (crossBorder?.treatment === 'unresolvable') {
       errors.push(
         `Unresolvable cross-border VAT treatment for supplier country ` +
           `${context.supplierFacts.country}; hold for Approval (book gross as cost)`,

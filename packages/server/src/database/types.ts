@@ -125,6 +125,7 @@ export interface VoucherTable {
    * was booked on. NULL = no input-VAT decision was recorded on this voucher
    * (a sale, a system entry, or anything posted before this column existed).
    */
+  vat_decision: string | null;
   input_vat_entitlement_basis: string | null;
   input_vat_deduction_numerator: number | null;
   input_vat_deduction_denominator: number | null;
@@ -216,6 +217,7 @@ export interface ExpenseTable {
   // was performed in / the property stands). A declared exception without a
   // recorded country is an incomplete declaration — held, never guessed.
   place_of_supply_country: string | null;
+  eu_vat_facts: string | null;
   // Whether the receipt is addressed to the Organisation (migration 056).
   // true → normal VAT reclaim; false | null → NULL_VAT_CODE (conservative).
   // Stored as INTEGER (0/1/null) per SQLite boolean convention.

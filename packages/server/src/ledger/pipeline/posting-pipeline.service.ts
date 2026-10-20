@@ -138,6 +138,7 @@ export class PostingPipelineService {
       supplierFacts,
       orgContext,
       category: params.category,
+      vatDecision: draft.vat_decision,
     };
 
     // ── 5. Run Rules validation (ONE unified call across all three tiers) ──

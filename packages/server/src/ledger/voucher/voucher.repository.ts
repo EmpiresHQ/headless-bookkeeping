@@ -36,6 +36,7 @@ export class VoucherRepository {
     corrects_object_type,
     corrects_object_id,
     reason,
+    vat_decision,
     input_vat_entitlement_basis,
     input_vat_deduction_numerator,
     input_vat_deduction_denominator,
@@ -49,6 +50,7 @@ export class VoucherRepository {
     corrects_object_type: string | null;
     corrects_object_id: number | null;
     reason: string | null;
+    vat_decision?: string | null;
     input_vat_entitlement_basis: string | null;
     input_vat_deduction_numerator: number | null;
     input_vat_deduction_denominator: number | null;
@@ -63,6 +65,7 @@ export class VoucherRepository {
       corrects_object_type,
       corrects_object_id,
       reason,
+      vat_decision: vat_decision ?? null,
       input_vat_entitlement_basis,
       input_vat_deduction_numerator,
       input_vat_deduction_denominator,

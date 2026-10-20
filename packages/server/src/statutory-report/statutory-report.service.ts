@@ -1042,7 +1042,29 @@ export class StatutoryReportService {
       creditPositive: boolean;
     },
     executor: Kysely<Database> = this.db,
-  ): Promise<{ vatCode: string; netAmount: number; vatAmount: number }> {
+  ): Promise<{
+    vatCode: string;
+    netAmount: number;
+    vatAmount: number;
+    vatRateDate: string;
+  }> {
+    const measurement = await executor
+      .selectFrom('voucher as v')
+      .leftJoin('voucher as original', 'original.id', 'v.reverses_id')
+      .select([
+        'v.tax_point_date',
+        'original.tax_point_date as original_date',
+        'v.vat_decision',
+      ])
+      .where('v.id', '=', voucherId)
+      .executeTakeFirstOrThrow();
+    const snapshot: { supplyDate?: string } | null = measurement.vat_decision
+      ? JSON.parse(measurement.vat_decision)
+      : null;
+    const vatRateDate =
+      snapshot?.supplyDate ??
+      measurement.original_date ??
+      measurement.tax_point_date;
     const lines: AssemblyLine[] = await executor
       .selectFrom('voucher_line as vl')
       .innerJoin('account as a', 'a.id', 'vl.account_id')
@@ -1085,6 +1107,7 @@ export class StatutoryReportService {
     }
 
     return {
+      vatRateDate,
       vatCode: vatCodeFromControl ?? vatCodeFromBase ?? '',
       netAmount,
       vatAmount,

@@ -149,6 +149,8 @@ export class VoucherProjectionService {
       direction === 'purchase'
         ? plugin.resolveCrossBorderTreatment(supplierFacts, orgContext, {
             vatCharged: facts.vatAmount > 0,
+            taxPointDate: facts.taxPointDate,
+            euVatFacts: facts.euVatFacts,
             supplyType: facts.supplyType,
             ...(facts.servicePlaceRule != null && {
               servicePlaceRule: facts.servicePlaceRule,
@@ -209,20 +211,8 @@ export class VoucherProjectionService {
     // the net, and book the output VAT we owe on it — plus whatever part of
     // that tax we are ENTITLED to deduct (issue #211).
     if (direction === 'purchase') {
-      // Never null on the purchase path (resolved above); the re-resolution
-      // is a defensive fallback for the type, not a second decision.
-      const cross: CrossBorderResolution =
-        crossTreatment ??
-        plugin.resolveCrossBorderTreatment(supplierFacts, orgContext, {
-          vatCharged: facts.vatAmount > 0,
-          supplyType: facts.supplyType,
-          ...(facts.servicePlaceRule != null && {
-            servicePlaceRule: facts.servicePlaceRule,
-          }),
-          ...(facts.placeOfSupplyCountry != null && {
-            placeOfSupplyCountry: facts.placeOfSupplyCountry,
-          }),
-        });
+      if (!crossTreatment) throw new Error('Missing purchase VAT resolution');
+      const cross = crossTreatment;
       if (cross.treatment === 'reverse_charge') {
         const rcCode = cross.vatCode ?? mapping.vatCode;
         const entitlement = this.resolveEntitlement(
@@ -236,6 +226,7 @@ export class VoucherProjectionService {
           voucher_number: 'PENDING',
           tax_point_date: facts.taxPointDate,
           measured_basis,
+          vat_decision: crossTreatment?.decision,
           input_vat_entitlement: entitlement,
           lines: this.reverseChargeLines(
             facts,
@@ -256,16 +247,20 @@ export class VoucherProjectionService {
         orgContext,
         facts,
         cross.treatment,
-        mapping.vatCode,
+        (cross.decision ? cross.vatCode : null) ?? mapping.vatCode,
       );
       return {
         voucher_number: 'PENDING',
         tax_point_date: facts.taxPointDate,
         measured_basis,
+        vat_decision: crossTreatment?.decision,
         input_vat_entitlement: entitlement,
         lines: this.purchaseLines(
           facts,
-          mapping,
+          {
+            ...mapping,
+            vatCode: (cross.decision ? cross.vatCode : null) ?? mapping.vatCode,
+          },
           entitlement,
           fx,
           baseAmount,
@@ -461,6 +456,8 @@ export class VoucherProjectionService {
     const entitlement = plugin.resolveInputVatEntitlement(orgContext, {
       treatment,
       vatCode,
+      businessPurpose: facts.euVatFacts?.businessPurpose,
+      buyerEvidence: facts.euVatFacts?.buyerEvidence,
     });
     assertValidEntitlement(entitlement);
 

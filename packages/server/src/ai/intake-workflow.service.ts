@@ -1,3 +1,4 @@
+import { euVatFactsSchema } from '../plugins/eu-vat';
 import { FxRateUnavailableError } from '../fx/fx-rate.types';
 import { UnresolvedVatTreatmentError } from '../plugins/vat-treatment.errors';
 import {
@@ -423,6 +424,7 @@ export class IntakeWorkflowService {
             // a resume silently clear a saved local treatment.
             'service_place_rule',
             'place_of_supply_country',
+            'eu_vat_facts',
             'ai_confidence',
             'ai_document_type',
             'ai_kind',
@@ -494,6 +496,10 @@ export class IntakeWorkflowService {
           service_place_rule: (expense.service_place_rule ??
             'general') as TriageResult['service_place_rule'],
           place_of_supply_country: expense.place_of_supply_country,
+          eu_vat_facts:
+            expense.eu_vat_facts == null
+              ? null
+              : euVatFactsSchema.parse(JSON.parse(expense.eu_vat_facts)),
           // Fields not stored on the Expense — supply safe defaults.
           outgoing_signals: {
             org_name_is_issuer: false,

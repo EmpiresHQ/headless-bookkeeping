@@ -91,6 +91,21 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
       category: 'software',
       document_vat_marking: null,
       supplier_invoice_number: `ROOT404-${country}`,
+      eu_vat_facts: {
+        recipientStatus: 'taxable_business',
+        receivingEstablishmentCountry: 'EE',
+        supplierEstablishmentCountry: country,
+        supplierNonEstablishedInPlace: true,
+        businessPurpose: true,
+        buyerEvidence: true,
+        evidence: [
+          {
+            fact: 'supplierNonEstablishedInPlace',
+            reference: 'synthetic contract',
+            source: 'document',
+          },
+        ],
+      },
       confidence: 1,
       outgoing_signals: {
         org_name_is_issuer: false,
@@ -409,6 +424,9 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
           supplier_invoice_number: 'ROOT404-OLD-RETRY',
           claimant_id: null,
           company_addressed_receipt: null,
+          eu_vat_facts: JSON.stringify(
+            sampleProposal(supplierId, 'DK').eu_vat_facts,
+          ),
           ai_confidence: manual ? null : 1,
           ai_document_type: manual ? null : 'invoice',
           ai_kind: manual ? null : 'new_expense',
@@ -897,6 +915,9 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
           supplier_invoice_number: 'RECEIPT-404-B',
           claimant_id: null,
           company_addressed_receipt: null,
+          eu_vat_facts: JSON.stringify(
+            sampleProposal(supplierB.id, 'DK').eu_vat_facts,
+          ),
           ai_confidence: null,
           ai_document_type: null,
           ai_kind: null,

@@ -170,6 +170,21 @@ describe('Input-VAT deduction entitlement (issue #211)', () => {
     vatAmount: 0,
     currency: 'EUR',
     taxPointDate: TAX_POINT,
+    euVatFacts: {
+      recipientStatus: 'taxable_business',
+      receivingEstablishmentCountry: 'EE',
+      supplierEstablishmentCountry: 'DE',
+      supplierNonEstablishedInPlace: true,
+      businessPurpose: true,
+      buyerEvidence: true,
+      evidence: [
+        {
+          fact: 'supplierNonEstablishedInPlace',
+          reference: 'synthetic contract',
+          source: 'document',
+        },
+      ],
+    },
     supplierCountry: 'DE',
     goodsVsServices: 'services',
     taxStatus: 'taxable_business',

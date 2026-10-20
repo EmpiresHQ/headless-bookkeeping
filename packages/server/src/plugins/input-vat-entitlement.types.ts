@@ -43,6 +43,8 @@ export interface InputVatEntitlement {
  * statutory deduction restriction) without the kernel knowing that it might.
  */
 export interface InputVatEntitlementContext {
+  businessPurpose?: boolean;
+  buyerEvidence?: boolean;
   treatment: CrossBorderTreatment;
   vatCode: VATCode;
 }

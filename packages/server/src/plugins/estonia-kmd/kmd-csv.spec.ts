@@ -68,3 +68,17 @@ it('emits an A row for the sale and a B row for the purchase', () => {
   expect(a).toBe('A;EE100000002;Acme OÜ;INV-1;2026-05-10;2000.00;24');
   expect(b).toBe('B;EE100000003;Vend OÜ;SUP-1;2026-05-12;6200.00;;1200.00');
 });
+
+it('renders signed 20/22% corrections in dated CSV columns (#398)', () => {
+  const columns = renderKmdCsv({
+    ...input,
+    declaration: {
+      ...input.declaration,
+      row1_base_22: -10000,
+      row1_base_20: 5000,
+    },
+  })
+    .split('\r\n')[0]
+    .split(';');
+  expect(columns.slice(5, 8)).toEqual(['2000.00', '-100.00', '50.00']);
+});

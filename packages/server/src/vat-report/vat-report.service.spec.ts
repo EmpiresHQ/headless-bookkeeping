@@ -90,6 +90,7 @@ describe('VAT report snapshot generation (integration)', () => {
       vat_code: string | null;
       is_debit: boolean;
     }>,
+    reversesId: number | null = null,
   ): Promise<number> {
     const postedAt = Math.floor(Date.now() / 1000);
 
@@ -109,7 +110,7 @@ describe('VAT report snapshot generation (integration)', () => {
         tax_point_date: taxPointDate,
         posted_at: postedAt,
         previous_hash: null,
-        reverses_id: null,
+        reverses_id: reversesId,
         corrects_object_type: null,
         corrects_object_id: null,
         reason: null,
@@ -984,7 +985,7 @@ describe('VAT report snapshot generation (integration)', () => {
     });
 
     it('maps an INTRA-EU acquisition to rows 1/4/5 + row 6 (issue #210)', async () => {
-      // Imported service self-assessed at 24% of 1600 = 384, net cash zero.
+      // Imported service self-assessed at 24% of 1600 = 352, net cash zero.
       await seedPostedVoucher('2024-02-15', [
         {
           account_code: 'EXPENSE_SOFTWARE',
@@ -997,9 +998,9 @@ describe('VAT report snapshot generation (integration)', () => {
         },
         {
           account_code: 'VAT_RECEIVABLE',
-          amount: 384,
+          amount: 352,
           currency: 'EUR',
-          base_amount: 384,
+          base_amount: 352,
           fx_rate: 1,
           vat_code: 'EE_REVERSE_CHARGE_EU',
           is_debit: true,
@@ -1015,9 +1016,9 @@ describe('VAT report snapshot generation (integration)', () => {
         },
         {
           account_code: 'VAT_PAYABLE',
-          amount: 384,
+          amount: 352,
           currency: 'EUR',
-          base_amount: 384,
+          base_amount: 352,
           fx_rate: 1,
           vat_code: 'EE_REVERSE_CHARGE_EU',
           is_debit: false,
@@ -1026,12 +1027,12 @@ describe('VAT report snapshot generation (integration)', () => {
 
       const d = await vatReportService.buildDeclaration(1);
 
-      expect(d.row1_base_24).toBe(1600); // self-assessed received supply
+      expect(d.row1_base_22).toBe(1600); // self-assessed received supply
       expect(d.row6_intra_eu_acquisition).toBe(1600); // the supplier's origin
       expect(d.row7_other_acquisition).toBe(0);
       expect(d.row6_7_unresolved_acquisition).toBe(0);
-      expect(d.row4_output_vat).toBe(384);
-      expect(d.row5_input_vat).toBe(384);
+      expect(d.row4_output_vat).toBe(352);
+      expect(d.row5_input_vat).toBe(352);
       expect(d.net_vat_due).toBe(0); // output == input, cash neutral
       // A decided origin is not something to review.
       expect(d.review_flags).toEqual([]);
@@ -1071,13 +1072,13 @@ describe('VAT report snapshot generation (integration)', () => {
       );
     });
 
-    it('maps a standard 24% domestic sale to row 1 + row 4', async () => {
+    it('maps a dated 22% domestic sale to row 1 + row 4', async () => {
       await seedPostedVoucher('2024-01-20', [
         {
           account_code: 'AR',
-          amount: 12400,
+          amount: 12200,
           currency: 'EUR',
-          base_amount: 12400,
+          base_amount: 12200,
           fx_rate: 1,
           vat_code: null,
           is_debit: true,
@@ -1093,9 +1094,9 @@ describe('VAT report snapshot generation (integration)', () => {
         },
         {
           account_code: 'VAT_PAYABLE',
-          amount: 2400,
+          amount: 2200,
           currency: 'EUR',
-          base_amount: 2400,
+          base_amount: 2200,
           fx_rate: 1,
           vat_code: 'EE_OUTPUT_24',
           is_debit: false,
@@ -1103,9 +1104,9 @@ describe('VAT report snapshot generation (integration)', () => {
       ]);
 
       const d = await vatReportService.buildDeclaration(1);
-      expect(d.row1_base_24).toBe(10000);
-      expect(d.row4_output_vat).toBe(2400);
-      expect(d.net_vat_due).toBe(2400);
+      expect(d.row1_base_22).toBe(10000);
+      expect(d.row4_output_vat).toBe(2200);
+      expect(d.net_vat_due).toBe(2200);
       expect(d.review_flags).toEqual([]);
     });
 
@@ -1201,5 +1202,144 @@ describe('VAT report snapshot generation (integration)', () => {
         NotFoundException,
       );
     });
+  });
+  describe('explicit correction-chain acquisition resolution (#398)', () => {
+    it.each([0, 1])(
+      'resolves only a zero-net linked object chain, residual %s cents',
+      async (residual) => {
+        await organizationService.updateOrganization({ country: 'EE' });
+        const period = await db
+          .insertInto('reporting_period')
+          .values({
+            name: '398-June',
+            start_date: '2026-06-01',
+            end_date: '2026-06-30',
+            status: 'open',
+            created_at: 1,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+        const account = await db
+          .selectFrom('account')
+          .select('id')
+          .where('code', '=', 'EXPENSE_TRANSPORT')
+          .executeTakeFirstOrThrow();
+        // Synthetic compensation follows an explicit correction-object link,
+        // rather than reverses_id. No production vouchers are accessed.
+        for (const [index, debit, amount] of [
+          [0, 1, 111940],
+          [1, 0, 111940 - residual],
+        ] as const) {
+          const v = await db
+            .insertInto('voucher')
+            .values({
+              voucher_number: `398-${index}`,
+              tax_point_date: '2026-06-10',
+              posted_at: 1,
+              previous_hash: null,
+              reverses_id: null,
+              corrects_object_type: 'expense',
+              corrects_object_id: 398,
+              reason: 'synthetic linked compensation',
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow();
+          await db
+            .insertInto('voucher_line')
+            .values({
+              voucher_id: v.id,
+              account_id: account.id,
+              amount,
+              currency: 'EUR',
+              base_amount: amount,
+              fx_rate: 1,
+              vat_code: 'EE_REVERSE_CHARGE',
+              is_debit: debit,
+            })
+            .execute();
+        }
+        const d = await vatReportService.buildDeclaration(period.id);
+        expect(d.row6_7_unresolved_acquisition).toBe(residual);
+        expect(d.unresolved_acquisition_vouchers).toHaveLength(
+          residual === 0 ? 0 : 2,
+        );
+        expect(
+          d.review_flags.some((f) => f.includes('reverse-charge acquisition')),
+        ).toBe(residual !== 0);
+      },
+    );
+    it('unrelated opposite unresolved bases do not cancel each other', async () => {
+      await organizationService.updateOrganization({ country: 'EE' });
+      const period = await db
+        .insertInto('reporting_period')
+        .values({
+          name: '398-unrelated',
+          start_date: '2026-06-01',
+          end_date: '2026-06-30',
+          status: 'open',
+          created_at: 1,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      for (const debit of [true, false])
+        await seedPostedVoucher('2026-06-10', [
+          {
+            account_code: 'EXPENSE_TRANSPORT',
+            amount: 55487,
+            base_amount: 55487,
+            currency: 'EUR',
+            fx_rate: 1,
+            vat_code: 'EE_REVERSE_CHARGE',
+            is_debit: debit,
+          },
+        ]);
+      const d = await vatReportService.buildDeclaration(period.id);
+      expect(d.row6_7_unresolved_acquisition).toBe(0);
+      expect(d.unresolved_acquisition_vouchers).toHaveLength(2);
+    });
+  });
+  it('reports a prior-rate reversal in its original rate box in a later period (#398)', async () => {
+    await organizationService.updateOrganization({ country: 'EE' });
+    const original = await seedPostedVoucher('2024-02-15', [
+      {
+        account_code: 'EXPENSE_SOFTWARE',
+        amount: 10000,
+        base_amount: 10000,
+        currency: 'EUR',
+        fx_rate: 1,
+        vat_code: 'EE_REVERSE_CHARGE_EU',
+        is_debit: true,
+      },
+    ]);
+    const period = await db
+      .insertInto('reporting_period')
+      .values({
+        name: '398-rate-reversal',
+        start_date: '2026-06-01',
+        end_date: '2026-06-30',
+        status: 'open',
+        created_at: 1,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await seedPostedVoucher(
+      '2026-06-10',
+      [
+        {
+          account_code: 'EXPENSE_SOFTWARE',
+          amount: 10000,
+          base_amount: 10000,
+          currency: 'EUR',
+          fx_rate: 1,
+          vat_code: 'EE_REVERSE_CHARGE_EU',
+          is_debit: false,
+        },
+      ],
+      original,
+    );
+    const d = await vatReportService.buildDeclaration(period.id);
+    expect(d.row1_base_22).toBe(-10000);
+    expect(d.row1_base_24).toBe(0);
+    expect(d.row6_intra_eu_acquisition).toBe(-10000);
   });
 });

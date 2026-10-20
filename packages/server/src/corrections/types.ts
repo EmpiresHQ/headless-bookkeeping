@@ -1,3 +1,13 @@
+import type { EuVatFacts } from '../plugins/eu-vat';
+import type { ServicePlaceRule } from '../plugins/country-plugin.interface';
+export interface FinancialPatch {
+  gross_amount?: number;
+  vat_amount?: number;
+  category?: string;
+  service_place_rule?: ServicePlaceRule;
+  place_of_supply_country?: string | null;
+  eu_vat_facts?: EuVatFacts | null;
+}
 /**
  * `reversal` undoes a posting outright — no replacement voucher. It exists for
  * entries that should never have been booked at all (a duplicate of another
@@ -24,11 +34,7 @@ export interface CreditNotePayload {
 export interface CorrectionRequest {
   kind: CorrectionType;
   reason: string;
-  patch?: {
-    gross_amount?: number;
-    vat_amount?: number;
-    category?: string;
-  };
+  patch?: FinancialPatch;
   /** Present when `kind === 'credit_note'`. */
   creditNote?: CreditNotePayload;
 }

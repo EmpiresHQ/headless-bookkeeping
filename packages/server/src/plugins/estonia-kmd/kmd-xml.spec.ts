@@ -136,3 +136,17 @@ it('preserves negative declaration bases for credit notes', () => {
   expect(xml).toContain('<transactions24>-100.01</transactions24>');
   expect(validateAgainstKmdXsd(xml, xsd)).toEqual({ valid: true, errors: [] });
 });
+
+it('renders signed 20/22% correction bases in their separate dated boxes (#398)', () => {
+  const xml = renderKmdXml({
+    ...input,
+    declaration: {
+      ...input.declaration,
+      row1_base_22: -10000,
+      row1_base_20: 5000,
+    },
+  });
+  expect(xml).toContain('<transactions22>-100.00</transactions22>');
+  expect(xml).toContain('<transactions20>50.00</transactions20>');
+  expect(validateAgainstKmdXsd(xml, xsd)).toEqual({ valid: true, errors: [] });
+});

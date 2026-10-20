@@ -1962,7 +1962,7 @@ describe('ProposeDraftService (integration)', () => {
       // authority at all.
       await module
         .get(OrganizationService)
-        .updateOrganization({ country: 'EE' });
+        .updateOrganization({ country: 'EE', vat_registered: true });
       const entitiesService = module.get(EntitiesService);
       const supplier = await entitiesService.onboard({
         role: 'supplier',
@@ -2040,6 +2040,14 @@ describe('ProposeDraftService (integration)', () => {
         currency: 'DKK',
         tax_point_date: '2026-06-19',
         supplier_invoice_number: 'RETRY-1',
+        eu_vat_facts: {
+          recipientStatus: 'taxable_business' as const,
+          receivingEstablishmentCountry: 'EE',
+          supplierEstablishmentCountry: 'DK',
+          supplierNonEstablishedInPlace: true,
+          businessPurpose: true,
+          buyerEvidence: true,
+        },
       };
       await expect(service.manualClassifyDraft(docId, base)).rejects.toThrow(
         /FX rate/i,

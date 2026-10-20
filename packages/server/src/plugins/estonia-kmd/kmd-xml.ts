@@ -99,6 +99,8 @@ export function renderKmdXml(input: StatutoryReportInput): string {
   // calculated by e-MTA and have no monetary element in the import schema.
   const boxes: [string, number][] = [
     ['transactions24', d.row1_base_24],
+    ['transactions22', d.row1_base_22 ?? 0],
+    ['transactions20', d.row1_base_20 ?? 0],
     ['transactions9', d.row2_base_9],
     ['transactions13', d.row2_base_13],
     ['transactionsZeroVat', d.row3_base_zero],
