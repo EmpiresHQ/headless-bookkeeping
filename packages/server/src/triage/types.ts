@@ -312,6 +312,12 @@ export type MissingEntityFact = 'taxStatus' | 'goodsVsServices';
  * 'unknown' is the absence of the fact, never a confirmation of it.
  */
 export const confirmEntityFactSchema = z.object({
+  // The supplier the operator SAW in the typed view (issue #404 review): the
+  // command is bound to that identity, and the server rejects a stale view
+  // (a draft whose chain has since moved to another supplier) before any
+  // entity write, requeue or replay — never silently confirming a supplier
+  // the operator never saw.
+  supplier_id: z.number().int().positive(),
   fact: z.enum(['taxStatus', 'goodsVsServices']),
   value: z.string().min(1),
 });

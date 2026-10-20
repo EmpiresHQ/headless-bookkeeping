@@ -21,6 +21,18 @@ export type {
   OcrOutcome,
 } from './document-transcriber.port';
 
+/**
+ * The cache-only read of the persisted OCR evidence (issue #404): the stored
+ * markdown validated without EVER invoking the transcription port, or a
+ * typed refusal naming why the persisted evidence cannot be trusted
+ * (`missing` — no artifact row; `unreadable` — the file cannot be read or
+ * fails its stored CRC32). The caller parks honestly on a refusal; it never
+ * re-reads the document and never overwrites the stored evidence.
+ */
+export type PersistedOcrRead =
+  | { ok: true; markdown: string }
+  | { ok: false; reason: 'missing' | 'unreadable'; detail: string };
+
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
@@ -169,6 +181,66 @@ export class OcrService {
       );
       return { ok: false, category: 'transient', detail: err.message };
     }
+  }
+
+  /**
+   * Cache-only read of the PERSISTED OCR markdown (issue #404): validates
+   * the stored artifact the same way {@link transcribe}'s fast path does
+   * (row exists, file readable, stored CRC32 matches) but NEVER invokes the
+   * transcription port — a missing or tampered artifact is a typed failure,
+   * never a fresh provider call, and never an overwrite/replacement of the
+   * stored evidence.
+   *
+   * The strict-persisted-evidence seam for the missing-fact confirmation's
+   * resume: re-classification must run from the evidence persisted at intake
+   * time (ADR-0039), and when that evidence is unavailable or untrusted the
+   * caller parks the document honestly instead of re-reading it.
+   */
+  async readPersistedMarkdown(documentId: number): Promise<PersistedOcrRead> {
+    // A missing Document is a precondition violation (no object to read) —
+    // it throws, outside the typed-failure boundary, exactly like
+    // transcribe().
+    await this.documentsService.getById(documentId);
+
+    const artifact = await this.findExistingOcrArtifact(documentId);
+    if (!artifact) {
+      return {
+        ok: false,
+        reason: 'missing',
+        detail: `no persisted ocr_markdown artifact for document ${documentId}`,
+      };
+    }
+
+    let storedMarkdown: string;
+    try {
+      storedMarkdown = readFileSync(artifact.storage_path, 'utf-8');
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      return {
+        ok: false,
+        reason: 'unreadable',
+        detail:
+          `persisted ocr_markdown artifact for document ${documentId} ` +
+          `could not be read: ${err.message}`,
+      };
+    }
+
+    if (artifact.crc32 !== null) {
+      const currentCrc = crc32(storedMarkdown);
+      if (currentCrc !== artifact.crc32) {
+        return {
+          ok: false,
+          reason: 'unreadable',
+          detail:
+            `persisted ocr_markdown artifact for document ${documentId} ` +
+            `fails its stored CRC32 check — the stored evidence changed on disk ` +
+            `and cannot be trusted for re-classification`,
+        };
+      }
+    }
+
+    // A legacy artifact without CRC is reused, exactly like the fast path.
+    return { ok: true, markdown: storedMarkdown };
   }
 
   // --- Private helpers ---

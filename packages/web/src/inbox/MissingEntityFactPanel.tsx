@@ -146,29 +146,33 @@ export function MissingEntityFactPanel({
 
   const confirm = () => {
     if (value === '') return;
-    op.run(() => confirmEntityFact(documentId, fact, value), {
-      onSuccess: (result) => {
-        // Both truths, reported separately (GLOSSARY): the fact WAS saved
-        // through the legitimate entity-update path; where the document now
-        // stands is the outcome — a posting claim is never made from a
-        // saved fact.
-        if (result.fact_saved) {
-          toastOk('Supplier fact saved');
-        }
-        if (result.outcome.kind === 'unknown') {
-          // Still held — on the next genuine gate or a failed resume. Stay
-          // here and refresh, so the operator reads the CURRENT reason.
-          toastErr(`Still needs review: ${outcomeText(result.outcome)}`);
-          void invalidateInbox(qc);
-          void qc.invalidateQueries({
-            queryKey: inboxKeys.pendingDraft(documentId),
-          });
-          return;
-        }
-        onResolved(result.outcome);
+    if (draft == null) return;
+    op.run(
+      () => confirmEntityFact(documentId, draft.supplier.id, fact, value),
+      {
+        onSuccess: (result) => {
+          // Both truths, reported separately (GLOSSARY): the fact WAS saved
+          // through the legitimate entity-update path; where the document now
+          // stands is the outcome — a posting claim is never made from a
+          // saved fact.
+          if (result.fact_saved) {
+            toastOk('Supplier fact saved');
+          }
+          if (result.outcome.kind === 'unknown') {
+            // Still held — on the next genuine gate or a failed resume. Stay
+            // here and refresh, so the operator reads the CURRENT reason.
+            toastErr(`Still needs review: ${outcomeText(result.outcome)}`);
+            void invalidateInbox(qc);
+            void qc.invalidateQueries({
+              queryKey: inboxKeys.pendingDraft(documentId),
+            });
+            return;
+          }
+          onResolved(result.outcome);
+        },
+        onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
       },
-      onError: (e) => toastErr(e instanceof Error ? e.message : String(e)),
-    });
+    );
   };
 
   const help = choices.find((c) => c.value === value)?.help;

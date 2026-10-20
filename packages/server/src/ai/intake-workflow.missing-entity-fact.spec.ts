@@ -1,3 +1,4 @@
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { Test } from '@nestjs/testing';
 import { Kysely, SqliteDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -71,7 +72,9 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
   let workflow: IntakeWorkflowService;
 
   let transcriberCalls: number;
+  let classifyCalls: number;
   let proposal: TriageResult;
+  let dataTemp: string;
 
   function sampleProposal(
     supplierId: number,
@@ -101,6 +104,8 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
   }
 
   async function boot() {
+    dataTemp = await mkdtemp('/tmp/hbk-404-spec-');
+    process.env.DATA_DIR = dataTemp;
     const raw = new SqliteDb(':memory:');
     raw.pragma('foreign_keys = ON');
     db = new Kysely<Database>({
@@ -148,7 +153,12 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
         { provide: BankIngestionService, useValue: {} },
         {
           provide: Pass2AgentService,
-          useValue: { classify: async () => ({ ok: true, result: proposal }) },
+          useValue: {
+            classify: async () => {
+              classifyCalls++;
+              return { ok: true, result: proposal };
+            },
+          },
         },
         {
           provide: DocumentTranscriber,
@@ -169,6 +179,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
 
   beforeEach(async () => {
     transcriberCalls = 0;
+    classifyCalls = 0;
     module = await boot();
     entities = module.get(EntitiesService);
     documents = module.get(DocumentsService);
@@ -181,7 +192,12 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
   afterEach(async () => {
     await module.close();
     await db.destroy();
+    await rm(dataTemp, { recursive: true, force: true });
   });
+
+  function expensesService() {
+    return module.get(ExpensesService);
+  }
 
   async function draftRows(documentId: number) {
     return db
@@ -299,6 +315,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
         const firstId = (await draftRows(documentId))[0].id;
         const confirmed = await workflow.confirmEntityFact(
           documentId,
+          supplierId,
           variant.missingFact,
           variant.eu ? 'taxable_business' : 'services',
         );
@@ -319,11 +336,13 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
         const value = variant.eu ? 'taxable_business' : 'services';
         await workflow.confirmEntityFact(
           documentId,
+          supplierId,
           variant.missingFact,
           value,
         );
         const again = await workflow.confirmEntityFact(
           documentId,
+          supplierId,
           variant.missingFact,
           value,
         );
@@ -340,6 +359,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
         await expect(
           workflow.confirmEntityFact(
             documentId,
+            supplierId,
             variant.missingFact,
             'not-a-fact',
           ),
@@ -350,6 +370,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
         await workflow.process(documentId);
         await workflow.confirmEntityFact(
           documentId,
+          supplierId,
           variant.missingFact,
           variant.eu ? 'taxable_business' : 'services',
         );
@@ -523,6 +544,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
 
       const result = await workflow.confirmEntityFact(
         document.id,
+        supplier.id,
         'taxStatus',
         'taxable_business',
       );
@@ -563,6 +585,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
       // gate — a GENUINE next gate, not a missing fact.
       const confirmed = await workflow.confirmEntityFact(
         document.id,
+        supplier.id,
         'taxStatus',
         'non_taxable',
       );
@@ -576,6 +599,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
       // the current genuine hold is re-surfaced, nothing new is minted.
       const repeated = await workflow.confirmEntityFact(
         document.id,
+        supplier.id,
         'taxStatus',
         'non_taxable',
       );
@@ -584,6 +608,239 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
       if (repeated.outcome.status === 'needs_triage') {
         expect(repeated.outcome.reason).toMatch(/non.taxable/i);
       }
+      expect((await draftRows(document.id)).map((r) => r.id)).toEqual([
+        firstId,
+      ]);
+    });
+  });
+
+  describe('review follow-ups: stale supplier identity and strict persisted evidence', () => {
+    async function artifactRow(documentId: number) {
+      return db
+        .selectFrom('artifact')
+        .select(['id', 'storage_path', 'crc32'])
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', documentId)
+        .executeTakeFirstOrThrow();
+    }
+
+    it('rejects a confirmation made against a STALE supplier view before anything changes', async () => {
+      const supplierA = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Stale view A',
+        registrationKey: 'DKROOT404STALEA',
+        goodsVsServices: 'services',
+      });
+      const supplierB = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Stale view B',
+        registrationKey: 'DKROOT404STALEB',
+        goodsVsServices: 'services',
+        // B's tax status deliberately unrecorded — the fact the operator is
+        // about to confirm — so a leaked write would be observable.
+      });
+      const { document } = await documents.upload({
+        buffer: Buffer.from('stale404'),
+        filename: 'stale404.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      proposal = sampleProposal(supplierA.id, 'DK');
+      await workflow.process(document.id);
+      const firstId = (await draftRows(document.id))[0].id;
+
+      // The operator SAW supplier A (the typed view's supplier)… a
+      // legitimate draft edit then moves the chain to supplier B.
+      const view = await workflow.getPendingDraft(document.id);
+      expect(view.kind).toBe('missing_entity_fact');
+      if (view.kind !== 'missing_entity_fact') return;
+      expect(view.supplier.id).toBe(supplierA.id);
+      await expensesService().updateDraft(firstId, {
+        supplier_id: supplierB.id,
+      });
+
+      // …and confirms with the STALE identity: rejected honestly, with
+      // NOTHING changed — no entity write, no OCR, no classification, no
+      // new draft, no post.
+      const beforeProvider = transcriberCalls;
+      const beforeClassify = classifyCalls;
+      await expect(
+        workflow.confirmEntityFact(
+          document.id,
+          supplierA.id,
+          'taxStatus',
+          'taxable_business',
+        ),
+      ).rejects.toThrow(/changed since it was shown/i);
+      expect((await entities.findById(supplierA.id)).tax_status).toBeNull();
+      expect((await entities.findById(supplierB.id)).tax_status).toBeNull();
+      expect(transcriberCalls).toBe(beforeProvider);
+      expect(classifyCalls).toBe(beforeClassify);
+      expect((await draftRows(document.id)).map((r) => r.id)).toEqual([
+        firstId,
+      ]);
+      expect(
+        (await db.selectFrom('voucher').select('id').execute()).length,
+      ).toBe(0);
+    });
+
+    it('parks honestly (fact saved, nothing booked) when the persisted OCR artifact ROW is gone — no fresh provider call', async () => {
+      const supplier = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Missing404',
+        registrationKey: 'DKROOT404MISSINGROW',
+        goodsVsServices: 'services',
+      });
+      const { document } = await documents.upload({
+        buffer: Buffer.from('missing404'),
+        filename: 'missing404.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      proposal = sampleProposal(supplier.id, 'DK');
+      await workflow.process(document.id);
+      const firstId = (await draftRows(document.id))[0].id;
+      expect((await workflow.getPendingDraft(document.id)).kind).toBe(
+        'missing_entity_fact',
+      );
+
+      // The persisted evidence row disappears AFTER the hold + view.
+      await db
+        .deleteFrom('artifact')
+        .where('kind', '=', 'ocr_markdown')
+        .where('document_id', '=', document.id)
+        .execute();
+
+      const beforeProvider = transcriberCalls;
+      const beforeClassify = classifyCalls;
+      const result = await workflow.confirmEntityFact(
+        document.id,
+        supplier.id,
+        'taxStatus',
+        'taxable_business',
+      );
+      // The operation result stands; the processing is explicitly unconfirmed.
+      expect(result.fact_saved).toBe(true);
+      expect(result.outcome.status).toBe('needs_triage');
+      if (result.outcome.status === 'needs_triage') {
+        expect(result.outcome.reason).toMatch(/fact was saved/i);
+        expect(result.outcome.reason).toMatch(/persisted OCR/i);
+      }
+      // No fresh OCR provider call, no classification, no overwrite, no
+      // new draft, no voucher — and the entity fact IS recorded.
+      expect(transcriberCalls).toBe(beforeProvider);
+      expect(classifyCalls).toBe(beforeClassify);
+      expect((await draftRows(document.id)).map((r) => r.id)).toEqual([
+        firstId,
+      ]);
+      expect(
+        (await db.selectFrom('voucher').select('id').execute()).length,
+      ).toBe(0);
+      expect((await entities.findById(supplier.id)).tax_status).toBe(
+        'taxable_business',
+      );
+    });
+
+    it('parks honestly (fact saved, nothing booked) when the persisted OCR file fails its CRC check — no overwrite, no fresh provider call', async () => {
+      const supplier = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Tamper404',
+        registrationKey: 'DKROOT404TAMPER',
+        goodsVsServices: 'services',
+      });
+      const { document } = await documents.upload({
+        buffer: Buffer.from('tamper404'),
+        filename: 'tamper404.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      proposal = sampleProposal(supplier.id, 'DK');
+      await workflow.process(document.id);
+      const firstId = (await draftRows(document.id))[0].id;
+      const artifact = await artifactRow(document.id);
+
+      // The persisted evidence is tampered on disk AFTER the hold + view.
+      await writeFile(
+        artifact.storage_path,
+        (await readFile(artifact.storage_path, 'utf-8')) +
+          '\ntampered after the hold',
+        'utf-8',
+      );
+
+      const beforeProvider = transcriberCalls;
+      const beforeClassify = classifyCalls;
+      const result = await workflow.confirmEntityFact(
+        document.id,
+        supplier.id,
+        'taxStatus',
+        'taxable_business',
+      );
+      expect(result.fact_saved).toBe(true);
+      expect(result.outcome.status).toBe('needs_triage');
+      if (result.outcome.status === 'needs_triage') {
+        expect(result.outcome.reason).toMatch(/fact was saved/i);
+        expect(result.outcome.reason).toMatch(/persisted OCR/i);
+      }
+      // No fresh OCR, no classification, no voucher — and the stored evidence
+      // is neither overwritten nor replaced: the tampered bytes and the
+      // stored CRC row stand exactly as they were found.
+      expect(transcriberCalls).toBe(beforeProvider);
+      expect(classifyCalls).toBe(beforeClassify);
+      expect((await draftRows(document.id)).map((r) => r.id)).toEqual([
+        firstId,
+      ]);
+      expect(
+        (await db.selectFrom('voucher').select('id').execute()).length,
+      ).toBe(0);
+      const after = await artifactRow(document.id);
+      expect(after.crc32).toBe(artifact.crc32);
+      expect(await readFile(artifact.storage_path, 'utf-8')).toContain(
+        'tampered after the hold',
+      );
+      expect((await entities.findById(supplier.id)).tax_status).toBe(
+        'taxable_business',
+      );
+    });
+
+    it('still re-classifies from INTACT cached OCR and resumes the first draft on confirmation', async () => {
+      const supplier = await entities.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Intact404',
+        registrationKey: 'DKROOT404INTACT',
+        goodsVsServices: 'services',
+      });
+      const { document } = await documents.upload({
+        buffer: Buffer.from('intact404'),
+        filename: 'intact404.pdf',
+        mimeType: 'application/pdf',
+        channel: 'upload',
+        sourceIdentifier: null,
+      });
+      proposal = sampleProposal(supplier.id, 'DK');
+      await workflow.process(document.id);
+      const firstId = (await draftRows(document.id))[0].id;
+      const beforeProvider = transcriberCalls;
+      const beforeClassify = classifyCalls;
+
+      const result = await workflow.confirmEntityFact(
+        document.id,
+        supplier.id,
+        'taxStatus',
+        'taxable_business',
+      );
+      expect(result.fact_saved).toBe(true);
+      expect(result.outcome.status).not.toBe('needs_triage');
+      // Re-classified from the persisted artifact — no fresh OCR.
+      expect(transcriberCalls).toBe(beforeProvider);
+      expect(classifyCalls).toBe(beforeClassify + 1);
       expect((await draftRows(document.id)).map((r) => r.id)).toEqual([
         firstId,
       ]);
@@ -651,6 +908,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
 
       const confirmed = await workflow.confirmEntityFact(
         document.id,
+        supplier.id,
         'taxStatus',
         'taxable_business',
       );
@@ -698,6 +956,7 @@ describe('IntakeWorkflowService missing supplier facts (issue #404)', () => {
 
       const confirmed = await workflow.confirmEntityFact(
         document.id,
+        supplier.id,
         'taxStatus',
         'taxable_business',
       );

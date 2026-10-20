@@ -523,6 +523,7 @@ export class IntakeWorkflowService {
   private async processInner(
     documentId: number,
     claimantId?: number | null,
+    cachedMarkdown?: string,
   ): Promise<IntakeWorkflowResult> {
     // ── Idempotency guard: has this Document already routed? ─────
     // The Document status is the single source of truth for "already routed".
@@ -554,25 +555,37 @@ export class IntakeWorkflowService {
     await this.documents.markProcessing(documentId);
     try {
       // ── Pass 1: OCR → markdown | typed failure ──────────────────
-      const ocr = await this.ocrService.transcribe(documentId);
+      let markdown: string;
+      if (cachedMarkdown !== undefined) {
+        // STRICT PERSISTED EVIDENCE (issue #404): a caller that already
+        // validated the persisted OCR artifact cache-only (the missing-fact
+        // confirmation's resume) hands the markdown in — Pass 2 runs on it
+        // WITHOUT ever invoking the transcriber, so a confirmation never
+        // costs a fresh OCR provider call.
+        this.logger.debug(
+          `Pass 1 satisfied from validated persisted OCR for document ${documentId}`,
+        );
+        markdown = cachedMarkdown;
+      } else {
+        const ocr = await this.ocrService.transcribe(documentId);
 
-      if (!ocr.ok) {
-        // Transcription failed (provider down, unreadable doc, IO blip). Route to
-        // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
-        // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
-        // short-circuited: there is no markdown to classify.
-        this.logger.warn(
-          `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
-        );
-        return this.routeNeedsTriage(
-          documentId,
-          `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
-          { pass: 'ocr', category: ocr.category },
-        );
+        if (!ocr.ok) {
+          // Transcription failed (provider down, unreadable doc, IO blip). Route to
+          // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
+          // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
+          // short-circuited: there is no markdown to classify.
+          this.logger.warn(
+            `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
+          );
+          return this.routeNeedsTriage(
+            documentId,
+            `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
+            { pass: 'ocr', category: ocr.category },
+          );
+        }
+        markdown = ocr.markdown;
+        this.logger.debug(`Pass 1 complete for document ${documentId}`);
       }
-
-      const markdown = ocr.markdown;
-      this.logger.debug(`Pass 1 complete for document ${documentId}`);
 
       // ── Deterministic relevance pre-filter ─────────────────────
       // OCR succeeded but produced no readable text (a blank scan, an image with
@@ -1521,12 +1534,15 @@ export class IntakeWorkflowService {
 
   /**
    * The one-interaction operator confirmation of a missing entity fact
-   * (issue #404): validate the fact/value choice, record it through the
+   * (issue #404): bound to the supplier the operator SAW in the typed view
+   * (`supplierEntityId` — a stale view rejects honestly before anything
+   * changes), validate the fact/value choice, record it through the
    * LEGITIMATE entity-update path (the same PATCH /api/entities/{id} seam
    * the hold's own "how to resolve" names — never a silent auto-write), then
-   * resume intake for the document chain: re-queue and re-run the pipeline,
-   * which re-classifies from the PERSISTED OCR artifacts (ADR-0039 — no
-   * fresh OCR) and RESUMES the first draft the chain already minted.
+   * resume intake for the document chain: re-classify from the PERSISTED
+   * OCR evidence read cache-only (ADR-0039 — a missing/tampered artifact is
+   * a typed refusal, never a fresh OCR provider call) and RESUME the first
+   * draft the chain already minted.
    *
    * The result reports BOTH truths separately (GLOSSARY operation result):
    * `fact_saved` says the fact was recorded; `outcome` says where the
@@ -1537,18 +1553,20 @@ export class IntakeWorkflowService {
    */
   async confirmEntityFact(
     documentId: number,
+    supplierEntityId: number,
     fact: MissingEntityFact,
     value: string,
   ): Promise<ConfirmEntityFactResult> {
     return this.gate.run(() =>
       this.documents.runExclusive(documentId, () =>
-        this.confirmEntityFactInner(documentId, fact, value),
+        this.confirmEntityFactInner(documentId, supplierEntityId, fact, value),
       ),
     );
   }
 
   private async confirmEntityFactInner(
     documentId: number,
+    supplierEntityId: number,
     fact: MissingEntityFact,
     value: string,
   ): Promise<ConfirmEntityFactResult> {
@@ -1562,6 +1580,29 @@ export class IntakeWorkflowService {
     }
 
     const doc = await this.documents.getById(documentId);
+
+    // The chain's own current record, under the same gate + document lock —
+    // the authoritative identity for everything below.
+    const chain = await this.proposeDraft.findChainPurchaseDraft(documentId);
+
+    // STALE VIEW GUARD (issue #404): the confirmation is a command bound to
+    // the supplier the operator actually SAW in the typed view. Compared
+    // BEFORE any entity write, requeue, OCR read or receipt replay — a draft
+    // whose chain has since moved to another supplier (a legitimate
+    // updateDraft supplier change, or any other path) rejects honestly, and
+    // nothing changes: no fact write, no OCR, no post, no new draft.
+    if (
+      chain != null &&
+      chain.supplier_id != null &&
+      chain.supplier_id !== supplierEntityId
+    ) {
+      throw new BadRequestException(
+        `The document's draft is now booked against supplier ` +
+          `${chain.supplier_id}, not the supplier you confirmed ` +
+          `(${supplierEntityId}) — it changed since it was shown. Reload the ` +
+          `document and confirm the current supplier.`,
+      );
+    }
 
     // Idempotent replay: the document already routed away from this hold.
     // Re-check the recorded fact from the chain's supplier where it is
@@ -1593,8 +1634,7 @@ export class IntakeWorkflowService {
     // figures. Its whole-chain current state decides: an unposted chain
     // carries the confirmation; a protected one (some row already posted /
     // pending / reversed — including a later manual row) stands as it is.
-    const chain = await this.proposeDraft.findChainPurchaseDraft(documentId);
-    if (chain?.state !== 'resumable' || chain.supplier_id == null) {
+    if (!chain || chain.state !== 'resumable' || chain.supplier_id == null) {
       throw new BadRequestException(
         `Document ${documentId} is not held on a missing supplier fact — ` +
           `retry the AI run or classify it manually`,
@@ -1646,13 +1686,36 @@ export class IntakeWorkflowService {
       factSaved = true;
     }
 
-    // Resume the chain: fresh slate + the normal pipeline. processInner
-    // re-classifies from the PERSISTED OCR artifact (ADR-0039) and resumes
-    // the FIRST draft — never a second Expense, never fresh OCR.
+    // Resume the chain. STRICT PERSISTED EVIDENCE (issue #404): the
+    // re-classification runs from the OCR evidence PERSISTED at intake time
+    // (ADR-0039) — read cache-only, so a missing or tampered artifact is a
+    // typed refusal, never a fresh OCR provider call and never an overwrite
+    // of the stored evidence. The document parks honestly with the saved
+    // fact acknowledged; nothing is classified or booked on evidence that
+    // is gone or untrusted.
     let outcome: IntakeWorkflowResult;
     try {
-      await this.documents.reprocessDocument(documentId);
-      outcome = await this.processInner(documentId, doc.claimant_id);
+      const persisted = await this.ocrService.readPersistedMarkdown(documentId);
+      if (!persisted.ok) {
+        this.logger.warn(
+          `Fact saved for document ${documentId} but the persisted OCR ` +
+            `evidence is ${persisted.reason}: ${persisted.detail}`,
+        );
+        outcome = await this.routeNeedsTriage(
+          documentId,
+          `The supplier fact was saved, but this document's persisted OCR ` +
+            `evidence is ${persisted.reason} (${persisted.detail}), so it was ` +
+            `not re-classified automatically and nothing was booked. Retry ` +
+            `the AI run to re-read the document.`,
+        );
+      } else {
+        await this.documents.reprocessDocument(documentId);
+        outcome = await this.processInner(
+          documentId,
+          doc.claimant_id,
+          persisted.markdown,
+        );
+      }
     } catch (err) {
       // The fact is RECORDED — that operation result stands even when the
       // resume fails after it (issue #404): report the saved fact plus the

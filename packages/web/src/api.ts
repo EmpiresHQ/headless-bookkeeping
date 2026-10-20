@@ -1107,6 +1107,7 @@ export interface ConfirmEntityFactResult {
 
 export const confirmEntityFact = (
   id: number,
+  supplierId: number,
   fact: MissingEntityFact,
   value: string,
 ) =>
@@ -1115,7 +1116,10 @@ export const confirmEntityFact = (
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ fact, value }),
+      // The command is bound to the supplier the operator SAW in the typed
+      // view (issue #404 review): the server rejects a stale view honestly
+      // before anything changes.
+      body: JSON.stringify({ supplier_id: supplierId, fact, value }),
     },
   );
 

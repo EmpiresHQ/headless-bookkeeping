@@ -162,8 +162,11 @@ describe('TriageDecisionPanel — missing entity fact (issue #404)', () => {
       screen.getByRole('button', { name: 'Save supplier fact and continue' }),
     );
     await waitFor(() =>
+      // The command carries the VIEWED supplier identity (id 3) — a stale
+      // view would be rejected server-side before anything changes.
       expect(mockConfirm).toHaveBeenCalledWith(
         12,
+        3,
         'taxStatus',
         'taxable_business',
       ),
@@ -202,7 +205,12 @@ describe('TriageDecisionPanel — missing entity fact (issue #404)', () => {
       screen.getByRole('button', { name: 'Save supplier fact and continue' }),
     );
     await waitFor(() =>
-      expect(mockConfirm).toHaveBeenCalledWith(12, 'taxStatus', 'non_taxable'),
+      expect(mockConfirm).toHaveBeenCalledWith(
+        12,
+        3,
+        'taxStatus',
+        'non_taxable',
+      ),
     );
     // The operation result (the fact WAS saved) is acknowledged…
     await waitFor(() =>
@@ -247,7 +255,15 @@ describe('TriageDecisionPanel — missing entity fact (issue #404)', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Save supplier fact and continue' }),
     );
-    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    await waitFor(() =>
+      // The command is bound to the VIEWED supplier identity (id 3).
+      expect(mockConfirm).toHaveBeenCalledWith(
+        12,
+        3,
+        'goodsVsServices',
+        'services',
+      ),
+    );
     // The refreshed view carries the NEXT missing fact on the SAME document.
     await screen.findByRole('radiogroup', { name: 'Supplier tax status' });
     const taxable = screen.getByRole('radio', { name: 'Taxable business' });

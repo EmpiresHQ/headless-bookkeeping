@@ -194,6 +194,7 @@ export class TriageService {
     }
     const result = await this.workflow.confirmEntityFact(
       documentId,
+      dto.supplier_id,
       dto.fact as MissingEntityFact,
       dto.value,
     );
