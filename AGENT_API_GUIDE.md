@@ -488,6 +488,29 @@ remainder, so the purchase's settlement match must exist first:
 curl -H "$H" -X POST $B/api/bank-transactions/<txnId>/bank-fee
 ```
 
+### Ambiguous settlement links: the operator's explicit selection (issue #403)
+
+Several same-day bank lines can genuinely share the exact merchant, original
+currency and original amount (two card charges of the same amount at the same
+merchant on the same day). The deterministic link refuses to guess between
+them: the purchase stays held with a reason naming the candidate lines, and
+the operator says WHICH line settled THIS purchase. The selection is a
+resolution, not a bypass — every automatic-link validation re-runs (identity,
+same-day, same original amount/currency, the organisation's own bank account,
+exclusivity, fee/rate sanity) and the valuation goes through the normal draft
+generation and Rules → Policy → approval flow:
+
+```bash
+# Select the settling line for a HELD (unposted, voucher-less) draft. Same
+# row twice is a no-op; a different row atomically replaces the reservation.
+# 409 if the line already values another expense or the draft changed under
+# the selection; 404 for an unknown expense/line.
+curl -H "$H" -H "$J" -X POST $B/api/expenses/<expenseId>/settlement-fx \
+  -d '{"bank_transaction_id": 305}'
+# Then re-run the normal posting flow the hold asked for:
+curl -H "$H" -H "$J" -X POST $B/api/expenses/<expenseId>/post
+```
+
 # Which treatments a receipt on a given date may declare (the country plugin
 # answers; the rate in force is part of the answer).
 curl -H "$H" "$B/api/prepayments/advance-vat-treatments?receipt_date=2026-02-10"

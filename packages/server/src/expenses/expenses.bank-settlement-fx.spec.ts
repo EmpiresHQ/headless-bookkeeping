@@ -763,6 +763,445 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
     ).toHaveLength(1);
   });
 
+  it('recovers an AMBIGUOUS settlement link via the operator’s explicit selection (issue #403 ambiguity recovery)', async () => {
+    // Two genuinely distinct same-day settlements of the SAME merchant,
+    // original currency and original amount — different rates/debits.
+    const rowA = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const rowB = await seedBankLine({
+      date: '2026-06-19',
+      debit: 830,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.137,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const supplier = await nextHouseSupplier();
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+
+    // Before resolution: the typed, actionable hold naming the endpoint.
+    let thrown: unknown;
+    try {
+      await service.generateDraftVoucher(expense.id);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(FxRateUnavailableError);
+    const holdMessage = (thrown as FxRateUnavailableError).message;
+    expect(holdMessage).toMatch(/ambiguous/i);
+    expect(holdMessage).toMatch(/\/api\/expenses\/\d+\/settlement-fx/);
+    expect(
+      await db.selectFrom('bank_settlement_usage').selectAll().execute(),
+    ).toHaveLength(0);
+
+    // The operator selects row B: validated, claimed, audited.
+    const selection = await service.selectSettlementFx(expense.id, rowB);
+    expect(selection).toEqual({
+      expense_id: expense.id,
+      bank_transaction_id: rowB,
+    });
+    const claims = await db
+      .selectFrom('bank_settlement_usage')
+      .selectAll()
+      .execute();
+    expect(claims).toHaveLength(1);
+    expect(claims[0].bank_transaction_id).toBe(rowB);
+    const selectionAudits = await db
+      .selectFrom('audit_log')
+      .selectAll()
+      .where('action', '=', 'expense.bank_settlement_fx_selection')
+      .execute();
+    expect(selectionAudits).toHaveLength(1);
+    const selectionDetail = JSON.parse(selectionAudits[0].detail!) as Record<
+      string,
+      unknown
+    >;
+    expect(selectionDetail.bank_transaction_id).toBe(rowB);
+    expect(selectionDetail.reason).toMatch(/operator disambiguation/i);
+
+    // The normal draft generation now values the purchase on the SELECTED
+    // line — row B's own rate (0.137 × 6000 = 822 principal + 8 fee = 830),
+    // row A untouched and unclaimed.
+    const draft = await service.generateDraftVoucher(expense.id);
+    for (const l of draft.lines) {
+      expect(l.fx_rate).toBeCloseTo(0.137, 12);
+      expect(l.base_amount).toBe(822);
+      expect(l.fx_rate_source).toBe('bank_statement');
+    }
+    // The original facts are preserved; nothing was posted by the selection.
+    const row = await db
+      .selectFrom('expense')
+      .select(['gross_amount', 'currency', 'voucher_id', 'status'])
+      .where('id', '=', expense.id)
+      .executeTakeFirstOrThrow();
+    expect(row).toEqual({
+      gross_amount: 6000,
+      currency: 'DKK',
+      voucher_id: null,
+      status: 'draft',
+    });
+
+    // Idempotence in state: a re-selection of the SAME line keeps exactly one
+    // claim (each explicit decision stays on the append-only record), and a
+    // re-generation adds no second valuation audit.
+    await service.selectSettlementFx(expense.id, rowB);
+    expect(
+      (await db.selectFrom('bank_settlement_usage').selectAll().execute()).map(
+        (c) => c.bank_transaction_id,
+      ),
+    ).toEqual([rowB]);
+    await service.generateDraftVoucher(expense.id);
+    expect(
+      await db
+        .selectFrom('audit_log')
+        .select('id')
+        .where('action', '=', 'expense.bank_settlement_fx')
+        .execute(),
+    ).toHaveLength(1);
+    expect(await db.selectFrom('voucher').selectAll().execute()).toHaveLength(
+      0,
+    );
+    void rowA;
+  });
+
+  it('refuses invalid settlement selections with NO side effects (issue #403 ambiguity recovery)', async () => {
+    const rowA = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const otherRow = await seedBankLine({
+      date: '2026-06-20', // not the purchase's day
+      debit: 900,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.15,
+      fee: 5,
+      descriptor: 'SOME OTHER MERCHANT',
+    });
+    const supplier = await nextHouseSupplier();
+    const otherSupplier = await entities.onboard({
+      role: 'supplier',
+      country: 'DK',
+      name: 'Some Other Merchant',
+      registrationKey: 'DK403OTHER',
+      goodsVsServices: 'services',
+      taxStatus: 'taxable_business',
+    });
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    // A second expense that CLAIMS rowA first.
+    const first = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+      allow_duplicate: true,
+    });
+    await service.generateDraftVoucher(first.id); // claims rowA
+    const claimsBefore = await db
+      .selectFrom('bank_settlement_usage')
+      .selectAll()
+      .execute();
+
+    // Claimed by another expense.
+    await expect(service.selectSettlementFx(expense.id, rowA)).rejects.toThrow(
+      /already values expense/i,
+    );
+    // Neither the purchase's day nor its merchant (the first failing
+    // validation fires: the day).
+    await expect(
+      service.selectSettlementFx(expense.id, otherRow),
+    ).rejects.toThrow(/not a same-day settlement/i);
+    // A same-day line of a DIFFERENT merchant.
+    const otherMerchantRow = await seedBankLine({
+      date: '2026-06-19',
+      debit: 900,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.15,
+      fee: 5,
+      descriptor: 'SOME OTHER MERCHANT',
+    });
+    await expect(
+      service.selectSettlementFx(expense.id, otherMerchantRow),
+    ).rejects.toThrow(/counterparty does not identify/i);
+    // A different supplier's merchant.
+    const claimant = await entities.onboard({
+      role: 'employee',
+      country: 'EE',
+      name: 'Tripper',
+      email: 'tripper403@example.com',
+    });
+    const claimantExpense = await service.createExpense({
+      document_id: null,
+      supplier_id: otherSupplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      claimant_id: claimant.id,
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+      allow_duplicate: true,
+    });
+    await expect(
+      service.selectSettlementFx(claimantExpense.id, otherRow),
+    ).rejects.toThrow(/claimant-paid/i);
+    // Nonexistent line.
+    await expect(
+      service.selectSettlementFx(expense.id, 999999),
+    ).rejects.toThrow(/not found/i);
+
+    // NOTHING changed: no new claim, no selection audit, no voucher.
+    expect(
+      await db.selectFrom('bank_settlement_usage').selectAll().execute(),
+    ).toEqual(claimsBefore);
+    expect(
+      await db
+        .selectFrom('audit_log')
+        .select('id')
+        .where('action', '=', 'expense.bank_settlement_fx_selection')
+        .execute(),
+    ).toHaveLength(0);
+    expect(await db.selectFrom('voucher').selectAll().execute()).toHaveLength(
+      0,
+    );
+  });
+
+  it('links and retries on an IBAN-only bank line (the descriptor is absent; a recorded supplier IBAN is the reliable identity)', async () => {
+    const account = await db
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'BANK_EUR')
+      .executeTakeFirstOrThrow();
+    const stmt = await db
+      .insertInto('bank_statement')
+      .values({
+        account_id: account.id,
+        start_date: '2026-06-19',
+        end_date: '2026-06-19',
+        uploaded_at: 0,
+        file_path: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto('bank_transaction')
+      .values({
+        statement_id: stmt.id,
+        transaction_date: '2026-06-19',
+        description: 'IBAN-only settlement',
+        amount: -811,
+        currency: 'EUR',
+        source_currency: 'DKK',
+        source_amount: 6000,
+        fx_rate: 0.1338333,
+        fx_rate_decimals: 7,
+        conversion_fee: 8,
+        counterparty_iban: 'DK5000400440116243',
+        counterparty_descriptor: null, // the identity is the IBAN alone
+        reference: null,
+        status: 'open',
+        created_at: 0,
+      })
+      .execute();
+
+    const supplier = await nextHouseSupplier();
+    await entities.addIdentifierIfAbsent(
+      supplier.id,
+      'iban',
+      'DK5000400440116243',
+    );
+
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    // First automatic generation links via the recorded IBAN and claims.
+    const draft = await service.generateDraftVoucher(expense.id);
+    expect(draft.lines[0].fx_rate_source).toBe('bank_statement');
+    expect(
+      (await db.selectFrom('bank_settlement_usage').selectAll().execute())
+        .length,
+    ).toBe(1);
+    // The SAME-draft retry (the claimed-row precedence) re-validates through
+    // the IBAN identity too — no descriptor required — and stays idempotent.
+    const retry = await service.generateDraftVoucher(expense.id);
+    expect(retry.lines[0].fx_rate_source).toBe('bank_statement');
+    expect(
+      (await db.selectFrom('bank_settlement_usage').selectAll().execute())
+        .length,
+    ).toBe(1);
+    expect(
+      (
+        await db
+          .selectFrom('audit_log')
+          .select('id')
+          .where('action', '=', 'expense.bank_settlement_fx')
+          .execute()
+      ).length,
+    ).toBe(1);
+  });
+
+  it('refuses a bank line whose cash is already ALLOCATED on the books (a posted settlement keeps the line open — status open is not unallocated)', async () => {
+    const txnId = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    // A posted purchase settled PART of the line: an active reconciliation
+    // match consumes 795 of its cash; the line stays OPEN with a remainder.
+    const voucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: 'V403ALLOC',
+        tax_point_date: '2026-06-19',
+        posted_at: 0,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: txnId,
+        voucher_id: voucher.id,
+        match_type: 'exact',
+        amount_matched: 803,
+        cash_base_amount: 795,
+        status: 'active',
+        signal: 'manual',
+        created_at: 0,
+      })
+      .execute();
+
+    const supplier = await nextHouseSupplier();
+    // A DISTINCT DKK 6000 draft: not free full-settlement evidence.
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+      allow_duplicate: true,
+    });
+    let thrown: unknown;
+    try {
+      await service.generateDraftVoucher(expense.id);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(FxRateUnavailableError);
+    expect((thrown as FxRateUnavailableError).message).toMatch(
+      /allocated on the books/i,
+    );
+    // The explicit selection refuses it too — with no side effects.
+    await expect(service.selectSettlementFx(expense.id, txnId)).rejects.toThrow(
+      /allocated on the books/i,
+    );
+    expect(
+      await db.selectFrom('bank_settlement_usage').selectAll().execute(),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .selectFrom('audit_log')
+        .select('id')
+        .where('action', '=', 'expense.bank_settlement_fx_selection')
+        .execute(),
+    ).toHaveLength(0);
+    // DRAFT matches are not allocations (the reconciliation seam's own
+    // semantics): a staged draft match allocates no cash and must not
+    // block free evidence. Seed a draft match on a FREE line's twin and
+    // confirm the automatic valuation still links.
+    const draftMatchTxn = await seedBankLine({
+      date: '2026-06-20',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    await db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: draftMatchTxn,
+        voucher_id: voucher.id,
+        match_type: 'exact',
+        amount_matched: 803,
+        cash_base_amount: 803,
+        status: 'draft',
+        signal: 'manual',
+        created_at: 0,
+      })
+      .execute();
+    const secondExpense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-20',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    const draft = await service.generateDraftVoucher(secondExpense.id);
+    expect(draft.lines[0].fx_rate_source).toBe('bank_statement');
+  });
+
   it('refuses a bank line already claimed by a DIFFERENT expense (no double-valuation)', async () => {
     await seedBankLine({
       date: '2026-06-19',

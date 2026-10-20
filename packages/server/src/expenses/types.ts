@@ -111,6 +111,21 @@ export const postOverrideSchema = z.preprocess(
 
 export class PostOverrideDto extends createZodDto(postOverrideSchema) {}
 
+/**
+ * The operator's EXPLICIT settlement-line selection (issue #403's ambiguity
+ * recovery): WHICH same-day bank transaction settled THIS held purchase.
+ * Validated against every automatic-link rule (identity, same-day, the same
+ * original amount/currency, exclusivity); the valuation then runs through
+ * the normal draft generation and Rules → Policy → approval flow.
+ */
+export const settlementFxSelectionSchema = z.object({
+  bank_transaction_id: z.number().int().positive(),
+});
+
+export class SettlementFxSelectionDto extends createZodDto(
+  settlementFxSelectionSchema,
+) {}
+
 /** The facts an operator may correct on a draft/pending expense (issue #247). */
 export const EXPENSE_DRAFT_EDITABLE_FIELDS = [
   'category',

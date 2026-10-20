@@ -376,6 +376,9 @@ export interface BankImportJobTable {
 export interface BankSettlementUsageTable {
   bank_transaction_id: number;
   expense_id: number;
+  // 'auto' (a draft generation's own reservation) | 'operator' (an explicit
+  // settlement selection — an operator decision later generations respect).
+  origin: string;
   created_at: number;
 }
 

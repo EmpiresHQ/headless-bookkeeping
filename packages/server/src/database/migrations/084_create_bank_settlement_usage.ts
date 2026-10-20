@@ -1,4 +1,4 @@
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { Database } from '../types';
 
 /**
@@ -32,6 +32,18 @@ export async function up(db: Kysely<Database>): Promise<void> {
     )
     .addColumn('expense_id', 'integer', (col) =>
       col.notNull().references('expense.id').onDelete('cascade'),
+    )
+    // WHO reserved the line (issue #403): 'operator' — an EXPLICIT settlement
+    // selection, an operator decision later generations must respect and
+    // whose change makes a prepared posting stale; 'auto' — a draft
+    // generation's own transient reservation, replaceable by the next
+    // generation and invisible to the posting fingerprint (which would
+    // otherwise mistake the generation's own first claim for an edit).
+    .addColumn('origin', 'text', (col) =>
+      col
+        .notNull()
+        .defaultTo('auto')
+        .check(sql`origin IN ('auto', 'operator')`),
     )
     .addColumn('created_at', 'integer', (col) => col.notNull())
     .execute();

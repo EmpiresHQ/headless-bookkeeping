@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Body,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,6 +21,7 @@ import {
   CreateExpenseDto,
   PatchExpenseDraftDto,
   PostOverrideDto,
+  SettlementFxSelectionDto,
 } from './types';
 import type { Expense } from './types';
 import type { DraftVoucher } from '../ledger/voucher/types';
@@ -135,6 +137,34 @@ export class ExpensesController {
   @ApiParam({ name: 'id', description: 'Expense id' })
   async generateDraft(@Param('id') id: string): Promise<DraftVoucher> {
     return this.expensesService.generateDraftVoucher(Number(id));
+  }
+
+  /**
+   * The operator's EXPLICIT settlement-line selection (issue #403's
+   * ambiguity recovery): when several same-day bank lines share the exact
+   * merchant, original currency and original amount, this says WHICH line
+   * settled THIS held purchase. A resolution, not a bypass — every
+   * automatic-link validation re-runs at selection, and the valuation goes
+   * through the normal draft generation and Rules → Policy → approval flow.
+   */
+  @Post(':id/settlement-fx')
+  @ApiOperation({
+    summary: 'Select the bank settlement line for a held draft',
+    description:
+      'Resolve an ambiguous settlement link by explicitly selecting the ' +
+      'bank transaction that settled this purchase. The expense keeps its ' +
+      'amount, currency and attachments; nothing is posted here — post the ' +
+      'expense again to value it on the selected line.',
+  })
+  @ApiParam({ name: 'id', description: 'Expense id' })
+  async selectSettlementFx(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: SettlementFxSelectionDto,
+  ): Promise<{ expense_id: number; bank_transaction_id: number }> {
+    return this.expensesService.selectSettlementFx(
+      id,
+      body.bank_transaction_id,
+    );
   }
 
   /**
