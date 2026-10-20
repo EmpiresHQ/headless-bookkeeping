@@ -6,6 +6,7 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
+import { DraftVoucher } from '../ledger/voucher/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
@@ -1141,14 +1142,15 @@ export class ProposeDraftService {
    */
   private async expenseFactsGuard(
     expenseId: number,
-  ): Promise<(trx: Kysely<Database>) => Promise<void>> {
+  ): Promise<(trx: Kysely<Database>, draft?: DraftVoucher) => Promise<void>> {
     const captured =
       await this.expensesService.draftFactsFingerprint(expenseId);
-    return (trx) =>
+    return (trx, draft) =>
       this.expensesService.assertDraftFactsUnchangedTx(
         trx,
         expenseId,
         captured,
+        draft,
       );
   }
 

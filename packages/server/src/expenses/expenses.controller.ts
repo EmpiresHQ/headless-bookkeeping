@@ -201,11 +201,12 @@ export class ExpensesController {
       businessObjectType: 'expense',
       draftGenerator: () =>
         this.expensesService.generateDraftVoucher(expenseId),
-      assertFactsUnchanged: (trx) =>
+      assertFactsUnchanged: (trx, draft) =>
         this.expensesService.assertDraftFactsUnchangedTx(
           trx,
           expenseId,
           factsAtDraftTime,
+          draft,
         ),
       category: expense.category,
       refetch: () => this.expensesService.getExpenseById(expenseId),

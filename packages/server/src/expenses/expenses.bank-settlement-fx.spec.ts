@@ -1088,6 +1088,490 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
     ).toBe(1);
   });
 
+  it('refuses a stale post whose bank row was DELETED (the statement was removed) after the draft was valued (issue #403)', async () => {
+    // Synthetic declared facts (not a production receipt claim): a
+    // DK-accommodation-declared DKK purchase with same-day bank evidence.
+    const txnId = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const supplier = await nextHouseSupplier();
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    // The draft IS bank-valued: its own evidence identity travels on it.
+    const draft = await service.generateDraftVoucher(expense.id);
+    expect(draft.bank_settlement).toBeDefined();
+    expect(draft.bank_settlement!.bankTransactionId).toBe(txnId);
+    const fingerprint = await service.draftFactsFingerprint(expense.id);
+
+    // The statement (and its row — and the claim with it) is deleted after
+    // the draft was valued. The DRAFT carries which evidence THIS valuation
+    // used; the guard revalidates exactly that.
+    const txn = await db
+      .selectFrom('bank_transaction')
+      .select(['statement_id'])
+      .where('id', '=', txnId)
+      .executeTakeFirstOrThrow();
+    await db
+      .deleteFrom('bank_transaction')
+      .where('statement_id', '=', txn.statement_id)
+      .execute();
+    await db
+      .deleteFrom('bank_statement')
+      .where('id', '=', txn.statement_id)
+      .execute();
+
+    // The guard runs inside the posting transaction; the transaction rolls
+    // back (released) when the guard throws — no held handles needed.
+    await expect(
+      db
+        .transaction()
+        .execute(async (trx) =>
+          service.assertDraftFactsUnchangedTx(
+            trx,
+            expense.id,
+            fingerprint,
+            draft,
+          ),
+        ),
+    ).rejects.toThrow(/was deleted/i);
+  });
+
+  it('refuses a stale post whose bank row was recorded as a PERSONAL disposition after the draft was valued (issue #403)', async () => {
+    const txnId = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const supplier = await nextHouseSupplier();
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    const draft = await service.generateDraftVoucher(expense.id);
+    const fingerprint = await service.draftFactsFingerprint(expense.id);
+
+    // A whole-line personal disposition lands in the post-generation window:
+    // the full cash is accounted for on the books and the row's status flips
+    // — no reconciliation match, so only the row guard sees it. (Synthetic
+    // equivalent of the real PersonalDispositionService path, which posts
+    // the same status transition.)
+    await db
+      .updateTable('bank_transaction')
+      .set({ status: 'personal' })
+      .where('id', '=', txnId)
+      .execute();
+
+    await expect(
+      db
+        .transaction()
+        .execute(async (trx) =>
+          service.assertDraftFactsUnchangedTx(
+            trx,
+            expense.id,
+            fingerprint,
+            draft,
+          ),
+        ),
+    ).rejects.toThrow(/'personal' disposition/i);
+  });
+
+  it('a draft valued on line A still passes when an ABANDONED line B was disposed after an A-to-B-to-A re-selection (the draft\u2019s own evidence decides, issue #403)', async () => {
+    // A-to-B-to-A: the valuation audit history deduplicates per
+    // (expense, line), so a "latest audit entry" carrier would check the
+    // abandoned B. The DRAFT carries the concrete evidence of THIS
+    // valuation: line A.
+    const rowA = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const rowB = await seedBankLine({
+      date: '2026-06-19',
+      debit: 830,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.137,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const supplier = await nextHouseSupplier();
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    // A-to-B-to-A operator selections, each generating a valuation.
+    await service.selectSettlementFx(expense.id, rowA);
+    await service.generateDraftVoucher(expense.id);
+    await service.selectSettlementFx(expense.id, rowB);
+    await service.generateDraftVoucher(expense.id);
+    await service.selectSettlementFx(expense.id, rowA);
+    const draft = await service.generateDraftVoucher(expense.id);
+    expect(draft.bank_settlement!.bankTransactionId).toBe(rowA);
+    const fingerprint = await service.draftFactsFingerprint(expense.id);
+
+    // The ABANDONED line B is disposed of (a personal spend) — it is not
+    // this draft's evidence, so the guard must pass for the draft on A.
+    await db
+      .updateTable('bank_transaction')
+      .set({ status: 'personal' })
+      .where('id', '=', rowB)
+      .execute();
+
+    await expect(
+      db
+        .transaction()
+        .execute(async (trx) =>
+          service.assertDraftFactsUnchangedTx(
+            trx,
+            expense.id,
+            fingerprint,
+            draft,
+          ),
+        ),
+    ).resolves.toBeUndefined();
+    // The same draft's OWN line disposed, however, refuses.
+    await db
+      .updateTable('bank_transaction')
+      .set({ status: 'personal' })
+      .where('id', '=', rowA)
+      .execute();
+    await expect(
+      db
+        .transaction()
+        .execute(async (trx) =>
+          service.assertDraftFactsUnchangedTx(
+            trx,
+            expense.id,
+            fingerprint,
+            draft,
+          ),
+        ),
+    ).rejects.toThrow(/'personal' disposition/i);
+  });
+
+  it('a REFERENCE-valued draft carries no bank evidence: a later personal disposition of the bank row must not block it (issue #403)', async () => {
+    // Rebuild the module with a DKK reference rate available: the statutory
+    // rate governs the valuation and the draft carries no bank evidence.
+    const refDb = new SqliteDb(':memory:');
+    refDb.pragma('foreign_keys = ON');
+    const db2 = new Kysely<Database>({
+      dialect: new SqliteDialect({ database: refDb }),
+    });
+    const { error } = await new Migrator({
+      db: db2,
+      provider: { getMigrations: () => Promise.resolve(migrations) },
+    }).migrateToLatest();
+    if (error) throw new Error('m');
+    const module2: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db2 },
+        OrganizationService,
+        NullCountryPlugin,
+        EstoniaCountryPlugin,
+        ...fxTestProviders([
+          { quoteCurrency: 'DKK', rateDate: '2026-06-19', rate: 0.142 },
+        ]),
+        PluginLoader,
+        OrgContextResolver,
+        CurrencyService,
+        VoucherProjectionService,
+        EntitiesService,
+        PeriodLockService,
+        {
+          provide: CategoryService,
+          useValue: { assertValid: async () => {} },
+        },
+        AuditLogService,
+        ExpensesService,
+      ],
+    }).compile();
+    const svc = module2.get(ExpensesService);
+    await module2
+      .get(OrganizationService)
+      .updateOrganization({ country: 'EE' });
+
+    const account = await db2
+      .selectFrom('account')
+      .select('id')
+      .where('code', '=', 'BANK_EUR')
+      .executeTakeFirstOrThrow();
+    const stmtId = await db2
+      .insertInto('bank_statement')
+      .values({
+        account_id: account.id,
+        start_date: '2026-06-19',
+        end_date: '2026-06-19',
+        uploaded_at: 0,
+        file_path: null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow()
+      .then((r) => r.id);
+    const txnId = await db2
+      .insertInto('bank_transaction')
+      .values({
+        statement_id: stmtId,
+        transaction_date: '2026-06-19',
+        description: 'Next House Copenhagen DKK 60',
+        amount: -811,
+        currency: 'EUR',
+        source_currency: 'DKK',
+        source_amount: 6000,
+        fx_rate: 0.1338333,
+        fx_rate_decimals: 7,
+        conversion_fee: 8,
+        counterparty_iban: null,
+        counterparty_descriptor: 'NEXT HOUSE COPENHAGEN',
+        reference: null,
+        status: 'open',
+        created_at: 0,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow()
+      .then((r) => r.id);
+    const ents = module2.get(EntitiesService);
+    const supplier = await ents.onboard({
+      role: 'supplier',
+      country: 'DK',
+      name: 'Next House Copenhagen',
+      registrationKey: 'DK403REFPOS',
+      goodsVsServices: 'services',
+      taxStatus: 'taxable_business',
+    });
+    const expense = await svc.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    const draft = await svc.generateDraftVoucher(expense.id);
+    // The reference rate governed the valuation — no bank evidence on the
+    // draft, and no bank-settlement valuation audit entry either.
+    expect(draft.bank_settlement).toBeUndefined();
+    expect(draft.lines[0].fx_rate_source).toBe('ECB');
+    const fingerprint = await svc.draftFactsFingerprint(expense.id);
+
+    // A later personal disposition of the (unused) bank row — neither is
+    // this draft's evidence.
+    await db2
+      .updateTable('bank_transaction')
+      .set({ status: 'personal' })
+      .where('id', '=', txnId)
+      .execute();
+
+    await expect(
+      db2
+        .transaction()
+        .execute(async (trx) =>
+          svc.assertDraftFactsUnchangedTx(trx, expense.id, fingerprint, draft),
+        ),
+    ).resolves.toBeUndefined();
+    await db2.destroy();
+  });
+
+  it('re-derives the historical bank valuation for a POSTED purchase’s own fee-reconciled line on a VAT-only correction (issue #403)', async () => {
+    // Synthetic declared facts. The full normal flow: bank-valued purchase
+    // posts at 803, its settlement match consumes the principal, the fee
+    // disposition books the 8-cent fee and flips the row to 'bank_fee' —
+    // the purchase's OWN line, fully reconciled (803 + 8 = 811).
+    const txnId = await seedBankLine({
+      date: '2026-06-19',
+      debit: 811,
+      sourceCurrency: 'DKK',
+      sourceAmount: 6000,
+      fxRate: 0.1338333,
+      fee: 8,
+      descriptor: 'NEXT HOUSE COPENHAGEN',
+    });
+    const supplier = await nextHouseSupplier();
+    const expense = await service.createExpense({
+      document_id: null,
+      supplier_id: supplier.id,
+      category: 'travel',
+      gross_amount: 6000,
+      vat_amount: 1200,
+      currency: 'DKK',
+      tax_point_date: '2026-06-19',
+      service_place_rule: 'immovable_property',
+      place_of_supply_country: 'DK',
+    });
+    const originalDraft = await service.generateDraftVoucher(expense.id);
+    // The original valuation is the bank rate at 803 — the correction below
+    // must re-derive exactly this.
+    expect(originalDraft.lines[0].base_amount).toBe(803);
+    // Mark the expense posted with its own voucher, and settle the line:
+    // the principal match to the expense's own voucher + the fee part as a
+    // fee-disposition voucher (an EXPENSE_BANK_FEE leg of exactly 8).
+    const ownVoucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: 'V403OWN',
+        tax_point_date: '2026-06-19',
+        posted_at: 0,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow()
+      .then((r) => r.id);
+    await db
+      .updateTable('expense')
+      .set({ status: 'posted', voucher_id: ownVoucher })
+      .where('id', '=', expense.id)
+      .execute();
+    await db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: txnId,
+        voucher_id: ownVoucher,
+        match_type: 'exact',
+        amount_matched: 803,
+        cash_base_amount: 803,
+        status: 'active',
+        signal: 'manual',
+        created_at: 0,
+      })
+      .execute();
+    // The fee disposition: a fee voucher with a single EXPENSE_BANK_FEE
+    // leg of 8, matched for the fee part.
+    const feeAccountId = (
+      await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'EXPENSE_BANK_FEE')
+        .executeTakeFirstOrThrow()
+    ).id;
+    const bankAccountId = (
+      await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'BANK_EUR')
+        .executeTakeFirstOrThrow()
+    ).id;
+    const feeVoucher = await db
+      .insertInto('voucher')
+      .values({
+        voucher_number: 'V403OWNFEE',
+        tax_point_date: '2026-06-19',
+        posted_at: 0,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow()
+      .then((r) => r.id);
+    await db
+      .insertInto('voucher_line')
+      .values([
+        {
+          voucher_id: feeVoucher,
+          account_id: feeAccountId,
+          amount: 8,
+          currency: 'EUR',
+          base_amount: 8,
+          fx_rate: 1,
+          fx_rate_date: '2026-06-19',
+          fx_rate_source: 'identity',
+          is_debit: 1,
+          vat_code: null,
+        },
+        {
+          voucher_id: feeVoucher,
+          account_id: bankAccountId,
+          amount: 8,
+          currency: 'EUR',
+          base_amount: 8,
+          fx_rate: 1,
+          fx_rate_date: '2026-06-19',
+          fx_rate_source: 'identity',
+          is_debit: 0,
+          vat_code: null,
+        },
+      ])
+      .execute();
+    await db
+      .insertInto('reconciliation_match')
+      .values({
+        bank_transaction_id: txnId,
+        voucher_id: feeVoucher,
+        match_type: 'partial',
+        amount_matched: 8,
+        cash_base_amount: 8,
+        status: 'active',
+        signal: 'manual',
+        created_at: 0,
+      })
+      .execute();
+    // The fee disposition flips the row: fully reconciled own line.
+    await db
+      .updateTable('bank_transaction')
+      .set({ status: 'bank_fee' })
+      .where('id', '=', txnId)
+      .execute();
+
+    // A VAT-only correction preview (the corrections flow's seam): the
+    // gross/currency/supplier/date/place are UNCHANGED, so the SAME
+    // historical bank valuation must be re-derived — no new cash acquired,
+    // no claim, the row's own-settlement pattern intact.
+    const preview = await service.previewPatchedDraft(expense.id, {
+      vat_amount: 1000,
+    });
+    expect(preview.lines[0].fx_rate_source).toBe('bank_statement');
+    expect(preview.lines[0].fx_rate).toBeCloseTo(0.1338333, 12);
+    expect(preview.lines[0].base_amount).toBe(803);
+    // Nothing new was acquired: one claim (the original), one line status.
+    const claims = await db
+      .selectFrom('bank_settlement_usage')
+      .selectAll()
+      .execute();
+    expect(claims).toHaveLength(1);
+    expect(claims[0].bank_transaction_id).toBe(txnId);
+    const txnRow = await db
+      .selectFrom('bank_transaction')
+      .select('status')
+      .where('id', '=', txnId)
+      .executeTakeFirstOrThrow();
+    expect(txnRow.status).toBe('bank_fee');
+  });
+
   it('refuses a bank line whose cash is already ALLOCATED on the books (a posted settlement keeps the line open — status open is not unallocated)', async () => {
     const txnId = await seedBankLine({
       date: '2026-06-19',

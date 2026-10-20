@@ -239,6 +239,7 @@ export class ApprovalsService {
           trx,
           approval.object_id,
           expenseFacts,
+          draft,
         );
       }
 
