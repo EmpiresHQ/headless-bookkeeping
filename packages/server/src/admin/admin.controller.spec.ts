@@ -24,6 +24,10 @@ import { OrgContextResolver } from '../organization/org-context.resolver';
 import { AuditFindingsService } from '../audit-findings/audit-findings.service';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { BankDuplicateRepairService } from './bank-duplicate-repair.service';
+import { BankStatementService } from '../bank/bank-statement.service';
+import { BankTransactionRepository } from '../bank/bank-transaction.repository';
+import { AccountService } from '../ledger/account/account.service';
 import { ApiTokenService } from '../auth/api-token.service';
 import { ApiTokenGuard } from '../auth/api-token.guard';
 
@@ -73,6 +77,10 @@ describe('AdminController (integration)', () => {
         OrgContextResolver,
         AdminService,
         ApiTokenService,
+        AccountService,
+        BankTransactionRepository,
+        BankStatementService,
+        BankDuplicateRepairService,
         {
           provide: APP_GUARD,
           useClass: ApiTokenGuard,

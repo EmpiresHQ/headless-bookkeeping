@@ -9,6 +9,21 @@ export interface BankImportJob {
   account_code: string;
   statement_id: number | null;
   error: string | null;
+  /** Parsed import summary (issue #399) when status is done, else null. */
+  summary: {
+    newCount: number;
+    newTransactionIds: number[];
+    knownCount: number;
+    knownTransactionIds: number[];
+    conflictCount: number;
+    conflicts: {
+      id: number;
+      kind: string;
+      external_id: string;
+      statement_id: number;
+      source_row_number: number | null;
+    }[];
+  } | null;
   created_at: number;
   updated_at: number;
 }
@@ -45,12 +60,27 @@ export class BankImportJobRepository {
     return row ? this.mapRow(row) : null;
   }
 
-  /** Mark a job as done, recording the resulting statement_id. */
-  async markDone(id: number, statementId: number): Promise<void> {
+  /** Mark a job as done, recording the resulting statement_id and the
+   *  import's new/known/conflict summary (issue #399). */
+  async markDone(
+    id: number,
+    statementId: number,
+    summary?: {
+      newCount: number;
+      knownCount: number;
+      conflictCount: number;
+      conflicts: unknown[];
+    },
+  ): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     await this.db
       .updateTable('bank_import_job')
-      .set({ status: 'done', statement_id: statementId, updated_at: now })
+      .set({
+        status: 'done',
+        statement_id: statementId,
+        summary: summary ? JSON.stringify(summary) : null,
+        updated_at: now,
+      })
       .where('id', '=', id)
       .execute();
   }
@@ -66,12 +96,21 @@ export class BankImportJobRepository {
   }
 
   private mapRow(row: Selectable<BankImportJobTable>): BankImportJob {
+    let summary: BankImportJob['summary'] = null;
+    if (row.summary) {
+      try {
+        summary = JSON.parse(row.summary);
+      } catch {
+        summary = null;
+      }
+    }
     return {
       id: row.id,
       status: row.status,
       account_code: row.account_code,
       statement_id: row.statement_id,
       error: row.error,
+      summary,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

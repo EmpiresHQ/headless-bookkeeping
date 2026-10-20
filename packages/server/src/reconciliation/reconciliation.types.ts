@@ -123,7 +123,9 @@ export interface MatchFactsView {
   baseCurrency: string;
   bankTransaction: {
     id: number;
-    statementId: number;
+    /** The ORIGIN statement, or null after the origin was detached while
+     *  the canonical movement survived (issue #399). */
+    statementId: number | null;
     transactionDate: string;
     description: string | null;
     /** Signed cents in `currency` (the account currency of the line). */

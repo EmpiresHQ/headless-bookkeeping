@@ -16,6 +16,8 @@ import { z } from 'zod';
 import { Public } from '../auth/api-token.guard';
 import { ApiTokenService } from '../auth/api-token.service';
 import { AdminService } from './admin.service';
+import { BankDuplicateRepairService } from './bank-duplicate-repair.service';
+import { BankStatementService } from '../bank/bank-statement.service';
 
 // An absent body (undefined/null) is treated as an empty object so a plain
 // POST /admin/tokens with no JSON body still validates.
@@ -26,12 +28,36 @@ const createTokenSchema = z.preprocess(
 
 export class CreateTokenDto extends createZodDto(createTokenSchema) {}
 
+// Issue #399: the repair request — the pair plus the state the preview saw
+// (revalidated atomically at apply time; a stale state is refused with 409).
+const repairBankDuplicateSchema = z.object({
+  survivor_id: z.number().int(),
+  duplicate_id: z.number().int(),
+  performed_by: z.string().optional(),
+  expected: z.object({
+    survivorActiveMatchCount: z.number().int(),
+    survivorDraftMatchCount: z.number().int(),
+    survivorSettlementClaimExpenseId: z.number().int().nullable(),
+    duplicateActiveMatchCount: z.number().int(),
+    duplicateDraftMatchCount: z.number().int(),
+    duplicateSettlementClaimExpenseId: z.number().int().nullable(),
+    duplicateAdvanceFunded: z.boolean(),
+    duplicateStatus: z.string(),
+  }),
+});
+
+export class RepairBankDuplicateDto extends createZodDto(
+  repairBankDuplicateSchema,
+) {}
+
 @ApiTags('admin')
 @Controller('admin')
 export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly apiTokenService: ApiTokenService,
+    private readonly duplicateRepair: BankDuplicateRepairService,
+    private readonly bankStatements: BankStatementService,
   ) {}
 
   // ── API token management (A1) ────────────────────────────────────
@@ -221,6 +247,72 @@ export class AdminController {
   @Get('duplicate-candidates')
   async getDuplicateCandidates() {
     return this.adminService.getDuplicateCandidates();
+  }
+
+  // ── Bank duplicate repair (issue #399) ──────────────────
+
+  /**
+   * GET /admin/bank-duplicates/preview — preview candidate duplicate bank
+   * transaction groups, with financial references and expected open-amount
+   * impact. Read-only — nothing is executed.
+   */
+  @ApiOperation({
+    summary: 'Preview duplicate bank transactions (admin)',
+    description:
+      'Candidate duplicate bank-transaction groups (same account/date/' +
+      'amount/currency), with matches, settlement claims, provenance and ' +
+      'the expected open-amount impact of merging. Read-only.',
+  })
+  @Get('bank-duplicates/preview')
+  async previewBankDuplicates() {
+    return { groups: await this.duplicateRepair.preview() };
+  }
+
+  /**
+   * POST /admin/bank-duplicates/repair — apply one audited, idempotent,
+   * metadata-only duplicate merge, revalidated atomically against the
+   * previewed state.
+   */
+  @ApiOperation({
+    summary: 'Repair a duplicate bank transaction (admin)',
+    description:
+      'Merge an already-imported duplicate into its survivor: provenance is ' +
+      'repointed, the removed id becomes a resolvable alias, no financial ' +
+      'posting is created. Retries are idempotent; stale previews are refused.',
+  })
+  @Post('bank-duplicates/repair')
+  async repairBankDuplicate(@Body() body: RepairBankDuplicateDto) {
+    return this.duplicateRepair.applyRepair({
+      survivorId: body.survivor_id,
+      duplicateId: body.duplicate_id,
+      expected: body.expected,
+      performedBy: body.performed_by ?? 'operator',
+    });
+  }
+
+  /** GET /admin/bank-import-conflicts — open same-identity import conflicts. */
+  @ApiOperation({
+    summary: 'List bank import conflicts (admin)',
+    description:
+      'Open conflicts where a same-identity row disagreed with the canonical ' +
+      'transaction, plus ambiguous identity-less overlaps.',
+  })
+  @Get('bank-import-conflicts')
+  async listBankImportConflicts() {
+    return { conflicts: await this.bankStatements.listConflicts('open') };
+  }
+
+  /** POST /admin/bank-import-conflicts/:id/resolve — mark one reviewed. */
+  @ApiOperation({
+    summary: 'Resolve a bank import conflict (admin)',
+    description:
+      'Mark an import conflict as resolved (a human disposed of it). Idempotent.',
+  })
+  @ApiParam({ name: 'id', description: 'Conflict id' })
+  @Post('bank-import-conflicts/:id/resolve')
+  async resolveBankImportConflict(@Param('id', ParseIntPipe) id: number) {
+    await this.bankStatements.resolveConflict(id);
+    return { resolved: id };
   }
 
   /**

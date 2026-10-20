@@ -20,6 +20,10 @@ export interface Database {
   bank_statement: BankStatementTable;
   bank_transaction: BankTransactionTable;
   bank_settlement_usage: BankSettlementUsageTable;
+  bank_transaction_source: BankTransactionSourceTable;
+  bank_import_conflict: BankImportConflictTable;
+  bank_duplicate_repair: BankDuplicateRepairTable;
+  bank_transaction_alias: BankTransactionAliasTable;
   bank_import_job: BankImportJobTable;
   reconciliation_match: ReconciliationMatchTable;
   approval: ApprovalTable;
@@ -355,6 +359,15 @@ export interface BankStatementTable {
   end_date: string;
   uploaded_at: number;
   file_path: string | null;
+  // The source-replay identity (issue #399): hash of the normalized, sorted
+  // row multiset + the import's identity inputs. UNIQUE where not NULL.
+  content_hash: string | null;
+  // The bank, as asserted by this import (issue #399). NULL = unknown —
+  // an unknown provider never merges across statements.
+  provider_code: string | null;
+  // The bank's own account reference the statement covers (IBAN/account
+  // number). NULL = unknown — identity is incomplete and never merges.
+  source_account_ref: string | null;
 }
 
 // BankImportJob: tracks an async bank-statement import job (UI polls status).
@@ -366,6 +379,8 @@ export interface BankImportJobTable {
   account_code: string;
   statement_id: number | null;
   error: string | null;
+  // JSON import summary (issue #399): new/known/conflict counts + conflicts.
+  summary: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -384,7 +399,24 @@ export interface BankSettlementUsageTable {
 
 export interface BankTransactionTable {
   id: Generated<number>;
-  statement_id: number;
+  // The row's ORIGIN statement — the import that first recorded the
+  // movement (issue #399). NULL when that origin statement was detached
+  // while the canonical movement survived (shared with another statement, or
+  // carrying financial history); provenance lives in
+  // bank_transaction_source.
+  statement_id: number | null;
+  // The ledger bank account the canonical journal is keyed within
+  // (issue #399). Backfilled from the origin statement for legacy rows.
+  account_id: number | null;
+  // Canonical identity scope (issue #399): the bank + its own account
+  // reference + the bank's own transaction id. NULL in ANY of the three
+  // identity fields means unknown — and unknown identity never merges.
+  provider_code: string | null;
+  source_account_ref: string | null;
+  external_id: string | null;
+  // The bank's archive/document reference, kept independently of the
+  // transaction id and of the payment reference (issue #399).
+  archive_ref: string | null;
   transaction_date: string;
   description: string | null;
   amount: number;
@@ -409,6 +441,62 @@ export interface BankTransactionTable {
   counterparty_descriptor: string | null;
   reference: string | null;
   status: string;
+  created_at: number;
+}
+
+// Issue #399: many-statements → one-canonical-transaction provenance.
+// Every imported source row that resolved to a canonical transaction is
+// recorded here with its own statement, row number and per-source facts.
+export interface BankTransactionSourceTable {
+  id: Generated<number>;
+  bank_transaction_id: number;
+  statement_id: number;
+  // 1-based row number in the source file; NULL = backfilled legacy row.
+  source_row_number: number | null;
+  external_id: string | null;
+  archive_ref: string | null;
+  // JSON per-source facts (dates/description as THIS source recorded them).
+  facts: string | null;
+  created_at: number;
+}
+
+// Issue #399: a same-identity source row whose money facts conflict with the
+// canonical transaction — persisted for review, never silently overwriting.
+export interface BankImportConflictTable {
+  id: Generated<number>;
+  account_id: number;
+  provider_code: string | null;
+  source_account_ref: string | null;
+  external_id: string;
+  canonical_transaction_id: number;
+  statement_id: number;
+  source_row_number: number | null;
+  // 'amount_mismatch' | 'currency_mismatch'
+  kind: string;
+  // JSON { canonical, incoming } conflicting facts.
+  detail: string;
+  // 'open' | 'resolved'
+  status: string;
+  created_at: number;
+}
+
+// Issue #399: an audited, idempotent repair of an already-imported duplicate.
+export interface BankDuplicateRepairTable {
+  id: Generated<number>;
+  // Deterministic '<survivor>:<duplicate>' key — retry idempotency.
+  repair_key: string;
+  survivor_id: number;
+  duplicate_id: number;
+  performed_by: string;
+  created_at: number;
+}
+
+// Issue #399: a removed duplicate's id resolves to its survivor.
+export interface BankTransactionAliasTable {
+  id: Generated<number>;
+  alias_transaction_id: number;
+  canonical_transaction_id: number;
+  repair_id: number;
   created_at: number;
 }
 

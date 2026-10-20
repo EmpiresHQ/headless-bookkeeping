@@ -1,4 +1,4 @@
-import { applyRules } from './apply-rules';
+import { applyRules, sourceFingerprint } from './apply-rules';
 import type { MappingRuleset } from './bank-mapping.types';
 
 const lhvLike: MappingRuleset = {
@@ -221,5 +221,110 @@ describe('applyRules', () => {
     expect(() => applyRules(negativeRate, negativeCsv)).toThrow(
       /usable fx rate/i,
     );
+  });
+
+  // ── Issue #399: canonical identity inputs ──────────────────────
+
+  const identityCsv = `Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference,BankTransactionId,ArchiveId,Account
+2026-05-08,27.59,D,EUR,Invoice 1000,DK7430000014041346,REF1,SYN-TXN-1,SYN-ARCH-1,EE11SYNTHETIC
+2026-05-30,13.91,D,EUR,OPENROUTER,,REF2,SYN-TXN-2,SYN-ARCH-2,EE11SYNTHETIC`;
+
+  it('extracts the bank transaction id, archive reference and source account through the ruleset (issue #399)', () => {
+    const out = applyRules(
+      {
+        ...lhvLike,
+        provider_code: 'LHV',
+        external_id: { column: 'BankTransactionId' },
+        archive_id: { column: 'ArchiveId' },
+        source_account: { column: 'Account' },
+      },
+      identityCsv,
+    );
+    expect(out.provider_code).toBe('LHV');
+    expect(out.source_account_ref).toBe('EE11SYNTHETIC');
+    expect(out.transactions[0].external_id).toBe('SYN-TXN-1');
+    expect(out.transactions[0].archive_ref).toBe('SYN-ARCH-1');
+    expect(out.transactions[1].external_id).toBe('SYN-TXN-2');
+    expect(out.transactions[1].archive_ref).toBe('SYN-ARCH-2');
+  });
+
+  it('leaves absent identity targets NULL — unknown identity never merges (issue #399)', () => {
+    const out = applyRules(lhvLike, identityCsv);
+    expect(out.provider_code).toBeNull();
+    expect(out.source_account_ref).toBeNull();
+    expect(out.transactions[0].external_id).toBeNull();
+    expect(out.transactions[0].archive_ref).toBeNull();
+  });
+
+  it('normalises the provider and source account references (trim + uppercase, issue #399)', () => {
+    const out = applyRules(
+      {
+        ...lhvLike,
+        provider_code: '  lhv ',
+        external_id: { column: 'BankTransactionId' },
+        source_account: { column: 'Account' },
+      },
+      'Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference,BankTransactionId,Account\n' +
+        '2026-05-08,27.59,D,EUR,Invoice 1000,DK7430000014041346,REF1,SYN-TXN-1, ee11synthetic ',
+    );
+    expect(out.provider_code).toBe('LHV');
+    expect(out.source_account_ref).toBe('EE11SYNTHETIC');
+  });
+
+  it('extracts an id embedded in a description cell via an explicit pattern (rules, not rows, ADR-0031)', () => {
+    const out = applyRules(
+      {
+        ...lhvLike,
+        external_id: {
+          column: 'Explanation',
+          pattern: 'Arch\\s*ref\\s*([A-Z0-9-]+)',
+        },
+      },
+      'Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference\n' +
+        '2026-05-08,27.59,D,EUR,Payment Arch ref SYN-ARCH-9,DK7430000014041346,REF1',
+    );
+    expect(out.transactions[0].external_id).toBe('SYN-ARCH-9');
+  });
+
+  it('sourceFingerprint: row-order-insensitive but unmapped-column-sensitive (issue #399)', () => {
+    const exportA =
+      'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export A memo\n2026-01-06,-1.00,EUR,row two\n';
+    // Same rows, reordered, renamed header order — the same source.
+    const reordered =
+      'Memo,Date,Amount,Currency\nrow two,2026-01-06,-1.00,EUR\nexport A memo,2026-01-05,-12.50,EUR\n';
+    expect(sourceFingerprint(reordered)).toBe(sourceFingerprint(exportA));
+    // A DIFFERENT export of the same mapped movements — differing only in an
+    // UNMAPPED memo value — is a DIFFERENT source, never one silent replay.
+    const exportB =
+      'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export B memo\n2026-01-06,-1.00,EUR,row two\n';
+    expect(sourceFingerprint(exportB)).not.toBe(sourceFingerprint(exportA));
+    // Multiplicity participates: a source with the row twice is different.
+    const doubled =
+      'Date,Amount,Currency,Memo\n2026-01-05,-12.50,EUR,export A memo\n2026-01-05,-12.50,EUR,export A memo\n';
+    expect(sourceFingerprint(doubled)).not.toBe(sourceFingerprint(exportA));
+  });
+
+  it('sourceFingerprint retains duplicate-header values and raw cell whitespace', () => {
+    const original = 'Date,Memo,Memo\n2026-06-01,first,second\n';
+    expect(
+      sourceFingerprint('Date,Memo,Memo\n2026-06-01,changed,second\n'),
+    ).not.toBe(sourceFingerprint(original));
+    expect(
+      sourceFingerprint('Date,Memo,Memo\n2026-06-01, first,second\n'),
+    ).not.toBe(sourceFingerprint(original));
+  });
+
+  it('throws when rows disagree about which source account they cover (one statement = one account, issue #399)', () => {
+    expect(() =>
+      applyRules(
+        {
+          ...lhvLike,
+          source_account: { column: 'Account' },
+        },
+        'Date,Amount,D/C,Currency,Explanation,CounterpartyIban,Reference,Account\n' +
+          '2026-05-08,27.59,D,EUR,Invoice 1000,DK7430000014041346,REF1,EE11SYNTHETIC\n' +
+          '2026-05-30,13.91,D,EUR,OPENROUTER,,REF2,EE22OTHER',
+      ),
+    ).toThrow(/Inconsistent source account references/i);
   });
 });

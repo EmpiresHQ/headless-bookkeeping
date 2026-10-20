@@ -37,8 +37,13 @@
  */
 export interface BankSettlementLink {
   bankTransactionId: number;
-  /** The statement the line came from (raw source provenance, ADR-0031). */
-  statementId: number;
+  /**
+   * The statement the line came from (raw source provenance, ADR-0031):
+   * its ORIGIN statement, or — after that origin was detached while the
+   * canonical movement survived (#399) — the earliest remaining co-evidencing
+   * statement. Null only when no source statement remains at all.
+   */
+  statementId: number | null;
   /**
    * The SUPPLIER whose recorded identity the line's counterparty matched —
    * part of the link's identity facts, re-validated atomically at claim
@@ -107,8 +112,9 @@ export interface SettlementFxEvidence {
   rateDecimals: number | null;
   /** The bank's booking date when the statement distinguishes it; null = not. */
   bookingDate: string | null;
-  /** Its statement (row provenance; the raw source stays there). */
-  statementId: number;
+  /** Its statement (row provenance; the raw source stays there; nullable
+   *  when the origin was detached and no source remains, #399). */
+  statementId: number | null;
   /** The transaction (settlement) date — the rate's own date. */
   transactionDate: string;
   /** The original (foreign) currency the payment was charged in. */

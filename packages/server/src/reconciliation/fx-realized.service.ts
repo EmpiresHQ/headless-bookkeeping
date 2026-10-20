@@ -488,12 +488,7 @@ export class FXRealizedService {
   private async loadBankLine(bankTransactionId: number) {
     const txn = await this.db
       .selectFrom('bank_transaction')
-      .innerJoin(
-        'bank_statement',
-        'bank_statement.id',
-        'bank_transaction.statement_id',
-      )
-      .innerJoin('account', 'account.id', 'bank_statement.account_id')
+      .innerJoin('account', 'account.id', 'bank_transaction.account_id')
       .select([
         'bank_transaction.id',
         'bank_transaction.amount',

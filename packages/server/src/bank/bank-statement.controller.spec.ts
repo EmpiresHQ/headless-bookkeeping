@@ -7,6 +7,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
 import { BankStatementService } from './bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { BankTransactionRepository } from './bank-transaction.repository';
 import { BankStatementController } from './bank-statement.controller';
 
@@ -33,6 +34,7 @@ describe('BankStatementController (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
       ],
     }).compile();

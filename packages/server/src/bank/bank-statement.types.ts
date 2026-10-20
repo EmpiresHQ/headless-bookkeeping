@@ -66,6 +66,20 @@ export const createTransactionSchema = z.object({
   counterparty_descriptor: z.string().nullable().optional(),
   /** Parsed invoice number / match key. */
   reference: z.string().nullable().optional(),
+  /**
+   * The bank's own transaction id for this movement (issue #399). When it,
+   * the provider and the source account reference are ALL known, this is
+   * the canonical identity: the same movement imported through another
+   * statement is recognised as already-known. NULL/absent = the source did
+   * not carry one — the row never merges (conservative: date+amount is not
+   * identity).
+   */
+  external_id: z.string().min(1).nullable().optional(),
+  /**
+   * The bank's archive/document reference for this movement (issue #399),
+   * kept independently of `external_id` and of the payment `reference`.
+   */
+  archive_ref: z.string().min(1).nullable().optional(),
   /** Disposition status. */
   status: bankTransactionStatusSchema.optional(),
 });
@@ -84,6 +98,29 @@ export const createStatementSchema = z.object({
   end_date: z.string(),
   /** Optional path to the uploaded file. */
   file_path: z.string().nullable().optional(),
+  /**
+   * The bank, as asserted by this import (issue #399) — e.g. 'LHV'. Part of
+   * the canonical identity scope: the same external id from a different
+   * provider is a different movement. NULL/absent = unknown provider — the
+   * import is accepted but its rows never merge across statements.
+   */
+  provider_code: z.string().min(1).nullable().optional(),
+  /**
+   * The bank's own account reference the statement covers (IBAN / account
+   * number, issue #399). Part of the canonical identity scope. NULL/absent =
+   * unknown — rows never merge across statements.
+   */
+  source_account_ref: z.string().min(1).nullable().optional(),
+  /**
+   * The authoritative RAW-source fingerprint (issue #399): SHA-256 over the
+   * sorted FULL raw row multiset — every column the source carried, mapped
+   * or not — computed by the deterministic transformer at ingestion. It is
+   * what separates an exact source replay from a merely similar export:
+   * two exports differing only in an unmapped memo value are DIFFERENT
+   * sources and must never be collapsed as one replay. Absent for a direct
+   * API import, where the structured input itself is the whole source.
+   */
+  source_fingerprint: z.string().min(1).nullable().optional(),
   /** Transaction lines from the statement. */
   transactions: z.array(createTransactionSchema),
 });
@@ -98,12 +135,21 @@ export interface BankStatementRecord {
   end_date: string;
   uploaded_at: number;
   file_path: string | null;
+  provider_code: string | null;
+  source_account_ref: string | null;
 }
 
 /** Persisted bank transaction record. */
 export interface BankTransactionRecord {
   id: number;
-  statement_id: number;
+  /** The ORIGIN statement, or null after that origin was detached while the
+   *  canonical movement survived (issue #399). */
+  statement_id: number | null;
+  account_id: number | null;
+  provider_code: string | null;
+  source_account_ref: string | null;
+  external_id: string | null;
+  archive_ref: string | null;
   transaction_date: string;
   description: string | null;
   amount: number;
@@ -124,4 +170,55 @@ export interface BankTransactionRecord {
   reference: string | null;
   status: BankTransactionStatus;
   created_at: number;
+}
+
+/** One imported source row that resolved to a canonical transaction. */
+export interface BankTransactionSourceRef {
+  statement_id: number;
+  source_row_number: number | null;
+  external_id: string | null;
+  archive_ref: string | null;
+  created_at: number;
+}
+
+/** A canonical transaction as returned with its many-source provenance. */
+export interface BankTransactionWithSources extends BankTransactionRecord {
+  /** Every imported source row that resolved to this canonical movement. */
+  sources: BankTransactionSourceRef[];
+}
+
+/** A persisted same-identity conflict (issue #399). */
+export interface BankImportConflictView {
+  id: number;
+  account_id: number;
+  provider_code: string | null;
+  source_account_ref: string | null;
+  external_id: string;
+  canonical_transaction_id: number;
+  statement_id: number;
+  source_row_number: number | null;
+  kind:
+    | 'amount_mismatch'
+    | 'currency_mismatch'
+    | 'fact_mismatch'
+    | 'ambiguous_overlap';
+  detail: {
+    canonical: Record<string, unknown>;
+    incoming: Record<string, unknown>;
+  };
+  status: 'open' | 'resolved';
+  created_at: number;
+}
+
+/** The import's new/known/conflict summary (issue #399). */
+export interface ImportSummary {
+  /** Canonical transactions newly created by this import. */
+  newCount: number;
+  newTransactionIds: number[];
+  /** Source rows recognised as an already-known canonical movement. */
+  knownCount: number;
+  knownTransactionIds: number[];
+  /** Source rows whose same-identity money facts conflict — needs review. */
+  conflictCount: number;
+  conflicts: BankImportConflictView[];
 }

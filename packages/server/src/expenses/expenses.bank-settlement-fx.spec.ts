@@ -113,6 +113,10 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       .insertInto('bank_transaction')
       .values({
         statement_id: stmt.id,
+        // The canonical journal's account link (issue #399) — the raw
+        // fixture records the same BANK_EUR account a migrated import row
+        // would carry (legacy rows are backfilled by migration 087).
+        account_id: account.id,
         transaction_date: line.date,
         description: `Synthetic ${line.descriptor} settlement`,
         amount: -line.debit,
@@ -326,6 +330,8 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       .executeTakeFirstOrThrow();
     await db2.insertInto('bank_transaction').values({
       statement_id: stmt.id,
+      // Canonical account link (issue #399) — same as a migrated import row.
+      account_id: account.id,
       transaction_date: '2026-06-18',
       description: 'Circle K',
       amount: -527,
@@ -1027,6 +1033,8 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       .insertInto('bank_transaction')
       .values({
         statement_id: stmt.id,
+        // Canonical account link (issue #399) — same as a migrated import row.
+        account_id: account.id,
         transaction_date: '2026-06-19',
         description: 'IBAN-only settlement',
         amount: -811,
@@ -1348,6 +1356,8 @@ describe('ExpensesService bank-settlement FX (integration, issue #403)', () => {
       .insertInto('bank_transaction')
       .values({
         statement_id: stmtId,
+        // Canonical account link (issue #399) — same as a migrated import row.
+        account_id: account.id,
         transaction_date: '2026-06-19',
         description: 'Next House Copenhagen DKK 60',
         amount: -811,

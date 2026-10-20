@@ -99,6 +99,7 @@ describe('BankFeeDispositionService (integration, issue #403)', () => {
       .insertInto('bank_transaction')
       .values({
         statement_id: stmt.id,
+        account_id: account.id,
         transaction_date: '2026-06-19',
         description: 'Next House Copenhagen DKK 60; fee 0.08',
         amount: -(over?.debit ?? 811),

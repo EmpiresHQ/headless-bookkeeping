@@ -99,7 +99,9 @@ export interface DraftVoucher {
    */
   bank_settlement?: {
     bankTransactionId: number;
-    statementId: number;
+    /** Nullable when the origin statement was detached and no source
+     *  remains (issue #399). */
+    statementId: number | null;
   };
   reverses_id?: number;
   corrects_object_type?: string;

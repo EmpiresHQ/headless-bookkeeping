@@ -9,6 +9,7 @@ import { Database } from '../database/types';
 import { migrations } from '../database/migrations';
 import { AccountService } from '../ledger/account/account.service';
 import { BankStatementService } from '../bank/bank-statement.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { BankTransactionRepository } from '../bank/bank-transaction.repository';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingService } from '../ledger/posting/posting.service';
@@ -69,6 +70,7 @@ describe('ReconciliationService (integration)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         EntitiesService,
         LedgerValidationService,
@@ -2651,6 +2653,7 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
         { provide: KYSELY_MODULE_CONNECTION_TOKEN(), useValue: db },
         AccountService,
         BankTransactionRepository,
+        AuditLogService,
         BankStatementService,
         EntitiesService,
         LedgerValidationService,
@@ -2801,6 +2804,7 @@ describe('ReconciliationService — currency-normalised matching (D7)', () => {
       .insertInto('bank_transaction')
       .values({
         statement_id: statement.id,
+        account_id: usdAccount.id,
         transaction_date: '2025-01-12',
         description: 'USD receipt for INV-14001',
         amount: 1_555, // 1 555 USD incoming

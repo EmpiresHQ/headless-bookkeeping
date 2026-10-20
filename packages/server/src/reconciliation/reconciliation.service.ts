@@ -259,7 +259,17 @@ export class ReconciliationService {
     bankTransactionId: number,
   ): Promise<MatchCandidatesResult> {
     const txn = await this.transactionRepo.findById(bankTransactionId);
-    if (!txn || txn.statement_id !== statementId) {
+    // Canonical membership (issue #399): a statement is an import artifact —
+    // a transaction belongs to a statement when a SOURCE ROW of that
+    // statement resolved to it, not only when the statement originated it.
+    const member =
+      txn &&
+      (txn.statement_id === statementId ||
+        (await this.transactionRepo.isReferencedByStatement(
+          statementId,
+          txn.id,
+        )));
+    if (!txn || !member) {
       throw new NotFoundException(
         `Bank transaction ${bankTransactionId} not found on statement ${statementId}`,
       );

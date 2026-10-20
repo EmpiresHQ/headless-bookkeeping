@@ -3,6 +3,7 @@ import { MastraService } from '../ai/mastra.service';
 import { BankStatementService } from './bank-statement.service';
 import { BankImportJobRepository } from './bank-import-job.repository';
 import { buildBankIngestionWorkflow } from './bank-ingestion.workflow';
+import { sourceFingerprint } from './apply-rules';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
 import { DocumentStorageService } from '../documents/document-storage.service';
 import type { CreateStatementInput } from './bank-statement.types';
@@ -68,6 +69,13 @@ export class BankIngestionService {
   ): Promise<void> {
     try {
       const input = await this.runWorkflow(file.text, accountHint);
+      // The authoritative raw-source identity (issue #399): the fingerprint
+      // over the ORIGINAL buffer's FULL raw rows — mapped columns or not,
+      // byte-preserved (never the lossy UTF-8 re-decode of file.text). It
+      // travels with the statement so a merely-similar export (same mapped
+      // rows, different unmapped memo) is a DIFFERENT source, never silently
+      // collapsed into an "exact replay" of the first.
+      const fingerprint = sourceFingerprint(file.buffer);
       // The durable raw source: a BYTE-EXACT, BANK-OWNED archive of the
       // original upload, saved in the bank's own namespace and linked from
       // the statement row. Always the import's own copy — including when the
@@ -81,11 +89,23 @@ export class BankIngestionService {
         file.filename || 'statement.csv',
         file.buffer,
       );
-      const { statement } = await this.statements.createStatement({
+      const { statement, summary } = await this.statements.createStatement({
         ...input,
+        source_fingerprint: fingerprint,
         file_path: storagePath,
       });
-      await this.jobs.markDone(jobId, statement.id);
+      await this.jobs.markDone(jobId, statement.id, {
+        newCount: summary.newCount,
+        knownCount: summary.knownCount,
+        conflictCount: summary.conflictCount,
+        conflicts: summary.conflicts.map((c) => ({
+          id: c.id,
+          kind: c.kind,
+          external_id: c.external_id,
+          statement_id: c.statement_id,
+          source_row_number: c.source_row_number,
+        })),
+      });
 
       // Best-effort: auto-stage unambiguous high-confidence matches as drafts
       // (behind approvals). The import itself has already succeeded, so a
