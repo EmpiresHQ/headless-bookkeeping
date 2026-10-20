@@ -116,6 +116,7 @@ describe('IntakeWorkflowService', () => {
   const mockProposeDraft = {
     proposeDraft: jest.fn(),
     withdrawInvalidPurchaseDrafts: jest.fn(),
+    findChainPurchaseDraft: jest.fn(),
     findExistingDraft: jest.fn(),
     proposeSalesInvoiceDraft: jest.fn(),
     findExistingInvoiceDraft: jest.fn(),
@@ -262,6 +263,7 @@ describe('IntakeWorkflowService', () => {
     mockPass2Agent.classify.mockReset();
     mockProposeDraft.proposeDraft.mockReset();
     mockProposeDraft.withdrawInvalidPurchaseDrafts.mockReset();
+    mockProposeDraft.findChainPurchaseDraft.mockReset();
     mockProposeDraft.findExistingDraft.mockReset();
     mockProposeDraft.proposeSalesInvoiceDraft.mockReset();
     mockProposeDraft.findExistingInvoiceDraft.mockReset();
@@ -279,6 +281,9 @@ describe('IntakeWorkflowService', () => {
       markdown: '# Receipt\nSupplier: Test\nAmount: €15.25',
     });
     mockProposeDraft.findExistingDraft.mockResolvedValue(undefined);
+    // Default: no chain draft — details() reads classification from a linked
+    // Expense row by id, or falls to the persisted snapshot (issue #404).
+    mockProposeDraft.findChainPurchaseDraft.mockResolvedValue(undefined);
     mockProposeDraft.findExistingInvoiceDraft.mockResolvedValue(undefined);
     mockEntities.addIdentifierIfAbsent.mockResolvedValue(undefined);
     // Default org has no IBAN → ibanMatched is false → documents route to the
@@ -307,7 +312,7 @@ describe('IntakeWorkflowService', () => {
 
       // Seed a draft Expense linked to the document with AI classification facts.
       const now = Math.floor(Date.now() / 1000);
-      await db
+      const expenseId = await db
         .insertInto('expense')
         .values({
           document_id: docId,
@@ -325,7 +330,26 @@ describe('IntakeWorkflowService', () => {
           created_at: now,
           updated_at: now,
         })
-        .execute();
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+      // Issue #404: details() reads the linked Expense through the chain's
+      // authoritative identity selector — the doc's own resumable first row.
+      mockProposeDraft.findChainPurchaseDraft.mockResolvedValueOnce({
+        state: 'resumable',
+        id: expenseId,
+        supplier_id: null,
+        claimant_id: null,
+        category: 'transport',
+        gross_amount: 1525,
+        vat_amount: 285,
+        currency: 'EUR',
+        tax_point_date: '2026-03-15',
+        document_vat_marking: '23%',
+        supplier_invoice_number: null,
+        ai_confidence: 0.94,
+        ai_document_type: 'receipt',
+      });
 
       const details = await service.details(docId);
 
@@ -2019,6 +2043,9 @@ describe('IntakeWorkflowService', () => {
       const result = await service.getPendingDraft(docId);
 
       expect(result).toEqual({
+        // Issue #404: the held-draft view is a discriminated union keyed on
+        // `kind` — this is the supplier-proposal arm.
+        kind: 'supplier_proposal',
         document_id: docId,
         reason: 'supplier creation not yet implemented (Task 43)',
         supplier_proposal: {
@@ -2075,6 +2102,8 @@ describe('IntakeWorkflowService', () => {
       });
 
       const result = await service.getPendingDraft(docId);
+      expect(result.kind).toBe('supplier_proposal');
+      if (result.kind !== 'supplier_proposal') return;
 
       expect(mockEntities.resolveByIdentifier).toHaveBeenCalledWith(
         'registration_key',
@@ -2110,6 +2139,8 @@ describe('IntakeWorkflowService', () => {
         );
 
       const result = await service.getPendingDraft(docId);
+      expect(result.kind).toBe('supplier_proposal');
+      if (result.kind !== 'supplier_proposal') return;
 
       expect(result.supplier_proposal).toEqual({
         kind: 'invalid_match',

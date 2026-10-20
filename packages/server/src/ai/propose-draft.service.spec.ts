@@ -562,8 +562,15 @@ describe('ProposeDraftService (integration)', () => {
           supplier.id,
         );
 
-        // The duplicate gate still blocks the re-run… (healthy draft row kept)
-        expect(outcome.outcome).toBe('possible-duplicate');
+        // Issue #404: a re-run of the same document's healthy first draft
+        // RESUMES it — the fresh valid classification is applied to the SAME
+        // id through the validated draft-update path and the pipeline re-runs
+        // on it. Never a second row, never a duplicate-gate trip against the
+        // chain's own draft.
+        expect(outcome.outcome).toBe('draft');
+        if (outcome.outcome === 'draft') {
+          expect(outcome.expenseId).toBe(healthyId);
+        }
         const row = await db
           .selectFrom('expense')
           .select(['id', 'gross_amount'])
@@ -617,23 +624,32 @@ describe('ProposeDraftService (integration)', () => {
           })
           .execute();
 
-        expectDraft(
-          await service.proposeDraft(
-            {
-              ...sampleTriageResult(),
-              document_type: 'invoice',
-              gross_amount: 9100,
-              vat_amount: 0,
-              supplier_invoice_number: '5001799764',
-              supplier_proposal: {
-                mode: 'match',
-                match_entity_id: supplier.id,
-              },
+        // Issue #404: a chain whose rows are all already protected (posted,
+        // reversed, approval-pending) is never resumed, replaced or re-posted
+        // — the whole-chain guard surfaces the chain's actual protected state
+        // instead of minting a new draft.
+        const protectedOutcome = await service.proposeDraft(
+          {
+            ...sampleTriageResult(),
+            document_type: 'invoice',
+            gross_amount: 9100,
+            vat_amount: 0,
+            supplier_invoice_number: '5001799764',
+            supplier_proposal: {
+              mode: 'match',
+              match_entity_id: supplier.id,
             },
-            docId,
-            supplier.id,
-          ),
+          },
+          docId,
+          supplier.id,
         );
+        expect(protectedOutcome.outcome).toBe('chain-protected');
+        if (protectedOutcome.outcome === 'chain-protected') {
+          // More than one protected row — the chain's actual state is
+          // ambiguous, so it must be held, never silently replayed.
+          expect(protectedOutcome.ambiguous).toBe(true);
+          expect(protectedOutcome.expenseId).toBe(posted);
+        }
 
         // All three protected zero-gross rows survive the recovery run.
         const surviving = await db

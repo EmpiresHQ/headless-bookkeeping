@@ -25,6 +25,8 @@ import {
   SalesInvoicesService,
   isInvoiceNumberConflict,
 } from '../sales-invoices/sales-invoices.service';
+import { UnresolvedVatTreatmentError } from '../plugins/vat-treatment.errors';
+import type { MissingEntityFact } from '../triage/types';
 
 /** The posting pipeline's result shape (Rules → Policy → post/hold). */
 export type PipelineRunResult = Awaited<
@@ -161,6 +163,62 @@ export interface ReceiptMatchedResult {
 }
 
 /**
+ * The document chain's purchase draft state (issue #404). The WHOLE chain
+ * decides — every Expense minted from this document, any provenance (AI or
+ * operator): one purchase lives on one document. `resumable` — every row of
+ * the chain is still unposted and editable, and the FIRST row is the one a
+ * retry resumes. `protected` — some row of the chain has already been
+ * committed or is otherwise protected by its current state (posted,
+ * pending-approval, reversed, or carrying a voucher — including a LATER
+ * manual row): nothing may be minted, edited or re-posted as a replacement
+ * for it; the chain's actual booked state is surfaced instead. `ambiguous`
+ * — more than one protected row: no single actual state can be surfaced.
+ */
+export type ChainPurchaseDraft =
+  | {
+      state: 'resumable';
+      id: number;
+      supplier_id: number | null;
+      claimant_id: number | null;
+      category: string;
+      gross_amount: number;
+      vat_amount: number;
+      currency: string;
+      tax_point_date: string;
+      document_vat_marking: string | null;
+      supplier_invoice_number: string | null;
+      ai_confidence: number | null;
+      ai_document_type: string | null;
+    }
+  | {
+      state: 'protected';
+      id: number;
+      supplier_id: number | null;
+      status: string;
+      voucher_id: number | null;
+      /** True when more than one protected row makes the chain's actual
+       * booked state ambiguous — it must be held for review, not replayed. */
+      ambiguous: boolean;
+    };
+
+/**
+ * Returned when some row of the document chain is already committed or
+ * protected by its current state (issue #404): posted, held for approval,
+ * reversed, or carrying a voucher — including a later MANUAL row. Nothing is
+ * minted, edited or re-posted — the caller surfaces the chain's actual
+ * booked state (or, when ambiguous, an honest hold) and never a replacement.
+ */
+export interface ChainProtectedResult {
+  outcome: 'chain-protected';
+  /** The chain's protected object whose actual state stands. */
+  expenseId: number;
+  status: string;
+  voucherId: number | null;
+  /** More than one protected row: the chain's actual state is ambiguous. */
+  ambiguous: boolean;
+}
+
+/**
  * Discriminated outcome of a fresh proposeDraft call: either a created draft
  * or an explicit "supplier could not be resolved, route to triage" signal, an
  * explicit "category not in the active plugin's category set, route to
@@ -189,7 +247,8 @@ export type ProposeDraftOutcome =
   | CategoryUnresolvedResult
   | PossibleDuplicateResult
   | ReceiptMatchedResult
-  | EvidenceInvalidResult;
+  | EvidenceInvalidResult
+  | ChainProtectedResult;
 
 /**
  * Result the workflow's idempotency replay surfaces — either a fresh run or a
@@ -400,6 +459,78 @@ export class ProposeDraftService {
     // the recovered healthy draft. Doc-local, protected and audited; see
     // {@link withdrawInvalidPurchaseDrafts}.
     await this.withdrawInvalidPurchaseDrafts(documentId);
+
+    // ── The document chain's first draft decides (issue #404) ──
+    // A retry of a document whose first pass already minted a draft must
+    // RESUME that draft — apply the fresh valid classification to it through
+    // the normal validated draft-update path (ExpensesService.updateDraft)
+    // and re-run the pipeline on it — never mint a second Expense for the
+    // same chain and never trip the duplicate gate against the chain's own
+    // rows. A first row already protected by its current state (posted,
+    // pending-approval, reversed) is never replaced: the chain's actual
+    // outcome is replayed instead. A genuinely NEW document (a vendor
+    // re-send) has no chain here, so it keeps the full create +
+    // duplicate-gate path below untouched.
+    const chain =
+      documentId != null
+        ? await this.findChainPurchaseDraft(documentId)
+        : undefined;
+    if (chain?.state === 'resumable') {
+      const patch = {
+        category: triageResult.category,
+        ...(resolvedSupplierId != null
+          ? { supplier_id: resolvedSupplierId }
+          : {}),
+        gross_amount: triageResult.gross_amount,
+        vat_amount: triageResult.vat_amount,
+        currency: triageResult.currency,
+        tax_point_date: triageResult.tax_point_date,
+        supplier_invoice_number: triageResult.supplier_invoice_number,
+        claimant_id: claimantId ?? null,
+        company_addressed_receipt:
+          triageResult.company_addressed_receipt ?? null,
+      };
+      let resumed;
+      try {
+        resumed = await this.expensesService.updateDraft(chain.id, patch);
+      } catch (e) {
+        if (!(e instanceof DuplicateExpenseException)) throw e;
+        // The fresh classification's key collides with ANOTHER document's
+        // expense (the chain's own rows are excluded by the update path's
+        // self-exclusion, issue #404) — a genuine suspected duplicate for a
+        // human, exactly like the create path below.
+        return {
+          outcome: 'possible-duplicate' as const,
+          reason: e.message,
+          existingExpenseId: e.existingExpenseId,
+        };
+      }
+      const pipelineResult = await this.postingPipelineService.runPipeline({
+        businessObjectId: resumed.id,
+        businessObjectType: 'expense',
+        draftGenerator: () =>
+          this.expensesService.generateDraftVoucher(resumed.id),
+        assertFactsUnchanged: await this.expenseFactsGuard(resumed.id),
+        category: resumed.category,
+        refetch: () => this.expensesService.getExpenseById(resumed.id),
+        confidence: triageResult.confidence,
+        supplierKnown: resolvedSupplierId !== null,
+      });
+      await this.writeAiProvenance(resumed.id, triageResult);
+      return { outcome: 'draft', expenseId: resumed.id, pipelineResult };
+    }
+    if (chain?.state === 'protected') {
+      // Some row of the chain is already committed or protected — a posted
+      // voucher, an open approval, a reversal, including a later MANUAL row.
+      // Nothing here may mint, edit or re-post a replacement for it.
+      return {
+        outcome: 'chain-protected',
+        expenseId: chain.id,
+        status: chain.status,
+        voucherId: chain.voucher_id,
+        ambiguous: chain.ambiguous,
+      };
+    }
 
     // Step 1: Create the Expense via ExpensesService. The duplicate gate lives
     // THERE (issue #195), at the single choke point every creation path goes
@@ -958,6 +1089,101 @@ export class ProposeDraftService {
   }
 
   /**
+   * Find the document chain's purchase draft state (issue #404): EVERY
+   * Expense minted from this document is inspected — any provenance (the
+   * AI path's own rows AND a later operator/manual row) — because one
+   * purchase lives on one document chain. `resumable` — every row is still
+   * unposted and editable, and the FIRST row is the one a retry resumes
+   * (the chain's earliest record carries the authoritative facts). Any
+   * committed/protected row (voucher, pending-approval, posted, reversed)
+   * makes the WHOLE chain `protected`: a later editable row is NEVER
+   * selected, updated or posted in its place — no second posting for one
+   * purchase, no approval reset. More than one protected row is `ambiguous`.
+   *
+   * Public because the intake workflow's missing-fact view and confirmation
+   * read the same authoritative persisted chain facts this seam owns.
+   */
+  async findChainPurchaseDraft(
+    documentId: number,
+  ): Promise<ChainPurchaseDraft | undefined> {
+    const rows = await this.db
+      .selectFrom('expense')
+      .select([
+        'id',
+        'supplier_id',
+        'claimant_id',
+        'category',
+        'gross_amount',
+        'vat_amount',
+        'currency',
+        'tax_point_date',
+        'document_vat_marking',
+        'supplier_invoice_number',
+        'ai_confidence',
+        'ai_document_type',
+        'status',
+        'voucher_id',
+      ])
+      .where('document_id', '=', documentId)
+      .orderBy('id', 'asc')
+      .execute();
+    if (rows.length === 0) return undefined;
+
+    const protectedRows = rows.filter(
+      (row) => row.voucher_id != null || row.status !== 'draft',
+    );
+    if (protectedRows.length > 0) {
+      const first = protectedRows[0];
+      return {
+        state: 'protected',
+        id: first.id,
+        supplier_id: first.supplier_id,
+        status: first.status,
+        voucher_id: first.voucher_id,
+        ambiguous: protectedRows.length > 1,
+      };
+    }
+
+    // Every row of the chain is still an unposted editable draft — the
+    // FIRST row is the chain's authoritative record and the one resumed.
+    const first = rows[0];
+    return { state: 'resumable', ...first };
+  }
+
+  /**
+   * Which missing supplier fact the ACTUAL kernel gate still requires for
+   * this document's resumable chain draft (issue #404): a dry-run of the
+   * REAL draft-voucher generator (the same kernel seam the retry pipeline
+   * runs), read through its typed {@link UnresolvedVatTreatmentError} gate —
+   * never a re-implementation of the country plugin's branching (which fact
+   * comes first, when a recorded fact means "unsupported" rather than
+   * "missing") — so the view and the confirmation always ask for exactly
+   * the fact the plugin will actually refuse on.
+   *
+   * Null when the kernel does not ask for a fact of this family: the draft
+   * generates (nothing missing), the chain is protected or absent, or the
+   * refusal is an honest non-missing-fact hold (e.g. a recorded non-taxable
+   * supplier whose correct treatment is not auto-classified).
+   */
+  async requiredMissingSupplierFact(
+    documentId: number,
+  ): Promise<MissingEntityFact | null> {
+    const chain = await this.findChainPurchaseDraft(documentId);
+    if (chain?.state !== 'resumable') return null;
+    try {
+      await this.expensesService.generateDraftVoucher(chain.id);
+      return null;
+    } catch (e) {
+      if (e instanceof UnresolvedVatTreatmentError) {
+        if (e.code === 'supplier_tax_status_unknown') return 'taxStatus';
+        if (e.code === 'acquisition_supply_type_unknown')
+          return 'goodsVsServices';
+      }
+      return null;
+    }
+  }
+
+  /**
    * Find an Expense already drafted from a Document, if any. Used by the
    * IntakeWorkflowService idempotency guard to replay an already-triaged
    * Document's draft instead of creating a second one. Returns the lightweight
@@ -967,20 +1193,22 @@ export class ProposeDraftService {
   async findExistingDraft(
     documentId: number,
   ): Promise<DraftReplayResult | undefined> {
-    const expense = await this.db
-      .selectFrom('expense')
-      .select('id')
-      .where('document_id', '=', documentId)
-      .orderBy('id', 'asc')
-      .executeTakeFirst();
-
-    if (!expense) {
+    // The chain's AUTHORITATIVE record (issue #404): the protected/booked
+    // row when the chain has one (never the older editable row it would
+    // switch back to under a plain ORDER BY id), else the chain's first row.
+    // An ambiguous chain (more than one protected row) has no single actual
+    // record to replay — undefined lets the caller re-route and hold it.
+    const chain = await this.findChainPurchaseDraft(documentId);
+    if (!chain) {
+      return undefined;
+    }
+    if (chain.state === 'protected' && chain.ambiguous) {
       return undefined;
     }
 
     return {
       outcome: 'draft',
-      expenseId: expense.id,
+      expenseId: chain.id,
       // The pipeline already ran on the original pass; a replay does not
       // re-post. `replayed` marks this as an idempotent surfacing, not a
       // fresh pipeline run.

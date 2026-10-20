@@ -159,6 +159,8 @@ export type DocumentChannel =
 
 export type TriageReasonType =
   | 'supplier_unresolved'
+  | 'supplier_tax_status_unknown'
+  | 'supplier_goods_vs_services_unknown'
   | 'outgoing_invoice'
   | 'low_confidence'
   | 'category_unresolved'
@@ -1036,7 +1038,12 @@ export type PendingSupplierProposal =
       suggested_supplier: SuggestedSupplier | null;
     };
 
+/** The one missing-entity-fact family (issue #404): which supplier fact
+ *  the kernel gate asked for before it can classify the purchase. */
+export type MissingEntityFact = 'taxStatus' | 'goodsVsServices';
+
 export interface PendingDraft {
+  kind: 'supplier_proposal';
   document_id: number;
   reason: string;
   supplier_proposal: PendingSupplierProposal;
@@ -1050,8 +1057,67 @@ export interface PendingDraft {
   };
 }
 
+/**
+ * The typed view of a missing-entity-fact hold (issue #404): the supplier IS
+ * resolved (matched, named, with its country) — only one of its facts is
+ * missing. The doc screen renders supplier + fact controls from THIS typed
+ * data, never by parsing the hold prose.
+ */
+export interface MissingEntityFactDraft {
+  kind: 'missing_entity_fact';
+  document_id: number;
+  reason: string;
+  fact: MissingEntityFact;
+  supplier: {
+    id: number;
+    name: string;
+    country: string;
+  };
+  draft: {
+    category: string;
+    gross_amount: number;
+    vat_amount: number;
+    currency: string;
+    tax_point_date: string;
+    supplier_invoice_number: string | null;
+  };
+}
+
+/** Any held document's pending-draft view (issue #404 union). */
+export type AnyPendingDraft = PendingDraft | MissingEntityFactDraft;
+
 export const getPendingDraft = (id: number) =>
-  apiFetch<PendingDraft>(`/api/documents/${id}/pending-draft`);
+  apiFetch<AnyPendingDraft>(`/api/documents/${id}/pending-draft`);
+
+/**
+ * The result of the one-interaction missing-fact confirmation (issue #404).
+ * `fact_saved` is an OPERATION RESULT: the fact was recorded on the supplier
+ * through the legitimate entity-update path — it stays true even when
+ * `outcome` still parks the document on the next genuine gate. The UI must
+ * report both truths; a saved fact is never a posting claim.
+ */
+export interface ConfirmEntityFactResult {
+  document_id: number;
+  entity_id: number | null;
+  fact: MissingEntityFact;
+  value: string;
+  fact_saved: boolean;
+  outcome: TriageOutcome;
+}
+
+export const confirmEntityFact = (
+  id: number,
+  fact: MissingEntityFact,
+  value: string,
+) =>
+  apiFetch<ConfirmEntityFactResult>(
+    `/api/documents/${id}/confirm-entity-fact`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fact, value }),
+    },
+  );
 
 export const resolveSupplier = (id: number, supplierEntityId: number) =>
   apiFetch<TriageOutcome>(`/api/documents/${id}/resolve-supplier`, {

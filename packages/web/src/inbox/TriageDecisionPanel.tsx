@@ -18,9 +18,27 @@ import type { PendingOperation } from '../lib/pendingOperation';
 import { inboxKeys } from '../queries/inbox';
 import { Button } from '../ui/Button';
 import { toastErr } from '../ui/toast';
+import { MissingEntityFactPanel } from './MissingEntityFactPanel';
 import { SupplierDecisionPanel } from './SupplierDecisionPanel';
 
 type SheetKind = 'resolve' | 'classify' | 'invoice' | 'ocr' | 'duplicate';
+
+/** The reason types a held DRAFT can sit under (issue #404): the
+ * pending-draft view is fetched for these, and the view itself says which
+ * family owns the document. Includes the legacy generic buckets a pre-fix
+ * missing-fact hold was mis-classified under — AND possible_duplicate,
+ * because a pre-fix hold's retry could re-bucket the document as a
+ * "duplicate" of its OWN first draft (production docs 260/284): the typed
+ * view is the authoritative check, and a 404 (a genuine different-document
+ * duplicate) keeps the ordinary duplicate-review path unchanged. */
+const HELD_DRAFT_REASON_TYPES: readonly string[] = [
+  'supplier_unresolved',
+  'supplier_tax_status_unknown',
+  'supplier_goods_vs_services_unknown',
+  'classification_failed',
+  'unknown',
+  'possible_duplicate',
+];
 
 interface Props {
   documentId: number;
@@ -39,6 +57,17 @@ const COPY = {
   supplier_unresolved: [
     'Supplier could not be confirmed',
     'Confirm who issued this document before the expense is booked.',
+  ],
+  // One missing-entity-fact family (issue #404): the supplier IS resolved
+  // (matched, named); only one of its facts is not recorded. Both variants
+  // get the same one-interaction confirmation panel.
+  supplier_tax_status_unknown: [
+    'Supplier known — one fact missing',
+    'The supplier is matched. Confirm whether it is a taxable business, and the document continues automatically.',
+  ],
+  supplier_goods_vs_services_unknown: [
+    'Supplier known — one fact missing',
+    'The supplier is matched. Confirm whether it supplies goods or services, and the document continues automatically.',
   ],
   low_confidence: [
     'Review the extracted expense',
@@ -92,11 +121,6 @@ const COPY = {
 
 export function TriageDecisionPanel(props: Props) {
   const busy = props.op.pending;
-  const draftQ = useQuery({
-    queryKey: inboxKeys.pendingDraft(props.documentId),
-    queryFn: () => getPendingDraft(props.documentId),
-    enabled: props.item.reason_type === 'supplier_unresolved',
-  });
   // API responses can contain newer, missing or invalid reason codes.
   const reasonType = Object.prototype.hasOwnProperty.call(
     COPY,
@@ -104,6 +128,29 @@ export function TriageDecisionPanel(props: Props) {
   )
     ? props.item.reason_type
     : 'unknown';
+  // The held-draft view is fetched for every reason a held DRAFT can sit
+  // under (issue #404): the supplier-unresolved family, the two typed
+  // missing-entity-fact reasons, AND the legacy buckets a pre-fix hold
+  // carried (a generic classification_failed / unknown finding) — the view
+  // itself says which family owns the document, so a pre-fix hold is
+  // actionable without an extra Retry.
+  const fetchesHeldDraft = HELD_DRAFT_REASON_TYPES.includes(reasonType);
+  // A TYPED missing-fact reason owns the decision panel even while its view
+  // is loading or failed to load (issue #404): the fact panel carries its
+  // own loading and error states. A legacy generic bucket stays on its
+  // ordinary decision until the typed view itself says this family owns
+  // the document.
+  const typedMissingFactReason =
+    reasonType === 'supplier_tax_status_unknown' ||
+    reasonType === 'supplier_goods_vs_services_unknown';
+  const draftQ = useQuery({
+    queryKey: inboxKeys.pendingDraft(props.documentId),
+    queryFn: () => getPendingDraft(props.documentId),
+    enabled: fetchesHeldDraft,
+    // A 404 is an expected outcome for holds this view does not own —
+    // not an error state to surface.
+    retry: false,
+  });
   const [title, subtitle] = COPY[reasonType];
 
   const resolveSuggested = (draft: PendingDraft) => {
@@ -147,14 +194,37 @@ export function TriageDecisionPanel(props: Props) {
         </div>
       </div>
 
-      {props.item.reason_type === 'supplier_unresolved' ? (
+      {draftQ.data?.kind === 'missing_entity_fact' ||
+      (typedMissingFactReason && (draftQ.isPending || draftQ.error != null)) ? (
+        // The missing-entity-fact family (issue #404), including pre-fix
+        // holds mis-bucketed under a legacy generic reason: the typed view
+        // says this family owns the document, so the supplier + fact panel
+        // renders regardless of the finding's reason_type.
+        <MissingEntityFactPanel
+          documentId={props.documentId}
+          draft={
+            draftQ.data?.kind === 'missing_entity_fact'
+              ? draftQ.data
+              : undefined
+          }
+          pending={draftQ.isPending}
+          error={draftQ.error}
+          busy={busy}
+          op={props.op}
+          onRetry={props.onRetry}
+          onResolved={props.onResolved}
+        />
+      ) : props.item.reason_type === 'supplier_unresolved' ? (
         <SupplierDecisionPanel
-          draft={draftQ.data}
+          draft={
+            draftQ.data?.kind === 'supplier_proposal' ? draftQ.data : undefined
+          }
           pending={draftQ.isPending}
           error={draftQ.error}
           busy={busy}
           onResolve={() => {
-            if (draftQ.data) resolveSuggested(draftQ.data);
+            if (draftQ.data?.kind === 'supplier_proposal')
+              resolveSuggested(draftQ.data);
           }}
           onChoose={() => props.onOpen('resolve')}
         />
@@ -176,6 +246,11 @@ function GenericDecision(
   props: Props & { reasonType: NeedsTriageItem['reason_type'] },
 ) {
   const actions = {
+    // The missing-entity-fact family (issue #404) normally renders the
+    // dedicated fact panel instead; this is the fallback when the view is
+    // unavailable — retry the AI run.
+    supplier_tax_status_unknown: ['Retry AI', 'classify', RefreshCw],
+    supplier_goods_vs_services_unknown: ['Retry AI', 'classify', RefreshCw],
     low_confidence: ['Review extracted data', 'classify', FileSearch],
     category_unresolved: ['Choose category', 'classify', FileSearch],
     outgoing_invoice: ['Review sales invoice', 'invoice', ReceiptText],

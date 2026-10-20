@@ -12,9 +12,23 @@ import {
   DocumentDebug,
   ManualClassifyDto,
   NeedsTriageItem,
+  ConfirmEntityFactDto,
+  MissingEntityFact,
   resolveReasonType,
 } from './types';
-import type { PendingDraft } from './pending-draft';
+import type { AnyPendingDraft } from './pending-draft';
+
+/** The HTTP-facing confirmation result (issue #404): the operation result
+ * (fact_saved — the fact was recorded on the entity) alongside the CURRENT
+ * processing outcome (posted, or held on the next genuine gate). */
+export interface ConfirmEntityFactResponse {
+  document_id: number;
+  entity_id: number | null;
+  fact: MissingEntityFact;
+  value: string;
+  fact_saved: boolean;
+  outcome: TriageOutcome;
+}
 
 /**
  * TriageService — the thin HTTP-facing entry into the intake spine.
@@ -162,8 +176,41 @@ export class TriageService {
     return this.workflow.details(documentId);
   }
 
-  /** Operator-facing view of a supplier-unresolved document (404 if none). */
-  async getPendingDraft(documentId: number): Promise<PendingDraft> {
+  /**
+   * The one-interaction confirmation of a missing entity fact (issue #404):
+   * record the operator's chosen fact through the legitimate entity-update
+   * path and resume intake for the document chain. The response reports the
+   * OPERATION RESULT (`fact_saved`) and the CURRENT processing outcome
+   * separately — a saved fact that still parks on the next genuine gate is
+   * reported as exactly that, never as a posting.
+   */
+  async confirmEntityFact(
+    documentId: number,
+    dto: ConfirmEntityFactDto,
+  ): Promise<ConfirmEntityFactResponse> {
+    const doc = await this.documents.getById(documentId);
+    if (!doc) {
+      throw new NotFoundException(`Document ${documentId} not found`);
+    }
+    const result = await this.workflow.confirmEntityFact(
+      documentId,
+      dto.fact as MissingEntityFact,
+      dto.value,
+    );
+    return {
+      document_id: result.document_id,
+      entity_id: result.entity_id,
+      fact: result.fact,
+      value: result.value,
+      fact_saved: result.fact_saved,
+      outcome: this.toTriageOutcome(documentId, result.outcome),
+    };
+  }
+
+  /** Operator-facing view of a HELD document (404 if none) — the
+   * supplier-unresolved proposal or the missing-entity-fact family's typed
+   * supplier + fact view (issue #404). */
+  async getPendingDraft(documentId: number): Promise<AnyPendingDraft> {
     await this.documents.getById(documentId); // 404 if the document is unknown
     return this.workflow.getPendingDraft(documentId);
   }

@@ -278,6 +278,8 @@ export interface DocumentDebug {
 
 export type TriageReasonType =
   | 'supplier_unresolved'
+  | 'supplier_tax_status_unknown'
+  | 'supplier_goods_vs_services_unknown'
   | 'outgoing_invoice'
   | 'low_confidence'
   | 'category_unresolved'
@@ -291,6 +293,33 @@ export type TriageReasonType =
   | 'possible_duplicate'
   | 'unknown';
 
+/**
+ * The one missing-entity-fact family (issue #404): a foreign supplier's
+ * entity fact the country plugin needs before it can decide the VAT
+ * treatment of a purchase. `taxStatus` (EU: is the supplier a taxable
+ * person of another member state?) and `goodsVsServices` (non-EU: is the
+ * supply an import or a self-assessed service?) are the two facts the
+ * reverse-charge provenance rule asks for; both are resolved through the
+ * same one-interaction operator confirmation.
+ */
+export type MissingEntityFact = 'taxStatus' | 'goodsVsServices';
+
+/**
+ * The operator's one-interaction confirmation of a missing entity fact
+ * (issue #404): which fact, and the chosen value. The value is validated
+ * against the fact's legitimate choices server-side (`taxStatus`:
+ * taxable_business | non_taxable; `goodsVsServices`: goods | services) —
+ * 'unknown' is the absence of the fact, never a confirmation of it.
+ */
+export const confirmEntityFactSchema = z.object({
+  fact: z.enum(['taxStatus', 'goodsVsServices']),
+  value: z.string().min(1),
+});
+
+export class ConfirmEntityFactDto extends createZodDto(
+  confirmEntityFactSchema,
+) {}
+
 export interface NeedsTriageItem {
   id: number;
   filename: string;
@@ -301,6 +330,8 @@ export interface NeedsTriageItem {
 
 export const TRIAGE_REASON_TYPES: readonly TriageReasonType[] = [
   'supplier_unresolved',
+  'supplier_tax_status_unknown',
+  'supplier_goods_vs_services_unknown',
   'outgoing_invoice',
   'low_confidence',
   'category_unresolved',
@@ -380,6 +411,14 @@ export function classifyReasonType(description: string): TriageReasonType {
   // generic hidden-details classification-failed branch.
   if (description.startsWith('AI purchase extraction is invalid'))
     return 'evidence_invalid';
+  // The missing-entity-fact hold family (issue #404), legacy rows only: rows
+  // held BEFORE the typed reason existed carry the plugin's hold sentence.
+  // Checked BEFORE the supplier bucket because that sentence names the
+  // supplier — the supplier IS resolved; only the entity fact is missing.
+  if (description.includes('tax status is not recorded'))
+    return 'supplier_tax_status_unknown';
+  if (description.includes('goods or services is not recorded'))
+    return 'supplier_goods_vs_services_unknown';
   // A Pass-2 (AI classification/enrichment) failure — the file and OCR are
   // fine, only the agent classification failed. Checked BEFORE the supplier /
   // OCR buckets because pass2FailureReason details interpolate raw error text
