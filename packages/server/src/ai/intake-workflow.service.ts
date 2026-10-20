@@ -417,6 +417,12 @@ export class IntakeWorkflowService {
             'tax_point_date',
             'document_vat_marking',
             'supplier_invoice_number',
+            // The recorded place-of-supply facts (issue #403): the details
+            // view is the AUTHORITY a reopened manual-classify sheet prefills
+            // from — omitting them would make the sheet default to General and
+            // a resume silently clear a saved local treatment.
+            'service_place_rule',
+            'place_of_supply_country',
             'ai_confidence',
             'ai_document_type',
             'ai_kind',
@@ -481,6 +487,13 @@ export class IntakeWorkflowService {
           category: expense.category,
           document_vat_marking: expense.document_vat_marking,
           supplier_invoice_number: expense.supplier_invoice_number,
+          // The recorded place-of-supply facts (issue #403): prefilled by the
+          // reopened manual sheet so an UNTOUCHED form re-sends the SAVED
+          // declaration (an explicit 'General' choice is the only clear).
+          // NULL rule ⇒ the residual general rule.
+          service_place_rule: (expense.service_place_rule ??
+            'general') as TriageResult['service_place_rule'],
+          place_of_supply_country: expense.place_of_supply_country,
           // Fields not stored on the Expense — supply safe defaults.
           outgoing_signals: {
             org_name_is_issuer: false,
@@ -736,20 +749,7 @@ export class IntakeWorkflowService {
       // made up. Reporting it as an unforeseen fault would bury the one piece
       // of information that makes it fixable.
       if (err instanceof FxRateUnavailableError) {
-        this.logger.warn(
-          `Document ${documentId} held: ${err.message} ` +
-            `(reason=${err.reason}, retryable=${String(err.retryable)})`,
-        );
-        return this.routeNeedsTriage(
-          documentId,
-          err.retryable
-            ? `Currency conversion is on hold: the ${err.fromCurrency}→${err.toCurrency} ` +
-                `reference rate for ${err.date} could not be fetched right now ` +
-                `(${err.detail}). Retry once the rate source is reachable.`
-            : `Cannot value this document: no authoritative ${err.fromCurrency}→${err.toCurrency} ` +
-                `reference rate governs ${err.date} (${err.detail}). Confirm the ` +
-                `currency and tax-point date, or book it manually.`,
-        );
+        return this.routeFxRateHold(documentId, err);
       }
 
       // A supply whose VAT treatment the recorded facts cannot decide (issue
@@ -1125,8 +1125,16 @@ export class IntakeWorkflowService {
         'No org IBAN configured; bank import will run without an account hint',
       );
     }
+    // The document's exact stored bytes feed the import; the import saves
+    // its OWN byte-exact, bank-owned archive of them (issue #403) — the
+    // document's lifetime stays its own, and the imported statement's raw
+    // source survives the document being deleted mid-import or after.
     const { jobId } = await this.bankIngestion.startImport(
-      file.buffer.toString('utf-8'),
+      {
+        text: file.buffer.toString('utf-8'),
+        buffer: file.buffer,
+        filename: file.filename,
+      },
       org.iban ?? '',
     );
     await this.documents.setStatus(documentId, 'processed');
@@ -1388,10 +1396,47 @@ export class IntakeWorkflowService {
       };
     }
 
-    const outcome = await this.proposeDraft.manualClassifyDraft(
-      documentId,
-      dto,
-    );
+    // A missing reference rate is an EXPECTED outcome here too (issue #403):
+    // the automatic path parks such a document with a typed, actionable hold;
+    // the manual path used to let the error escape as an opaque 500. Same
+    // typed hold, same actionable reason — the expense (if any was minted)
+    // stays an unposted draft and the document stays in needs_triage.
+    let outcome: Awaited<
+      ReturnType<typeof this.proposeDraft.manualClassifyDraft>
+    >;
+    try {
+      outcome = await this.proposeDraft.manualClassifyDraft(documentId, dto);
+    } catch (err) {
+      if (err instanceof FxRateUnavailableError) {
+        this.logger.warn(
+          `Manual classify for document ${documentId} held: ${err.message} ` +
+            `(reason=${err.reason}, retryable=${String(err.retryable)})`,
+        );
+        return this.routeFxRateHold(documentId, err);
+      }
+      throw err;
+    }
+    if (outcome.outcome === 'chain-protected') {
+      // The chain already has a committed/protected row — surface its actual
+      // state, never a replacement (issue #404 shape, applied to the manual
+      // path by #403's idempotent-retry work).
+      this.logger.warn(
+        `Manual classify for document ${documentId} refused: chain's expense ` +
+          `#${outcome.expenseId} is protected (${outcome.status}${outcome.ambiguous ? ', ambiguous chain' : ''})`,
+      );
+      return this.routeNeedsTriage(
+        documentId,
+        outcome.ambiguous
+          ? `This document's expense chain is ambiguous (more than one protected row) — held for human review. Nothing was re-booked.`
+          : `This document's expense #${outcome.expenseId} is already ${outcome.status}${outcome.voucherId ? ` (voucher ${outcome.voucherId})` : ''} — its state stands. Reverse or complete that flow instead of re-classifying.`,
+      );
+    }
+    if (outcome.outcome === 'possible-duplicate') {
+      this.logger.warn(
+        `Manual classify for document ${documentId} refused (possible-duplicate): ${outcome.reason}`,
+      );
+      return this.routeNeedsTriage(documentId, outcome.reason);
+    }
     await this.settleManualClassify(documentId);
     return { status: 'draft_proposed', draft: outcome };
   }
@@ -1944,6 +1989,34 @@ export class IntakeWorkflowService {
       `The AI classified this document as a possible duplicate of an expense ` +
       `already recorded, but the deterministic key found no matching expense. ` +
       `Nothing was booked — held for human review.`
+    );
+  }
+
+  /**
+   * The typed, actionable hold for a document that cannot be valued because no
+   * authoritative reference rate governs its currency/date (issue #203), and —
+   * when bank-settlement evidence exists but is unusable — what is wrong with
+   * THAT evidence (issue #403: the diagnosis names the bank line and why its
+   * figures were refused). Shared by the automatic intake path and the manual
+   * classification path so both surface the same actionable outcome.
+   */
+  private async routeFxRateHold(
+    documentId: number,
+    err: FxRateUnavailableError,
+  ): Promise<IntakeWorkflowResult> {
+    this.logger.warn(
+      `Document ${documentId} held: ${err.message} ` +
+        `(reason=${err.reason}, retryable=${String(err.retryable)})`,
+    );
+    return this.routeNeedsTriage(
+      documentId,
+      err.retryable
+        ? `Currency conversion is on hold: the ${err.fromCurrency}→${err.toCurrency} ` +
+            `reference rate for ${err.date} could not be fetched right now ` +
+            `(${err.detail}). Retry once the rate source is reachable.`
+        : `Cannot value this document: no authoritative ${err.fromCurrency}→${err.toCurrency} ` +
+            `reference rate governs ${err.date} (${err.detail}). Confirm the ` +
+            `currency and tax-point date, or book it manually.`,
     );
   }
 

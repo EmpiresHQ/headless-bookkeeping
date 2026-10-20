@@ -82,6 +82,25 @@ export interface DraftVoucher {
   measured_basis?: OrganizationBasisRow;
   tax_point_date: string;
   lines: DraftVoucherLine[];
+  /**
+   * The bank settlement line THIS draft's valuation actually used (issue
+   * #403) — transient projection metadata, set only when the draft booked
+   * the bank's own rate (`fx_rate_source = 'bank_statement'` on its lines),
+   * and carrying the concrete evidence identity (bank transaction +
+   * statement) of THIS valuation, not the lifetime history of valuations
+   * the expense may have gone through. The posting transaction's guard
+   * revalidates THIS line — it must still exist and still be an open,
+   * unallocated settlement at post time — because a whole-line disposition
+   * (a personal spend) or a statement deletion can land between the draft
+   * generation and the post, and the claim (which cascades with the
+   * statement) or the append-only valuation audit (deduplicated per
+   * valuation) cannot say WHICH evidence this particular prepared draft
+   * used. A reference-valued draft omits it.
+   */
+  bank_settlement?: {
+    bankTransactionId: number;
+    statementId: number;
+  };
   reverses_id?: number;
   corrects_object_type?: string;
   corrects_object_id?: number;

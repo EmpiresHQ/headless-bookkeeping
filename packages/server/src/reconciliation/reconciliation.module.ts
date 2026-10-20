@@ -19,6 +19,8 @@ import { PrepaymentService } from './prepayment.service';
 import { PrepaymentController } from './prepayment.controller';
 import { PersonalDispositionService } from './personal-disposition.service';
 import { PersonalDispositionController } from './personal-disposition.controller';
+import { BankFeeDispositionService } from './bank-fee-disposition.service';
+import { BankFeeDispositionController } from './bank-fee-disposition.controller';
 import { FXRealizedService } from './fx-realized.service';
 import { SettlementVoucherService } from './settlement-voucher.service';
 import { FXRealizedController } from './fx-realized.controller';
@@ -41,6 +43,7 @@ import { FXRealizedController } from './fx-realized.controller';
     OutstandingVoucherService,
     PrepaymentService,
     PersonalDispositionService,
+    BankFeeDispositionService,
     FXRealizedService,
     SettlementVoucherService,
   ],
@@ -49,6 +52,7 @@ import { FXRealizedController } from './fx-realized.controller';
     ReconciliationMatchController,
     PrepaymentController,
     PersonalDispositionController,
+    BankFeeDispositionController,
     FXRealizedController,
   ],
   exports: [ReconciliationService],

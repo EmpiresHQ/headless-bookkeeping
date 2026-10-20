@@ -16,6 +16,11 @@ import { useCategories, useEntities } from '../queries/shared';
 import { Button } from '../ui/Button';
 import { Field, SelectInput, TextInput } from '../ui/Form';
 import { Sheet } from '../ui/Sheet';
+import {
+  declaredPlaceRule,
+  normalizePlaceCountry,
+  PlaceOfSupplyControls,
+} from '../ui/PlaceOfSupplyControls';
 import { toastOk } from '../ui/toast';
 
 /**
@@ -258,6 +263,13 @@ export function ExpenseEditSheet({
         ? 'yes'
         : 'no',
   );
+  // Place-of-supply declaration (issue #403): a local foreign purchase
+  // (accommodation, a restaurant meal) carries the supplier's own VAT; the
+  // operator declares WHICH rule governs it and WHERE it took place.
+  const [placeRule, setPlaceRule] = useState(detail.service_place_rule ?? '');
+  const [placeCountry, setPlaceCountry] = useState(
+    detail.place_of_supply_country ?? '',
+  );
   // Both the duplicate refusal and the operator's "save anyway" consent are
   // bound to the exact duplicate-key VALUES they were given for (server:
   // supplier, invoice no., currency, gross, date, claimant). Change any of
@@ -277,6 +289,8 @@ export function ExpenseEditSheet({
     invoiceNo,
     claimantId,
     receipt,
+    placeRule,
+    placeCountry,
   };
   // Seeded once from `detail` (initializers above) — frozen alike.
   const [baseline] = useState(values);
@@ -322,6 +336,21 @@ export function ExpenseEditSheet({
       claimant_id: claimantId === '' ? null : Number(claimantId),
       company_addressed_receipt:
         receipt === '' ? null : receipt === 'yes' ? true : false,
+      // The declaration is ALWAYS sent (issue #403): 'general' is the
+      // server's explicit CLEAR of a previously declared exception — omitting
+      // the fields would silently preserve an obsolete local classification
+      // on a re-edited draft.
+      // Always sent — 'general' is the explicit CLEAR of an obsolete
+      // declared exception (issue #403); an unrelated edit PRESERVES a
+      // stored rule the select does not offer.
+      service_place_rule: declaredPlaceRule(
+        placeRule,
+        detail.service_place_rule,
+      ),
+      place_of_supply_country:
+        placeRule !== '' && placeCountry.trim() !== ''
+          ? normalizePlaceCountry(placeCountry)
+          : null,
       ...(allowDuplicate ? { allow_duplicate: true } : {}),
     };
     const started = op.run(
@@ -442,6 +471,13 @@ export function ExpenseEditSheet({
             </SelectInput>
           </Field>
         )}
+        <PlaceOfSupplyControls
+          placeRule={placeRule}
+          onPlaceRuleChange={setPlaceRule}
+          placeCountry={placeCountry}
+          onPlaceCountryChange={setPlaceCountry}
+          storedRule={detail.service_place_rule}
+        />
       </fieldset>
       <LookupRetry queries={[categoriesQ, entitiesQ]} disabled={busy} />
 
@@ -556,7 +592,7 @@ export function InvoiceEditSheet({
       due_date: dueDate === '' ? null : dueDate,
       supply_type:
         supplyType === '' ? null : (supplyType as 'goods' | 'services'),
-      service_place_rule: placeRule,
+      service_place_rule: placeRule as ServicePlaceRule,
     };
     const started = op.run(
       async (ctx) => {

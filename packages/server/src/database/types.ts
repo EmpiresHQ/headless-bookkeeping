@@ -19,6 +19,7 @@ export interface Database {
   entity_identifier: EntityIdentifierTable;
   bank_statement: BankStatementTable;
   bank_transaction: BankTransactionTable;
+  bank_settlement_usage: BankSettlementUsageTable;
   bank_import_job: BankImportJobTable;
   reconciliation_match: ReconciliationMatchTable;
   approval: ApprovalTable;
@@ -202,6 +203,15 @@ export interface ExpenseTable {
   // Set when the Expense was paid by a Claimant out of pocket (migration 056).
   // null = normal AP expense; set → CLAIMANT_PAYABLE credit leg.
   claimant_id: number | null;
+  // The place-of-supply facts (migration 085, issue #403):
+  // WHICH rule governs the purchase's services (NULL ≡ 'general', the
+  // residual rule, or a declared local-consumption exception such as
+  // 'immovable_property' / 'restaurant_catering')…
+  service_place_rule: string | null;
+  // …and WHERE the rule's location physically is (the ISO country the supply
+  // was performed in / the property stands). A declared exception without a
+  // recorded country is an incomplete declaration — held, never guessed.
+  place_of_supply_country: string | null;
   // Whether the receipt is addressed to the Organisation (migration 056).
   // true → normal VAT reclaim; false | null → NULL_VAT_CODE (conservative).
   // Stored as INTEGER (0/1/null) per SQLite boolean convention.
@@ -362,6 +372,16 @@ export interface BankImportJobTable {
 
 // Bank transaction: a single line from a bank statement. Amount is signed
 // cents: positive = incoming/credit, negative = outgoing/debit.
+/** Issue #403: which expense a bank settlement line evidences (atomic claim). */
+export interface BankSettlementUsageTable {
+  bank_transaction_id: number;
+  expense_id: number;
+  // 'auto' (a draft generation's own reservation) | 'operator' (an explicit
+  // settlement selection — an operator decision later generations respect).
+  origin: string;
+  created_at: number;
+}
+
 export interface BankTransactionTable {
   id: Generated<number>;
   statement_id: number;
@@ -372,6 +392,19 @@ export interface BankTransactionTable {
   source_currency: string | null;
   source_amount: number | null;
   fx_rate: number | null;
+  // Separately charged conversion fee (currency minor units); NULL = not evidenced.
+  conversion_fee: number | null;
+  // The bank's booking date when the statement distinguishes it from the
+  // transaction/value date; NULL = not distinguished (issue #403).
+  booking_date: string | null;
+  // The bank's OWN reported reference-rate observation, as printed —
+  // EXPLICITLY UNVERIFIED evidence, never a statutory provenance or a
+  // valuation input (issue #403, ADR-0004). NULL = not reported.
+  bank_reference_rate: number | null;
+  // Decimal places in the bank's PRINTED fx_rate when the source presented
+  // it as text; NULL = precision unknown (numeric-only input — never
+  // fabricated) (issue #403).
+  fx_rate_decimals: number | null;
   counterparty_iban: string | null;
   counterparty_descriptor: string | null;
   reference: string | null;

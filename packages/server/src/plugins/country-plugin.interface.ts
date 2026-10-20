@@ -448,13 +448,23 @@ export interface CountryPlugin extends CountryPluginRetrieval {
    *
    * @param supplierFacts - Intrinsic facts about the supplier
    * @param orgContext - The Organization's context
-   * @param context - Additional context (whether VAT was charged on the document)
+   * @param context - Additional context: whether VAT was charged on the
+   *   document, and — when recorded — what this purchase supplies, the
+   *   place-of-supply rule declared for its services, and the country that
+   *   rule's location physically is in (issue #403: the rule names the
+   *   criterion, the country is the location evidence; neither the category
+   *   nor the merchant's name is place-of-supply evidence)
    * @returns The resolved cross-border treatment + applicable VAT code
    */
   resolveCrossBorderTreatment(
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
-    context: { vatCharged: boolean },
+    context: {
+      vatCharged: boolean;
+      supplyType?: 'goods' | 'services';
+      servicePlaceRule?: ServicePlaceRule;
+      placeOfSupplyCountry?: string;
+    },
   ): CrossBorderResolution;
 
   /**

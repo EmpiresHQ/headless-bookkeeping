@@ -55,8 +55,18 @@ export class BankIngestionController {
     @Body('account_code') accountCode: string,
   ): Promise<{ jobId: number }> {
     if (!file) throw new BadRequestException('A CSV file is required');
-    const csvText = file.buffer.toString('utf8');
-    return this.ingestion.startImport(csvText, accountCode ?? '');
+    // The ORIGINAL buffer travels alongside its parsed text so the raw source
+    // is preserved durably, byte-exact — whatever encoding the unmapped
+    // columns carry (issue #403: re-encoding the text would silently mutate
+    // the archive).
+    return this.ingestion.startImport(
+      {
+        text: file.buffer.toString('utf8'),
+        buffer: file.buffer,
+        filename: file.originalname ?? 'statement.csv',
+      },
+      accountCode ?? '',
+    );
   }
 
   @ApiOperation({

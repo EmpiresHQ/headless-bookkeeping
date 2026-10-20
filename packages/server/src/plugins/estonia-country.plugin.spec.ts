@@ -138,6 +138,115 @@ describe('EstoniaCountryPlugin — cross-border', () => {
       }),
     ).toEqual({ treatment: 'domestic', vatCode: 'EE_INPUT_24' });
   });
+
+  // ── Issue #403: local foreign purchases (foreign_cost) ───────────────────
+  // The evidence is EXPLICIT recorded facts only: a declared
+  // local-consumption place-of-supply rule, the recorded country the rule's
+  // location is in, and a positive printed VAT amount. Never the category,
+  // never the merchant, never the amount alone.
+  it('a declared hotel rule + DK location + printed foreign VAT → foreign_cost (issue #403)', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+        supplyType: 'services',
+        servicePlaceRule: 'immovable_property',
+        placeOfSupplyCountry: 'DK',
+      }),
+    ).toEqual({ treatment: 'foreign_cost', vatCode: null });
+  });
+
+  it('a declared restaurant/catering rule + DK location + printed foreign VAT → foreign_cost', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+        supplyType: 'services',
+        servicePlaceRule: 'restaurant_catering',
+        placeOfSupplyCountry: 'DK',
+      }),
+    ).toEqual({ treatment: 'foreign_cost', vatCode: null });
+  });
+
+  it('an EXPLICIT general rule keeps the reverse charge even with printed foreign VAT (the SaaS guard)', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+        supplyType: 'services',
+        servicePlaceRule: 'general',
+        placeOfSupplyCountry: 'DK',
+      }),
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE_EU' });
+  });
+
+  it('printed foreign VAT ALONE does not establish a local supply (general rule, no declaration)', () => {
+    expect(
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+      }),
+    ).toEqual({ treatment: 'reverse_charge', vatCode: 'EE_REVERSE_CHARGE_EU' });
+  });
+
+  it('a declared local rule WITHOUT a recorded country is an incomplete declaration — held (issue #403)', () => {
+    expect(() =>
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+        supplyType: 'services',
+        servicePlaceRule: 'immovable_property',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('a declared local rule with a DOMESTIC location and foreign VAT contradicts itself — held', () => {
+    expect(() =>
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+        supplyType: 'services',
+        servicePlaceRule: 'immovable_property',
+        placeOfSupplyCountry: 'EE',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('a declared local rule + foreign location WITHOUT printed VAT is unsupported — held, never general RC', () => {
+    expect(() =>
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: false,
+        supplyType: 'services',
+        servicePlaceRule: 'immovable_property',
+        placeOfSupplyCountry: 'DK',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('a declared SPECIAL rule the plugin does not implement is refused, never silently general (passenger transport)', () => {
+    expect(() =>
+      ee.resolveCrossBorderTreatment(mk('DK', 'services'), org, {
+        vatCharged: true,
+        supplyType: 'services',
+        servicePlaceRule: 'passenger_transport',
+        placeOfSupplyCountry: 'DK',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('a declared local rule on a GOODS supply contradicts the declaration — held (mirrors the sales side)', () => {
+    expect(() =>
+      ee.resolveCrossBorderTreatment(mk('DK', 'goods'), org, {
+        vatCharged: true,
+        supplyType: 'goods',
+        servicePlaceRule: 'restaurant_catering',
+        placeOfSupplyCountry: 'DK',
+      }),
+    ).toThrow(UnresolvedVatTreatmentError);
+  });
+
+  it('foreign_cost carries NO EE input-VAT deduction right, whatever the registration', () => {
+    expect(
+      ee.resolveInputVatEntitlement(org, {
+        treatment: 'foreign_cost',
+        vatCode: 'EE_INPUT_24' as never,
+      }),
+    ).toEqual({ numerator: 0, denominator: 1, basis: 'none' });
+  });
   // Issue #210: the acquisition's ORIGIN is decided here and frozen into the
   // VAT code, because it is what decides KMD row 6 vs row 7.
   it('EU supplier (DE), taxable person → reverse_charge with the INTRA-EU code', () => {

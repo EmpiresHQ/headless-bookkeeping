@@ -58,7 +58,16 @@ export interface PostingPipelineParams {
    * Absent ⇒ no such check (Expense and every other caller keep their exact
    * behavior).
    */
-  assertFactsUnchanged?: (trx: Kysely<Database>) => Promise<void>;
+  /**
+   * The pipeline's optimistic-concurrency guard, invoked inside the posting
+   * transaction with the DRAFT it is guarding (issue #403): a callback may
+   * ignore the draft (the pre-#403 contract), but an expense guard can
+   * validate the concrete bank evidence THIS prepared draft was valued on.
+   */
+  assertFactsUnchanged?: (
+    trx: Kysely<Database>,
+    draft?: DraftVoucher,
+  ) => Promise<void>;
 
   /**
    * Optional hook folded into the SAME atomic transaction as the post,
@@ -193,6 +202,11 @@ export class PostingPipelineService {
       params.requestedBy ?? 'system',
       policyDecision.reason,
       params.assertFactsUnchanged,
+      // The CONCRETE generated draft (issue #403): an approval must describe
+      // the figures — and the concrete bank evidence — the human will
+      // actually be approving, not ones already disposed/edited away in the
+      // hold window.
+      draft,
     );
     const businessObject = await params.refetch();
     return { businessObject, voucher: null, policy: policyDecision };
@@ -222,7 +236,7 @@ export class PostingPipelineService {
         // facts. Checked before the claim, so a stale draft never reaches the
         // ledger (issue #209).
         if (params.assertFactsUnchanged) {
-          await params.assertFactsUnchanged(trx);
+          await params.assertFactsUnchanged(trx, draft);
         }
 
         await this.statusTransition.transition(
@@ -300,15 +314,20 @@ export class PostingPipelineService {
     id: number,
     requestedBy: string,
     policyReason: string,
-    assertFactsUnchanged?: (trx: Kysely<Database>) => Promise<void>,
+    assertFactsUnchanged?: (
+      trx: Kysely<Database>,
+      draft?: DraftVoucher,
+    ) => Promise<void>,
+    draft?: DraftVoucher,
   ): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
       const now = Math.floor(Date.now() / 1000);
 
       // Same guard as the posting path: an approval must describe the figures a
-      // human will actually be approving, not ones already edited away.
+      // human will actually be approving — and the concrete bank evidence the
+      // prepared draft was valued on — not ones already disposed/edited away.
       if (assertFactsUnchanged) {
-        await assertFactsUnchanged(trx);
+        await assertFactsUnchanged(trx, draft);
       }
 
       await this.statusTransition.transition(trx, type, id, 'draft', 'pending');

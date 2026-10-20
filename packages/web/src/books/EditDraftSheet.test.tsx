@@ -237,6 +237,10 @@ describe('Edit draft expense (issue #247)', () => {
         supplier_invoice_number: 'A-183',
         claimant_id: null,
         company_addressed_receipt: null,
+        // The declaration is ALWAYS sent (issue #403): 'general' is the
+        // explicit clear; the detail fixture declares none.
+        service_place_rule: 'general',
+        place_of_supply_country: null,
       }),
     );
     expect(updateExpenseDraft).toHaveBeenCalledTimes(1);

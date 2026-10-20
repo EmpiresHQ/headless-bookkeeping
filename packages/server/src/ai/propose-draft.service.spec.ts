@@ -1941,6 +1941,7 @@ describe('ProposeDraftService (integration)', () => {
       });
 
       expect(result.outcome).toBe('draft');
+      if (result.outcome !== 'draft') throw new Error('expected draft');
 
       const row = await db
         .selectFrom('expense')
@@ -1953,6 +1954,122 @@ describe('ProposeDraftService (integration)', () => {
       expect(row.ai_confidence).toBeNull();
       expect(row.ai_document_type).toBeNull();
       expect(row.ai_kind).toBeNull();
+    });
+
+    it('resumes the document chain\u2019s draft on a manual retry instead of minting a second expense (issue #403 idempotent retry)', async () => {
+      // The EE plugin owns the treatment the retry's place facts select; the
+      // seeded org defaults to the neutral plugin, which has no rate
+      // authority at all.
+      await module
+        .get(OrganizationService)
+        .updateOrganization({ country: 'EE' });
+      const entitiesService = module.get(EntitiesService);
+      const supplier = await entitiesService.onboard({
+        role: 'supplier',
+        country: 'DK',
+        name: 'Next House Copenhagen',
+        registrationKey: 'DK403RETRY',
+        goodsVsServices: 'services',
+        taxStatus: 'taxable_business',
+      });
+      const seedDoc = async (hash: string): Promise<number> =>
+        db
+          .insertInto('document')
+          .values({
+            hash,
+            filename: `${hash}.pdf`,
+            mime_type: 'application/pdf',
+            size_bytes: 1,
+            status: 'needs_triage',
+            claimant_id: null,
+            created_at: Math.floor(Date.now() / 1000),
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+          .then((r) => r.id);
+      const docId = await seedDoc('m403retry');
+
+      // The missing evidence arrives AFTER the failure (the real retry
+      // sequence): the statement line that settled this purchase, with its
+      // explicit rate and fee.
+      const account = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'BANK_EUR')
+        .executeTakeFirstOrThrow();
+      const stmt = await db
+        .insertInto('bank_statement')
+        .values({
+          account_id: account.id,
+          start_date: '2026-06-19',
+          end_date: '2026-06-19',
+          uploaded_at: Math.floor(Date.now() / 1000),
+          file_path: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('bank_transaction')
+        .values({
+          statement_id: stmt.id,
+          transaction_date: '2026-06-19',
+          description: 'Next House Copenhagen',
+          amount: -811,
+          currency: 'EUR',
+          source_currency: 'DKK',
+          source_amount: 6000,
+          fx_rate: 0.1338333,
+          conversion_fee: 8,
+          counterparty_iban: null,
+          counterparty_descriptor: 'NEXT HOUSE COPENHAGEN',
+          reference: null,
+          status: 'open',
+          created_at: Math.floor(Date.now() / 1000),
+        })
+        .execute();
+
+      // A DKK purchase with the default fixture authority (no DKK rate):
+      // valuation fails, the expense row exists as an unposted draft, and the
+      // manual classify call throws the typed missing-rate error.
+      const base = {
+        supplier_id: supplier.id,
+        category: 'travel',
+        document_vat_marking: null,
+        gross_amount: 6000,
+        vat_amount: 1200,
+        currency: 'DKK',
+        tax_point_date: '2026-06-19',
+        supplier_invoice_number: 'RETRY-1',
+      };
+      await expect(service.manualClassifyDraft(docId, base)).rejects.toThrow(
+        /FX rate/i,
+      );
+      const afterFail = await db
+        .selectFrom('expense')
+        .select(['id', 'status', 'voucher_id'])
+        .where('document_id', '=', docId)
+        .execute();
+      expect(afterFail).toHaveLength(1);
+      const firstId = afterFail[0].id;
+
+      // The operator records the missing local-supply facts and retries:
+      // the SAME draft is resumed (validated draft edit + re-run pipeline),
+      // never a second expense and never the duplicate gate on the chain's
+      // own row.
+      const retried = await service.manualClassifyDraft(docId, {
+        ...base,
+        service_place_rule: 'immovable_property',
+        place_of_supply_country: 'DK',
+      });
+      expect(retried.outcome).toBe('draft');
+      if (retried.outcome !== 'draft') throw new Error('expected draft');
+      expect(retried.expenseId).toBe(firstId);
+      const rows = await db
+        .selectFrom('expense')
+        .select(['id', 'status'])
+        .where('document_id', '=', docId)
+        .execute();
+      expect(rows).toHaveLength(1);
     });
 
     it('refuses a duplicate by default and lets an operator override it with allow_duplicate', async () => {
@@ -1996,6 +2113,7 @@ describe('ProposeDraftService (integration)', () => {
         base,
       );
       expect(first.outcome).toBe('draft');
+      if (first.outcome !== 'draft') throw new Error('expected draft');
 
       // Same supplier + number: the guard refuses, and the operator sees a 409
       // naming the original rather than a second expense appearing silently.
@@ -2009,6 +2127,7 @@ describe('ProposeDraftService (integration)', () => {
         allow_duplicate: true,
       });
       expect(forced.outcome).toBe('draft');
+      if (forced.outcome !== 'draft') throw new Error('expected draft');
       expect(forced.expenseId).not.toBe(first.expenseId);
 
       // ...and that decision is on the record (ADR-0026).

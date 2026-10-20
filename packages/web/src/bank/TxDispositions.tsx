@@ -66,19 +66,39 @@ export function OtherSheet({
   onPrepayment: () => void;
 }) {
   const options: { label: string; sub: string; onPick: () => void }[] = [];
+  // A converted settlement line with an EXPLICITLY EVIDENCED conversion fee
+  // (issue #403): the bank's own stated fee — bookable ALONE, after the
+  // purchase principal has been reconciled, whatever the line's match state.
+  // The amount shown is the EVIDENCED fee, never the whole mixed debit.
+  const evidencedFee =
+    tx.source_currency != null &&
+    tx.conversion_fee != null &&
+    tx.conversion_fee > 0
+      ? tx.conversion_fee
+      : null;
   if (tx.amount < 0 && !hasMatches) {
     options.push({
       label: 'Personal',
       sub: 'Not business — becomes your debt to the company',
       onPick: onPersonal,
     });
-    if (feeAvailable) {
+    if (feeAvailable && evidencedFee === null) {
       options.push({
         label: 'Bank fee',
         sub: `Bank-fee expense, VAT 0 · ${fmtCents(tx.amount)} €`,
         onPick: onFee,
       });
     }
+  }
+  if (tx.amount < 0 && evidencedFee !== null) {
+    options.push({
+      label: 'Bank fee',
+      sub:
+        'Evidenced conversion fee only · ' +
+        `${fmtCents(evidencedFee)} ${tx.currency} — book after the purchase ` +
+        'is matched',
+      onPick: onFee,
+    });
   }
   if (tx.amount !== 0 && !hasMatches) {
     options.push({

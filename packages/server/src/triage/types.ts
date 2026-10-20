@@ -183,6 +183,28 @@ export const triageResultSchema = z.object({
   // addressed to the org)? True → VAT is recoverable (company-addressed);
   // false/null → personal receipt, VAT not recoverable (NULL_VAT_CODE path).
   company_addressed_receipt: z.boolean().nullable().optional(),
+  // The recorded place-of-supply facts of an expense-backed classification
+  // (issue #403): surfaced by the details view so a REOPENED manual-classify
+  // sheet prefills the SAVED declaration instead of defaulting to General
+  // and silently clearing it. Null rule ⇒ the residual general rule.
+  service_place_rule: z
+    .enum([
+      'general',
+      'immovable_property',
+      'passenger_transport',
+      'cultural_artistic_sporting_admission',
+      'restaurant_catering',
+      'short_term_hire_of_means_of_transport',
+      'electronically_supplied_to_consumer',
+      'other_special',
+    ])
+    .nullable()
+    .optional(),
+  place_of_supply_country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable()
+    .optional(),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;
@@ -473,6 +495,30 @@ export const manualClassifyExpenseSchema = z.object({
   currency: z.string().length(3),
   tax_point_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   supplier_invoice_number: z.string().nullable().optional(),
+  /**
+   * The operator's explicit place-of-supply declaration (issue #403): which
+   * rule governs this purchase's services ('general' by omission — the
+   * residual rule), and the ISO country the rule's location physically is in.
+   * An exception without a country is an incomplete declaration — the kernel
+   * holds with the fact named rather than guessing the location.
+   */
+  service_place_rule: z
+    .enum([
+      'general',
+      'immovable_property',
+      'passenger_transport',
+      'cultural_artistic_sporting_admission',
+      'restaurant_catering',
+      'short_term_hire_of_means_of_transport',
+      'electronically_supplied_to_consumer',
+      'other_special',
+    ])
+    .optional(),
+  place_of_supply_country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable()
+    .optional(),
   /**
    * Operator override for the duplicate guard (issue #195). A human looking at
    * the document may know the two entries really are separate purchases; the

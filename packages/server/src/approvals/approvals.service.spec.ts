@@ -218,6 +218,266 @@ describe('ApprovalsService (integration)', () => {
   // ── approveApproval ──────────────────────────────────────────────
 
   describe('approveApproval', () => {
+    // ── Issue #403 approval fidelity: the draft is generated BEFORE the
+    // posting transaction, so an edit, a settlement re-selection, or a
+    // bank-line allocation landing in that window must refuse the approval
+    // INSIDE the transaction — the pending approval and the object's current
+    // state survive, nothing stale posts. Deterministic sequential
+    // equivalents of the two races (the real interleavings are covered by
+    // root's probes against the actual FX-authority pause seam).
+    async function seedDkkPurchaseWithBankLine(): Promise<{
+      expenseId: number;
+      bankTxnId: number;
+    }> {
+      await db.updateTable('organization').set({ country: 'EE' }).execute();
+      const now = Math.floor(Date.now() / 1000);
+      const supplier = await db
+        .insertInto('entity')
+        .values({
+          role: 'supplier',
+          country: 'DK',
+          name: 'Next House Copenhagen',
+          goods_vs_services: 'services',
+          tax_status: 'taxable_business',
+          created_at: now,
+          updated_at: now,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await db
+        .insertInto('entity_identifier')
+        .values({
+          entity_id: supplier.id,
+          kind: 'registration_key',
+          value: 'DK403APPROVAL',
+          confirmed: 1,
+        })
+        .execute();
+      const account = await db
+        .selectFrom('account')
+        .select('id')
+        .where('code', '=', 'BANK_EUR')
+        .executeTakeFirstOrThrow();
+      const stmt = await db
+        .insertInto('bank_statement')
+        .values({
+          account_id: account.id,
+          start_date: '2026-06-19',
+          end_date: '2026-06-19',
+          uploaded_at: 0,
+          file_path: null,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+      const bankTxnId = await db
+        .insertInto('bank_transaction')
+        .values({
+          statement_id: stmt,
+          transaction_date: '2026-06-19',
+          description: 'Next House Copenhagen DKK 60',
+          amount: -811,
+          currency: 'EUR',
+          source_currency: 'DKK',
+          source_amount: 6000,
+          fx_rate: 0.1338333,
+          fx_rate_decimals: 7,
+          conversion_fee: 8,
+          counterparty_iban: null,
+          counterparty_descriptor: 'NEXT HOUSE COPENHAGEN',
+          reference: null,
+          status: 'open',
+          created_at: 0,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+        .then((r) => r.id);
+      const expense = await expensesService.createExpense({
+        category: 'travel',
+        gross_amount: 6000,
+        vat_amount: 1200,
+        currency: 'DKK',
+        tax_point_date: '2026-06-19',
+        supplier_id: supplier.id,
+        service_place_rule: 'immovable_property',
+        place_of_supply_country: 'DK',
+      });
+      return { expenseId: expense.id, bankTxnId };
+    }
+
+    it('refuses an approval whose bank-settlement evidence got allocated in the post-generation window (issue #403)', async () => {
+      // Synthetic declared facts (not a production receipt claim): a
+      // DK-accommodation-declared DKK purchase with same-day bank evidence.
+      const { expenseId, bankTxnId } = await seedDkkPurchaseWithBankLine();
+      const approval = await service.createApproval({
+        object_type: 'expense',
+        object_id: expenseId,
+        requested_by: 'user@test.com',
+        reason: 'Test',
+      });
+
+      // The racing allocation, landed BETWEEN the approval's draft
+      // generation and its posting transaction (another purchase's settled
+      // match — the books now own part of the line's cash). Injected at the
+      // REAL generation seam: the spy performs the real generation, then the
+      // allocation lands exactly in the post-generation window.
+      const realGenerate =
+        expensesService.generateDraftVoucher.bind(expensesService);
+      const generateSpy = jest
+        .spyOn(expensesService, 'generateDraftVoucher')
+        .mockImplementation(async (id: number) => {
+          const draft = await realGenerate(id);
+          const voucher = await db
+            .insertInto('voucher')
+            .values({
+              voucher_number: 'V403APPROVAL',
+              tax_point_date: '2026-06-19',
+              posted_at: 0,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow()
+            .then((r) => r.id);
+          await db
+            .insertInto('reconciliation_match')
+            .values({
+              bank_transaction_id: bankTxnId,
+              voucher_id: voucher,
+              match_type: 'exact',
+              amount_matched: 803,
+              cash_base_amount: 795,
+              status: 'active',
+              signal: 'manual',
+              created_at: 0,
+            })
+            .execute();
+          return draft;
+        });
+
+      // The approval refuses INSIDE its posting transaction: nothing
+      // posted, the approval stays PENDING (retry or resolve the conflict).
+      const err = await service
+        .approveApproval(approval.id, 'user@test.com')
+        .catch((e: unknown) => e as Error);
+      generateSpy.mockRestore();
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(/allocated on the books/i);
+      const after = await db
+        .selectFrom('approval')
+        .select('status')
+        .where('id', '=', approval.id)
+        .executeTakeFirstOrThrow();
+      expect(after.status).toBe('pending');
+      const expenseRow = await db
+        .selectFrom('expense')
+        .select(['status', 'voucher_id'])
+        .where('id', '=', expenseId)
+        .executeTakeFirstOrThrow();
+      expect(expenseRow.status).toBe('pending');
+      expect(expenseRow.voucher_id).toBeNull();
+      // No voucher posted for the expense: only the racing allocation's
+      // seeded one exists.
+      const vouchers = await db.selectFrom('voucher').selectAll().execute();
+      expect(vouchers).toHaveLength(1);
+    });
+
+    it('refuses an approval whose settlement SELECTION changed in the post-generation window (issue #403)', async () => {
+      // Synthetic declared facts (not a production receipt claim): a
+      // DK-accommodation-declared DKK purchase with same-day bank evidence;
+      // the ambiguous twin appears only inside the race window.
+      const { expenseId } = await seedDkkPurchaseWithBankLine();
+      const approval = await service.createApproval({
+        object_type: 'expense',
+        object_id: expenseId,
+        requested_by: 'user@test.com',
+        reason: 'Test',
+      });
+
+      // The operator's re-selection lands BETWEEN the approval's draft
+      // generation (on the automatically-claimed first line) and its
+      // posting transaction — injected at the REAL generation seam: the
+      // spy performs the real generation (only the first line exists, so
+      // it resolves and claims it), then the ambiguous twin APPEARS and
+      // the operator selects it, exactly the interleaving.
+      const realGenerate =
+        expensesService.generateDraftVoucher.bind(expensesService);
+      let selectedRow = -1;
+      const generateSpy = jest
+        .spyOn(expensesService, 'generateDraftVoucher')
+        .mockImplementation(async (id: number) => {
+          const draft = await realGenerate(id);
+          const account = await db
+            .selectFrom('account')
+            .select('id')
+            .where('code', '=', 'BANK_EUR')
+            .executeTakeFirstOrThrow();
+          const stmt = await db
+            .insertInto('bank_statement')
+            .values({
+              account_id: account.id,
+              start_date: '2026-06-19',
+              end_date: '2026-06-19',
+              uploaded_at: 0,
+              file_path: null,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow()
+            .then((r) => r.id);
+          const twinRow = await db
+            .insertInto('bank_transaction')
+            .values({
+              statement_id: stmt,
+              transaction_date: '2026-06-19',
+              description: 'Next House Copenhagen DKK 60 again',
+              amount: -830,
+              currency: 'EUR',
+              source_currency: 'DKK',
+              source_amount: 6000,
+              fx_rate: 0.137,
+              fx_rate_decimals: 3,
+              conversion_fee: 8,
+              counterparty_iban: null,
+              counterparty_descriptor: 'NEXT HOUSE COPENHAGEN',
+              reference: null,
+              status: 'open',
+              created_at: 0,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow()
+            .then((r) => r.id);
+          await expensesService.selectSettlementFx(id, twinRow);
+          selectedRow = twinRow;
+          return draft;
+        });
+
+      // The approval refuses on the stale evidence: nothing posts, the
+      // pending approval and the CURRENT selection survive.
+      const err = await service
+        .approveApproval(approval.id, 'user@test.com')
+        .catch((e: unknown) => e as Error);
+      generateSpy.mockRestore();
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(
+        /was changed while it was being posted/i,
+      );
+      const after = await db
+        .selectFrom('approval')
+        .select('status')
+        .where('id', '=', approval.id)
+        .executeTakeFirstOrThrow();
+      expect(after.status).toBe('pending');
+      // The CURRENT selection survives untouched.
+      const claims = await db
+        .selectFrom('bank_settlement_usage')
+        .selectAll()
+        .execute();
+      expect(claims).toHaveLength(1);
+      expect(claims[0].bank_transaction_id).toBe(selectedRow);
+      // No voucher posted at all.
+      expect(
+        (await db.selectFrom('voucher').select('id').execute()).length,
+      ).toBe(0);
+    });
+
     it('approves and posts the voucher', async () => {
       const expense = await expensesService.createExpense(sampleExpense());
 

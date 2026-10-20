@@ -9,6 +9,7 @@ import {
   draftEditObject,
   vatMinorSchema,
 } from '../common/draft-edit';
+import type { ServicePlaceRule } from '../plugins/country-plugin.interface';
 
 export type ExpenseStatus = BusinessObjectStatus;
 
@@ -30,6 +31,13 @@ export interface Expense {
   asset_residual_value_minor: number | null;
   claimant_id: number | null;
   company_addressed_receipt: boolean | null;
+  // The place-of-supply facts (issue #403): WHICH rule governs this
+  // purchase's services (null ≡ 'general', the residual rule, or a declared
+  // local-consumption exception)…
+  service_place_rule: ServicePlaceRule | null;
+  // …and WHERE the rule's location physically is (ISO country). A declared
+  // exception without a country is incomplete — held, never guessed.
+  place_of_supply_country: string | null;
   // LLM classification facts preserved from triage (ADR-0039).
   ai_confidence: number | null;
   ai_document_type: string | null;
@@ -60,6 +68,23 @@ export const createExpenseSchema = z.object({
     .optional(),
   claimant_id: z.number().int().positive().nullable().optional(),
   company_addressed_receipt: z.boolean().nullable().optional(),
+  service_place_rule: z
+    .enum([
+      'general',
+      'immovable_property',
+      'passenger_transport',
+      'cultural_artistic_sporting_admission',
+      'restaurant_catering',
+      'short_term_hire_of_means_of_transport',
+      'electronically_supplied_to_consumer',
+      'other_special',
+    ])
+    .optional(),
+  place_of_supply_country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable()
+    .optional(),
   ai_confidence: z.number().min(0).max(1).nullable().optional(),
   ai_document_type: z.string().nullable().optional(),
   ai_kind: z.string().nullable().optional(),
@@ -86,6 +111,21 @@ export const postOverrideSchema = z.preprocess(
 
 export class PostOverrideDto extends createZodDto(postOverrideSchema) {}
 
+/**
+ * The operator's EXPLICIT settlement-line selection (issue #403's ambiguity
+ * recovery): WHICH same-day bank transaction settled THIS held purchase.
+ * Validated against every automatic-link rule (identity, same-day, the same
+ * original amount/currency, exclusivity); the valuation then runs through
+ * the normal draft generation and Rules → Policy → approval flow.
+ */
+export const settlementFxSelectionSchema = z.object({
+  bank_transaction_id: z.number().int().positive(),
+});
+
+export class SettlementFxSelectionDto extends createZodDto(
+  settlementFxSelectionSchema,
+) {}
+
 /** The facts an operator may correct on a draft/pending expense (issue #247). */
 export const EXPENSE_DRAFT_EDITABLE_FIELDS = [
   'category',
@@ -97,6 +137,8 @@ export const EXPENSE_DRAFT_EDITABLE_FIELDS = [
   'supplier_invoice_number',
   'claimant_id',
   'company_addressed_receipt',
+  'service_place_rule',
+  'place_of_supply_country',
 ] as const;
 
 /**
@@ -142,6 +184,28 @@ export const patchExpenseDraftSchema = draftEditObject(
     supplier_invoice_number: optionalTextSchema.optional(),
     claimant_id: z.number().int().positive().nullable().optional(),
     company_addressed_receipt: z.boolean().nullable().optional(),
+    // The place-of-supply facts (issue #403): the operator's explicit
+    // declaration that this purchase's services are supplied under a
+    // local-consumption exception rather than the general rule, AND where the
+    // rule's location physically is. An exception without a country is an
+    // incomplete declaration — held, never guessed.
+    service_place_rule: z
+      .enum([
+        'general',
+        'immovable_property',
+        'passenger_transport',
+        'cultural_artistic_sporting_admission',
+        'restaurant_catering',
+        'short_term_hire_of_means_of_transport',
+        'electronically_supplied_to_consumer',
+        'other_special',
+      ])
+      .optional(),
+    place_of_supply_country: z
+      .string()
+      .regex(/^[A-Z]{2}$/)
+      .nullable()
+      .optional(),
     // Same operator escape hatch as create (issue #195): only needed when the
     // edit moves the expense onto another expense's duplicate key.
     allow_duplicate: z.boolean().optional(),

@@ -37,6 +37,29 @@ export const createTransactionSchema = z.object({
   source_amount: z.number().int().nullable().optional(),
   /** The bank's actual conversion rate. */
   fx_rate: z.number().nullable().optional(),
+  /**
+   * Decimal places in the PRINTED rate, when the source presented it as
+   * text; NULL = precision unknown (numeric-only input) (issue #403).
+   */
+  fx_rate_decimals: z.number().int().min(0).nullable().optional(),
+  /**
+   * The bank's separately charged conversion fee, in `currency` minor
+   * units. NULL means the statement did not evidence a fee — it is NOT a
+   * default zero (issue #403); 0 asserts the bank charged nothing.
+   */
+  conversion_fee: z.number().int().nullable().optional(),
+  /**
+   * The bank's own booking date (ISO), when the statement distinguishes it
+   * from the transaction/value date. NULL/absent = not distinguished.
+   */
+  booking_date: z.string().nullable().optional(),
+  /**
+   * The reference-rate OBSERVATION the bank itself prints on the line, as
+   * printed. EXPLICITLY UNVERIFIED evidence of what the bank REPORTS — never
+   * fed into the verified ECB cache, never used for a statutory lookup or a
+   * valuation (issue #403, ADR-0004). NULL/absent = not reported.
+   */
+  bank_reference_rate: z.number().positive().nullable().optional(),
   /** Counterparty IBAN. */
   counterparty_iban: z.string().nullable().optional(),
   /** Card merchant descriptor. */
@@ -88,6 +111,14 @@ export interface BankTransactionRecord {
   source_currency: string | null;
   source_amount: number | null;
   fx_rate: number | null;
+  /** Decimal places in the PRINTED rate when presented as text; NULL = unknown. */
+  fx_rate_decimals: number | null;
+  /** Separately charged conversion fee (currency minor units); NULL = not evidenced. */
+  conversion_fee: number | null;
+  /** The bank's booking date when distinguished from the value date; NULL = not distinguished. */
+  booking_date: string | null;
+  /** The bank's OWN reported reference-rate observation, as printed — unverified, never statutory (issue #403). */
+  bank_reference_rate: number | null;
   counterparty_iban: string | null;
   counterparty_descriptor: string | null;
   reference: string | null;

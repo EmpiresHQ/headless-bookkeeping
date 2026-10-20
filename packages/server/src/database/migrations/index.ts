@@ -80,6 +80,10 @@ import * as m076 from './076_add_service_place_of_supply_facts';
 
 import * as m081 from './081_add_tax_accounts';
 import * as m082 from './082_add_office_supplies_account';
+import * as m083 from './083_add_bank_transaction_settlement_facts';
+import * as m084 from './084_create_bank_settlement_usage';
+import * as m085 from './085_add_expense_place_of_supply_facts';
+import * as m086 from './086_add_bank_transaction_fx_rate_decimals';
 
 export const migrations: Record<string, Migration> = {
   '001_create_organization': m001,
@@ -162,4 +166,8 @@ export const migrations: Record<string, Migration> = {
   '080_add_document_classification_snapshot': m080,
   '081_add_tax_accounts': m081,
   '082_add_office_supplies_account': m082,
+  '083_add_bank_transaction_settlement_facts': m083,
+  '084_create_bank_settlement_usage': m084,
+  '085_add_expense_place_of_supply_facts': m085,
+  '086_add_bank_transaction_fx_rate_decimals': m086,
 };

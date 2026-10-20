@@ -13,6 +13,7 @@ import {
   CategoryMappingResult,
   CountryPlugin,
   CrossBorderResolution,
+  ServicePlaceRule,
   OrgContext,
   SupplierFacts,
   VATCode,
@@ -247,7 +248,12 @@ export class NullCountryPlugin implements CountryPlugin {
   resolveCrossBorderTreatment(
     supplierFacts: SupplierFacts,
     orgContext: OrgContext,
-    _context: { vatCharged: boolean },
+    _context: {
+      vatCharged: boolean;
+      supplyType?: 'goods' | 'services';
+      servicePlaceRule?: ServicePlaceRule;
+      placeOfSupplyCountry?: string;
+    },
   ): CrossBorderResolution {
     // Same country → domestic with default VAT code.
     if (supplierFacts.country === orgContext.country) {

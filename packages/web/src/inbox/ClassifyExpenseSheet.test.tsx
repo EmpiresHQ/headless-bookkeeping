@@ -229,6 +229,10 @@ describe('ClassifyExpenseSheet', () => {
         currency: 'EUR',
         tax_point_date: '2026-07-10',
         supplier_invoice_number: null,
+        // The explicit-clear declaration (issue #403): a General (default)
+        // choice is SENT as 'general' — the server's clear — not omitted.
+        service_place_rule: 'general',
+        place_of_supply_country: null,
       }),
     );
     expect(onDone).toHaveBeenCalled();
@@ -526,6 +530,8 @@ describe('ClassifyExpenseSheet', () => {
         currency: 'EUR',
         tax_point_date: '2026-07-01',
         supplier_invoice_number: null,
+        service_place_rule: 'general',
+        place_of_supply_country: null,
       }),
     );
     expect(onDone).toHaveBeenCalledWith({
@@ -677,6 +683,59 @@ describe('ClassifyExpenseSheet', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('prefills a RECORDED place-of-supply declaration and re-sends it untouched; an explicit General clears (issue #403)', async () => {
+    const onDone = vi.fn();
+    // The persisted classification carries the recorded local declaration of
+    // an expense-backed held draft (restaurant_catering in DK).
+    vi.mocked(api.getDocumentDetails).mockResolvedValue({
+      document_id: 12,
+      ocr: { ok: true, markdown: 'held catering receipt' },
+      classification: {
+        ok: true,
+        result: {
+          kind: 'new_expense',
+          document_type: 'receipt',
+          gross_amount: 4820,
+          vat_amount: 867,
+          currency: 'EUR',
+          tax_point_date: '2026-07-01',
+          category: 'meals',
+          document_vat_marking: null,
+          supplier_invoice_number: null,
+          confidence: 0.41,
+          service_place_rule: 'restaurant_catering',
+          place_of_supply_country: 'DK',
+        },
+      },
+    });
+    renderSheet(onDone);
+    const rule = screen.getByRole('combobox', {
+      name: 'Place-of-supply rule',
+    });
+    await waitFor(() => expect(rule).toHaveValue('restaurant_catering'));
+    expect(
+      screen.getByRole('textbox', { name: 'Supplied in country' }),
+    ).toHaveValue('DK');
+
+    // An UNTOUCHED submit re-sends the RECORDED declaration — the reopened
+    // manual sheet never silently clears a saved local treatment.
+    // Pick the supplier, then submit with the sheet's own primary action.
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Circle K Eesti AS/ }),
+    );
+    const submit = screen.getByRole('button', { name: /Create expense/ });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    await waitFor(() => expect(api.manualClassify).toHaveBeenCalled());
+    expect(api.manualClassify).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({
+        service_place_rule: 'restaurant_catering',
+        place_of_supply_country: 'DK',
+      }),
+    );
   });
 
   it('source document (#257): viewable from the form; switching keeps typed input and the dirty guard', async () => {

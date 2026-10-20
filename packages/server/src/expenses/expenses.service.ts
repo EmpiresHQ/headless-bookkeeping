@@ -26,6 +26,102 @@ import {
   normalizeInvoiceNumber,
 } from './duplicate-detection';
 import { DuplicateExpenseException } from './duplicate-expense.exception';
+import {
+  BANK_STATEMENT_RATE_SOURCE,
+  FxRateUnavailableError,
+} from '../fx/fx-rate.types';
+import type { BankSettlementLink } from '../bank/settlement-fx';
+
+/** The deterministic outcome of a bank-settlement link attempt (issue #403). */
+type BankSettlementResolution =
+  | { kind: 'link'; link: BankSettlementLink }
+  | { kind: 'unresolved'; reason: string };
+
+/**
+ * Common legal-form suffixes across the jurisdictions we book for. A token
+ * that is ONLY a legal-form suffix does not distinguish one merchant from
+ * another ('AS', 'OÜ', 'LTD', …), so a descriptor consisting solely of such
+ * tokens cannot establish identity (issue #403: 'UNRELATED AS' must not match
+ * every '-AS' supplier).
+ */
+const LEGAL_FORM_SUFFIXES = new Set([
+  'as',
+  'asa',
+  'aps',
+  'oü',
+  'ou',
+  'oy',
+  'ab',
+  'a/s',
+  'ag',
+  'gmbh',
+  'sa',
+  'nv',
+  'bv',
+  'ltd',
+  'llc',
+  'plc',
+  'inc',
+  'spa',
+  'srl',
+  'kk',
+  'kg',
+]);
+
+/**
+ * Deterministic counterparty-identity rule (issue #403): every normalized
+ * token of the bank's merchant descriptor/IBAN must appear among the tokens
+ * of a supplier identity value (its name, a merchant_descriptor / name_alias /
+ * IBAN identifier). Case- and punctuation-blind, order-blind, never fuzzy —
+ * a descriptor naming a DIFFERENT merchant does not match.
+ *
+ * ONE-CHARACTER tokens are SIGNIFICANT and retained ('CIRCLE K' vs 'CIRCLE X'
+ * turns on the K/X: dropping short tokens made those two the same merchant
+ * and let an unrelated bank line value the wrong purchase). And a descriptor
+ * whose every token is a legal-form suffix establishes nothing.
+ */
+function descriptorMatchesIdentity(
+  descriptor: string,
+  identity: string,
+): boolean {
+  const d = meaningfulNameTokens(descriptor);
+  if (d.length === 0) return false;
+  const id = meaningfulNameTokens(identity);
+  // The FULL meaningful name, as a token set — a subset match would let a
+  // descriptor naming one merchant ('CIRCLE K') claim a longer, different
+  // one ('CIRCLE K OFFICE SERVICES AS'); only the same full merchant name
+  // (or a RECORDED alias/IBAN identifier, matched the same way) links.
+  // Multiset equality, not subset-includes: token MULTIPLICITY is identity
+  // ('PIZZA PIZZA' is not 'PIZZA EXPRESS' — two pizzas vs a pizza and an
+  // express), so the sorted token sequences must match element-wise.
+  const ds = [...d].sort();
+  const is = [...id].sort();
+  return ds.length === is.length && ds.every((t, i) => t === is[i]);
+}
+
+/** The meaningful name tokens of a merchant identity value: Unicode-folded,
+ *  punctuation-free, legal-form suffixes removed consistently from BOTH
+ *  sides of any comparison ('CIRCLE K A/S' ≡ 'Circle K As' ≡ [circle, k]).
+ *  One-character tokens ARE significant ('CIRCLE K' ≠ 'CIRCLE X'). */
+function meaningfulNameTokens(s: string): string[] {
+  const folded = s
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    // Slashed legal forms, merged before tokenizing so they hit the suffix
+    // set ('A/S' → 'as') instead of fragmenting into bare letters.
+    .replace(/a\/p\/s/g, 'aps')
+    .replace(/a\/s/g, 'as')
+    .replace(/s\/a/g, 'sa')
+    .replace(/n\/v/g, 'nv')
+    .replace(/b\/v/g, 'bv');
+  return folded
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length > 0)
+    .filter((t) => !LEGAL_FORM_SUFFIXES.has(t));
+}
 
 @Injectable()
 export class ExpensesService {
@@ -136,6 +232,11 @@ export class ExpensesService {
             : dto.company_addressed_receipt === false
               ? 0
               : null,
+        service_place_rule:
+          dto.service_place_rule === 'general'
+            ? null
+            : (dto.service_place_rule ?? null),
+        place_of_supply_country: dto.place_of_supply_country ?? null,
         ai_confidence: dto.ai_confidence ?? null,
         ai_document_type: dto.ai_document_type ?? null,
         ai_kind: dto.ai_kind ?? null,
@@ -257,7 +358,558 @@ export class ExpensesService {
 
   async generateDraftVoucher(expenseId: number): Promise<DraftVoucher> {
     const expense = await this.getExpenseById(expenseId);
-    return this.buildDraftVoucher(expense);
+    const { draft, settlementLink } = await this.buildDraftVoucher(expense);
+    if (
+      settlementLink &&
+      draft.lines.some((l) => l.fx_rate_source === BANK_STATEMENT_RATE_SOURCE)
+    ) {
+      // The draft actually BOOKED the bank rate (the projection may still have
+      // preferred an available statutory rate). CLAIM the bank line for this
+      // expense — atomically, so a concurrent draft generation for a different
+      // expense cannot also post against it — and write the human-readable
+      // audit entry once.
+      await this.claimBankSettlementUsage(expense, settlementLink);
+      await this.auditBankSettlementFxOnce(expense, settlementLink, draft);
+    }
+    return draft;
+  }
+
+  /**
+   * The operator's EXPLICIT settlement-line selection (issue #403's
+   * ambiguity recovery): when several same-day bank lines share the exact
+   * merchant, original currency and original amount — genuinely distinct
+   * settlements the deterministic resolver cannot tell apart — the held
+   * draft stays held until a human says WHICH line settled THIS purchase.
+   *
+   * This is a RESOLUTION, not a bypass. The selected line runs through the
+   * SAME validation the automatic link runs — counterparty identity, same
+   * day, the same original currency and amount, the organisation's own bank
+   * account, fee/rate sanity, exclusivity (a line claimed by another expense
+   * is refused), and the claimant contradiction — and the valuation itself
+   * happens later, in the normal draft generation, where the resolved
+   * treatment, eligibility and statutory checks all run as always. Nothing
+   * about the selection rewrites the expense: the original amount, currency
+   * and attachments stand, and the posting goes through the normal
+   * Rules → Policy → approval flow.
+   *
+   * Idempotent: re-selecting the same line keeps one claim and one selection
+   * audit entry; selecting a DIFFERENT line for the same unposted draft
+   * atomically REPLACES the reservation (the abandoned line is released for
+   * a genuinely distinct purchase). Refused selections change nothing.
+   */
+  async selectSettlementFx(
+    expenseId: number,
+    bankTransactionId: number,
+  ): Promise<{ expense_id: number; bank_transaction_id: number }> {
+    const expense = await this.getExpenseById(expenseId);
+    if (!expense) {
+      throw new NotFoundException(`Expense ${expenseId} not found`);
+    }
+    // Unposted-only (the same guard an edit gets): a posted or
+    // voucher-bearing valuation keeps its settlement for good.
+    if (expense.status !== 'draft' && expense.status !== 'pending') {
+      throw new ConflictException(
+        `Expense ${expenseId} is ${expense.status} — its settlement ` +
+          `stands; correct it via POST /api/expenses/${expenseId}/correct`,
+      );
+    }
+    if (expense.voucher_id !== null) {
+      throw new ConflictException(
+        `Expense ${expenseId} already carries a voucher — its settlement ` +
+          `stands`,
+      );
+    }
+    if (expense.claimant_id !== null) {
+      throw new BadRequestException(
+        `Expense ${expenseId} is claimant-paid: an organisation bank ` +
+          `settlement would contradict the confirmed out-of-pocket payment`,
+      );
+    }
+    if (expense.supplier_id === null) {
+      throw new BadRequestException(
+        `Expense ${expenseId} has no supplier recorded to link a settlement ` +
+          `line against`,
+      );
+    }
+
+    const txn = await this.db
+      .selectFrom('bank_transaction')
+      .selectAll()
+      .where('id', '=', bankTransactionId)
+      .executeTakeFirst();
+    if (!txn) {
+      throw new NotFoundException(
+        `Bank transaction ${bankTransactionId} not found`,
+      );
+    }
+
+    // Exclusivity, fast path (the atomic guard is the claim transaction).
+    const usage = await this.bankSettlementUsage();
+    if (bankTransactionId in usage && usage[bankTransactionId] !== expenseId) {
+      throw new ConflictException(
+        `Bank transaction ${bankTransactionId} already values expense ` +
+          `${usage[bankTransactionId]}`,
+      );
+    }
+
+    // The organisation's OWN bank account: the line's statement must belong
+    // to a real BANK_* asset account.
+    const account = await this.db
+      .selectFrom('bank_transaction')
+      .innerJoin(
+        'bank_statement',
+        'bank_statement.id',
+        'bank_transaction.statement_id',
+      )
+      .innerJoin('account', 'account.id', 'bank_statement.account_id')
+      .select(['account.code as code', 'account.type as type'])
+      .where('bank_transaction.id', '=', bankTransactionId)
+      .executeTakeFirstOrThrow();
+
+    // ── The same link validations the automatic resolution runs ────────
+    if (txn.amount >= 0) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} is not a debit settlement`,
+      );
+    }
+    if (account.type !== 'asset' || !account.code.startsWith('BANK_')) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} does not belong to a ` +
+          `organisation bank account (${account.code})`,
+      );
+    }
+    if (txn.status !== 'open') {
+      throw new ConflictException(
+        `Bank transaction ${bankTransactionId} is ${txn.status}, not open`,
+      );
+    }
+    // Existing allocations (issue #403's reliable-link fidelity): a line whose
+    // cash the books have already drawn on (an ACTIVE reconciliation match)
+    // is not free FULL-settlement evidence for a DIFFERENT purchase — status
+    // 'open' does not mean unallocated. A partial/combined settlement keeps
+    // the line open with a remainder, and offering it here would claim cash
+    // the books already own. Refused with the allocation named.
+    {
+      const allocated = await this.activeAllocation(bankTransactionId);
+      const claimedByThis =
+        bankTransactionId in usage && usage[bankTransactionId] === expenseId;
+      if (allocated > 0 && !claimedByThis) {
+        throw new ConflictException(
+          `Bank transaction ${bankTransactionId} already has ` +
+            `${allocated} of its cash allocated on the books — a line with ` +
+            `an existing settlement is not free full-settlement evidence ` +
+            `for this purchase; if this purchase really settled on it, ` +
+            `book it manually with your accountant`,
+        );
+      }
+    }
+    if (txn.source_currency === null || txn.source_currency === '') {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} carries no original ` +
+          `currency evidence`,
+      );
+    }
+    if (txn.source_currency !== expense.currency) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId}'s original currency ` +
+          `(${txn.source_currency}) is not the purchase's ` +
+          `(${expense.currency})`,
+      );
+    }
+    if (txn.source_amount === null || txn.source_amount <= 0) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} carries no positive ` +
+          `original amount`,
+      );
+    }
+    if (txn.source_amount !== expense.gross_amount) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId}'s original amount ` +
+          `(${txn.source_amount} ${txn.source_currency}) is not the ` +
+          `purchase's (${expense.gross_amount} ${expense.currency})`,
+      );
+    }
+    if (txn.currency === txn.source_currency) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} is settled in the original ` +
+          `currency itself — no conversion evidence`,
+      );
+    }
+    if (txn.transaction_date !== expense.tax_point_date) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId} settled ` +
+          `${txn.transaction_date}, not the purchase's transaction date ` +
+          `(${expense.tax_point_date}) — not a same-day settlement`,
+      );
+    }
+
+    // Counterparty identity: the full-merchant-name rule, never amount alone.
+    const supplier = await this.loadSupplierIdentityValues(expense.supplier_id);
+    const descriptor = txn.counterparty_descriptor ?? txn.counterparty_iban;
+    if (
+      descriptor === null ||
+      !supplier.values.some((v) => descriptorMatchesIdentity(descriptor, v))
+    ) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId}'s counterparty does not ` +
+          `identify the purchase's supplier (${supplier.name})`,
+      );
+    }
+
+    // Fee/rate sanity (the full fee-separated arithmetic runs, as always, at
+    // draft generation, where the effective base currency is known).
+    if (
+      txn.fx_rate !== null &&
+      (!Number.isFinite(txn.fx_rate) || txn.fx_rate <= 0)
+    ) {
+      throw new BadRequestException(
+        `Bank transaction ${bankTransactionId}'s conversion rate ` +
+          `(${txn.fx_rate}) is not usable`,
+      );
+    }
+    if (
+      txn.conversion_fee !== null &&
+      (!Number.isSafeInteger(txn.conversion_fee) ||
+        txn.conversion_fee < 0 ||
+        txn.conversion_fee >= Math.abs(txn.amount))
+    ) {
+      throw new ConflictException(
+        `Bank transaction ${bankTransactionId}'s conversion fee ` +
+          `(${txn.conversion_fee}) does not fit its debit ` +
+          `(${Math.abs(txn.amount)}); the figures conflict`,
+      );
+    }
+
+    // Atomic reservation replacement + audit: an abandoned selection is
+    // released, the chosen line claimed, and the SELECTION ITSELF recorded —
+    // all inside one transaction, so a failure leaves no un-audited
+    // reservation and a racing edit/claim by another expense cannot
+    // interleave. Every LINK-RELEVANT fact is re-compared inside the
+    // transaction (not merely status/voucher): an edit that landed between
+    // the validation above and this claim refuses the selection — the stale
+    // evidence is never reserved.
+    const now = Math.floor(Date.now() / 1000);
+    await this.db.transaction().execute(async (trx) => {
+      const current = await trx
+        .selectFrom('expense')
+        .select([
+          'status',
+          'voucher_id',
+          'supplier_id',
+          'claimant_id',
+          'currency',
+          'gross_amount',
+          'tax_point_date',
+        ])
+        .where('id', '=', expenseId)
+        .executeTakeFirstOrThrow();
+      if (
+        (current.status !== 'draft' && current.status !== 'pending') ||
+        current.voucher_id !== null ||
+        current.supplier_id !== expense.supplier_id ||
+        (current.claimant_id ?? null) !== (expense.claimant_id ?? null) ||
+        current.currency !== expense.currency ||
+        current.gross_amount !== expense.gross_amount ||
+        current.tax_point_date !== expense.tax_point_date
+      ) {
+        throw new ConflictException(
+          `Expense ${expenseId} changed while its settlement was being ` +
+            `selected; nothing was claimed or audited — retry and the ` +
+            `validation runs on the current facts`,
+        );
+      }
+      const owner = await trx
+        .selectFrom('bank_settlement_usage')
+        .select(['expense_id'])
+        .where('bank_transaction_id', '=', bankTransactionId)
+        .executeTakeFirst();
+      if (owner && owner.expense_id !== expenseId) {
+        throw new ConflictException(
+          `Bank transaction ${bankTransactionId} was claimed by expense ` +
+            `${owner.expense_id} while this selection was being made; ` +
+            `nothing was changed — retry`,
+        );
+      }
+      // SAME-STATE IDEMPOTENCE: re-selecting the row this expense's
+      // OPERATOR claim already holds is an atomic no-op — the state is
+      // already exactly what was asked for, so nothing is rewritten and no
+      // duplicate decision is recorded. (A different row, or an 'auto'
+      // reservation on this row, IS a new decision below: an A-then-B-then-A
+      // re-selection is three operator decisions and reads as three.)
+      const sameOperatorSelection = await trx
+        .selectFrom('bank_settlement_usage')
+        .select(['bank_transaction_id'])
+        .where('expense_id', '=', expenseId)
+        .where('origin', '=', 'operator')
+        .where('bank_transaction_id', '=', bankTransactionId)
+        .executeTakeFirst();
+      if (sameOperatorSelection) {
+        return;
+      }
+      // The expense's previous reservation (if any) is released — the
+      // unposted draft's evidence follows the operator's current decision.
+      await trx
+        .deleteFrom('bank_settlement_usage')
+        .where('expense_id', '=', expenseId)
+        .execute();
+      await trx
+        .insertInto('bank_settlement_usage')
+        .values({
+          bank_transaction_id: bankTransactionId,
+          expense_id: expenseId,
+          origin: 'operator',
+          created_at: now,
+        })
+        .execute();
+      // The decision itself is on the record — APPEND-ONLY, one entry per
+      // NEW decision, INSIDE the claim transaction (a same-state retry
+      // records nothing; the claim state is what makes the latest one
+      // authoritative), never silently collapsed.
+      await this.auditLog.record(
+        {
+          actor: 'operator',
+          action: 'expense.bank_settlement_fx_selection',
+          outcome: 'selected',
+          target_type: 'expense',
+          target_id: expenseId,
+          detail: {
+            bank_transaction_id: bankTransactionId,
+            bank_statement_id: txn.statement_id,
+            transaction_date: txn.transaction_date,
+            tax_point_date: expense.tax_point_date,
+            source_currency: txn.source_currency,
+            source_amount: txn.source_amount,
+            settled_currency: txn.currency,
+            debit_amount: Math.abs(txn.amount),
+            fx_rate: txn.fx_rate,
+            fx_rate_decimals: txn.fx_rate_decimals,
+            conversion_fee: txn.conversion_fee,
+            counterparty_descriptor: txn.counterparty_descriptor,
+            supplier_id: expense.supplier_id,
+            reason:
+              'operator disambiguation of same-day settlement lines sharing ' +
+              'the merchant, original currency and original amount; every ' +
+              'link validation re-ran at selection and the valuation runs ' +
+              'through the normal draft generation',
+          },
+        },
+        trx,
+      );
+    });
+
+    return { expense_id: expenseId, bank_transaction_id: bankTransactionId };
+  }
+
+  /**
+   * Atomically claim the bank settlement line for THIS expense (issue #403).
+   *
+   * The claim table's UNIQUE index on `bank_transaction_id` is the guard: one
+   * bank line values one purchase, whatever the interleaving of concurrent
+   * draft generations. An insert conflict for the SAME expense is the
+   * idempotent retry case (its own claim, kept); a conflict for a DIFFERENT
+   * expense is a typed refusal — this expense cannot be valued from a bank
+   * line that already values another one, so the statutory path (and its
+   * hold) stands, and nothing is posted against a double-used settlement.
+   */
+  private async claimBankSettlementUsage(
+    expense: Expense,
+    link: BankSettlementLink,
+  ): Promise<void> {
+    // The claim is ATOMIC at the database level and backend-agnostic: the
+    // UNIQUE index on bank_transaction_id does the guarding, an ON CONFLICT
+    // DO NOTHING turns a racing claim into "read who won", and the
+    // authoritative owner read decides the outcome. No error-code sniffing —
+    // a UNIQUE violation and any other fault keep distinct shapes.
+    //
+    // The claim is also FACTS-VALIDATED atomically (issue #403): the expense
+    // row is re-read INSIDE the claim transaction and must still carry the
+    // facts the link values — an edit can legitimately land between the draft
+    // generation's FX wait and this claim, and an unvalidated claim would
+    // reserve the OLD bank line for the EDITED purchase (a stale draft
+    // posting against evidence that no longer describes it). A mismatch is a
+    // typed refusal: nothing is claimed, the stale draft is not posted, and
+    // the next generation claims against the current facts.
+    const now = Math.floor(Date.now() / 1000);
+    await this.db.transaction().execute(async (trx) => {
+      const current = await trx
+        .selectFrom('expense')
+        .select([
+          'supplier_id',
+          'claimant_id',
+          'currency',
+          'gross_amount',
+          'tax_point_date',
+        ])
+        .where('id', '=', expense.id)
+        .executeTakeFirst();
+      // The COMPLETE identity/link facts, compared against the link: the
+      // supplier whose identity the bank line matched (not merely "some
+      // supplier exists"), no claimant contradiction, and the same original
+      // currency/amount/date the link values.
+      if (
+        !current ||
+        current.supplier_id !== link.supplierId ||
+        current.claimant_id != null ||
+        current.currency !== link.sourceCurrency ||
+        current.gross_amount !== link.sourceAmount ||
+        current.tax_point_date !== link.transactionDate
+      ) {
+        throw new FxRateUnavailableError(
+          link.sourceCurrency,
+          link.settledCurrency,
+          link.transactionDate,
+          `the purchase was edited or removed while its draft was being ` +
+            `valued, so the bank settlement evidence no longer describes it; ` +
+            `nothing was claimed or posted — post it again and the entry is ` +
+            `recomputed from the current facts`,
+          'no_rate_for_date',
+        );
+      }
+      // BANK-ROW guard, atomically inside the claim transaction (issue
+      // #403's disposition races): the settlement line itself is re-read
+      // HERE. A whole-line disposition (a personal spend recorded on the
+      // line — it posts the FULL cash and flips the row's status without any
+      // reconciliation match) or a statement DELETION (the row vanishes and
+      // cascades the claim away) can land between the draft generation's FX
+      // wait and this claim; claiming a disposed or deleted line would post
+      // a second full valuation on cash the books already own. A row that
+      // no longer exists, or is no longer OPEN, refuses — nothing claimed,
+      // nothing posted.
+      const bankRow = await trx
+        .selectFrom('bank_transaction')
+        .select(['status'])
+        .where('id', '=', link.bankTransactionId)
+        .executeTakeFirst();
+      if (!bankRow) {
+        throw new FxRateUnavailableError(
+          link.sourceCurrency,
+          link.settledCurrency,
+          link.transactionDate,
+          `bank settlement line ${link.bankTransactionId} was deleted (its ` +
+            `statement was removed) while this draft was being valued; ` +
+            `nothing was claimed or posted — post it again and the evidence ` +
+            `is re-resolved from what exists`,
+          'no_rate_for_date',
+        );
+      }
+      if (bankRow.status !== 'open') {
+        throw new FxRateUnavailableError(
+          link.sourceCurrency,
+          link.settledCurrency,
+          link.transactionDate,
+          `bank settlement line ${link.bankTransactionId} was recorded as a ` +
+            `'${bankRow.status}' disposition while this draft was being ` +
+            `valued — the line's cash is already accounted for on the ` +
+            `books; nothing was claimed or posted. If this purchase really ` +
+            `settled on it, book it manually with your accountant`,
+          'no_rate_for_date',
+        );
+      }
+
+      // ALLOCATION guard, atomically inside the claim transaction (issue
+      // #403): a reconciliation match can ACTIVATE on this line while a
+      // draft generation waits on the FX authority — the books then already
+      // own part of this line's cash, and a full-settlement claim posted on
+      // it would double-claim allocated cash. Re-read the ACTIVE
+      // allocations HERE, inside the same transaction that claims: a racing
+      // activation cannot slip in between this check and the claim (the
+      // single SQLite writer serializes both). A line already allocated to
+      // ANOTHER business object is refused — partial/combined settlements
+      // get an explicit typed outcome, never a silent full-bank valuation.
+      const allocatedNow = await this.activeCashAllocated(
+        link.bankTransactionId,
+        trx,
+      );
+      if (allocatedNow > 0) {
+        throw new FxRateUnavailableError(
+          link.sourceCurrency,
+          link.settledCurrency,
+          link.transactionDate,
+          `bank settlement line ${link.bankTransactionId} already has ` +
+            `${allocatedNow} of its cash allocated on the books while this ` +
+            `draft was being valued — a line with an existing settlement is ` +
+            `not free full-settlement evidence for this purchase; nothing ` +
+            `was claimed or posted. If this purchase really settled on it, ` +
+            `book it manually with your accountant`,
+          'no_rate_for_date',
+        );
+      }
+
+      // SELECTION-CHANGE guard (issue #403): the operator's settlement
+      // selection is authoritative for an unposted draft. A stale draft
+      // generation (paused mid-FX before the operator selected) finding the
+      // expense now holding a DIFFERENT OPERATOR-selected line must NOT
+      // evict the selection nor claim its own line alongside it — the usage
+      // table constrains uniqueness per bank line, not per expense, so an
+      // unguarded insert would leave the draft holding BOTH. It refuses: the
+      // operator's selection stands, the stale draft is not posted, and the
+      // next generation values the SELECTED line.
+      //
+      // An 'auto' reservation (a PRIOR generation's own transient claim) is
+      // NOT a decision: the fresh generation replaces it — otherwise the
+      // very first automatic claim would collide with itself forever.
+      const reservations = await trx
+        .selectFrom('bank_settlement_usage')
+        .select(['bank_transaction_id', 'expense_id', 'origin'])
+        .where('expense_id', '=', expense.id)
+        .execute();
+      const otherSelection = reservations.find(
+        (r) =>
+          r.origin === 'operator' &&
+          r.bank_transaction_id !== link.bankTransactionId,
+      );
+      if (otherSelection) {
+        throw new FxRateUnavailableError(
+          link.sourceCurrency,
+          link.settledCurrency,
+          link.transactionDate,
+          `the purchase's settlement selection changed to bank line ` +
+            `${otherSelection.bank_transaction_id} while this draft was ` +
+            `being valued on line ${link.bankTransactionId}; the selection ` +
+            `stands and nothing was claimed or posted — post it again and ` +
+            `the entry is valued on the selected line`,
+          'no_rate_for_date',
+        );
+      }
+      // Replace this expense's own stale AUTO reservations (an operator
+      // claim for the SAME line stays — the guard above only refuses a
+      // different one, and the insert below is a no-op on it).
+      await trx
+        .deleteFrom('bank_settlement_usage')
+        .where('expense_id', '=', expense.id)
+        .where('origin', '=', 'auto')
+        .execute();
+      await trx
+        .insertInto('bank_settlement_usage')
+        .values({
+          bank_transaction_id: link.bankTransactionId,
+          expense_id: expense.id,
+          origin: 'auto',
+          created_at: now,
+        })
+        .onConflict((oc) => oc.column('bank_transaction_id').doNothing())
+        .execute();
+    });
+    const owner = await this.db
+      .selectFrom('bank_settlement_usage')
+      .select(['expense_id'])
+      .where('bank_transaction_id', '=', link.bankTransactionId)
+      .executeTakeFirst();
+    if (owner && owner.expense_id !== expense.id) {
+      // The race was lost to a DIFFERENT expense: a typed refusal, so this
+      // expense's valuation falls back to the statutory path (and its hold)
+      // instead of posting against a double-used settlement.
+      throw new FxRateUnavailableError(
+        link.sourceCurrency,
+        link.settledCurrency,
+        link.transactionDate,
+        `bank settlement line ${link.bankTransactionId} already values ` +
+          `expense ${owner.expense_id}`,
+        'no_rate_for_date',
+      );
+    }
+    // Our own claim from an earlier generation (or the one just inserted) —
+    // idempotent, kept.
   }
 
   /**
@@ -282,7 +934,9 @@ export class ExpensesService {
       ...(patch.vat_amount !== undefined && { vat_amount: patch.vat_amount }),
       ...(patch.category !== undefined && { category: patch.category }),
     };
-    return this.buildDraftVoucher(patched);
+    // Preview only: no audit entry is written for a draft nobody has booked.
+    const { draft } = await this.buildDraftVoucher(patched);
+    return draft;
   }
 
   /**
@@ -296,17 +950,37 @@ export class ExpensesService {
    * from, which decides KMD row 6 vs row 7 (issue #210). Without a supplier the
    * facts are omitted and the projection assumes a domestic counterparty.
    */
-  private async buildDraftVoucher(expense: Expense): Promise<DraftVoucher> {
+  private async buildDraftVoucher(expense: Expense): Promise<{
+    draft: DraftVoucher;
+    settlementLink: BankSettlementLink | null;
+    settlementUnresolved: string | null;
+  }> {
     const supplier =
       expense.supplier_id !== null
         ? await this.db
             .selectFrom('entity')
-            .select(['country', 'goods_vs_services', 'tax_status'])
+            .select(['country', 'name', 'goods_vs_services', 'tax_status'])
             .where('id', '=', expense.supplier_id)
             .executeTakeFirst()
         : undefined;
 
-    return this.projection.project(
+    // ── Bank-settlement FX link (issue #403) ─────────────────────
+    // A purchase may be valuably evidenced by the bank line that settled it
+    // the SAME DAY (RTJ1 §93's transaction-date rate). Resolved
+    // deterministically HERE — the adapter that owns the purchase row — and
+    // validated/used ONLY as the projection's narrow fallback (see
+    // settlementFxFallback and the ADR-0004 amendment). It is attempted for
+    // every purchase with a recorded supplier: WHICH treatments may use it
+    // (a `foreign_cost` local purchase whose foreign VAT folds into the cost,
+    // or a VAT-free one) is decided by the projection from the RESOLVED
+    // treatment, never from the stated vat_amount alone — a local foreign
+    // receipt may carry positive foreign VAT.
+    const settlement = await this.resolveBankSettlementLink(
+      expense,
+      supplier?.name ?? null,
+    );
+
+    const draft = await this.projection.project(
       {
         category: expense.category,
         grossAmount: expense.gross_amount,
@@ -327,9 +1001,646 @@ export class ExpensesService {
               ? null
               : Boolean(expense.company_addressed_receipt)
             : undefined,
+        ...(settlement?.kind === 'link' && {
+          settlementFx: settlement.link,
+        }),
+        ...(settlement?.kind === 'unresolved' && {
+          settlementFxUnresolved: settlement.reason,
+        }),
+        ...(expense.service_place_rule != null && {
+          servicePlaceRule: expense.service_place_rule,
+        }),
+        ...(expense.place_of_supply_country != null && {
+          placeOfSupplyCountry: expense.place_of_supply_country,
+        }),
       },
       'purchase',
     );
+    // The draft's OWN evidence identity (issue #403): when THIS draft booked
+    // the bank's own rate, its concrete bank line travels on the draft so
+    // the posting transaction's guard revalidates exactly what this
+    // valuation used — not the claim (which cascades with the statement)
+    // and not the valuation audit history (which is deduplicated per
+    // valuation and cannot distinguish an A→B→A re-selection's latest).
+    if (
+      settlement?.kind === 'link' &&
+      draft.lines.some((l) => l.fx_rate_source === BANK_STATEMENT_RATE_SOURCE)
+    ) {
+      draft.bank_settlement = {
+        bankTransactionId: settlement.link.bankTransactionId,
+        statementId: settlement.link.statementId,
+      };
+    }
+    return {
+      draft,
+      settlementLink: settlement?.kind === 'link' ? settlement.link : null,
+      settlementUnresolved:
+        settlement?.kind === 'unresolved' ? settlement.reason : null,
+    };
+  }
+
+  /**
+   * Resolve the bank settlement line that paid a VAT-free purchase —
+   * deterministically, or not at all (issue #403).
+   *
+   * The link is NEVER amount alone. Every candidate must satisfy ALL of:
+   *   - the SAME DAY as the purchase (the transaction-date rate, RTJ1 §93);
+   *   - the SAME original currency AND original amount (the purchase's own
+   *     foreign figure, exactly);
+   *   - a COUNTERPARTY identity link to the supplier — the bank's merchant
+   *     descriptor/IBAN matches the supplier's name or a recorded identifier
+   *     (deterministic normalized-token rule, never fuzzy); and
+   *   - exclusivity: the bank line is not already another expense's evidence.
+   *
+   * Ambiguity (two lines surviving every check), a line already used by a
+   * different expense, or a claimant-paid purchase matched against the
+   * ORGANISATION's bank line (the approver confirmed the claimant paid out of
+   * pocket — an org-account settlement contradicts that) are EXPLICIT
+   * unresolved outcomes, surfaced by the projection's fallback as the reason
+   * the statutory hold stands. Nothing is guessed and nothing matches on
+   * amount alone.
+   */
+  private async resolveBankSettlementLink(
+    expense: Pick<
+      Expense,
+      | 'id'
+      | 'supplier_id'
+      | 'claimant_id'
+      | 'currency'
+      | 'gross_amount'
+      | 'tax_point_date'
+      | 'voucher_id'
+    >,
+    supplierName: string | null,
+  ): Promise<BankSettlementResolution> {
+    if (expense.supplier_id == null) {
+      return {
+        kind: 'unresolved',
+        reason: 'no supplier recorded to link a bank line against',
+      };
+    }
+    if (expense.claimant_id != null) {
+      // The approver confirmed this purchase was paid by the CLAIMANT out of
+      // pocket; an organisation-account settlement would contradict that, so
+      // no org bank line is used as its valuation evidence.
+      return {
+        kind: 'unresolved',
+        reason:
+          'claimant-paid purchase: an organisation bank settlement would ' +
+          'contradict the confirmed out-of-pocket payment',
+      };
+    }
+
+    // ── The operator's selected line takes precedence (issue #403) ──────
+    // An expense holding a bank_settlement_usage claim got it either from
+    // a draft generation or from the operator's EXPLICIT settlement
+    // selection (selectSettlementFx) — the disambiguation of same-day lines
+    // the deterministic query cannot tell apart. The claimed line is
+    // RE-VALIDATED here, every check the automatic candidates get, because
+    // a selection disambiguates WHICH line, never waiving identity, amount,
+    // date or currency.
+    const claim = await this.db
+      .selectFrom('bank_settlement_usage')
+      .select(['bank_transaction_id'])
+      .where('expense_id', '=', expense.id)
+      .executeTakeFirst();
+    const selectedId = claim?.bank_transaction_id ?? null;
+    if (selectedId !== null) {
+      const selected = await this.db
+        .selectFrom('bank_transaction')
+        .selectAll()
+        .where('id', '=', selectedId)
+        .executeTakeFirst();
+      // A POSTED expense's OWN settled line is legitimate at ANY disposition
+      // status (issue #403's correction fidelity): its own full normal flow —
+      // the principal settlement match plus the explicit fee disposition —
+      // consumes the whole line and flips its status to 'bank_fee'; a
+      // correction of THAT purchase must still re-derive its historical
+      // valuation. Validated STRUCTURALLY below (every ACTIVE match is the
+      // expense's own principal or the line's own fee leg), never re-valuing
+      // another expense's evidence and never acquiring new cash or a claim
+      // (the preview path claims nothing). An UNPOSTED draft keeps the
+      // strict status guard: for it a disposed line is a race, not history.
+      const postedOwnLine =
+        expense.voucher_id !== null &&
+        selected !== undefined &&
+        selected.amount < 0 &&
+        (await this.allActiveMatchesBelongToOwnSettlement(
+          selected.id,
+          expense.voucher_id,
+          selected.conversion_fee,
+        ));
+      const stillValid =
+        selected !== undefined &&
+        selected.amount < 0 &&
+        (postedOwnLine || selected.status === 'open') &&
+        selected.source_currency === expense.currency &&
+        selected.source_amount === expense.gross_amount &&
+        selected.transaction_date === expense.tax_point_date &&
+        // The counterparty identity is the descriptor OR the IBAN — a card
+        // line may carry only an IBAN (issue #403: IBAN-only identity is a
+        // reliable link when the supplier has the identifier recorded).
+        (selected.counterparty_descriptor ?? selected.counterparty_iban) !==
+          null;
+      if (stillValid && selected) {
+        const supplierIdentity = await this.loadSupplierIdentityValues(
+          expense.supplier_id,
+          supplierName,
+        );
+        const identityValues = supplierIdentity.values;
+        const descriptor =
+          selected.counterparty_descriptor ?? selected.counterparty_iban;
+        if (
+          descriptor !== null &&
+          identityValues.some((v) => descriptorMatchesIdentity(descriptor, v))
+        ) {
+          return {
+            kind: 'link',
+            link: {
+              bankTransactionId: selected.id,
+              statementId: selected.statement_id,
+              supplierId: expense.supplier_id,
+              bookingDate: selected.booking_date,
+              transactionDate: selected.transaction_date,
+              sourceCurrency: selected.source_currency ?? '',
+              sourceAmount: selected.source_amount ?? 0,
+              settledCurrency: selected.currency,
+              settledAmount: selected.amount,
+              fxRate: selected.fx_rate,
+              fxRateDecimals: selected.fx_rate_decimals,
+              conversionFee: selected.conversion_fee,
+              bankReferenceRate: selected.bank_reference_rate,
+            },
+          };
+        }
+      }
+      // The selected line no longer validates: an honest, actionable
+      // outcome naming the resolution path, never a silent fall-through to
+      // the ambiguous many (the operator resolved this once already).
+      return {
+        kind: 'unresolved',
+        reason:
+          'the operator-selected settlement line no longer matches this ' +
+          'purchase (its facts, status or counterparty identity changed) — ' +
+          `re-select via POST /api/expenses/${expense.id}/settlement-fx`,
+      };
+    }
+
+    const candidates = await this.db
+      .selectFrom('bank_transaction')
+      .selectAll()
+      .where('source_currency', '=', expense.currency)
+      .where('transaction_date', '=', expense.tax_point_date)
+      .where('source_amount', '=', expense.gross_amount)
+      .where('amount', '<', 0)
+      .where('status', '=', 'open')
+      .execute();
+
+    // ── The expense's OWN settled line (issue #403's correction fidelity) ──
+    // A posted purchase's full normal flow (principal settlement + the
+    // explicit fee disposition) fully consumes its line and flips the line's
+    // status away from 'open' — a correction of THAT purchase must still
+    // re-derive its historical bank valuation and provenance, so its own
+    // claimed line rejoins the candidates here. The OWN-settlement pattern
+    // is validated below (all active matches are the expense's own
+    // principal or its own fee part); an UNPOSTED draft has no voucher and
+    // never gets this exemption — for it the strict open/deleted/personal
+    // guards apply unchanged.
+    const ownClaimed: typeof candidates =
+      expense.voucher_id !== null
+        ? await this.db
+            .selectFrom('bank_transaction')
+            .innerJoin(
+              'bank_settlement_usage',
+              'bank_settlement_usage.bank_transaction_id',
+              'bank_transaction.id',
+            )
+            .selectAll('bank_transaction')
+            .where('bank_settlement_usage.expense_id', '=', expense.id)
+            .execute()
+        : [];
+    const candidateIds = new Set(candidates.map((c) => c.id));
+    const ownLines = ownClaimed.filter((c) => !candidateIds.has(c.id));
+
+    if (candidates.length === 0 && ownLines.length === 0) {
+      return {
+        kind: 'unresolved',
+        reason:
+          `no same-day bank settlement line carries this purchase's ` +
+          `original ${expense.currency} ${expense.gross_amount} amount`,
+      };
+    }
+
+    // Counterparty identity: the descriptor's normalized tokens must all
+    // appear in the supplier's name or a recorded merchant_descriptor /
+    // name_alias / IBAN identifier — deterministic, case/punctuation-blind.
+    const supplierIdentity = await this.loadSupplierIdentityValues(
+      expense.supplier_id,
+      supplierName,
+    );
+    const identityValues = supplierIdentity.values;
+    const matchesIdentity = (c: (typeof candidates)[number]): boolean => {
+      const descriptor = c.counterparty_descriptor ?? c.counterparty_iban;
+      if (descriptor == null) return false;
+      return identityValues.some((v) =>
+        descriptorMatchesIdentity(descriptor, v),
+      );
+    };
+    const linked = candidates.filter(matchesIdentity);
+    const ownLinked = ownLines.filter(matchesIdentity);
+
+    // Exclusivity, fast path: a bank line already CLAIMED by another expense
+    // is not evidence for this one (a retry of the same expense keeps its own
+    // claim). The atomic guarantee is the UNIQUE claim insert at draft time
+    // (claimBankSettlementUsage); this pre-read only avoids building a draft
+    // that the claim would immediately refuse.
+    const usage = await this.bankSettlementUsage();
+    // Existing allocations (issue #403's reliable-link fidelity): a line
+    // whose cash the books have already drawn on — an ACTIVE reconciliation
+    // match (a posted purchase's settlement, a fee disposition) — is not
+    // FREE full-settlement evidence for a different purchase. Status 'open'
+    // does NOT mean unallocated: a partial/combined settlement keeps the
+    // line open with a remainder. Such lines are refused with the
+    // allocation named, never offered as automatic evidence.
+    const unallocated: typeof linked = [];
+    const allocatedLines: { id: number; allocated: number }[] = [];
+    for (const c of linked) {
+      // OWN allocations are exempt: a line whose ACTIVE matches all belong
+      // to THIS expense's own voucher is this purchase's own settlement —
+      // re-previewing/correcting the already-settled purchase re-reads its
+      // own evidence and must not be refused by its own allocation.
+      const ownAllocation =
+        expense.voucher_id !== null &&
+        (await this.allActiveMatchesBelongToVoucher(c.id, expense.voucher_id));
+      if (ownAllocation) {
+        unallocated.push(c);
+        continue;
+      }
+      const allocated = await this.activeAllocation(c.id);
+      if (allocated > 0) {
+        allocatedLines.push({ id: c.id, allocated });
+        continue;
+      }
+      unallocated.push(c);
+    }
+
+    // The expense's OWN settled lines (the correction path): each is
+    // validated against the OWN-settlement pattern — every ACTIVE match is
+    // this expense's own principal or its own fee part — before it re-enters
+    // the candidate set with its historical valuation. A claimed line that
+    // does NOT satisfy the pattern (another object's claim on the cash) is
+    // refused below with the allocation named.
+    for (const c of ownLinked) {
+      const ownSettled =
+        expense.voucher_id !== null &&
+        (await this.allActiveMatchesBelongToOwnSettlement(
+          c.id,
+          expense.voucher_id,
+          c.conversion_fee,
+        ));
+      if (ownSettled) {
+        unallocated.push(c);
+      } else {
+        const allocated = await this.activeAllocation(c.id);
+        allocatedLines.push({
+          id: c.id,
+          allocated: allocated || Math.abs(c.amount),
+        });
+      }
+    }
+
+    const free = unallocated.filter(
+      (c) => !(c.id in usage) || usage[c.id] === expense.id,
+    );
+
+    if (free.length === 0) {
+      return {
+        kind: 'unresolved',
+        reason:
+          allocatedLines.length > 0
+            ? `the matching bank settlement line(s) (${allocatedLines
+                .map((a) => `#${a.id} with ${a.allocated} already allocated`)
+                .join(
+                  '; ',
+                )}) already have cash allocated on the books — a line with an existing settlement is not free full-settlement evidence for this purchase; if this purchase really settled on it, book it manually with your accountant`
+            : unallocated.length > 0
+              ? 'the matching bank settlement line(s) already evidence another expense'
+              : 'the same-day bank lines with this amount do not identify this supplier as counterparty',
+      };
+    }
+    if (free.length > 1) {
+      return {
+        kind: 'unresolved',
+        reason:
+          `multiple bank settlement lines (${free
+            .map((c) => c.id)
+            .join(', ')}) match this purchase on currency, original amount, ` +
+          `date and counterparty; the link is ambiguous — select the one ` +
+          `that settled this purchase via POST /api/expenses/${expense.id}/` +
+          `settlement-fx with {"bank_transaction_id": N}, then post again`,
+      };
+    }
+    const txn = free[0];
+    return {
+      kind: 'link',
+      link: {
+        bankTransactionId: txn.id,
+        statementId: txn.statement_id,
+        supplierId: expense.supplier_id,
+        bookingDate: txn.booking_date,
+        transactionDate: txn.transaction_date,
+        sourceCurrency: txn.source_currency ?? '',
+        sourceAmount: txn.source_amount ?? 0,
+        settledCurrency: txn.currency,
+        settledAmount: txn.amount,
+        fxRate: txn.fx_rate,
+        fxRateDecimals: txn.fx_rate_decimals,
+        conversionFee: txn.conversion_fee,
+        bankReferenceRate: txn.bank_reference_rate,
+      },
+    };
+  }
+
+  /**
+   * The supplier's identity VALUES a bank line's counterparty is matched
+   * against (issue #403): the supplier's own name plus every recorded
+   * merchant_descriptor / name_alias / IBAN identifier. ONE loader for the
+   * three consumers — the automatic link, the claimed-row precedence and the
+   * explicit settlement selection — so the identity policy (which identifiers
+   * count, and how the name is sourced) is defined once; the callers keep
+   * their own error outcomes.
+   *
+   * `supplierName` overrides the row's name when the caller already read a
+   * FRESHER one (the projection's supplier read); absent it, the entity row
+   * is the authority.
+   */
+  private async loadSupplierIdentityValues(
+    supplierId: number,
+    supplierName?: string | null,
+    executor: Kysely<Database> = this.db,
+  ): Promise<{ name: string; values: string[] }> {
+    const supplierRow = await executor
+      .selectFrom('entity')
+      .select(['id', 'name'])
+      .where('id', '=', supplierId)
+      .executeTakeFirst();
+    const identifiers = await executor
+      .selectFrom('entity_identifier')
+      .select(['kind', 'value'])
+      .where('entity_id', '=', supplierId)
+      .execute();
+    const name = supplierName ?? supplierRow?.name ?? '';
+    const values = [
+      ...(name !== '' ? [name] : []),
+      ...identifiers
+        .filter((i) =>
+          ['merchant_descriptor', 'name_alias', 'iban'].includes(i.kind),
+        )
+        .map((i) => i.value),
+    ];
+    return { name, values };
+  }
+
+  /**
+   * The CASH already allocated to a bank line by the books (issue #403): the
+   * sum of the line's ACTIVE reconciliation matches (a draft/cancelled match
+   * allocates nothing). Status 'open' alone does NOT mean unallocated — a
+   * posted purchase can settle part of the line while its remainder stays
+   * open, and treating such a line as a fresh purchase's FULL settlement
+   * evidence would double-claim cash the books already own.
+   */
+  private async activeCashAllocated(
+    bankTransactionId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<number> {
+    const rows = await executor
+      .selectFrom('reconciliation_match')
+      .select(['amount_matched', 'cash_base_amount'])
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', '=', 'active')
+      .execute();
+    return rows.reduce(
+      (sum, r) => sum + (r.cash_base_amount ?? r.amount_matched),
+      0,
+    );
+  }
+
+  /**
+   * Whether every ACTIVE reconciliation match on a bank line belongs to THIS
+   * expense's OWN settlement chain (issue #403's correction fidelity): the
+   * principal part matched to the expense's own voucher, plus the FEE part —
+   * the partial match equal to the line's evidenced conversion fee, written
+   * only by the fee disposition of a line this expense claimed. A posted
+   * purchase's correction must re-derive its historical bank valuation even
+   * though its own full settlement (principal + fee) flipped the line's
+   * status away from 'open' — while a NEW or unposted draft never gets this
+   * exemption (it has no own voucher, so the strict open/deleted guards
+   * apply unchanged).
+   */
+  private async allActiveMatchesBelongToOwnSettlement(
+    bankTransactionId: number,
+    expenseVoucherId: number,
+    conversionFee: number | null,
+    executor: Kysely<Database> = this.db,
+  ): Promise<boolean> {
+    const matches = await executor
+      .selectFrom('reconciliation_match')
+      .select(['voucher_id', 'amount_matched'])
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', '=', 'active')
+      .execute();
+    if (matches.length === 0) return false;
+    for (const m of matches) {
+      // The principal part: this expense's own voucher.
+      if (m.voucher_id === expenseVoucherId) continue;
+      // The FEE part: identified STRUCTURALLY, never by amount alone — a
+      // non-own voucher on this line is acceptable only if it IS the line's
+      // fee disposition: a voucher whose single EXPENSE_BANK_FEE leg books
+      // exactly the line's EVIDENCED conversion fee. Amount equality alone
+      // is not authoritative provenance (another voucher could book the
+      // same figure for other reasons).
+      if (conversionFee === null || m.amount_matched !== conversionFee) {
+        return false;
+      }
+      const feeLegs = await executor
+        .selectFrom('voucher_line')
+        .innerJoin('account', 'account.id', 'voucher_line.account_id')
+        .select(['voucher_line.base_amount'])
+        .where('voucher_line.voucher_id', '=', m.voucher_id)
+        .where('account.code', '=', 'EXPENSE_BANK_FEE')
+        .execute();
+      if (feeLegs.length !== 1 || feeLegs[0].base_amount !== conversionFee) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Whether every ACTIVE reconciliation match on a bank line belongs to the
+   * GIVEN voucher (issue #403): the own-settlement exemption — a settled
+   * purchase's own matches are its own evidence, not another object's claim
+   * on the cash.
+   */
+  private async allActiveMatchesBelongToVoucher(
+    bankTransactionId: number,
+    voucherId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<boolean> {
+    const rows = await executor
+      .selectFrom('reconciliation_match')
+      .select(['voucher_id'])
+      .where('bank_transaction_id', '=', bankTransactionId)
+      .where('status', '=', 'active')
+      .execute();
+    return rows.length > 0 && rows.every((r) => r.voucher_id === voucherId);
+  }
+
+  /**
+   * Whether a bank line's cash is already allocated to OTHER business
+   * objects (issue #403's reliable-link fidelity): an existing ACTIVE
+   * reconciliation match on the line means the books have already drawn on
+   * this settlement — the line is not free FULL-settlement evidence for a
+   * different purchase, and linking it as such would double-claim cash.
+   * Returns the offending allocation total for the typed outcome.
+   */
+  private async activeAllocation(
+    bankTransactionId: number,
+    executor: Kysely<Database> = this.db,
+  ): Promise<number> {
+    return this.activeCashAllocated(bankTransactionId, executor);
+  }
+
+  /**
+   * Which expense has CLAIMED each bank settlement line (issue #403): the
+   * `bank_settlement_usage` claim table, keyed by bank transaction id →
+   * expense id. The UNIQUE index on the claim makes one bank line unable to
+   * value two purchases; this read is only the fast path — the insert itself
+   * is the atomic guard.
+   */
+  private async bankSettlementUsage(): Promise<Record<number, number>> {
+    const rows = await this.db
+      .selectFrom('bank_settlement_usage')
+      .select(['bank_transaction_id', 'expense_id'])
+      .execute();
+    const usage: Record<number, number> = {};
+    for (const row of rows) {
+      usage[row.bank_transaction_id] = row.expense_id;
+    }
+    return usage;
+  }
+
+  /**
+   * Audit the valuation of a draft actually booked from bank-settlement
+   * evidence (issue #403 acceptance): the source statement and transaction,
+   * the rate (its direction and origin), the fee, the dates, and the valuation
+   * policy — written ONCE per expense (append-only log, ADR-0026, deduped by
+   * the action + expense target).
+   */
+  private async auditBankSettlementFxOnce(
+    expense: Expense,
+    link: BankSettlementLink,
+    draft: DraftVoucher,
+  ): Promise<void> {
+    if (
+      !draft.lines.some((l) => l.fx_rate_source === BANK_STATEMENT_RATE_SOURCE)
+    ) {
+      return;
+    }
+    // Append-only, deduped per VALUATION (issue #403): an entry exists for
+    // THIS (expense, bank line) pair — a retry of the same state is the same
+    // valuation and writes nothing. A draft EDIT that re-valued the purchase
+    // on a DIFFERENT bank line is a NEW valuation: a NEW entry, appended —
+    // the original entry stays untouched, so the audit trail shows every
+    // valuation the purchase actually went through.
+    const priorRows = await this.db
+      .selectFrom('audit_log')
+      .select(['detail'])
+      .where('action', '=', 'expense.bank_settlement_fx')
+      .where('target_type', '=', 'expense')
+      .where('target_id', '=', expense.id)
+      .execute();
+    const priorTxns = new Set(
+      priorRows
+        .map((r) => {
+          try {
+            const detail = JSON.parse(r.detail ?? '{}') as {
+              bank_transaction_id?: number;
+            };
+            return typeof detail.bank_transaction_id === 'number'
+              ? detail.bank_transaction_id
+              : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter((v): v is number => v !== null),
+    );
+    if (priorTxns.has(link.bankTransactionId)) return;
+
+    await this.auditLog.record({
+      actor: 'system',
+      action: 'expense.bank_settlement_fx',
+      outcome: 'valued',
+      target_type: 'expense',
+      target_id: expense.id,
+      detail: {
+        bank_transaction_id: link.bankTransactionId,
+        bank_statement_id: link.statementId,
+        booking_date: link.bookingDate,
+        transaction_date: link.transactionDate,
+        tax_point_date: expense.tax_point_date,
+        source_currency: link.sourceCurrency,
+        source_amount: link.sourceAmount,
+        settled_currency: link.settledCurrency,
+        debit_amount: Math.abs(link.settledAmount),
+        // The bank's OWN printed reference-rate observation, retained
+        // UNVERIFIED — evidence of what the bank REPORTS, never verified
+        // statutory provenance and never a valuation input (ADR-0004).
+        ...(link.bankReferenceRate !== null && {
+          bank_reference_rate_observation: link.bankReferenceRate,
+        }),
+        principal_amount: Math.round(
+          link.fxRate !== null
+            ? link.fxRate * link.sourceAmount
+            : Math.abs(link.settledAmount) - (link.conversionFee ?? 0),
+        ),
+        conversion_fee: link.conversionFee,
+        full_debit_reconciliation:
+          'the fee is evidenced separately on the bank line; the purchase ' +
+          'voucher books the fee-separated principal, and the fee remains on ' +
+          'the statement line (and its reconciliation remainder) to be ' +
+          'booked separately — never folded into the purchase and never ' +
+          'duplicated',
+        booked_fx_rate: draft.lines[0]?.fx_rate ?? null,
+        booked_fx_rate_date: draft.lines[0]?.fx_rate_date ?? null,
+        rate_direction: `${link.settledCurrency} per 1 ${link.sourceCurrency}`,
+        rate_origin:
+          link.fxRate !== null
+            ? 'bank_statement (the bank printed its rate)'
+            : 'derived from the fee-separated principal (|debit| - evidenced fee) / original amount',
+        // The calculation precision, rounding rule and consistency
+        // tolerance actually applied (issue #403): the bank's PRINTED
+        // decimal places when it printed a rate (null = unknown or derived),
+        // half-up rounding to base minor units, and the exact-consistency
+        // check the figures had to satisfy before anything posted.
+        rate_calculation_precision:
+          link.fxRate !== null
+            ? link.fxRateDecimals !== null
+              ? `bank-printed to ${link.fxRateDecimals} decimals`
+              : 'bank rate, printed precision unknown (numeric-only input)'
+            : 'derived full-precision division ((debit - evidenced fee) / original amount)',
+        rounding_rule: 'Math.round (half-up) to base-currency minor units',
+        consistency_tolerance:
+          'exact — the charged (fee-separated) principal must equal the ' +
+          "bank's own rounded rate × original amount (0 tolerance)",
+        valuation_policy:
+          'same-day bank settlement rate as the transaction-date rate ' +
+          '(RTJ1 §93, SME IFRS 30.6/30.7), used only because no statutory ' +
+          'reference rate is available for the pair/date; no VAT legs exist on ' +
+          'this purchase, so no statutory VAT-base conversion was substituted',
+      },
+    });
   }
 
   /** Map the entity's free-form goods/services column onto the projection enum. */
@@ -382,12 +1693,33 @@ export class ExpensesService {
         'tax_point_date',
         'claimant_id',
         'company_addressed_receipt',
+        // The place-of-supply facts (issue #403) are VALUATION facts: they
+        // decide the cross-border treatment, so an edit between generating a
+        // draft and posting it must refuse the stale draft (409) — the same
+        // guard the supplier facts already get.
+        'service_place_rule',
+        'place_of_supply_country',
       ])
       .where('id', '=', id)
       .executeTakeFirst();
     if (!expense) {
       throw new NotFoundException(`Expense ${id} not found`);
     }
+    // The bank-settlement reservation (issue #403): an OPERATOR settlement
+    // selection landing between the draft generation and the posting
+    // transaction swaps the evidence the draft was valued on — the
+    // fingerprint must refuse the stale entry inside the posting transaction,
+    // exactly as an expense-fact edit does. Only the OPERATOR decision is a
+    // posting fact: an 'auto' reservation is the generation's own transient
+    // state (the pre-generation fingerprint cannot have seen it, and
+    // mistaking it for an edit would 409 every first automatic post).
+    const claim = await executor
+      .selectFrom('bank_settlement_usage')
+      .select(['bank_transaction_id'])
+      .where('expense_id', '=', id)
+      .where('origin', '=', 'operator')
+      .executeTakeFirst();
+
     const supplier =
       expense.supplier_id !== null
         ? await executor
@@ -409,7 +1741,12 @@ export class ExpensesService {
         'input_vat_deduction_permille',
       ])
       .executeTakeFirst();
-    return JSON.stringify([expense, supplier ?? null, org ?? null]);
+    return JSON.stringify([
+      expense,
+      supplier ?? null,
+      org ?? null,
+      claim?.bank_transaction_id ?? null,
+    ]);
   }
 
   /**
@@ -421,6 +1758,7 @@ export class ExpensesService {
     trx: Kysely<Database>,
     id: number,
     expected: string,
+    draft?: DraftVoucher,
   ): Promise<void> {
     const actual = await this.draftFactsFingerprint(id, trx);
     if (actual !== expected) {
@@ -432,6 +1770,107 @@ export class ExpensesService {
           `Nothing was posted or held — post it again and the entry is ` +
           `recomputed from the current facts.`,
       );
+    }
+
+    // ── Bank-settlement evidence revalidation, INSIDE the posting
+    // transaction (issue #403's allocation timing). WHEN THE CONCRETE DRAFT
+    // IS PROVIDED (every internal expense caller passes it — the pipeline
+    // both auto-post and hold, and ApprovalsService), the validation runs on
+    // exactly the evidence THIS draft used (draft.bank_settlement below):
+    // a reference-valued draft skips bank evidence entirely — even if a
+    // STALE claim from an abandoned earlier bank valuation sits on a line
+    // whose cash has since been allocated, that is not this draft's evidence
+    // and must not block it. The CLAIM-based block below is the fallback for
+    // a draftless caller only: a reconciliation match can ACTIVATE on the
+    // claimed line between the draft generation and this post, and posting a
+    // FULL bank valuation on it would double-claim allocated cash. At posting
+    // the expense's voucher does not exist yet, so any ACTIVE allocation on
+    // its claimed line is another object's claim on the cash — a typed
+    // refusal, nothing posted.
+    if (draft) {
+      // Validated below via draft.bank_settlement (the concrete evidence).
+    } else {
+      const claim = await trx
+        .selectFrom('bank_settlement_usage')
+        .select(['bank_transaction_id'])
+        .where('expense_id', '=', id)
+        .executeTakeFirst();
+      if (claim) {
+        const allocatedMatches = await trx
+          .selectFrom('reconciliation_match')
+          .select(['voucher_id'])
+          .where('bank_transaction_id', '=', claim.bank_transaction_id)
+          .where('status', '=', 'active')
+          .execute();
+        if (allocatedMatches.length > 0) {
+          throw new ConflictException(
+            `Expense ${id}'s bank settlement evidence (line ` +
+              `${claim.bank_transaction_id}) had cash allocated on the books ` +
+              `while this entry was being posted, so the full bank valuation ` +
+              `would double-claim allocated cash. Nothing was posted or held — ` +
+              `retry the post; if this purchase really settled on that line, ` +
+              `book it manually with your accountant.`,
+          );
+        }
+      }
+    }
+
+    // ── The DRAFT'S OWN evidence, validated by WHAT THE DRAFT USED (issue
+    // #403's disposition/deletion timing): a whole-line disposition (a
+    // personal spend — it posts the FULL cash and flips the row's status
+    // without any reconciliation match) or a statement DELETION (the row
+    // vanishes and the claim CASCADES away with it) can land between the
+    // draft generation and this post. Guards that only re-check the CURRENT
+    // claim or the valuation-audit history cannot answer "which evidence did
+    // THIS prepared draft use" (an A→B→A re-selection leaves the audit's
+    // latest entry on the abandoned B). The generator therefore stamps the
+    // draft itself with the bank line its valuation used, and THAT line is
+    // revalidated here, inside the posting transaction: it must still EXIST
+    // and still be an OPEN, unallocated settlement. Reference-valued drafts
+    // carry no bank evidence and skip this entirely.
+    if (draft?.bank_settlement) {
+      const evidenceTxnId = draft.bank_settlement.bankTransactionId;
+      const row = await trx
+        .selectFrom('bank_transaction')
+        .select(['status'])
+        .where('id', '=', evidenceTxnId)
+        .executeTakeFirst();
+      if (!row) {
+        throw new ConflictException(
+          `Expense ${id}'s bank settlement evidence (line ${evidenceTxnId}) ` +
+            `was deleted — its statement was removed — while this entry ` +
+            `was being posted, so the full bank valuation has no remaining ` +
+            `evidence. Nothing was posted or held — retry the post and the ` +
+            `entry is re-valued from what exists.`,
+        );
+      }
+      if (row.status !== 'open') {
+        throw new ConflictException(
+          `Expense ${id}'s bank settlement evidence (line ${evidenceTxnId}) ` +
+            `was recorded as a '${row.status}' disposition while this ` +
+            `entry was being posted — the line's cash is already ` +
+            `accounted for on the books, so the full bank valuation would ` +
+            `double-claim it. Nothing was posted or held; if this purchase ` +
+            `really settled on that line, book it manually with your ` +
+            `accountant.`,
+        );
+      }
+      const evidenceAllocations = await trx
+        .selectFrom('reconciliation_match')
+        .select(['voucher_id'])
+        .where('bank_transaction_id', '=', evidenceTxnId)
+        .where('status', '=', 'active')
+        .execute();
+      if (evidenceAllocations.length > 0) {
+        throw new ConflictException(
+          `Expense ${id}'s bank settlement evidence (line ${evidenceTxnId}) ` +
+            `had cash allocated on the books while this entry was being ` +
+            `posted, so the full bank valuation would double-claim allocated ` +
+            `cash. Nothing was posted or held — retry the post; if this ` +
+            `purchase really settled on that line, book it manually with ` +
+            `your accountant.`,
+        );
+      }
     }
   }
 
@@ -541,7 +1980,49 @@ export class ExpensesService {
                 ? 1
                 : 0
             : current.company_addressed_receipt,
+        // The place-of-supply facts (issue #403) — operator-editable on a
+        // draft, NULL ≡ the residual general rule / no declared location.
+        service_place_rule:
+          patch.service_place_rule !== undefined
+            ? patch.service_place_rule === 'general'
+              ? null
+              : patch.service_place_rule
+            : current.service_place_rule,
+        place_of_supply_country:
+          patch.place_of_supply_country !== undefined
+            ? patch.place_of_supply_country
+            : current.place_of_supply_country,
       };
+
+      // ── Abandoned bank-settlement reservations (issue #403) ────────────
+      // A draft edit that changes a fact the receipt→bank link is made of
+      // (supplier, currency, original amount, date, or the claimant
+      // contradiction) ABANDONS whatever bank line the unposted draft had
+      // claimed: the reservation is released here, inside the same guarded
+      // transaction, so a genuinely distinct purchase can use that line
+      // instead of being told it "already evidences another expense". The
+      // next valuation claims its own line. Unposted-only by the update's
+      // own WHERE guard (draft/pending, voucher-less), so a posted or
+      // voucher-bearing valuation keeps its claim for good.
+      const linkKeyChanged =
+        next.supplier_id !== current.supplier_id ||
+        next.currency !== current.currency ||
+        next.gross_amount !== current.gross_amount ||
+        next.tax_point_date !== current.tax_point_date ||
+        (next.claimant_id ?? null) !== (current.claimant_id ?? null);
+      const abandonedClaim =
+        linkKeyChanged &&
+        (await trx
+          .selectFrom('bank_settlement_usage')
+          .select('bank_transaction_id')
+          .where('expense_id', '=', id)
+          .executeTakeFirst()) != null;
+      if (abandonedClaim) {
+        await trx
+          .deleteFrom('bank_settlement_usage')
+          .where('expense_id', '=', id)
+          .execute();
+      }
 
       this.assertMergedAmounts(id, next.gross_amount, next.vat_amount);
       // An entity is checked only when the edit CHANGES it: an unchanged
@@ -824,6 +2305,8 @@ export class ExpensesService {
     asset_residual_value_minor: number | null;
     claimant_id?: number | null;
     company_addressed_receipt?: number | null;
+    service_place_rule?: string | null;
+    place_of_supply_country?: string | null;
     ai_confidence?: number | null;
     ai_document_type?: string | null;
     ai_kind?: string | null;
@@ -852,6 +2335,11 @@ export class ExpensesService {
         row.company_addressed_receipt === undefined
           ? null
           : Boolean(row.company_addressed_receipt),
+      service_place_rule:
+        row.service_place_rule === 'general' || row.service_place_rule == null
+          ? null
+          : (row.service_place_rule as Expense['service_place_rule']),
+      place_of_supply_country: row.place_of_supply_country ?? null,
       ai_confidence: row.ai_confidence ?? null,
       ai_document_type: row.ai_document_type ?? null,
       ai_kind: row.ai_kind ?? null,

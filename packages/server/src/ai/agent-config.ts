@@ -109,6 +109,14 @@ export const AGENT_PROMPTS: Record<AgentKey, string> = {
     'debit/credit indicator column and which value means debit), the currency ' +
     'column or a default currency, and the columns for description, ' +
     'counterparty IBAN, counterparty descriptor, and reference (null when ' +
-    'absent). Also choose the BANK_* account_code for this statement. Do NOT ' +
-    'output transaction data — only the rules for reading it.',
+    'absent). Also choose the BANK_* account_code for this statement. ' +
+    'When a line carries foreign-currency evidence — the original currency ' +
+    "(e.g. DKK), the original amount, the bank's explicit conversion rate, or " +
+    'a separately charged conversion fee — map each one with its optional ' +
+    'target (source_currency, source_amount, fx_rate, conversion_fee), each ' +
+    'naming its column; when the value sits inside a free-text cell such as a ' +
+    'description, ALSO give a plain regular expression pattern that extracts ' +
+    'just that value from the cell (a capture group if the match needs one). ' +
+    'Leave a target null when the statement shows no such evidence. ' +
+    'Do NOT output transaction data — only the rules for reading it.',
 };

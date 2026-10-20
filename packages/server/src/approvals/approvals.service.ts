@@ -182,6 +182,17 @@ export class ApprovalsService {
       return this.approveAllowance(approval, id, approvedBy);
     }
 
+    // The EXPENSE facts fingerprint, taken BEFORE the draft generation (the
+    // same window discipline the direct posting path applies, issues #209 /
+    // #215 / #403): an edit, a settlement selection change, or a bank-line
+    // allocation landing between this generation and the posting transaction
+    // must refuse the approval INSIDE that transaction — the pending approval
+    // and the object's current state survive, nothing stale is posted.
+    const expenseFacts =
+      approval.object_type === 'expense'
+        ? await this.expensesService.draftFactsFingerprint(approval.object_id)
+        : null;
+
     // Generate the draft voucher BEFORE the transaction to avoid deadlock
     // (generateDraftVoucher uses this.db, not the transaction handle).
     const draft = await this.generateDraftVoucher(
@@ -216,6 +227,22 @@ export class ApprovalsService {
     // the object type (ADR-0006 / ADR-0021). The transition co-writes
     // voucher_id once the voucher exists.
     const voucher = await this.db.transaction().execute(async (trx) => {
+      // The expense facts guard, INSIDE the posting transaction (issue
+      // #403's approval fidelity): the fingerprint covers the object's own
+      // amounts/facts and the OPERATOR settlement selection, and the guard
+      // revalidates the bank-settlement evidence's allocations here — so an
+      // edit, a settlement re-selection, or an allocation racing this
+      // approval refuses BEFORE anything is written. The pending approval
+      // survives the refusal; an approved replay short-circuits above.
+      if (expenseFacts !== null) {
+        await this.expensesService.assertDraftFactsUnchangedTx(
+          trx,
+          approval.object_id,
+          expenseFacts,
+          draft,
+        );
+      }
+
       await this.statusTransition.transition(
         trx,
         approval.object_type as 'expense' | 'sales_invoice' | 'allowance',

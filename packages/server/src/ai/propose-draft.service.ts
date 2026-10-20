@@ -6,6 +6,7 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { Kysely } from 'kysely';
 import { Database } from '../database/types';
+import { DraftVoucher } from '../ledger/voucher/types';
 import { ExpensesService } from '../expenses/expenses.service';
 import { EntitiesService } from '../entities/entities.service';
 import { PostingPipelineService } from '../ledger/pipeline/posting-pipeline.service';
@@ -15,7 +16,7 @@ import {
   TriageResult,
   type Pass2Enrichment,
 } from '../triage/types';
-import { CreateExpenseDto } from '../expenses/types';
+import { CreateExpenseDto, PatchExpenseDraftInput } from '../expenses/types';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import { AgentConfigService } from './agent-config.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -929,9 +930,87 @@ export class ProposeDraftService {
       currency: string;
       tax_point_date: string;
       supplier_invoice_number?: string | null;
+      service_place_rule?:
+        | 'general'
+        | 'immovable_property'
+        | 'passenger_transport'
+        | 'cultural_artistic_sporting_admission'
+        | 'restaurant_catering'
+        | 'short_term_hire_of_means_of_transport'
+        | 'electronically_supplied_to_consumer'
+        | 'other_special';
+      place_of_supply_country?: string | null;
       allow_duplicate?: boolean;
     },
-  ): Promise<ProposeDraftResult> {
+  ): Promise<
+    ProposeDraftResult | ChainProtectedResult | PossibleDuplicateResult
+  > {
+    // ── The document chain's first draft decides (issue #403) ──────────
+    // A manual RE-classification of a document whose earlier classify already
+    // minted a draft — typically one that failed valuation (a missing
+    // reference rate) and was retried after the missing evidence arrived —
+    // must RESUME that draft (validated draft-edit + re-run pipeline), never
+    // mint a second Expense for the same purchase and never trip the
+    // duplicate gate against the chain's own row (the same shape the AI path
+    // applies since #404).
+    const chain = await this.findChainPurchaseDraft(documentId);
+    if (chain?.state === 'resumable') {
+      const patch: PatchExpenseDraftInput = {
+        category: dto.category,
+        supplier_id: dto.supplier_id,
+        gross_amount: dto.gross_amount,
+        vat_amount: dto.vat_amount,
+        currency: dto.currency,
+        tax_point_date: dto.tax_point_date,
+        ...(dto.supplier_invoice_number !== undefined
+          ? { supplier_invoice_number: dto.supplier_invoice_number }
+          : {}),
+        ...(dto.service_place_rule !== undefined
+          ? { service_place_rule: dto.service_place_rule }
+          : {}),
+        ...(dto.place_of_supply_country !== undefined
+          ? { place_of_supply_country: dto.place_of_supply_country }
+          : {}),
+      };
+      let resumed;
+      try {
+        resumed = await this.expensesService.updateDraft(chain.id, patch);
+      } catch (e) {
+        if (!(e instanceof DuplicateExpenseException)) throw e;
+        // The fresh manual key collides with ANOTHER document's expense —
+        // a genuine suspected duplicate for a human.
+        return {
+          outcome: 'possible-duplicate' as const,
+          reason: e.message,
+          existingExpenseId: e.existingExpenseId,
+        };
+      }
+      const pipelineResult = await this.postingPipelineService.runPipeline({
+        businessObjectId: resumed.id,
+        businessObjectType: 'expense',
+        draftGenerator: () =>
+          this.expensesService.generateDraftVoucher(resumed.id),
+        assertFactsUnchanged: await this.expenseFactsGuard(resumed.id),
+        category: resumed.category,
+        refetch: () => this.expensesService.getExpenseById(resumed.id),
+        supplierKnown: true,
+        requestedBy: 'operator',
+      });
+      return { outcome: 'draft', expenseId: resumed.id, pipelineResult };
+    }
+    if (chain?.state === 'protected') {
+      // Some row of the chain is already committed or protected — a posted
+      // voucher, an open approval, a reversal, including a later MANUAL row.
+      // Nothing here may mint, edit or re-post a replacement for it.
+      return {
+        outcome: 'chain-protected',
+        expenseId: chain.id,
+        status: chain.status,
+        voucherId: chain.voucher_id,
+        ambiguous: chain.ambiguous,
+      };
+    }
+
     const createExpenseDto: CreateExpenseDto = {
       document_id: documentId,
       supplier_id: dto.supplier_id,
@@ -942,6 +1021,9 @@ export class ProposeDraftService {
       tax_point_date: dto.tax_point_date,
       document_vat_marking: dto.document_vat_marking,
       supplier_invoice_number: dto.supplier_invoice_number ?? null,
+      // The operator's explicit place-of-supply declaration (issue #403).
+      service_place_rule: dto.service_place_rule ?? undefined,
+      place_of_supply_country: dto.place_of_supply_country ?? undefined,
       // Operator override for the duplicate guard (issue #195). Unlike
       // proposeDraft's AI-built DTO, this one is filled in by a human who is
       // looking at the document, so it may carry the escape hatch. Absent
@@ -1060,14 +1142,15 @@ export class ProposeDraftService {
    */
   private async expenseFactsGuard(
     expenseId: number,
-  ): Promise<(trx: Kysely<Database>) => Promise<void>> {
+  ): Promise<(trx: Kysely<Database>, draft?: DraftVoucher) => Promise<void>> {
     const captured =
       await this.expensesService.draftFactsFingerprint(expenseId);
-    return (trx) =>
+    return (trx, draft) =>
       this.expensesService.assertDraftFactsUnchangedTx(
         trx,
         expenseId,
         captured,
+        draft,
       );
   }
 
