@@ -50,6 +50,7 @@ export class ExpensesService {
     candidate: DuplicateCandidate,
     executor: Kysely<Database> = this.db,
     excludeExpenseId?: number,
+    excludeDocumentId?: number | null,
   ): Promise<DuplicateDetection | null> {
     const supplierId = candidate.supplier_id;
     if (supplierId == null) return null;
@@ -69,9 +70,22 @@ export class ExpensesService {
       ])
       .where('supplier_id', '=', supplierId)
       .where('status', '!=', 'reversed');
-    // A draft being edited is never its own duplicate (issue #247).
+    // A draft being edited is never its own duplicate (issue #247) — and no
+    // expense is ever a duplicate of another expense minted from the SAME
+    // document (issue #404): `expense.document_id` is single-valued, so every
+    // row carrying it belongs to one purchase chain (the retries of one
+    // intake), never to two purchases. A genuine vendor re-send arrives as a
+    // NEW document and keeps its full duplicate protection.
     if (excludeExpenseId !== undefined) {
       peersQuery = peersQuery.where('id', '!=', excludeExpenseId);
+    }
+    if (excludeDocumentId !== undefined && excludeDocumentId !== null) {
+      peersQuery = peersQuery.where((eb) =>
+        eb.or([
+          eb('document_id', 'is', null),
+          eb('document_id', '!=', excludeDocumentId),
+        ]),
+      );
     }
     const peers = await peersQuery.execute();
 
@@ -563,7 +577,7 @@ export class ExpensesService {
         next.tax_point_date !== current.tax_point_date ||
         (next.claimant_id ?? null) !== (current.claimant_id ?? null);
       const duplicate = keyChanged
-        ? await this.detectDuplicate(next, trx, id)
+        ? await this.detectDuplicate(next, trx, id, current.document_id ?? null)
         : null;
       if (duplicate && patch.allow_duplicate !== true) {
         throw new DuplicateExpenseException(duplicate);

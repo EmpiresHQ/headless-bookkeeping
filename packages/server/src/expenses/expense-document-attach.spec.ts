@@ -781,9 +781,21 @@ describe('Expense document attach (integration)', () => {
         }
         return value;
       };
+      // Issue #404: findExistingDraft now delegates the chain-identity
+      // selection to the REAL findChainPurchaseDraft. The real methods are
+      // bound to the SAME context (the fake service object itself), so the
+      // real chain guard — not a mock — keeps deciding what gets replayed.
+      const realDraftSeam = {
+        db,
+        findChainPurchaseDraft:
+          ProposeDraftService.prototype.findChainPurchaseDraft,
+        findExistingDraft: ProposeDraftService.prototype.findExistingDraft,
+      };
       const proposeDraft = {
+        findChainPurchaseDraft: (id: number) =>
+          realDraftSeam.findChainPurchaseDraft.call(realDraftSeam, id),
         findExistingDraft: (id: number) =>
-          ProposeDraftService.prototype.findExistingDraft.call({ db }, id),
+          realDraftSeam.findExistingDraft.call(realDraftSeam, id),
         findExistingInvoiceDraft: jest.fn().mockResolvedValue(undefined),
         proposeDraft: jest.fn(() => stall('propose', draft)),
         manualClassifyDraft: jest.fn(() => stall('manual', draft)),

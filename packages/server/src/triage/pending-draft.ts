@@ -2,6 +2,7 @@ import type { EntitiesService } from '../entities/entities.service';
 import { normalizeIdentifier } from '../entities/identifier-normalization';
 import type { EntityWithIdentifiers } from '../entities/types';
 import type { SupplierProposal } from './types';
+import type { MissingEntityFact } from './types';
 
 export interface SuggestedSupplier {
   id: number;
@@ -28,6 +29,7 @@ export type PendingSupplierProposal =
     };
 
 export interface PendingDraft {
+  kind: 'supplier_proposal';
   document_id: number;
   reason: string;
   supplier_proposal: PendingSupplierProposal;
@@ -40,6 +42,40 @@ export interface PendingDraft {
     supplier_invoice_number: string | null;
   };
 }
+
+/**
+ * The typed view of a missing-entity-fact hold (issue #404): the supplier IS
+ * resolved (an existing, matched Entity) — only one of its facts is missing.
+ * Carries the matched supplier (id, name, country) and WHICH fact is
+ * missing, so the doc screen renders supplier + fact controls from typed
+ * data, never by parsing the hold prose. The `draft` figures come from the
+ * persisted draft Expense the first pass minted — the authoritative record
+ * of what was extracted from the document.
+ */
+export interface MissingEntityFactDraft {
+  kind: 'missing_entity_fact';
+  document_id: number;
+  reason: string;
+  /** Which entity fact is missing — one family, one resolution pattern. */
+  fact: MissingEntityFact;
+  /** The matched supplier the document's draft is booked against. */
+  supplier: {
+    id: number;
+    name: string;
+    country: string;
+  };
+  draft: {
+    category: string;
+    gross_amount: number;
+    vat_amount: number;
+    currency: string;
+    tax_point_date: string;
+    supplier_invoice_number: string | null;
+  };
+}
+
+/** Any held document's pending-draft view (issue #404 union). */
+export type AnyPendingDraft = PendingDraft | MissingEntityFactDraft;
 
 type IdentifierResolver = Pick<EntitiesService, 'resolveByIdentifier'>;
 

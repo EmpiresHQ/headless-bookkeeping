@@ -41,6 +41,14 @@ export function triageSubtitle(
   switch (item.reason_type) {
     case 'supplier_unresolved':
       return 'Unknown supplier — who is this?';
+    case 'supplier_tax_status_unknown':
+      // One missing-entity-fact family (issue #404): the supplier IS
+      // resolved; only its tax status is not recorded yet.
+      return 'Supplier known — confirm whether it is a taxable business';
+    case 'supplier_goods_vs_services_unknown':
+      // The same family's non-EU variant: goods or services decides the
+      // import vs self-assessed route.
+      return 'Supplier known — confirm whether it supplies goods or services';
     case 'outgoing_invoice':
       return 'Looks like your outgoing invoice — confirm it';
     case 'low_confidence': {
@@ -78,6 +86,11 @@ export function triageSubtitle(
 
 export function triageChipLabel(rt: TriageReasonType | null): string {
   switch (rt) {
+    case 'supplier_tax_status_unknown':
+    case 'supplier_goods_vs_services_unknown':
+      // One missing-entity-fact family (issue #404): the doc screen's
+      // confirm-fact panel is the resolution.
+      return 'confirm';
     case 'supplier_unresolved':
       return 'resolve';
     case 'low_confidence':

@@ -15,9 +15,11 @@ import {
   DocumentDebug,
   ManualClassifyDto,
   ResolveSupplierDto,
+  ConfirmEntityFactDto,
   NeedsTriageItem,
 } from './types';
-import type { PendingDraft } from './pending-draft';
+import type { ConfirmEntityFactResponse } from './triage.service';
+import type { AnyPendingDraft } from './pending-draft';
 
 @ApiTags('triage')
 @Controller()
@@ -86,11 +88,12 @@ export class TriageController {
 
   @Get('api/documents/:id/pending-draft')
   @ApiOperation({
-    summary: "Get a document's pending draft",
-    description: 'Return the pending draft for a document.',
+    summary: "Get a held document's pending-draft view",
+    description:
+      'Return the pending-draft view for a held document: the supplier-unresolved proposal, or the missing-entity-fact family typed supplier + fact view (issue #404).',
   })
   @ApiParam({ name: 'id', description: 'Document id' })
-  async pendingDraft(@Param('id') id: string): Promise<PendingDraft> {
+  async pendingDraft(@Param('id') id: string): Promise<AnyPendingDraft> {
     return this.triageService.getPendingDraft(Number(id));
   }
 
@@ -108,6 +111,20 @@ export class TriageController {
       Number(id),
       dto.supplier_entity_id,
     );
+  }
+
+  @Post('api/documents/:id/confirm-entity-fact')
+  @ApiOperation({
+    summary: 'Confirm a missing supplier fact and resume intake',
+    description:
+      'Record the operator-chosen supplier entity fact (taxStatus / goodsVsServices) via the legitimate entity-update path, then resume intake for the document chain (no fresh OCR). The response reports the saved fact and the processing outcome separately.',
+  })
+  @ApiParam({ name: 'id', description: 'Document id' })
+  async confirmEntityFact(
+    @Param('id') id: string,
+    @Body() dto: ConfirmEntityFactDto,
+  ): Promise<ConfirmEntityFactResponse> {
+    return this.triageService.confirmEntityFact(Number(id), dto);
   }
 
   @Post('api/documents/:id/manual-classify')

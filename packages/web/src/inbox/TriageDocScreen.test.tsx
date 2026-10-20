@@ -318,6 +318,7 @@ describe('TriageDocScreen', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'supplier not found',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'create',
         create_name: 'X',
@@ -362,6 +363,7 @@ describe('TriageDocScreen', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'supplier not found',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'create',
         create_name: 'Bolt Operations OÜ',
@@ -417,6 +419,7 @@ describe('TriageDocScreen', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'match proposal references entity 705731, which does not exist',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'invalid_match',
         observed_country: 'EE',

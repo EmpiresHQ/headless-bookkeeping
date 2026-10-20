@@ -36,12 +36,14 @@ import {
   TriageResult,
   Pass2Enrichment,
   TriageReasonType,
+  MissingEntityFact,
   classifyReasonType,
   extractedSupplierFromProposal,
 } from '../triage/types';
 import {
   buildPendingSupplierProposal,
-  type PendingDraft,
+  type AnyPendingDraft,
+  type MissingEntityFactDraft,
 } from '../triage/pending-draft';
 import { matchesOrgIban } from '../intake/iban-match';
 import { classifyDocumentClass } from '../intake/document-class';
@@ -246,6 +248,36 @@ export type IntakeWorkflowResult =
   | ReceiptMatchedOutcome;
 
 /**
+ * The legitimate operator choices for each missing entity fact (issue #404).
+ * 'unknown' is the ABSENCE of the fact — it is never a confirmation.
+ */
+export const MISSING_FACT_CHOICES: Record<
+  MissingEntityFact,
+  readonly string[]
+> = {
+  taxStatus: ['taxable_business', 'non_taxable'],
+  goodsVsServices: ['goods', 'services'],
+};
+
+/**
+ * The result of the one-interaction missing-fact confirmation (issue #404).
+ *
+ * `fact_saved` is an OPERATION RESULT (GLOSSARY): the fact was recorded on
+ * the entity through the legitimate entity-update path. It stays true even
+ * when `outcome` parks the document on the NEXT genuine gate — the caller
+ * must report both truths, never claim a posting from a saved fact.
+ */
+export interface ConfirmEntityFactResult {
+  status: 'fact_confirmed';
+  document_id: number;
+  entity_id: number | null;
+  fact: MissingEntityFact;
+  value: string;
+  fact_saved: boolean;
+  outcome: IntakeWorkflowResult;
+}
+
+/**
  * IntakeWorkflowService — the single DEEP owner of "Document -> outcome".
  *
  *   Pass 1 (OCR) → Pass 2 (agent classify) → deterministic routing → status
@@ -367,23 +399,30 @@ export class IntakeWorkflowService {
       };
     }
 
-    // Read classification from the linked draft Expense — never re-run the LLM.
-    const expense = await this.db
-      .selectFrom('expense')
-      .where('document_id', '=', documentId)
-      .select([
-        'category',
-        'gross_amount',
-        'vat_amount',
-        'currency',
-        'tax_point_date',
-        'document_vat_marking',
-        'supplier_invoice_number',
-        'ai_confidence',
-        'ai_document_type',
-        'ai_kind',
-      ])
-      .executeTakeFirst();
+    // Read classification from the linked draft Expense — never re-run the
+    // LLM. The linked row is the chain's AUTHORITATIVE record (issue #404):
+    // the protected/booked row when the chain has one, else the chain's
+    // first row — the same identity the workflow surfaces on replay, never
+    // an arbitrary first row the surfacing would contradict.
+    const chain = await this.proposeDraft.findChainPurchaseDraft(documentId);
+    const expense = chain
+      ? await this.db
+          .selectFrom('expense')
+          .where('id', '=', chain.id)
+          .select([
+            'category',
+            'gross_amount',
+            'vat_amount',
+            'currency',
+            'tax_point_date',
+            'document_vat_marking',
+            'supplier_invoice_number',
+            'ai_confidence',
+            'ai_document_type',
+            'ai_kind',
+          ])
+          .executeTakeFirst()
+      : undefined;
 
     if (!expense) {
       const pendingReplay =
@@ -484,6 +523,7 @@ export class IntakeWorkflowService {
   private async processInner(
     documentId: number,
     claimantId?: number | null,
+    cachedMarkdown?: string,
   ): Promise<IntakeWorkflowResult> {
     // ── Idempotency guard: has this Document already routed? ─────
     // The Document status is the single source of truth for "already routed".
@@ -515,25 +555,37 @@ export class IntakeWorkflowService {
     await this.documents.markProcessing(documentId);
     try {
       // ── Pass 1: OCR → markdown | typed failure ──────────────────
-      const ocr = await this.ocrService.transcribe(documentId);
+      let markdown: string;
+      if (cachedMarkdown !== undefined) {
+        // STRICT PERSISTED EVIDENCE (issue #404): a caller that already
+        // validated the persisted OCR artifact cache-only (the missing-fact
+        // confirmation's resume) hands the markdown in — Pass 2 runs on it
+        // WITHOUT ever invoking the transcriber, so a confirmation never
+        // costs a fresh OCR provider call.
+        this.logger.debug(
+          `Pass 1 satisfied from validated persisted OCR for document ${documentId}`,
+        );
+        markdown = cachedMarkdown;
+      } else {
+        const ocr = await this.ocrService.transcribe(documentId);
 
-      if (!ocr.ok) {
-        // Transcription failed (provider down, unreadable doc, IO blip). Route to
-        // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
-        // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
-        // short-circuited: there is no markdown to classify.
-        this.logger.warn(
-          `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
-        );
-        return this.routeNeedsTriage(
-          documentId,
-          `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
-          { pass: 'ocr', category: ocr.category },
-        );
+        if (!ocr.ok) {
+          // Transcription failed (provider down, unreadable doc, IO blip). Route to
+          // a human through the SAME seam as a Pass-2 failure — never let a Pass-1
+          // fault escape and strand the Document in `pending` (ADR-0024). Pass 2 is
+          // short-circuited: there is no markdown to classify.
+          this.logger.warn(
+            `Pass 1 failed for document ${documentId}: category=${ocr.category}`,
+          );
+          return this.routeNeedsTriage(
+            documentId,
+            `OCR transcription failed (${ocr.category}): ${ocr.detail}`,
+            { pass: 'ocr', category: ocr.category },
+          );
+        }
+        markdown = ocr.markdown;
+        this.logger.debug(`Pass 1 complete for document ${documentId}`);
       }
-
-      const markdown = ocr.markdown;
-      this.logger.debug(`Pass 1 complete for document ${documentId}`);
 
       // ── Deterministic relevance pre-filter ─────────────────────
       // OCR succeeded but produced no readable text (a blank scan, an image with
@@ -708,7 +760,24 @@ export class IntakeWorkflowService {
         this.logger.warn(
           `Document ${documentId} held: ${err.message} (code=${err.code})`,
         );
-        return this.routeNeedsTriage(documentId, err.actionableReason);
+        // The missing-supplier-fact codes of this hold family get their own
+        // machine-readable reason_type (issue #404) so the SPA renders the
+        // supplier + fact controls from the TYPE, never by parsing the prose.
+        // The family's other codes (e.g. a recorded non-taxable supplier,
+        // whose correct treatment is not auto-classified) keep the ordinary
+        // prose-classified bucket.
+        const factReasonType: TriageReasonType | undefined =
+          err.code === 'supplier_tax_status_unknown'
+            ? 'supplier_tax_status_unknown'
+            : err.code === 'acquisition_supply_type_unknown'
+              ? 'supplier_goods_vs_services_unknown'
+              : undefined;
+        return this.routeNeedsTriage(
+          documentId,
+          err.actionableReason,
+          undefined,
+          factReasonType,
+        );
       }
 
       // Safety net (ADR-0024): no fault may leave the document stranded in
@@ -849,6 +918,49 @@ export class IntakeWorkflowService {
               `Duplicate gate blocked auto-post for document ${documentId}: ${outcome.reason}`,
             );
             return this.routeNeedsTriage(documentId, outcome.reason);
+          }
+          if (outcome.outcome === 'chain-protected') {
+            // Some row of the document's chain is already committed or
+            // protected by its current state — most often a direct posting
+            // that left this document's hold stale (issue #404). Nothing is
+            // minted, edited or re-posted as a replacement; the chain's
+            // ACTUAL booked state is surfaced (or, when more than one
+            // protected row makes it ambiguous, an honest hold).
+            if (outcome.ambiguous) {
+              this.logger.warn(
+                `Document ${documentId} chain has multiple already-booked ` +
+                  `expenses — holding for review instead of replaying one`,
+              );
+              return this.routeNeedsTriage(
+                documentId,
+                `This document's chain already has more than one booked ` +
+                  `expense — which one stands must be reviewed manually; ` +
+                  `nothing further was booked automatically.`,
+              );
+            }
+            this.logger.log(
+              `Document ${documentId} chain's expense #${outcome.expenseId} ` +
+                `is already ${outcome.status} — replaying it, no replacement`,
+            );
+            const finding = await this.auditFindings.findOpenByReference(
+              'needs_triage',
+              'document',
+              documentId,
+            );
+            if (finding) {
+              await this.auditFindings.resolve(finding.id, {
+                reason: `document's expense #${outcome.expenseId} is already ${outcome.status}`,
+              });
+            }
+            await this.documents.setStatus(documentId, 'triaged');
+            return {
+              status: 'draft_proposed',
+              draft: {
+                outcome: 'draft',
+                expenseId: outcome.expenseId,
+                pipelineResult: { replayed: true },
+              },
+            };
           }
           if (outcome.outcome === 'receipt-matched') {
             return this.fileMatchedReceipt(documentId, outcome);
@@ -1148,6 +1260,48 @@ export class IntakeWorkflowService {
         cause: 'purchase-total',
       });
     }
+    if (outcome.outcome === 'chain-protected') {
+      // Some row of the document's chain is already committed or protected
+      // by its current state (issue #404) — settle the human-wait on the ACTUAL
+      // booked state (or hold the ambiguity) and replay it; never a
+      // replacement draft.
+      if (outcome.ambiguous) {
+        this.logger.warn(
+          `ResolveSupplier for document ${documentId}: chain has multiple ` +
+            `already-booked expenses — holding for review`,
+        );
+        return this.routeNeedsTriage(
+          documentId,
+          `This document's chain already has more than one booked expense — ` +
+            `which one stands must be reviewed manually; nothing further was ` +
+            `booked automatically.`,
+        );
+      }
+      this.logger.log(
+        `ResolveSupplier for document ${documentId}: chain's expense ` +
+          `#${outcome.expenseId} is already ${outcome.status} — replaying`,
+      );
+      await this.transitionDocument(documentId, 'triaged');
+      const finding = await this.auditFindings.findOpenByReference(
+        'needs_triage',
+        'document',
+        documentId,
+      );
+      if (finding) {
+        await this.auditFindings.resolve(finding.id, {
+          reason: `document's expense #${outcome.expenseId} is already ${outcome.status}`,
+        });
+      }
+      await this.documents.setPendingTriageResult(documentId, null);
+      return {
+        status: 'draft_proposed',
+        draft: {
+          outcome: 'draft',
+          expenseId: outcome.expenseId,
+          pipelineResult: { replayed: true },
+        },
+      };
+    }
     if (outcome.outcome === 'possible-duplicate') {
       // The operator just chose this supplier explicitly, and against it the
       // deterministic key inside createExpense recognises the document as one
@@ -1264,39 +1418,400 @@ export class IntakeWorkflowService {
   }
 
   /**
-   * Build the operator-facing view of a supplier-unresolved document: the AI's
-   * create-supplier proposal plus the draft figures. Throws NotFound if the
-   * document has no stored proposal (its needs_triage reason is not a supplier
-   * issue, or it is not parked at all).
+   * Build the operator-facing view of a HELD document (issue #404): the
+   * supplier-unresolved family's create/invalid-match proposal (unchanged),
+   * or the missing-entity-fact family's typed supplier + fact view. Throws
+   * NotFound if the document is parked on neither family.
    */
-  async getPendingDraft(documentId: number): Promise<PendingDraft> {
+  async getPendingDraft(documentId: number): Promise<AnyPendingDraft> {
     const tr = await this.documents.getPendingTriageResult(documentId);
-    if (!tr?.supplier_proposal) {
-      throw new NotFoundException(
-        `Document ${documentId} has no pending supplier proposal`,
+    if (tr?.supplier_proposal) {
+      const finding = await this.auditFindings.findOpenByReference(
+        'needs_triage',
+        'document',
+        documentId,
       );
+      return {
+        kind: 'supplier_proposal',
+        document_id: documentId,
+        reason:
+          finding?.description ??
+          'supplier could not be resolved automatically',
+        supplier_proposal: await buildPendingSupplierProposal(
+          tr.supplier_proposal,
+          this.entities,
+        ),
+        draft: {
+          category: tr.category,
+          gross_amount: tr.gross_amount,
+          vat_amount: tr.vat_amount,
+          currency: tr.currency,
+          tax_point_date: tr.tax_point_date,
+          supplier_invoice_number: tr.supplier_invoice_number,
+        },
+      };
     }
+    const missingFact = await this.missingEntityFactView(documentId);
+    if (missingFact) {
+      return missingFact;
+    }
+    throw new NotFoundException(
+      `Document ${documentId} has no pending supplier proposal`,
+    );
+  }
+
+  /**
+   * The typed view of a missing-entity-fact hold (issue #404): the matched
+   * supplier and WHICH fact is missing, derived from AUTHORITATIVE
+   * PERSISTED facts — the document's own unposted AI purchase draft (the
+   * matched supplier, the figures that will be booked) and the entity's
+   * CURRENT typed facts (which fact is still unrecorded). Never from parsing
+   * the hold prose, and with no dependency on the new typed reason — an
+   * already-held pre-fix document (a generic legacy finding bucket) is
+   * served exactly like a freshly-held one. A read: never invokes OCR.
+   *
+   * Undefined when this family does not own the document: no open
+   * needs_triage finding, no unposted AI chain draft, no matched supplier,
+   * a stale (deleted) entity, or no fact of this family actually missing.
+   */
+  private async missingEntityFactView(
+    documentId: number,
+  ): Promise<MissingEntityFactDraft | undefined> {
     const finding = await this.auditFindings.findOpenByReference(
       'needs_triage',
       'document',
       documentId,
     );
+    if (!finding) return undefined;
+
+    const chain = await this.proposeDraft.findChainPurchaseDraft(documentId);
+    // The family owns only an unposted chain: a chain row already posted /
+    // pending-approval / reversed (including a later manual row) is protected
+    // by its current state and is surfaced by the ordinary retry replay,
+    // not by a fact confirmation view.
+    if (chain?.state !== 'resumable' || chain.supplier_id == null)
+      return undefined;
+
+    // WHICH fact is missing comes from the ACTUAL kernel gate: a dry-run of
+    // the real draft-voucher generator, read through its typed
+    // UnresolvedVatTreatmentError code — never a re-implementation of the
+    // country plugin's branching (which fact comes first, when a recorded
+    // fact means "unsupported" rather than "missing").
+    const fact =
+      await this.proposeDraft.requiredMissingSupplierFact(documentId);
+    if (fact == null) return undefined;
+
+    let entity;
+    try {
+      entity = await this.entities.findById(chain.supplier_id);
+    } catch {
+      // A stale entity (deleted since the hold) — the view cannot be built;
+      // the operator still has Retry / manual classify.
+      return undefined;
+    }
+    if (entity.role !== 'supplier') return undefined;
+
     return {
+      kind: 'missing_entity_fact',
       document_id: documentId,
-      reason:
-        finding?.description ?? 'supplier could not be resolved automatically',
-      supplier_proposal: await buildPendingSupplierProposal(
-        tr.supplier_proposal,
-        this.entities,
-      ),
-      draft: {
-        category: tr.category,
-        gross_amount: tr.gross_amount,
-        vat_amount: tr.vat_amount,
-        currency: tr.currency,
-        tax_point_date: tr.tax_point_date,
-        supplier_invoice_number: tr.supplier_invoice_number,
+      reason: finding.description,
+      fact,
+      supplier: {
+        id: entity.id,
+        name: entity.name,
+        country: entity.country,
       },
+      draft: {
+        category: chain.category,
+        gross_amount: chain.gross_amount,
+        vat_amount: chain.vat_amount,
+        currency: chain.currency,
+        tax_point_date: chain.tax_point_date,
+        supplier_invoice_number: chain.supplier_invoice_number,
+      },
+    };
+  }
+
+  /**
+   * The one-interaction operator confirmation of a missing entity fact
+   * (issue #404): bound to the supplier the operator SAW in the typed view
+   * (`supplierEntityId` — a stale view rejects honestly before anything
+   * changes), validate the fact/value choice, record it through the
+   * LEGITIMATE entity-update path (the same PATCH /api/entities/{id} seam
+   * the hold's own "how to resolve" names — never a silent auto-write), then
+   * resume intake for the document chain: re-classify from the PERSISTED
+   * OCR evidence read cache-only (ADR-0039 — a missing/tampered artifact is
+   * a typed refusal, never a fresh OCR provider call) and RESUME the first
+   * draft the chain already minted.
+   *
+   * The result reports BOTH truths separately (GLOSSARY operation result):
+   * `fact_saved` says the fact was recorded; `outcome` says where the
+   * document now stands (posted, held on the next genuine gate, or — for a
+   * legacy doc without a chain draft — an honest needs_triage replay).
+   * Idempotent: a repeated confirmation on an already-resolved document
+   * replays its outcome without re-writing anything or minting a draft.
+   */
+  async confirmEntityFact(
+    documentId: number,
+    supplierEntityId: number,
+    fact: MissingEntityFact,
+    value: string,
+  ): Promise<ConfirmEntityFactResult> {
+    return this.gate.run(() =>
+      this.documents.runExclusive(documentId, () =>
+        this.confirmEntityFactInner(documentId, supplierEntityId, fact, value),
+      ),
+    );
+  }
+
+  private async confirmEntityFactInner(
+    documentId: number,
+    supplierEntityId: number,
+    fact: MissingEntityFact,
+    value: string,
+  ): Promise<ConfirmEntityFactResult> {
+    // A legitimate fact choice, or a typed refusal — 'unknown' is the absence
+    // of the fact and can never be confirmed.
+    const choices = MISSING_FACT_CHOICES[fact];
+    if (!choices.includes(value)) {
+      throw new BadRequestException(
+        `'${value}' is not a valid ${fact} choice (${choices.join(' / ')})`,
+      );
+    }
+
+    const doc = await this.documents.getById(documentId);
+
+    // The chain's own current record, under the same gate + document lock —
+    // the authoritative identity for everything below.
+    const chain = await this.proposeDraft.findChainPurchaseDraft(documentId);
+
+    // STALE VIEW GUARD (issue #404): the confirmation is a command bound to
+    // the supplier the operator actually SAW in the typed view. Compared
+    // BEFORE any entity write, requeue, OCR read or receipt replay — a draft
+    // whose chain has since moved to another supplier (a legitimate
+    // updateDraft supplier change, or any other path) rejects honestly, and
+    // nothing changes: no fact write, no OCR, no post, no new draft.
+    if (
+      chain != null &&
+      chain.supplier_id != null &&
+      chain.supplier_id !== supplierEntityId
+    ) {
+      throw new BadRequestException(
+        `The document's draft is now booked against supplier ` +
+          `${chain.supplier_id}, not the supplier you confirmed ` +
+          `(${supplierEntityId}) — it changed since it was shown. Reload the ` +
+          `document and confirm the current supplier.`,
+      );
+    }
+
+    // Idempotent replay: the document already routed away from this hold.
+    // Re-check the recorded fact from the chain's supplier where it is
+    // derivable; re-run nothing (no OCR, no classification, no new draft).
+    if (doc.status === 'triaged' || doc.status === 'processed') {
+      const replay = await this.replayDraftProposed(documentId);
+      if (replay) {
+        return this.confirmReplayResult(
+          documentId,
+          chain?.supplier_id ?? null,
+          fact,
+          value,
+          replay,
+        );
+      }
+      const invoiceReplay =
+        await this.proposeDraft.findExistingInvoiceDraft(documentId);
+      if (invoiceReplay) {
+        return this.confirmReplayResult(
+          documentId,
+          chain?.supplier_id ?? null,
+          fact,
+          value,
+          {
+            status: 'draft_proposed_invoice',
+            invoiceId: invoiceReplay.invoiceId,
+          },
+        );
+      }
+      throw new ConflictException(
+        `Document ${documentId} is not awaiting triage (status=${doc.status})`,
+      );
+    }
+    if (doc.status !== 'needs_triage') {
+      throw new ConflictException(
+        `Document ${documentId} is not awaiting triage (status=${doc.status})`,
+      );
+    }
+
+    // The chain's own purchase record — the authoritative matched supplier +
+    // figures. Its whole-chain current state decides: an unposted chain
+    // carries the confirmation; a protected one (some row already posted /
+    // pending / reversed — including a later manual row) stands as it is.
+    if (!chain || chain.state !== 'resumable' || chain.supplier_id == null) {
+      throw new BadRequestException(
+        `Document ${documentId} is not held on a missing supplier fact — ` +
+          `retry the AI run or classify it manually`,
+      );
+    }
+    // A stale entity (deleted since the hold) is a 404 from findById — safe.
+    const entity = await this.entities.findById(chain.supplier_id);
+    if (entity.role !== 'supplier') {
+      throw new BadRequestException(
+        `Entity ${chain.supplier_id} is not a supplier (role=${entity.role})`,
+      );
+    }
+
+    const current =
+      fact === 'taxStatus' ? entity.tax_status : entity.goods_vs_services;
+    let factSaved: boolean;
+    if (current === value) {
+      // Idempotent repeat: the entity already records exactly this value —
+      // acknowledge it (an operation result that stands) and resume below;
+      // never a new draft, never a forced posting. Also covers a repeat
+      // AFTER the document parked on the NEXT genuine gate: the recorded
+      // fact is acknowledged and the current hold is re-surfaced honestly.
+      factSaved = true;
+    } else {
+      // WHICH fact is actually required comes from the same ACTUAL kernel
+      // gate the view reads (a dry-run of the real draft-voucher generator),
+      // so the confirmation can never record a fact the kernel did not ask
+      // for — and never 400s a fact that is genuinely the missing one.
+      const required =
+        await this.proposeDraft.requiredMissingSupplierFact(documentId);
+      if (required == null) {
+        throw new BadRequestException(
+          `Document ${documentId} is not held on a missing supplier fact of ` +
+            `this family — retry the AI run or classify it manually`,
+        );
+      }
+      if (required !== fact) {
+        throw new BadRequestException(
+          `The missing fact for this document is ${required}, not ${fact}`,
+        );
+      }
+      // The legitimate entity update path (the hold's own how-to-resolve).
+      await this.entities.update(
+        entity.id,
+        fact === 'taxStatus'
+          ? { taxStatus: value as 'taxable_business' | 'non_taxable' }
+          : { goodsVsServices: value as 'goods' | 'services' },
+      );
+      factSaved = true;
+    }
+
+    // Resume the chain. STRICT PERSISTED EVIDENCE (issue #404): the
+    // re-classification runs from the OCR evidence PERSISTED at intake time
+    // (ADR-0039) — read cache-only, so a missing or tampered artifact is a
+    // typed refusal, never a fresh OCR provider call and never an overwrite
+    // of the stored evidence. The document parks honestly with the saved
+    // fact acknowledged; nothing is classified or booked on evidence that
+    // is gone or untrusted.
+    let outcome: IntakeWorkflowResult;
+    try {
+      const persisted = await this.ocrService.readPersistedMarkdown(documentId);
+      if (!persisted.ok) {
+        this.logger.warn(
+          `Fact saved for document ${documentId} but the persisted OCR ` +
+            `evidence is ${persisted.reason}: ${persisted.detail}`,
+        );
+        outcome = await this.routeNeedsTriage(
+          documentId,
+          `The supplier fact was saved, but this document's persisted OCR ` +
+            `evidence is ${persisted.reason} (${persisted.detail}), so it was ` +
+            `not re-classified automatically and nothing was booked. Retry ` +
+            `the AI run to re-read the document.`,
+        );
+      } else {
+        await this.documents.reprocessDocument(documentId);
+        outcome = await this.processInner(
+          documentId,
+          doc.claimant_id,
+          persisted.markdown,
+        );
+      }
+    } catch (err) {
+      // The fact is RECORDED — that operation result stands even when the
+      // resume fails after it (issue #404): report the saved fact plus the
+      // explicitly unconfirmed processing, never a posting claim. The
+      // document stays safely held for a human retry.
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Fact saved for document ${documentId} but resume failed: ${detail}`,
+      );
+      try {
+        outcome = await this.routeNeedsTriage(
+          documentId,
+          `The supplier fact was saved, but resuming this document's ` +
+            `processing failed: ${detail} Retry the AI run to continue.`,
+        );
+      } catch {
+        // Even the honest hold could not be recorded — the saved fact must
+        // still survive on the error receipt, never silently (issue #404).
+        throw new ConflictException({
+          message:
+            `The supplier fact was saved, but resuming processing failed: ` +
+            `${detail}`,
+          document_id: documentId,
+          entity_id: entity.id,
+          fact,
+          value,
+          fact_saved: true,
+        });
+      }
+    }
+
+    return {
+      status: 'fact_confirmed',
+      document_id: documentId,
+      entity_id: entity.id,
+      fact,
+      value,
+      fact_saved: factSaved,
+      outcome,
+    };
+  }
+
+  /** Assemble the idempotent-replay confirm result: the outcome stands; the
+   * fact is reported saved only if the chain's supplier currently carries
+   * exactly that value (an operation result — it stays true). */
+  /** Assemble the idempotent-replay confirm result: the outcome stands;
+   * nothing is re-run or written. The receipt is attributed to the
+   * AUTHORITATIVE chain supplier captured above by the command — the same
+   * supplier the stale-view guard validated, never a separate raw
+   * earliest-row lookup (which could attribute it to an older editable
+   * row's supplier) and never the client's unvalidated id where the chain
+   * carries no supplier (an invoice replay, a no-chain document — the
+   * receipt stays null/not-saved there, exactly as before). The fact is
+   * reported saved only if that supplier currently carries exactly this
+   * value (an operation result — it stays true). */
+  private async confirmReplayResult(
+    documentId: number,
+    chainSupplierId: number | null,
+    fact: MissingEntityFact,
+    value: string,
+    outcome: IntakeWorkflowResult,
+  ): Promise<ConfirmEntityFactResult> {
+    let entityId: number | null = null;
+    let factSaved = false;
+    if (chainSupplierId != null) {
+      try {
+        const entity = await this.entities.findById(chainSupplierId);
+        entityId = entity.id;
+        const current =
+          fact === 'taxStatus' ? entity.tax_status : entity.goods_vs_services;
+        factSaved = current === value;
+      } catch {
+        // A stale entity (deleted since the hold) — nothing derivable; the
+        // receipt stays honest (not saved) while the outcome stands.
+      }
+    }
+    return {
+      status: 'fact_confirmed',
+      document_id: documentId,
+      entity_id: entityId,
+      fact,
+      value,
+      fact_saved: factSaved,
+      outcome,
     };
   }
 
@@ -1442,10 +1957,12 @@ export class IntakeWorkflowService {
     documentId: number,
     reason: string,
     failure?: IntakeFailure,
+    reasonType?: TriageReasonType,
   ): Promise<NeedsTriageOutcome> {
-    const reasonType: TriageReasonType = failure
-      ? failureToReasonType(failure)
-      : classifyReasonType(reason);
+    const resolvedType: TriageReasonType =
+      reasonType ??
+      (failure ? failureToReasonType(failure) : classifyReasonType(reason));
+    const reasonTypeToPersist: TriageReasonType = resolvedType;
 
     // Deterministic idempotency guard: reuse an existing open finding.
     let finding = await this.auditFindings.findOpenByReference(
@@ -1459,7 +1976,7 @@ export class IntakeWorkflowService {
         finding_type: 'needs_triage',
         severity: 'medium',
         description: reason,
-        reason_type: reasonType,
+        reason_type: reasonTypeToPersist,
         referenced_object_type: 'document',
         referenced_object_id: documentId,
       });
@@ -1470,9 +1987,13 @@ export class IntakeWorkflowService {
       await this.auditFindings.updateTriageReason(
         finding.id,
         reason,
-        reasonType,
+        reasonTypeToPersist,
       );
-      finding = { ...finding, description: reason, reason_type: reasonType };
+      finding = {
+        ...finding,
+        description: reason,
+        reason_type: reasonTypeToPersist,
+      };
     }
 
     try {

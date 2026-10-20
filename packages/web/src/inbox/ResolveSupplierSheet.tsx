@@ -69,7 +69,7 @@ export function ResolveSupplierSheet({
   // Untouched-only functional updates (ClassifyExpenseSheet's pattern): the
   // operator may already be typing when the draft lands.
   useEffect(() => {
-    if (!prefilled && draftQ.data !== undefined) {
+    if (!prefilled && draftQ.data?.kind === 'supplier_proposal') {
       const proposal = draftQ.data.supplier_proposal;
       const offered =
         proposal.kind === 'create'

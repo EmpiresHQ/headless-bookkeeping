@@ -41,6 +41,7 @@ describe('ResolveSupplierSheet', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'supplier unresolved',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'create',
         create_name: 'Circle K Eesti AS',
@@ -183,6 +184,7 @@ describe('ResolveSupplierSheet', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'supplier unresolved',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'create',
         create_name: 'Bolt Operations OÜ',
@@ -222,6 +224,7 @@ describe('ResolveSupplierSheet', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'match proposal references entity 705731, which does not exist',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'invalid_match',
         observed_country: 'EE',
@@ -263,6 +266,7 @@ describe('ResolveSupplierSheet', () => {
     vi.mocked(api.getPendingDraft).mockResolvedValue({
       document_id: 12,
       reason: 'supplier could not be resolved',
+      kind: 'supplier_proposal',
       supplier_proposal: {
         kind: 'invalid_match',
         observed_country: null,

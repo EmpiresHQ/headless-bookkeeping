@@ -37,6 +37,7 @@ const DRAFT = (
 ): PendingDraft => ({
   document_id: 12,
   reason: 'supplier could not be resolved automatically',
+  kind: 'supplier_proposal',
   supplier_proposal: proposal,
   draft: {
     category: 'transport',
