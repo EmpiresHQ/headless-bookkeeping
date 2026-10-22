@@ -159,8 +159,8 @@ category and USD amount are unchanged. After screenshot:
 All8 focused cases (invoice follow-up + read-only Expense) passed. The successful
 16 confirmation cases and4 expense-create cases were not repeated unnecessarily.
 
-Proposed linked **P2 candidate**, with synthetic/native distinction explicit:
-`/tmp/hbk-issue-loop/issue297-linked-hero-proposal.md`. No issue was published.
+Confirmed **P2**: [#418](https://github.com/EmpiresHQ/headless-bookkeeping/issues/418),
+with the synthetic/native distinction explicit.
 The coordinator was notified of the local-only style edit before it was made;
 no shared component coordination or #300 edit was required.
 
@@ -180,8 +180,7 @@ no shared component coordination or #300 edit was required.
   wheel, clicks and CDP keyboard events in mobile/touch-emulated contexts were.
 - Physical devices, native/OS200%, real toolbars, actual on-screen keyboard,
   Safari/Firefox and untested other dialog call sites remain **unproven**.
-  Whether #297 can close under these bounded conditions is the coordinator's
-  decision. No PR/merge/deploy/closure was performed by this worker.
+  #297 remains open for these remaining checks.
 
 Evidence is under [issue-297/](issue-297/), with screenshot names containing
 viewport/mode/flow, raw JSON, before/after console output and build/test logs.
