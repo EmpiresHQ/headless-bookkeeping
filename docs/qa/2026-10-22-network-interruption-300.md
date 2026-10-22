@@ -1,9 +1,9 @@
 # #300: real-service network interruption QA
 
 **QA complete for this bounded environment; acceptance is not fully satisfied.**
-One reproducible defect needs a coordinator-created linked issue (proposed P2,
-text below). Physical-device suspension remains untested. No product fix,
-publication or production mutation was performed.
+The reproduced P2 defect is tracked in [#420](https://github.com/EmpiresHQ/headless-bookkeeping/issues/420).
+Physical-device suspension remains untested. #300 and #420 remain open.
+No product fix or production mutation was performed.
 
 This extends the earlier [mocked run](2026-09-24-network-background-mutations.md)
 and [mocked follow-up](2026-09-24-network-background-mutations-followup.md).
@@ -80,12 +80,12 @@ cases. Final case deltas are authoritative, not the total fixture row count.
 The four Documents have five source records: hash-deduplicated re-upload retains
 provenance; this is not a duplicate Document.
 
-## Confirmed defect — proposed linked issue text (P2)
+## Confirmed defect — #420 (P2)
 
 **Title:** One create action can create two Expense drafts when Chromium retries
 an empty response after server commit.
 
-**Related:** #300, #251, #259, ADR-0040. Priority proposal: **P2** — reproducible
+**Related:** #300, #251, #259, ADR-0040. Priority: **P2** — reproducible
 extra unposted business object and misleading single-success attribution; this
 run does not establish duplicate posted ledger entries.
 
@@ -118,8 +118,8 @@ by amount/date/supplier alone is not an acceptable fix.
 excluded new server idempotency and acknowledged lost-create duplicates. Extending
 that contract across client create and server persistence is a separate decision
 for the coordinator; the transport-level manifestation is now demonstrated on the
-real backend. No shared dialog code owned by #297 was changed. The linked defect
-has not been published; its creation/status belongs to the coordinator.
+real backend. No shared dialog code owned by #297 was changed. The linked defect [#420](https://github.com/EmpiresHQ/headless-bookkeeping/issues/420)
+remains open for the create-contract change.
 
 ## Reproduction and artifacts
 
@@ -154,7 +154,7 @@ from the bank verdict. No successful full test suites were repeated: product cod
 is unchanged; production web build, actual HTTP/browser matrix, syntax/format and
 DB audit are the relevant checks.
 
-**Still open:** linked defect publication/fix, physical mobile suspension/resume,
+**Still open:** #420 fix, physical mobile suspension/resume,
 physical network switching, TLS/HTTP2 transport behavior, automatic intake worker
 scheduling, live OCR/AI/provider outages, production Policy/data. No physical-device,
 production, or universal accounting-idempotency pass is claimed.
