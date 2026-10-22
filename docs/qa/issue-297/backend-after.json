@@ -1,0 +1,22 @@
+{
+  "synthetic": true,
+  "node": "v24.21.0",
+  "counts": {
+    "entity": 4,
+    "expense": 1,
+    "voucher": 0,
+    "reconciliation_match": 0
+  },
+  "expense": [
+    {
+      "id": 297,
+      "status": "draft",
+      "gross_amount": 999999999,
+      "currency": "USD",
+      "supplier_invoice_number": "SYNTHETIC-INVOICE-297-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-LONG-MEANINGFUL-SUFFIX"
+    }
+  ],
+  "foreignKeyCheck": [],
+  "base": "bc1cb5af1578ed3a2cf744e630c2342918b2b818",
+  "fixedIndexSha256": "8964d03fe3262e31c4cd54d2d70a03c2dccf140c60022cf8abf277b6169d63dc"
+}

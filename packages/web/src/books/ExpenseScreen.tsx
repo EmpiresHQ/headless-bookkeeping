@@ -25,7 +25,7 @@ import { AmountText } from '../ui/AmountText';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SkeletonRows } from '../ui/Feedback';
-import { KeyValue, ListGroup, ListRow } from '../ui/List';
+import { KeyValue, ListGroup, ListRow, READABLE } from '../ui/List';
 import { LoadError, RefetchError } from '../ui/LoadError';
 import { toastErr, toastOk } from '../ui/toast';
 import { statusChip } from './chips';
@@ -189,7 +189,7 @@ export function ExpenseScreen() {
       {periodNotice}
       <RefetchError query={detailQ} />
 
-      <div className="px-5 pb-4 pt-1 text-center">
+      <div className={`px-5 pb-4 pt-1 text-center ${READABLE}`}>
         <AmountText
           cents={-detail.gross_amount}
           currency={detail.currency}
