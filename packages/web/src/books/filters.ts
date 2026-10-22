@@ -11,7 +11,12 @@ import { ORDER_PARAMS, type OrderSemantics } from './listOrder';
 
 /** Params owned by individual segments — dropped on segment switch (a Draft
  *  filter has no meaning on Documents); ?q= survives. */
-export const SEGMENT_PARAMS = ['status', 'nodoc', 'dstatus'] as const;
+export const SEGMENT_PARAMS = [
+  'status',
+  'nodoc',
+  'dstatus',
+  'include_cancelled',
+] as const;
 
 /** What each segment's search matches (issue #276) — the wording mirrors the
  *  segment's actual predicate, never more: Documents and Credit notes are

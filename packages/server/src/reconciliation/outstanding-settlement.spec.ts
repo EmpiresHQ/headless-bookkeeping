@@ -648,6 +648,21 @@ describe('outstanding balance across every linked settlement (#202)', () => {
 
   // ── AP: supplier symmetry ─────────────────────────────────────────────
 
+  it('keeps a fully paid unreversed expense visible at its purchase amount (#397)', async () => {
+    const supplierId = await seedSupplier();
+    const { expenseId, voucherId } = await postExpense(supplierId, 10000);
+    await settleWithCash(voucherId, 10000, false);
+    expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
+    expect(await expenses.listExpenses()).toEqual([
+      expect.objectContaining({
+        id: expenseId,
+        effective_gross_amount: 10000,
+        cancelled: false,
+        reconciled: true,
+      }),
+    ]);
+  });
+
   it('a fully credited expense has zero payable and is not offered', async () => {
     const supplierId = await seedSupplier();
     const { expenseId, voucherId } = await postExpense(supplierId, 12400, 2400);
@@ -656,6 +671,13 @@ describe('outstanding balance across every linked settlement (#202)', () => {
 
     expect(await outstanding.getRemainingVoucherBalance(voucherId)).toBe(0);
     expect(await controlBalance('AP')).toBe(0);
+    expect(await expenses.listExpenses()).toEqual([
+      expect.objectContaining({
+        id: expenseId,
+        cancelled: false,
+        effective_gross_amount: 12400,
+      }),
+    ]);
 
     const [candidate] =
       await outstanding.findApCandidatesByCounterparty(supplierId);

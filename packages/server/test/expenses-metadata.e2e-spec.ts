@@ -16,6 +16,7 @@ import { ExpensesService } from '../src/expenses/expenses.service';
 import { PostingService } from '../src/ledger/posting/posting.service';
 import { ReportingPeriodsService } from '../src/reporting-periods/reporting-periods.service';
 import { CategoryService } from '../src/categories/category.service';
+import { CorrectionsService } from '../src/corrections/corrections.service';
 import { Expense } from '../src/expenses/types';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -106,6 +107,53 @@ describe('Expenses document-metadata PATCH E2E', () => {
     await expensesService.updateExpenseStatus(expense.id, 'posted', posted.id);
     return expensesService.getExpenseById(expense.id);
   }
+
+  it('GET list excludes cancelled rows before aggregation and exposes explicit history and detail', async () => {
+    const cancelled = await seedPostedExpense(app, {
+      gross: 10000,
+      vat: 0,
+      date: '2026-03-15',
+    });
+    const replacement = await seedPostedExpense(app, {
+      gross: 8000,
+      vat: 0,
+      date: '2026-04-15',
+    });
+    const corrections = app.get(CorrectionsService);
+    await corrections.correctExpense(cancelled.id, {
+      kind: 'reversal',
+      reason: 'Cancelled',
+    });
+    await corrections.correctExpense(replacement.id, {
+      kind: 'financial',
+      reason: 'Restated',
+      patch: { gross_amount: 5000 },
+    });
+    const get = (path: string) =>
+      request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', `Bearer ${token}`);
+    const active = await get('/api/expenses').expect(200);
+    expect(active.body.expenses).toEqual([
+      expect.objectContaining({
+        id: replacement.id,
+        effective_gross_amount: 5000,
+        cancelled: false,
+      }),
+    ]);
+    const history = await get('/api/expenses?include_cancelled=1').expect(200);
+    expect(history.body.expenses).toHaveLength(2);
+    expect(history.body.expenses[0]).toMatchObject({
+      id: cancelled.id,
+      effective_gross_amount: 0,
+      cancelled: true,
+    });
+    await get(`/api/expenses/${cancelled.id}`).expect(200);
+    expect(
+      (await get('/api/expenses?include_cancelled=0').expect(200)).body
+        .expenses,
+    ).toHaveLength(1);
+  });
 
   async function lockPeriodCovering(
     app: INestApplication<App>,
