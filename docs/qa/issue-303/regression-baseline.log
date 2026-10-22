@@ -1,0 +1,48 @@
+npm notice run @headless-bookkeeping/web@0.0.1 test
+npm notice run vitest run src/bank/StatementScreen.position.test.tsx --minWorkers=1 --maxWorkers=2
+
+ RUN  v2.1.9 /root/.cache/hbk-worktrees/issue-303/packages/web
+
+ ❯ src/bank/StatementScreen.position.test.tsx (10 tests | 1 failed) 2314ms
+   ✓ StatementScreen list return (issue #355) > header Back lands on the SECOND proposal control opened, focused — not the first, the checkbox or the line 356ms
+   ✓ StatementScreen list return (issue #355) > browser Back lands on a staged control, never its Confirm 337ms
+   ✓ StatementScreen list return (issue #355) > a failed proposals read still returns (settled); its Retry re-anchors the exact control 395ms
+   × statement selection across a detail visit (#303) > keeps explicit selections and deselections after Back, including an empty selection 211ms
+     → expect(element).toHaveAttribute("aria-checked", "true") // element.getAttribute("aria-checked") === "true"
+
+Expected the element to have attribute:
+  aria-checked="true"
+Received:
+  aria-checked="false"
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/bank/StatementScreen.position.test.tsx > statement selection across a detail visit (#303) > keeps explicit selections and deselections after Back, including an empty selection
+Error: expect(element).toHaveAttribute("aria-checked", "true") // element.getAttribute("aria-checked") === "true"
+
+Expected the element to have attribute:
+  aria-checked="true"
+Received:
+  aria-checked="false"
+ ❯ src/bank/StatementScreen.position.test.tsx:357:7
+    355|     expect(
+    356|       screen.getByRole('checkbox', { name: 'Select match Expense #71' …
+    357|     ).toHaveAttribute('aria-checked', 'true');
+       |       ^
+    358|     expect(
+    359|       screen.getByRole('checkbox', { name: 'Select match Expense #72' …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  11:29:55
+   Duration  3.93s (transform 514ms, setup 49ms, collect 749ms, tests 2.31s, environment 408ms, prepare 208ms)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /root/.cache/hbk-worktrees/issue-303/packages/web
+npm error workspace @headless-bookkeeping/web@0.0.1
+npm error location /root/.cache/hbk-worktrees/issue-303/packages/web
+npm error command failed
+npm error command sh -c vitest run src/bank/StatementScreen.position.test.tsx --minWorkers=1 --maxWorkers=2

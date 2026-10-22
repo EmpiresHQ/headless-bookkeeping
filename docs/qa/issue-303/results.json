@@ -1,0 +1,595 @@
+{
+  "synthetic": true,
+  "started": "2026-10-22T08:32:03.514Z",
+  "node": "v26.8.2",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "cases": [
+        {
+          "name": "Books cold complete list",
+          "ok": true,
+          "ms": 1291,
+          "geometry": {
+            "rows": 1200,
+            "overflowRows": 0,
+            "horizontalOverflow": false,
+            "mainWidth": 1440
+          }
+        },
+        {
+          "name": "Books search and fast typing",
+          "ok": true,
+          "ms": 1576,
+          "expected": 1,
+          "actual": 1,
+          "query": "SYNTHETIC-INVOICE-303-000617",
+          "typingDelayMs": 40
+        },
+        {
+          "name": "Books date range and largest ordering",
+          "ok": true,
+          "ms": 2065,
+          "expected": 600,
+          "actual": 600,
+          "url": "/books?from=2026-01-01&to=2026-12-31&sort=largest",
+          "currencyGroups": {
+            "EUR": 540,
+            "USD": 60
+          },
+          "summary": "Books\n+\nExpenses\nInvoices\nDocuments\nCredit notes\n\u2315\nMatches supplier, invoice number, category or amount.\nDates & order \u00b7 1 Jan 2026 \u2013 31 Dec 2026 \u00b7 largest amount first\nFrom\nTo\nOrder\nNewest first\nOldest first\nLargest amount first (per currency)\nSmallest amount first (per currency)\n\nBoth dates included, on the tax point date, drafts included. This is a calendar filter, not a reporting period: period figures are in Reports.\n\nAll\nDraft 386\nPending 200\nPosted 14\nCorrected 0\n\ud83d\udcce No document 600\n\nShowing 600 of 1200 expenses \u00b7 total \u2212327245.40\u00a0\u20ac \u00b7 \u221212381433.49\u00a0USD \u00b7 Tax point 1 Jan 2026 \u2013 31 Dec 2026 \u00b7 Largest amount first\n\nReset\n\nAMOUNTS IN EUR\n\u2212327245.40\u00a0\u20ac \u00b7 540\n\nSUPPLIER\nCATEGORY\nINVOICE NO.\nTAX POINT\nNOTES\nAMOUNT\nSTATUS\nSYNTHETIC Tarnija 299\nsoftware\nInvoice no.\nSYNTHETIC-INVOICE-303-001198-LONG-IDENTIFIER\n23 Nov\n\ud83d\udcce no document\n\u22121209.99 \u20ac\ndraft\n\u203a\nSYNTHETIC Tarnija 297\nsoftware\nInvoice no.\nSYNTHETIC-INVOICE-303-001196-LONG-IDENTIFIER\n21 Sep\n\ud83d\udcce no document\n\u22121207.97 \u20ac\ndraft\n\u203a\nSYNTHETIC Tarnija 295\nsoftware\nInvoice no.\nSYNTHETIC-INVOICE-303-001194-LONG-IDENTIFIER\n19 Jul\n\ud83d\udcce no document\n\u22121205"
+        },
+        {
+          "name": "Books status filter",
+          "ok": true,
+          "ms": 1389,
+          "expected": 770,
+          "actual": 770
+        },
+        {
+          "name": "/books deep open and return",
+          "ok": true,
+          "ms": 4583,
+          "iterations": [
+            {
+              "index": 5,
+              "href": "/books/expenses/838",
+              "key": "",
+              "openMs": 182,
+              "backMs": 454,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 600,
+              "href": "/books/expenses/84",
+              "key": "",
+              "openMs": 100,
+              "backMs": 451,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 1150,
+              "href": "/books/expenses/601",
+              "key": "",
+              "openMs": 118,
+              "backMs": 390,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 5,
+              "href": "/books/expenses/838",
+              "key": "",
+              "openMs": 87,
+              "backMs": 395,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 600,
+              "href": "/books/expenses/84",
+              "key": "",
+              "openMs": 98,
+              "backMs": 435,
+              "deltaTop": 0,
+              "focused": true
+            }
+          ],
+          "actionsPerIteration": [
+            "scroll target into view",
+            "click row",
+            "browser Back"
+          ]
+        },
+        {
+          "name": "/inbox deep open and return",
+          "ok": false,
+          "ms": 35961,
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "diagnostic": {
+            "url": "http://127.0.0.1:5303/inbox",
+            "scrollY": 53017,
+            "focused": "<a data-position-row=\"\" class=\"flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0\" href=\"/inbox/approval/251\" data-discover=\"true\"><div class=\"flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-3 gap-y-1\"><div class=\"min-w-0 flex-[1_1_8rem] [overflow-wrap:anywhere]\"><div class=\"text-[14.5px] font-semibold\">SYNTHETIC Tarnija 252</div><div class=\"text-[12.5px] text-ink-2\">Held for your approval</div><div class=\"mt-0.5\"><span class=\"inline-block whitespace-nowrap rounded-",
+            "rows": 1000
+          },
+          "iteration": {
+            "path": "/inbox",
+            "index": 500,
+            "href": "/inbox/approval/251",
+            "key": "",
+            "before": {
+              "x": 522,
+              "y": 53398.25,
+              "width": 666,
+              "height": 66.5
+            }
+          }
+        },
+        {
+          "name": "/bank/statements/3 deep open and return",
+          "ok": true,
+          "ms": 5207,
+          "iterations": [
+            {
+              "index": 5,
+              "href": null,
+              "key": "tx:395:proposal:395:4",
+              "openMs": 784,
+              "backMs": 317,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 500,
+              "href": null,
+              "key": "tx:134",
+              "openMs": 408,
+              "backMs": 467,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 990,
+              "href": null,
+              "key": "tx:569",
+              "openMs": 426,
+              "backMs": 327,
+              "deltaTop": 0,
+              "focused": true
+            }
+          ],
+          "actionsPerIteration": [
+            "scroll target into view",
+            "click row",
+            "browser Back"
+          ]
+        },
+        {
+          "name": "Inbox search",
+          "ok": true,
+          "ms": 2698,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "name": "Bank counts search selection",
+          "ok": true,
+          "ms": 2506,
+          "counts": "\u2039 Back\nSep 2026\nDelete\nUnmatched 1000\nAll 1000\n\u2315\nMatches description, counterparty, reference, IBAN, matched document, amount or date. Book matches books only the selected matches shown.\n\nAI PROPOSALS\n\n\u2713\nSYNTHETIC payment 421\n\u2192 2026-09-09 \u00b7 SYNTHETIC-INVOICE-303-000428-LONG-IDENTIFIER low\n\u2212425.22 \u20ac\n2 Sep\n\u2713\nSYNTHETIC payment 422\n\u2192 2026-09-09 \u00b7 SYNTHETIC-INVOICE-303-000428-LONG-IDENTIFIER low\n\u2212426.23 \u20ac\n3 Sep\n\u2713\nSYNTHETIC payment 423\n\u2192 2026-09-09 \u00b7 S",
+          "proposalCheckboxes": 45,
+          "selection": {
+            "chosen": 0,
+            "after": 1,
+            "toggleMs": 118
+          },
+          "searchMatches": 1
+        },
+        {
+          "name": "Repeated sidebar navigation",
+          "ok": true,
+          "ms": 6747,
+          "rounds": [
+            {
+              "Books": 459,
+              "Inbox": 954,
+              "Bank": 1607
+            },
+            {
+              "Books": 665,
+              "Inbox": 522,
+              "Bank": 556
+            },
+            {
+              "Books": 617,
+              "Inbox": 727,
+              "Bank": 640
+            }
+          ]
+        }
+      ],
+      "pageErrors": [],
+      "httpErrors": [
+        {
+          "url": "/api/documents/596/pending-draft",
+          "status": 404
+        }
+      ],
+      "requests": {
+        "GET /books": 4,
+        "GET /assets/index-CQOg7C6T.js": 8,
+        "GET /assets/index-Bttjh17n.css": 8,
+        "GET /assets/BooksScreen-CrRSE1nx.js": 5,
+        "GET /assets/useSeg-6uOl8B-_.js": 7,
+        "GET /assets/useSheet-BzvdqMjo.js": 8,
+        "GET /assets/SearchInput-DUngttPK.js": 8,
+        "GET /assets/SegmentedControl-ByAxaI0C.js": 8,
+        "GET /assets/UploadDocumentSheet-Bb2u4il4.js": 7,
+        "GET /assets/pendingOperation-BQ9bo-vU.js": 8,
+        "GET /assets/returnNavigation-CQw-i6KK.js": 8,
+        "GET /assets/Form-889SRRQq.js": 8,
+        "GET /assets/Lookup-B1z2DThs.js": 8,
+        "GET /assets/Sheet-IJopVVaX.js": 8,
+        "GET /assets/x-D17kCF9l.js": 8,
+        "GET /assets/uploadFlow-DV6AcFKZ.js": 7,
+        "GET /assets/file-image-B7h9axgY.js": 7,
+        "GET /assets/BooksRow-OElSIGMw.js": 5,
+        "GET /assets/filters-OSPHPy9n.js": 8,
+        "GET /assets/money-CxGBWYkj.js": 8,
+        "GET /assets/books-8YtC7F9D.js": 8,
+        "GET /assets/format-DULlYMUa.js": 7,
+        "GET /assets/entityOptions-Gg3z1mqC.js": 5,
+        "GET /assets/CreditNotesSegment-DWKGgZ7I.js": 5,
+        "GET /assets/AmountText-BNKfMb0b.js": 8,
+        "GET /assets/LinkButton-8yroPgDY.js": 6,
+        "GET /assets/LoadError-DX7zIrLI.js": 8,
+        "GET /assets/chips-DY-EXBQS.js": 8,
+        "GET /assets/Chip-DyNfX-uN.js": 8,
+        "GET /assets/DocumentsSegment-x1VIBGyb.js": 5,
+        "GET /assets/reason-C6Bidz1n.js": 7,
+        "GET /assets/relativeTime-CGTlYrz7.js": 7,
+        "GET /assets/GroupHeader-BgGwvHTP.js": 5,
+        "GET /api/triage/needs-triage": 9,
+        "GET /api/approvals/pending": 11,
+        "GET /api/expenses": 7,
+        "GET /api/entities": 7,
+        "GET /api/documents": 5,
+        "GET /assets/ExpenseScreen-CkNDvvjt.js": 1,
+        "GET /assets/format-ZIsHwniv.js": 2,
+        "GET /assets/posting-BjPhgk0q.js": 1,
+        "GET /assets/reports-C2pqPMfS.js": 1,
+        "GET /assets/useQueries-DQtC4shh.js": 3,
+        "GET /assets/checkStatus-CZVyu_T4.js": 1,
+        "GET /assets/PlaceOfSupplyControls-C835eTx_.js": 2,
+        "GET /assets/screenEntry-BdbXyfCi.js": 3,
+        "GET /api/expenses/:id": 4,
+        "GET /api/approvals": 2,
+        "GET /inbox": 2,
+        "GET /assets/InboxScreen-YLtZvZkH.js": 3,
+        "GET /assets/useOpenOriginal-FPI44PuJ.js": 3,
+        "GET /assets/searchText-BqAVlYfy.js": 4,
+        "GET /assets/queueRun-DtPxQh-Q.js": 3,
+        "GET /api/reporting-periods": 3,
+        "GET /api/sales-invoices": 3,
+        "GET /api/documents/:id/preview": 4201,
+        "GET blob:preview": 3416,
+        "GET /assets/TriageDocScreen-3AyeEFNG.js": 1,
+        "GET /assets/DocPreviewRow-BafnRewU.js": 1,
+        "GET /assets/useInboxCompletion-DV4mbQix.js": 1,
+        "GET /api/documents/:id/pending-draft": 1,
+        "GET /api/categories": 2,
+        "GET /api/documents/:id/details": 1,
+        "GET /assets/ApprovalScreen-DaHjfaK1.js": 1,
+        "GET /bank/statements/:id": 2,
+        "GET /assets/StatementScreen-BjTGs4AF.js": 2,
+        "GET /assets/bank-WG3QHW8w.js": 2,
+        "GET /assets/lineResults-CVhn6NNy.js": 2,
+        "GET /api/bank-statements": 2,
+        "GET /api/bank-statements/:id/transactions": 26,
+        "GET /api/bank-statements/:id/reconciliation": 26,
+        "GET /api/bank-statements/:id/matches": 2,
+        "POST /api/bank-statements/:id/propose-matches": 2,
+        "GET /assets/TxScreen-DAXQC8Gs.js": 1,
+        "GET /api/bank-statements/:id/match-candidates": 3,
+        "GET /assets/StatementsScreen-ByE1Gj5N.js": 1
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "cases": [
+        {
+          "name": "Books cold complete list",
+          "ok": true,
+          "ms": 1325,
+          "geometry": {
+            "rows": 1200,
+            "overflowRows": 0,
+            "horizontalOverflow": false,
+            "mainWidth": 1920
+          }
+        },
+        {
+          "name": "Books search and fast typing",
+          "ok": true,
+          "ms": 1564,
+          "expected": 1,
+          "actual": 1,
+          "query": "SYNTHETIC-INVOICE-303-000617",
+          "typingDelayMs": 40
+        },
+        {
+          "name": "Books date range and largest ordering",
+          "ok": true,
+          "ms": 2104,
+          "expected": 600,
+          "actual": 600,
+          "url": "/books?from=2026-01-01&to=2026-12-31&sort=largest",
+          "currencyGroups": {
+            "EUR": 540,
+            "USD": 60
+          },
+          "summary": "Books\n+\nExpenses\nInvoices\nDocuments\nCredit notes\n\u2315\nMatches supplier, invoice number, category or amount.\nDates & order \u00b7 1 Jan 2026 \u2013 31 Dec 2026 \u00b7 largest amount first\nFrom\nTo\nOrder\nNewest first\nOldest first\nLargest amount first (per currency)\nSmallest amount first (per currency)\n\nBoth dates included, on the tax point date, drafts included. This is a calendar filter, not a reporting period: period figures are in Reports.\n\nAll\nDraft 386\nPending 200\nPosted 14\nCorrected 0\n\ud83d\udcce No document 600\n\nShowing 600 of 1200 expenses \u00b7 total \u2212327245.40\u00a0\u20ac \u00b7 \u221212381433.49\u00a0USD \u00b7 Tax point 1 Jan 2026 \u2013 31 Dec 2026 \u00b7 Largest amount first\n\nReset\n\nAMOUNTS IN EUR\n\u2212327245.40\u00a0\u20ac \u00b7 540\n\nSUPPLIER\nCATEGORY\nINVOICE NO.\nTAX POINT\nNOTES\nAMOUNT\nSTATUS\nSYNTHETIC Tarnija 299\nsoftware\nInvoice no.\nSYNTHETIC-INVOICE-303-001198-LONG-IDENTIFIER\n23 Nov\n\ud83d\udcce no document\n\u22121209.99 \u20ac\ndraft\n\u203a\nSYNTHETIC Tarnija 297\nsoftware\nInvoice no.\nSYNTHETIC-INVOICE-303-001196-LONG-IDENTIFIER\n21 Sep\n\ud83d\udcce no document\n\u22121207.97 \u20ac\ndraft\n\u203a\nSYNTHETIC Tarnija 295\nsoftware\nInvoice no.\nSYNTHETIC-INVOICE-303-001194-LONG-IDENTIFIER\n19 Jul\n\ud83d\udcce no document\n\u22121205"
+        },
+        {
+          "name": "Books status filter",
+          "ok": true,
+          "ms": 1261,
+          "expected": 770,
+          "actual": 770
+        },
+        {
+          "name": "/books deep open and return",
+          "ok": true,
+          "ms": 4763,
+          "iterations": [
+            {
+              "index": 5,
+              "href": "/books/expenses/838",
+              "key": "",
+              "openMs": 218,
+              "backMs": 481,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 600,
+              "href": "/books/expenses/84",
+              "key": "",
+              "openMs": 118,
+              "backMs": 508,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 1150,
+              "href": "/books/expenses/601",
+              "key": "",
+              "openMs": 110,
+              "backMs": 480,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 5,
+              "href": "/books/expenses/838",
+              "key": "",
+              "openMs": 89,
+              "backMs": 405,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 600,
+              "href": "/books/expenses/84",
+              "key": "",
+              "openMs": 104,
+              "backMs": 473,
+              "deltaTop": 0,
+              "focused": true
+            }
+          ],
+          "actionsPerIteration": [
+            "scroll target into view",
+            "click row",
+            "browser Back"
+          ]
+        },
+        {
+          "name": "/inbox deep open and return",
+          "ok": false,
+          "ms": 35628,
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "diagnostic": {
+            "url": "http://127.0.0.1:5303/inbox",
+            "scrollY": 53336,
+            "focused": "<a data-position-row=\"\" class=\"flex min-w-0 flex-1 items-center gap-3 after:absolute after:inset-0\" href=\"/inbox/approval/251\" data-discover=\"true\"><div class=\"flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-3 gap-y-1\"><div class=\"min-w-0 flex-[1_1_8rem] [overflow-wrap:anywhere]\"><div class=\"text-[14.5px] font-semibold\">SYNTHETIC Tarnija 252</div><div class=\"text-[12.5px] text-ink-2\">Held for your approval</div><div class=\"mt-0.5\"><span class=\"inline-block whitespace-nowrap rounded-",
+            "rows": 1000
+          },
+          "iteration": {
+            "path": "/inbox",
+            "index": 500,
+            "href": "/inbox/approval/251",
+            "key": "",
+            "before": {
+              "x": 762,
+              "y": 53488.25,
+              "width": 666,
+              "height": 66.5
+            }
+          }
+        },
+        {
+          "name": "/bank/statements/3 deep open and return",
+          "ok": true,
+          "ms": 5481,
+          "iterations": [
+            {
+              "index": 5,
+              "href": null,
+              "key": "tx:395:proposal:395:4",
+              "openMs": 777,
+              "backMs": 325,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 500,
+              "href": null,
+              "key": "tx:134",
+              "openMs": 397,
+              "backMs": 502,
+              "deltaTop": 0,
+              "focused": true
+            },
+            {
+              "index": 990,
+              "href": null,
+              "key": "tx:569",
+              "openMs": 378,
+              "backMs": 700,
+              "deltaTop": 0,
+              "focused": true
+            }
+          ],
+          "actionsPerIteration": [
+            "scroll target into view",
+            "click row",
+            "browser Back"
+          ]
+        },
+        {
+          "name": "Inbox search",
+          "ok": true,
+          "ms": 2824,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "name": "Bank counts search selection",
+          "ok": true,
+          "ms": 2543,
+          "counts": "\u2039 Back\nSep 2026\nDelete\nUnmatched 1000\nAll 1000\n\u2315\nMatches description, counterparty, reference, IBAN, matched document, amount or date. Book matches books only the selected matches shown.\n\nAI PROPOSALS\n\n\u2713\nSYNTHETIC payment 421\n\u2192 2026-09-09 \u00b7 SYNTHETIC-INVOICE-303-000428-LONG-IDENTIFIER low\n\u2212425.22 \u20ac\n2 Sep\n\u2713\nSYNTHETIC payment 422\n\u2192 2026-09-09 \u00b7 SYNTHETIC-INVOICE-303-000428-LONG-IDENTIFIER low\n\u2212426.23 \u20ac\n3 Sep\n\u2713\nSYNTHETIC payment 423\n\u2192 2026-09-09 \u00b7 S",
+          "proposalCheckboxes": 45,
+          "selection": {
+            "chosen": 0,
+            "after": 1,
+            "toggleMs": 129
+          },
+          "searchMatches": 1
+        },
+        {
+          "name": "Repeated sidebar navigation",
+          "ok": true,
+          "ms": 9798,
+          "rounds": [
+            {
+              "Books": 552,
+              "Inbox": 1248,
+              "Bank": 2960
+            },
+            {
+              "Books": 719,
+              "Inbox": 785,
+              "Bank": 760
+            },
+            {
+              "Books": 1384,
+              "Inbox": 767,
+              "Bank": 622
+            }
+          ]
+        }
+      ],
+      "pageErrors": [],
+      "httpErrors": [
+        {
+          "url": "/api/documents/596/pending-draft",
+          "status": 404
+        }
+      ],
+      "requests": {
+        "GET /books": 4,
+        "GET /assets/index-CQOg7C6T.js": 8,
+        "GET /assets/index-Bttjh17n.css": 8,
+        "GET /assets/BooksScreen-CrRSE1nx.js": 5,
+        "GET /assets/useSeg-6uOl8B-_.js": 7,
+        "GET /assets/useSheet-BzvdqMjo.js": 8,
+        "GET /assets/SearchInput-DUngttPK.js": 8,
+        "GET /assets/SegmentedControl-ByAxaI0C.js": 8,
+        "GET /assets/UploadDocumentSheet-Bb2u4il4.js": 7,
+        "GET /assets/pendingOperation-BQ9bo-vU.js": 8,
+        "GET /assets/returnNavigation-CQw-i6KK.js": 8,
+        "GET /assets/Form-889SRRQq.js": 8,
+        "GET /assets/Lookup-B1z2DThs.js": 8,
+        "GET /assets/Sheet-IJopVVaX.js": 8,
+        "GET /assets/x-D17kCF9l.js": 8,
+        "GET /assets/uploadFlow-DV6AcFKZ.js": 7,
+        "GET /assets/file-image-B7h9axgY.js": 7,
+        "GET /assets/BooksRow-OElSIGMw.js": 5,
+        "GET /assets/filters-OSPHPy9n.js": 8,
+        "GET /assets/money-CxGBWYkj.js": 8,
+        "GET /assets/books-8YtC7F9D.js": 8,
+        "GET /assets/format-DULlYMUa.js": 7,
+        "GET /assets/entityOptions-Gg3z1mqC.js": 5,
+        "GET /assets/CreditNotesSegment-DWKGgZ7I.js": 5,
+        "GET /assets/AmountText-BNKfMb0b.js": 8,
+        "GET /assets/LinkButton-8yroPgDY.js": 6,
+        "GET /assets/LoadError-DX7zIrLI.js": 8,
+        "GET /assets/chips-DY-EXBQS.js": 8,
+        "GET /assets/Chip-DyNfX-uN.js": 8,
+        "GET /assets/DocumentsSegment-x1VIBGyb.js": 5,
+        "GET /assets/reason-C6Bidz1n.js": 7,
+        "GET /assets/relativeTime-CGTlYrz7.js": 7,
+        "GET /assets/GroupHeader-BgGwvHTP.js": 5,
+        "GET /api/triage/needs-triage": 9,
+        "GET /api/approvals/pending": 11,
+        "GET /api/expenses": 7,
+        "GET /api/entities": 7,
+        "GET /api/documents": 5,
+        "GET /assets/ExpenseScreen-CkNDvvjt.js": 1,
+        "GET /assets/format-ZIsHwniv.js": 2,
+        "GET /assets/posting-BjPhgk0q.js": 1,
+        "GET /assets/reports-C2pqPMfS.js": 1,
+        "GET /assets/useQueries-DQtC4shh.js": 3,
+        "GET /assets/checkStatus-CZVyu_T4.js": 1,
+        "GET /assets/PlaceOfSupplyControls-C835eTx_.js": 2,
+        "GET /assets/screenEntry-BdbXyfCi.js": 3,
+        "GET /api/expenses/:id": 4,
+        "GET /api/approvals": 2,
+        "GET /inbox": 2,
+        "GET /assets/InboxScreen-YLtZvZkH.js": 3,
+        "GET /assets/useOpenOriginal-FPI44PuJ.js": 3,
+        "GET /assets/searchText-BqAVlYfy.js": 4,
+        "GET /assets/queueRun-DtPxQh-Q.js": 3,
+        "GET /api/reporting-periods": 3,
+        "GET /api/sales-invoices": 3,
+        "GET /api/documents/:id/preview": 4201,
+        "GET blob:preview": 3293,
+        "GET /assets/TriageDocScreen-3AyeEFNG.js": 1,
+        "GET /assets/DocPreviewRow-BafnRewU.js": 1,
+        "GET /assets/useInboxCompletion-DV4mbQix.js": 1,
+        "GET /api/documents/:id/pending-draft": 1,
+        "GET /api/categories": 2,
+        "GET /api/documents/:id/details": 1,
+        "GET /assets/ApprovalScreen-DaHjfaK1.js": 1,
+        "GET /bank/statements/:id": 2,
+        "GET /assets/StatementScreen-BjTGs4AF.js": 2,
+        "GET /assets/bank-WG3QHW8w.js": 2,
+        "GET /assets/lineResults-CVhn6NNy.js": 2,
+        "GET /api/bank-statements": 2,
+        "GET /api/bank-statements/:id/transactions": 26,
+        "GET /api/bank-statements/:id/reconciliation": 26,
+        "GET /api/bank-statements/:id/matches": 2,
+        "POST /api/bank-statements/:id/propose-matches": 2,
+        "GET /assets/TxScreen-DAXQC8Gs.js": 1,
+        "GET /api/bank-statements/:id/match-candidates": 3,
+        "GET /assets/StatementsScreen-ByE1Gj5N.js": 1
+      }
+    }
+  ],
+  "browser": "153.0.8010.12",
+  "requestNormalization": "Ephemeral blob preview URL UUIDs aggregated; original raw file retained in /tmp/hbk-303-run-archive."
+}
