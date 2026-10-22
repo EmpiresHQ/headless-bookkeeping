@@ -4,8 +4,9 @@
 browser exercised 1440×900 and 1920×1080 CSS px against Nest/SQLite over HTTP.
 All fixtures are **SYNTHETIC**. One concrete defect was reproduced and fixed:
 manual Bank match choices disappeared after opening a line and returning.
-Root must independently review and publish the linked finding before resolving
-#303. No push, PR, issue publication, merge, closure or deployment was performed.
+The confirmed defect is tracked in [#416](https://github.com/EmpiresHQ/headless-bookkeeping/issues/416)
+and fixed by [PR #417](https://github.com/EmpiresHQ/headless-bookkeeping/pull/417).
+#303 remains open for the verification gaps recorded below.
 
 ## Environment and provenance
 
@@ -118,8 +119,7 @@ an explicit 250 ms post-return observation pause**. These measurements establish
 retained object context, not exact pixel equality at viewport edges. A later
 wheel-based harness variant failed to obtain its focus predicate and produced no
 usable samples; it is archived, not passed. No additional product bug is claimed
-from those harness failures. Exact Inbox return-position acceptance needs root's
-independent verification.
+from those harness failures. Exact Inbox return-position acceptance remains unverified.
 
 ## Confirmed defect and focused fix
 
@@ -149,8 +149,8 @@ web build/typecheck, scoped ESLint and Prettier checks passed. Node 26 requires
 without it all tests failed in setup, not on the regression. No full suite run.
 
 Proposed priority **P2**, because inspecting a candidate silently changes work
-already selected for Book. Linked issue proposal for root:
-`/tmp/hbk-issue-loop/issue303-linked-selection-proposal.md`. It was not published.
+already selected for Book. See [issue #416](https://github.com/EmpiresHQ/headless-bookkeeping/issues/416)
+for reproduction and priority.
 
 ## Failures, limits and reproducibility
 
@@ -178,8 +178,7 @@ already selected for Book. Linked issue proposal for root:
   cost, scanned-page legibility, document size or human reconciliation time.
   Adwaita fallback fonts were local, not macOS/Windows system fonts.
 - Real current production distribution is unavailable. **#303 is not certified
-  complete for production data or exact Inbox return geometry**. Root owns the
-  acceptance decision, linked issue publication, independent review and deploy.
+  complete for production data or exact Inbox return geometry**. #303 remains open for this remaining verification.
 
 Run from this worktree with fresh local data (do not run seed against an
 existing database). Install dependencies locally, build server/web, start Nest
